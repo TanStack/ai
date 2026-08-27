@@ -30,7 +30,13 @@ export const MEMORY_STATE_EVENT = 'memory:state'
  *  as of the turn's START — the snapshot reflects every prior turn's save; this
  *  turn's own save (deferred) surfaces in the next turn's snapshot. */
 export interface MemoryStateEventValue {
+  /**
+   * Scope for every adapter call. The function form is the safer default for
+   * multi-tenant apps: derive scope per request from trusted, server-validated
+   * chat context — never from client input.
+   */
   scope: MemoryScope
+  /** The memory backend to recall from / save to. */
   adapter: string
   /** The recall query (last user text). */
   query: string
@@ -58,6 +64,7 @@ export type MemoryMiddlewareRole = 'recall+save' | 'save-only'
 
 export interface MemoryRecallInfo {
   scope: MemoryScope
+  /** The recall query (last user text). */
   query: string
   result: RecallResult
 }
@@ -71,11 +78,6 @@ export interface MemorySaveInfo {
 export interface MemoryMiddlewareOptions {
   /** The memory backend to recall from / save to. */
   adapter: MemoryAdapter
-  /**
-   * Scope for every adapter call. The function form is the safer default for
-   * multi-tenant apps: derive scope per request from trusted, server-validated
-   * chat context — never from client input.
-   */
   scope:
     | MemoryScope
     | ((ctx: ChatMiddlewareContext) => MemoryScope | Promise<MemoryScope>)
@@ -107,6 +109,7 @@ const stateByCtx = new WeakMap<ChatMiddlewareContext, MemoryRequestState>()
 export function memoryMiddleware(
   options: MemoryMiddlewareOptions,
 ): ChatMiddleware {
+  /** Participation role. Defaults to `'recall+save'`. */
   const role = options.role ?? 'recall+save'
 
   async function resolveScope(
@@ -131,7 +134,8 @@ export function memoryMiddleware(
       stateByCtx.set(ctx, state)
 
       state.lastUserText = getMessageText(findLastUserMessage(config.messages))
-      if (!state.lastUserText || role === 'save-only') return
+      if (!state.lastUserText) return
+      if (role === 'save-only') return
 
       const startedAt = Date.now()
       let scope: MemoryScope
@@ -173,9 +177,7 @@ export function memoryMiddleware(
       })
       await options.onRecall?.({ scope, query: state.lastUserText, result })
 
-      // Stage the devtools transport chunk (recall metrics + current store
-      // snapshot). Injected into the stream by `onChunk` so it reaches the
-      // browser panel; see MEMORY_STATE_EVENT.
+      /** Live store snapshot, when the adapter supports `inspect`/`listFacts`. */
       const snapshot = await gatherSnapshot(options.adapter, scope)
       state.stateChunk = {
         emitted: false,
@@ -190,7 +192,8 @@ export function memoryMiddleware(
 
       const memoryPrompts = [result.toolGuidance ?? '', result.systemPrompt]
       const additions = memoryPrompts.filter((p) => p.length > 0)
-      if (additions.length === 0 && tools.length === 0) return
+      const nothingToAdd = additions.length === 0 && tools.length === 0
+      if (nothingToAdd) return
 
       const existingToolNames = new Set(config.tools.map((tool) => tool.name))
       const extraTools = tools.filter(
@@ -207,11 +210,9 @@ export function memoryMiddleware(
     },
 
     onChunk(ctx, chunk) {
-      // Inject the staged memory-state chunk exactly once, riding alongside the
-      // first stream chunk (typically RUN_STARTED) so the browser devtools sees
-      // it. Returning an array expands the stream; see ChatMiddleware.onChunk.
       const state = stateByCtx.get(ctx)
-      if (!state?.stateChunk || state.stateChunk.emitted) return
+      if (!state?.stateChunk) return
+      if (state.stateChunk.emitted) return
       state.stateChunk.emitted = true
       const custom: StreamChunk = {
         type: 'CUSTOM',
@@ -228,7 +229,8 @@ export function memoryMiddleware(
       const userText =
         state?.lastUserText || getMessageText(findLastUserMessage(ctx.messages))
       const assistant = info.content
-      if (!userText || !assistant) return
+      if (!userText) return
+      if (!assistant) return
       const scope = state?.resolvedScope
 
       ctx.defer(
@@ -284,10 +286,6 @@ export function memoryMiddleware(
     },
   }
 }
-
-// ===========================
-// Internals
-// ===========================
 
 /**
  * Read the adapter's current stored state via the optional `inspect`/`listFacts`

@@ -78,37 +78,10 @@ export type LiveResponse = {
   }
 }[MultimodalLiveResponseType]
 
-/**
- * Parses response messages from the Gemini Live API
- */
-/**
- * Parses ALL response types from a single server message.
- * The server can now bundle multiple fields (e.g. audio + transcription)
- * in the same message. Returns an array of response objects.
- */
-export function parseResponseMessages(
+function pushSessionFields(
   data: LiveServerMessage,
-): Array<LiveResponse> {
-  const responses: Array<LiveResponse> = []
-  const serverContent = data.serverContent
-  const parts = serverContent?.modelTurn?.parts
-
-  // Setup complete (exclusive — no other fields expected)
-  if (data.setupComplete) {
-    responses.push({ type: 'setup_complete', data: '', endOfTurn: false })
-    return responses
-  }
-
-  // Tool call (exclusive)
-  if (data.toolCall) {
-    responses.push({
-      type: 'tool_call',
-      data: data.toolCall,
-      endOfTurn: false,
-    })
-    return responses
-  }
-
+  responses: Array<LiveResponse>,
+): void {
   if (data.sessionResumptionUpdate) {
     responses.push({
       type: 'session_resumption_update',
@@ -116,11 +89,9 @@ export function parseResponseMessages(
       endOfTurn: false,
     })
   }
-
   if (data.goAway) {
     responses.push({ type: 'go_away', data: data.goAway, endOfTurn: false })
   }
-
   if (data.usageMetadata) {
     responses.push({
       type: 'usage_metadata',
@@ -128,32 +99,45 @@ export function parseResponseMessages(
       endOfTurn: false,
     })
   }
+}
 
-  // Audio data from model turn parts
-  if (parts?.length) {
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        responses.push({
-          type: 'audio',
-          data: {
-            audioData: part.inlineData.data,
-            // The transcription is independent to the model turn, which means it doesn't imply any ordering between transcription and model turn.
-            transcript: '',
-          },
-          endOfTurn: false,
-        })
-      } else if (part.text) {
-        responses.push({
-          type: part.thought ? 'thought' : 'text',
-          data: part.text,
-          endOfTurn: false,
-        })
-      }
+function pushModelTurnParts(
+  parts:
+    | Array<{
+        inlineData?: { data?: string }
+        text?: string
+        thought?: boolean
+      }>
+    | undefined,
+  responses: Array<LiveResponse>,
+): void {
+  if (!parts?.length) return
+  for (const part of parts) {
+    if (part.inlineData?.data) {
+      responses.push({
+        type: 'audio',
+        data: {
+          audioData: part.inlineData.data,
+          transcript: '',
+        },
+        endOfTurn: false,
+      })
+    } else if (part.text) {
+      responses.push({
+        type: part.thought ? 'thought' : 'text',
+        data: part.text,
+        endOfTurn: false,
+      })
     }
   }
+}
 
-  // Transcriptions — checked independently, NOT in else-if with audio
-  if (serverContent?.inputTranscription) {
+function pushServerContent(
+  serverContent: LiveServerMessage['serverContent'],
+  responses: Array<LiveResponse>,
+): void {
+  if (!serverContent) return
+  if (serverContent.inputTranscription) {
     responses.push({
       type: 'input_transcription',
       data: {
@@ -163,8 +147,7 @@ export function parseResponseMessages(
       endOfTurn: false,
     })
   }
-
-  if (serverContent?.outputTranscription) {
+  if (serverContent.outputTranscription) {
     responses.push({
       type: 'output_transcription',
       data: {
@@ -174,17 +157,38 @@ export function parseResponseMessages(
       endOfTurn: false,
     })
   }
-
-  // Interrupted
-  if (serverContent?.interrupted) {
+  if (serverContent.interrupted) {
     responses.push({ type: 'interrupted', data: '', endOfTurn: false })
   }
-
-  // Turn complete
-  if (serverContent?.turnComplete) {
+  if (serverContent.turnComplete) {
     responses.push({ type: 'turn_complete', data: '', endOfTurn: true })
   }
+}
 
+/**
+ * Parses ALL response types from a single server message.
+ * The server can now bundle multiple fields (e.g. audio + transcription)
+ * in the same message. Returns an array of response objects.
+ */
+export function parseResponseMessages(
+  data: LiveServerMessage,
+): Array<LiveResponse> {
+  if (data.setupComplete) {
+    return [{ type: 'setup_complete', data: '', endOfTurn: false }]
+  }
+  if (data.toolCall) {
+    return [
+      {
+        type: 'tool_call',
+        data: data.toolCall,
+        endOfTurn: false,
+      },
+    ]
+  }
+  const responses: Array<LiveResponse> = []
+  pushSessionFields(data, responses)
+  pushModelTurnParts(data.serverContent?.modelTurn?.parts, responses)
+  pushServerContent(data.serverContent, responses)
   return responses
 }
 
@@ -260,9 +264,6 @@ export class GeminiLiveClient {
       )
       this.webSocket = socket
 
-      // The browser fires `onerror` then `onclose` on an abnormal close; this
-      // flag stops the close handler from overwriting the surfaced error with a
-      // benign "closed" signal.
       let errored = false
 
       socket.onclose = () => {
@@ -396,62 +397,57 @@ export class GeminiLiveClient {
   }
 
   async updateSession(config: Partial<RealtimeSessionConfig>) {
-    // model can only be set during initial setup
-    if (config.model && !this.setupComplete) {
-      this.model = config.model as GeminiRealtimeModel
+    const applyCore = () => {
+      if (config.model && !this.setupComplete) {
+        this.model = config.model as GeminiRealtimeModel
+      }
+      if (config.instructions) {
+        this.systemInstructions = config.instructions
+      }
+      if (config.tools) {
+        this.functionDeclarations = config.tools.map(toolConfigToDeclaration)
+      }
+      if (config.maxOutputTokens) {
+        this.maxOutputTokens =
+          typeof config.maxOutputTokens === 'number'
+            ? config.maxOutputTokens
+            : undefined
+      }
+      if (config.temperature) {
+        this.temperature = config.temperature
+      }
+      if (config.voice) {
+        this.voiceName = config.voice as GeminiRealtimeVoice
+      }
     }
 
-    if (config.instructions) {
-      this.systemInstructions = config.instructions
+    const applyProvider = () => {
+      const providerOptions = config.providerOptions as
+        | GeminiRealtimeProviderOptions
+        | undefined
+      if (!providerOptions) return
+      if (providerOptions.googleGrounding) {
+        this.googleGrounding = providerOptions.googleGrounding
+      }
+      if (providerOptions.proactiveAudio) {
+        this.proactiveAudio = providerOptions.proactiveAudio
+      }
+      if (providerOptions.enableAffectiveDialog) {
+        this.enableAffectiveDialog = providerOptions.enableAffectiveDialog
+      }
+      if (providerOptions.contextWindowCompression) {
+        this.contextWindowCompression = providerOptions.contextWindowCompression
+      }
+      if (providerOptions.thinkingConfig) {
+        this.thinkingConfig = providerOptions.thinkingConfig
+      }
+      if (providerOptions.languageCode) {
+        this.speechLanguageCode = providerOptions.languageCode
+      }
     }
 
-    if (config.tools) {
-      this.functionDeclarations = config.tools.map(toolConfigToDeclaration)
-    }
-
-    if (config.maxOutputTokens) {
-      // Gemini has no "inf" sentinel; treat it as "no explicit limit".
-      this.maxOutputTokens =
-        typeof config.maxOutputTokens === 'number'
-          ? config.maxOutputTokens
-          : undefined
-    }
-
-    if (config.temperature) {
-      this.temperature = config.temperature
-    }
-
-    if (config.voice) {
-      this.voiceName = config.voice as GeminiRealtimeVoice
-    }
-
-    const providerOptions = config.providerOptions as
-      | GeminiRealtimeProviderOptions
-      | undefined
-
-    if (providerOptions?.googleGrounding) {
-      this.googleGrounding = providerOptions.googleGrounding
-    }
-
-    if (providerOptions?.proactiveAudio) {
-      this.proactiveAudio = providerOptions.proactiveAudio
-    }
-
-    if (providerOptions?.enableAffectiveDialog) {
-      this.enableAffectiveDialog = providerOptions.enableAffectiveDialog
-    }
-
-    if (providerOptions?.contextWindowCompression) {
-      this.contextWindowCompression = providerOptions.contextWindowCompression
-    }
-
-    if (providerOptions?.thinkingConfig) {
-      this.thinkingConfig = providerOptions.thinkingConfig
-    }
-
-    if (providerOptions?.languageCode) {
-      this.speechLanguageCode = providerOptions.languageCode
-    }
+    applyCore()
+    applyProvider()
 
     const includeTranscription =
       config.outputModalities?.includes('text') || false
@@ -512,9 +508,11 @@ export class GeminiLiveClient {
   sendRealtimeInputMessage(data: string, mimeType: string) {
     const blob = { mimeType, data }
 
+    const isVisualInput =
+      mimeType.startsWith('image/') || mimeType.startsWith('video/')
     if (mimeType.startsWith('audio/')) {
       this.sendMessage({ realtimeInput: { audio: blob } })
-    } else if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
+    } else if (isVisualInput) {
       this.sendMessage({ realtimeInput: { video: blob } })
     }
   }

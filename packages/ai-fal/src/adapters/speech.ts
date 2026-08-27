@@ -114,9 +114,6 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       throw new Error('Audio URL not found in fal TTS response')
     }
 
-    // Fetch the audio and convert to base64 to match TTSResult contract.
-    // Using a chunked helper here — spreading Uint8Array into btoa exceeds
-    // V8's argument limit (~65k) for any realistic TTS clip.
     const audioResponse = await fetch(audioUrl)
     if (!audioResponse.ok) {
       throw new Error(
@@ -130,10 +127,6 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
     // the URL extension as a fallback when it looks like a real extension.
     const contentTypeMime = contentType?.split(';')[0]?.trim()
     const safeUrlExtension = extractUrlExtension(audioUrl)
-    // Prefer URL-derived extension when available (more canonical for file
-    // consumers), otherwise derive from the content-type mime subtype, then
-    // fall back to `wav`. Normalize `mpeg` → `mp3` so the format field is a
-    // usable file extension rather than the IANA subtype.
     const rawFormat =
       safeUrlExtension || contentTypeMime?.split('/')[1] || 'wav'
     const format = rawFormat === 'mpeg' ? 'mp3' : rawFormat

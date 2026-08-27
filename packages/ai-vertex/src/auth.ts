@@ -11,14 +11,20 @@ export type VertexVideoConfig = VertexClientConfig & {
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) {
+  if (value === undefined) {
+    return undefined
+  }
+  if (value.length === 0) {
     return undefined
   }
   return value
 }
 
 function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
+  if (typeof process === 'undefined') {
+    return undefined
+  }
+  if (process.env === undefined) {
     return undefined
   }
   return nonEmpty(process.env[name])
@@ -43,13 +49,12 @@ export function resolveVertexGeminiOptions(
     readEnv('GOOGLE_VERTEX_LOCATION')
   const apiKey = nonEmpty(config.apiKey) ?? readEnv('GOOGLE_VERTEX_API_KEY')
 
-  if (
-    apiKey === undefined &&
-    (project === undefined || location === undefined)
-  ) {
-    throw new VertexAuthError(
-      'Vertex Gemini needs project and location, or an express apiKey. Pass project and location on the factory, or set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION. For express mode, pass apiKey or set GOOGLE_VERTEX_API_KEY.',
-    )
+  if (apiKey === undefined) {
+    if (project === undefined || location === undefined) {
+      throw new VertexAuthError(
+        'Vertex Gemini needs project and location, or an express apiKey. Pass project and location on the factory, or set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION. For express mode, pass apiKey or set GOOGLE_VERTEX_API_KEY.',
+      )
+    }
   }
 
   return {

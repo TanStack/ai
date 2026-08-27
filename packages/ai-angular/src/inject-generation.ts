@@ -123,21 +123,9 @@ export interface InjectGenerationResult<
   /** Clear result, error, and return to idle */
   reset: () => void
   /** Identity of the in-flight run while one is streaming, or null after it ends */
-  /**
-   * The id of the generation job currently running, or `null` when nothing is in
-   * flight. Each call to `generate` is one job with its own id. Pass it to your
-   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
-   * local stream, it does not stop work already running on the provider.
-   */
   runId: Signal<string | null>
 }
 
-// `TTransformed` infers from the `onResult` return position (a covariant
-// inference site that works even for an optional nested property), which types
-// the callback parameter as `TResult` and narrows `result`. Inferring the
-// whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
-// issue #848.
 export function injectGeneration<
   TInput extends Record<string, any>,
   TResult,
@@ -160,10 +148,20 @@ export function injectGeneration<
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
 
+  /** The generation result, or null if not yet generated */
   const result = signal<TOutput | null>(null)
+  /** Whether a generation is currently in progress */
   const isLoading = signal(false)
+  /** Current error, if any */
   const error = signal<Error | undefined>(undefined)
+  /** Current state of the generation client */
   const status = signal<GenerationClientState>('idle')
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
   const runId = signal<string | null>(null)
   let disposed = false
 
@@ -190,9 +188,6 @@ export function injectGeneration<
       framework: 'angular',
       hookName: 'injectGeneration',
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,

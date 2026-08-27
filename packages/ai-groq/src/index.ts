@@ -1,10 +1,3 @@
-/**
- * @module @tanstack/ai-groq
- *
- * Groq provider adapter for TanStack AI.
- * Provides tree-shakeable adapters for Groq's Chat Completions API and TTS API.
- */
-
 // Text (Chat) adapter
 export {
   GroqTextAdapter,

@@ -1,12 +1,3 @@
-/**
- * Video Activity (Experimental)
- *
- * Generates videos from text prompts using a jobs/polling architecture.
- * This is a self-contained module with implementation, types, and JSDoc.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -46,16 +37,9 @@ import type {
   VideoUrlResult,
 } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'video' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'video' as const
 
 /**
  * Extract provider options from a VideoAdapter via ~types.
@@ -314,10 +298,6 @@ export type VideoActivityOptions<
     ? VideoUrlOptions<TAdapter>
     : VideoCreateOptions<TAdapter, TStream>
 
-// ===========================
-// Activity Result Types
-// ===========================
-
 /**
  * Result type for the video activity, based on request type and streaming.
  * - If stream is true (create request): AsyncIterable<StreamChunk>
@@ -335,10 +315,6 @@ export type VideoActivityResult<
     : TStream extends true
       ? AsyncIterable<StreamChunk>
       : Promise<VideoJobResult>
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * Generate video - creates a video generation job from a text prompt.
@@ -463,10 +439,6 @@ async function runCreateVideoJob<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  // `runId` is resolved per outcome (from the job, or absent on failure), so the
-  // context is built once the outcome is known. `options.runId` is deliberately
-  // not consulted: in non-streaming mode the run id is always the derived one,
-  // the single rule that keeps the two calls in agreement.
   const contextFor = (runId?: string): GenerationMiddlewareContext =>
     createGenerationContext({
       requestId,
@@ -474,10 +446,6 @@ async function runCreateVideoJob<
       provider: adapter.name,
       model,
       modelOptions,
-      // Deliberately the CALLER's `threadId` — no minted fallback. A thread id
-      // nobody else knows would file the run in a slot no client could hydrate,
-      // which is worse than no link because it looks like one. Mirrors the
-      // streaming path.
       threadId: options.threadId,
       runId,
       artifactInputs: { prompt },
@@ -506,9 +474,6 @@ async function runCreateVideoJob<
     abortControls.clear()
   } catch (error) {
     abortControls.clear()
-    // No jobId exists, so this run can only be keyed on the request. Start it
-    // just to fail it: `generationRuns.update` on an unknown run id is a no-op
-    // by contract, so without the `onStart` the failure would persist nowhere.
     const failedCtx = contextFor()
     await runGenerationStart(middleware, failedCtx)
     const elapsed = Date.now() - startTime
@@ -537,9 +502,6 @@ async function runCreateVideoJob<
 
   const mwCtx = contextFor(videoRunIdForJob(adapter.name, jobResult.jobId))
   await runGenerationStart(middleware, mwCtx)
-  // Transforms see the submission result (no url yet, so nothing to copy into a
-  // blob store) purely so the run record captures the jobId and any prompt
-  // inputs. No finish hook: the run is still running.
   return await applyGenerationResultTransforms(mwCtx, jobResult)
 }
 
@@ -585,7 +547,9 @@ async function* runStreamingVideoGeneration<
   const runId = options.runId ?? createId('run')
   const requestId = createId('video')
   const obsStartTime = Date.now()
+  /** Polling interval in milliseconds (stream mode only). @default 2000 */
   const pollingInterval = options.pollingInterval ?? 2000
+  /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
   const maxDuration = options.maxDuration ?? 600_000
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const abortControls = createActivityAbortControls({
@@ -597,9 +561,6 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
-  // The wire needs a thread id on every RUN_* chunk, so one is minted when the
-  // caller passes none — matching `streamGenerationResult`, which the other
-  // activities stream through.
   const wireThreadId = options.threadId ?? createId('thread')
 
   yield {
@@ -615,14 +576,6 @@ async function* runStreamingVideoGeneration<
     provider: adapter.name,
     model,
     modelOptions,
-    // Identity has to reach the middleware, not just the chunks: persistence
-    // keys the run record on these, and without them it falls back to the
-    // internal `requestId` and records no thread link at all.
-    //
-    // Deliberately the CALLER's `threadId`, never `wireThreadId`: a minted id is
-    // known to nobody, so persisting it would file the run in a slot no client
-    // could ever hydrate — worse than recording no link, because it looks like
-    // one. This mirrors `generateImage`.
     threadId: options.threadId,
     runId,
     artifactInputs: { prompt },
@@ -639,9 +592,6 @@ async function* runStreamingVideoGeneration<
     },
   )
 
-  // Tracks whether a terminal observer event (finish/error/abort) has already
-  // fired, so the `finally` below can fire one on abandonment without
-  // double-firing.
   let settled = false
   try {
     // Create the video generation job
@@ -695,12 +645,6 @@ async function* runStreamingVideoGeneration<
           },
         )
 
-        // Run the result transforms before anything observes the result, the
-        // same as every other media activity. This is what lets persistence
-        // copy the video into a blob store, attach its artifact refs, and
-        // rewrite `url` to a durable app-origin one — so the chunk below and
-        // the stored run record carry the SAME urls. Skipping it leaves a
-        // result whose only url is the provider's expiring link.
         const rawResult = {
           jobId: jobResult.jobId,
           status: 'completed' as const,
@@ -710,10 +654,6 @@ async function* runStreamingVideoGeneration<
         }
         const result = await applyGenerationResultTransforms(mwCtx, rawResult)
 
-        // Fire finish before yielding the terminal chunks: the generation has
-        // succeeded, so a consumer that stops reading after `generation:result`
-        // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
-        // `finally`, which would otherwise report a spurious cancellation.
         if (urlResult.usage)
           await runGenerationUsage(middleware, mwCtx, urlResult.usage)
         await runGenerationFinish(middleware, mwCtx, {
@@ -749,9 +689,6 @@ async function* runStreamingVideoGeneration<
   } catch (error: unknown) {
     abortControls.clear()
     const payload = toRunErrorPayload(error, 'Video generation failed')
-    // Mark settled before firing terminal hooks: if a user error-hook throws,
-    // the `finally` below must still not double-fire onAbort over the same op
-    // (which would mask the original error and end the span twice).
     settled = true
     const elapsed = Date.now() - obsStartTime
     if (isActivityAbortError(error, abortControls.signal)) {
@@ -781,10 +718,6 @@ async function* runStreamingVideoGeneration<
   } finally {
     abortControls.clear()
     if (!settled) {
-      // The consumer abandoned the stream (broke the `for await` loop or
-      // disconnected) before completion, so the generator is being unwound at
-      // a `yield` without reaching finish/error. Fire `onAbort` — a cancel, not
-      // an error — so otelMiddleware ends its span instead of leaking it.
       await runGenerationAbort(middleware, mwCtx, {
         reason: 'Video generation stream abandoned before completion',
         duration: Date.now() - obsStartTime,
@@ -810,22 +743,7 @@ export interface VideoJobStatusOptions<
   adapter: TAdapter & { kind: typeof kind }
   /** The job ID to check status for */
   jobId: string
-  /**
-   * The scope the run is filed under. Must match the submission's `threadId` —
-   * generation persistence REFUSES a run without a scope (a run filed under
-   * none can never be hydrated by one), so omitting it throws rather than
-   * quietly filing the finished video somewhere unreachable.
-   */
   threadId?: string
-  /**
-   * Observe-only middleware. Hooks fire ONLY on the poll that observes a
-   * terminal job state: `onStart` (resuming the submission's run), then the
-   * result transforms — which is where persistence copies the video into a blob
-   * store and rewrites `url` to a durable one, so the returned result carries
-   * the same urls as the stored record — then `onFinish`, or `onError` when the
-   * job failed. Intermediate polls invoke nothing, so a middleware is not
-   * charged for the wait.
-   */
   middleware?: Array<GenerationMiddleware>
 }
 
@@ -915,9 +833,6 @@ export async function getVideoJobStatus<
   const requestId = createId('video-status')
   const startTime = Date.now()
 
-  // Built per call but only USED on a terminal poll — `onStart` is what
-  // registers the result transforms, so it has to run in the same call that
-  // applies them.
   const terminalContext = (): GenerationMiddlewareContext =>
     createGenerationContext({
       requestId,
@@ -925,13 +840,7 @@ export async function getVideoJobStatus<
       provider: adapter.name,
       model: adapter.model,
       threadId: options.threadId,
-      // Recomputed, never passed in: the submitting call derived the same id
-      // from the same provider + job, so the two halves agree without the
-      // caller carrying anything but the jobId they must already have.
       runId: videoRunIdForJob(adapter.name, jobId),
-      // Deliberately no `artifactInputs`: the submission already persisted any
-      // prompt inputs under this run, and passing them again would store a
-      // second copy of every input image.
       createId,
     })
 
@@ -950,9 +859,6 @@ export async function getVideoJobStatus<
   // If completed, also get the URL
   if (statusResult.status === 'completed') {
     let urlResult: VideoUrlResult
-    // Scoped tightly to the provider call: a middleware hook that throws must
-    // surface as itself, not be relabelled "failed to get video URL" and then
-    // re-reported to the very middleware that threw.
     try {
       urlResult = await adapter.getVideoUrl(jobId)
     } catch (error) {
@@ -1059,10 +965,6 @@ export async function getVideoJobStatus<
     error: statusResult.error,
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the generateVideo() function without executing.

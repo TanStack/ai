@@ -136,7 +136,16 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
     }
     total += 1
     const key = info.prefix
-    if (key === undefined || key === '') {
+    if (key === undefined) {
+      if (fallback !== null) {
+        throw new Error(
+          'createMcpAppCallHandler: multiple clients without a prefix; serverId routing is ambiguous',
+        )
+      }
+      fallback = descriptor
+      return
+    }
+    if (key === '') {
       if (fallback !== null) {
         throw new Error(
           'createMcpAppCallHandler: multiple clients without a prefix; serverId routing is ambiguous',
@@ -153,7 +162,8 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
 
   for (const entry of entries) {
     if (isPool(entry)) {
-      for (const info of Object.values(entry.getServers())) {
+      const poolServers = Object.values(entry.getServers())
+      for (const info of poolServers) {
         add(info)
       }
     } else {
@@ -191,9 +201,6 @@ function reportError(
 export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
   const registry = buildRegistry(opts.clients)
 
-  // Resolve a serverId against the static `clients` registry. When serverId is
-  // undefined and exactly one descriptor is registered, default to that sole
-  // descriptor; with zero or multiple, undefined stays unresolvable.
   const resolveFromRegistry = (
     serverId: string | undefined,
   ): McpServerDescriptor | null => {
@@ -207,9 +214,6 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
   return async (
     req: McpAppCallRequest,
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> => {
-    // Resolve server descriptor. The store WINS when it has an entry; otherwise
-    // we fall back to the static `clients` registry (the base). A store miss
-    // (null) must not reject when the registry can serve the request.
     const descriptor =
       (opts.store ? await opts.store.get(req.threadId, req.serverId) : null) ??
       resolveFromRegistry(req.serverId)
@@ -242,24 +246,17 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     })
 
     try {
-      // The widget sends the server-native (UNPREFIXED) tool name
-      // (`UIResourcePart.toolName` is the native name), so we match it directly
-      // against the native names the server exposes — carried on
-      // `metadata.mcp.serverToolName` (falling back to `name` for unprefixed
-      // clients) — and forward `req.toolName` unchanged to `client.callTool`.
       const exposedNative = new Set(
         (await client.tools()).map((t) => serverToolNameOf(t)),
       )
       const inExposed = exposedNative.has(req.toolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
-      if (!inExposed || !customOk) {
+      const toolBlocked = !inExposed || !customOk
+      if (toolBlocked) {
         return { ok: false, error: `Tool not allowed: ${req.toolName}` }
       }
 
-      // Reject a malformed args payload (array, primitive, null) rather than
-      // silently coercing it to {} — a bad widget request should fail loudly
-      // instead of executing the tool with defaults. Absent args is valid.
       const args = req.args === undefined ? {} : req.args
       if (!isArgsRecord(args)) {
         return { ok: false, error: 'Invalid args: expected an object' }
@@ -275,9 +272,6 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
         error: err instanceof Error ? err.message : 'MCP call failed',
       }
     } finally {
-      // Per-call reconnect handler closes its client every call; a consistently
-      // failing close leaks handles silently. Don't rethrow (it would mask the
-      // real result), but report it through the same hook.
       await client
         .close()
         .catch((err: unknown) =>

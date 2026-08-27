@@ -123,12 +123,43 @@ function q(value: string): string {
 
 /** Copy host Anthropic auth into the sandbox process. Docker `exec` Env replaces the container env, so a key set only at create time can vanish. */
 function hostClaudeAuthEnv(): Record<string, string> {
+  /** Extra environment variables for the claude process inside the sandbox. */
   const env: Record<string, string> = {}
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (apiKey) env.ANTHROPIC_API_KEY = apiKey
   const authToken = process.env.ANTHROPIC_AUTH_TOKEN
   if (authToken) env.ANTHROPIC_AUTH_TOKEN = authToken
   return env
+}
+
+function chatRunErrorChunk(error: unknown, model: string): AdapterYieldChunk {
+  const err = error as Error & { code?: string }
+  const rawEvent = toRunErrorRawEvent(error)
+  const message = err.message || 'Unknown error occurred'
+  return {
+    type: EventType.RUN_ERROR,
+    model,
+    timestamp: Date.now(),
+    message,
+    ...(err.code !== undefined && { code: err.code }),
+    ...(rawEvent !== undefined && { rawEvent }),
+    error: {
+      message,
+      ...(err.code !== undefined && { code: err.code }),
+    },
+  }
+}
+
+function abortSignalFields(
+  options: TextOptions<ClaudeCodeTextProviderOptions>,
+): { signal: AbortSignal } | Record<string, never> {
+  if (options.abortController?.signal) {
+    return { signal: options.abortController.signal }
+  }
+  if (options.request?.signal) {
+    return { signal: options.request.signal }
+  }
+  return {}
 }
 
 /**
@@ -217,15 +248,8 @@ export class ClaudeCodeTextAdapter<
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
-    // Claude only reads project-scoped config (CLAUDE.md, `.claude/skills`,
-    // `.mcp.json`) with `project` in the sources. `user` is off by default so
-    // a local-process run does not pull in the host's `~/.claude`.
     const settingSources = config.settingSources ?? ['project']
 
-    // `--setting-sources` before `-p`. Do not pass `--bare`: that flag
-    // skips stored `claude login` credentials and prints
-    // "Not logged in · Please run /login" (claude-code#51047).
-    // `-p` can take the next token as the prompt, so these flags stay first.
     const args: Array<string> = [
       ...exeParts,
       '--setting-sources',
@@ -248,37 +272,14 @@ export class ClaudeCodeTextAdapter<
       'bypassPermissions'
     args.push('--permission-mode', permissionMode)
 
+    /** Maximum harness-internal turns (`--max-turns`). */
     const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
     if (maxTurns !== undefined) args.push('--max-turns', String(maxTurns))
 
     for (const dir of config.addDirs ?? []) args.push('--add-dir', dir)
 
-    const allowedTools = [
-      ...(modelOptions?.allowedTools ?? config.allowedTools ?? []),
-      ...policyFlags.allowedTools,
-    ]
-    if (allowedTools.length > 0) {
-      args.push('--allowedTools', [...new Set(allowedTools)].join(','))
-    }
-    const disallowedTools = [
-      ...(modelOptions?.disallowedTools ?? config.disallowedTools ?? []),
-      ...policyFlags.disallowedTools,
-    ]
-    if (disallowedTools.length > 0) {
-      args.push('--disallowedTools', [...new Set(disallowedTools)].join(','))
-    }
-
-    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
-      .map((prompt) => prompt.content)
-      .filter((content) => content.trim() !== '')
-    if (systemPrompts.length > 0) {
-      const joined = systemPrompts.join('\n\n')
-      const flag =
-        config.systemPromptMode === 'replace'
-          ? '--system-prompt'
-          : '--append-system-prompt'
-      args.push(flag, joined)
-    }
+    this.pushClaudeToolFlags(args, options, policyFlags)
+    this.pushClaudeSystemPromptFlags(args, options)
 
     if (mcpConfigPath !== undefined) args.push('--mcp-config', mcpConfigPath)
     if (hasJsonSchema) {
@@ -289,6 +290,46 @@ export class ClaudeCodeTextAdapter<
     }
 
     return args
+  }
+
+  private pushClaudeToolFlags(
+    args: Array<string>,
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+    policyFlags: ClaudePolicyFlags,
+  ): void {
+    const config = this.adapterConfig
+    const modelOptions = options.modelOptions
+    /** Built-in tools the harness may use (`--allowedTools`). */
+    const allowedTools = [
+      ...(modelOptions?.allowedTools ?? config.allowedTools ?? []),
+      ...policyFlags.allowedTools,
+    ]
+    if (allowedTools.length > 0) {
+      args.push('--allowedTools', [...new Set(allowedTools)].join(','))
+    }
+    /** Built-in tools removed from the harness (`--disallowedTools`). */
+    const disallowedTools = [
+      ...(modelOptions?.disallowedTools ?? config.disallowedTools ?? []),
+      ...policyFlags.disallowedTools,
+    ]
+    if (disallowedTools.length > 0) {
+      args.push('--disallowedTools', [...new Set(disallowedTools)].join(','))
+    }
+  }
+
+  private pushClaudeSystemPromptFlags(
+    args: Array<string>,
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+  ): void {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+      .map((prompt) => prompt.content)
+      .filter((content) => content.trim() !== '')
+    if (systemPrompts.length === 0) return
+    const flag =
+      this.adapterConfig.systemPromptMode === 'replace'
+        ? '--system-prompt'
+        : '--append-system-prompt'
+    args.push(flag, systemPrompts.join('\n\n'))
   }
 
   /**
@@ -358,6 +399,215 @@ export class ClaudeCodeTextAdapter<
     }
   }
 
+  private claudePermissionTool(
+    policy: SandboxPolicy | undefined,
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+    scripts: Record<string, string> | undefined,
+    approvalRequests: Array<AdapterYieldChunk>,
+    threadId: string,
+    runId: string,
+  ):
+    | {
+        toolName: string
+        resolve: (input: {
+          tool_name?: string
+          input?: unknown
+        }) => PermissionToolResult
+      }
+    | undefined {
+    if (policy === undefined) return undefined
+    return {
+      toolName: 'approval_prompt',
+      resolve: this.buildPermissionResolver(
+        policy,
+        options.approvals,
+        scripts,
+        approvalRequests,
+        threadId,
+        runId,
+      ),
+    }
+  }
+
+  private async maybeProvisionClaudeBridge(
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+    sandbox: SandboxHandle,
+    channel: BridgeEventChannel,
+    permission:
+      | {
+          toolName: string
+          resolve: (input: {
+            tool_name?: string
+            input?: unknown
+          }) => PermissionToolResult
+        }
+      | undefined,
+  ): Promise<HostToolBridge | undefined> {
+    const hasTools = options.tools !== undefined && options.tools.length > 0
+    const skipBridge = !hasTools && permission === undefined
+    if (skipBridge) return undefined
+    const provisioner =
+      (options.capabilities
+        ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+        : undefined) ?? nodeHttpBridgeProvisioner
+    return await provisioner.provision(options.tools ?? [], {
+      provider: sandbox.provider,
+      context: options.context,
+      emitCustomEvent: channel.emitCustomEvent,
+      ...(permission !== undefined ? { permission } : {}),
+      ...(options.abortController?.signal
+        ? { signal: options.abortController.signal }
+        : {}),
+    })
+  }
+
+  private async writeClaudeRunFiles(args: {
+    sandbox: SandboxHandle
+    cwd: string
+    runIdSegment: string
+    bridge: HostToolBridge | undefined
+    permission:
+      | {
+          toolName: string
+          resolve: (input: {
+            tool_name?: string
+            input?: unknown
+          }) => PermissionToolResult
+        }
+      | undefined
+    options: TextOptions<ClaudeCodeTextProviderOptions>
+    resume: string | undefined
+    policy: SandboxPolicy | undefined
+    prompt: string
+    tempFiles: Array<string>
+  }): Promise<{ runCommand: string; stdinInput: string | undefined }> {
+    const {
+      sandbox,
+      cwd,
+      runIdSegment,
+      bridge,
+      permission,
+      options,
+      resume,
+      policy,
+      prompt,
+      tempFiles,
+    } = args
+    let mcpConfigArg: string | undefined
+    if (bridge) {
+      const mcpConfigFile = `.tanstack-mcp-bridge-${runIdSegment}.json`
+      const mcpConfigPath = `${cwd}/${mcpConfigFile}`
+      await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
+      tempFiles.push(mcpConfigPath)
+      mcpConfigArg = mcpConfigFile
+    }
+    let jsonSchemaFile: string | undefined
+    if (options.outputSchema !== undefined) {
+      jsonSchemaFile = `tanstack-output-schema-${runIdSegment}.json`
+      const schemaPath = `${cwd}/${jsonSchemaFile}`
+      await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+      tempFiles.push(schemaPath)
+    }
+    const runnerFile = `tanstack-claude-run-${runIdSegment}.mjs`
+    await sandbox.fs.write(`${cwd}/${runnerFile}`, CLAUDE_RUNNER_SOURCE)
+    tempFiles.push(`${cwd}/${runnerFile}`)
+    const argv = this.buildArgv(
+      options,
+      resume,
+      mapPolicyToClaudeFlags(policy),
+      mcpConfigArg,
+      bridge && permission
+        ? `mcp__${bridge.name}__${permission.toolName}`
+        : undefined,
+      jsonSchemaFile !== undefined,
+    )
+    const argvFile = `tanstack-claude-argv-${runIdSegment}.json`
+    await sandbox.fs.write(`${cwd}/${argvFile}`, JSON.stringify(argv))
+    tempFiles.push(`${cwd}/${argvFile}`)
+    const command =
+      jsonSchemaFile === undefined
+        ? `node ${q(runnerFile)} ${q(argvFile)}`
+        : `node ${q(runnerFile)} ${q(argvFile)} ${q(jsonSchemaFile)}`
+    if (sandbox.capabilities.writableStdin !== false) {
+      return { runCommand: command, stdinInput: prompt }
+    }
+    const promptPath = `/tmp/tanstack-claude-prompt-${runIdSegment}`
+    await sandbox.fs.write(promptPath, prompt)
+    tempFiles.push(promptPath)
+    return {
+      runCommand: `${command} < ${q(promptPath)}`,
+      stdinInput: undefined,
+    }
+  }
+
+  private claudeSpawnEnv(
+    sandbox: SandboxHandle,
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+  ): Record<string, string> {
+    const authMode =
+      options.modelOptions?.authMode ?? this.adapterConfig.authMode ?? 'api-key'
+    return {
+      ...(sandbox.provider === 'local-process'
+        ? {}
+        : {
+            IS_SANDBOX: '1',
+            CLAUDE_CODE_SANDBOXED: '1',
+          }),
+      ...(authMode === 'api-key' ? hostClaudeAuthEnv() : {}),
+      ...localProcessHomeEnv(sandbox.provider),
+      ...this.adapterConfig.env,
+    }
+  }
+
+  private spawnClaudeNdjson(
+    options: TextOptions<ClaudeCodeTextProviderOptions>,
+    sandbox: SandboxHandle,
+    cwd: string,
+    prepared: { runCommand: string; stdinInput: string | undefined },
+    durability: ReturnType<typeof getSandboxDurability> | undefined,
+    runId: string,
+  ) {
+    const journalOptions = journalOptionsFor(durability, runId)
+    return spawnNdjson(sandbox, prepared.runCommand, {
+      cwd,
+      ...(prepared.stdinInput !== undefined
+        ? { input: prepared.stdinInput }
+        : {}),
+      env: this.claudeSpawnEnv(sandbox, options),
+      ...abortSignalFields(options),
+      onNonJsonLine: (line) =>
+        options.logger.provider(`provider=claude-code non-json line: ${line}`, {
+          chunk: line,
+        }),
+      ...(journalOptions === undefined ? {} : { journal: journalOptions }),
+    })
+  }
+
+  private async *emitClaudeDiff(
+    sandbox: SandboxHandle,
+    cwd: string,
+    threadId: string,
+    runId: string,
+  ): AsyncIterable<AdapterYieldChunk> {
+    if (this.adapterConfig.emitDiff === false) return
+    try {
+      const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
+      const hasDiff = diff.exitCode === 0 && diff.stdout.trim() !== ''
+      if (hasDiff) {
+        yield {
+          type: EventType.CUSTOM,
+          name: 'file.changed',
+          value: { path: '.', diff: diff.stdout },
+          timestamp: Date.now(),
+          threadId,
+          runId,
+        }
+      }
+    } catch {
+      // not a git repo / git unavailable — skip the diff event
+    }
+  }
+
   async *chatStream(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -365,9 +615,6 @@ export class ClaudeCodeTextAdapter<
     let bridge: HostToolBridge | undefined
     let channel: BridgeEventChannel | undefined
     const approvalRequests: Array<AdapterYieldChunk> = []
-    // Temp files written for the run (bridge MCP config, redirected prompt) that
-    // carry the bearer token / prompt; removed in `finally` so they don't linger
-    // in the sandbox after the run.
     let cleanupSandbox: SandboxHandle | undefined
     const tempFiles: Array<string> = []
     try {
@@ -375,31 +622,14 @@ export class ClaudeCodeTextAdapter<
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
 
-      // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
-      // back off the capability bus. Absent it, everything below resolves to
-      // exactly today's behavior (no journal option, no alignment, and a
-      // generated `runId` when the caller didn't supply one).
       const durability = options.capabilities
         ? getSandboxDurability(options.capabilities, { optional: true })
         : undefined
-      // The journaled path below derives its journal path and its
-      // message-id generator from `runId`. A resuming host must recompute
-      // the same `runId` to find the same journal file and reproduce the
-      // same translated ids — that's only possible when the caller supplies
-      // `runId` explicitly. `resolveDurableRunId` enforces that loudly (via
-      // `DurableRunIdRequiredError`) whenever durability is wired, and falls
-      // back to a fresh `this.generateId()` otherwise, preserving today's
-      // behavior for non-durable runs.
       const runId = resolveDurableRunId(options.runId, {
         durable: durability !== undefined,
         adapter: 'claude-code',
         fallback: () => this.generateId(),
       })
-      // `threadId` is stamped on every chunk `translateSdkStream` emits, so an
-      // ATTACHING run that mints a fresh one replays a stream the stored log
-      // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-      // instead of letting alignment discover it mid-stream; a durable FRESH run
-      // and a non-durable run both keep the generated fallback untouched.
       const threadId = resolveDurableThreadId(options.threadId, {
         durable: durability !== undefined,
         attaching: durability?.attach === true,
@@ -420,42 +650,20 @@ export class ClaudeCodeTextAdapter<
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
-
-      // A permission-prompt tool gates the agent's native tools when a policy
-      // can `ask`/`deny` (interactive approvals).
-      const permission =
-        policy !== undefined
-          ? {
-              toolName: 'approval_prompt',
-              resolve: this.buildPermissionResolver(
-                policy,
-                options.approvals,
-                projection?.scripts,
-                approvalRequests,
-                threadId,
-                runId,
-              ),
-            }
-          : undefined
-
-      // Bridge chat()-provided server tools (and/or the permission tool) into
-      // the sandbox over MCP.
-      const hasTools = options.tools !== undefined && options.tools.length > 0
-      if (hasTools || permission !== undefined) {
-        const provisioner =
-          (options.capabilities
-            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
-            : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools ?? [], {
-          provider: sandbox.provider,
-          context: options.context,
-          emitCustomEvent: channel.emitCustomEvent,
-          ...(permission !== undefined ? { permission } : {}),
-          ...(options.abortController?.signal
-            ? { signal: options.abortController.signal }
-            : {}),
-        })
-      }
+      const permission = this.claudePermissionTool(
+        policy,
+        options,
+        projection?.scripts,
+        approvalRequests,
+        threadId,
+        runId,
+      )
+      bridge = await this.maybeProvisionClaudeBridge(
+        options,
+        sandbox,
+        channel,
+        permission,
+      )
 
       const built = buildPrompt(
         options.messages,
@@ -466,140 +674,38 @@ export class ClaudeCodeTextAdapter<
         options.outputSchema !== undefined
           ? appendOutputSchemaInstruction(built.prompt, options.outputSchema)
           : built.prompt
-      // Both files below name themselves after `runId`, and durability makes
-      // `runId` CALLER-chosen. Raw, a `/` in it would silently turn each basename
-      // into a nested path (writing outside the intended directory, or failing on
-      // one that does not exist), `..` would climb out of that directory, and a
-      // long id would fail the spawn with `ENAMETOOLONG`. `encodeRunId` collapses
-      // any id to one bounded, injective path segment — the same encoder
-      // `journalPaths` uses, so these files and the journal agree on how a given
-      // id spells. Computed once so the two filenames cannot drift apart.
       const runIdSegment = encodeRunId(runId)
-
-      // The bridge MCP config carries the per-run bearer token. Write it to a
-      // file and pass claude the PATH, so the token never appears in argv (where
-      // any process in the sandbox could read it via `ps` / `/proc/<pid>/cmdline`).
-      let mcpConfigArg: string | undefined
-      if (bridge) {
-        // Pass claude a path RELATIVE to its cwd (the real workdir the handle
-        // runs the process in). An absolute VIRTUAL path like `/workspace/…` is
-        // wrong wherever claude runs outside a sandbox that literally uses
-        // `/workspace` — e.g. local-process on Windows, where git-bash resolves
-        // `/workspace` to `C:\Program Files\Git\workspace` and the file is "not
-        // found". The bare filename resolves correctly on every provider.
-        const mcpConfigFile = `.tanstack-mcp-bridge-${runIdSegment}.json`
-        const mcpConfigPath = `${cwd}/${mcpConfigFile}`
-        await sandbox.fs.write(mcpConfigPath, bridgeToMcpConfig(bridge))
-        tempFiles.push(mcpConfigPath)
-        mcpConfigArg = mcpConfigFile
-      }
-      let jsonSchemaFile: string | undefined
-      if (options.outputSchema !== undefined) {
-        jsonSchemaFile = `tanstack-output-schema-${runIdSegment}.json`
-        const schemaPath = `${cwd}/${jsonSchemaFile}`
-        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
-        tempFiles.push(schemaPath)
-      }
-      const runnerFile = `tanstack-claude-run-${runIdSegment}.mjs`
-      await sandbox.fs.write(`${cwd}/${runnerFile}`, CLAUDE_RUNNER_SOURCE)
-      tempFiles.push(`${cwd}/${runnerFile}`)
-      const argv = this.buildArgv(
+      const prepared = await this.writeClaudeRunFiles({
+        sandbox,
+        cwd,
+        runIdSegment,
+        bridge,
+        permission,
         options,
         resume,
-        mapPolicyToClaudeFlags(policy),
-        mcpConfigArg,
-        bridge && permission
-          ? `mcp__${bridge.name}__${permission.toolName}`
-          : undefined,
-        jsonSchemaFile !== undefined,
-      )
-      // Filenames only on the shell line. JSON (schema, system prompt, MCP
-      // config path) lives in the argv file so git-bash cannot retokenize it.
-      const argvFile = `tanstack-claude-argv-${runIdSegment}.json`
-      await sandbox.fs.write(`${cwd}/${argvFile}`, JSON.stringify(argv))
-      tempFiles.push(`${cwd}/${argvFile}`)
-      const command =
-        jsonSchemaFile === undefined
-          ? `node ${q(runnerFile)} ${q(argvFile)}`
-          : `node ${q(runnerFile)} ${q(argvFile)} ${q(jsonSchemaFile)}`
-
-      // Deliver the prompt. The default feeds it over stdin (keeps it out of
-      // argv). Providers without a writable host→process stdin (e.g. Cloudflare)
-      // can't accept that write, so write the prompt to a file and redirect the
-      // CLI's stdin from it in-shell (`claude -p … < file`) — still out of argv.
-      let runCommand = command
-      let stdinInput: string | undefined = prompt
-      if (sandbox.capabilities.writableStdin === false) {
-        const promptPath = `/tmp/tanstack-claude-prompt-${runIdSegment}`
-        await sandbox.fs.write(promptPath, prompt)
-        tempFiles.push(promptPath)
-        runCommand = `${command} < ${q(promptPath)}`
-        stdinInput = undefined
-      }
+        policy,
+        prompt,
+        tempFiles,
+      })
 
       logger.request(
         `activity=chat provider=claude-code model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${resume ?? 'none'}`,
         { provider: 'claude-code', model: this.model },
       )
 
-      const authMode =
-        options.modelOptions?.authMode ??
-        this.adapterConfig.authMode ??
-        'api-key'
-      const injectApiKey = authMode === 'api-key'
-
-      const journalOptions = journalOptionsFor(durability, runId)
-      const rawEvents = spawnNdjson(sandbox, runCommand, {
+      const rawEvents = this.spawnClaudeNdjson(
+        options,
+        sandbox,
         cwd,
-        ...(stdinInput !== undefined ? { input: stdinInput } : {}),
-        // Isolated sandboxes often run as root. Claude refuses
-        // `--dangerously-skip-permissions` as root unless IS_SANDBOX=1.
-        // CLAUDE_CODE_SANDBOXED marks a real isolation boundary. Do not set
-        // either on local-process: that provider runs on the host.
-        env: {
-          ...(sandbox.provider === 'local-process'
-            ? {}
-            : {
-                IS_SANDBOX: '1',
-                CLAUDE_CODE_SANDBOXED: '1',
-              }),
-          ...(injectApiKey ? hostClaudeAuthEnv() : {}),
-          ...localProcessHomeEnv(sandbox.provider),
-          ...this.adapterConfig.env,
-        },
-        ...(options.abortController?.signal
-          ? { signal: options.abortController.signal }
-          : options.request?.signal
-            ? { signal: options.request.signal }
-            : {}),
-        onNonJsonLine: (line) =>
-          logger.provider(`provider=claude-code non-json line: ${line}`, {
-            chunk: line,
-          }),
-        // Journal + attach both come from the sandbox durability capability, so
-        // the attach route configures takeover by passing `attach: true` to
-        // `withSandbox` — `chat()` stays free of sandbox vocabulary. Omitted
-        // entirely (not passed as `undefined`) when the run isn't durable, so
-        // `spawnNdjson` takes its original, unjournaled path byte-for-byte.
-        ...(journalOptions === undefined ? {} : { journal: journalOptions }),
-      })
+        prepared,
+        durability,
+        runId,
+      )
 
       async function* asMessages(): AsyncIterable<AgentSdkMessage> {
         for await (const event of rawEvents) yield event as AgentSdkMessage
       }
 
-      // `mergeChunkStreams` splices `channel.stream` (host-tool-bridge CUSTOM
-      // events from LIVE tool execution) into the deterministic translator
-      // output. Those events do not occur on a replay, so a takeover's replay is
-      // NOT chunk-for-chunk identical to what the log holds. `alignedIfAttaching`
-      // handles it: alignment skips stored out-of-band CUSTOM entries within a
-      // bounded window (see `align.ts`), so a bridged-tool run can be taken over
-      // without a spurious `JournalReplayDivergedError` — while a genuine
-      // determinism regression still throws. The wrap goes OUTSIDE the merge:
-      // the stored log holds the previous host's merged output, so aligning the
-      // pre-merge translated stream alone would compare against a log it never
-      // produced. On a non-attaching run this is a pure passthrough (see
-      // `alignedIfAttaching`'s `attach` guard).
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateSdkStream(asMessages(), {
@@ -609,11 +715,6 @@ export class ClaudeCodeTextAdapter<
             ...(options.parentRunId !== undefined && {
               parentRunId: options.parentRunId,
             }),
-            // Deterministic on the journaled path: two translations of the same
-            // journal prefix from a fresh generator seeded with the same
-            // `runId` mint the same message ids (unlike `this.generateId()`,
-            // which mixes in `Date.now()` / `Math.random()`). See
-            // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
             genId: createRunScopedIdGen(runId),
             ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
             onSdkMessage: (message) =>
@@ -627,49 +728,14 @@ export class ClaudeCodeTextAdapter<
         logger,
       )
 
-      // Surface the working-tree diff so UIs can render what the agent changed.
-      if (this.adapterConfig.emitDiff !== false) {
-        try {
-          const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, {
-            cwd,
-          })
-          if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
-            yield {
-              type: EventType.CUSTOM,
-              name: 'file.changed',
-              value: { path: '.', diff: diff.stdout },
-              timestamp: Date.now(),
-              threadId,
-              runId,
-            }
-          }
-        } catch {
-          // not a git repo / git unavailable — skip the diff event
-        }
-      }
-
-      // Surface any pending approval requests (policy `ask` actions awaiting a
-      // client decision); the client approves and re-runs to continue.
+      yield* this.emitClaudeDiff(sandbox, cwd, threadId, runId)
       for (const event of approvalRequests) yield event
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('claude-code.chatStream fatal', {
         error,
         source: 'claude-code.chatStream',
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        ...(err.code !== undefined && { code: err.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          ...(err.code !== undefined && { code: err.code }),
-        },
-      }
+      yield chatRunErrorChunk(error, options.model)
     } finally {
       channel?.close()
       if (bridge) await bridge.close()

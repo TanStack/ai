@@ -14,13 +14,21 @@ import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { extractUsageCost } from './cost'
+import {
+  consumeResponsesStructuredChunk,
+  emitResponsesStructuredStreamError,
+  finishResponsesStructuredStream,
+  processResponsesStreamChunks,
+} from './responses-stream'
+import type {
+  ResponsesStructuredState,
+  StreamedFunctionCallMetadata,
+} from './responses-stream'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
-  ContentPartAddedEventPart,
   InputsUnion,
   OpenResponsesResult,
-  OutputItems,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
@@ -53,16 +61,6 @@ import type {
 type InputsItem = Extract<InputsUnion, ReadonlyArray<unknown>>[number]
 /** ResponsesRequest input content part shape (per-content-part discriminated union). */
 type ResponsesInputContent = unknown
-
-interface StreamedFunctionCallMetadata {
-  callId: string
-  index: number
-  itemId: string
-  name: string
-  started: boolean
-  ended?: boolean
-  pendingArguments?: string
-}
 
 export interface OpenRouterResponsesConfig extends SDKOptions {}
 export type OpenRouterResponsesTextModels =
@@ -122,9 +120,6 @@ export class OpenRouterResponsesTextAdapter<
   async *chatStream(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    // Track tool call metadata by unique ID. The Responses API streams tool
-    // calls with deltas — first chunk has ID/name, subsequent chunks only
-    // have args. We assign our own indices as we encounter unique ids.
     const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
     // AG-UI lifecycle tracking
@@ -136,16 +131,13 @@ export class OpenRouterResponsesTextAdapter<
     }
 
     try {
-      // mapOptionsToRequest can throw on caller-side validation failures
-      // (empty user content, unsupported parts, webSearchTool() rejection).
-      // Keep it inside the try so those failures surface as RUN_ERROR events
-      // instead of iterator throws.
       const responsesRequest = this.mapOptionsToRequest(options)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
+      /** camelCased copy of the `response` payload from `response.{completed,failed,incomplete}` events. */
       const response = await this.orClient.beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
@@ -264,11 +256,6 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Responses API reports usage as inputTokens/outputTokens (not the
-      // chat-completions promptTokens/completionTokens shape). Map to
-      // TokenUsage and attach OpenRouter cost when present — same contract
-      // as structuredOutputStream / processStreamChunks. Cost-only usage
-      // (finite cost, no token fields) still forwards with zeroed tokens.
       const usage = response.usage
       const cost = extractUsageCost(usage)
       const hasUsage =
@@ -330,82 +317,18 @@ export class OpenRouterResponsesTextAdapter<
       hasEmittedRunStarted: false,
     }
 
-    let accumulatedContent = ''
-    let accumulatedReasoning = ''
-    let hasEmittedTextMessageStart = false
-    let reasoningMessageId: string | undefined
-    let stepId: string | undefined
-    let hasClosedReasoning = false
-    let model: string = chatOptions.model
-    let usage:
-      | {
-          inputTokens?: number
-          outputTokens?: number
-          totalTokens?: number
-        }
-      | undefined
-
-    const closeReasoning = function* (this: {
-      name: string
-    }): Generator<AdapterYieldChunk> {
-      if (reasoningMessageId && !hasClosedReasoning) {
-        hasClosedReasoning = true
-        yield {
-          type: EventType.REASONING_MESSAGE_END,
-          messageId: reasoningMessageId,
-          model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.REASONING_END,
-          messageId: reasoningMessageId,
-          model,
-          timestamp: Date.now(),
-        }
-        if (stepId) {
-          yield {
-            type: EventType.STEP_FINISHED,
-            stepName: stepId,
-            stepId,
-            model,
-            timestamp: Date.now(),
-            content: accumulatedReasoning,
-          }
-        }
-        reasoningMessageId = undefined
-        stepId = undefined
-        hasClosedReasoning = false
-      }
-    }.bind(this)
-
-    const openReasoning = function* (this: {
-      name: string
-    }): Generator<AdapterYieldChunk> {
-      if (reasoningMessageId) return
-      reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
-      yield {
-        type: EventType.REASONING_START,
-        messageId: reasoningMessageId,
-        model,
-        timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.REASONING_MESSAGE_START,
-        messageId: reasoningMessageId,
-        role: 'reasoning' as const,
-        model,
-        timestamp: Date.now(),
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model,
-        timestamp: Date.now(),
-        stepType: 'thinking',
-      }
-    }.bind(this)
+    const state: ResponsesStructuredState = {
+      adapterName: this.name,
+      accumulatedContent: '',
+      accumulatedReasoning: '',
+      hasEmittedTextMessageStart: false,
+      reasoningMessageId: undefined,
+      stepId: undefined,
+      hasClosedReasoning: false,
+      model: chatOptions.model,
+      usage: undefined,
+      stop: false,
+    }
 
     try {
       chatOptions.logger.request(
@@ -435,285 +358,25 @@ export class OpenRouterResponsesTextAdapter<
       )
 
       for await (const rawEvent of rawStream) {
-        const chunk = normalizeStreamEvent(rawEvent)
-
-        chatOptions.logger.provider(
-          `provider=${this.name} type=${chunk.type}`,
-          { provider: this.name, type: chunk.type },
+        yield* consumeResponsesStructuredChunk(
+          rawEvent,
+          chatOptions,
+          aguiState,
+          state,
         )
-
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield {
-            type: EventType.RUN_STARTED,
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model,
-            timestamp: Date.now(),
-            parentRunId: chatOptions.parentRunId,
-          }
-        }
-
-        if (
-          chunk.type === 'response.created' ||
-          chunk.type === 'response.in_progress'
-        ) {
-          if (chunk.response?.model) model = chunk.response.model
-          continue
-        }
-
-        if (chunk.type === 'response.refusal.delta') {
-          const delta = typeof chunk.delta === 'string' ? chunk.delta : ''
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message: `Model refused: ${delta}`,
-            code: 'refusal',
-            error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          }
-          return
-        }
-
-        if (
-          chunk.type === 'response.reasoning_text.delta' ||
-          chunk.type === 'response.reasoning_summary_text.delta'
-        ) {
-          const reasoningDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-          if (!reasoningDelta) continue
-          yield* openReasoning()
-          // openReasoning() guarantees reasoningMessageId is set on first
-          // call; TS can't see through the generator side-effect.
-          if (!reasoningMessageId) continue
-          accumulatedReasoning += reasoningDelta
-          yield {
-            type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId: reasoningMessageId,
-            delta: reasoningDelta,
-            model,
-            timestamp: Date.now(),
-          }
-          continue
-        }
-
-        if (chunk.type === 'response.output_text.delta') {
-          const textDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-          if (!textDelta) continue
-
-          yield* closeReasoning()
-
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-          accumulatedContent += textDelta
-          yield {
-            type: EventType.TEXT_MESSAGE_CONTENT,
-            messageId: aguiState.messageId,
-            model,
-            timestamp: Date.now(),
-            delta: textDelta,
-            content: accumulatedContent,
-          }
-          continue
-        }
-
-        if (chunk.type === 'response.completed') {
-          if (chunk.response?.model) model = chunk.response.model
-          if (chunk.response?.usage) usage = chunk.response.usage
-          continue
-        }
-
-        if (
-          chunk.type === 'response.failed' ||
-          chunk.type === 'response.incomplete'
-        ) {
-          const message =
-            chunk.response?.error?.message ||
-            chunk.response?.incompleteDetails?.reason ||
-            (chunk.type === 'response.failed'
-              ? 'Response failed'
-              : 'Response ended incomplete')
-          const code =
-            normalizeCode(chunk.response?.error?.code) ??
-            (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
-          const rawError = chunk.response?.error
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message,
-            ...(code !== undefined && { code }),
-            // Forward the provider's structured error body when the failure
-            // carried one, so consumers can recover the upstream detail.
-            ...(rawError != null && { rawEvent: rawError }),
-            error: {
-              message,
-              ...(code !== undefined && { code }),
-            },
-          }
-          return
-        }
-
-        if (chunk.type === 'error') {
-          const code = normalizeCode(chunk.code)
-          const message = chunk.message ?? 'Responses API stream error'
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message,
-            ...(code !== undefined && { code }),
-            error: {
-              message,
-              ...(code !== undefined && { code }),
-            },
-          }
-          return
-        }
+        if (state.stop) return
       }
 
-      yield* closeReasoning()
-
-      if (hasEmittedTextMessageStart) {
-        yield {
-          type: EventType.TEXT_MESSAGE_END,
-          messageId: aguiState.messageId,
-          model,
-          timestamp: Date.now(),
-        }
-      }
-
-      if (accumulatedContent.length === 0) {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId: aguiState.runId,
-          model,
-          timestamp: Date.now(),
-          message: `${this.name}.structuredOutputStream: response contained no content`,
-          code: 'empty-response',
-          error: {
-            message: `${this.name}.structuredOutputStream: response contained no content`,
-            code: 'empty-response',
-          },
-        }
-        return
-      }
-
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(accumulatedContent)
-      } catch {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId: aguiState.runId,
-          model,
-          timestamp: Date.now(),
-          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
-          code: 'parse-error',
-          error: {
-            message: 'Failed to parse structured output as JSON',
-            code: 'parse-error',
-          },
-        }
-        return
-      }
-
-      const transformed = this.transformStructuredOutput(parsed)
-
-      yield {
-        type: EventType.CUSTOM,
-        name: 'structured-output.complete',
-        value: {
-          object: transformed,
-          raw: accumulatedContent,
-          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
-        },
-        model,
-        timestamp: Date.now(),
-      }
-
-      yield {
-        type: EventType.RUN_FINISHED,
-        runId: aguiState.runId,
-        threadId: aguiState.threadId,
-        model,
-        timestamp: Date.now(),
-        finishReason: 'stop',
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...extractUsageCost(usage),
-          },
-        }),
-      }
-    } catch (error: unknown) {
-      if (!aguiState.hasEmittedRunStarted) {
-        aguiState.hasEmittedRunStarted = true
-        yield {
-          type: EventType.RUN_STARTED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model,
-          timestamp: Date.now(),
-          parentRunId: chatOptions.parentRunId,
-        }
-      }
-
-      // OpenRouter SDK raises a proprietary `RequestAbortedError` on
-      // caller-initiated abort. Map it (plus DOM `AbortError`) to
-      // `code: 'aborted'` so consumers can distinguish abort from a real
-      // upstream failure.
-      const errName =
-        error && typeof error === 'object'
-          ? ((error as { name?: unknown }).name ?? '')
-          : ''
-      const isAbort =
-        errName === 'AbortError' || errName === 'RequestAbortedError'
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.structuredOutputStream failed`,
+      yield* finishResponsesStructuredStream(aguiState, state, (parsed) =>
+        this.transformStructuredOutput(parsed),
       )
-
-      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
-      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
-      yield {
-        type: EventType.RUN_ERROR,
-        runId: aguiState.runId,
-        model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(resolvedCode !== undefined && { code: resolvedCode }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(resolvedCode !== undefined && { code: resolvedCode }),
-        },
-      }
-
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
+    } catch (error: unknown) {
+      yield* emitResponsesStructuredStreamError(
+        error,
+        chatOptions,
+        aguiState,
+        state,
+      )
     }
   }
 
@@ -746,15 +409,15 @@ export class OpenRouterResponsesTextAdapter<
     const observedItemTypes = new Set<string>()
 
     for (const rawItem of response.output) {
+      /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
       const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
       observedItemTypes.add(item.type)
       if (item.type === 'message') {
         sawMessageItem = true
-        for (const part of item.content ?? []) {
-          // Cast off the discriminated union before the type discrimination
-          // so future SDK variants (e.g. `output_audio`, `output_image`) hit
-          // the explicit error path rather than being misreported as refusals
-          // when they get added to the union.
+        for (const /** SDK discriminated union — narrow with `part.type === '<variant>'`.
+           *  Shared by `response.content_part.added` and `response.content_part.done`
+           *  (`ContentPartDoneEventPart` is structurally identical). */
+          part of item.content ?? []) {
           const partType = (part as { type: string }).type
           if (partType === 'output_text') {
             textContent += (part as { text?: string }).text ?? ''
@@ -770,20 +433,15 @@ export class OpenRouterResponsesTextAdapter<
       }
     }
 
-    // Surface refusals as an explicit error so callers don't see a generic
-    // "Failed to parse structured output as JSON. Content: " when the model
-    // refused for safety / content-policy reasons.
     if (!textContent && refusal !== undefined) {
       const err = new Error(`Model refused to respond: ${refusal}`)
       ;(err as Error & { code?: string }).code = 'refusal'
       throw err
     }
 
-    // Response had items but none carried message text (e.g. only
-    // function_call or reasoning items). Surface that explicitly so a
-    // downstream structured-output caller doesn't see a misleading
-    // "Failed to parse JSON. Content: " from an empty string.
-    if (!textContent && response.output.length > 0 && !sawMessageItem) {
+    const hasNonTextOutput =
+      !textContent && response.output.length > 0 && !sawMessageItem
+    if (hasNonTextOutput) {
       throw new Error(
         `${this.name}.extractTextFromResponse: response.output contained items of type(s) [${[...observedItemTypes].sort().join(', ')}] but no message text — the model returned a non-text response`,
       )
@@ -815,831 +473,13 @@ export class OpenRouterResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
-    let accumulatedContent = ''
-    let accumulatedReasoning = ''
-
-    let hasStreamedContentDeltas = false
-    let hasStreamedReasoningDeltas = false
-
-    let model: string = options.model
-
-    let stepId: string | null = null
-    let hasEmittedTextMessageStart = false
-    let reasoningMessageId: string | undefined
-    let hasClosedReasoning = false
-    let runFinishedEmitted = false
-
-    const adapterName = this.name
-    const emitModel = () => model || options.model
-
-    const openReasoning = function* (): Generator<AdapterYieldChunk> {
-      if (reasoningMessageId) return
-      reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
-      const timestamp = Date.now()
-      const currentModel = emitModel()
-      yield {
-        type: EventType.REASONING_START,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.REASONING_MESSAGE_START,
-        messageId: reasoningMessageId,
-        role: 'reasoning' as const,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
-      }
-    }
-
-    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
-      if (!reasoningMessageId || hasClosedReasoning) return
-      hasClosedReasoning = true
-      const timestamp = Date.now()
-      const currentModel = emitModel()
-      yield {
-        type: EventType.REASONING_MESSAGE_END,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.REASONING_END,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      if (stepId) {
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
-          model: currentModel,
-          timestamp,
-          content: accumulatedReasoning,
-        }
-      }
-      reasoningMessageId = undefined
-      stepId = null
-      hasClosedReasoning = false
-      accumulatedReasoning = ''
-    }
-
-    const emitReasoningDelta = function* (
-      text: string,
-    ): Generator<AdapterYieldChunk> {
-      if (!text) return
-      yield* openReasoning()
-      if (!reasoningMessageId) return
-      accumulatedReasoning += text
-      hasStreamedReasoningDeltas = true
-      yield {
-        type: EventType.REASONING_MESSAGE_CONTENT,
-        messageId: reasoningMessageId,
-        delta: text,
-        model: emitModel(),
-        timestamp: Date.now(),
-      }
-    }
-
-    try {
-      for await (const rawEvent of stream) {
-        const chunk = normalizeStreamEvent(rawEvent)
-        options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
-          provider: this.name,
-          type: chunk.type,
-        })
-
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield {
-            type: EventType.RUN_STARTED,
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            parentRunId: options.parentRunId,
-          }
-        }
-
-        const handleContentPart = (
-          contentPart: ContentPartAddedEventPart,
-        ): AdapterYieldChunk => {
-          if (contentPart.type === 'output_text') {
-            accumulatedContent += contentPart.text
-            return {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: contentPart.text,
-              content: accumulatedContent,
-            }
-          }
-
-          if (contentPart.type === 'refusal') {
-            const message = contentPart.refusal || 'Refused without explanation'
-            return {
-              type: EventType.RUN_ERROR,
-              model: model || options.model,
-              timestamp: Date.now(),
-              message,
-              code: 'refusal',
-              error: { message, code: 'refusal' },
-            }
-          }
-
-          // Forward-compat `Unknown<"type">` arm. Surface the discriminator
-          // value so unknown parts are debuggable instead of being misreported
-          // as "Unknown refusal".
-          const code = contentPart.type
-          const message = `Unsupported response content_part type: ${code}`
-          return {
-            type: EventType.RUN_ERROR,
-            model: model || options.model,
-            timestamp: Date.now(),
-            message,
-            code,
-            error: { message, code },
-          }
-        }
-
-        // Capture model metadata from any of these events.
-        if (
-          chunk.type === 'response.created' ||
-          chunk.type === 'response.in_progress' ||
-          chunk.type === 'response.incomplete' ||
-          chunk.type === 'response.failed'
-        ) {
-          if (chunk.response?.model) model = chunk.response.model
-        }
-
-        // response.created marks the start of a fresh run — safe to reset
-        // the per-run accumulators here.
-        if (chunk.type === 'response.created') {
-          hasStreamedContentDeltas = false
-          hasStreamedReasoningDeltas = false
-          hasEmittedTextMessageStart = false
-          reasoningMessageId = undefined
-          hasClosedReasoning = false
-          stepId = null
-          accumulatedContent = ''
-          accumulatedReasoning = ''
-        }
-
-        // response.failed and response.incomplete are TERMINAL events.
-        if (
-          chunk.type === 'response.failed' ||
-          chunk.type === 'response.incomplete'
-        ) {
-          yield* closeReasoning()
-          if (hasEmittedTextMessageStart) {
-            yield {
-              type: EventType.TEXT_MESSAGE_END,
-              messageId: aguiState.messageId,
-              model,
-              timestamp: Date.now(),
-            }
-            hasEmittedTextMessageStart = false
-          }
-          const errorMessage =
-            chunk.response?.error?.message ||
-            chunk.response?.incompleteDetails?.reason ||
-            (chunk.type === 'response.failed'
-              ? 'Response failed'
-              : 'Response ended incomplete')
-          const errorCode =
-            normalizeCode(chunk.response?.error?.code) ??
-            (chunk.response?.incompleteDetails ? 'incomplete' : undefined) ??
-            undefined
-          const rawError = chunk.response?.error
-          yield {
-            type: EventType.RUN_ERROR,
-            model,
-            timestamp: Date.now(),
-            message: errorMessage,
-            ...(errorCode !== undefined && { code: errorCode }),
-            ...(rawError != null && { rawEvent: rawError }),
-            error: {
-              message: errorMessage,
-              ...(errorCode !== undefined && { code: errorCode }),
-            },
-          }
-          runFinishedEmitted = true
-          return
-        }
-
-        // Handle output text deltas (token-by-token streaming)
-        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
-          const textDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-
-          if (textDelta) {
-            yield* closeReasoning()
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                role: 'assistant',
-              }
-            }
-
-            accumulatedContent += textDelta
-            hasStreamedContentDeltas = true
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: textDelta,
-              content: accumulatedContent,
-            }
-          }
-        }
-
-        // Some Responses-compatible providers omit text deltas and expose the
-        // completed text only on the dedicated done event.
-        if (
-          chunk.type === 'response.output_text.done' &&
-          chunk.text &&
-          accumulatedContent.length === 0
-        ) {
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-
-          accumulatedContent = chunk.text
-          hasStreamedContentDeltas = true
-          yield {
-            type: EventType.TEXT_MESSAGE_CONTENT,
-            messageId: aguiState.messageId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            delta: chunk.text,
-            content: accumulatedContent,
-          }
-        }
-
-        // Handle reasoning deltas
-        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
-          const reasoningDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-          yield* emitReasoningDelta(reasoningDelta)
-        }
-
-        // Handle reasoning summary deltas
-        if (
-          chunk.type === 'response.reasoning_summary_text.delta' &&
-          chunk.delta
-        ) {
-          const summaryDelta =
-            typeof chunk.delta === 'string' ? chunk.delta : ''
-          yield* emitReasoningDelta(summaryDelta)
-        }
-
-        // handle content_part added events for text, reasoning and refusals
-        if (chunk.type === 'response.content_part.added' && chunk.part) {
-          const contentPart = chunk.part
-          // Some Responses-compatible providers announce an empty text part
-          // and put the actual text only on response.completed. Do not count
-          // that placeholder as streamed content; the completion backstop
-          // below must remain eligible to recover the final text.
-          if (
-            (contentPart.type === 'output_text' ||
-              contentPart.type === 'reasoning_text') &&
-            !contentPart.text
-          ) {
-            continue
-          }
-          if (contentPart.type === 'reasoning_text') {
-            yield* emitReasoningDelta(contentPart.text)
-            continue
-          }
-          if (
-            contentPart.type === 'output_text' &&
-            !hasEmittedTextMessageStart
-          ) {
-            yield* closeReasoning()
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-          if (contentPart.type === 'output_text') {
-            hasStreamedContentDeltas = true
-          }
-          const partChunk = handleContentPart(contentPart)
-          yield partChunk
-          if (partChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
-          }
-        }
-
-        if (chunk.type === 'response.content_part.done' && chunk.part) {
-          const contentPart = chunk.part
-
-          // Skip emitting chunks for content parts that we've already streamed via deltas
-          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
-            continue
-          }
-          if (
-            contentPart.type === 'reasoning_text' &&
-            hasStreamedReasoningDeltas
-          ) {
-            continue
-          }
-
-          // Upstreams that emit `content_part.done` without any preceding
-          // deltas (or `content_part.added`) still need a START event before
-          // CONTENT.
-          if (contentPart.type === 'reasoning_text') {
-            yield* emitReasoningDelta(contentPart.text)
-            continue
-          }
-          if (
-            contentPart.type === 'output_text' &&
-            !hasEmittedTextMessageStart
-          ) {
-            yield* closeReasoning()
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-
-          const doneChunk = handleContentPart(contentPart)
-          yield doneChunk
-          if (doneChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
-          }
-        }
-
-        // handle output_item.added to capture function call metadata (name)
-        if (chunk.type === 'response.output_item.added') {
-          const item = chunk.item
-          if (item?.type === 'function_call' && item.id) {
-            let metadata = toolCallMetadata.get(item.id)
-            if (!metadata) {
-              metadata = {
-                callId: item.callId || item.id,
-                index: chunk.outputIndex ?? 0,
-                itemId: item.id,
-                name: item.name || '',
-                started: false,
-              }
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.callId) metadata.callId = item.callId
-              if (!metadata.name && item.name) metadata.name = item.name
-            }
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: chunk.outputIndex ?? 0,
-                metadata: {
-                  itemId: metadata.itemId,
-                } satisfies OpenRouterResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-          }
-        }
-
-        // Handle function call arguments delta (streaming).
-        if (
-          chunk.type === 'response.function_call_arguments.delta' &&
-          chunk.delta
-        ) {
-          const itemId = chunk.itemId ?? ''
-          const metadata = toolCallMetadata.get(itemId)
-          if (!metadata?.started) {
-            options.logger.errors(
-              `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
-              {
-                source: `${this.name}.processStreamChunks`,
-                // No metadata yet, so the `call_id` is unknown here — only the
-                // output item id the delta referenced.
-                itemId,
-                rawDelta: chunk.delta,
-              },
-            )
-            continue
-          }
-          yield {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: metadata.callId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            delta: typeof chunk.delta === 'string' ? chunk.delta : '',
-          }
-        }
-
-        if (chunk.type === 'response.function_call_arguments.done') {
-          const itemId = chunk.itemId ?? ''
-
-          const metadata = toolCallMetadata.get(itemId)
-          if (!metadata?.started) {
-            if (metadata) {
-              metadata.pendingArguments = chunk.arguments
-            }
-            options.logger.errors(
-              `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
-              {
-                source: `${this.name}.processStreamChunks`,
-                ...(metadata && { toolCallId: metadata.callId }),
-                itemId,
-                rawArguments: chunk.arguments,
-              },
-            )
-            continue
-          }
-          if (metadata.ended) continue
-          const name = metadata.name || ''
-          metadata.ended = true
-
-          let parsedInput: unknown = {}
-          if (chunk.arguments) {
-            try {
-              const parsed = JSON.parse(chunk.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-            } catch (parseError) {
-              options.logger.errors(
-                `${this.name}.processStreamChunks tool-args JSON parse failed`,
-                {
-                  error: toRunErrorPayload(
-                    parseError,
-                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                  ),
-                  source: `${this.name}.processStreamChunks`,
-                  toolCallId: metadata.callId,
-                  itemId,
-                  toolName: name,
-                  rawArguments: chunk.arguments,
-                },
-              )
-              parsedInput = {}
-            }
-          }
-
-          yield {
-            type: EventType.TOOL_CALL_END,
-            toolCallId: metadata.callId,
-            toolCallName: name,
-            toolName: name,
-            model: model || options.model,
-            timestamp: Date.now(),
-            input: parsedInput,
-          }
-        }
-
-        // `output_item.done` is the last point at which a function_call's
-        // name is guaranteed to be on the wire.
-        if (chunk.type === 'response.output_item.done') {
-          const item = chunk.item
-          if (item?.type === 'function_call' && item.id) {
-            const metadata = toolCallMetadata.get(item.id) ?? {
-              callId: item.callId || item.id,
-              index: chunk.outputIndex ?? 0,
-              itemId: item.id,
-              name: item.name || '',
-              started: false,
-            }
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.callId) metadata.callId = item.callId
-              if (!metadata.name && item.name) metadata.name = item.name
-            }
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: metadata.index,
-                metadata: {
-                  itemId: metadata.itemId,
-                } satisfies OpenRouterResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-            const rawArgs =
-              typeof item.arguments === 'string' && item.arguments.length > 0
-                ? item.arguments
-                : metadata.pendingArguments
-            if (metadata.started && !metadata.ended && rawArgs !== undefined) {
-              const name = metadata.name || ''
-              let parsedInput: unknown = {}
-              if (rawArgs) {
-                try {
-                  const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
-                } catch (parseError) {
-                  options.logger.errors(
-                    `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
-                    {
-                      error: toRunErrorPayload(
-                        parseError,
-                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                      ),
-                      source: `${this.name}.processStreamChunks`,
-                      toolCallId: metadata.callId,
-                      itemId: item.id,
-                      toolName: name,
-                      rawArguments: rawArgs,
-                    },
-                  )
-                  parsedInput = {}
-                }
-              }
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: metadata.callId,
-                toolCallName: name,
-                toolName: name,
-                model: model || options.model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-              metadata.ended = true
-              metadata.pendingArguments = undefined
-            }
-          }
-        }
-
-        if (chunk.type === 'response.completed') {
-          const responseObj = chunk.response ?? {}
-          const outputItems = Array.isArray(responseObj.output)
-            ? responseObj.output
-            : []
-
-          const outputItemText = outputItems
-            .flatMap((item) =>
-              item.type === 'message' && Array.isArray(item.content)
-                ? item.content
-                : [],
-            )
-            .filter((part) => part.type === 'output_text')
-            .map((part) => part.text)
-            .join('')
-          const completedText =
-            typeof responseObj.outputText === 'string' &&
-            responseObj.outputText.length > 0
-              ? responseObj.outputText
-              : outputItemText
-
-          if (accumulatedContent.length === 0 && completedText.length > 0) {
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                role: 'assistant',
-              }
-            }
-
-            accumulatedContent = completedText
-            hasStreamedContentDeltas = true
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: completedText,
-              content: accumulatedContent,
-            }
-          }
-
-          // Final backstop for function_call lifecycle.
-          for (const item of outputItems) {
-            if (item.type !== 'function_call' || !item.id) continue
-            const metadata = toolCallMetadata.get(item.id) ?? {
-              callId: item.callId || item.id,
-              index: 0,
-              itemId: item.id,
-              name: item.name || '',
-              started: false,
-            }
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.callId) metadata.callId = item.callId
-              if (!metadata.name && item.name) metadata.name = item.name
-            }
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: metadata.index,
-                metadata: {
-                  itemId: metadata.itemId,
-                } satisfies OpenRouterResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-            const rawArgs =
-              typeof item.arguments === 'string' && item.arguments.length > 0
-                ? item.arguments
-                : metadata.pendingArguments
-            if (metadata.started && !metadata.ended) {
-              const name = metadata.name || ''
-              let parsedInput: unknown = {}
-              if (rawArgs) {
-                try {
-                  const parsed = JSON.parse(rawArgs)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
-                } catch (parseError) {
-                  options.logger.errors(
-                    `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,
-                    {
-                      error: toRunErrorPayload(
-                        parseError,
-                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                      ),
-                      source: `${this.name}.processStreamChunks`,
-                      toolCallId: metadata.callId,
-                      itemId: item.id,
-                      toolName: name,
-                      rawArguments: rawArgs,
-                    },
-                  )
-                  parsedInput = {}
-                }
-              }
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: metadata.callId,
-                toolCallName: name,
-                toolName: name,
-                model: model || options.model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-              metadata.ended = true
-              metadata.pendingArguments = undefined
-            }
-          }
-
-          yield* closeReasoning()
-          if (hasEmittedTextMessageStart) {
-            yield {
-              type: EventType.TEXT_MESSAGE_END,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-            }
-            hasEmittedTextMessageStart = false
-          }
-
-          const hasFunctionCalls = outputItems.some(
-            (item) => item.type === 'function_call',
-          )
-          const incompleteReason = responseObj.incompleteDetails?.reason
-          const finishReason:
-            | 'tool_calls'
-            | 'length'
-            | 'content_filter'
-            | 'stop' = hasFunctionCalls
-            ? 'tool_calls'
-            : incompleteReason === 'max_output_tokens'
-              ? 'length'
-              : incompleteReason === 'content_filter'
-                ? 'content_filter'
-                : 'stop'
-
-          yield {
-            type: EventType.RUN_FINISHED,
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            usage: {
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...extractUsageCost(responseObj.usage),
-            },
-            finishReason,
-          }
-          runFinishedEmitted = true
-        }
-
-        if (chunk.type === 'error') {
-          const code = normalizeCode(chunk.code)
-          yield {
-            type: EventType.RUN_ERROR,
-            model: model || options.model,
-            timestamp: Date.now(),
-            message: chunk.message ?? '',
-            ...(code !== undefined && { code }),
-            error: {
-              message: chunk.message ?? '',
-              ...(code !== undefined && { code }),
-            },
-          }
-          runFinishedEmitted = true
-          return
-        }
-      }
-
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event.
-      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
-        yield* closeReasoning()
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId: aguiState.messageId,
-            model: model || options.model,
-            timestamp: Date.now(),
-          }
-        }
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: model || options.model,
-          timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
-        }
-      }
-    } catch (error: unknown) {
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.processStreamChunks failed`,
-      )
-      const rawEvent = toRunErrorRawEvent(error)
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        },
-      }
-    }
+    yield* processResponsesStreamChunks({
+      stream,
+      toolCallMetadata,
+      options,
+      aguiState,
+      adapterName: this.name,
+    })
   }
 
   /**
@@ -1668,18 +508,12 @@ export class OpenRouterResponsesTextAdapter<
       }
     }
 
-    // `variant` is OpenRouter metadata used only to build the `:variant` model
-    // suffix — it is not part of the wire `ResponsesRequest`, so strip it out
-    // of the spread body (mirrors the chat-completions adapter).
     const { variant, ...modelOptions } = (options.modelOptions ??
       {}) as Partial<ResponsesRequest> & { variant?: string }
     const variantSuffix = variant ? `:${variant}` : ''
 
     const input = this.convertMessagesToInput(options.messages)
 
-    // ResponsesFunctionTool already matches OpenRouter's
-    // ResponsesRequestToolFunction shape:
-    // `{ type:'function', name, parameters, description, strict }`.
     const tools: Array<ResponsesFunctionTool> | undefined = options.tools
       ? options.tools.map((tool) =>
           convertFunctionToolToResponsesFormat(
@@ -1717,11 +551,6 @@ export class OpenRouterResponsesTextAdapter<
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
-      // Root `metadata` is observability-only and intentionally not forwarded:
-      // the SDK validates wire `metadata` as `Record<string, string>`, while
-      // root metadata may carry arbitrarily structured values (#735). Callers
-      // set wire metadata via `modelOptions.metadata`, which flows through
-      // the spread.
       ...(() => {
         const prompts = normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}
@@ -1733,9 +562,6 @@ export class OpenRouterResponsesTextAdapter<
           tools,
         }),
       ...(combinedSchema && {
-        // Merge onto any caller-supplied `text` (spread above via
-        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
-        // only `text.format` is overridden by the combined-mode schema.
         text: {
           ...modelOptions.text,
           format: {
@@ -1869,9 +695,6 @@ export class OpenRouterResponsesTextAdapter<
       }
       case 'audio': {
         if (part.source.type === 'url') {
-          // OpenRouter's `input_audio` carries `{ data, format }` not a URL —
-          // fall back to `input_file` for URLs so we don't silently drop the
-          // audio reference.
           return {
             type: 'input_file',
             fileUrl: part.source.value,
@@ -1913,7 +736,8 @@ export class OpenRouterResponsesTextAdapter<
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return []
     }
     if (typeof content === 'string') {
@@ -1925,7 +749,8 @@ export class OpenRouterResponsesTextAdapter<
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return ''
     }
     if (typeof content === 'string') {
@@ -1936,141 +761,6 @@ export class OpenRouterResponsesTextAdapter<
       .map((p) => p.content)
       .join('')
   }
-}
-
-/**
- * Normalised event shape we read off each OpenRouter SDK stream event after
- * camel-case translation. Models the loose superset of fields we consult
- * across all event-type branches; specific branches narrow further inline.
- */
-interface NormalizedStreamEvent {
-  type: string
-  itemId?: string
-  outputIndex?: number
-  contentIndex?: number
-  delta?: string | Array<string>
-  text?: string
-  arguments?: string
-  message?: string
-  code?: unknown
-  param?: string | null
-  sequenceNumber?: number
-  /** camelCased copy of the `response` payload from `response.{completed,failed,incomplete}` events. */
-  response?: Partial<OpenResponsesResult>
-  /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
-  item?: OutputItems
-  /** SDK discriminated union — narrow with `part.type === '<variant>'`.
-   *  Shared by `response.content_part.added` and `response.content_part.done`
-   *  (`ContentPartDoneEventPart` is structurally identical). */
-  part?: ContentPartAddedEventPart
-}
-
-/**
- * Translate the SDK's discriminated-union event into a uniform camelCase
- * shape our processor reads.
- *
- * The SDK's discriminated-union parser falls back to
- * `{ raw, type: 'UNKNOWN', isUnknown: true }` when an event's strict per-
- * variant schema rejects (missing optional-ish fields like `sequenceNumber`/
- * `logprobs` that some upstreams — including aimock — omit). The `raw`
- * payload is the original wire-shape event in snake_case. We translate
- * snake_case keys to camelCase for those unknown events so the rest of the
- * processor reads a uniform shape.
- *
- * Known events already have camelCase fields and are passed through.
- */
-function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
-  const e = event as {
-    isUnknown?: boolean
-    raw?: unknown
-    type?: string
-    [k: string]: unknown
-  }
-
-  if (e.isUnknown && e.raw && typeof e.raw === 'object') {
-    const raw = e.raw as Record<string, unknown>
-    // Translate the snake_case wire-shape fields we need into camelCase. The
-    // adapter only consults the fields below; any others are passed through
-    // verbatim so downstream extraction (e.g. for unknown event types) still
-    // sees them.
-    const out: Record<string, unknown> = { ...raw }
-    if ('item_id' in raw) out.itemId = raw.item_id
-    if ('output_index' in raw) out.outputIndex = raw.output_index
-    if ('content_index' in raw) out.contentIndex = raw.content_index
-    if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
-    if ('summary_index' in raw) out.summaryIndex = raw.summary_index
-    if (
-      'response' in raw &&
-      raw['response'] &&
-      typeof raw['response'] === 'object'
-    ) {
-      out['response'] = camelCaseResponseShape(
-        raw['response'] as Record<string, unknown>,
-      )
-    }
-    if ('item' in raw && raw.item && typeof raw.item === 'object') {
-      out.item = camelCaseOutputItem(raw.item as Record<string, unknown>)
-    }
-    if ('part' in raw) out.part = raw.part
-    out.type =
-      typeof raw['type'] === 'string' ? raw['type'] : e.type || 'unknown'
-    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
-    return out as unknown as NormalizedStreamEvent
-  }
-
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
-  return event as unknown as NormalizedStreamEvent
-}
-
-/** Translate snake_case keys in a `response` payload to camelCase for the
- *  fields our terminal-event handlers read. Unknown keys passthrough. */
-function camelCaseResponseShape(
-  src: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...src }
-  if ('incomplete_details' in src)
-    out.incompleteDetails = src.incomplete_details
-  if ('output_text' in src) out.outputText = src.output_text
-  if (
-    'input_tokens' in src ||
-    'output_tokens' in src ||
-    'total_tokens' in src
-  ) {
-    // never mutate src; rewrite usage in place if present.
-  }
-  if (src.usage && typeof src.usage === 'object') {
-    const u = src.usage as Record<string, unknown>
-    out.usage = {
-      ...u,
-      ...('input_tokens' in u && { inputTokens: u.input_tokens }),
-      ...('output_tokens' in u && { outputTokens: u.output_tokens }),
-      ...('total_tokens' in u && { totalTokens: u.total_tokens }),
-    }
-  }
-  if (Array.isArray(src.output)) {
-    out.output = src.output.map((item) =>
-      item && typeof item === 'object'
-        ? camelCaseOutputItem(item as Record<string, unknown>)
-        : item,
-    )
-  }
-  return out
-}
-
-/** Translate snake_case keys in an output item to camelCase. */
-function camelCaseOutputItem(
-  src: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...src }
-  if ('call_id' in src) out.callId = src.call_id
-  return out
-}
-
-/** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */
-function normalizeCode(code: unknown): string | undefined {
-  if (typeof code === 'string') return code
-  if (typeof code === 'number' && Number.isFinite(code)) return String(code)
-  return undefined
 }
 
 export function createOpenRouterResponsesText<

@@ -156,12 +156,6 @@ export interface UseGenerationReturn<
  * await generate({ prompt: 'Hello' })
  * ```
  */
-// `TTransformed` infers from the `onResult` return position (a covariant
-// inference site that works even for an optional nested property), which types
-// the callback parameter as `TResult` and narrows `result`. Inferring the
-// whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
-// issue #848.
 export function useGeneration<
   TInput extends Record<string, any>,
   TResult,
@@ -186,15 +180,7 @@ export function useGeneration<
   const [runId, setRunId] = createSignal<string | null>(null)
   let disposed = false
 
-  // Built once. `untrack` keeps the option reads below from subscribing
-  // construction to `options.persistence` / `options.devtools` /
-  // `options.body`: a re-run would build a second client
-  // and orphan the first (only the live one is disposed on cleanup). Later
-  // `options.body` changes are pushed through `updateOptions` instead.
   const client = untrack((): GenerationClient<TInput, TResult, TOutput> => {
-    // Conditional spread on `body`: `GenerationClientOptions.body` is a
-    // strict optional (`body?: Record<string, any>`) and EOPT forbids
-    // assigning the source `T | undefined` directly.
     const clientOptions: Omit<
       GenerationClientOptions<TInput, TResult, TOutput>,
       'persistence' | 'threadId'
@@ -215,9 +201,6 @@ export function useGeneration<
         framework: 'solid',
         hookName: 'useGeneration',
       },
-      // The transform's raw return type (`TTransformed`) and the stored output
-      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-      // the cast bridges the relationship that the conditional type hides.
       onResult: ((r: TResult) => options.onResult?.(r)) as (
         result: TResult,
       ) => TOutput | null | void,
@@ -300,14 +283,17 @@ export function useGeneration<
     client.dispose()
   })
 
+  /** Trigger a generation request */
   const generate = async (input: TInput) => {
     await client.generate(input)
   }
 
+  /** Abort the current generation */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear result, error, and return to idle */
   const reset = () => {
     client.reset()
   }

@@ -16,11 +16,6 @@ export {
   getAIDevtoolsRuntimeId,
 } from './envelope.js'
 
-// ===========================
-// Types (locally defined to avoid circular dependency with @tanstack/ai)
-// These mirror the corresponding types in @tanstack/ai
-// ===========================
-
 export interface ContentPartDataSource {
   type: 'data'
   value: string
@@ -38,6 +33,8 @@ export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
 export interface TextPart {
   type: 'text'
   content: string
+  /** Provider-specific metadata that round-trips with the tool call.
+   * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
   metadata?: unknown
 }
 
@@ -110,6 +107,7 @@ export interface StructuredOutputPart {
   type: 'structured-output'
   status: 'streaming' | 'complete' | 'error'
   partial?: unknown
+  /** Adapter-defined `inspect()` payload (e.g. `{ records: [...] }`). */
   data?: unknown
   raw: string
   reasoning?: string
@@ -134,9 +132,6 @@ export interface ToolCall<TMetadata = unknown> {
     name: string
     arguments: string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle.
-   * Typed per-adapter via `TToolCallMetadata` (e.g. Gemini's
-   * `{ thoughtSignature?: string }`). */
   metadata?: TMetadata
 }
 
@@ -298,22 +293,19 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
  * Must match @tanstack/ai-client ToolCallState
  */
 export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'complete'
+  | 'error'
 
 /**
  * Tool result states - track the lifecycle of a tool result
  * Must match @tanstack/ai-client ToolResultState
  */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = 'streaming' | 'complete' | 'error'
 
 /**
  * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
@@ -322,10 +314,6 @@ export type ToolResultState =
  */
 export type ImageUsage = TokenUsage
 
-// All optional fields explicitly allow `| undefined` so that callers
-// can spread shared-context builders (which set every field to a
-// possibly-undefined value) without `exactOptionalPropertyTypes`
-// rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
   eventId?: string
@@ -347,16 +335,14 @@ interface BaseEventContext {
   model?: string
   systemPrompts?: Array<string>
   options?: Record<string, unknown> | undefined
+  /** Provider-specific options passed to the embedding request. */
   modelOptions?: Record<string, unknown> | undefined
   toolNames?: Array<string>
   messageCount?: number
+  /** Whether the recall result injected any tools this turn. */
   hasTools?: boolean
   streaming?: boolean
 }
-
-// ===========================
-// Text Events
-// ===========================
 
 /** Emitted when a text request starts execution. */
 export interface TextRequestStartedEvent extends BaseEventContext {
@@ -465,10 +451,6 @@ export interface TextUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Structured Output Events
-// ===========================
-
 export interface StructuredOutputStartedEvent extends BaseEventContext {
   requestId?: string
   streamId: string
@@ -508,10 +490,6 @@ export interface StructuredOutputErroredEvent extends BaseEventContext {
   errorMessage: string
 }
 
-// ===========================
-// Iteration Events
-// ===========================
-
 /** Emitted when a new agent loop iteration begins, with a config snapshot. */
 export interface TextIterationStartedEvent extends BaseEventContext {
   requestId: string
@@ -532,10 +510,6 @@ export interface TextIterationCompletedEvent extends BaseEventContext {
   finishReason?: string
   usage?: TokenUsage
 }
-
-// ===========================
-// Middleware Events
-// ===========================
 
 /** Emitted when a middleware hook completes execution. */
 export interface MiddlewareHookExecutedEvent extends BaseEventContext {
@@ -563,13 +537,10 @@ export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
   streamId: string
   middlewareName: string
   originalChunkType: string
+  /** Number of ranked results returned (after any `topN`). */
   resultCount: number
   wasDropped: boolean
 }
-
-// ===========================
-// Tool Events
-// ===========================
 
 /** Emitted when tool approval is required. */
 export interface ToolsApprovalRequestedEvent extends BaseEventContext {
@@ -628,10 +599,6 @@ export interface ToolsCallUpdatedEvent extends BaseEventContext {
   arguments: string
 }
 
-// ===========================
-// Summarize Events
-// ===========================
-
 /** Emitted when summarize starts. */
 export interface SummarizeRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -656,10 +623,6 @@ export interface SummarizeUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Rerank Events
-// ===========================
 
 /** Emitted when a rerank request starts. */
 export interface RerankRequestStartedEvent extends BaseEventContext {
@@ -688,10 +651,6 @@ export interface RerankUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Image Events
-// ===========================
 
 /** Emitted when an image request starts. */
 export interface ImageRequestStartedEvent extends BaseEventContext {
@@ -730,10 +689,6 @@ export interface ImageUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Embedding Events
-// ===========================
 
 /** Emitted when an embedding request starts. Carries input counts only, never input content. */
 export interface EmbeddingRequestStartedEvent extends BaseEventContext {
@@ -783,10 +738,6 @@ export interface EmbeddingUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Speech Events
-// ===========================
-
 /** Emitted when a speech request starts. */
 export interface SpeechRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -823,10 +774,6 @@ export interface SpeechUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Transcription Events
-// ===========================
-
 /** Emitted when a transcription request starts. */
 export interface TranscriptionRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -859,10 +806,6 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Audio Events
-// ===========================
 
 /** Emitted when an audio generation request starts. */
 export interface AudioRequestStartedEvent extends BaseEventContext {
@@ -947,10 +890,6 @@ export interface AudioUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Video Events
-// ===========================
-
 /** Emitted when a video request starts. */
 export interface VideoRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -990,10 +929,6 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ---------------------------------------------------------------------------
-// Memory events
-// ---------------------------------------------------------------------------
-
 /**
  * Wire/devtools payload for a **known** memory scope.
  *
@@ -1016,6 +951,10 @@ export type MemoryScopeLite = {
 
 /** Emitted when the middleware begins a `recall` for the current turn. */
 export interface MemoryRetrieveStartedEvent extends BaseEventContext {
+  /**
+   * Scope when it was already resolved before the failure. Omitted when the
+   * resolver itself failed or never ran — there is no fake empty scope.
+   */
   scope: MemoryScopeLite
   /** Adapter id (e.g. 'in-memory', 'hindsight'). */
   adapter: string
@@ -1026,6 +965,7 @@ export interface MemoryRetrieveStartedEvent extends BaseEventContext {
 /** Emitted when `recall` returns, before the result is injected into the prompt. */
 export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
   scope: MemoryScopeLite
+  /** Adapter id (e.g. 'in-memory', 'hindsight'). */
   adapter: string
   /** Number of discrete fragments returned (0 when the adapter synthesizes). */
   fragmentCount: number
@@ -1055,10 +995,6 @@ export interface MemoryPersistCompletedEvent extends BaseEventContext {
 
 /** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
 export interface MemoryErrorEvent extends BaseEventContext {
-  /**
-   * Scope when it was already resolved before the failure. Omitted when the
-   * resolver itself failed or never ran — there is no fake empty scope.
-   */
   scope?: MemoryScopeLite
   adapter: string
   phase: 'recall' | 'save'
@@ -1096,10 +1032,6 @@ export interface SkillsSnapshotEvent extends BaseEventContext {
   catalog: Array<{ name: string; description: string }>
   activated: Array<string>
 }
-
-// ===========================
-// Client Events
-// ===========================
 
 /** Emitted when a client is created. */
 export interface ClientCreatedEvent extends BaseEventContext {
@@ -1384,13 +1316,9 @@ export function emitAIDevtoolsEvent<
 export function dispatchAIDevtoolsEvent<
   TEvent extends keyof AIDevtoolsEventMap & string,
 >(eventName: TEvent, payload: AIDevtoolsEventMap[TEvent]): void {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.dispatchEvent !== 'function' ||
-    typeof CustomEvent === 'undefined'
-  ) {
-    return
-  }
+  if (typeof window === 'undefined') return
+  if (typeof window.dispatchEvent !== 'function') return
+  if (typeof CustomEvent === 'undefined') return
 
   window.dispatchEvent(
     new CustomEvent('tanstack-dispatch-event', {

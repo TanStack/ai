@@ -1,13 +1,3 @@
-/**
- * SandboxHandle backed by a Vercel Sandbox microVM (via `@vercel/sandbox`).
- * Real isolation: fs/exec/git operate inside the remote microVM; paths are real
- * sandbox paths (default workdir `/vercel/sandbox`).
- *
- * Vercel's `runCommand` executes a program directly (no implicit shell), so we
- * run shell command strings as `sh -c "<command>"`. fs is implemented over that
- * exec with chunked base64 piping (binary-safe); the runtime image provides
- * `sh`, `base64`, and coreutils.
- */
 import {
   UnsupportedCapabilityError,
   createExecBackedGit,
@@ -33,27 +23,6 @@ export const VERCEL_CAPS: SandboxCapabilities = {
   // Vercel detached commands stream logs out but expose no host→process stdin,
   // so adapters that feed a prompt over stdin must use a file + shell redirect.
   writableStdin: false,
-  // FALSE, and it must not be flipped back without a MEASUREMENT against a real
-  // sandbox. It read `true` on the claim that aborting the `signal` threaded into
-  // `sandbox.runCommand` tears the detached command down. That claim is false, and
-  // it is false in the SDK's own source rather than merely unproven: in
-  // `@vercel/sandbox`'s `session.runCommand`, the `detached` branch forwards
-  // `signal` to `client.runCommand` — the HTTP request that STARTS the command —
-  // and to `pipeLogs`, which returns immediately here because this handle passes
-  // no `stdout`/`stderr` writables. That start request has already resolved by the
-  // time `spawnProcess` returns, so the abort had nothing left to cancel and
-  // `kill()` was a total no-op that left the remote process running. Same shape as
-  // the docker defect: a client-side detach advertised as a kill.
-  //
-  // `kill()` now calls the SDK's real `Command.kill` (a server-side kill), so it
-  // is no longer a no-op — but what that endpoint signals is undocumented, and
-  // `journalFollowCommand` is a THREE-statement shell command
-  // (`mkdir …; : >> …; tail -f …`), so no shell can exec-optimize it and the
-  // `tail -f` is necessarily a CHILD of the `sh` that `runCommand` started. If the
-  // kill is pid-only rather than process-group-wide, every follow read leaks a
-  // `tail -f` — which is exactly the local-process defect. Until that is measured
-  // (see `tests/journal.conformance.test.ts`, gated on real credentials) this stays
-  // false and `journalReadStrategy` picks the slower-but-correct `'poll'`.
   killableProcesses: false,
   snapshots: false,
   networkPolicy: false,
@@ -76,15 +45,15 @@ function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
   const size = fields?.groups?.size
-  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  if (!mode) throw new Error(`invalid lstat output: ${output}`)
+  if (!size) throw new Error(`invalid lstat output: ${output}`)
   const parsedMode = Number.parseInt(mode, 16)
   const parsedSize = Number(size)
-  if (
+  const invalidLstat =
     !Number.isSafeInteger(parsedMode) ||
     !Number.isSafeInteger(parsedSize) ||
     parsedSize < 0
-  )
-    throw new Error(`invalid lstat output: ${output}`)
+  if (invalidLstat) throw new Error(`invalid lstat output: ${output}`)
   const type = parsedMode & 0xf000
   if (type === 0x8000)
     return { type: 'file', mode: parsedMode, size: parsedSize }
@@ -151,10 +120,13 @@ export class VercelHandle implements SandboxHandle {
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
   readonly process: SandboxHandle['process']
+  /** Ports declared at create time (reachable via `sandbox.domain(port)`). */
   readonly ports: SandboxHandle['ports']
   readonly env: SandboxHandle['env']
 
+  /** The live Vercel sandbox object. */
   private readonly sandbox: Sandbox
+  /** Working directory inside the sandbox (the `/workspace` virtual root maps here). */
   private readonly workdir: string
   private readonly exposedPorts: Array<number>
   private readonly envVars: Record<string, string> = {}
@@ -185,7 +157,8 @@ export class VercelHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        for (const command of fsWriteCommands(this.abs(p), data)) {
+        const writeCommands = fsWriteCommands(this.abs(p), data)
+        for (const command of writeCommands) {
           const r = await this.exec(command)
           if (r.exitCode !== 0)
             throw new Error(`write failed: ${r.stderr.trim()}`)
@@ -248,7 +221,8 @@ export class VercelHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    const pathNotFound = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (pathNotFound) return undefined
     if (r.exitCode !== 0) {
       throw new Error(`lstat failed: ${r.stderr.trim()}`)
     }
@@ -296,20 +270,11 @@ export class VercelHandle implements SandboxHandle {
       signal: controller.signal,
     })
 
-    // Terminate the REMOTE command and then detach locally. `Command.kill` is the
-    // SDK's server-side kill (`POST killCommand`); aborting `controller` alone
-    // reaches nothing once the start request has resolved, which is why `kill()`
-    // used to leave the process running. Registered only after `runCommand`
-    // resolves, because `cmd` is what carries the kill.
     const terminate = async (): Promise<void> => {
       controller.abort()
       try {
         await cmd.kill('SIGKILL')
-      } catch {
-        // Teardown path: the command may already have exited (so the kill 404s)
-        // and the caller has stopped caring about it either way. A throw here
-        // would wedge the caller instead of freeing anything.
-      }
+      } catch {}
     }
     if (opts?.signal) {
       if (opts.signal.aborted) void terminate()
@@ -326,7 +291,8 @@ export class VercelHandle implements SandboxHandle {
     // Fan the single interleaved log stream out into stdout/stderr iterables.
     const pump = (async (): Promise<void> => {
       try {
-        for await (const log of cmd.logs()) {
+        const logs = cmd.logs()
+        for await (const log of logs) {
           if (log.stream === 'stderr') stderrQ.push(log.data)
           else stdoutQ.push(log.data)
         }

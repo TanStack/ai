@@ -23,9 +23,6 @@ export interface McpResourceReadResult {
  * (ai-mcp depends on ai, not the reverse).
  */
 export interface MCPToolSource {
-  // Keep the options shape in sync with ai-mcp's `ToolsOptions` — extra
-  // optional fields added there still match structurally, but chat() only
-  // forwards what is declared here.
   tools: (options?: { lazy?: boolean }) => Promise<Array<AnyServerTool>>
   close: () => Promise<void>
   /**

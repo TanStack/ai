@@ -77,12 +77,186 @@ function mediaPartToUrl(
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
 
+function assertGrokVideoMode(
+  adapterName: string,
+  mode: unknown,
+): asserts mode is 'edit' | 'extend' | undefined {
+  if (mode !== undefined && mode !== 'edit' && mode !== 'extend') {
+    throw new Error(
+      `${adapterName}: unknown modelOptions.mode '${String(mode)}'. ` +
+        `Expected 'edit' or 'extend'.`,
+    )
+  }
+}
+
+function assertGrokSourceVideo(
+  adapterName: string,
+  model: string,
+  mode: 'edit' | 'extend' | undefined,
+  videos: Array<VideoPart<MediaInputMetadata>>,
+): VideoPart<MediaInputMetadata> | undefined {
+  if (
+    !isGrokVideoSourceModel(model) &&
+    (mode !== undefined || videos.length > 0)
+  ) {
+    throw new Error(
+      `${adapterName}: ${model} does not support video editing or extension. ` +
+        `Use 'grok-imagine-video' for /v1/videos/edits and /v1/videos/extensions.`,
+    )
+  }
+  if (videos.length > 1) {
+    throw new Error(
+      `${adapterName}: ${model} accepts at most one source video; received ${videos.length}.`,
+    )
+  }
+  const [sourceVideo] = videos
+  const hasSourceWithoutMode = sourceVideo && mode === undefined
+  if (hasSourceWithoutMode) {
+    throw new Error(
+      `${adapterName}: a video prompt part needs modelOptions.mode set to ` +
+        `'edit' (rewrite the clip) or 'extend' (append to it).`,
+    )
+  }
+  if (!sourceVideo && mode !== undefined) {
+    throw new Error(
+      `${adapterName}: modelOptions.mode '${mode}' requires a video prompt ` +
+        `part carrying the source clip.`,
+    )
+  }
+  return sourceVideo
+}
+
+function partitionGrokVideoImages(
+  adapterName: string,
+  model: string,
+  images: Array<ImagePart<MediaInputMetadata>>,
+): {
+  startFrames: Array<ImagePart<MediaInputMetadata>>
+  referenceImages: Array<{ url: string }>
+} {
+  const startFrames: Array<ImagePart<MediaInputMetadata>> = []
+  const referenceImages: Array<{ url: string }> = []
+  for (const part of images) {
+    const role = part.metadata?.role
+    switch (role) {
+      case 'mask':
+      case 'control':
+      case 'end_frame':
+        throw new Error(
+          `${adapterName}: the Imagine video API has no '${role}' image ` +
+            `input on model ${model}. Use an un-roled / 'start_frame' ` +
+            `image as the starting frame, or 'reference' images.`,
+        )
+      case 'reference':
+      case 'character':
+        referenceImages.push({ url: mediaPartToUrl(part) })
+        break
+      case 'start_frame':
+      case undefined:
+        startFrames.push(part)
+        break
+      default:
+        throw new Error(
+          `${adapterName}: unknown image metadata.role '${String(role)}'. ` +
+            `Expected 'start_frame', 'reference', or 'character'.`,
+        )
+    }
+  }
+  if (startFrames.length > 1) {
+    throw new Error(
+      `${adapterName}: ${model} accepts at most one starting-frame image; received ${startFrames.length}. ` +
+        `Use metadata.role: 'reference' for reference-to-video inputs.`,
+    )
+  }
+  return { startFrames, referenceImages }
+}
+
+function grokGenerationRequest(args: {
+  model: string
+  prompt: string
+  startFrame: ImagePart<MediaInputMetadata> | undefined
+  finalReferenceImages: Array<{ url: string }> | undefined
+  referenceImageCount: number
+  referenceAudios: GrokVideoRuntimeOptions['reference_audios']
+  referenceAudioCount: number
+  parsedSize: ReturnType<typeof parseGrokVideoSize> | undefined
+  generationOptions: Omit<
+    GrokVideoRuntimeOptions,
+    'mode' | 'duration' | 'reference_images' | 'reference_audios'
+  >
+  duration: number | undefined
+}): Record<string, unknown> {
+  const sizeFields = args.parsedSize
+    ? {
+        aspect_ratio: args.parsedSize.aspectRatio,
+        ...(args.parsedSize.resolution !== undefined && {
+          resolution: args.parsedSize.resolution,
+        }),
+      }
+    : {}
+  return {
+    model: args.model,
+    prompt: args.prompt,
+    ...(args.startFrame && { image: { url: mediaPartToUrl(args.startFrame) } }),
+    ...(args.referenceImageCount > 0 && {
+      reference_images: args.finalReferenceImages,
+    }),
+    ...(args.referenceAudioCount > 0 && {
+      reference_audios: args.referenceAudios,
+    }),
+    ...sizeFields,
+    ...args.generationOptions,
+    ...(args.duration !== undefined && { duration: args.duration }),
+  }
+}
+
+function assertGrokReferenceToVideo(
+  adapterName: string,
+  model: string,
+  startFrame: ImagePart<MediaInputMetadata> | undefined,
+  referenceImageCount: number,
+  referenceAudioCount: number,
+  resolvedResolution: string | undefined,
+): void {
+  const hasReference = referenceImageCount > 0 || referenceAudioCount > 0
+  if (!isGrokVideoReferenceModel(model) && hasReference) {
+    throw new Error(
+      `${adapterName}: ${model} does not support reference-to-video inputs. ` +
+        `Use 'grok-imagine-video-1.5' for reference_images / reference_audios.`,
+    )
+  }
+  if (referenceAudioCount > GROK_VIDEO_MAX_REFERENCE_AUDIOS) {
+    throw new Error(
+      `${adapterName}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_AUDIOS} reference voices; received ${referenceAudioCount}.`,
+    )
+  }
+  if (referenceImageCount > GROK_VIDEO_MAX_REFERENCE_IMAGES) {
+    throw new Error(
+      `${adapterName}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_IMAGES} reference images; received ${referenceImageCount}.`,
+    )
+  }
+  const mixesStartFrameAndReference = startFrame && hasReference
+  if (mixesStartFrameAndReference) {
+    throw new Error(
+      `${adapterName}: image-to-video and reference-to-video cannot be combined. ` +
+        `Use a starting-frame image, or reference images / voices, not both.`,
+    )
+  }
+  const isReferenceAt1080p = hasReference && resolvedResolution === '1080p'
+  if (isReferenceAt1080p) {
+    throw new Error(
+      `${adapterName}: reference-to-video is capped at 720p on ${model}.`,
+    )
+  }
+}
+
 function buildGrokVideoUsage(
   response: GrokVideoStatusResponse,
 ): TokenUsage | undefined {
   const seconds = response.video?.duration
   const ticks = response.usage?.cost_in_usd_ticks
-  if (seconds === undefined && ticks === undefined) return undefined
+  const hasNoUsage = seconds === undefined && ticks === undefined
+  if (hasNoUsage) return undefined
   return {
     promptTokens: 0,
     completionTokens: 0,
@@ -193,28 +367,11 @@ export class GrokVideoAdapter<
   ): Promise<VideoJobResult> {
     const { model, size, modelOptions, logger } = options
 
-    // `mode` is a routing hint for this adapter, not an API field — strip it
-    // before the remaining options are spread onto the request body. The
-    // per-model map narrows what callers can pass, but modelOptions often
-    // arrives as deserialized JSON, so the adapter handles the widest option
-    // surface (the 1.5 shape) uniformly and gates by model at runtime.
     const { mode, ...wireOptions } = (modelOptions ??
       {}) as GrokVideoRuntimeOptions
 
-    // `mode` is typed 'edit' | 'extend' but reaches us untrusted from JSON
-    // callers. An unrecognised value must not fall through to the
-    // generations endpoint with a source-video body — that would silently
-    // run (and bill) a generation the caller never asked for.
-    if (mode !== undefined && mode !== 'edit' && mode !== 'extend') {
-      throw new Error(
-        `${this.name}: unknown modelOptions.mode '${String(mode)}'. ` +
-          `Expected 'edit' or 'extend'.`,
-      )
-    }
+    assertGrokVideoMode(this.name, mode)
 
-    // The interleaved prompt decomposes into verbatim text plus typed media
-    // buckets. Reference audio is voice-id based (not an audio file), so
-    // audio prompt parts have no request field to land in.
     const resolved = resolveMediaPrompt(options.prompt)
     if (resolved.audios.length > 0) {
       throw new Error(
@@ -224,39 +381,12 @@ export class GrokVideoAdapter<
       )
     }
 
-    // A video prompt part is the source clip for edit / extension mode.
-    // Those endpoints are grok-imagine-video only — 1.5 has no video input.
-    if (
-      !isGrokVideoSourceModel(model) &&
-      (mode !== undefined || resolved.videos.length > 0)
-    ) {
-      throw new Error(
-        `${this.name}: ${model} does not support video editing or extension. ` +
-          `Use 'grok-imagine-video' for /v1/videos/edits and /v1/videos/extensions.`,
-      )
-    }
-
-    // The mode must be chosen explicitly because the two endpoints have
-    // different semantics (edit rewrites the clip, extend appends
-    // `duration` seconds).
-    if (resolved.videos.length > 1) {
-      throw new Error(
-        `${this.name}: ${model} accepts at most one source video; received ${resolved.videos.length}.`,
-      )
-    }
-    const [sourceVideo] = resolved.videos
-    if (sourceVideo && mode === undefined) {
-      throw new Error(
-        `${this.name}: a video prompt part needs modelOptions.mode set to ` +
-          `'edit' (rewrite the clip) or 'extend' (append to it).`,
-      )
-    }
-    if (!sourceVideo && mode !== undefined) {
-      throw new Error(
-        `${this.name}: modelOptions.mode '${mode}' requires a video prompt ` +
-          `part carrying the source clip.`,
-      )
-    }
+    const sourceVideo = assertGrokSourceVideo(
+      this.name,
+      model,
+      mode,
+      resolved.videos,
+    )
 
     if (mode !== undefined && sourceVideo) {
       return await this.createSourceVideoJob({
@@ -273,10 +403,6 @@ export class GrokVideoAdapter<
 
     validateVideoSize(model, size)
 
-    // Pull the specially-handled keys out of the wire options: `duration`
-    // is folded into the snapped value below, and the reference fields are
-    // re-added explicitly so a JSON-serialized `null` or empty array reads
-    // as "unset" instead of leaking onto the wire.
     const {
       duration: rawOptionDuration,
       reference_images: explicitReferenceImages,
@@ -284,53 +410,15 @@ export class GrokVideoAdapter<
       ...generationOptions
     } = wireOptions
 
-    // Coerce the requested duration into the model's valid range (1–15s,
-    // integer) instead of rejecting it — `snapDuration` clamps and rounds.
-    // modelOptions wins over the generic `duration`, mirroring the size
-    // precedence below.
     const rawDuration = rawOptionDuration ?? options.duration
     const duration =
       rawDuration != null ? this.snapDuration(rawDuration) : undefined
 
-    // Image parts split by role: un-roled / 'start_frame' images become the
-    // starting frame (image-to-video); 'reference' / 'character' images
-    // become reference_images (reference-to-video). The Imagine API has no
-    // mask / control / end-frame inputs. Unknown role strings (possible via
-    // JSON callers) throw rather than silently dropping the part.
-    const startFrames: Array<ImagePart<MediaInputMetadata>> = []
-    const referenceImages: Array<{ url: string }> = []
-    for (const part of resolved.images) {
-      const role = part.metadata?.role
-      switch (role) {
-        case 'mask':
-        case 'control':
-        case 'end_frame':
-          throw new Error(
-            `${this.name}: the Imagine video API has no '${role}' image ` +
-              `input on model ${model}. Use an un-roled / 'start_frame' ` +
-              `image as the starting frame, or 'reference' images.`,
-          )
-        case 'reference':
-        case 'character':
-          referenceImages.push({ url: mediaPartToUrl(part) })
-          break
-        case 'start_frame':
-        case undefined:
-          startFrames.push(part)
-          break
-        default:
-          throw new Error(
-            `${this.name}: unknown image metadata.role '${String(role)}'. ` +
-              `Expected 'start_frame', 'reference', or 'character'.`,
-          )
-      }
-    }
-    if (startFrames.length > 1) {
-      throw new Error(
-        `${this.name}: ${model} accepts at most one starting-frame image; received ${startFrames.length}. ` +
-          `Use metadata.role: 'reference' for reference-to-video inputs.`,
-      )
-    }
+    const { startFrames, referenceImages } = partitionGrokVideoImages(
+      this.name,
+      model,
+      resolved.images,
+    )
     // Explicit modelOptions.reference_images replaces the part-derived list
     // (an explicit empty array means "none").
     const finalReferenceImages =
@@ -338,76 +426,28 @@ export class GrokVideoAdapter<
       (referenceImages.length > 0 ? referenceImages : undefined)
     const referenceImageCount = finalReferenceImages?.length ?? 0
     const referenceAudioCount = referenceAudios?.length ?? 0
-    const hasReference = referenceImageCount > 0 || referenceAudioCount > 0
-
-    // Reference inputs are a grok-imagine-video-1.5 feature. The per-model
-    // options map already hides the fields from other models at compile
-    // time; this runtime gate covers prompt-part roles and untyped callers.
-    if (!isGrokVideoReferenceModel(model) && hasReference) {
-      throw new Error(
-        `${this.name}: ${model} does not support reference-to-video inputs. ` +
-          `Use 'grok-imagine-video-1.5' for reference_images / reference_audios.`,
-      )
-    }
-    if (referenceAudioCount > GROK_VIDEO_MAX_REFERENCE_AUDIOS) {
-      throw new Error(
-        `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_AUDIOS} reference voices; received ${referenceAudioCount}.`,
-      )
-    }
-    if (referenceImageCount > GROK_VIDEO_MAX_REFERENCE_IMAGES) {
-      throw new Error(
-        `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_IMAGES} reference images; received ${referenceImageCount}.`,
-      )
-    }
-
-    // Image-to-video: the single image prompt part becomes the starting frame
-    // and the prompt text describes the desired motion. URL sources are
-    // fetched by xAI's servers; data sources are sent as base64 data URIs.
     const [startFrame] = startFrames
-
-    // xAI rejects `image` + `reference_images` / `reference_audios` as a
-    // 400: only one of image-to-video or reference-to-video can be active.
-    if (startFrame && hasReference) {
-      throw new Error(
-        `${this.name}: image-to-video and reference-to-video cannot be combined. ` +
-          `Use a starting-frame image, or reference images / voices, not both.`,
-      )
-    }
-
-    // The generic `size` option carries an "aspectRatio_resolution" template
-    // (e.g. '16:9_720p') and maps to the Imagine API's `aspect_ratio` /
-    // `resolution` parameters; explicit modelOptions win over the template
-    // (including `reference_images`, which replaces the part-derived list).
     const parsedSize = size !== undefined ? parseGrokVideoSize(size) : undefined
-    const resolvedResolution =
-      generationOptions.resolution ?? parsedSize?.resolution
-    if (hasReference && resolvedResolution === '1080p') {
-      throw new Error(
-        `${this.name}: reference-to-video is capped at 720p on ${model}.`,
-      )
-    }
-    const request = {
+    assertGrokReferenceToVideo(
+      this.name,
+      model,
+      startFrame,
+      referenceImageCount,
+      referenceAudioCount,
+      generationOptions.resolution ?? parsedSize?.resolution,
+    )
+    const request = grokGenerationRequest({
       model,
       prompt: resolved.text,
-      ...(startFrame && { image: { url: mediaPartToUrl(startFrame) } }),
-      ...(referenceImageCount > 0 && {
-        reference_images: finalReferenceImages,
-      }),
-      ...(referenceAudioCount > 0 && {
-        reference_audios: referenceAudios,
-      }),
-      ...(parsedSize && {
-        aspect_ratio: parsedSize.aspectRatio,
-        ...(parsedSize.resolution !== undefined && {
-          resolution: parsedSize.resolution,
-        }),
-      }),
-      // The remaining options spread after the size template so explicit
-      // aspect_ratio / resolution win over it; duration and the reference
-      // fields were destructured out above and re-added normalized.
-      ...generationOptions,
-      ...(duration !== undefined && { duration }),
-    }
+      startFrame,
+      finalReferenceImages,
+      referenceImageCount,
+      referenceAudios,
+      referenceAudioCount,
+      parsedSize,
+      generationOptions,
+      duration,
+    })
 
     return await this.postVideoJob('/videos/generations', request, {
       model,
@@ -444,10 +484,6 @@ export class GrokVideoAdapter<
       )
     }
 
-    // Pull every generation-only key out of the wire options so nothing can
-    // leak into the edit/extend body via the spread below. JSON-serialized
-    // `null` values (a common "unset" encoding) are treated as absent;
-    // actual values are rejected with actionable errors.
     const {
       aspect_ratio: aspectRatio,
       resolution,
@@ -456,16 +492,18 @@ export class GrokVideoAdapter<
       reference_audios: referenceAudiosOption,
       ...passthrough
     } = wireOptions
-    if (
+    const hasReferenceInputs =
       (referenceImagesOption?.length ?? 0) > 0 ||
       (referenceAudiosOption?.length ?? 0) > 0
-    ) {
+    if (hasReferenceInputs) {
       throw new Error(
         `${this.name}: reference inputs are only supported by video ` +
           `generation, not '${mode}' mode.`,
       )
     }
-    if (args.size !== undefined || aspectRatio != null || resolution != null) {
+    const hasGeometryOverride =
+      args.size !== undefined || aspectRatio != null || resolution != null
+    if (hasGeometryOverride) {
       throw new Error(
         `${this.name}: '${mode}' mode does not accept size / aspect_ratio / ` +
           `resolution — the output inherits the source clip's geometry ` +
@@ -473,7 +511,8 @@ export class GrokVideoAdapter<
       )
     }
     const rawDuration = modeDuration ?? args.genericDuration
-    if (mode === 'edit' && rawDuration != null) {
+    const isEditWithDuration = mode === 'edit' && rawDuration != null
+    if (isEditWithDuration) {
       throw new Error(
         `${this.name}: 'edit' mode does not accept a duration — the output ` +
           `inherits the source clip's length. Use mode 'extend' to append ` +

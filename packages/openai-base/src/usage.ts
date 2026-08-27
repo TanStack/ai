@@ -50,9 +50,6 @@ export function buildChatCompletionsUsage(
     result.promptTokensDetails = promptTokensDetails
   }
 
-  // Predicted Outputs accepted/rejected counts have no canonical TokenUsage
-  // slot but are still billed (rejected tokens included), so surface them under
-  // providerUsageDetails — matching how the OpenRouter adapter exposes them.
   const providerUsageDetails = {
     ...(completionDetails?.accepted_prediction_tokens
       ? {
@@ -137,9 +134,6 @@ export function buildImagesUsage(
     totalTokens: usage.total_tokens || 0,
   })
 
-  // The SDK types input_tokens_details (and its numeric fields) as required, but
-  // real responses — e.g. from DALL·E or other non-token-billed models — can
-  // omit them, so treat the breakdown as optional.
   const inputDetails = usage.input_tokens_details as
     | { text_tokens?: number; image_tokens?: number }
     | undefined

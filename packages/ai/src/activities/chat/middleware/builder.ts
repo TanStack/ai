@@ -31,10 +31,6 @@ export type RequiredNames<TList extends ReadonlyArray<AnyChatMiddleware>> =
  * opaque "not assignable".
  */
 export type MissingCapabilities<TMissing extends string> = {
-  // The human-readable message lives in the property KEY, so TypeScript's
-  // "Property '<key>' is missing in type ... but required in type ..." error
-  // prints the explanation instead of an opaque `__missingCapabilities`. The
-  // key distributes over a union of missing names (one required key each).
   [K in `✖ Missing capability "${TMissing}": no configured middleware provides it. Add a middleware whose \`provides\` includes it (and, with createChatMiddleware().use(), order the provider before this consumer).`]: never
 }
 
@@ -125,10 +121,6 @@ export function createChatMiddleware(): ChatMiddlewareBuilder<
       return list
     },
   }
-  // The only sanctioned assertion in this PR: the runtime `builder` is a single
-  // object reused across `.use()` calls, but the type accumulates `TProvided`
-  // and `TList` per call — TypeScript cannot derive that from runtime values, so
-  // a structural `as` is impossible and the double assertion is irreducible.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- irreducible: type-level accumulation cannot be expressed from a single runtime object
   return builder as unknown as ChatMiddlewareBuilder<readonly [], never>
 }

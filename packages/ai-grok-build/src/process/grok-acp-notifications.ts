@@ -23,6 +23,105 @@ function toolCallId(update: Record<string, unknown>): string | undefined {
   return undefined
 }
 
+function applyToolCallDelta(
+  update: Record<string, unknown>,
+  tools: Map<string, ToolAccumulator>,
+  onUpdate: (update: AcpSessionUpdate) => void,
+): void {
+  const id = toolCallId(update)
+  if (id === undefined) return
+
+  let state = tools.get(id)
+  if (state === undefined) {
+    state = { toolCallId: id, args: '', opened: false }
+    tools.set(id, state)
+  }
+
+  if (typeof update.name === 'string' && update.name !== '') {
+    state.name = update.name
+    if (!state.opened) {
+      state.opened = true
+      onUpdate({
+        sessionUpdate: 'tool_call',
+        toolCallId: id,
+        title: update.name,
+        kind: update.name,
+        status: 'in_progress',
+      })
+    }
+  }
+
+  if (typeof update.arguments_delta === 'string') {
+    state.args += update.arguments_delta
+    if (state.opened && state.name !== undefined) {
+      onUpdate({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: id,
+        title: state.name,
+        kind: state.name,
+        status: 'in_progress',
+        rawInput: parseToolInput(state.args),
+      })
+    }
+  }
+}
+
+function applyInteractionResolved(
+  update: Record<string, unknown>,
+  tools: Map<string, ToolAccumulator>,
+  onUpdate: (update: AcpSessionUpdate) => void,
+): void {
+  const id =
+    typeof update.tool_call_id === 'string' ? update.tool_call_id : undefined
+  if (id === undefined) return
+  const state = tools.get(id)
+  if (state === undefined) return
+  onUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: id,
+    title: state.name ?? null,
+    kind: state.name ?? null,
+    status: 'completed',
+    rawInput: parseToolInput(state.args),
+  })
+  tools.delete(id)
+}
+
+function applyGrokSessionUpdate(
+  update: Record<string, unknown>,
+  tools: Map<string, ToolAccumulator>,
+  onUpdate: (update: AcpSessionUpdate) => void,
+): void {
+  const kind = update.sessionUpdate
+  if (kind === 'tool_call_delta_chunk') {
+    applyToolCallDelta(update, tools, onUpdate)
+    return
+  }
+  if (kind === 'interaction_resolved') {
+    applyInteractionResolved(update, tools, onUpdate)
+    return
+  }
+  if (kind === 'agent_message_chunk') {
+    const content = asRecord(update.content)
+    const text = typeof content?.text === 'string' ? content.text : ''
+    if (text === '') return
+    onUpdate({
+      sessionUpdate: kind,
+      content: { type: 'text', text },
+    })
+    return
+  }
+  if (kind === 'agent_thought_chunk') {
+    const content = asRecord(update.content)
+    const text = typeof content?.text === 'string' ? content.text : ''
+    if (text === '') return
+    onUpdate({
+      sessionUpdate: kind,
+      content: { type: 'text', text },
+    })
+  }
+}
+
 function parseToolInput(args: string): unknown {
   if (args.trim() === '') return {}
   try {
@@ -43,79 +142,8 @@ export function createGrokAcpNotificationHandler(
 
   return (method, params) => {
     if (method !== GROK_SESSION_NOTIFICATION) return
-
     const update = asRecord(params.update)
     if (update === undefined) return
-
-    const kind = update.sessionUpdate
-    if (kind === 'tool_call_delta_chunk') {
-      const id = toolCallId(update)
-      if (id === undefined) return
-
-      let state = tools.get(id)
-      if (state === undefined) {
-        state = { toolCallId: id, args: '', opened: false }
-        tools.set(id, state)
-      }
-
-      if (typeof update.name === 'string' && update.name !== '') {
-        state.name = update.name
-        if (!state.opened) {
-          state.opened = true
-          onUpdate({
-            sessionUpdate: 'tool_call',
-            toolCallId: id,
-            title: update.name,
-            kind: update.name,
-            status: 'in_progress',
-          })
-        }
-      }
-
-      if (typeof update.arguments_delta === 'string') {
-        state.args += update.arguments_delta
-        if (state.opened && state.name !== undefined) {
-          onUpdate({
-            sessionUpdate: 'tool_call_update',
-            toolCallId: id,
-            title: state.name,
-            kind: state.name,
-            status: 'in_progress',
-            rawInput: parseToolInput(state.args),
-          })
-        }
-      }
-      return
-    }
-
-    if (kind === 'interaction_resolved') {
-      const id =
-        typeof update.tool_call_id === 'string'
-          ? update.tool_call_id
-          : undefined
-      if (id === undefined) return
-      const state = tools.get(id)
-      if (state === undefined) return
-      onUpdate({
-        sessionUpdate: 'tool_call_update',
-        toolCallId: id,
-        title: state.name ?? null,
-        kind: state.name ?? null,
-        status: 'completed',
-        rawInput: parseToolInput(state.args),
-      })
-      tools.delete(id)
-      return
-    }
-
-    if (kind === 'agent_message_chunk' || kind === 'agent_thought_chunk') {
-      const content = asRecord(update.content)
-      const text = typeof content?.text === 'string' ? content.text : ''
-      if (text === '') return
-      onUpdate({
-        sessionUpdate: kind,
-        content: { type: 'text', text },
-      })
-    }
+    applyGrokSessionUpdate(update, tools, onUpdate)
   }
 }

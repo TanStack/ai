@@ -1,63 +1,8 @@
-/**
- * The agent output journal: an append-only NDJSON file INSIDE the sandbox that
- * the agent's stdout is redirected to, and that the host tails.
- *
- * This module is pure string composition — no I/O — so every shell fragment the
- * feature depends on is unit-testable without a sandbox, and a successor host
- * derives byte-identical commands from the `runId` alone.
- *
- * Three rules are encoded here and must not be relaxed:
- *
- * 1. **No pipe from the agent.** The agent's stdout is *redirected*, never
- *    piped. `agent | tee file` gives the agent a reader whose disappearance
- *    SIGPIPEs it — precisely the host-death failure this feature exists to
- *    prevent. Redirection leaves nothing to break.
- * 2. **Every read silences stderr; only the BOUNDED read base64-frames its
- *    output.** `2>/dev/null` is on both: Daytona's `exec` folds stderr into
- *    stdout (`stderr: ''`, by contract) and Sprites' fast path does too, so a
- *    `tail` diagnostic would otherwise splice itself into the event bytes.
- *    Silencing it inside the sandbox means there is nothing left to fold.
- *
- *    base64, however, is only on {@link journalReadCommand}. It cannot be on
- *    {@link journalFollowCommand}: `base64` fully buffers its stdout when that
- *    is a pipe rather than a tty, so `tail -f file | base64` emits NOTHING
- *    until the ~4KB libc stdio buffer fills or `base64`'s stdin closes — and
- *    `tail -f`'s stdin never closes until the reader kills it, by which point
- *    the consumer has stopped reading. Measured on GNU coreutils 8.32 `base64`
- *    (0 bytes delivered over 12s) and on busybox 1.36.1 `base64` in Alpine
- *    (identical), so it is a property of stdio, not of a provider or an OS.
- *    `stdbuf -o0` does not fix it portably (absent from busybox entirely) and
- *    re-`exec`ing `base64` per line costs a fork per journal event.
- *
- *    Dropping it from the follow path is safe because the bounded read keeps
- *    every property base64 was chosen for where that path needs them, and the
- *    follow path needs none of them: `2>/dev/null` already prevents the
- *    stderr splice, the journal is line-delimited JSON (a raw newline can only
- *    ever be a record separator — inside a JSON string it is `\n`), and
- *    `journal-bytes.ts` reassembles bytes across chunk boundaries and yields
- *    only newline-terminated lines. The follow path therefore consumes
- *    `SpawnHandle.stdout` exactly as `runner.ts` already consumes the agent's
- *    own stdout, i.e. it relies on the same provider decoding contract the
- *    package already depends on rather than a stricter one.
- * 3. **The journal is touched ONLY through the shell.** On local-process,
- *    `fs.write` resolves `/tmp` under the sandbox root while a shell redirect
- *    hits the real host `/tmp`. Both halves agree with each other only as long
- *    as nothing uses `fs.*` here — hence {@link journalExistsCommand} rather
- *    than `handle.fs.exists`.
- *
- * The composed commands below are handed to two different execution
- * mechanisms depending on provider, not always `sh -c`: daytona hands the raw
- * string to `executeCommand` with an `export`-prefixed env, and cloudflare
- * hands it to a Durable Object RPC. Redirection, `mkdir -p`, `tail`, and
- * `base64` all still work because both paths are shell-interpreted
- * downstream — the doc comment intentionally does not claim every provider
- * wraps the command in `sh -c` itself.
- */
-
 import { createHash } from 'node:crypto'
 
 /** Default journal directory. `/tmp` is the convention the harness adapters already use. */
-export const DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
+export const /** Default journal directory. `/tmp` is the convention the harness adapters already use. */
+  DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
 
 /**
  * Key of the sentinel object the journaled command appends after the agent
@@ -111,7 +56,8 @@ const EXIT_SENTINEL_NONCE_DOMAIN =
   'tanstack-ai-sandbox/journal-exit-sentinel/v1'
 
 /** Hex digits of the sentinel nonce. 128 bits of digest is far beyond luck. */
-const EXIT_SENTINEL_NONCE_LENGTH = 32
+const /** Hex digits of the sentinel nonce. 128 bits of digest is far beyond luck. */
+  EXIT_SENTINEL_NONCE_LENGTH = 32
 
 /** Derive a run's sentinel nonce. Pure, and a function of the runId alone. */
 function deriveExitSentinelNonce(runId: string): string {
@@ -182,7 +128,8 @@ const WINDOWS_RESERVED_NAME = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
 const MAX_ENCODED_NAME_LENGTH = 200
 
 /** Hex digest length appended when a runId is long enough to be hashed. */
-const TRUNCATION_HASH_LENGTH = 16
+const /** Hex digest length appended when a runId is long enough to be hashed. */
+  TRUNCATION_HASH_LENGTH = 16
 
 /**
  * Hex-escape every byte of `input`, ignoring the "safe character" allowance
@@ -193,7 +140,8 @@ const TRUNCATION_HASH_LENGTH = 16
  */
 function hexEscapeAllBytes(input: string): string {
   let out = ''
-  for (const byte of new TextEncoder().encode(input)) {
+  const bytes = new TextEncoder().encode(input)
+  for (const byte of bytes) {
     out += `_${byte.toString(16).padStart(2, '0')}`
   }
   return out
@@ -258,32 +206,16 @@ export function encodeRunId(runId: string): string {
       out += char
       continue
     }
-    for (const byte of new TextEncoder().encode(char)) {
+    const charBytes = new TextEncoder().encode(char)
+    for (const byte of charBytes) {
       out += `_${byte.toString(16).padStart(2, '0')}`
     }
   }
 
-  // Reserved Windows device names. `out` can equal one of these ONLY when
-  // every character of `runId` was itself safe (no `_` was introduced), which
-  // means `runId` IS that literal word (e.g. `runId === 'CON'`) — the safe
-  // characters this function passes through are letters, digits, `.`, and
-  // `-`, none of which this branch ever escapes on the normal path, so no
-  // OTHER runId can land here. Re-encoding with `hexEscapeAllBytes` is
-  // therefore collision-free: the result starts with `_` followed by hex for
-  // a letter/digit byte, a pattern the normal per-character path can never
-  // produce for ANY input, because letters and digits are always safe and
-  // never escaped.
   if (WINDOWS_RESERVED_NAME.test(out)) {
     out = hexEscapeAllBytes(runId)
   }
 
-  // Bound the length so a very long runId cannot blow the filesystem's
-  // filename limit. Truncating the encoded token alone would destroy
-  // injectivity (two long runIds sharing a prefix would collapse to the same
-  // truncated string), so the truncated prefix is paired with a hash of the
-  // FULL original runId. Distinct runIds can then only collide here if they
-  // share both the truncated prefix AND the hash — a SHA-256-collision, not
-  // a scheme defect.
   if (out.length > MAX_ENCODED_NAME_LENGTH) {
     const hash = createHash('sha256')
       .update(runId, 'utf8')
@@ -308,16 +240,13 @@ export function encodeRunId(runId: string): string {
 export type DecodedJournalRunId =
   /** The name decoded to exactly one runId. */
   | { kind: 'runId'; runId: string }
-  /**
-   * The name is length-capped output of {@link encodeRunId}, whose truncating
-   * branch is LOSSY. The original runId is unrecoverable — KEEP the file.
-   */
   | { kind: 'truncated' }
   /** Not output this module could have produced. KEEP the file. */
   | { kind: 'malformed' }
 
 /** Extensions {@link journalPaths} appends, longest-first so stripping is unambiguous. */
-const JOURNAL_EXTENSIONS = ['.ndjson', '.err'] as const
+const /** Extensions {@link journalPaths} appends, longest-first so stripping is unambiguous. */
+  JOURNAL_EXTENSIONS = ['.ndjson', '.err'] as const
 
 /**
  * Recover the `runId` behind a journal filename — FAIL CLOSED.
@@ -366,14 +295,11 @@ export function decodeJournalRunId(name: string): DecodedJournalRunId {
   const token = name.slice(0, name.length - extension.length)
   if (token.length === 0) return { kind: 'malformed' }
 
-  // Only the truncating branch emits a token of exactly the cap ending in `-`
-  // plus a hash of that width, and it always emits one. A longer token is not
-  // producible by this module at all.
-  if (
+  const isTruncatedEncodedName =
     token.length > MAX_ENCODED_NAME_LENGTH ||
     (token.length === MAX_ENCODED_NAME_LENGTH &&
       new RegExp(`-[0-9a-f]{${TRUNCATION_HASH_LENGTH}}$`).test(token))
-  ) {
+  if (isTruncatedEncodedName) {
     return { kind: 'truncated' }
   }
 
@@ -428,6 +354,7 @@ export function journalPaths(
   dir: string = DEFAULT_JOURNAL_DIR,
 ): JournalPaths {
   const normalizedDir = normalizeJournalDir(dir)
+  /** Filename as listed, extension included; feed to {@link decodeJournalRunId}. */
   const name = encodeRunId(runId)
   return {
     dir: normalizedDir,
@@ -459,13 +386,6 @@ export function journalPaths(
 export function journaledCommand(command: string, paths: JournalPaths): string {
   return (
     `mkdir -p ${shellQuote(paths.dir)} && ` +
-    // `command` runs inside its OWN subshell `( … )`, not merely a `{ … }`
-    // group: a group runs in the CURRENT shell, so a bare `exit` inside
-    // `command` (an agent legitimately calling `exit N`) would terminate the
-    // whole compound statement before the sentinel `printf` ever ran — the
-    // journal would end with no `__exit` line at all. A subshell gives
-    // `exit` its own process to terminate, leaving `$?` (the subshell's exit
-    // status) and the following `printf` intact in the outer shell.
     `{ ( ${command} ); ` +
     `printf '{"${EXIT_SENTINEL_KEY}":%d,"${EXIT_SENTINEL_NONCE_KEY}":"${paths.nonce}"}\\n' "$?"; } ` +
     `>> ${shellQuote(paths.journal)} 2>> ${shellQuote(paths.stderr)}`
@@ -547,7 +467,8 @@ export function journalExistsCommand(
 }
 
 /** Bytes of the stderr sidecar {@link journalStderrReadCommand} reads by default. */
-const DEFAULT_STDERR_TAIL_BYTES = 4096
+const /** Bytes of the stderr sidecar {@link journalStderrReadCommand} reads by default. */
+  DEFAULT_STDERR_TAIL_BYTES = 4096
 
 /**
  * Bounded read of the stderr SIDECAR (not the journal), so a non-zero exit can
@@ -670,13 +591,7 @@ export interface JournalDirEntry {
  */
 export type JournalMtimeListing =
   /** The mechanism ran. `entries` is complete — possibly, and meaningfully, empty. */
-  | { kind: 'listed'; entries: Array<JournalDirEntry> }
-  /**
-   * The listing did not run (no `stat -c`, or the directory is absent). Nothing
-   * is known about the directory's contents — in particular NOT that it is
-   * empty, and NOT that anything in it is old.
-   */
-  | { kind: 'unavailable' }
+  { kind: 'listed'; entries: Array<JournalDirEntry> } | { kind: 'unavailable' }
 
 /**
  * List the journal directory WITH modification times, so a sweep can leave
@@ -736,7 +651,8 @@ export function parseJournalMtimeListing(
   const normalized = normalizeJournalDir(dir)
   const entries: Array<JournalDirEntry> = []
   let sawWitness = false
-  for (const rawLine of text.split('\n')) {
+  const listingLines = text.split('\n')
+  for (const rawLine of listingLines) {
     const line = rawLine.trim()
     if (line === '') continue
     const separator = line.indexOf(' ')
@@ -753,7 +669,8 @@ export function parseJournalMtimeListing(
     const name = path.slice(prefix.length)
     // A nested path is not something the single-level glob produces; refuse to
     // invent an entry for it.
-    if (name === '' || name.includes('/')) continue
+    const isNestedPath = name === '' || name.includes('/')
+    if (isNestedPath) continue
     entries.push({ name, mtimeMs: Number.parseInt(seconds, 10) * 1000 })
   }
   // No witness means `stat -c` never reported the directory itself, so the
@@ -763,7 +680,8 @@ export function parseJournalMtimeListing(
 }
 
 /** Bytes of the journal tail {@link journalExitProbeCommand} reads by default. */
-const DEFAULT_EXIT_PROBE_TAIL_BYTES = 4096
+const /** Bytes of the journal tail {@link journalExitProbeCommand} reads by default. */
+  DEFAULT_EXIT_PROBE_TAIL_BYTES = 4096
 
 /**
  * Bounded read of the END of a run's journal, purely to learn whether the agent

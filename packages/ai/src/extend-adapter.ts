@@ -1,9 +1,5 @@
 import type { Modality } from './types'
 
-// ===========================
-// Extended Model Definition
-// ===========================
-
 /**
  * Definition for a custom model to add to an adapter.
  *
@@ -44,12 +40,17 @@ export interface ModelCapabilities<
   TTools extends ReadonlyArray<string> = ReadonlyArray<string>,
   TOptions = unknown,
 > {
+  /** Supported input modalities for this model */
   input?: TInput
+  /** Optional declared features (e.g. 'reasoning', 'structured_outputs') */
   features?: TFeatures
+  /** Optional declared provider tools (e.g. 'web_search') */
   tools?: TTools
+  /** Type brand for provider options - use `{} as YourOptionsType` */
   modelOptions?: TOptions
 }
 
+// Overload 1 — legacy positional input array (unchanged behavior)
 /**
  * Creates a custom model definition for use with `extendAdapter`.
  *
@@ -87,7 +88,6 @@ export interface ModelCapabilities<
  * })
  * ```
  */
-// Overload 1 — legacy positional input array (unchanged behavior)
 export function createModel<
   const TName extends string,
   const TInput extends ReadonlyArray<Modality>,
@@ -130,19 +130,11 @@ export function createModel(
   }
 }
 
-// ===========================
-// Type Extraction Utilities
-// ===========================
-
 /**
  * Extract the model name union from an array of model definitions.
  */
 type ExtractCustomModelNames<TDefs extends ReadonlyArray<ExtendedModelDef>> =
   TDefs[number]['name']
-
-// ===========================
-// Factory Type Inference
-// ===========================
 
 /**
  * The widest factory shape `extendAdapter` accepts: any function taking a
@@ -197,10 +189,6 @@ type ExtendedFactory<
   ...args: InferRestArgs<TFactory>
 ) => InferAdapterReturn<TFactory>
 
-// ===========================
-// extendAdapter Function
-// ===========================
-
 /**
  * Extends an existing adapter factory with additional custom models.
  *
@@ -254,8 +242,5 @@ export function extendAdapter(
   factory: AnyAdapterFactory,
   _customModels: ReadonlyArray<ExtendedModelDef>,
 ): AnyAdapterFactory {
-  // At runtime, we simply pass through to the original factory.
-  // The _customModels parameter is only used for type inference.
-  // No runtime validation - users are trusted to pass valid model names.
   return factory
 }

@@ -1,21 +1,3 @@
-/**
- * Turn a harness's PASSTHROUGH tool-call chunks into transcript messages, so a
- * finished run's tool cards survive a reload.
- *
- * Why this is needed at all: a harness executes its tools INSIDE the sandbox, so
- * `chat()` only relays its `TOOL_CALL_*` chunks — it never writes an assistant
- * message for them (`addAssistantToolCallMessage` is gated on the engine having
- * executed the tool itself). Chat persistence stores `ctx.messages`, so the whole
- * tool history existed only in the delivery log. Replaying that log is what makes
- * "switch away and come back" show everything; a FINISHED thread has no run to
- * rejoin, hydrates from the message store instead, and so came back as nothing but
- * the prompt and the final answer.
- *
- * Recording the calls as ordinary `toolCalls` + `role: 'tool'` messages needs no new
- * wire format and no client change: `modelMessagesToUIMessages` already merges a tool
- * result into the call it belongs to and marks the part complete, and
- * `reconstructChat` already runs that converter.
- */
 import { EventType } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
@@ -126,7 +108,12 @@ function resultMessage(id: string, content: string): ModelMessage {
 export function createToolHistoryRecorder(): ToolHistoryRecorder {
   const open = new Map<string, OpenCall>()
   /** Completed calls in the order they ran — the order `reconcile` restores. */
-  const recorded: Array<{ id: string; name: string; args: string }> = []
+  const /** Completed calls in the order they ran — the order `reconcile` restores. */
+    recorded: Array<{
+      id: string
+      name: string /** Accumulated `TOOL_CALL_ARGS` deltas. */
+      args: string
+    }> = []
   const results = new Map<string, string>()
 
   function appendCall(
@@ -135,9 +122,6 @@ export function createToolHistoryRecorder(): ToolHistoryRecorder {
     name: string,
     args: string,
   ): void {
-    // An id already present is either the engine's own (it executed the tool itself)
-    // or a chunk seen before — a journal replay on takeover re-emits the whole
-    // stream. Either way a second write would duplicate the card.
     if (hasCall(target.messages, id)) return
     target.messages = [...target.messages, callMessage(id, name, args)]
   }
@@ -152,9 +136,7 @@ export function createToolHistoryRecorder(): ToolHistoryRecorder {
   }
 
   const recorder: ToolHistoryRecorder = {
-    // An if/else chain rather than a `switch`: only four of the ~20 chunk types are
-    // interesting here, and a `switch` on `chunk.type` has to enumerate all of them
-    // to satisfy the exhaustiveness lint.
+    /** Feed every chunk. Observes only — never transforms or drops. */
     observe(chunk, target) {
       if (chunk.type === EventType.TOOL_CALL_START) {
         const name = chunk.toolCallName
@@ -222,17 +204,19 @@ export function stripObservedToolCalls(
   const kept: Array<ModelMessage> = []
   for (const message of messages) {
     const calls = message.toolCalls
-    if (calls && calls.length > 0 && calls.every(isSandboxToolCall)) {
+    const hasSandboxToolCalls =
+      calls && calls.length > 0 && calls.every(isSandboxToolCall)
+    if (hasSandboxToolCalls) {
       for (const call of calls) dropped.add(call.id)
       continue
     }
     // Orphaning a result is worse than keeping it: a provider rejects a tool result
     // whose call is not in the history.
-    if (
+    const isDroppedToolResult =
       message.role === 'tool' &&
       message.toolCallId !== undefined &&
       dropped.has(message.toolCallId)
-    ) {
+    if (isDroppedToolResult) {
       continue
     }
     kept.push(message)

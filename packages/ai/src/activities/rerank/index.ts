@@ -1,10 +1,3 @@
-/**
- * Rerank Activity
- *
- * Reorders a set of documents by semantic relevance to a query.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import { isAbortShapedError } from '../error-payload'
@@ -22,16 +15,9 @@ import type { GenerationMiddleware } from '../middleware/types'
 import type { RerankAdapter } from './adapter'
 import type { RerankResult } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'rerank' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'rerank' as const
 
 /** Extract provider options from a RerankAdapter via ~types */
 export type RerankProviderOptions<TAdapter> = TAdapter extends {
@@ -39,10 +25,6 @@ export type RerankProviderOptions<TAdapter> = TAdapter extends {
 }
   ? P
   : object
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the rerank activity. The model is extracted from the adapter's
@@ -86,10 +68,6 @@ export interface RerankActivityOptions<
   debug?: DebugOption
 }
 
-// ===========================
-// Helper Functions
-// ===========================
-
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -100,21 +78,11 @@ function serializeDocument(document: string | object): string {
 }
 
 function isAbortError(error: unknown, signal?: AbortSignal): boolean {
-  // Prefer the error's own identity over the signal state. A genuine
-  // cancellation throws an abort-shaped error (DOM `AbortError`, the OpenRouter
-  // SDK's `RequestAbortedError`, …). Classifying on `signal.aborted` alone would
-  // misroute a real failure — e.g. the out-of-range-index throw below — to the
-  // abort hook whenever a shared/long-lived signal happens to already be
-  // aborted, hiding it from `onError` observers.
   if (isAbortShapedError(error)) return true
   // Fall back to signal state only for non-Error throws we can't otherwise
   // identify; a real Error with a non-abort name is never an abort.
   return error instanceof Error ? false : signal?.aborted === true
 }
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * Rerank activity - reorders documents by relevance to a query.
@@ -276,10 +244,6 @@ export async function rerank<
     throw error
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the rerank() function without executing.

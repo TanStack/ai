@@ -25,7 +25,8 @@ export interface ExecState {
 }
 
 /** Grace window for cancellation continuations after a timeout. */
-const CANCEL_GRACE_MS = 100
+const /** Grace window for cancellation continuations after a timeout. */
+  CANCEL_GRACE_MS = 100
 
 /**
  * Await the guest program's promise, but give up at `deadline`. Host tool
@@ -143,10 +144,6 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.executing = true
     this.logs.length = 0
 
-    // Starts true.
-    // Becomes false once the guest program promise is being awaited, and returns to true when it settles.
-    // Stays false if the program promise never settles (e.g. interrupt during a spin).
-    // Only pre-arm failures leave it true so timeout release can dispose.
     let guestSettled = true
 
     const releaseVmAfterFatalError = async () => {
@@ -158,9 +155,6 @@ export class QuickJSIsolateContext implements IsolateContext {
       }
       this.disposed = true
 
-      // Fatal limits can occur while host tools still own unsettled QuickJS
-      // deferreds. Settle them before freeing the runtime so their native
-      // handles cannot abort the shared WASM module during JS_FreeRuntime.
       for (const cancel of [...this.execState.pendingCancels]) {
         cancel()
       }
@@ -170,11 +164,6 @@ export class QuickJSIsolateContext implements IsolateContext {
       this.vm.dispose()
     }
 
-    // A timed-out program or failed initial pending-job pump can leave jobs
-    // queued in the VM, where they would run inside the next execution's
-    // deadline. Both are terminal for the context. Cancel every outstanding
-    // tool call, then dispose once the guest has settled; if it cannot settle,
-    // leak the VM instead of aborting the shared WASM module.
     const releaseAfterUnsettledExecution = async () => {
       if (this.disposed) return
       this.disposed = true
@@ -225,9 +214,6 @@ export class QuickJSIsolateContext implements IsolateContext {
         try {
           const promiseHandle = this.vm.unwrapResult(result)
 
-          // evalCode returns a Promise handle (our wrapper is an async IIFE).
-          // Await it via resolvePromise; guest continuations run when the
-          // tool bindings' promise-settled pumps call executePendingJobs.
           const nativePromise = this.vm.resolvePromise(promiseHandle)
           promiseHandle.dispose()
           guestSettled = false
@@ -291,9 +277,6 @@ export class QuickJSIsolateContext implements IsolateContext {
   async dispose(): Promise<void> {
     if (this.disposed) return
 
-    // If an execution is in flight, wait for the queue to drain before
-    // disposing the VM. Otherwise a pending tool-binding callback would
-    // try to access a freed context.
     if (this.executing) {
       await this.execQueue
       // The execution may have disposed the VM, or intentionally retained an
@@ -304,14 +287,6 @@ export class QuickJSIsolateContext implements IsolateContext {
 
     this.disposed = true
 
-    // A completed execution can leave tool calls still awaiting their host
-    // promise (e.g. a Promise.race loser abandoned by the guest program).
-    // Each holds an unsettled QuickJS deferred, and freeing a runtime with
-    // live deferred handles aborts the shared WASM module
-    // (`Assertion failed: list_empty(&rt->gc_obj_list)` in JS_FreeRuntime),
-    // poisoning every later context in this process. Settle them exactly like
-    // the timeout path does, then give the settled pumps one macrotask tick
-    // to dispose their deferreds before the VM goes away.
     if (this.execState.pendingCancels.size > 0) {
       this.execState.deadline = Date.now() + CANCEL_GRACE_MS
       for (const cancel of [...this.execState.pendingCancels]) {

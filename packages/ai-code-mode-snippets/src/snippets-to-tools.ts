@@ -60,9 +60,6 @@ interface SnippetsToToolsOptions {
    */
   snippets: Array<Snippet>
 
-  /**
-   * Isolate driver for executing snippet code
-   */
   driver: IsolateDriver
 
   /**
@@ -71,21 +68,10 @@ interface SnippetsToToolsOptions {
    */
   tools: Array<CodeModeTool>
 
-  /**
-   * Storage for updating execution stats
-   */
   storage: SnippetStorage
 
-  /**
-   * Timeout for snippet execution in ms
-   * @default 30000
-   */
   timeout?: number
 
-  /**
-   * Memory limit in bytes
-   * @default 128
-   */
   memoryLimit?: number
 }
 
@@ -103,7 +89,14 @@ function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodType {
     }
     return zodString
   }
-  if (type === 'number' || type === 'integer') {
+  if (type === 'number') {
+    let zodNum = z.number()
+    if (schema.description) {
+      zodNum = zodNum.describe(schema.description as string)
+    }
+    return zodNum
+  }
+  if (type === 'integer') {
     let zodNum = z.number()
     if (schema.description) {
       zodNum = zodNum.describe(schema.description as string)
@@ -132,7 +125,8 @@ function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodType {
 
     if (properties) {
       const shape: Record<string, z.ZodType> = {}
-      for (const [key, propSchema] of Object.entries(properties)) {
+      const propertyEntries = Object.entries(properties)
+      for (const [key, propSchema] of propertyEntries) {
         let zodProp = jsonSchemaToZod(propSchema)
         if (!required.includes(key)) {
           zodProp = zodProp.optional()

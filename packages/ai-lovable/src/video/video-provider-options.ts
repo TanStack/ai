@@ -1,7 +1,6 @@
 /**
  * @experimental Video generation is an experimental feature and may change.
  */
-
 export type LovableHdVideoSize =
   | '1280x720'
   | '720x1280'
@@ -104,7 +103,8 @@ export function validateHighResDuration(
   size: string | undefined,
   seconds: number | string | undefined,
 ): void {
-  if (!size || !isHighResVideoSize(size)) return
+  if (!size) return
+  if (!isHighResVideoSize(size)) return
 
   const asNumber =
     seconds === undefined
@@ -113,7 +113,8 @@ export function validateHighResDuration(
         ? Number(seconds)
         : seconds
 
-  if (asNumber !== undefined && asNumber !== 8) {
+  const invalidHighResDuration = asNumber !== undefined && asNumber !== 8
+  if (invalidHighResDuration) {
     throw new Error(
       `Model "${model}" requires 8 second clips at 1080p and 4K. Received duration ${seconds}.`,
     )

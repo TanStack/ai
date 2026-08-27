@@ -14,13 +14,16 @@ import type { QuickJS } from 'quickjs-bun'
 import type { QuickJSBunModule } from './isolate-context'
 
 /** Default execution timeout in ms (matches the other isolate drivers). */
-const DEFAULT_TIMEOUT_MS = 30000
+const /** Default execution timeout in ms (matches the other isolate drivers). */
+  DEFAULT_TIMEOUT_MS = 30000
 
 /** Default memory limit in MB (matches the other isolate drivers). */
-const DEFAULT_MEMORY_LIMIT_MB = 128
+const /** Default memory limit in MB (matches the other isolate drivers). */
+  DEFAULT_MEMORY_LIMIT_MB = 128
 
 /** Default max stack size in bytes (matches the QuickJS WASM driver). */
-const DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+const /** Default max stack size in bytes (matches the QuickJS WASM driver). */
+  DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
 /**
  * quickjs-bun's exports map only declares a `bun` condition (no import/default).
@@ -228,9 +231,6 @@ export function createQuickJSBunIsolateDriver(
       const quickjs = await importQuickJSBun()
       const library = await loadQuickJSLibrary()
 
-      // A dedicated runtime per context gives every sandbox its own heap
-      // and stack limits, mirroring `setMemoryLimit`/`setMaxStackSize` in
-      // the QuickJS WASM driver.
       const runtime = new quickjs.JSRuntime({
         library,
         memoryBytes: memoryLimitMb * 1024 * 1024,

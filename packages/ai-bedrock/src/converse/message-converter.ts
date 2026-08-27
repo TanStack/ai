@@ -16,10 +16,6 @@ import type {
 } from '@aws-sdk/client-bedrock-runtime'
 import type { DocumentType } from '@smithy/types'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function base64ToBytes(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'))
 }
@@ -75,7 +71,8 @@ function documentFormat(
 function stringContent(
   content: string | null | undefined | Array<ContentPart>,
 ): string {
-  if (content === null || content === undefined) return ''
+  if (content === null) return ''
+  if (content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((p): p is TextPart => p.type === 'text')
@@ -180,11 +177,6 @@ function messageToBlocks(
   }
   // null → no text blocks
 
-  // Append toolUse blocks for assistant tool calls. Malformed or non-object
-  // arguments come from a prior assistant turn the engine already accepted, so
-  // they signal a real upstream problem — throw rather than silently coercing to
-  // `{}` and forwarding a corrupted tool call (the adapter's catch surfaces it
-  // as a RUN_ERROR).
   if (msg.role === 'assistant' && msg.toolCalls) {
     for (const call of msg.toolCalls) {
       const rawArguments = call.function.arguments || '{}'
@@ -218,10 +210,6 @@ function messageToBlocks(
   return blocks
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /**
  * Convert TanStack AI messages + system prompts into the Converse API format.
  *
@@ -252,9 +240,6 @@ export function toConverseMessages(
 
     const blocks = messageToBlocks(msg, docCounter)
 
-    // Skip messages that produce no content blocks (e.g. assistant with
-    // null content and no toolCalls). Pushing an empty-content message to
-    // Converse triggers a ValidationException.
     if (blocks.length === 0) continue
 
     const last = converseMessages[converseMessages.length - 1]

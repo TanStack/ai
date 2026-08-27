@@ -1,74 +1,3 @@
-/**
- * The gate that turns a HOPELESS attach into an error instead of an infinite
- * wait.
- *
- * `journalFollowCommand` creates the journal before tailing it (`: >> file`),
- * because `tail -f` on a missing path prints a diagnostic and EXITS rather than
- * waiting — a defect that made a legitimate attach racing the driver's first
- * write deliver zero lines. But creating the file has a cost: an attach for a
- * `runId` that never had a journal creates an EMPTY one and tails it forever. No
- * `{"__exit":N}` sentinel can ever arrive, so the caller waits indefinitely with
- * no error, no timeout, and no log line — for what is the single most likely
- * mistake on this path (a stale link, a typo, a run whose journal was cleaned up
- * after completing).
- *
- * Absence of the journal alone cannot decide the question, which is exactly why
- * `: >> file` exists: "not written YET" and "will never be written" look
- * identical on the filesystem. The RUN RECORD is what distinguishes them, and it
- * is authoritative — `runs.get(runId)` says whether the run exists at all,
- * whether it is terminal, and (via `detachedSince`) whether anyone is expected
- * to be driving it. So the policy is:
- *
- * | journal   | record                  | decision                              |
- * | --------- | ----------------------- | ------------------------------------- |
- * | exists    | (not consulted)         | attach, under the reader's own bound  |
- * | absent    | unknown (`null`)        | fail fast, `'unknown-run'`            |
- * | absent    | terminal                | fail fast, `'terminal-run'`           |
- * | absent    | running / interrupted   | BOUNDED wait, then `'journal-timeout'`|
- * | unusable  | running / interrupted   | BOUNDED wait, then `'journal-timeout'`|
- *
- * Four deliberate choices in that table:
- *
- * 1. **An existing journal short-circuits this gate**, before the store is read
- *    at all — because gating it would make a perfectly readable journal
- *    unreadable whenever a store lost its record. It does NOT mean the read is
- *    unbounded: this module used to justify the short-circuit with "a journal
- *    that exists either carries a sentinel or is still being appended to, neither
- *    hangs", and that trichotomy was FALSE. `journalFollowCommand`'s first act is
- *    `: >> file`, so the reader itself manufactures the third state — a file that
- *    exists, receives nothing, and can never receive a sentinel — and the same
- *    state is independently reachable by SIGKILL/OOM of the agent's shell before
- *    its `printf`. The bound for it lives where it belongs, on the read:
- *    `journal-reader.ts` fails a follow/poll that receives no bytes at all within
- *    {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS} with `'journal-stalled'`.
- * 2. **A terminal record with no journal fails rather than waiting.** Nothing
- *    will ever be appended: the run is over and `journalCleanupCommand` deletes a
- *    terminal run's files by design. Its transcript lives in the event log, which
- *    the resume response serves independently of this path.
- * 3. **A live or detached record waits, but not forever.** A driver that has
- *    claimed the run and not yet written its first line is the normal case, not
- *    the unlucky one, so failing fast here would break the very race
- *    `journalFollowCommand` was fixed to tolerate. `detachedSince` does NOT
- *    change the decision — a detached run's journal is exactly what a successor
- *    is supposed to read, and a driver that died before its first write leaves an
- *    identical filesystem state — but it IS reported in the timeout message,
- *    since "detached with no journal after N ms" and "attached with no journal
- *    after N ms" point at different causes.
- * 4. **An UNUSABLE probe falls through to the bounded wait; it does not skip the
- *    gate.** This module used to fail open here — `if (existence === 'unknown')
- *    return` — on the reasoning that a diagnostic gate must not break an attach
- *    that would otherwise have worked. That reasoning inverted the actual risk.
- *    Returning handed control to a reader whose very first act CREATES the
- *    journal (`journalFollowCommand`'s `: >> file`) and then tails it forever, so
- *    the fail-open path did not preserve a working attach — it manufactured the
- *    exact infinite wait this module exists to prevent. Worse, it was
- *    self-perpetuating: the file it created made `test -f` succeed from then on,
- *    so every LATER attach short-circuited at choice 1 and hung too, permanently,
- *    long after the transient probe failure had cleared. An unanswerable probe is
- *    precisely when a deadline matters most, so an unusable probe is re-polled
- *    (it may recover) and, failing that, times out. The store checks still run
- *    first and need no probe, so an unknown or terminal `runId` still fails fast.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import { journalExistsCommand } from './journal'
 import type { JournalPaths } from './journal'
@@ -104,19 +33,6 @@ export type AttachUnavailableReason =
   | 'unknown-run'
   | 'terminal-run'
   | 'journal-timeout'
-  /**
-   * The journal EXISTS but produced no bytes at all within the deadline, so no
-   * sentinel can be coming and the follow would tail an empty (or abandoned)
-   * file forever. Raised by `journal-reader.ts`, not by the preflight: the
-   * preflight cannot see this state, because `test -f` succeeds for it.
-   *
-   * A 504 at an attach route, exactly like `'journal-timeout'`, which is why it
-   * shares {@link JournalAttachUnavailableError} — but a distinct value, because
-   * the cause is different: `'journal-timeout'` means nobody created the
-   * journal, `'journal-stalled'` means somebody did and then stopped (a
-   * SIGKILLed agent shell, a destroyed sandbox, a reader that created the file
-   * itself on a fail-open path).
-   */
   | 'journal-stalled'
 
 /**
@@ -250,7 +166,9 @@ export async function awaitAttachableJournal(
         `The runId is unknown to the RunStore — it is mistyped, from another deployment, or its record has been evicted.`,
     )
   }
-  if (record !== undefined && isTerminalRunStatus(record.status)) {
+  const isTerminalRecord =
+    record !== undefined && isTerminalRunStatus(record.status)
+  if (isTerminalRecord) {
     throw new JournalAttachUnavailableError(
       options.runId,
       'terminal-run',
@@ -259,10 +177,9 @@ export async function awaitAttachableJournal(
     )
   }
 
-  // NOTE: no fail-open branch here. An `existence === 'unknown'` probe falls
-  // through into the bounded wait below — see choice 4 in the module doc for why
-  // returning was worse than timing out, not safer.
+  /** Bounded wait. Defaults to {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS}. */
   const waitMs = options.waitMs ?? DEFAULT_ATTACH_JOURNAL_WAIT_MS
+  /** Re-probe interval. Defaults to {@link DEFAULT_ATTACH_PROBE_INTERVAL_MS}. */
   const probeIntervalMs =
     options.probeIntervalMs ?? DEFAULT_ATTACH_PROBE_INTERVAL_MS
   const deadline = Date.now() + waitMs
@@ -281,9 +198,6 @@ export async function awaitAttachableJournal(
               `Either the driver died before writing its first line, or the journal directory does not match the one the agent was started with.`),
       )
     }
-    // The consumer gave up (client gone, lease lost). Returning hands control
-    // back to the reader, whose own AbortSignal handling ends the read — a
-    // caller's abort is not a diagnosis about the run.
     if (options.signal?.aborted) return
     await sleep(Math.min(probeIntervalMs, remaining), options.signal)
     lastExistence = await probeJournal(handle, options)

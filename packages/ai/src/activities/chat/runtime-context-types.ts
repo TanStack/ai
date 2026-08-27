@@ -1,16 +1,5 @@
 import type { ChatMiddleware } from './middleware/types'
 
-/**
- * Shared type-level helpers for inferring the runtime `context` requirement
- * from typed tools and middleware.
- *
- * These primitives are consumed by both the chat activity options
- * (`./index.ts`, which merges tool + middleware requirements) and the tool
- * execution layer (`./tools/tool-calls.ts`, which only sees tools). They live
- * here so the two call sites share one definition instead of maintaining
- * divergent copies.
- */
-
 /** True only when `T` is exactly `unknown`. */
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]

@@ -22,7 +22,8 @@ interface CohereRerankResponse {
 }
 
 function isCohereRerankResponse(value: unknown): value is CohereRerankResponse {
-  if (typeof value !== 'object' || value === null) return false
+  if (typeof value !== 'object') return false
+  if (value === null) return false
   const results = (value as { results?: unknown }).results
   return (
     Array.isArray(results) &&

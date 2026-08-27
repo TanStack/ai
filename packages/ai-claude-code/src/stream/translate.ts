@@ -16,10 +16,12 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Claude Code session id. */
-export const SESSION_ID_EVENT = 'claude-code.session-id'
+export const /** Name of the CUSTOM event carrying the Claude Code session id. */
+  SESSION_ID_EVENT = 'claude-code.session-id'
 
 /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const BRIDGED_MCP_PREFIX = `mcp__${BRIDGED_MCP_SERVER_NAME}__`
 
@@ -135,14 +137,16 @@ export async function* translateSdkStream(
 
   let runStarted = false
   /** Tool calls started but with no result yet. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet. */
+    unresolvedToolCalls = new Set<string>()
   const syntheticOutputToolIds = new Set<string>()
   let capturedStructuredOutput: unknown
   let assistantTextForHarvest = ''
   let partialStructuredJson = ''
   let partialIsStructuredOutput = false
   /** Anthropic message ids whose text/thinking already streamed via partials. */
-  const streamedMessageIds = new Set<string>()
+  const /** Anthropic message ids whose text/thinking already streamed via partials. */
+    streamedMessageIds = new Set<string>()
 
   // Partial-stream state
   let partialMessageId: string | null = null
@@ -238,10 +242,10 @@ export async function* translateSdkStream(
     input: unknown
   }): Generator<AdapterYieldChunk> {
     const toolCallName = stripMcpPrefix(block.name)
-    if (
+    const isSyntheticStructured =
       ctx.expectStructuredOutput === true &&
       toolCallName === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
-    ) {
+    if (isSyntheticStructured) {
       capturedStructuredOutput = rememberStructuredOutput(
         capturedStructuredOutput,
         block.input,
@@ -399,7 +403,8 @@ export async function* translateSdkStream(
         ? capturedStructuredOutput
         : undefined
       let fromText: unknown
-      if (fromResult === undefined && fromTool === undefined) {
+      const harvestFromText = fromResult === undefined && fromTool === undefined
+      if (harvestFromText) {
         const raw = assistantTextForHarvest || message.result || ''
         if (raw.trim() !== '') {
           try {
@@ -450,6 +455,133 @@ export async function* translateSdkStream(
     }
   }
 
+  function* handleContentBlockStart(startedBlock: {
+    type: string
+    id?: string
+    name?: string
+    input?: unknown
+  }): Generator<AdapterYieldChunk> {
+    partialBlockType = startedBlock.type
+    partialIsStructuredOutput =
+      ctx.expectStructuredOutput === true &&
+      startedBlock.type === 'tool_use' &&
+      'name' in startedBlock &&
+      startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
+    if (partialIsStructuredOutput) {
+      partialStructuredJson = ''
+      if ('id' in startedBlock && typeof startedBlock.id === 'string') {
+        syntheticOutputToolIds.add(startedBlock.id)
+      }
+      if ('input' in startedBlock) {
+        capturedStructuredOutput = rememberStructuredOutput(
+          capturedStructuredOutput,
+          startedBlock.input,
+        )
+      }
+    }
+    if (partialBlockType === 'text') {
+      partialTextMessageId = partialMessageId ?? genId()
+      partialTextContent = ''
+      if (!partialTextStarted) {
+        partialTextStarted = true
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: partialTextMessageId,
+          model,
+          timestamp: now(),
+          role: 'assistant',
+        }
+      }
+      return
+    }
+    if (partialBlockType === 'thinking') {
+      partialReasoningId = genId()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: partialReasoningId,
+        model,
+        timestamp: now(),
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: partialReasoningId,
+        role: 'reasoning' as const,
+        model,
+        timestamp: now(),
+      }
+    }
+  }
+
+  function* handleContentBlockDelta(
+    event: Extract<
+      SdkPartialAssistantMessage['event'],
+      { type: 'content_block_delta' }
+    >,
+  ): Generator<AdapterYieldChunk> {
+    if (
+      event.delta.type === 'text_delta' &&
+      partialTextStarted &&
+      partialTextMessageId &&
+      typeof event.delta.text === 'string'
+    ) {
+      partialTextContent += event.delta.text
+      assistantTextForHarvest += event.delta.text
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: partialTextMessageId,
+        model,
+        timestamp: now(),
+        delta: event.delta.text,
+        content: partialTextContent,
+      }
+      return
+    }
+    if (
+      event.delta.type === 'input_json_delta' &&
+      partialIsStructuredOutput &&
+      typeof event.delta.partial_json === 'string'
+    ) {
+      partialStructuredJson += event.delta.partial_json
+      return
+    }
+    if (
+      event.delta.type === 'thinking_delta' &&
+      partialReasoningId &&
+      typeof event.delta.thinking === 'string'
+    ) {
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: partialReasoningId,
+        delta: event.delta.thinking,
+        model,
+        timestamp: now(),
+      }
+    }
+  }
+
+  function* handleContentBlockStop(): Generator<AdapterYieldChunk> {
+    const hasPartialStructuredJson =
+      partialIsStructuredOutput && partialStructuredJson !== ''
+    if (hasPartialStructuredJson) {
+      try {
+        capturedStructuredOutput = rememberStructuredOutput(
+          capturedStructuredOutput,
+          JSON.parse(partialStructuredJson),
+        )
+      } catch {
+        // Incomplete JSON; the complete assistant tool_use may still arrive.
+      }
+    }
+    if (partialBlockType === 'text') {
+      yield* closePartialText()
+    } else if (partialBlockType === 'thinking') {
+      yield* closePartialReasoning()
+    }
+    partialBlockType = null
+    partialIsStructuredOutput = false
+    partialStructuredJson = ''
+  }
+
   function* handleStreamEvent(
     message: SdkPartialAssistantMessage,
   ): Generator<AdapterYieldChunk> {
@@ -457,110 +589,18 @@ export async function* translateSdkStream(
     if (event.type === 'message_start') {
       partialMessageId = event.message.id ?? genId()
       streamedMessageIds.add(partialMessageId)
-    } else if (event.type === 'content_block_start') {
-      partialBlockType = event.content_block.type
-      const startedBlock = event.content_block
-      partialIsStructuredOutput =
-        ctx.expectStructuredOutput === true &&
-        startedBlock.type === 'tool_use' &&
-        'name' in startedBlock &&
-        startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
-      if (partialIsStructuredOutput) {
-        partialStructuredJson = ''
-        if ('id' in startedBlock && typeof startedBlock.id === 'string') {
-          syntheticOutputToolIds.add(startedBlock.id)
-        }
-        if ('input' in startedBlock) {
-          capturedStructuredOutput = rememberStructuredOutput(
-            capturedStructuredOutput,
-            startedBlock.input,
-          )
-        }
-      }
-      if (partialBlockType === 'text') {
-        partialTextMessageId = partialMessageId ?? genId()
-        partialTextContent = ''
-        if (!partialTextStarted) {
-          partialTextStarted = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId: partialTextMessageId,
-            model,
-            timestamp: now(),
-            role: 'assistant',
-          }
-        }
-      } else if (partialBlockType === 'thinking') {
-        partialReasoningId = genId()
-        yield {
-          type: EventType.REASONING_START,
-          messageId: partialReasoningId,
-          model,
-          timestamp: now(),
-        }
-        yield {
-          type: EventType.REASONING_MESSAGE_START,
-          messageId: partialReasoningId,
-          role: 'reasoning' as const,
-          model,
-          timestamp: now(),
-        }
-      }
-    } else if (event.type === 'content_block_delta') {
-      if (
-        event.delta.type === 'text_delta' &&
-        partialTextStarted &&
-        partialTextMessageId &&
-        typeof event.delta.text === 'string'
-      ) {
-        partialTextContent += event.delta.text
-        assistantTextForHarvest += event.delta.text
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId: partialTextMessageId,
-          model,
-          timestamp: now(),
-          delta: event.delta.text,
-          content: partialTextContent,
-        }
-      } else if (
-        event.delta.type === 'input_json_delta' &&
-        partialIsStructuredOutput &&
-        typeof event.delta.partial_json === 'string'
-      ) {
-        partialStructuredJson += event.delta.partial_json
-      } else if (
-        event.delta.type === 'thinking_delta' &&
-        partialReasoningId &&
-        typeof event.delta.thinking === 'string'
-      ) {
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: partialReasoningId,
-          delta: event.delta.thinking,
-          model,
-          timestamp: now(),
-        }
-      }
-    } else if (event.type === 'content_block_stop') {
-      if (partialIsStructuredOutput && partialStructuredJson !== '') {
-        try {
-          capturedStructuredOutput = rememberStructuredOutput(
-            capturedStructuredOutput,
-            JSON.parse(partialStructuredJson),
-          )
-        } catch {
-          // Incomplete JSON; the complete assistant tool_use may still arrive.
-        }
-      }
-      if (partialBlockType === 'text') {
-        yield* closePartialText()
-      } else if (partialBlockType === 'thinking') {
-        yield* closePartialReasoning()
-      }
-      partialBlockType = null
-      partialIsStructuredOutput = false
-      partialStructuredJson = ''
+      return
+    }
+    if (event.type === 'content_block_start') {
+      yield* handleContentBlockStart(event.content_block)
+      return
+    }
+    if (event.type === 'content_block_delta') {
+      yield* handleContentBlockDelta(event)
+      return
+    }
+    if (event.type === 'content_block_stop') {
+      yield* handleContentBlockStop()
     }
   }
 
@@ -568,22 +608,24 @@ export async function* translateSdkStream(
     for await (const sdkMessage of sdkMessages) {
       ctx.onSdkMessage?.(sdkMessage)
 
-      if (sdkMessage.type === 'system' && sdkMessage.subtype === 'init') {
-        yield* startRun()
-        ctx.onSessionId?.(sdkMessage.session_id)
-        yield {
-          type: EventType.CUSTOM,
-          model,
-          timestamp: now(),
-          name: SESSION_ID_EVENT,
-          value: {
-            sessionId: sdkMessage.session_id,
-            model: sdkMessage.model,
-            tools: sdkMessage.tools,
-            skills: sdkMessage.skills ?? [],
-          },
+      if (sdkMessage.type === 'system') {
+        if (sdkMessage.subtype === 'init') {
+          yield* startRun()
+          ctx.onSessionId?.(sdkMessage.session_id)
+          yield {
+            type: EventType.CUSTOM,
+            model,
+            timestamp: now(),
+            name: SESSION_ID_EVENT,
+            value: {
+              sessionId: sdkMessage.session_id,
+              model: sdkMessage.model,
+              tools: sdkMessage.tools,
+              skills: sdkMessage.skills ?? [],
+            },
+          }
+          continue
         }
-        continue
       }
 
       // Anything before init still needs RUN_STARTED first.
@@ -605,10 +647,6 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
     yield* synthesizeUnresolvedResults()
     throw error
   }

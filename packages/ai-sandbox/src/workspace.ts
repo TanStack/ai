@@ -1,13 +1,6 @@
 import type { SetupInput } from './setup-plan'
 import type { BearerRef, SecretRef, Secrets } from './secrets'
 
-/**
- * Workspace definition — the portable description of what the agent sees
- * inside the sandbox. Each harness adapter PROJECTS this into its own native
- * format via `projectWorkspace()` (e.g. Claude Code → CLAUDE.md + .claude/skills
- * + --mcp-config). The definition itself is provider- and harness-agnostic.
- */
-
 /** Where the working tree comes from. */
 export type WorkspaceSource =
   | {
@@ -35,6 +28,7 @@ export function gitSource(input: {
 }
 
 export function githubRepo(input: {
+  /** Short `owner/repo` or a full HTTPS URL. */
   repo: string
   ref?: string
   auth?: { username?: string; token: string }
@@ -106,7 +100,9 @@ export function mcpSkill(name: string, config: McpConfig): WorkspaceSkill {
  */
 export function gitSkill(input: {
   repo: string
+  /** Optional SecretRef for private-repo authentication. */
   secret?: SecretRef
+  /** Absolute path inside the sandbox to clone into. Defaults to a `.tanstack-skills/<repo>` dir under the workspace root. */
   into?: string
 }): WorkspaceSkill {
   return { kind: 'git', ...input }

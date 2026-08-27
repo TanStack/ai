@@ -1,47 +1,3 @@
-/**
- * Read a run's journal, live or after the fact, on one code path.
- *
- * Resume is not a special case: every read is `tail -c +N` for some N, and a
- * fresh run is simply N = 0. That is deliberate — `pid` is `-1` on five of six
- * providers, so re-attaching to an existing reader is impossible and a resumed
- * read always spawns a new `tail` anyway.
- *
- * Two strategies, chosen by capability rather than by provider name:
- *
- * - **follow** (`spawn` + `tail -f`): the default. Streams with no polling cost
- *   and is killed when the consumer stops. Its command pipes into nothing — see
- *   `journal.ts` rule 2 — so this path re-encodes the provider's decoded text
- *   rather than decoding a base64 frame.
- * - **poll** (bounded `exec`, no `-f`): for a provider whose spawned process
- *   cannot be stopped. Cloudflare's `kill()` is a documented no-op and it
- *   forwards the AbortSignal to neither `exec` nor `spawn`, so a `tail -f`
- *   there would run forever inside the container. Every poll command terminates
- *   on its own, so nothing needs killing.
- *
- * **Neither strategy may wait forever for its FIRST byte.** This is the bound
- * that used to be missing, and its absence was reachable three ways, one of them
- * self-inflicted:
- *
- * 1. `journalFollowCommand` CREATES the journal before tailing it (`: >> file`),
- *    which it must, so a read for a runId whose journal never existed
- *    manufactures an empty file and tails it forever. The attach preflight
- *    (`attach-preflight.ts`) catches most of those, but it is wired at exactly
- *    one call site and only for `attach === true` — the exported
- *    {@link readJournal} that `docs/sandbox/journal.md` tells users to write has
- *    no preflight, no store, and no runId to look one up with.
- * 2. The preflight's own probe can be unusable, and it deliberately falls through
- *    to a bounded wait rather than skipping; a journal that exists but is
- *    abandoned still reaches the reader.
- * 3. SIGKILL/OOM of the agent's shell between its last line and its sentinel
- *    `printf` leaves a real, non-empty, permanently-silent journal.
- *
- * So a read that receives NO bytes within {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS}
- * raises {@link JournalAttachUnavailableError} with reason `'journal-stalled'`
- * instead of parking. The bound is on the FIRST byte only, deliberately: once the
- * journal is producing, how long the agent thinks between lines is the agent's
- * business and no deadline here may cut a healthy run short. A consumer abort is
- * not a stall — it ends the read quietly, as it always did.
- */
 import {
   DEFAULT_ATTACH_JOURNAL_WAIT_MS,
   JournalAttachUnavailableError,
@@ -118,7 +74,8 @@ function processOptions(options: ReadJournalOptions): ProcessOptions {
 }
 
 /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
-const ABORTED = Symbol('journal-read-aborted')
+const /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
+  ABORTED = Symbol('journal-read-aborted')
 
 /**
  * Iterate `source` but stop the moment `signal` fires, instead of waiting for
@@ -154,22 +111,19 @@ async function* untilAborted<T>(
   try {
     for (;;) {
       const next = await Promise.race([iterator.next(), aborted])
-      if (next === ABORTED || next.done === true) return
+      if (next === ABORTED) return
+      if (next.done === true) return
       yield next.value
     }
   } finally {
     if (onAbort) signal.removeEventListener('abort', onAbort)
-    // NOT awaited. On an async generator, `return()` queues behind the pending
-    // `next()` we just abandoned, so awaiting it would block for exactly as
-    // long as the stream we gave up waiting for — reintroducing the hang this
-    // helper exists to remove. The rejection is swallowed for the same reason
-    // `kill` is best-effort below: the source may already be gone.
     void iterator.return?.().catch(() => {})
   }
 }
 
 /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
-const STALLED = Symbol('journal-read-stalled')
+const /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
+  STALLED = Symbol('journal-read-stalled')
 
 /** The bound in effect for a read; `undefined` when the caller disabled it. */
 function firstByteTimeout(options: ReadJournalOptions): number | undefined {
@@ -232,9 +186,6 @@ async function* withFirstByteDeadline<T>(
     }
   } finally {
     clearTimeout(timer)
-    // NOT awaited, for the reason `untilAborted` documents: on the stall path the
-    // abandoned `next()` is exactly the promise that never settles, so awaiting
-    // the `return()` queued behind it would reinstate the hang being reported.
     void iterator.return?.().catch(() => {})
   }
 }
@@ -263,10 +214,6 @@ async function* followJournal(
       fromByte,
     )
   } finally {
-    // The consumer may stop early (client gone, lease lost). Providers whose
-    // `kill` is real stop the `tail` here; the signal covers the rest. Guarded
-    // because a `finally` that throws would replace the consumer's own reason
-    // for stopping.
     try {
       await proc.kill()
     } catch {
@@ -298,9 +245,6 @@ async function* pollJournal(
 ): AsyncIterable<JournalLine> {
   const intervalMs = options.pollIntervalMs ?? DEFAULT_JOURNAL_POLL_MS
   const timeoutMs = firstByteTimeout(options)
-  // Same bound as the follow path, expressed the way a polling loop can enforce
-  // it: an empty frame every time until the deadline is a stalled journal, and
-  // parking here forever is the same defect from the other strategy.
   const deadline = timeoutMs === undefined ? undefined : Date.now() + timeoutMs
   let sawBytes = false
   let position = options.fromByte ?? 0
@@ -310,22 +254,19 @@ async function* pollJournal(
       processOptions(options),
     )
     if (result.stdout.trim() !== '') sawBytes = true
-    if (
+    const isAttachStalled =
       !sawBytes &&
       deadline !== undefined &&
       timeoutMs !== undefined &&
       Date.now() >= deadline
-    ) {
+    if (isAttachStalled) {
       throw stalled(options, timeoutMs)
     }
-    // Each poll re-reads from `position`, so a line left incomplete by the
-    // previous poll is simply re-fetched whole. That is why `position` advances
-    // only on a COMPLETE line: advancing on bytes received would strand a
-    // partial line's prefix and corrupt every following line.
-    for await (const line of toJournalLines(
+    const journalLines = toJournalLines(
       decodeBase64Stream(singleValue(result.stdout)),
       position,
-    )) {
+    )
+    for await (const line of journalLines) {
       yield line
       position = line.endPosition
     }
@@ -352,6 +293,7 @@ export function readJournal(
   handle: SandboxHandle,
   options: ReadJournalOptions,
 ): AsyncIterable<JournalLine> {
+  /** Override the capability-derived strategy. Tests and diagnostics only. */
   const strategy = options.strategy ?? journalReadStrategy(handle)
   return strategy === 'follow'
     ? followJournal(handle, options)

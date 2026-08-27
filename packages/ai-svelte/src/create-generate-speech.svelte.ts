@@ -110,6 +110,7 @@ export function createGenerateSpeech<TTransformed = void>(
 ): CreateGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -123,15 +124,19 @@ export function createGenerateSpeech<TTransformed = void>(
   })
 
   return {
+    /** The TTS result containing audio data, or null */
     get result() {
       return gen.result
     },
+    /** Whether generation is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

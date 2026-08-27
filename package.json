@@ -26,7 +26,7 @@
     "test:knip": "knip",
     "test:docs": "tsx scripts/verify-links.ts",
     "test:dts": "node scripts/scan-dangling-dts.mjs",
-    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts",
+    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts scripts/oxlint-named-if.test.ts scripts/oxlint-max-comment-lines.test.ts",
     "maintainer:sweep": "tsx scripts/maintainer/sweep.ts",
     "maintainer:scorecard": "tsx scripts/maintainer/scorecard.ts",
     "test:kiira": "kiira check",

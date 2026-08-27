@@ -53,9 +53,6 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
 
     validateAudioInput({ input: text, model: this.model })
 
-    // Spreading optional inputs conditionally keeps the request compatible
-    // with the vendor SDK shape under exactOptionalPropertyTypes. `sample_rate`
-    // is a Groq-only body field carried via modelOptions.
     const request: OpenAI_SDK.Audio.SpeechCreateParams = {
       model,
       input: text,

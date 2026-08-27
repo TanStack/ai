@@ -1,13 +1,3 @@
-/**
- * A minimal sentinel-driven fake `sh` for driving the persistent bootstrap
- * shell (see `../shell.ts`). Every command succeeds; `pwd` answers
- * `/workspace`, `export -p` answers an empty env, so `forkState()` resolves.
- *
- * Shipped from the `@tanstack/ai-sandbox/testkit` subpath so provider authors
- * (local-process, Docker, and third-party providers outside this repo) can
- * verify their `process.spawn` wiring against the journal contract without
- * reimplementing this fake themselves.
- */
 import type { SpawnHandle } from '../contracts'
 
 export function makeFakeShellSpawn(): SpawnHandle {

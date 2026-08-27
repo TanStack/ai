@@ -137,7 +137,8 @@ function applyDefaultTemperature(
       merged.options && typeof merged.options === 'object'
         ? (merged.options as Record<string, unknown>)
         : undefined
-    if (existing && 'temperature' in existing) return merged
+    const alreadyHasTemperature = existing && 'temperature' in existing
+    if (alreadyHasTemperature) return merged
     merged.options = { temperature, ...existing }
     return merged
   }
@@ -183,10 +184,10 @@ function applyMaxLength(
       merged.options && typeof merged.options === 'object'
         ? (merged.options as Record<string, unknown>)
         : undefined
-    if (
+    const hasCallerTokenLimit =
       callerSetFlatLimit ||
       (existing && typeof existing.num_predict === 'number')
-    ) {
+    if (hasCallerTokenLimit) {
       return merged
     }
     merged.options = { num_predict: maxLength, ...existing }
@@ -258,13 +259,12 @@ export class ChatStreamSummarizeAdapter<
     )
 
     try {
-      for await (const raw of this.textAdapter.chatStream(
+      const stream = this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
-      )) {
-        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
-          // Surface failures: the underlying chatStream emits RUN_ERROR instead
-          // of throwing, so without this branch summarize() would return an
-          // empty summary and pretend a failed run succeeded.
+      )
+      for await (const raw of stream) {
+        const chunks = normalizeStreamChunk(raw as AdapterYieldChunk)
+        for (const chunk of chunks) {
           if (chunk.type === EventType.RUN_ERROR) throwRunError(chunk)
           consumeSpecSummarizeChunk(chunk, state)
         }
@@ -309,18 +309,14 @@ export class ChatStreamSummarizeAdapter<
     }
 
     try {
-      for await (const raw of this.textAdapter.chatStream(
+      const stream = this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
-      )) {
-        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
-          // Accumulate the same way `summarize()` does so consumers see deltas
-          // AND the terminal `generation:result` event below carries the same
-          // final summary that non-streaming returns.
+      )
+      for await (const raw of stream) {
+        const chunks = normalizeStreamChunk(raw as AdapterYieldChunk)
+        for (const chunk of chunks) {
           consumeSpecSummarizeChunk(chunk, state)
 
-          // Emit the GenerationClient-shaped result event just before the
-          // terminal RUN_FINISHED so subscribers (useSummarize) populate
-          // `result` before flipping `status` to success.
           if (chunk.type === EventType.RUN_FINISHED) {
             yield {
               type: EventType.CUSTOM,
@@ -357,22 +353,10 @@ export class ChatStreamSummarizeAdapter<
     options: SummarizationOptions<TProviderOptions>,
     systemPrompt: string,
   ): TextOptions<TProviderOptions> {
-    // Sampling knobs now live in provider-native `modelOptions`. Apply the
-    // low-temperature default where the wrapped provider actually reads it
-    // (nested under `options` for Ollama, flat otherwise) so callers can still
-    // override it. Resolving the placement from this summarize adapter's OWN
-    // `name` keeps the default off the wire correctly per provider — a flat
-    // `temperature` would be silently dropped by Ollama while still showing up
-    // in OTel.
     let working: Record<string, unknown> = {
       ...(options.modelOptions as Record<string, unknown> | undefined),
     }
     working = applyDefaultTemperature(this.name, 0.3, working)
-    // `maxLength` must reach the wire under the provider-native token key (it
-    // differs per provider, and no adapter reads a generic `maxTokens`).
-    // Resolve it from this summarize adapter's `name` (the constructor arg,
-    // not the wrapped text adapter's name), never overriding a caller-supplied
-    // token limit.
     if (options.maxLength !== undefined) {
       if (!isKnownMaxTokensAdapter(this.name)) {
         options.logger.warn(
@@ -390,9 +374,6 @@ export class ChatStreamSummarizeAdapter<
       systemPrompts: [systemPrompt],
       modelOptions,
       logger: options.logger,
-      // Forward the run identity so the wrapped chat stamps it onto RUN_STARTED
-      // (chat uses `runId` as its `runIdOverride`). Conditional spreads keep the
-      // fields absent when unset, under `exactOptionalPropertyTypes`.
       ...(options.runId !== undefined ? { runId: options.runId } : {}),
       ...(options.threadId !== undefined ? { threadId: options.threadId } : {}),
     }

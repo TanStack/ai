@@ -19,7 +19,14 @@ export interface StreamDurability<TOffset extends string = string> {
   read: (
     offset: TOffset,
     signal?: AbortSignal,
-  ) => AsyncIterable<{ offset: TOffset; chunk: StreamChunk }>
+  ) => AsyncIterable<{
+    /**
+     * Resume offset captured by the consumer (`resumeFrom()` returns it).
+     * Defaults to `null` (a producer / from-start reader).
+     */
+    offset: TOffset
+    chunk: StreamChunk
+  }>
   /**
    * Terminalize the producer log and unblock live readers. Core awaits this
    * for every producer exit, including completion, cancellation, and failure.
@@ -95,6 +102,7 @@ export interface UpsertableStreamDurability<
 const MEMORY_OFFSET_PREFIX = 'memory:v1:'
 
 interface MemoryOffset {
+  /** The run this durability adapter attaches to. */
   runId: string
   seq: number
 }
@@ -114,7 +122,8 @@ function decodeMemoryOffset(offset: string): MemoryOffset {
   }
   const runId = decodeURIComponent(encoded.slice(0, separator))
   const seq = Number(encoded.slice(separator + 1))
-  if (!Number.isSafeInteger(seq) || seq < 1) {
+  const isBadSeq = !Number.isSafeInteger(seq) || seq < 1
+  if (isBadSeq) {
     throw new Error(`Invalid memory stream offset: ${offset}`)
   }
   return { runId, seq }
@@ -139,10 +148,6 @@ function readResumeOffset(request: Request): string | null {
  * about which run a request is talking about.
  */
 export function resolveResumeRunId(request: Request): string | null {
-  // A POST producer carries its client-chosen run id in the X-Run-Id header so
-  // the request URL stays byte-identical to a plain, non-durable request; the
-  // GET join path carries it in the ?runId query instead. Prefer the header,
-  // fall back to the query.
   const header = request.headers.get('X-Run-Id')
   if (header) return header
   try {
@@ -153,7 +158,8 @@ export function resolveResumeRunId(request: Request): string | null {
 }
 
 function assertValidRunId(runId: string): string {
-  if (runId.length === 0 || /[\r\n]/.test(runId)) {
+  const isBadRunId = runId.length === 0 || /[\r\n]/.test(runId)
+  if (isBadRunId) {
     throw new Error(
       `Invalid runId (must be non-empty and contain no CR/LF): ${JSON.stringify(runId)}`,
     )
@@ -165,11 +171,9 @@ function resolveMemoryRunId(
   request: Request,
   resumeOffset: string | null,
 ): string {
-  if (
-    resumeOffset !== null &&
-    resumeOffset !== '-1' &&
-    resumeOffset !== 'now'
-  ) {
+  const hasConcreteOffset =
+    resumeOffset !== null && resumeOffset !== '-1' && resumeOffset !== 'now'
+  if (hasConcreteOffset) {
     return assertValidRunId(decodeMemoryOffset(resumeOffset).runId)
   }
   const requestedRunId = resolveResumeRunId(request)
@@ -257,11 +261,11 @@ const memoryLogs = new Map<string, MemoryLog>()
  */
 function sweepMemoryLogs(now: number): void {
   for (const [id, log] of memoryLogs) {
-    if (
+    const isExpiredLog =
       log.complete &&
       log.completedAt !== undefined &&
       now - log.completedAt > COMPLETED_LOG_TTL_MS
-    ) {
+    if (isExpiredLog) {
       memoryLogs.delete(id)
     }
   }
@@ -308,10 +312,6 @@ function wakeWaiters(log: MemoryLog): void {
 export interface MemoryStreamInit {
   /** The run this durability adapter attaches to. */
   runId: string
-  /**
-   * Resume offset captured by the consumer (`resumeFrom()` returns it).
-   * Defaults to `null` (a producer / from-start reader).
-   */
   offset?: string | null
 }
 
@@ -345,9 +345,6 @@ export function memoryStream(
 
   return {
     resumeFrom: () => resumeOffset,
-    // `async` so every failure surfaces as a rejected promise rather than a
-    // synchronous throw at the call site — `append` is declared to return a
-    // Promise, so callers must be able to `.catch()` every failure mode.
     append: async (chunks) => {
       const log = getOrCreateLog(runId)
       const firstSeq = (log.entries.at(-1)?.seq ?? 0) + 1
@@ -366,18 +363,10 @@ export function memoryStream(
       const log = getOrCreateLog(runId)
       const tailSeq = log.entries.at(-1)?.seq ?? 0
 
-      // Validate the WHOLE batch before touching `log.entries`, so a rejected
-      // upsert never partially applies and a caller that catches and retries
-      // can be sure no prefix landed.
       const seen = new Set<string>()
       // Tail as it will stand once every push planned so far has been applied,
       // so intra-batch ordering is validated up front too.
       let plannedTailSeq = tailSeq
-      // `Array.from` rather than `entries.map`: `map` SKIPS holes in a sparse
-      // array, which would leave the plan short and make the apply loop below
-      // read `undefined` partway through, after earlier steps had already
-      // mutated the log. `Array.from` invokes this callback for every index,
-      // so a hole is rejected here, before anything is touched.
       const plan = Array.from(entries, (entry, index): UpsertStep => {
         if (entry === undefined) {
           throw new Error(
@@ -407,13 +396,6 @@ export function memoryStream(
         seen.add(offset)
         const existing = log.entries.find((stored) => stored.offset === offset)
         if (existing) return { kind: 'replace', existing, chunk }
-        // A not-yet-stored offset must sit strictly after the current tail.
-        // `read()` walks `entries` in array order and filters `seq > threshold`,
-        // so a pushed entry has to keep the seqs monotonically increasing;
-        // reusing the offset's own decoded seq also keeps a returned offset's
-        // threshold exactly consistent with the entry it names. Gaps are fine —
-        // nothing depends on seqs being contiguous, only on them increasing —
-        // so do NOT "fix" this to renumber densely.
         if (seq <= plannedTailSeq) {
           throw new Error(
             `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} is not stored yet but claims position ${seq}, at or before the tail ${plannedTailSeq}; a new offset must come after every stored and preceding entry`,
@@ -441,15 +423,8 @@ export function memoryStream(
       )
     },
     snapshot: () => {
-      // Peek, never getOrCreateLog: an unknown run must resolve to `[]`, and
-      // inserting an empty, never-completed log here would leave a permanent
-      // entry the sweep cannot reclaim (it only reclaims complete logs).
       const log = memoryLogs.get(runId)
       if (log === undefined) return Promise.resolve([])
-      // Fresh outer array AND fresh pair objects, so a caller that mutates the
-      // result cannot reach `log.entries` or the stored entries through it.
-      // Never touches `log.waiters` — a snapshot is a point-in-time read and
-      // returns even while the log is open and still being appended to.
       return Promise.resolve(
         log.entries.map((entry) => ({
           offset: entry.offset,
@@ -466,12 +441,6 @@ export function memoryStream(
     read: async function* (offset, signal) {
       const isFromStartJoin = offset === '-1' || offset === 'now'
 
-      // Peek, never getOrCreateLog. A concrete resume offset for an absent run
-      // means the run was evicted (or never lived in this process) and will not
-      // reappear — fail WITHOUT inserting a log. Inserting here would leave a
-      // permanent empty, never-completed log (sweep only reclaims complete
-      // ones), so client-supplied offsets could grow the map without bound and
-      // defeat the eviction this backend relies on.
       let log = memoryLogs.get(runId)
       if (log === undefined || (log.entries.length === 0 && !log.complete)) {
         if (!isFromStartJoin) {
@@ -479,10 +448,6 @@ export function memoryStream(
             `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,
           )
         }
-        // A from-start join may legitimately attach before the producer creates
-        // the log (second-tab race); create it so a later append reuses the
-        // same entry. If no producer ever arrives, the first-chunk deadline
-        // below deletes this phantom before rejecting.
         log = getOrCreateLog(runId)
       }
 
@@ -501,17 +466,9 @@ export function memoryStream(
             yield { offset: entry.offset, chunk: entry.chunk }
           }
         }
-        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
-        // agent-loop run emits one per iteration (finishReason "tool_calls" then
-        // "stop"), so stopping on the first would truncate a tool-calling run at
-        // its first tool call. The producer signals true completion by calling
-        // `close()` (it does so on every exit — see StreamDurability.close), which
-        // sets `log.complete`. Read tails until then, or until the caller aborts.
-        if (log.complete || signal?.aborted) return
+        const isReadDone = log.complete || signal?.aborted
+        if (isReadDone) return
 
-        // Bound only the wait for the very first chunk: once a run has produced
-        // anything, its producer owns termination and a caught-up reader may
-        // legitimately park indefinitely between chunks.
         const deadlineForFirstChunk =
           log.entries.length === 0 ? firstChunkDeadlineMs : undefined
 
@@ -536,14 +493,11 @@ export function memoryStream(
           if (deadlineForFirstChunk !== undefined) {
             timer = setTimeout(() => {
               cleanup()
-              // No producer ever created data for this joined run. Drop the
-              // phantom log we created above so it does not linger uncollected
-              // (it is empty and will never be marked complete).
-              if (
+              const isEmptyLog =
                 log.entries.length === 0 &&
                 !log.complete &&
                 memoryLogs.get(runId) === log
-              ) {
+              if (isEmptyLog) {
                 memoryLogs.delete(runId)
               }
               reject(
@@ -592,7 +546,8 @@ export async function* replayRunStream<TOffset extends string>(
 ): AsyncGenerator<StreamChunk> {
   // '-1' is the from-start replay sentinel every shipped backend honors.
   const from = offset ?? ('-1' as TOffset)
-  for await (const { chunk } of durability.read(from, signal)) {
+  const records = durability.read(from, signal)
+  for await (const { chunk } of records) {
     yield chunk
   }
 }

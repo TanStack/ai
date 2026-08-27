@@ -23,6 +23,7 @@ import type {
 } from '@opentelemetry/api'
 import type {
   ChatMiddleware,
+  ChatMiddlewareConfig,
   ChatMiddlewareContext,
 } from '../activities/chat/middleware/types'
 import type {
@@ -160,7 +161,8 @@ function accumulateUsageAttributes(
   usage: TokenUsage,
 ): Record<string, number> {
   const accumulated = current ?? {}
-  for (const [key, value] of Object.entries(usageAttributes(usage))) {
+  const entries = Object.entries(usageAttributes(usage))
+  for (const [key, value] of entries) {
     if (typeof value === 'number') {
       accumulated[key] = (accumulated[key] ?? 0) + value
     }
@@ -236,9 +238,6 @@ function safeCall<T>(label: string, fn: () => T): T | undefined {
   try {
     return fn()
   } catch (err) {
-    // Keep middleware non-fatal, but surface callback failures so that broken
-    // extension points (attributeEnricher, spanNameFormatter, onSpanEnd, ...)
-    // are observable. Matches the guarantee documented in docs/advanced/otel.md.
     console.warn(`[otelMiddleware] ${label} failed`, err)
     return undefined
   }
@@ -271,9 +270,6 @@ export function otelMiddleware(
     unit: '{token}',
   })
 
-  // Redact user content, failing closed to a sentinel string instead of ever
-  // letting raw text through. Callers that pass `captureContent: true` with a
-  // third-party PII redactor depend on this invariant.
   const redactContent = (text: string): string => {
     try {
       return redact(text)
@@ -315,11 +311,139 @@ export function otelMiddleware(
     state.currentIterationSpan = null
   }
 
-  // --- Media activities -----------------------------------------------------
-  // Media calls (image/video/audio/tts/transcription) are single request →
-  // response, so they get exactly one CLIENT span — opened in `onStart` and
-  // closed in the terminal hook. Keyed by the per-call context object, which is
-  // distinct from the chat state map above so the two paths never collide.
+  const applySamplingAttributes = (
+    baseAttrs: Record<string, AttributeValue>,
+    config: ChatMiddlewareConfig,
+  ): void => {
+    const sampling = config.modelOptions ?? {}
+    const nestedOptions =
+      sampling['options'] && typeof sampling['options'] === 'object'
+        ? (sampling['options'] as Record<string, unknown>)
+        : undefined
+    const samplingTemperature = firstNumber(
+      sampling['temperature'],
+      nestedOptions?.['temperature'],
+    )
+    const samplingTopP = firstNumber(
+      sampling['top_p'],
+      sampling['topP'],
+      nestedOptions?.['top_p'],
+    )
+    const samplingMaxTokens = firstNumber(
+      ...MAX_TOKENS_KEYS.map((k) => sampling[k]),
+      nestedOptions?.[NESTED_MAX_TOKENS_KEY],
+    )
+    if (samplingTemperature !== undefined)
+      baseAttrs['gen_ai.request.temperature'] = samplingTemperature
+    if (samplingTopP !== undefined)
+      baseAttrs['gen_ai.request.top_p'] = samplingTopP
+    if (samplingMaxTokens !== undefined)
+      baseAttrs['gen_ai.request.max_tokens'] = samplingMaxTokens
+  }
+
+  const captureIterationInput = (
+    iterSpan: Span,
+    state: RequestState,
+    config: ChatMiddlewareConfig,
+  ): void => {
+    const systemPromptContents = config.systemPrompts.map((p) =>
+      typeof p === 'string' ? p : p.content,
+    )
+    const systemPromptMetadata = config.systemPrompts.map((p) =>
+      typeof p === 'string' || p.metadata === undefined ? null : p.metadata,
+    )
+    if (systemPromptMetadata.some((m) => m !== null)) {
+      iterSpan.setAttribute(
+        'tanstack.ai.system_prompt.metadata',
+        JSON.stringify(systemPromptMetadata),
+      )
+    }
+    for (const sys of systemPromptContents) {
+      iterSpan.addEvent('gen_ai.system.message', {
+        content: redactContent(sys),
+      })
+    }
+    for (const m of config.messages) {
+      const body = serializeContent(m.content)
+      if (body.length === 0) continue
+      iterSpan.addEvent(messageEventName(m.role), {
+        content: redactContent(body),
+      })
+    }
+    const inputMessages: Array<{ role: string; content: string }> = []
+    for (const sys of systemPromptContents) {
+      inputMessages.push({
+        role: 'system',
+        content: redactContent(sys),
+      })
+    }
+    for (const m of config.messages) {
+      const body = serializeContent(m.content)
+      if (body.length === 0) continue
+      inputMessages.push({
+        role: m.role,
+        content: redactContent(body),
+      })
+    }
+    if (inputMessages.length === 0) return
+    const inputJson = JSON.stringify(inputMessages)
+    iterSpan.setAttribute('gen_ai.input.messages', inputJson)
+    iterSpan.setAttribute('langfuse.observation.input', inputJson)
+    if (state.iterationCount === 0) {
+      state.rootSpan.setAttribute('langfuse.observation.input', inputJson)
+      state.rootSpan.setAttribute('langfuse.trace.input', inputJson)
+    }
+  }
+
+  const startIterationSpan = (
+    ctx: ChatMiddlewareContext,
+    config: ChatMiddlewareConfig,
+  ): void => {
+    const state = stateByCtx.get(ctx)
+    if (!state) return
+    closeIterationSpan(state, ctx)
+    const iteration = state.iterationCount
+    const info: OtelSpanInfo<'iteration'> = {
+      kind: 'iteration',
+      ctx,
+      iteration,
+    }
+    const name =
+      safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
+      `chat ${ctx.model} #${iteration}`
+    const baseAttrs: Record<string, AttributeValue> = {
+      'gen_ai.system': ctx.provider,
+      'gen_ai.operation.name': 'chat',
+      'gen_ai.request.model': ctx.model,
+      'tanstack.ai.iteration': iteration,
+    }
+    applySamplingAttributes(baseAttrs, config)
+    const baseOptions: SpanOptions = {
+      kind: SpanKind.CLIENT,
+      attributes: baseAttrs,
+    }
+    const spanOptions =
+      safeCall('otel.onBeforeSpanStart', () =>
+        onBeforeSpanStart?.(info, baseOptions),
+      ) ?? baseOptions
+    const parentCtx = otelTrace.setSpan(otelContext.active(), state.rootSpan)
+    let iterSpan!: Span
+    otelContext.with(parentCtx, () => {
+      iterSpan = tracer.startSpan(name, spanOptions, parentCtx)
+    })
+    const enriched = safeCall('otel.attributeEnricher', () =>
+      attributeEnricher?.(info),
+    )
+    if (enriched) iterSpan.setAttributes(enriched)
+    state.currentIterationSpan = iterSpan
+    state.assistantTextBuffer = ''
+    state.assistantTextBufferTruncated = false
+    if (captureContent) {
+      captureIterationInput(iterSpan, state, config)
+    }
+    state.iterationCount += 1
+  }
+
   const mediaSpans = new WeakMap<GenerationMiddlewareContext, Span>()
 
   const recordMediaDuration = (
@@ -382,9 +506,6 @@ export function otelMiddleware(
     name: 'otel',
 
     onStart(ctx) {
-      // Media activities get one CLIENT span; chat builds the root/iteration
-      // tree below. The cast is sound: the chat runner only ever passes a
-      // ChatMiddlewareContext, which `activity: 'chat'` narrows to at runtime.
       if (ctx.activity !== 'chat') {
         startMediaSpan(ctx)
         return
@@ -400,12 +521,6 @@ export function otelMiddleware(
           attributes: {
             'gen_ai.system': chatCtx.provider,
             'gen_ai.request.model': chatCtx.model,
-            // NOTE: `gen_ai.operation.name` is deliberately NOT set on the
-            // root span. The root represents a `chat()` invocation that may
-            // span multiple model calls; only iteration spans correspond to
-            // a single chat operation. Backends that map `operation.name=chat`
-            // to a "generation" event (e.g. PostHog LLM Analytics) would
-            // otherwise emit a duplicate generation for the wrapper span.
           },
         }
         const spanOptions =
@@ -435,190 +550,11 @@ export function otelMiddleware(
     },
 
     onConfig(ctx, config) {
-      // Open an iteration span for every provider model call:
-      // - `beforeModel`: agent-loop chatStream turns
-      // - `structuredOutput`: separate structured-output finalization
-      //   (no-tools + outputSchema skips the agent loop, so without this
-      //   phase there is no generation span and captureContent is a silent
-      //   no-op — see #1054).
-      // Native-combined mode never fires `structuredOutput`, so a run that
-      // already opened spans via `beforeModel` is not double-counted.
-      if (ctx.phase !== 'beforeModel' && ctx.phase !== 'structuredOutput')
-        return
+      const skipConfigSpan =
+        ctx.phase !== 'beforeModel' && ctx.phase !== 'structuredOutput'
+      if (skipConfigSpan) return
       safeCall('otel.onConfig', () => {
-        const state = stateByCtx.get(ctx)
-        if (!state) return
-
-        // The previous iteration's span stays open through tool execution and
-        // onUsage so that tool spans nest under it and token attributes land
-        // on it. Close it here, just before opening the next iteration.
-        closeIterationSpan(state, ctx)
-
-        // Number spans by the order of model calls this middleware has seen,
-        // not by `ctx.iteration`. After an agent-loop turn, structured-output
-        // finalization reuses the engine's last iteration index; using our
-        // own counter keeps finalization as a distinct leaf (#N+1).
-        const iteration = state.iterationCount
-
-        const info: OtelSpanInfo<'iteration'> = {
-          kind: 'iteration',
-          ctx,
-          iteration,
-        }
-        const name =
-          safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
-          `chat ${ctx.model} #${iteration}`
-
-        const baseAttrs: Record<string, AttributeValue> = {
-          'gen_ai.system': ctx.provider,
-          'gen_ai.operation.name': 'chat',
-          'gen_ai.request.model': ctx.model,
-          'tanstack.ai.iteration': iteration,
-        }
-        // Sampling options now live in provider-native `modelOptions`, and
-        // providers spell them differently (e.g. `max_output_tokens`,
-        // `max_completion_tokens`, `maxOutputTokens`, `num_predict`). Read the
-        // first numeric value among the known spellings — including Ollama's
-        // nested `options` — so gen_ai attributes populate across providers.
-        const sampling = config.modelOptions ?? {}
-        const nestedOptions =
-          sampling['options'] && typeof sampling['options'] === 'object'
-            ? (sampling['options'] as Record<string, unknown>)
-            : undefined
-        const samplingTemperature = firstNumber(
-          sampling['temperature'],
-          nestedOptions?.['temperature'],
-        )
-        const samplingTopP = firstNumber(
-          sampling['top_p'],
-          sampling['topP'],
-          nestedOptions?.['top_p'],
-        )
-        // Spellings come from the shared `MAX_TOKENS_KEYS` table so this stays
-        // in lockstep with the summarize wrapper's caller-limit detection.
-        const samplingMaxTokens = firstNumber(
-          ...MAX_TOKENS_KEYS.map((k) => sampling[k]),
-          nestedOptions?.[NESTED_MAX_TOKENS_KEY],
-        )
-        if (samplingTemperature !== undefined)
-          baseAttrs['gen_ai.request.temperature'] = samplingTemperature
-        if (samplingTopP !== undefined)
-          baseAttrs['gen_ai.request.top_p'] = samplingTopP
-        if (samplingMaxTokens !== undefined)
-          baseAttrs['gen_ai.request.max_tokens'] = samplingMaxTokens
-
-        const baseOptions: SpanOptions = {
-          kind: SpanKind.CLIENT,
-          attributes: baseAttrs,
-        }
-        const spanOptions =
-          safeCall('otel.onBeforeSpanStart', () =>
-            onBeforeSpanStart?.(info, baseOptions),
-          ) ?? baseOptions
-
-        const parentCtx = otelTrace.setSpan(
-          otelContext.active(),
-          state.rootSpan,
-        )
-        let iterSpan!: Span
-        otelContext.with(parentCtx, () => {
-          // Pass the parent context explicitly as the 3rd arg — this is a
-          // real-OTel-compatible way to ensure the span is parented to
-          // `rootSpan` even when the host app has not registered a context
-          // manager (e.g. in tests or minimal setups).
-          iterSpan = tracer.startSpan(name, spanOptions, parentCtx)
-        })
-
-        const enriched = safeCall('otel.attributeEnricher', () =>
-          attributeEnricher?.(info),
-        )
-        if (enriched) iterSpan.setAttributes(enriched)
-
-        state.currentIterationSpan = iterSpan
-        state.assistantTextBuffer = ''
-        state.assistantTextBufferTruncated = false
-
-        if (captureContent) {
-          const systemPromptContents = config.systemPrompts.map((p) =>
-            typeof p === 'string' ? p : p.content,
-          )
-          // Anthropic prompt-caching users need to know which prompt carried
-          // `cache_control`: it's the one attribute that explains cache
-          // hit/miss in observability. Serialise per-prompt metadata as a
-          // single JSON span attribute so backends that don't understand
-          // GenAI events can still surface it. Kept off span events to
-          // avoid breaking the one-event-per-message GenAI semconv contract.
-          const systemPromptMetadata = config.systemPrompts.map((p) =>
-            typeof p === 'string' || p.metadata === undefined
-              ? null
-              : p.metadata,
-          )
-          if (systemPromptMetadata.some((m) => m !== null)) {
-            iterSpan.setAttribute(
-              'tanstack.ai.system_prompt.metadata',
-              JSON.stringify(systemPromptMetadata),
-            )
-          }
-          // Span events follow the original GenAI semconv (one event per
-          // message). Backends that read events get content this way.
-          for (const sys of systemPromptContents) {
-            iterSpan.addEvent('gen_ai.system.message', {
-              content: redactContent(sys),
-            })
-          }
-          for (const m of config.messages) {
-            const body = serializeContent(m.content)
-            if (body.length === 0) continue
-            iterSpan.addEvent(messageEventName(m.role), {
-              content: redactContent(body),
-            })
-          }
-
-          // Also emit the current GenAI-semconv attribute form
-          // (`gen_ai.input.messages`) — backends like PostHog read prompt
-          // content from this attribute, not from span events.
-          const inputMessages: Array<{ role: string; content: string }> = []
-          for (const sys of systemPromptContents) {
-            inputMessages.push({
-              role: 'system',
-              content: redactContent(sys),
-            })
-          }
-          for (const m of config.messages) {
-            const body = serializeContent(m.content)
-            if (body.length === 0) continue
-            inputMessages.push({
-              role: m.role,
-              content: redactContent(body),
-            })
-          }
-          if (inputMessages.length > 0) {
-            const inputJson = JSON.stringify(inputMessages)
-            // Current OTel GenAI semconv — Sentry / PostHog / Datadog read
-            // prompt content from this attribute.
-            iterSpan.setAttribute('gen_ai.input.messages', inputJson)
-            // Langfuse-native attribute. Highest priority in Langfuse's OTLP
-            // ingestion (checked before events and gen_ai.input.messages) so
-            // the Input panel populates reliably. Harmless to other backends —
-            // the attribute is namespaced and unrecognised keys are ignored.
-            iterSpan.setAttribute('langfuse.observation.input', inputJson)
-
-            // Mirror the first iteration's input onto the root span and at
-            // trace level so Langfuse fills Input on the trace card and the
-            // chat-level observation. Later iterations append tool-call /
-            // assistant messages that are useful per-iteration but noise at
-            // the chat / trace level.
-            if (state.iterationCount === 0) {
-              state.rootSpan.setAttribute(
-                'langfuse.observation.input',
-                inputJson,
-              )
-              state.rootSpan.setAttribute('langfuse.trace.input', inputJson)
-            }
-          }
-        }
-
-        state.iterationCount += 1
+        startIterationSpan(ctx, config)
       })
       return undefined
     },
@@ -628,7 +564,9 @@ export function otelMiddleware(
         const state = stateByCtx.get(ctx)
         if (!state) return
 
-        if (captureContent && chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        const shouldCaptureText =
+          captureContent && chunk.type === 'TEXT_MESSAGE_CONTENT'
+        if (shouldCaptureText) {
           appendAssistantText(state, chunk.delta)
         }
 
@@ -651,17 +589,14 @@ export function otelMiddleware(
         }
         if (model) span.setAttribute('gen_ai.response.model', model)
 
-        // Set usage attributes on the iteration span directly from the chunk
-        // so they're available before `onUsage` fires. Histogram recording is
-        // deliberately NOT done here — the chat runner always invokes
-        // `runOnUsage` when `chunk.usage` is present, and `onUsage` is the
-        // canonical place for the metric. Recording in both would double-count.
         const tokenUsage = rebuildTokenUsage(chunk.usage, tanstack?.usage)
         if (tokenUsage) {
           span.setAttributes(usageAttributes(tokenUsage))
         }
 
-        if (captureContent && state.assistantTextBuffer.length > 0) {
+        const hasBufferedText =
+          captureContent && state.assistantTextBuffer.length > 0
+        if (hasBufferedText) {
           const completion = redactContent(state.assistantTextBuffer)
           const outputJson = JSON.stringify([
             { role: 'assistant', content: completion },
@@ -673,28 +608,17 @@ export function otelMiddleware(
           span.setAttribute('gen_ai.output.messages', outputJson)
           // Langfuse-native attribute (highest priority in Langfuse mapping).
           span.setAttribute('langfuse.observation.output', outputJson)
-          // Mirror to the root span and trace card. Each iteration overwrites,
-          // so the final iteration's completion lands on the root — which is
-          // the final answer the user saw, not an intermediate tool-call turn.
           state.rootSpan.setAttribute('langfuse.observation.output', outputJson)
           state.rootSpan.setAttribute('langfuse.trace.output', outputJson)
           state.assistantTextBuffer = ''
           state.assistantTextBufferTruncated = false
         }
-
-        // Intentionally leave the iteration span open: tool spans started
-        // after `RUN_FINISHED` (tool_calls finishReason) must nest under it,
-        // and `onUsage` may still fire. The span is closed in `onConfig` when
-        // the next iteration starts, or in `onFinish` / `onError` / `onAbort`.
       })
       return undefined
     },
 
     onUsage(ctx, usage) {
       if (ctx.activity !== 'chat') {
-        // Media: stamp usage on the single span. No token histogram — media
-        // unit billing lands as span attributes via usageAttributes, matching
-        // prior media behavior and avoiding chat-shaped token metrics.
         safeCall('otel.onUsage', () => {
           const span = mediaSpans.get(ctx)
           if (span) span.setAttributes(usageAttributes(usage))
@@ -711,9 +635,6 @@ export function otelMiddleware(
           usage,
         )
 
-        // Always record the token histogram — metrics don't depend on having
-        // an iteration span, and skipping here would drop metric data if an
-        // adapter emits `onUsage` outside the iteration window.
         if (tokenHistogram) {
           const metricAttrs = {
             'gen_ai.system': chatCtx.provider,
@@ -814,7 +735,8 @@ export function otelMiddleware(
         const outcome = info.ok ? 'success' : 'error'
         toolSpan.setAttribute('tanstack.ai.tool.outcome', outcome)
 
-        if (!info.ok && info.error !== undefined) {
+        const shouldRecordToolError = !info.ok && info.error !== undefined
+        if (shouldRecordToolError) {
           toolSpan.recordException(info.error as Exception)
           const msg = errorMessage(info.error)
           toolSpan.setStatus({
@@ -824,10 +746,6 @@ export function otelMiddleware(
         }
 
         if (captureContent) {
-          // Serialization can throw on circular refs or `BigInt` values. If it
-          // does, fall back to a sentinel so the rest of this handler (span
-          // end, onSpanEnd, toolSpans cleanup) still runs — otherwise the tool
-          // span would dangle until the onFinish/onError sweep.
           const body =
             typeof info.result === 'string'
               ? info.result
@@ -980,9 +898,6 @@ export function otelMiddleware(
         if (!state) return
 
         const closeCancelled = (span: Span): void => {
-          // `gen_ai.completion.reason` is not part of the GenAI semconv; use a
-          // TanStack-namespaced attribute so downstream exporters don't treat
-          // it as standard. The span status still carries the error code.
           span.setAttribute('tanstack.ai.completion.reason', 'cancelled')
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'cancelled' })
         }
@@ -1056,9 +971,6 @@ export function otelMiddleware(
         const state = stateByCtx.get(chatCtx)
         if (!state) return
 
-        // Close any tool spans that never received `onAfterToolCall` (adapter
-        // quirk). Done before the iteration span so the hierarchy is closed
-        // in depth-first order.
         for (const [id, entry] of state.toolSpans) {
           const { span, toolName } = entry
           span.setAttribute('tanstack.ai.tool.outcome', 'unknown')

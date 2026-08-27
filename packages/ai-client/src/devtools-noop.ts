@@ -1,10 +1,3 @@
-// No-op devtools bridge implementations + factories. The chat / generation /
-// video clients import the real bridge classes as types only and accept a
-// factory in options; when no factory is supplied they fall back to the
-// no-op factories here, which never touch `aiEventClient` or any of the
-// heavy preview/fixture machinery in `./devtools`. This keeps `./devtools`
-// outside the main-entry import graph — consumers opt into functional
-// devtools via `@tanstack/ai-client/devtools` (see `package.json#exports`).
 import { ChatClientEventEmitter } from './events'
 import type {
   AIDevtoolsToolFixture,
@@ -33,21 +26,11 @@ export type VideoDevtoolsBridgeFactory = <TOutput>(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ) => VideoDevtoolsBridge<TOutput>
 
-// ===========================================================================
-// No-op event emitter — extends the abstract base so it satisfies the type
-// without dragging in any of the event-bus runtime cost.
-// ===========================================================================
-
 class NoOpChatClientEventEmitter extends ChatClientEventEmitter {
   protected emitEvent(): void {
     // intentionally empty
   }
 }
-
-// ===========================================================================
-// No-op bridges. Methods exist to satisfy the structural shape of the real
-// classes; every emit/record call short-circuits.
-// ===========================================================================
 
 export class NoOpChatDevtoolsBridge {
   readonly events: ChatClientEventEmitter
@@ -118,9 +101,6 @@ export class NoOpGenerationDevtoolsBridge<TOutput> {
 
   // generation-specific surface
   beginRun(_input: unknown): string {
-    // Real factories supply a stable id; the no-op still returns a
-    // unique value because the generation client passes this run id to
-    // the adapter's RunAgentInputContext.
     return `noop-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   }
   ensureRunStarted(_runId: string): void {}
@@ -153,11 +133,6 @@ export class NoOpVideoDevtoolsBridge<
   recordVideoStatusChange(): void {}
 }
 
-// Compile-time parity checks. If a public method is added to the real
-// bridge class without a matching stub on the no-op, the corresponding
-// `Exclude<...>` resolves to a non-`never` union, which violates the
-// `extends never` constraint below and fails the build — surfacing the
-// drift at build time instead of as a runtime TypeError later.
 type AssertBridgeParity<TMissing extends never> = TMissing
 type _ChatBridgeMissing = Exclude<
   keyof ChatDevtoolsBridge,
@@ -179,15 +154,6 @@ const _bridgeParity:
     ]
   | undefined = undefined
 void _bridgeParity
-
-// ===========================================================================
-// Factories — these are what the clients call when no real factory was
-// supplied in options.
-// ===========================================================================
-
-// Casts use `unknown` because the no-op classes don't `extend` the real bridge
-// (that would pull the real implementation into the main-entry import graph).
-// Structural parity is enforced by the `_*BridgeMissing` checks above.
 
 export const createNoOpChatDevtoolsBridge: ChatDevtoolsBridgeFactory = (
   options,

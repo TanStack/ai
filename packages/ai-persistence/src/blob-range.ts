@@ -71,29 +71,20 @@ export function parseRangeHeader(
   if (!match) return undefined
   const [, rawStart, rawEnd] = match
   // `bytes=-` names nothing at all.
-  if (rawStart === '' && rawEnd === '') return undefined
+  const isEmptyRange = rawStart === '' && rawEnd === ''
+  if (isEmptyRange) return undefined
 
-  // `bytes=-500` is the LAST 500 bytes, not "from 0 to 500" — the one form
-  // that is easy to read backwards, and reading it backwards serves the wrong
-  // bytes with a 206 that claims they are the right ones.
   if (rawStart === '') {
     const suffix = Number(rawEnd)
-    // A zero-length suffix names no bytes, and NO range is satisfiable against
-    // a zero-byte object — without the size check, `bytes=-1` on an empty
-    // artifact resolves to `{ offset: 0 }` and throws out of the store instead
-    // of answering 416.
-    if (suffix === 0 || size === 0) return 'unsatisfiable'
+    const isUnsatisfiableSuffix = suffix === 0 || size === 0
+    if (isUnsatisfiableSuffix) return 'unsatisfiable'
     return { offset: Math.max(0, size - suffix) }
   }
 
   const start = Number(rawStart)
   const end = rawEnd === '' ? undefined : Number(rawEnd)
-  // `bytes=100-50` is an INVALID byte-range-spec, not an unsatisfiable one
-  // (RFC 9110 §14.1.1). An invalid spec is ignored and the whole
-  // representation is served — answering 416 would fail a request that is
-  // supposed to succeed. Checked before satisfiability so the size cannot turn
-  // an ignorable spec into a 416.
-  if (end !== undefined && end < start) return undefined
+  const isInvertedRange = end !== undefined && end < start
+  if (isInvertedRange) return undefined
   if (start >= size) return 'unsatisfiable'
   if (end === undefined) return { offset: start }
   // `end` is inclusive, and past the end of the object it simply clamps.

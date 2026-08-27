@@ -69,6 +69,210 @@ export type WireMessage =
   | WireToolMessage
   | WireReasoningMessage
 
+function appendStandaloneToolMessage(
+  msg: ModelMessage,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+  assistantIds: ReadonlySet<string>,
+): void {
+  if (msg.role !== 'tool') return
+  if (!msg.toolCallId) return
+  const id = uniqueToolWireId(
+    toolWireId(msg.id, msg.toolCallId, assistantIds),
+    usedWireIds,
+  )
+  const metadata = rebuiltToolMetadata(
+    msg.metadata,
+    msg.createdAt,
+    msg.id,
+    msg.content,
+  )
+  wire.push({
+    role: 'tool',
+    id,
+    ...(msg.name !== undefined && { name: msg.name }),
+    toolCallId: msg.toolCallId,
+    content:
+      typeof msg.content === 'string'
+        ? msg.content
+        : JSON.stringify(msg.content),
+    ...(msg.error !== undefined && { error: msg.error }),
+    ...(metadata !== undefined && { metadata }),
+  })
+}
+
+function appendReasoningFanouts(
+  uiMessage: UIMessage,
+  parts: ReadonlyArray<MessagePart>,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+): void {
+  for (const part of parts) {
+    if (part.type !== 'thinking') continue
+    const reasoning: WireReasoningMessage = {
+      role: 'reasoning',
+      id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
+      content: part.content,
+    }
+    if (part.signature) {
+      reasoning.encryptedValue = part.signature
+    }
+    wire.push(reasoning)
+  }
+}
+
+function appendToolResultFanout(
+  part: Extract<MessagePart, { type: 'tool-result' }>,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+): void {
+  const id = uniqueToolWireId(
+    part.id ?? deriveToolMessageId(part.toolCallId),
+    usedWireIds,
+  )
+  const metadata = rebuiltToolMetadata(
+    part.metadata,
+    part.createdAt,
+    part.id,
+    part.content,
+    true,
+  )
+  wire.push({
+    role: 'tool',
+    id,
+    toolCallId: part.toolCallId,
+    ...(part.name !== undefined && { name: part.name }),
+    content:
+      typeof part.content === 'string'
+        ? part.content
+        : JSON.stringify(part.content),
+    ...(part.error !== undefined && { error: part.error }),
+    ...(metadata !== undefined && { metadata }),
+  })
+}
+
+function appendToolCallFanout(
+  part: Extract<MessagePart, { type: 'tool-call' }>,
+  explicitToolResults: ReadonlySet<string>,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+): void {
+  const approved = part.approval?.approved
+  const skipFanout =
+    explicitToolResults.has(part.id) ||
+    (part.output === undefined &&
+      (part.state !== 'approval-responded' || approved === undefined))
+  if (skipFanout) {
+    return
+  }
+  const result =
+    part.output !== undefined
+      ? normalizeToolResult(part.output)
+      : JSON.stringify({
+          approved,
+          ...(approved && { pendingExecution: true }),
+          message: approved
+            ? 'User approved this action'
+            : 'User denied this action',
+        })
+  const content = typeof result === 'string' ? result : JSON.stringify(result)
+  wire.push({
+    role: 'tool',
+    id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
+    toolCallId: part.id,
+    content,
+    metadata: rebuiltToolMetadata(undefined, undefined, undefined, result),
+  })
+}
+
+function appendAssistantWire(
+  uiMessage: UIMessage,
+  parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+): void {
+  appendReasoningFanouts(uiMessage, parts, wire, usedWireIds)
+  const text = collectText(parts)
+  const toolCalls = collectToolCalls(parts)
+  wire.push(
+    toAnchor(
+      uiMessage,
+      'assistant',
+      {
+        ...(text !== '' && { content: text }),
+        ...(toolCalls && { toolCalls }),
+      },
+      parts,
+      includeSnapshotStructuredOutput,
+    ),
+  )
+  const explicitToolResults = new Set(
+    parts.flatMap((part) =>
+      part.type === 'tool-result' ? [part.toolCallId] : [],
+    ),
+  )
+  for (const part of parts) {
+    if (part.type === 'tool-result') {
+      appendToolResultFanout(part, wire, usedWireIds)
+    } else if (part.type === 'tool-call') {
+      appendToolCallFanout(part, explicitToolResults, wire, usedWireIds)
+    }
+  }
+}
+
+function appendUiMessageToWire(
+  msg: UIMessage | ModelMessage,
+  uiMessage: UIMessage,
+  includeSnapshotStructuredOutput: boolean,
+  wire: Array<WireMessage>,
+  usedWireIds: Set<string>,
+): void {
+  const parts: ReadonlyArray<MessagePart> = uiMessage.parts
+  usedWireIds.add(uiMessage.id)
+  if (msg.role === 'system') {
+    wire.push(
+      toAnchor(
+        uiMessage,
+        'system',
+        {
+          content:
+            parts.length > 0
+              ? collectText(parts)
+              : ((msg as { content?: string }).content ?? ''),
+        },
+        parts,
+        includeSnapshotStructuredOutput,
+      ),
+    )
+    return
+  }
+  if (msg.role === 'user') {
+    wire.push(
+      toAnchor(
+        uiMessage,
+        'user',
+        {
+          content:
+            parts.length > 0
+              ? collectUserContent(parts)
+              : ((msg as { content?: string }).content ?? ''),
+        },
+        parts,
+        includeSnapshotStructuredOutput,
+      ),
+    )
+    return
+  }
+  appendAssistantWire(
+    uiMessage,
+    parts,
+    includeSnapshotStructuredOutput,
+    wire,
+    usedWireIds,
+  )
+}
+
 /**
  * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
  * `RunAgentInput.messages` wire shape. Anchors are spec-only (`id`, `role`,
@@ -102,167 +306,18 @@ export function uiMessagesToWire(
 
   for (const msg of messages) {
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
-      const id = uniqueToolWireId(
-        toolWireId(msg.id, msg.toolCallId, assistantIds),
-        usedWireIds,
-      )
-      const metadata = rebuiltToolMetadata(
-        msg.metadata,
-        msg.createdAt,
-        msg.id,
-        msg.content,
-      )
-      wire.push({
-        role: 'tool',
-        id,
-        ...(msg.name !== undefined && { name: msg.name }),
-        toolCallId: msg.toolCallId,
-        content:
-          typeof msg.content === 'string'
-            ? msg.content
-            : JSON.stringify(msg.content),
-        ...(msg.error !== undefined && { error: msg.error }),
-        ...(metadata !== undefined && { metadata }),
-      })
+      appendStandaloneToolMessage(msg, wire, usedWireIds, assistantIds)
       continue
     }
-
     const uiMessage: UIMessage =
       'parts' in msg ? msg : modelMessageToUIMessage(msg, msg.id)
-    const parts: ReadonlyArray<MessagePart> = uiMessage.parts
-    usedWireIds.add(uiMessage.id)
-
-    if (msg.role === 'system') {
-      wire.push(
-        toAnchor(
-          uiMessage,
-          'system',
-          {
-            content:
-              parts.length > 0
-                ? collectText(parts)
-                : ((msg as { content?: string }).content ?? ''),
-          },
-          parts,
-          includeSnapshotStructuredOutput,
-        ),
-      )
-      continue
-    }
-
-    if (msg.role === 'user') {
-      wire.push(
-        toAnchor(
-          uiMessage,
-          'user',
-          {
-            content:
-              parts.length > 0
-                ? collectUserContent(parts)
-                : ((msg as { content?: string }).content ?? ''),
-          },
-          parts,
-          includeSnapshotStructuredOutput,
-        ),
-      )
-      continue
-    }
-
-    // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
-    for (const part of parts) {
-      if (part.type === 'thinking') {
-        const reasoning: WireReasoningMessage = {
-          role: 'reasoning',
-          id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
-          content: part.content,
-        }
-        if (part.signature) {
-          reasoning.encryptedValue = part.signature
-        }
-        wire.push(reasoning)
-      }
-    }
-
-    const text = collectText(parts)
-    const toolCalls = collectToolCalls(parts)
-    wire.push(
-      toAnchor(
-        uiMessage,
-        'assistant',
-        {
-          ...(text !== '' && { content: text }),
-          ...(toolCalls && { toolCalls }),
-        },
-        parts,
-        includeSnapshotStructuredOutput,
-      ),
+    appendUiMessageToWire(
+      msg,
+      uiMessage,
+      includeSnapshotStructuredOutput,
+      wire,
+      usedWireIds,
     )
-
-    const explicitToolResults = new Set(
-      parts.flatMap((part) =>
-        part.type === 'tool-result' ? [part.toolCallId] : [],
-      ),
-    )
-    for (const part of parts) {
-      if (part.type === 'tool-result') {
-        const id = uniqueToolWireId(
-          part.id ?? deriveToolMessageId(part.toolCallId),
-          usedWireIds,
-        )
-        const metadata = rebuiltToolMetadata(
-          part.metadata,
-          part.createdAt,
-          part.id,
-          part.content,
-          true,
-        )
-        wire.push({
-          role: 'tool',
-          id,
-          toolCallId: part.toolCallId,
-          ...(part.name !== undefined && { name: part.name }),
-          content:
-            typeof part.content === 'string'
-              ? part.content
-              : JSON.stringify(part.content),
-          ...(part.error !== undefined && { error: part.error }),
-          ...(metadata !== undefined && { metadata }),
-        })
-      } else if (part.type === 'tool-call') {
-        const approved = part.approval?.approved
-        if (
-          explicitToolResults.has(part.id) ||
-          (part.output === undefined &&
-            (part.state !== 'approval-responded' || approved === undefined))
-        ) {
-          continue
-        }
-        const result =
-          part.output !== undefined
-            ? normalizeToolResult(part.output)
-            : JSON.stringify({
-                approved,
-                ...(approved && { pendingExecution: true }),
-                message: approved
-                  ? 'User approved this action'
-                  : 'User denied this action',
-              })
-        const content =
-          typeof result === 'string' ? result : JSON.stringify(result)
-        wire.push({
-          role: 'tool',
-          id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
-          toolCallId: part.id,
-          content,
-          metadata: rebuiltToolMetadata(
-            undefined,
-            undefined,
-            undefined,
-            result,
-          ),
-        })
-      }
-    }
   }
 
   return wire
@@ -368,10 +423,10 @@ function serializedStructuredOutput(
   includeSnapshotStructuredOutput: boolean,
 ): TanStackMessageMetadata['structuredOutput'] | undefined {
   for (const p of parts) {
-    if (
+    const isLiveStructuredOutput =
       p.type === 'structured-output' &&
       (includeSnapshotStructuredOutput || p.status !== 'complete')
-    ) {
+    if (isLiveStructuredOutput) {
       return structuredOutputMetadata(p, includeSnapshotStructuredOutput)
     }
   }
@@ -399,26 +454,18 @@ function structuredOutputMetadata(
 }
 
 function collectText(parts: ReadonlyArray<MessagePart>): string {
-  // The streamed JSON of a completed structured-output part is the source of
-  // truth for multi-turn coherence — emitting it back as assistant content
-  // lets the LLM see its own prior structured response. Streaming/errored
-  // parts are skipped: they'd ship malformed JSON fragments and confuse the
-  // model. `completeStructuredOutputPart` tries hard to populate `raw`
-  // (caller → existing buffer → `JSON.stringify(data)`), but the stringify
-  // fallback can leave it empty when `data` is unserializable (BigInt,
-  // circular). The `p.raw !== ''` guard below is what enforces "no malformed
-  // round-trip" in that case — without it we'd ship `''` and the model would
-  // see an empty assistant turn.
   const out: Array<string> = []
   for (const p of parts) {
     if (p.type === 'text') {
       out.push(p.content)
-    } else if (
-      p.type === 'structured-output' &&
-      p.status === 'complete' &&
-      p.raw !== ''
-    ) {
-      out.push(p.raw)
+    } else {
+      const isCompleteStructuredText =
+        p.type === 'structured-output' &&
+        p.status === 'complete' &&
+        p.raw !== ''
+      if (isCompleteStructuredText) {
+        out.push(p.raw)
+      }
     }
   }
   return out.join('')
@@ -441,13 +488,15 @@ function collectUserContent(
   for (const p of parts) {
     if (p.type === 'text') {
       out.push({ type: 'text', text: p.content })
-    } else if (
-      p.type === 'image' ||
-      p.type === 'audio' ||
-      p.type === 'video' ||
-      p.type === 'document'
-    ) {
-      out.push(p)
+    } else {
+      const isMediaPart =
+        p.type === 'image' ||
+        p.type === 'audio' ||
+        p.type === 'video' ||
+        p.type === 'document'
+      if (isMediaPart) {
+        out.push(p)
+      }
     }
   }
   return out
@@ -514,14 +563,12 @@ function toolWireId(
   assistantIds: ReadonlySet<string>,
 ): string {
   const derived = deriveToolMessageId(toolCallId)
-  if (id === undefined || assistantIds.has(id)) return derived
+  if (id === undefined) return derived
+  if (assistantIds.has(id)) return derived
   return id
 }
 
 function hashContent(s: string): string {
-  // Cheap deterministic id suffix; collisions are tolerable since
-  // reasoning ids only matter for AG-UI server consumers, not for our
-  // own server's dedup logic (which keys on toolCallId, not reasoning id).
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
   return Math.abs(h).toString(36)

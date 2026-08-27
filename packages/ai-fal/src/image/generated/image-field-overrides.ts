@@ -1,23 +1,9 @@
 /* eslint-disable */
-// ---------------------------------------------------------------------------
-// AUTO-GENERATED — do not edit by hand.
-//
-// Generated from @fal-ai/client@1.10.1 EndpointTypeMap by
-// scripts/generate-fal-image-field-map.ts. Regenerate after bumping
-// @fal-ai/client:
-//
-//   pnpm tsx scripts/generate-fal-image-field-map.ts
-//
-// Maps fal endpoint ids to the image-conditioning input fields they accept
-// whenever those differ from the defaults in image-inputs.ts. Endpoints
-// matching the defaults are omitted. The `satisfies` clause below checks
-// every field name against the SDK's endpoint input types at compile time
-// (type-only import — nothing from endpoints.d.ts is shipped at runtime).
-// ---------------------------------------------------------------------------
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
 /** sha256 of the endpoints.d.ts this file was generated from. */
-export const FAL_ENDPOINTS_DTS_SHA256 =
+export const /** sha256 of the endpoints.d.ts this file was generated from. */
+FAL_ENDPOINTS_DTS_SHA256 =
   'a071f97905b8a1068f924c74108b881362f20c9054620b70359c200404e23b4e'
 
 /** Every input field name the image-input mappers may emit. */

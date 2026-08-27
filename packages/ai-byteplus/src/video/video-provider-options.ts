@@ -1,37 +1,3 @@
-/**
- * Provider options and per-model capability tables for the BytePlus Seedance
- * video models.
- *
- * Applicability for Seedance 1.x / 2.0 was probed live against
- * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. The probe
- * sent an out-of-range `seed` alongside the field under test, so requests that
- * passed validation still failed before a task was created (nothing billed):
- * an error naming the field under test means "rejected", an error naming
- * `seed` means "accepted". Ark reports only one arbitrary invalid parameter
- * per request, so each cell was retried until a verdict repeated. Seedance 2.5
- * cells come from the public ModelArk create-task docs (opened 2026-08-07);
- * its resolution row was refreshed 2026-08-19 when native 1080p shipped.
- *
- * Ark rejects an inapplicable field outright — "the specified parameter
- * `draft` is not supported for model seedance-1-0-pro in t2v, must be empty" —
- * so these tables are not cosmetic: sending a field to the wrong model is a
- * 400, not a no-op.
- *
- * **Where the adapter guards, and where it doesn't** (deliberate, not an
- * oversight). Scalar applicability — `service_tier`, `draft`, `priority`,
- * `frames`, `camera_fixed`, `output_format` — is left to Ark, whose 400 names
- * the offending field and the model precisely enough to act on, and whose
- * per-model rules shift as BytePlus ships models. Duplicating that here would
- * mean a table that silently goes stale and starts rejecting requests the API
- * would have accepted. The adapter guards locally only where the API's own
- * error is misleading or arrives too late to be actionable: prompt media shape
- * (role vocabulary, frame-vs-reference exclusivity, frame cardinality,
- * audio-only reference) and the resolution tier, both of which are derived
- * from a caller's `prompt` / `size` rather than passed through verbatim.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-
 import { isKnownBytePlusVideoModel } from '../model-meta'
 import type {
   BytePlusVideoModel,
@@ -388,7 +354,15 @@ export function resolveBytePlusVideoSize(
 ): { ratio: string; resolution?: string } {
   const parsed = parseBytePlusVideoSize(size)
   const known = isKnownBytePlusVideoModel(model)
-  if (!parsed || (known && !BYTEPLUS_VIDEO_RATIOS.includes(parsed.ratio))) {
+  if (!parsed) {
+    throw new Error(
+      `byteplus: size "${size}" is not supported by model "${model}". Expected ` +
+        `"ratio" or "ratio_resolution" (e.g. "16:9_720p") with ratio one of: ` +
+        `${BYTEPLUS_VIDEO_RATIOS.join(', ')}.`,
+    )
+  }
+  const unknownRatio = known && !BYTEPLUS_VIDEO_RATIOS.includes(parsed.ratio)
+  if (unknownRatio) {
     throw new Error(
       `byteplus: size "${size}" is not supported by model "${model}". Expected ` +
         `"ratio" or "ratio_resolution" (e.g. "16:9_720p") with ratio one of: ` +

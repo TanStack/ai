@@ -108,7 +108,8 @@ export function createEventAwareBindings(
 ): Record<string, ToolBinding> {
   const wrapped: Record<string, ToolBinding> = {}
 
-  for (const [name, binding] of Object.entries(bindings)) {
+  const toolBindings = Object.entries(bindings)
+  for (const [name, binding] of toolBindings) {
     wrapped[name] = {
       ...binding,
       execute: async (args: unknown) => {

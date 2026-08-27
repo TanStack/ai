@@ -148,12 +148,6 @@ export interface UseGenerationReturn<
  * await generate({ prompt: 'Hello' })
  * ```
  */
-// `TTransformed` infers from the `onResult` return position (a covariant
-// inference site that works even for an optional nested property), which types
-// the callback parameter as `TResult` and narrows `result`. Inferring the
-// whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
-// issue #848.
 export function useGeneration<
   TInput extends Record<string, any>,
   TResult,
@@ -187,10 +181,6 @@ export function useGeneration<
   const client = useMemo(() => {
     const opts = optionsRef.current
 
-    // Conditional spread for `body` (strict-optional in target;
-    // local source is `Record<string, any> | undefined`). Callbacks
-    // wrap optional ones in non-returning bodies so `?.()`'s
-    // implicit `undefined` doesn't pollute the function return type.
     const clientOptions: Omit<
       GenerationClientOptions<TInput, TResult, TOutput>,
       'persistence' | 'threadId'
@@ -211,9 +201,6 @@ export function useGeneration<
         framework: 'react',
         ...opts.devtools,
       },
-      // The transform's raw return type (`TTransformed`) and the stored output
-      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-      // the cast bridges the relationship that the conditional type hides.
       onResult: ((r: TResult) => optionsRef.current.onResult?.(r)) as (
         result: TResult,
       ) => TOutput | null | void,
@@ -282,9 +269,6 @@ export function useGeneration<
     })
   }, [client, options.body])
 
-  // Mount devtools and clean up on unmount. Generation runs are never
-  // auto-started on mount — persisted state is only displayed. Mounting
-  // revives the client after a StrictMode dispose → remount replay.
   useEffect(() => {
     disposedRef.current = false
     client.mountDevtools()
@@ -295,6 +279,7 @@ export function useGeneration<
     }
   }, [client])
 
+  /** Trigger a generation request */
   const generate = useCallback(
     async (input: TInput) => {
       await client.generate(input)
@@ -302,10 +287,12 @@ export function useGeneration<
     [client],
   )
 
+  /** Abort the current generation */
   const stop = useCallback(() => {
     client.stop()
   }, [client])
 
+  /** Clear result, error, and return to idle */
   const reset = useCallback(() => {
     client.reset()
   }, [client])

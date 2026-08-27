@@ -1,9 +1,8 @@
 import { aiEventClient } from './index.js'
 import type { TokenUsage } from './index.js'
 
-// Local mirrors of @tanstack/ai middleware types — do not import from `@tanstack/ai`
-// here: during `@tanstack/ai`'s own build that resolves to `dist/*.d.ts` while the
-// engine compiles from `src/`, producing incompatible duplicate types.
+// Local mirrors of @tanstack/ai middleware types — do not import from `@tanstack/ai`.
+// Importing it here would duplicate types during the engine's own build.
 
 interface DevtoolsModelMessage {
   role: string
@@ -78,10 +77,6 @@ type DevtoolsKnownChunk =
   | DevtoolsRunErrorChunk
   | DevtoolsReasoningMessageContentChunk
 
-// The engine emits more chunk types than this middleware acts on
-// (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.).
-// Spec events have no index signature. `unknown` is a supertype of every
-// AG-UI event, so this middleware stays assignable to ChatMiddleware.
 type DevtoolsStreamChunk = { type: string }
 
 const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
@@ -121,8 +116,6 @@ function definedDetails<T extends object>(value: T): T | undefined {
   return Object.keys(value).length > 0 ? value : undefined
 }
 
-// Local copy of `@tanstack/ai`'s fromSpecTokenUsage. This package cannot
-// import `@tanstack/ai` (circular: the engine injects this middleware).
 function fromSpecTokenUsage(
   usage: ReadonlyArray<DevtoolsSpecTokenUsage> | undefined,
   leftover?: Omit<
@@ -223,8 +216,6 @@ interface DevtoolsFinishInfo {
   }
 }
 
-// Observation-only middleware returned by {@link devtoolsMiddleware}.
-// Structurally compatible with `ChatMiddleware` from `@tanstack/ai`.
 export interface DevtoolsChatMiddleware {
   name?: string
   onStart?: (ctx: DevtoolsMiddlewareContext) => void | Promise<void>
@@ -246,8 +237,6 @@ export interface DevtoolsChatMiddleware {
   ) => void | Promise<void>
 }
 
-// Wrap an emit so a misbehaving subscriber cannot bubble into the host chat
-// engine. Instrumentation must never break the host app.
 const safeEmit: typeof aiEventClient.emit = (...args) => {
   try {
     aiEventClient.emit(...args)
@@ -269,9 +258,6 @@ function buildEventContext(ctx: DevtoolsMiddlewareContext) {
     model: ctx.model,
     clientId: ctx.conversationId,
     source: ctx.source,
-    // Devtools wire payload is plain strings; per-prompt metadata is
-    // irrelevant for observation and would require devtools-UI changes to
-    // render. Project metadata away here so the wire shape is unchanged.
     systemPrompts:
       ctx.systemPrompts.length > 0
         ? ctx.systemPrompts.map((p) => (typeof p === 'string' ? p : p.content))
@@ -320,6 +306,120 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
   let currentIteration = -1
   let iterationStartTime = 0
   const activeToolCalls = new Map<string, { toolName: string; index: number }>()
+
+  type ChunkBase = ReturnType<typeof buildEventContext>
+  const chunkHandlers = {
+    TEXT_MESSAGE_CONTENT: (
+      chunk: DevtoolsTextMessageContentChunk,
+      base: ChunkBase,
+    ) => {
+      localAccumulatedContent += chunk.delta
+      safeEmit('text:chunk:content', {
+        ...base,
+        messageId: localMessageId || undefined,
+        content: localAccumulatedContent,
+        delta: chunk.delta,
+        timestamp: Date.now(),
+      })
+    },
+    TOOL_CALL_START: (chunk: DevtoolsToolCallStartChunk, base: ChunkBase) => {
+      const toolIndex = chunk.index ?? 0
+      const toolName = chunk.toolCallName
+      activeToolCalls.set(chunk.toolCallId, {
+        toolName,
+        index: toolIndex,
+      })
+      safeEmit('text:chunk:tool-call', {
+        ...base,
+        messageId: localMessageId || undefined,
+        toolCallId: chunk.toolCallId,
+        toolName,
+        index: toolIndex,
+        arguments: '',
+        timestamp: Date.now(),
+      })
+    },
+    TOOL_CALL_ARGS: (chunk: DevtoolsToolCallArgsChunk, base: ChunkBase) => {
+      const active = activeToolCalls.get(chunk.toolCallId)
+      safeEmit('text:chunk:tool-call', {
+        ...base,
+        messageId: localMessageId || undefined,
+        toolCallId: chunk.toolCallId,
+        toolName: active?.toolName ?? '',
+        index: active?.index ?? 0,
+        arguments: chunk.delta,
+        timestamp: Date.now(),
+      })
+    },
+    TOOL_CALL_END: (chunk: DevtoolsToolCallEndChunk) => {
+      activeToolCalls.delete(chunk.toolCallId)
+    },
+    TOOL_CALL_RESULT: (chunk: DevtoolsToolCallResultChunk, base: ChunkBase) => {
+      safeEmit('text:chunk:tool-result', {
+        ...base,
+        messageId: localMessageId || undefined,
+        toolCallId: chunk.toolCallId,
+        result: chunk.content || '',
+        timestamp: Date.now(),
+      })
+    },
+    RUN_FINISHED: (chunk: DevtoolsRunFinishedChunk, base: ChunkBase) =>
+      emitRunFinished(chunk, base),
+    RUN_ERROR: (chunk: DevtoolsRunErrorChunk, base: ChunkBase) => {
+      const errorMessage =
+        chunk.message ??
+        `[ai-devtools] RUN_ERROR chunk had no message; raw chunk: ${JSON.stringify(chunk)}`
+      safeEmit('text:chunk:error', {
+        ...base,
+        messageId: localMessageId || undefined,
+        error: errorMessage,
+        timestamp: Date.now(),
+      })
+    },
+    REASONING_MESSAGE_CONTENT: (
+      chunk: DevtoolsReasoningMessageContentChunk,
+      base: ChunkBase,
+    ) => {
+      localAccumulatedThinking += chunk.delta
+      safeEmit('text:chunk:thinking', {
+        ...base,
+        messageId: localMessageId || undefined,
+        content: localAccumulatedThinking,
+        delta: chunk.delta,
+        timestamp: Date.now(),
+      })
+    },
+  }
+
+  function emitRunFinished(chunk: DevtoolsRunFinishedChunk, base: ChunkBase) {
+    const rawUsage = chunk.usage
+    const usage =
+      rawUsage != null &&
+      typeof rawUsage === 'object' &&
+      !Array.isArray(rawUsage) &&
+      'promptTokens' in rawUsage
+        ? rawUsage
+        : fromSpecTokenUsage(
+            Array.isArray(rawUsage) ? rawUsage : undefined,
+            chunkTanstack(chunk)?.usage,
+          )
+    safeEmit('text:chunk:done', {
+      ...base,
+      messageId: localMessageId || undefined,
+      finishReason:
+        chunk.finishReason ?? chunkTanstack(chunk)?.finishReason ?? null,
+      usage,
+      timestamp: Date.now(),
+    })
+    if (usage) {
+      safeEmit('text:usage', {
+        ...base,
+        messageId: localMessageId || undefined,
+        usage,
+        timestamp: Date.now(),
+      })
+    }
+  }
 
   return {
     name: 'devtools',
@@ -408,127 +508,33 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
 
     onChunk(ctx, rawChunk) {
       if (!isKnownChunk(rawChunk)) return
-      const chunk = rawChunk
       const base = buildEventContext(ctx)
-
-      switch (chunk.type) {
-        case 'TEXT_MESSAGE_CONTENT': {
-          localAccumulatedContent += chunk.delta
-          safeEmit('text:chunk:content', {
-            ...base,
-            messageId: localMessageId || undefined,
-            content: localAccumulatedContent,
-            delta: chunk.delta,
-            timestamp: Date.now(),
-          })
-          break
-        }
-        case 'TOOL_CALL_START': {
-          const toolIndex = chunk.index ?? 0
-          const toolName = chunk.toolCallName
-          activeToolCalls.set(chunk.toolCallId, {
-            toolName,
-            index: toolIndex,
-          })
-          safeEmit('text:chunk:tool-call', {
-            ...base,
-            messageId: localMessageId || undefined,
-            toolCallId: chunk.toolCallId,
-            toolName,
-            index: toolIndex,
-            arguments: '',
-            timestamp: Date.now(),
-          })
-          break
-        }
-        case 'TOOL_CALL_ARGS': {
-          const active = activeToolCalls.get(chunk.toolCallId)
-          safeEmit('text:chunk:tool-call', {
-            ...base,
-            messageId: localMessageId || undefined,
-            toolCallId: chunk.toolCallId,
-            toolName: active?.toolName ?? '',
-            index: active?.index ?? 0,
-            arguments: chunk.delta,
-            timestamp: Date.now(),
-          })
-          break
-        }
-        case 'TOOL_CALL_END': {
-          activeToolCalls.delete(chunk.toolCallId)
-          break
-        }
-        case 'TOOL_CALL_RESULT': {
-          // Server-executed tool results arrive on the spec-compliant
-          // TOOL_CALL_RESULT event (the adapter's TOOL_CALL_END carries only
-          // the parsed input). Surface them to devtools from here so results
-          // still show up now that the post-execution END is no longer
-          // re-emitted (#519).
-          safeEmit('text:chunk:tool-result', {
-            ...base,
-            messageId: localMessageId || undefined,
-            toolCallId: chunk.toolCallId,
-            result: chunk.content || '',
-            timestamp: Date.now(),
-          })
-          break
-        }
-        case 'RUN_FINISHED': {
-          const rawUsage = chunk.usage
-          const usage =
-            rawUsage != null &&
-            typeof rawUsage === 'object' &&
-            !Array.isArray(rawUsage) &&
-            'promptTokens' in rawUsage
-              ? rawUsage
-              : fromSpecTokenUsage(
-                  Array.isArray(rawUsage) ? rawUsage : undefined,
-                  chunkTanstack(chunk)?.usage,
-                )
-          safeEmit('text:chunk:done', {
-            ...base,
-            messageId: localMessageId || undefined,
-            finishReason:
-              chunk.finishReason ?? chunkTanstack(chunk)?.finishReason ?? null,
-            usage,
-            timestamp: Date.now(),
-          })
-          if (usage) {
-            safeEmit('text:usage', {
-              ...base,
-              messageId: localMessageId || undefined,
-              usage,
-              timestamp: Date.now(),
-            })
-          }
-          break
-        }
-        case 'RUN_ERROR': {
-          const errorMessage =
-            chunk.message ??
-            `[ai-devtools] RUN_ERROR chunk had no message; raw chunk: ${JSON.stringify(chunk)}`
-          safeEmit('text:chunk:error', {
-            ...base,
-            messageId: localMessageId || undefined,
-            error: errorMessage,
-            timestamp: Date.now(),
-          })
-          break
-        }
-        case 'REASONING_MESSAGE_CONTENT': {
-          localAccumulatedThinking += chunk.delta
-          safeEmit('text:chunk:thinking', {
-            ...base,
-            messageId: localMessageId || undefined,
-            content: localAccumulatedThinking,
-            delta: chunk.delta,
-            timestamp: Date.now(),
-          })
-          break
-        }
+      switch (rawChunk.type) {
+        case 'TEXT_MESSAGE_CONTENT':
+          chunkHandlers.TEXT_MESSAGE_CONTENT(rawChunk, base)
+          return
+        case 'TOOL_CALL_START':
+          chunkHandlers.TOOL_CALL_START(rawChunk, base)
+          return
+        case 'TOOL_CALL_ARGS':
+          chunkHandlers.TOOL_CALL_ARGS(rawChunk, base)
+          return
+        case 'TOOL_CALL_END':
+          chunkHandlers.TOOL_CALL_END(rawChunk)
+          return
+        case 'TOOL_CALL_RESULT':
+          chunkHandlers.TOOL_CALL_RESULT(rawChunk, base)
+          return
+        case 'RUN_FINISHED':
+          chunkHandlers.RUN_FINISHED(rawChunk, base)
+          return
+        case 'RUN_ERROR':
+          chunkHandlers.RUN_ERROR(rawChunk, base)
+          return
+        case 'REASONING_MESSAGE_CONTENT':
+          chunkHandlers.REASONING_MESSAGE_CONTENT(rawChunk, base)
+          return
       }
-
-      // Return void — observation only, pass through unchanged
     },
 
     onToolPhaseComplete(ctx, info: DevtoolsToolPhaseCompleteInfo) {

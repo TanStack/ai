@@ -32,7 +32,8 @@ import type {
 import type { BytePlusTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 
 /** Path of the synchronous ("flash") Seed ASR endpoint. */
-const RECOGNIZE_FLASH_PATH = '/api/v3/auc/bigmodel/recognize/flash'
+const /** Path of the synchronous ("flash") Seed ASR endpoint. */
+  RECOGNIZE_FLASH_PATH = '/api/v3/auc/bigmodel/recognize/flash'
 
 /**
  * BytePlus-specific extension of `TranscriptionWord` carrying the per-word
@@ -50,7 +51,8 @@ export interface BytePlusTranscriptionWord extends TranscriptionWord {
 }
 
 /** Default `user.uid` echoed into BytePlus' request logs. */
-const DEFAULT_UID = 'tanstack-ai'
+const /** Default `user.uid` echoed into BytePlus' request logs. */
+  DEFAULT_UID = 'tanstack-ai'
 
 /**
  * BytePlus Seed Speech transcription (ASR) adapter.
@@ -130,9 +132,6 @@ export class BytePlusTranscriptionAdapter<
       )
     }
 
-    // The flash endpoint answers with one JSON shape and offers no format
-    // negotiation, so srt/vtt/text/verbose_json can't be honoured. `segments`
-    // on the result carry the timings a caller would have wanted from srt/vtt.
     if (responseFormat !== undefined && responseFormat !== 'json') {
       logger.warn(
         `BytePlus Seed ASR always returns JSON — the requested responseFormat "${responseFormat}" is ignored. Build srt/vtt from result.segments if you need them.`,
@@ -172,18 +171,12 @@ export class BytePlusTranscriptionAdapter<
       const data = payload as BytePlusASRRecognizeResponse
       const text = data.result?.text ?? data.transcript
 
-      // The flash endpoint can answer HTTP 200 while carrying the numeric
-      // error envelope, so an absent transcript is a failure rather than an
-      // empty result.
       if (typeof text !== 'string') {
         throw bytePlusVoiceError(response.status, payload, 'transcription')
       }
 
-      // An empty string is well-formed, so it isn't an error — silence is a
-      // legitimate transcription. But it is also what a 200-wrapped failure
-      // looks like, so say so rather than handing back a successful, empty
-      // result with no signal.
-      if (text === '' && !hasUtterances(data)) {
+      const emptyTranscript = text === '' && !hasUtterances(data)
+      if (emptyTranscript) {
         logger.warn(
           `byteplus: transcription returned an empty transcript with no ` +
             `utterances. This is a valid result for silent audio, and is also ` +
@@ -192,9 +185,6 @@ export class BytePlusTranscriptionAdapter<
         )
       }
 
-      // Seed ASR doesn't echo the language back, so report the one that was
-      // actually sent — which is `modelOptions.language` when it overrode the
-      // cross-provider hint.
       const requestedLanguage = modelOptions?.language ?? language
 
       return {
@@ -270,13 +260,9 @@ export function mapRecognizeResponse(
 
   const rawWords = utterances.flatMap((utterance) => utterance.words ?? [])
   const words = rawWords.flatMap((word) => {
-    if (
-      typeof word.text !== 'string' ||
-      typeof word.start_time !== 'number' ||
-      typeof word.end_time !== 'number'
-    ) {
-      return []
-    }
+    if (typeof word.text !== 'string') return []
+    if (typeof word.start_time !== 'number') return []
+    if (typeof word.end_time !== 'number') return []
     const mapped: BytePlusTranscriptionWord = {
       word: word.text,
       start: msToSeconds(word.start_time),
@@ -286,11 +272,6 @@ export function mapRecognizeResponse(
     return [mapped]
   })
 
-  // Untimed entries are dropped rather than emitted with NaN timings, but a
-  // silent drop leaves the caller unable to tell "the provider sent no
-  // timings" from "the adapter discarded them" — the two have very different
-  // fixes, and a field rename upstream (e.g. `text` → `word`) would empty
-  // these arrays without a single error anywhere.
   const droppedWords = rawWords.length - words.length
   if (droppedWords > 0) {
     logger?.warn(
@@ -314,10 +295,6 @@ export function mapRecognizeResponse(
       ? msToSeconds(durationMs)
       : undefined
 
-  // Seed ASR is duration-billed and reports no token counts, so `usage`
-  // carries only the audio length — the same shape the Grok and OpenAI
-  // whisper paths use. `durationSeconds` is deprecated but still populated
-  // alongside the self-describing `billed` pair.
   const usage: TokenUsage | undefined =
     duration !== undefined
       ? {
@@ -339,10 +316,6 @@ export function mapRecognizeResponse(
 }
 
 /**
- * Convert one utterance into a segment, or nothing when it carries no
- * timings. The `id` is a placeholder — the caller renumbers after filtering.
- */
-/**
  * True when the response carries at least one utterance, in either envelope
  * form. Used to tell "silent audio" from a 200-wrapped failure: a genuinely
  * empty transcript usually still arrives with no utterances, so the pairing is
@@ -355,12 +328,8 @@ function hasUtterances(data: BytePlusASRRecognizeResponse): boolean {
 function toSegment(
   utterance: BytePlusASRUtterance,
 ): Array<TranscriptionSegment> {
-  if (
-    typeof utterance.start_time !== 'number' ||
-    typeof utterance.end_time !== 'number'
-  ) {
-    return []
-  }
+  if (typeof utterance.start_time !== 'number') return []
+  if (typeof utterance.end_time !== 'number') return []
   const speaker = utterance.additions?.speaker
   return [
     {
@@ -437,10 +406,12 @@ function extensionOf(pathOrName: string): string | undefined {
 }
 
 function formatFromMime(mime: string | undefined): string | undefined {
-  if (!mime || !mime.startsWith('audio/')) return undefined
+  if (!mime) return undefined
+  if (!mime.startsWith('audio/')) return undefined
   const subtype = mime.slice('audio/'.length).toLowerCase()
   if (subtype === 'mpeg') return 'mp3'
-  if (subtype === 'x-wav' || subtype === 'wave') return 'wav'
+  if (subtype === 'x-wav') return 'wav'
+  if (subtype === 'wave') return 'wav'
   return subtype.replace(/^x-/, '')
 }
 

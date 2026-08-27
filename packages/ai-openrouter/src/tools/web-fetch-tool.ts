@@ -40,14 +40,14 @@ export function convertWebFetchToolToAdapterFormat(
         parameters?: WebFetchServerTool['parameters']
       }
     | undefined
-  if (!metadata || metadata.__kind !== WEB_FETCH_TOOL_KIND) {
+  if (metadata?.__kind !== WEB_FETCH_TOOL_KIND) {
     throw new Error(
       `convertWebFetchToolToAdapterFormat: tool "${tool.name}" is not a valid webFetchTool() output (missing branded metadata).`,
     )
   }
   return {
     type: 'openrouter:web_fetch',
-    ...(metadata.parameters !== undefined && {
+    ...(metadata?.parameters !== undefined && {
       parameters: metadata.parameters,
     }),
   }

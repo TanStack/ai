@@ -13,10 +13,12 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Grok Build session id. */
-export const SESSION_ID_EVENT = 'grok-build.session-id'
+export const /** Name of the CUSTOM event carrying the Grok Build session id. */
+  SESSION_ID_EVENT = 'grok-build.session-id'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -126,6 +128,15 @@ function* finalizeThoughtRouter(
   router: GrokThoughtRouter | null,
 ): Generator<AdapterYieldChunk> {
   if (router) yield* router.finalize()
+}
+
+function isToolItem(item: GrokBuildThreadItem): item is ToolItem {
+  return (
+    item.type === 'command_execution' ||
+    item.type === 'mcp_tool_call' ||
+    item.type === 'file_change' ||
+    item.type === 'web_search'
+  )
 }
 
 function isLegacyEvent(event: GrokBuildStreamEvent): boolean {
@@ -367,6 +378,100 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
+  function* handleLegacyItemProgress(
+    event: Extract<
+      GrokBuildStreamEvent,
+      { type: 'item.started' | 'item.updated' | 'item.completed' }
+    >,
+  ): Generator<AdapterYieldChunk> {
+    const item = event.item
+    const isTrackedItem =
+      item.type === 'agent_message' ||
+      item.type === 'reasoning' ||
+      item.type === 'command_execution' ||
+      item.type === 'mcp_tool_call' ||
+      item.type === 'file_change' ||
+      item.type === 'web_search'
+    if (!isTrackedItem) {
+      return
+    }
+    if (event.type === 'item.completed') {
+      yield* handleItemCompleted(item)
+      return
+    }
+    if (event.type !== 'item.started') return
+    if (!isToolItem(item)) return
+    if (openedToolItems.has(item.id)) return
+    const tname = toolNameForItem(item)
+    yield {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: item.id,
+      toolCallName: tname,
+      toolName: tname,
+      model,
+      timestamp: now(),
+    }
+    openedToolItems.add(item.id)
+    unresolvedToolCalls.add(item.id)
+  }
+
+  function* handleLegacyEvent(
+    event: Extract<GrokBuildStreamEvent, { type: string }> & {
+      type:
+        | 'thread.started'
+        | 'turn.started'
+        | 'turn.completed'
+        | 'turn.failed'
+        | 'item.started'
+        | 'item.updated'
+        | 'item.completed'
+    },
+  ): Generator<AdapterYieldChunk> {
+    switch (event.type) {
+      case 'thread.started': {
+        onSessionId?.(event.thread_id)
+        yield* startRun()
+        yield {
+          type: EventType.CUSTOM,
+          name: SESSION_ID_EVENT,
+          value: { sessionId: event.thread_id },
+          timestamp: now(),
+          threadId,
+          runId,
+        }
+        return
+      }
+      case 'turn.started': {
+        yield* startRun()
+        return
+      }
+      case 'item.started':
+      case 'item.updated':
+      case 'item.completed': {
+        yield* handleLegacyItemProgress(event)
+        return
+      }
+      case 'turn.completed': {
+        yield* synthesizeUnresolvedResults()
+        yield* finishRun(event.usage)
+        return
+      }
+      case 'turn.failed': {
+        yield* synthesizeUnresolvedResults()
+        const message = event.error?.message ?? 'Grok Build harness error'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId,
+          threadId,
+          timestamp: now(),
+          message,
+          error: { message },
+        }
+        runFinished = true
+      }
+    }
+  }
+
   function* handleItemCompleted(
     item: GrokBuildThreadItem,
   ): Generator<AdapterYieldChunk> {
@@ -427,24 +532,26 @@ export async function* translateThreadEvents(
         model,
         timestamp: now(),
       }
-    } else if (
-      item.type === 'command_execution' ||
-      item.type === 'mcp_tool_call' ||
-      item.type === 'file_change' ||
-      item.type === 'web_search'
-    ) {
-      const toolItem = item as ToolItem // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
-      yield* openToolCall(toolItem)
-      unresolvedToolCalls.delete(item.id)
-      const { content, isError } = toolResultForItem(toolItem)
-      yield {
-        type: EventType.TOOL_CALL_RESULT,
-        toolCallId: item.id,
-        messageId: genId(),
-        model,
-        timestamp: now(),
-        content,
-        ...(isError && { state: 'output-error' }),
+    } else {
+      const isToolItemType =
+        item.type === 'command_execution' ||
+        item.type === 'mcp_tool_call' ||
+        item.type === 'file_change' ||
+        item.type === 'web_search'
+      if (isToolItemType) {
+        const toolItem = item as ToolItem // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+        yield* openToolCall(toolItem)
+        unresolvedToolCalls.delete(item.id)
+        const { content, isError } = toolResultForItem(toolItem)
+        yield {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: item.id,
+          messageId: genId(),
+          model,
+          timestamp: now(),
+          content,
+          ...(isError && { state: 'output-error' }),
+        }
       }
     }
   }
@@ -475,83 +582,7 @@ export async function* translateThreadEvents(
       }
 
       if (!isLegacyEvent(event)) continue
-
-      switch (event.type) {
-        case 'thread.started': {
-          onSessionId?.(event.thread_id)
-          yield* startRun()
-          yield {
-            type: EventType.CUSTOM,
-            name: SESSION_ID_EVENT,
-            value: { sessionId: event.thread_id },
-            timestamp: now(),
-            threadId,
-            runId,
-          }
-          break
-        }
-        case 'turn.started': {
-          yield* startRun()
-          break
-        }
-        case 'item.started':
-        case 'item.updated':
-        case 'item.completed': {
-          const item = event.item
-          if (
-            item.type === 'agent_message' ||
-            item.type === 'reasoning' ||
-            item.type === 'command_execution' ||
-            item.type === 'mcp_tool_call' ||
-            item.type === 'file_change' ||
-            item.type === 'web_search'
-          ) {
-            if (event.type === 'item.completed') {
-              yield* handleItemCompleted(item)
-            } else if (
-              event.type === 'item.started' &&
-              (item.type === 'command_execution' ||
-                item.type === 'mcp_tool_call' ||
-                item.type === 'file_change' ||
-                item.type === 'web_search')
-            ) {
-              if (!openedToolItems.has(item.id)) {
-                const tname = toolNameForItem(item)
-                yield {
-                  type: EventType.TOOL_CALL_START,
-                  toolCallId: item.id,
-                  toolCallName: tname,
-                  toolName: tname,
-                  model,
-                  timestamp: now(),
-                }
-                openedToolItems.add(item.id)
-                unresolvedToolCalls.add(item.id)
-              }
-            }
-          }
-          break
-        }
-        case 'turn.completed': {
-          yield* synthesizeUnresolvedResults()
-          yield* finishRun(event.usage)
-          break
-        }
-        case 'turn.failed': {
-          yield* synthesizeUnresolvedResults()
-          const message = event.error?.message ?? 'Grok Build harness error'
-          yield {
-            type: EventType.RUN_ERROR,
-            runId,
-            threadId,
-            timestamp: now(),
-            message,
-            error: { message },
-          }
-          runFinished = true
-          break
-        }
-      }
+      yield* handleLegacyEvent(event)
     }
   } finally {
     yield* finalizeThoughtRouter(thoughtRouter)

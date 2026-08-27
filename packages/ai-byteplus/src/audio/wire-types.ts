@@ -1,34 +1,3 @@
-/**
- * Minimal wire types for the BytePlus **Seed Speech** HTTP API (TTS + ASR).
- *
- * Seed Speech is a separate product from Ark: it lives on
- * `voice.ap-southeast-1.bytepluses.com`, authenticates with `X-Api-Key`
- * (a different key from `ARK_API_KEY`), and returns a flat numeric error
- * envelope instead of Ark's OpenAI-shaped one.
- *
- * Only the fields the adapters read or write are modelled here — this is a
- * hand-written subset, not a generated schema.
- *
- * Provenance:
- * - Endpoints, auth header, format/rate ranges and the 120 s TTS output cap:
- *   BytePlus Seed Speech docs (`docs.byteplus.com/en/docs/byteplusvoice`),
- *   captured in the Phase 0 research notes.
- * - Error envelope `{code, message}`: verified live — an Ark key sent as
- *   `X-Api-Key` returns HTTP 401 `{"code":45000010,"message":"Invalid X-Api-Key"}`.
- * - ASR request/response shape (`user`/`audio`/`request` in, `audio_info` +
- *   `result.utterances` out, all timings in **milliseconds**): the Volcengine
- *   flash-recognition reference the BytePlus endpoint is derived from
- *   (`docs.volcengine.com/docs/6561/1631584`).
- *
- * No Seed Speech API key was available when these were written, so the TTS
- * response fields are documented-but-unverified; the adapters parse them
- * defensively rather than assuming they are always present.
- */
-
-// ============================================================================
-// TTS — POST /api/v3/tts/create
-// ============================================================================
-
 /** Output container/codec accepted by `audio_config.format`. */
 export type BytePlusTTSAudioFormat = 'wav' | 'mp3' | 'pcm' | 'ogg_opus'
 
@@ -179,10 +148,6 @@ export interface BytePlusTTSCreateResponse {
   subtitle?: BytePlusTTSSubtitle
 }
 
-// ============================================================================
-// ASR — POST /api/v3/auc/bigmodel/recognize/flash
-// ============================================================================
-
 /**
  * Value of the `X-Api-Resource-Id` header that selects the Seed ASR turbo
  * model. The flash endpoint takes no `model` field in its body — the model is
@@ -191,7 +156,8 @@ export interface BytePlusTTSCreateResponse {
 export const BYTEPLUS_ASR_RESOURCE_ID = 'volc.seedasr.auc_turbo'
 
 /** Header name carrying {@link BYTEPLUS_ASR_RESOURCE_ID}. */
-export const BYTEPLUS_ASR_RESOURCE_HEADER = 'X-Api-Resource-Id'
+export const /** Header name carrying {@link BYTEPLUS_ASR_RESOURCE_ID}. */
+  BYTEPLUS_ASR_RESOURCE_HEADER = 'X-Api-Resource-Id'
 
 /**
  * Audio input. Exactly one of `url` or `data` is sent — the endpoint accepts
@@ -227,6 +193,7 @@ export interface BytePlusASRRequestOptions {
 /** Request body for `POST /api/v3/auc/bigmodel/recognize/flash`. */
 export interface BytePlusASRRecognizeRequest {
   user?: { uid?: string }
+  /** Base64-encoded audio in the requested `audio_config.format`. */
   audio: BytePlusASRAudio
   request?: BytePlusASRRequestOptions
 }
@@ -255,6 +222,7 @@ export interface BytePlusASRUtterance {
 
 export interface BytePlusASRResult {
   text?: string
+  /** Flat alias for `result.utterances`. */
   utterances?: Array<BytePlusASRUtterance>
 }
 
@@ -274,10 +242,6 @@ export interface BytePlusASRRecognizeResponse {
   /** Flat alias for `result.utterances`. */
   utterances?: Array<BytePlusASRUtterance>
 }
-
-// ============================================================================
-// Errors
-// ============================================================================
 
 /**
  * Seed Speech error envelope: a flat numeric `code` plus a `message`, e.g.

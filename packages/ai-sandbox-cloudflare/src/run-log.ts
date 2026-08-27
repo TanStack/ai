@@ -1,50 +1,3 @@
-/**
- * Resumable run event-log — the primitive that lets a trigger (e.g. a
- * Cloudflare Worker) start an agent run and return immediately while a durable
- * orchestrator (e.g. a Durable Object) drives the run and persists every
- * emitted {@link StreamChunk} under a monotonic `seq`.
- *
- * Clients tail the log from a cursor (`fromSeq`), so a dropped connection, a new
- * browser tab, or an orchestrator that hibernated between chunks all reconnect
- * cleanly: replay everything after the client's last-seen `seq`, then live-tail
- * until the run reaches a terminal status. The *run* never depends on any single
- * connection staying open — that is what makes the serverless/edge model work.
- *
- * This module is transport- and storage-agnostic. {@link InMemoryRunEventLog} is
- * the default (single-process / tests); a durable backend (DO storage, KV, SQL)
- * implements the same {@link RunEventLog} interface — see
- * {@link DurableObjectRunEventLog} in `./run-log-do`.
- *
- * ---
- *
- * CONVERGED VOCABULARY (v1) + LIVE-DATA MIGRATION:
- *
- * This module used to keep a legacy vocabulary distinct from core's
- * (`TerminalRunStatus = 'done' | 'error' | 'aborted'`, a `RunRecord` with
- * `lastSeq`/`createdAt`/`updatedAt` and an optional `threadId`), deferred
- * because adopting core's shape meant migrating the Durable Object's persisted
- * record layout. That migration is now done: run statuses, `RunError`, and the
- * record's lifecycle fields come from `@tanstack/ai` (`'completed' | 'failed'
- * | 'aborted'` terminal set, `startedAt`/`finishedAt`, required `threadId`),
- * and {@link RunLogRecord} is core's {@link RunRecord} plus the two fields only
- * an event log needs: the `lastSeq` cursor and the `updatedAt` activity clock.
- *
- * Records persisted under the legacy layout are migrated **in place, on first
- * read**, by {@link migrateStoredRunRecord}:
- *
- * - `status` `'done'` → `'completed'`, `'error'` → `'failed'`
- *   (`'running'`/`'aborted'` are unchanged);
- * - `createdAt` → `startedAt`; a terminal record gains
- *   `finishedAt = updatedAt` (the closest stored approximation);
- * - a record persisted without `threadId` gets `threadId = runId`. The log
- *   performs no thread-scoped queries, so this self-reference can never leak
- *   into thread history; it exists only to satisfy the converged shape.
- *
- * `DurableObjectRunEventLog` writes the migrated record back on the read that
- * migrated it, so each record pays the conversion exactly once. The migration
- * is client-visible where the record is: `GET /runs/:id` and the WebSocket
- * terminal `status` frame now carry core's status strings and field names.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type {
   RunError,
@@ -150,6 +103,7 @@ interface LegacyStoredRunRecord {
   runId: string
   threadId?: string
   status: 'running' | 'done' | 'error' | 'aborted'
+  /** Seq of the last appended event, or `-1` when no events yet. */
   lastSeq: number
   error?: RunError
   createdAt: number
@@ -229,14 +183,12 @@ export class InMemoryRunEventLog implements RunEventLog {
   }
 
   private wake(state: RunState): void {
+    /** Resolved (and cleared) whenever an event is appended or status changes. */
     const waiters = [...state.waiters]
     state.waiters.clear()
     for (const resolve of waiters) resolve()
   }
 
-  // Mutators return a Promise without `async` so contract violations REJECT
-  // (rather than throwing synchronously from a Promise-typed method — a
-  // `.catch()` footgun) without an `await`-less async body.
   open(input: {
     runId: string
     threadId: string
@@ -257,6 +209,7 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve({ ...record })
   }
 
+  /** Append one chunk; resolves with its assigned `seq`. */
   append(runId: string, chunk: StreamChunk): Promise<number> {
     const state = this.runs.get(runId)
     if (!state) {
@@ -269,9 +222,6 @@ export class InMemoryRunEventLog implements RunEventLog {
         ),
       )
     }
-    // Derive seq from the record's cursor (not `chunks.length`) so the gap-free
-    // invariant holds the same way the durable backend computes it, even if the
-    // backlog is ever trimmed/compacted.
     const seq = state.record.lastSeq + 1
     state.chunks.push(chunk)
     state.record.lastSeq = seq
@@ -280,6 +230,7 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve(seq)
   }
 
+  /** Move the run to a terminal status. Idempotent for the same status. */
   finish(
     runId: string,
     status: TerminalRunStatus,
@@ -309,22 +260,26 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve()
   }
 
+  /** Current record, or null if the run is unknown. */
   get(runId: string): Promise<RunLogRecord | null> {
     const state = this.runs.get(runId)
     return Promise.resolve(state ? { ...state.record } : null)
   }
 
+  /** Every run record this log holds. Backs `RunStore.findActiveRun`. */
   list(): Promise<Array<RunLogRecord>> {
     return Promise.resolve(
       [...this.runs.values()].map((state) => ({ ...state.record })),
     )
   }
 
+  /** Replay-then-tail events with `seq > fromSeq` until the run is terminal. */
   async *read(
     runId: string,
     options?: RunEventLogReadOptions,
   ): AsyncIterable<RunEvent> {
     const state = this.require(runId)
+    /** Stop tailing when this fires (e.g. the client disconnected). */
     const signal = options?.signal
     let cursor = options?.fromSeq ?? -1
     while (!signal?.aborted) {

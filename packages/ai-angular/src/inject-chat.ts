@@ -42,6 +42,33 @@ import type {
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
+function persistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TSchema extends SchemaInput | undefined,
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+>(
+  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+):
+  | { persistence: NonNullable<typeof options.persistence>; threadId: string }
+  | { threadId?: typeof options.threadId } {
+  if (typeof options.threadId === 'string' && options.persistence) {
+    return { persistence: options.persistence, threadId: options.threadId }
+  }
+  return options.threadId !== undefined ? { threadId: options.threadId } : {}
+}
+
+function definedFields(
+  fields: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const fieldEntries = Object.entries(fields)
+  for (const [key, value] of fieldEntries) {
+    if (value !== undefined) out[key] = value
+  }
+  return out
+}
+
 export function injectChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -102,55 +129,20 @@ export function injectChat<
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    ...(options.initialMessages !== undefined && {
-      initialMessages: options.initialMessages,
-    }),
-    ...(typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(bodySource !== undefined && { body: bodySource() }),
-    ...(forwardedPropsSource !== undefined && {
-      forwardedProps: forwardedPropsSource(),
-    }),
-    ...(options.byok !== undefined && { byok: options.byok }),
+    ...persistenceOptions(options),
     byokProvider: () => options.byokProvider?.(),
-    ...(contextSource !== undefined && { context: contextSource() }),
-    devtools: {
-      ...options.devtools,
-      framework: 'angular',
-      hookName: 'injectChat',
-      outputKind: options.outputSchema ? 'structured' : 'chat',
-    },
+    tools: options.tools,
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
     onRunIdChange: (nextRunId) => runId.set(nextRunId),
-    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
-    // signal (via `onRunIdChange`) and pending interrupts arrive through
-    // `onInterruptStateChange`, so there is nothing left for it to do — and it
-    // is not a public option here, matching the other framework packages.
     onInterruptStateChange: (nextInterruptState, context) => {
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
-    tools: options.tools,
-    ...(options.interrupts !== undefined && {
-      interrupts: options.interrupts,
-    }),
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
-    ...(options.streamProcessor !== undefined && {
-      streamProcessor: options.streamProcessor,
-    }),
     onMessagesChange: (m: Array<UIMessage<TTools>>) => messages.set(m),
     onLoadingChange: (v: boolean) => isLoading.set(v),
     onStatusChange: (v: ChatClientState) => status.set(v),
@@ -158,19 +150,29 @@ export function injectChat<
     onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
     onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
     onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
-    ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
+    devtools: {
+      ...options.devtools,
+      framework: 'angular',
+      hookName: 'injectChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    ...definedFields({
+      initialMessages: options.initialMessages,
+      initialResumeSnapshot: options.initialResumeSnapshot,
+      body: bodySource?.(),
+      forwardedProps: forwardedPropsSource?.(),
+      byok: options.byok,
+      context: contextSource?.(),
+      interrupts: options.interrupts,
+      streamProcessor: options.streamProcessor,
+      queue: options.queue,
+    }),
   })
 
   messages.set(client.getMessages())
   interruptState.set(client.getInterruptState())
 
-  // START TAILING HERE, not in the constructor. A client is idle until something
-  // attaches it, so a client that gets built and thrown away never opens a
-  // connection — an unreachable stream would hold one of the browser's ~6
-  // connections per origin until the page reloaded. `inject*` runs in an injection
-  // context tied to the consumer's lifetime, and `destroyRef.onDestroy` below is the
-  // matching `detach`.
   client.attach()
 
   // Sync reactive body / forwardedProps / context to the client.
@@ -209,9 +211,6 @@ export function injectChat<
   afterNextRender(
     () => {
       client.mountDevtools()
-      // Delivery-durability resume is transparent: the resumable SSE
-      // connection adapter reattaches via the browser's native Last-Event-ID
-      // on reconnect. No client-side auto-resume wiring is needed.
     },
     { injector },
   )
@@ -259,7 +258,8 @@ export function injectChat<
 
   const final = computed<Final | null>(() => {
     const part = activeStructuredPart()
-    if (!part || part.status !== 'complete') return null
+    if (!part) return null
+    if (part.status !== 'complete') return null
     return part.data as Final
   })
 

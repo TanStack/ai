@@ -124,6 +124,7 @@ export function createTranscription<TTransformed = void>(
 ): CreateTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -141,15 +142,19 @@ export function createTranscription<TTransformed = void>(
   })
 
   return {
+    /** The transcription result, or null */
     get result() {
       return gen.result
     },
+    /** Whether transcription is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

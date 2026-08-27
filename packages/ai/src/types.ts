@@ -6,9 +6,6 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
-// The canonical usage types live in the leaf `@tanstack/ai-event-client`
-// package (which `@tanstack/ai` already depends on) so there is a single source
-// of truth without a dependency cycle. They are re-exported below.
 import type {
   BilledUsage,
   BillingUnit,
@@ -52,31 +49,24 @@ import type {
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
 
-// Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
-// entry via `export * from './types'` without forcing the subpath import.
-// The canonical declaration lives in `./tools/provider-tool` alongside its
-// runtime helper `brandProviderTool`.
 export type { ProviderTool } from './tools/provider-tool'
 
 /**
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'complete'
+  | 'error'
 
 /**
  * Tool result states - track the lifecycle of a tool result
  */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = 'streaming' | 'complete' | 'error'
 
 export type ToolOutputState = 'output-available' | 'output-error'
 
@@ -85,12 +75,23 @@ export type ToolOutputState = 'output-available' | 'output-error'
  * This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
  */
 export interface JSONSchema {
+  /**
+   * Indicates this is inline data content.
+   */
   type?: string | Array<string>
   properties?: Record<string, JSONSchema>
   items?: JSONSchema | Array<JSONSchema>
   required?: Array<string>
   enum?: Array<unknown>
   const?: unknown
+  /**
+   * Clear description of what the tool does.
+   *
+   * This is crucial - the model uses this to decide when to call the tool.
+   * Be specific about what the tool does, what parameters it needs, and what it returns.
+   *
+   * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
+   */
   description?: string
   default?: unknown
   $ref?: string
@@ -110,6 +111,7 @@ export interface JSONSchema {
   minLength?: number
   maxLength?: number
   pattern?: string
+  /** The output audio format */
   format?: string
   minItems?: number
   maxItems?: number
@@ -142,7 +144,6 @@ export interface JSONSchema {
  *
  * @see https://standardschema.dev/json-schema
  */
-
 export type SchemaInput =
   | StandardJSONSchemaV1<any, any>
   | StandardSchemaV1<any, any>
@@ -164,9 +165,18 @@ export type InferSchemaType<T> =
       : unknown
 
 export interface ToolCall<TMetadata = unknown> {
+  /**
+   * Optional stable message id. Providers ignore it; it exists so a persisted
+   * transcript can retain the streaming `messageId` and survive the
+   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+   * reuses it instead of generating a fresh id, so a hydrated message keeps the
+   * same identity as its live stream — which is what lets a mid-stream reload
+   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
+   */
   id: string
   type: 'function'
   function: {
+    /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
     name: string
     arguments: string // JSON string
   }
@@ -196,10 +206,6 @@ export interface ProviderExecutedToolMetadata {
   [key: string]: unknown
 }
 
-// ============================================================================
-// Multimodal Content Types
-// ============================================================================
-
 /**
  * Supported input modality types for multimodal content.
  * - 'text': Plain text content
@@ -215,9 +221,6 @@ export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
  * Requires a mimeType to ensure providers receive proper content type information.
  */
 export interface ContentPartDataSource {
-  /**
-   * Indicates this is inline data content.
-   */
   type: 'data'
   /**
    * The base64-encoded content value.
@@ -235,17 +238,8 @@ export interface ContentPartDataSource {
  * mimeType is optional as it can often be inferred from the URL or response headers.
  */
 export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
   type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
   value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
   mimeType?: string
 }
 
@@ -366,12 +360,18 @@ export interface ModelMessage<
     | null
     | Array<ContentPart>,
 > {
+  /** Optional role hint disambiguating the part's intent for the adapter */
   role: 'user' | 'assistant' | 'tool'
   content: TContent
   name?: string
   toolCalls?: Array<ToolCall>
+  /** Links the widget to the originating tool call — correlates it with the
+   *  sibling ToolCallPart/ToolResultPart in the same message. */
   toolCallId?: string
-  thinking?: Array<{ content: string; signature?: string }>
+  thinking?: Array<{
+    content: string /** Thinking signature for a `role: 'reasoning'` fan-out message. */
+    signature?: string
+  }>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
@@ -382,14 +382,6 @@ export interface ModelMessage<
    * typed UI part across persistence and message conversion.
    */
   structuredOutput?: StructuredOutputPart
-  /**
-   * Optional stable message id. Providers ignore it; it exists so a persisted
-   * transcript can retain the streaming `messageId` and survive the
-   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
-   * reuses it instead of generating a fresh id, so a hydrated message keeps the
-   * same identity as its live stream — which is what lets a mid-stream reload
-   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
-   */
   id?: string
   /**
    * Optional message creation timestamp. When present, message converters
@@ -421,19 +413,17 @@ export interface ToolCallPart<TMetadata = unknown> {
    * `@tanstack/ai-client`); `unknown` on this base type.
    */
   input?: unknown
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state: ToolCallState
   /** Approval metadata if tool requires user approval */
   approval?: {
-    id: string // Unique approval ID
-    needsApproval: boolean // Always true if present
-    approved?: boolean // User's decision (undefined until responded)
+    id: string
+    /** If true, tool execution requires user approval before running. Works with both server and client tools. */
+    needsApproval: boolean
+    approved?: boolean
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
-  /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. May follow the
-   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
-   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 
@@ -444,6 +434,7 @@ export interface ToolResultPart {
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
+  /** Error reported by an AG-UI tool message. */
   error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>
   createdAt?: Date
@@ -479,6 +470,7 @@ export type DeepPartial<T> =
  */
 export interface StructuredOutputPart<TData = unknown> {
   type: 'structured-output'
+  /** Current status of the job */
   status: 'streaming' | 'complete' | 'error'
   /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
   partial?: DeepPartial<TData>
@@ -495,7 +487,12 @@ export interface StructuredOutputPart<TData = unknown> {
 export interface UIResourcePart {
   type: 'ui-resource'
   /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
-  resource: { uri: string; mimeType: string; text?: string; blob?: string }
+  resource: {
+    uri: string
+    mimeType: string /** The text to convert to speech */
+    text?: string
+    blob?: string
+  }
   /** Pool prefix / config key — routes interactive calls to the right MCP server. */
   serverId?: string
   /** Links the widget to the originating tool call — correlates it with the
@@ -527,6 +524,7 @@ export type MessagePart<TData = unknown> =
  */
 export interface TanStackMessageMetadata {
   createdAt?: string
+  /** Restored on the client from `metadata.tanstack`. */
   model?: string
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
@@ -539,10 +537,15 @@ export interface TanStackMessageMetadata {
   }
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
+    /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
     partial?: unknown
+    /** Validated final object — only set when `status === 'complete'`. */
     data?: unknown
+    /** Accumulating JSON buffer. Source of truth for wire round-trip. */
     raw?: string
+    /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
     reasoning?: string
+    /** Populated when `status === 'error'`. */
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
@@ -553,13 +556,24 @@ export interface TanStackMessageMetadata {
  */
 export interface TanStackRunMetadata {
   model?: string
+  /** Finish reason from the last response */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
+  /**
+   * Thread ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   */
   threadId?: string
+  /**
+   * Run ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * If not provided, a unique ID will be generated.
+   */
   runId?: string
   sessionId?: string
+  /** Position of the source item in the (normalized) input array */
   index?: number
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
@@ -580,10 +594,6 @@ export interface UIMessage<TData = unknown> {
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
   name?: string
-  /**
-   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
-   * User keys stay at the top.
-   */
   metadata?: Record<string, any>
 }
 
@@ -620,12 +630,6 @@ type RuntimeContextField<TContext> =
         context?: TContext
       }
     : {
-        /**
-         * Runtime context provided by the caller.
-         *
-         * This is request-local application state for tool and middleware
-         * implementations, not the AG-UI `Context[]` protocol field.
-         */
         context: TContext
       }
 
@@ -697,24 +701,8 @@ export interface Tool<
   TName extends string = string,
   TContext = unknown,
 > {
-  /**
-   * Unique name of the tool (used by the model to call it).
-   *
-   * Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
-   * Must be unique within the tools array.
-   *
-   * @example "get_weather", "search_database", "sendEmail"
-   */
   name: TName
 
-  /**
-   * Clear description of what the tool does.
-   *
-   * This is crucial - the model uses this to decide when to call the tool.
-   * Be specific about what the tool does, what parameters it needs, and what it returns.
-   *
-   * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
-   */
   description: string
 
   /**
@@ -843,14 +831,6 @@ export interface ToolConfig {
  * @template TData - TypeScript type of the expected data structure (for type safety)
  */
 export interface ResponseFormat<TData = any> {
-  /**
-   * Type of structured output.
-   *
-   * - "json_object": Forces the model to output valid JSON (any structure)
-   * - "json_schema": Validates output against a provided JSON Schema (strict structure)
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-response_format
-   */
   type: 'json_object' | 'json_schema'
 
   /**
@@ -860,21 +840,8 @@ export interface ResponseFormat<TData = any> {
    * OpenAI's structured outputs will guarantee the output matches this schema.
    */
   json_schema?: {
-    /**
-     * Unique name for the schema.
-     *
-     * Used to identify the schema in logs and debugging.
-     * Should be descriptive (e.g., "user_profile", "search_results").
-     */
     name: string
 
-    /**
-     * Optional description of what the schema represents.
-     *
-     * Helps document the purpose of this structured output.
-     *
-     * @example "User profile information including name, email, and preferences"
-     */
     description?: string
 
     /**
@@ -972,12 +939,9 @@ export interface TextOptions<
   TContext = unknown,
 > {
   model: string
+  /** Current messages array */
   messages: Array<ModelMessage>
   tools?: Array<AnyTool> | undefined
-  /**
-   * Runtime context provided by the caller and passed to middleware and
-   * server-side tool implementations.
-   */
   context?: TContext
   /**
    * System prompts to include with the request.
@@ -1001,46 +965,11 @@ export interface TextOptions<
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
    */
   lazyToolsConfig?: LazyToolsConfig
-  /**
-   * Observability metadata attached to this call. Surfaced to middleware,
-   * devtools, and the event client; values may be arbitrarily structured
-   * (objects, arrays). Adapters never forward this field onto the provider
-   * wire request.
-   *
-   * To send provider-side request metadata, use the provider's
-   * `modelOptions` field instead, where the provider supports one (e.g.
-   * OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
-   */
   metadata?: Record<string, any> | undefined
+  /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
-  /**
-   * Schema for structured output.
-   *
-   * **Two distinct use sites:**
-   *
-   * 1. **User-facing (activity layer):** accepts any
-   *    {@link SchemaInput} — Zod, ArkType, Valibot, or a raw JSON Schema.
-   *    The activity layer converts to JSON Schema before handing off.
-   *
-   * 2. **Adapter-facing (`chatStream` call):** the engine populates this with
-   *    a pre-converted JSON Schema **only** when the adapter declared
-   *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
-   *    should then wire the schema into the upstream request (e.g.
-   *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`, `--json-schema`) alongside any `tools`.
-   *
-   *    How the engine then takes the object depends on
-   *    `combinedStructuredOutputSource()`:
-   *    - `'text'` (default): the final-turn assistant text is the JSON.
-   *    - `'event'`: the adapter emits `structured-output.complete` during
-   *      `chatStream`. Accumulated prose is not parsed.
-   *
-   *    Adapters that did NOT declare the capability never see this field
-   *    populated — the engine instead invokes `structuredOutput` /
-   *    `structuredOutputStream` after the agent loop.
-   */
   outputSchema?: SchemaInput
   /**
    * @deprecated Use `threadId` instead. `conversationId` is the legacy
@@ -1075,16 +1004,7 @@ export interface TextOptions<
    */
   logger: InternalLogger
 
-  /**
-   * Thread ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-   */
   threadId?: string
-  /**
-   * Run ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-   * If not provided, a unique ID will be generated.
-   */
   runId?: string
   /**
    * Parent run ID for AG-UI protocol nested run correlation.
@@ -1121,14 +1041,6 @@ export interface TextOptions<
   approvals?: ReadonlyMap<string, boolean>
 }
 
-// ============================================================================
-// AG-UI Protocol Event Types
-// ============================================================================
-
-/**
- * Re-export EventType enum from @ag-ui/core for use in event creation.
- * Use `EventType.RUN_STARTED` etc. when constructing event objects.
- */
 export { EventType } from '@ag-ui/core'
 
 /**
@@ -1154,10 +1066,6 @@ export type StreamChunkType = AGUIEventType
 export interface BaseAGUIEvent extends AGUIBaseEvent {
   metadata?: Record<string, any>
 }
-
-// ============================================================================
-// AG-UI Event Interfaces
-// ============================================================================
 
 /**
  * Emitted when a run starts.
@@ -1207,6 +1115,7 @@ export interface RunFinishedEvent extends Pick<
   'threadId' | 'runId' | 'result' | 'outcome' | 'timestamp' | 'rawEvent'
 > {
   type: EventType.RUN_FINISHED
+  /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: Array<SpecTokenUsage> | TokenUsage
   /** Restored on the client from `metadata.tanstack`. */
   model?: string
@@ -1407,13 +1316,6 @@ export interface StructuredOutputStartEvent extends CustomEvent {
 }
 
 /**
- * Emitted when a server tool requires approval before execution. The agent
- * loop yields this and pauses — `structured-output.complete` will not fire
- * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
- * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
- */
-/**
  * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
  * compatibility event remains readable until 1.0.
  */
@@ -1421,18 +1323,15 @@ export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
     toolCallId: string
+    /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
+     *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
     toolName: string
     input: unknown
+    /** Approval metadata if tool requires user approval */
     approval: { id: string; needsApproval: true }
   }
 }
 
-/**
- * Emitted when a client tool is invoked. The agent loop yields this and
- * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by the agent-loop forwarding in
- * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
- */
 /**
  * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
  * compatibility event remains readable until 1.0.
@@ -1451,10 +1350,14 @@ export interface ToolInputAvailableEvent extends CustomEvent {
 export interface UIResourceEvent extends CustomEvent {
   name: 'ui-resource'
   value: {
+    /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
     resource: UIResourcePart['resource']
+    /** Pool prefix / config key — routes interactive calls to the right MCP server. */
     serverId?: string
     toolCallId: string
     toolName: string
+    /** Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
+     *  Currently always `undefined` — nothing populates this field yet. */
     meta?: Record<string, unknown>
   }
 }
@@ -1502,7 +1405,11 @@ export interface CodeModeExternalCallEvent extends CustomEvent {
 }
 export interface CodeModeExternalResultEvent extends CustomEvent {
   name: 'code_mode:external_result'
-  value: { function: string; result: unknown; duration: number }
+  value: {
+    function: string
+    result: unknown /** Desired duration in seconds */
+    duration: number
+  }
 }
 export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
@@ -1603,10 +1510,6 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | ToolInputAvailableEvent
 >
 
-// ============================================================================
-// AG-UI Reasoning Event Interfaces
-// ============================================================================
-
 /**
  * Emitted when reasoning starts for a message.
  *
@@ -1648,10 +1551,6 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  * @ag-ui/core provides: `subtype`, `entityId`, `encryptedValue`
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
-
-// ============================================================================
-// AG-UI Event Union
-// ============================================================================
 
 /**
  * Union of all AG-UI events.
@@ -1736,26 +1635,9 @@ export interface SummarizationOptions<
   focus?: Array<string>
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
-  /**
-   * Run identity forwarded from the summarize() activity. When set, the
-   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
-   * chat), so a delivery-durable route keys the run's log by the same id the
-   * client rejoins with — making a mid-run reload resumable, like the media
-   * activities. Optional and non-breaking: adapters that ignore it just mint
-   * their own.
-   */
   runId?: string
   threadId?: string
-  /**
-   * Internal logger threaded from the summarize() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -1765,10 +1647,6 @@ export interface SummarizationResult {
   summary: string
   usage: TokenUsage
 }
-
-// ============================================================================
-// Rerank Types
-// ============================================================================
 
 /**
  * Options passed to a {@link RerankAdapter}. Documents reach the adapter
@@ -1790,11 +1668,6 @@ export interface RerankOptions<
   modelOptions?: TProviderOptions
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
-  /**
-   * Internal logger threaded from the rerank() entry point. Adapters must call
-   * logger.request() before the provider call and logger.errors() in catch
-   * blocks.
-   */
   logger: InternalLogger
 }
 
@@ -1822,19 +1695,8 @@ export interface RerankResult<TDocument = string> {
   ranking: Array<{ index: number; score: number; document: TDocument }>
   /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
   rerankedDocuments: Array<TDocument>
-  /**
-   * Usage for the request. Rerank typically bills in provider-defined "search
-   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
-   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
-   * Cohere reports only search units and leaves the token counts at 0.
-   * The deprecated `unitsBilled` field is still populated for compatibility.
-   */
   usage: TokenUsage
 }
-
-// ============================================================================
-// Image Generation Types
-// ============================================================================
 
 /**
  * Optional role hint on a media input part (image / video / audio). Adapters
@@ -1905,6 +1767,7 @@ export type MediaPromptModality = 'image' | 'video' | 'audio'
 interface MediaPartByModality {
   image: ImagePart<MediaInputMetadata>
   video: VideoPart<MediaInputMetadata>
+  /** The generated audio */
   audio: AudioPart<MediaInputMetadata>
 }
 
@@ -1955,16 +1818,7 @@ export interface ImageGenerationOptions<
   size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateImage() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -1978,11 +1832,13 @@ export type GeneratedMediaSource =
   | {
       /** URL to the generated asset (may be temporary) */
       url: string
+      /** Base64-encoded asset data */
       b64Json?: never
     }
   | {
       /** Base64-encoded asset data */
       b64Json: string
+      /** URL to the generated asset (may be temporary) */
       url?: never
     }
 
@@ -2002,6 +1858,7 @@ export interface PersistedArtifactRef {
   runId: string
   name: string
   mimeType: string
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size: number
   createdAt: string
   /**
@@ -2011,21 +1868,17 @@ export interface PersistedArtifactRef {
    * instead.
    */
   sourceUrl?: string
-  /**
-   * Durable app-origin URL that serves this artifact's persisted bytes (your
-   * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by
-   * `withGenerationPersistence`'s `artifactUrl` option, so clients render and
-   * restore durable media from your own origin rather than the provider's
-   * expiring link.
-   */
   url?: string
+  /** Source of the image content */
   source: {
     activity: PersistedArtifactActivity
     path: string
     provider: string
     model: string
     mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    /** Unique job identifier for polling status */
     jobId?: string
+    /** When the URL expires, if applicable */
     expiresAt?: string
   }
 }
@@ -2054,10 +1907,6 @@ export interface ImageGenerationResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Audio Generation Types
-// ============================================================================
-
 /**
  * Options for audio generation (music, sound effects, etc.).
  * These are the common options supported across providers.
@@ -2073,17 +1922,7 @@ export interface AudioGenerationOptions<
   duration?: number
   /** Model-specific options for audio generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateAudio() entry point. Adapters
-   * must call logger.request() before the SDK call and logger.errors() in
-   * catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -2113,10 +1952,6 @@ export interface AudioGenerationResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Video Generation Types (Experimental)
-// ============================================================================
-
 /**
  * Options for video generation.
  * These are the common options supported across providers.
@@ -2130,35 +1965,13 @@ export interface VideoGenerationOptions<
 > {
   /** The model to use for video generation */
   model: string
-  /**
-   * Description of the desired video: a plain string, or an ordered array of
-   * content parts for image-conditioned generation. Image parts may carry
-   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
-   * 'character'`) to disambiguate intent; adapters route them onto the
-   * provider-native request (e.g. OpenAI Sora `input_reference`, fal
-   * `image_url` / `end_image_url`) and throw at runtime if unsupported.
-   */
   prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
-   */
   duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateVideo() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -2172,11 +1985,7 @@ export interface VideoJobResult {
   jobId: string
   /** Model used for generation */
   model: string
-  /**
-   * Durable artifact references, when generation persistence with an artifact +
-   * blob store is wired. A submission has no video yet, so this only carries
-   * refs for persisted prompt INPUTS (e.g. a start frame).
-   */
+  /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
 
@@ -2208,19 +2017,10 @@ export interface VideoUrlResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
-  /**
-   * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
-   * billed quantity paired with its unit — so consumers can compute exact cost.
-   */
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
-
-// ============================================================================
-// Text-to-Speech (TTS) Types
-// ============================================================================
 
 /**
  * Options for text-to-speech generation.
@@ -2239,17 +2039,7 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateSpeech() entry point. Adapters
-   * must call logger.request() before the SDK call and logger.errors() in
-   * catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -2274,10 +2064,6 @@ export interface TTSResult {
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
-
-// ============================================================================
-// Transcription (Speech-to-Text) Types
-// ============================================================================
 
 /**
  * Options for audio transcription.
@@ -2305,17 +2091,7 @@ export interface TranscriptionOptions<
   responseFormat?: TranscriptionResponseFormat
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateTranscription() entry point.
-   * Adapters must call logger.request() before the SDK call and logger.errors()
-   * in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -2372,10 +2148,6 @@ export interface TranscriptionResult {
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
-
-// ============================================================================
-// Embedding Types
-// ============================================================================
 
 /**
  * Input modalities an embedding model can accept. Unlike
@@ -2454,11 +2226,6 @@ export interface EmbeddingOptions<TProviderOptions extends object = object> {
   dimensions?: number
   /** Model-specific options for embedding generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the embed() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch
-   * blocks.
-   */
   logger: InternalLogger
 }
 

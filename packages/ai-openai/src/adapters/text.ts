@@ -30,10 +30,6 @@ export interface OpenAITextConfig extends OpenAIClientConfig {}
  */
 export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
 /**
  * Resolve provider options for a specific model.
  * If the model has explicit options in the map, use those; otherwise use base options.
@@ -60,10 +56,6 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenAIChatModelToolCapabilitiesByName
     ? NonNullable<OpenAIChatModelToolCapabilitiesByName[TModel]>
     : readonly []
-
-// ===========================
-// Adapter Implementation
-// ===========================
 
 /**
  * OpenAI Text (Chat) Adapter
@@ -106,9 +98,6 @@ export class OpenAITextAdapter<
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    // The structural type the validator expects is broader than what
-    // `TProviderOptions` is bound to per-model, so narrow via the internal
-    // shape rather than re-exposing it on the public override signature.
     const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
@@ -120,11 +109,6 @@ export class OpenAITextAdapter<
       })
     }
 
-    // Delegate to the base for input mapping, system prompts, modelOptions
-    // precedence, and native combined-mode `text.format` wiring (#605). We
-    // hand it a tools-less view of `options` so the base doesn't run its
-    // narrower tool converter — we re-run them through OpenAI's full
-    // converter (file_search, web_search, etc.) and layer the result on top.
     const { tools: _baseTools, ...baseRequest } = super.mapOptionsToRequest({
       ...options,
       tools: undefined,
@@ -139,10 +123,6 @@ export class OpenAITextAdapter<
       ...(tools && tools.length > 0 && { tools }),
     }
 
-    // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
-    // adapter's low-temperature default) can't know a given model rejects them,
-    // so drop the pair here — stripping only ever averts a guaranteed 400, never
-    // changes an otherwise-valid request.
     if (openAIModelRejectsSamplingParams(options.model)) {
       delete request.temperature
       delete request.top_p

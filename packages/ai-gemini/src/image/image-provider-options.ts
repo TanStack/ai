@@ -147,11 +147,6 @@ export interface GeminiImageProviderOptions {
  * image output on an image-generation call.
  */
 export interface GeminiNativeImageProviderOptions {
-  /**
-   * Optional seed for reproducible image generation
-   * When the same seed is used with the same prompt and settings,
-   * you should get similar (though not identical) results
-   */
   seed?: number
 
   /**
@@ -477,7 +472,8 @@ export function validateNumberOfImages(
 
   const maxImages =
     IMAGEN_MAX_IMAGES_BY_MODEL[model] ?? DEFAULT_IMAGEN_MAX_IMAGES
-  if (numberOfImages < 1 || numberOfImages > maxImages) {
+  const isOutOfRange = numberOfImages < 1 || numberOfImages > maxImages
+  if (isOutOfRange) {
     throw new Error(
       `Invalid numberOfImages "${numberOfImages}" for model "${model}". ` +
         `Must be between 1 and ${maxImages}.`,
@@ -493,7 +489,8 @@ export function validatePrompt(options: {
   model: string
 }): void {
   const { prompt, model } = options
-  if (!prompt || prompt.trim().length === 0) {
+  const isEmptyPrompt = !prompt || prompt.trim().length === 0
+  if (isEmptyPrompt) {
     throw new Error(`Prompt cannot be empty for model "${model}".`)
   }
 }

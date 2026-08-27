@@ -1,12 +1,4 @@
 /**
- * OpenAI Image Generation Provider Options
- *
- * These are provider-specific options for OpenAI image generation.
- * Common options like prompt, numberOfImages, and size are handled
- * in the base ImageGenerationOptions.
- */
-
-/**
  * Quality options for gpt-image-1 and gpt-image-1-mini models
  */
 export type GptImageQuality = 'high' | 'medium' | 'low' | 'auto'
@@ -127,10 +119,6 @@ export type GptImage1MiniProviderOptions = GptImage1ProviderOptions
  * Field names match the OpenAI API for direct spreading
  */
 export interface DallE3ProviderOptions extends OpenAIImageBaseProviderOptions {
-  /**
-   * The quality of the image.
-   * @default 'standard'
-   */
   quality?: DallE3Quality
 
   /**
@@ -154,16 +142,8 @@ export interface DallE3ProviderOptions extends OpenAIImageBaseProviderOptions {
  * Field names match the OpenAI API for direct spreading
  */
 export interface DallE2ProviderOptions extends OpenAIImageBaseProviderOptions {
-  /**
-   * The quality of the image (only 'standard' is supported).
-   */
   quality?: DallE2Quality
 
-  /**
-   * The format in which generated images are returned.
-   * URLs are only valid for 60 minutes after generation.
-   * @default 'url'
-   */
   response_format?: DallEResponseFormat
 }
 
@@ -229,26 +209,26 @@ export function validateImageSize(
   model: string,
   size: string | undefined,
 ): void {
-  if (!size || size === 'auto') return
+  if (size && size !== 'auto') {
+    const validSizes: Record<string, Array<string>> = {
+      'gpt-image-2': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
+      'gpt-image-1': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
+      'gpt-image-1-mini': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
+      'dall-e-3': ['1024x1024', '1792x1024', '1024x1792'],
+      'dall-e-2': ['256x256', '512x512', '1024x1024'],
+    }
 
-  const validSizes: Record<string, Array<string>> = {
-    'gpt-image-2': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
-    'gpt-image-1': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
-    'gpt-image-1-mini': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
-    'dall-e-3': ['1024x1024', '1792x1024', '1024x1792'],
-    'dall-e-2': ['256x256', '512x512', '1024x1024'],
-  }
+    const modelSizes = validSizes[model]
+    if (!modelSizes) {
+      throw new Error(`Unknown image model: ${model}`)
+    }
 
-  const modelSizes = validSizes[model]
-  if (!modelSizes) {
-    throw new Error(`Unknown image model: ${model}`)
-  }
-
-  if (!modelSizes.includes(size)) {
-    throw new Error(
-      `Size "${size}" is not supported by model "${model}". ` +
-        `Supported sizes: ${modelSizes.join(', ')}`,
-    )
+    if (!modelSizes.includes(size)) {
+      throw new Error(
+        `Size "${size}" is not supported by model "${model}". ` +
+          `Supported sizes: ${modelSizes.join(', ')}`,
+      )
+    }
   }
 }
 
@@ -262,7 +242,8 @@ export function validateNumberOfImages(
   if (numberOfImages === undefined) return
 
   // dall-e-3 only supports n=1
-  if (model === 'dall-e-3' && numberOfImages !== 1) {
+  const isDallE3Batch = model === 'dall-e-3' && numberOfImages !== 1
+  if (isDallE3Batch) {
     throw new Error(
       `Model "dall-e-3" only supports generating 1 image at a time. ` +
         `Requested: ${numberOfImages}`,
@@ -270,7 +251,8 @@ export function validateNumberOfImages(
   }
 
   // Other models support 1-10
-  if (numberOfImages < 1 || numberOfImages > 10) {
+  const isOutOfImageRange = numberOfImages < 1 || numberOfImages > 10
+  if (isOutOfImageRange) {
     throw new Error(
       `Number of images must be between 1 and 10. Requested: ${numberOfImages}`,
     )
@@ -292,22 +274,26 @@ export const validatePrompt = (options: ImageValidationOptions) => {
   if (options.prompt.length === 0) {
     throw new Error('Prompt cannot be empty.')
   }
-  if (
+  const isGptImagePromptTooLong =
     (options.model === 'gpt-image-2' ||
       options.model === 'gpt-image-1' ||
       options.model === 'gpt-image-1-mini') &&
     options.prompt.length > 32000
-  ) {
+  if (isGptImagePromptTooLong) {
     throw new Error(
       'For gpt-image-2/gpt-image-1/gpt-image-1-mini, prompt length must be less than or equal to 32000 characters.',
     )
   }
-  if (options.model === 'dall-e-2' && options.prompt.length > 1000) {
+  const isDallE2PromptTooLong =
+    options.model === 'dall-e-2' && options.prompt.length > 1000
+  if (isDallE2PromptTooLong) {
     throw new Error(
       'For dall-e-2, prompt length must be less than or equal to 1000 characters.',
     )
   }
-  if (options.model === 'dall-e-3' && options.prompt.length > 4000) {
+  const isDallE3PromptTooLong =
+    options.model === 'dall-e-3' && options.prompt.length > 4000
+  if (isDallE3PromptTooLong) {
     throw new Error(
       'For dall-e-3, prompt length must be less than or equal to 4000 characters.',
     )

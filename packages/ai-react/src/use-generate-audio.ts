@@ -153,6 +153,7 @@ export function useGenerateAudio<TTransformed = void>(
 ): UseGenerateAudioReturn<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'react',

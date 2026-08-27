@@ -35,11 +35,11 @@ export function normalizeError(error: unknown): NormalizedError {
     const msg = error.message
     const lower = msg.toLowerCase()
 
-    if (
+    const isMemoryLimit =
       lower.includes('out of memory') ||
       lower.includes('memory alloc') ||
       (error.name === 'InternalError' && lower.includes('memory'))
-    ) {
+    if (isMemoryLimit) {
       return {
         name: MEMORY_LIMIT_ERROR,
         message: 'Code execution exceeded memory limit',
@@ -55,13 +55,10 @@ export function normalizeError(error: unknown): NormalizedError {
       }
     }
 
-    // quickjs-bun reports deadline expiry as a TimeoutError ("QuickJS
-    // execution timed out"); a raw QuickJS interrupt surfaces as
-    // `InternalError: interrupted`.
-    if (
+    const isTimeout =
       error.name === TIMEOUT_ERROR ||
       (error.name === 'InternalError' && msg === 'interrupted')
-    ) {
+    if (isTimeout) {
       return {
         name: TIMEOUT_ERROR,
         message:

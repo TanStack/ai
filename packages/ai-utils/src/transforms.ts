@@ -41,7 +41,8 @@ export function transformNullsToUndefined<T>(obj: T): T {
   }
 
   const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+  const objectEntries = Object.entries(obj as Record<string, unknown>)
+  for (const [key, value] of objectEntries) {
     if (value === null) {
       continue
     }
@@ -73,9 +74,6 @@ export type NullWideningMap = {
 
 function walk(value: unknown, map: NullWideningMap | undefined): unknown {
   if (value === null) {
-    // Strip only nulls the widening pass synthesized (marked `widened`); keep
-    // every genuine `.nullable()`/`.nullish()` null and every null the map
-    // doesn't describe.
     return map?.widened ? undefined : null
   }
   if (typeof value !== 'object' || !map) return value
@@ -93,11 +91,9 @@ function walk(value: unknown, map: NullWideningMap | undefined): unknown {
   const { properties } = map
   if (!properties) return value
   const result: Record<string, unknown> = {}
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+  const childEntries = Object.entries(value as Record<string, unknown>)
+  for (const [key, child] of childEntries) {
     const next = walk(child, properties[key])
-    // A synthesized null collapsed to undefined → omit the key so the field
-    // reads as absent (`key in result === false`), matching how `.optional()`
-    // treats absence.
     if (next === undefined) continue
     result[key] = next
   }

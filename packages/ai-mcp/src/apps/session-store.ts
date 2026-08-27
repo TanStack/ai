@@ -78,6 +78,7 @@ export function inMemoryMcpSessionStore(
   const ttl = opts.ttlMs ?? 30 * 60_000
 
   return {
+    /** Record the servers a thread may interact with (called from the chat route). */
     async set(threadId, servers) {
       // Opportunistic sweep: reclaim every expired entry, not just this thread,
       // so set-but-never-read threads can't accumulate unbounded.
@@ -89,7 +90,11 @@ export function inMemoryMcpSessionStore(
     },
     async get(threadId, serverId) {
       const e = map.get(threadId)
-      if (!e || Date.now() - e.at > ttl) {
+      if (!e) {
+        map.delete(threadId)
+        return null
+      }
+      if (Date.now() - e.at > ttl) {
         map.delete(threadId)
         return null
       }

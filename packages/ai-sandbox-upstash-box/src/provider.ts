@@ -46,6 +46,7 @@ export interface UpstashBoxSandboxConfig {
 const DEFAULT_RUNTIME: Runtime = 'node'
 
 class UpstashBoxProvider implements SandboxProvider {
+  /** Human-readable name for created boxes (also honors {@link SandboxCreateInput.id}). */
   readonly name = 'upstash-box'
 
   constructor(private readonly config: UpstashBoxSandboxConfig) {}
@@ -55,7 +56,14 @@ class UpstashBoxProvider implements SandboxProvider {
   }
 
   /** Connection options common to every static Box call. */
-  private get connection(): { apiKey?: string; baseUrl?: string } {
+  private get connection(): {
+    /**
+     * Upstash Box API key. Falls back to the `UPSTASH_BOX_API_KEY` env var (read
+     * by the SDK) when omitted.
+     */
+    apiKey?: string /** Base URL of the Box API (defaults to the SDK default / `UPSTASH_BOX_BASE_URL`). */
+    baseUrl?: string
+  } {
     const opts: { apiKey?: string; baseUrl?: string } = {}
     if (this.config.apiKey !== undefined) opts.apiKey = this.config.apiKey
     if (this.config.baseUrl !== undefined) opts.baseUrl = this.config.baseUrl

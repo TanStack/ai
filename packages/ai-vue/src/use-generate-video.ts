@@ -156,9 +156,6 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </template>
  * ```
  */
-// `TTransformed` infers from the `onResult` return position so the callback
-// parameter is typed as `VideoGenerateResult` and `result` narrows to the
-// transform's return. See issue #848.
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
@@ -173,18 +170,21 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
+  /** The final video result (with URL), or null */
   const result = shallowRef<TOutput | null>(null)
+  /** The current job ID, or null */
   const jobId = shallowRef<string | null>(null)
+  /** Current video generation status info, or null */
   const videoStatus = shallowRef<VideoStatusInfo | null>(null)
+  /** Whether generation/polling is in progress */
   const isLoading = shallowRef(false)
+  /** Current error, if any */
   const error = shallowRef<Error | undefined>(undefined)
+  /** Current state of the generation */
   const status = shallowRef<GenerationClientState>('idle')
   const runId = shallowRef<string | null>(null)
   let disposed = false
 
-  // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
-  // strict optional and under EOPT we must omit the key when absent rather
-  // than assign `undefined`.
   const baseOptions = {
     body: options.body,
     ...(typeof options.threadId === 'string' && options.persistence
@@ -210,9 +210,6 @@ export function useGenerateVideo<TTransformed = void>(
       hookName: 'useGenerateVideo',
       outputKind: 'video' as const,
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
       result: VideoGenerateResult,
     ) => TOutput | null | void,
@@ -279,9 +276,6 @@ export function useGenerateVideo<TTransformed = void>(
     )
   }
 
-  // Sync body changes to the client.
-  // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
-  // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
     () => options.body,
     (newBody) => {
@@ -303,24 +297,23 @@ export function useGenerateVideo<TTransformed = void>(
     client.dispose()
   })
 
+  /** Trigger video generation */
   const generate = async (input: VideoGenerateInput) => {
     await client.generate(input)
   }
 
+  /** Abort the current generation/polling */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear all state and return to idle */
   const reset = () => {
     client.reset()
   }
 
   return {
     generate,
-    // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
-    // `TOutput` conditional, which TS can't prove equal to the declared
-    // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
-    // They are identical at runtime; the cast restores the declared shape.
     result: readonly(result) as UseGenerateVideoReturn<TOutput>['result'],
     jobId: readonly(jobId),
     videoStatus: readonly(videoStatus),

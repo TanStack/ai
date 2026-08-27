@@ -1,36 +1,3 @@
-/**
- * The browser-preview capability, as reusable building blocks rather than
- * per-app glue: a `chat()` server tool that mints a preview URL for a dev server
- * running inside the sandbox, plus the system-prompt guidance an agent needs to
- * produce a preview that works.
- *
- * Previews go over a **Cloudflare quick tunnel** (`sandbox.tunnels.get(port)` →
- * `https://<name>.trycloudflare.com`), served by `cloudflared` INSIDE the sandbox.
- * We deliberately do NOT use `exposePort` + `proxyToSandbox` here: that routes the
- * preview through the Worker's own origin, which in local dev is the example's Vite
- * dev server — and Vite's middleware then serves the preview's module/asset
- * requests (`/@vite/client`, `/src/*`, `/@fs/*`) from the HOST instead of the
- * container, breaking the page. A tunnel bypasses the Vite port entirely, needs no
- * custom domain on a deploy, and forwards WebSockets (so the app's HMR works).
- *
- * Both exports belong to THIS package because the transport is its concern, not any
- * particular app's. Wire them explicitly into your agent:
- *
- * ```ts
- * import {
- *   exposePreviewTool,
- *   PREVIEW_GUIDANCE,
- * } from '@tanstack/ai-sandbox-cloudflare/agent'
- *
- * createCloudflareSandboxAgent({
- *   adapter: () => claudeCodeText('sonnet'),
- *   tools: (input, env) => [exposePreviewTool(input, env)],
- *   systemPrompts: [PREVIEW_GUIDANCE],
- * })
- * ```
- *
- * Workers-only (imports `@cloudflare/sandbox`) — exported from the `/agent` entry.
- */
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { getSandbox } from '@cloudflare/sandbox'
@@ -91,19 +58,9 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
         .describe('The port the dev server is listening on, e.g. 5173.'),
     }),
   }).server(async ({ port }) => {
-    // `sandbox.tunnels` only exists on the RPC transport (on HTTP/WebSocket it's a
-    // stub that throws "requires the RPC transport"), so we must obtain the stub
-    // with `transport: 'rpc'`. IMPORTANT: this must MATCH how the sandbox was
-    // created — pass `transport: 'rpc'` on EVERY `getSandbox()` for this id (in your
-    // sandbox provider too), or the differing transport disconnects the run's active
-    // client. See the SDK `SandboxOptions.transport` note.
     const sandbox = getSandbox(env.Sandbox, input.threadId, {
       transport: 'rpc',
     })
-    // A Cloudflare quick tunnel (`*.trycloudflare.com`) run by `cloudflared` INSIDE
-    // the sandbox: it bypasses the local Vite dev server's port entirely (so Vite
-    // can't hijack the preview's asset requests) and needs no custom domain on a
-    // deploy. `get(port)` is idempotent per port. See the Sandbox SDK `tunnels` API.
     const tunnel = await sandbox.tunnels.get(port)
     return { url: tunnel.url }
   })

@@ -88,10 +88,9 @@ export class LazyToolManager {
     }
 
     // Add discovery tool if there are still undiscovered lazy tools
-    if (
-      this.discoveryTool &&
-      this.discoveredTools.size < this.lazyToolMap.size
-    ) {
+    const canAddDiscoveryTool =
+      this.discoveryTool && this.discoveredTools.size < this.lazyToolMap.size
+    if (canAddDiscoveryTool) {
       active.push(this.discoveryTool)
     }
 
@@ -117,11 +116,11 @@ export class LazyToolManager {
     activeTools: ReadonlyArray<AnyTool>,
     pendingToolCallNames: ReadonlyArray<string>,
   ): ReadonlyArray<AnyTool> {
-    if (
+    const canAttachDiscoveryTool =
       this.discoveryTool &&
       pendingToolCallNames.includes(DISCOVERY_TOOL_NAME) &&
       !activeTools.some((t) => t.name === DISCOVERY_TOOL_NAME)
-    ) {
+    if (canAttachDiscoveryTool) {
       return [...activeTools, this.discoveryTool]
     }
     return activeTools
@@ -182,11 +181,11 @@ export class LazyToolManager {
 
     // Find corresponding tool result messages
     for (const msg of messages) {
-      if (
+      const isDiscoveryResult =
         msg.role === 'tool' &&
         msg.toolCallId &&
         discoveryCallIds.has(msg.toolCallId)
-      ) {
+      if (isDiscoveryResult) {
         try {
           const content =
             typeof msg.content === 'string'
@@ -265,10 +264,6 @@ export class LazyToolManager {
         for (const name of args.toolNames) {
           const tool = lazyToolMap.get(name)
           if (tool) {
-            // Only flag a refresh for genuinely new discoveries. Re-requesting
-            // an already-discovered tool still returns its schema below (the
-            // model asked for it), but must not trigger a redundant tool-list
-            // refresh + continue in the agent loop.
             if (!manager.discoveredTools.has(name)) {
               manager.discoveredTools.add(name)
               manager.hasNewDiscoveries = true

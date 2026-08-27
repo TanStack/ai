@@ -88,6 +88,7 @@ interface InterruptBindingBase {
 }
 
 interface ResponseSchemaInterruptBindingBase extends InterruptBindingBase {
+  /** Omitted when the generic interrupt accepts an unvalidated response. */
   responseSchemaHash: string
 }
 

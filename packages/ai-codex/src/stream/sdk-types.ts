@@ -7,7 +7,6 @@
  * and the package's public types don't depend on the SDK's type exports.
  * Unknown item or event types fall through every branch at runtime.
  */
-
 export interface CodexUsage {
   input_tokens?: number
   cached_input_tokens?: number

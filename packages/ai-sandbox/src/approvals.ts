@@ -1,27 +1,11 @@
-/**
- * Shared interactive-approval logic for harness adapters.
- *
- * Flow (rides chat()'s existing resume-based approval mechanism):
- *  1. The agent (inside the sandbox) asks to run a risky action; the harness's
- *     host-side permission callback fires.
- *  2. `resolveApproval` evaluates the sandbox policy: `allow`/`deny` are final;
- *     `ask` consults the client's approval decisions (threaded via
- *     `TextOptions.approvals`, keyed by a stable `approvalId`).
- *  3. On `ask` with no decision yet, the adapter emits an `approval-requested`
- *     CUSTOM event (carrying the `approvalId`) and denies the action this turn.
- *     The client shows UI, then re-runs chat() with the decision in the message;
- *     the engine surfaces it as `approvals`, and the next run allows it.
- *
- * `approvalId` is stable for a given (provider, kind, target) so a client grant
- * matches the same action on the resumed run.
- */
 import { EventType, withTanstackMetadata } from '@tanstack/ai'
 import { evaluateCommand } from './policy'
 import type { SandboxPolicy } from './policy'
 import type { StreamChunk } from '@tanstack/ai'
 
 /** CUSTOM event name emitted when a harness action needs client approval. */
-export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
+export const /** CUSTOM event name emitted when a harness action needs client approval. */
+  APPROVAL_REQUESTED_EVENT = 'approval-requested'
 
 /** A stable, opaque approval id for a harness action. */
 export function approvalId(input: {
@@ -75,6 +59,7 @@ export function resolveApproval(input: ResolveApprovalInput): ApprovalOutcome {
 
 /** Build the AG-UI `approval-requested` CUSTOM event for a harness action. */
 export function buildApprovalRequestedEvent(input: {
+  /** A stable, opaque approval id for a harness action. */
   approvalId: string
   title: string
   threadId: string

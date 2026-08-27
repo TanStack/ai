@@ -62,6 +62,7 @@ function createWebStoragePersistence(
 ): ChatStorageAdapter<ChatPersistedState> {
   const keyPrefix = options.keyPrefix ?? 'tanstack-ai:'
   const serialize = options.serialize ?? stringifyJson
+  /** Defaults to `JSON.parse`. */
   const deserialize = options.deserialize ?? JSON.parse
   const key = (id: string) => `${keyPrefix}${id}`
 

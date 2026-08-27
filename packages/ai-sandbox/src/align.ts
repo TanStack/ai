@@ -1,35 +1,3 @@
-/**
- * Replay-from-zero with log alignment: the mechanism that makes a resumed
- * journal read idempotent.
- *
- * A host translates journal bytes 0..1000 and appends the resulting chunks, then
- * dies. A successor re-reads the journal **from byte 0** and re-translates it,
- * producing the same chunks again. This transform reads what is already in the
- * event log, verifies that the replay reproduces it, suppresses that prefix, and
- * passes only the remainder downstream to be appended.
- *
- * Why this shape rather than the offset-upsert the design sketched:
- *
- * - `StreamDurability.append` does not accept caller-supplied offsets, and
- *   `UpsertableStreamDurability.upsert` is deliberately **not** used here:
- *   `memoryStream.upsert` rejects any offset it did not mint itself, and
- *   `durableStream` has no `upsert` at all (its offsets embed a
- *   backend-assigned cursor). The journal path therefore only ever *appends*,
- *   and this function's whole job is deciding where that append starts. Do not
- *   "simplify" it into an `upsert` — the recommended production adapter cannot
- *   accept one.
- * - Even if it could, re-translation is only reproducible because
- *   `createRunScopedIdGen` makes it so. The dedupe boundary therefore has to be
- *   *derived from the log*, not tracked beside it — which also means there is no
- *   window in which a checkpoint and the log can disagree, because the log is
- *   the checkpoint.
- * - The log stays append-only with strictly increasing offsets. That is what
- *   `durableStream`'s backend enforces and what the client's offset de-dup
- *   (`ai-client`'s `seen` set) relies on — the client is NOT tolerant of a
- *   duplicated text or tool-argument delta.
- *
- * Divergence is a bug, not a condition to recover from, so it throws.
- */
 import { EventType } from '@tanstack/ai'
 import {
   chunkFingerprint,
@@ -143,11 +111,11 @@ function divergenceError(
 ): JournalReplayDivergedError {
   const storedThreadId = chunkThreadId(storedChunk)
   const replayedThreadId = chunkThreadId(replayedChunk)
-  if (
+  const isThreadIdOnlyMismatch =
     storedThreadId !== replayedThreadId &&
     chunkFingerprintIgnoringThreadId(storedChunk) ===
       chunkFingerprintIgnoringThreadId(replayedChunk)
-  ) {
+  if (isThreadIdOnlyMismatch) {
     return new JournalReplayThreadIdMismatchError(
       index,
       stored,
@@ -242,12 +210,10 @@ export async function* alignToStoredLog<TOffset extends string = string>(
     const actual = chunkFingerprint(chunk)
     let consecutiveSkips = 0
     for (;;) {
-      // `entries` and `stored` are the same length by construction; both are
-      // bound because the predicate needs the CHUNK while the comparison needs
-      // its fingerprint.
       const entry = entries[cursor]
       const expected = stored[cursor]
-      if (entry === undefined || expected === undefined) {
+      const reachedLogEnd = entry === undefined || expected === undefined
+      if (reachedLogEnd) {
         forwarded += 1
         yield chunk
         break
@@ -259,7 +225,9 @@ export async function* alignToStoredLog<TOffset extends string = string>(
       }
       // Mismatch. Only a stored chunk the replay provably cannot reproduce may
       // be skipped, and only `maxSkip` of them in a row.
-      if (isOutOfBand === undefined || !isOutOfBand(entry.chunk)) {
+      const isInBandReplayChunk =
+        isOutOfBand === undefined || !isOutOfBand(entry.chunk)
+      if (isInBandReplayChunk) {
         throw divergenceError(cursor, entry.chunk, chunk, expected, actual)
       }
       if (consecutiveSkips >= maxSkip) {
@@ -271,10 +239,6 @@ export async function* alignToStoredLog<TOffset extends string = string>(
     }
   }
 
-  // Trailing stored entries. Out-of-band ones are expected (a bridged tool's
-  // last event lands after the final translated chunk); anything else means the
-  // journal no longer accounts for chunks the log already delivered, which
-  // nothing downstream can repair.
   while (cursor < stored.length) {
     const entry = entries[cursor]
     if (

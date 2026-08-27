@@ -1,19 +1,3 @@
-/**
- * SandboxHandle backed by a Sprites stateful sandbox. Real isolation:
- * fs/exec/git operate inside the remote Sprite; paths are real Sprite paths
- * (default workdir `/home/sprite`).
- *
- * Filesystem data ops (read/write/list) use the Sprite's native `/fs` endpoints;
- * metadata ops (mkdir/remove/rename/exists) desugar to `exec`. Commands run over
- * the Sprite exec control WebSocket, which streams stdout and stderr separately
- * — except for near-instant commands, where the Sprite agent's "fast path"
- * replays buffered output as a single stdout stream (stderr content folds into
- * stdout; the exit code is preserved).
- *
- * Checkpoints (filesystem-overlay save points) are exposed via {@link snapshot}
- * (create) and {@link restoreCheckpoint} / {@link listCheckpoints}. Restore is
- * in-place and restarts the Sprite.
- */
 import {
   UnsupportedCapabilityError,
   createExecBackedGit,
@@ -40,40 +24,8 @@ export const SPRITES_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
-  // The Sprite exec socket streams output but does not expose a host→process
-  // stdin channel here, so adapters that feed a prompt over stdin must deliver
-  // it via a file + shell redirection instead.
   writableStdin: false,
-  // UNVERIFIED AGAINST A LIVE SPRITE, and deliberately still `true` — unlike the
-  // docker / local-process / vercel / daytona declarations, this one does NOT rest
-  // on a client-side detach. `spawnProcess.kill()` delegates to the exec stream's
-  // `kill()`, which resolves the session id (waiting up to 5s for the
-  // `session_info` frame) and issues a real SERVER-side
-  // `POST /v1/sprites/<name>/exec/<sessionId>/kill` BEFORE closing the socket; the
-  // caller's `signal` runs the same path. Dropping the WebSocket alone would be the
-  // proven-broken shape, and `client.ts` is explicit that it must not be (see
-  // `terminate`, and the two `client.test.ts` cases that assert the kill endpoint
-  // is hit — including when the kill races ahead of `session_info`).
-  //
-  // What is NOT established, and cannot be from here, is WHAT that endpoint
-  // signals. Sprites publishes no SDK or docs in this repo, so whether the kill is
-  // process-group-wide or pid-only is unknown, and `journalFollowCommand` is a
-  // three-statement command (`mkdir …; : >> …; tail -f …`) that no shell can
-  // exec-optimize — so the `tail -f` is necessarily a CHILD of the `bash -c` this
-  // handle spawns. A pid-only kill would therefore leak a `tail -f` per follow read,
-  // which is precisely the local-process defect. `killSession` also swallows a
-  // non-2xx response, so a refused kill is silent.
-  //
-  // Measuring it needs a live Sprite: `tests/journal.conformance.test.ts` registers
-  // the follow cases and runs them the moment `SPRITES_API_KEY` is present,
-  // reporting a NAMED skip until then. Do not read this `true` as measured.
   killableProcesses: true,
-  // Sprites checkpoints capture the writable filesystem overlay. Exposed via
-  // `snapshot()` (create) and the provider-specific `restoreCheckpoint()` /
-  // `listCheckpoints()`. Note: restore is in-place on the same Sprite, and a
-  // checkpoint does not survive Sprite deletion — so `SandboxProvider`'s
-  // reconstruct-after-gone `restoreSnapshot` is intentionally not implemented
-  // (the framework degrades to a fresh create instead).
   snapshots: true,
   networkPolicy: false,
   // The Sprite filesystem persists for the sandbox's lifetime (across exec
@@ -83,7 +35,8 @@ export const SPRITES_CAPS: SandboxCapabilities = {
 }
 
 /** The single internal HTTP port a Sprite proxies to its public URL. */
-export const SPRITE_DEFAULT_HTTP_PORT = 8080
+export const /** The single internal HTTP port a Sprite proxies to its public URL. */
+  SPRITE_DEFAULT_HTTP_PORT = 8080
 
 async function collect(stream: AsyncIterable<string>): Promise<string> {
   let out = ''
@@ -121,9 +74,13 @@ export class SpritesHandle implements SandboxHandle {
   readonly env: SandboxHandle['env']
 
   private readonly client: SpritesClientLike
+  /** Sprite name — the durable id used to reconnect/destroy. */
   private readonly name: string
+  /** Public URL of the Sprite (`https://<name>-<suffix>.sprites.app`). */
   private readonly url: string
+  /** Working directory inside the Sprite; the `/workspace` virtual root maps here. */
   private readonly workdir: string
+  /** Internal port proxied to the public URL. Defaults to 8080. */
   private readonly httpPort: number
   private readonly urlAuth: SpriteUrlAuth
   private readonly envVars: Record<string, string> = {}
@@ -210,7 +167,8 @@ export class SpritesHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    const pathNotFound = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (pathNotFound) return undefined
     if (r.exitCode !== 0) {
       throw new Error(`lstat failed: ${errText(r)}`)
     }
@@ -275,10 +233,6 @@ export class SpritesHandle implements SandboxHandle {
         ),
       )
     }
-    // Honor the configured auth mode rather than silently forcing the URL public
-    // (which would strip access control a caller deliberately asked for). A
-    // `public` Sprite is reachable as-is; a `sprite`-auth Sprite needs the org
-    // bearer token attached to each request.
     if (this.urlAuth === 'public') {
       return Promise.resolve({ url: this.url })
     }
@@ -363,15 +317,15 @@ function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
   const size = fields?.groups?.size
-  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  if (!mode) throw new Error(`invalid lstat output: ${output}`)
+  if (!size) throw new Error(`invalid lstat output: ${output}`)
   const parsedMode = Number.parseInt(mode, 16)
   const parsedSize = Number(size)
-  if (
+  const invalidLstat =
     !Number.isSafeInteger(parsedMode) ||
     !Number.isSafeInteger(parsedSize) ||
     parsedSize < 0
-  )
-    throw new Error(`invalid lstat output: ${output}`)
+  if (invalidLstat) throw new Error(`invalid lstat output: ${output}`)
   const type = parsedMode & 0xf000
   if (type === 0x8000)
     return { type: 'file', mode: parsedMode, size: parsedSize }

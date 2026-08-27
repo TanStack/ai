@@ -68,7 +68,8 @@ export function runSkillSourceConformance(
     it('reads a bundled resource and rejects path traversal', async () => {
       const source = await factory()
       const { listResources, readResource } = source
-      if (!listResources || !readResource) return
+      if (!listResources) return
+      if (!readResource) return
       const resources = await listResources('alpha')
       expect(resources).toContain('references/note.md')
       const value = await readResource('alpha', 'references/note.md')
@@ -79,7 +80,8 @@ export function runSkillSourceConformance(
 
     it('returns script bytes correctly', async () => {
       const source = await factory()
-      if (!source.listScripts || !source.readScript) return
+      if (!source.listScripts) return
+      if (!source.readScript) return
       const scripts = await source.listScripts('alpha')
       const ref = scripts.find((s) => s.path === 'scripts/run.py')
       if (!ref) return

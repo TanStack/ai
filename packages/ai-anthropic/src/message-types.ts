@@ -1,11 +1,3 @@
-/**
- * Anthropic-specific metadata types for multimodal content parts.
- * These types extend the base ContentPart metadata with Anthropic-specific options.
- *
- * @see https://docs.anthropic.com/claude/docs/vision
- * @see https://docs.anthropic.com/claude/docs/pdf-support
- */
-
 import type {
   CacheControlEphemeral,
   CitationsConfigParam,
@@ -36,9 +28,6 @@ export interface AnthropicImageMetadata {
 }
 
 export interface AnthropicTextMetadata {
-  /**
-   * Cache control settings for the text content.
-   */
   cache_control?: CacheControlEphemeral
   /**
    * Text citations to include with the text content.
@@ -54,13 +43,7 @@ export type AnthropicDocumentMediaType = 'application/pdf'
  * Metadata for Anthropic document content parts (e.g., PDFs).
  */
 export interface AnthropicDocumentMetadata {
-  /**
-   * @deprecated Ignored. The media type is taken from `source.mimeType`.
-   */
   mediaType?: AnthropicDocumentMediaType
-  /**
-   * Cache control settings for the document.
-   */
   cache_control?: CacheControlEphemeral
 
   citations?: CitationsConfigParam
@@ -80,9 +63,6 @@ export interface AnthropicDocumentMetadata {
  * Note: Audio support in Anthropic may be limited; check current API capabilities.
  */
 export interface AnthropicAudioMetadata {
-  /**
-   * The MIME type of the audio.
-   */
   mediaType?:
     | 'audio/mpeg'
     | 'audio/wav'
@@ -96,9 +76,6 @@ export interface AnthropicAudioMetadata {
  * Note: Video support in Anthropic may be limited; check current API capabilities.
  */
 export interface AnthropicVideoMetadata {
-  /**
-   * The MIME type of the video.
-   */
   mediaType?: 'video/mp4' | 'video/webm' | 'video/mpeg'
 }
 

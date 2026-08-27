@@ -49,13 +49,11 @@ interface ToolResultEnvelope {
  * dropped for the rest of the execution.
  */
 const MAX_LOG_ENTRIES = 10_000
-// Measured in UTF-16 code units (`String.length`), not bytes: a cheap, bounded
-// proxy for output size. Worst-case multi-byte content can reach ~3-4x this in
-// real bytes, which is still safely bounded.
 const MAX_LOG_CHARS = 1_000_000
 
 /** Default ceiling on host tool-call invocations per execution. */
-export const DEFAULT_MAX_TOOL_CALLS = 1000
+export const /** Default ceiling on host tool-call invocations per execution. */
+  DEFAULT_MAX_TOOL_CALLS = 1000
 
 /**
  * Safety cap on how many stale promise reactions to flush before a run. A
@@ -65,7 +63,8 @@ export const DEFAULT_MAX_TOOL_CALLS = 1000
 const MAX_STALE_JOB_DRAIN = 10_000
 
 /** Placeholder used when a console argument cannot be coerced to a string. */
-const UNPRINTABLE_LOG_VALUE = '[unprintable]'
+const /** Placeholder used when a console argument cannot be coerced to a string. */
+  UNPRINTABLE_LOG_VALUE = '[unprintable]'
 
 /**
  * Rebuild a throwable carrying a normalized error's name/message/stack so it
@@ -178,11 +177,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       return this.disposedResult()
     }
 
-    // A prior aborted or timed-out execution can leave promise reactions queued
-    // in the VM. Left in place, the loop in runToCompletion would run them
-    // first and attribute their console output, tool-call budget, and
-    // wall-clock to this run. Flush them now — and abandon any host tool calls
-    // a flushed reaction kicked off — before installing this run's state.
     this.drainStaleJobs()
     this.abortTasks()
 
@@ -237,9 +231,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     const { QuickJSPromiseState, JSException } = this.quickjs
     const deadline = performance.now() + this.timeout
 
-    // The synchronous portion of the program is bounded by the QuickJS
-    // interrupt handler; async continuations are bounded by the deadline
-    // checks in the loop below.
     const resultHandle = this.vm.evalCode(wrappedCode, {
       filename: '<code-mode>',
       timeoutMs: this.timeout,
@@ -261,11 +252,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
             throw new JSException(resultHandle.promiseResult())
           }
 
-          // A host tool call failed to settle the sandbox promise because
-          // the VM itself errored (e.g. OOM allocating the result string).
-          // Surface it here so fail() can classify it and release the VM if
-          // it was fatal, rather than letting it escape as an unhandled
-          // rejection from the floating settle callback.
           if (this.hostSettleError !== undefined) {
             throw normalizedErrorToThrowable(this.hostSettleError)
           }
@@ -280,10 +266,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
             continue
           }
 
-          // ...otherwise the program is waiting on host work. A settle
-          // failure raised while draining the last task is caught by the
-          // hostSettleError check at the top of the next iteration before we
-          // ever reach this branch.
           if (this.tasks.size === 0) {
             throw new Error(
               'Code execution is pending on a promise that no host work will ever resolve',
@@ -299,9 +281,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     try {
       const dumped = this.vm.dump(settledHandle)
 
-      // The wrapper returns JSON.stringify(userResult) — parse it back.
-      // A bare string that isn't valid JSON is returned as-is, and code
-      // that returned nothing yields undefined.
       if (typeof dumped === 'string') {
         try {
           return JSON.parse(dumped)
@@ -392,10 +371,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   /** Append a captured log line, enforcing the entry-count and byte caps. */
   private pushLog(msg: string): void {
     if (this.logTruncated) return
-    if (
+    const overLogCap =
       this.logs.length >= MAX_LOG_ENTRIES ||
       this.logChars + msg.length > MAX_LOG_CHARS
-    ) {
+    if (overLogCap) {
       this.logTruncated = true
       this.logs.push('[log output truncated]')
       return
@@ -452,11 +431,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   ): JSValue {
     const { vm } = this
 
-    // Bound the number of host tool calls per execution. Untrusted sandbox
-    // code can otherwise fan out (e.g. `Promise.all` over a huge array) into
-    // unbounded concurrent host work — the deadline only bounds wall-clock,
-    // not the burst. Throwing here surfaces as a catchable error at the call
-    // site inside the sandbox.
     if (this.toolCallsUsed >= this.maxToolCalls) {
       throw new Error(
         `Exceeded the maximum of ${this.maxToolCalls} tool calls per execution`,
@@ -477,7 +451,8 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     const settleWith = (envelope: ToolResultEnvelope): void => {
       // The task may have been abandoned by a timeout or dispose — never
       // touch the VM in that case.
-      if (this.disposed || !this.tasks.has(task)) return
+      const taskAbandoned = this.disposed || !this.tasks.has(task)
+      if (taskAbandoned) return
       this.tasks.delete(task)
       try {
         let json: string
@@ -498,10 +473,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
           handle.dispose()
         }
       } catch (error) {
-        // Allocating the result string or resolving the promise can fail if
-        // the sandbox heap is exhausted. Record it so the execution loop can
-        // classify it (and release the VM if fatal) instead of letting it
-        // escape the floating async callback as an unhandled rejection.
         this.hostSettleError ??= this.toNormalizedError(error)
       } finally {
         deferred.dispose()
@@ -509,10 +480,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       }
     }
 
-    // The wrapper always passes a JSON string, but degrade gracefully if
-    // the handle dumps to something else. A non-string dump is harmless — the
-    // tool just sees empty args — but a *thrown* dump is not: it means the
-    // sandbox heap was exhausted while materializing the args string.
     let argsJson = '{}'
     try {
       const dumped = vm.dump(argsHandle ?? vm.undefined)
@@ -520,12 +487,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
         argsJson = dumped
       }
     } catch (error) {
-      // Running the tool now would invoke a real host side effect (e.g.
-      // `readFile`/`deleteRecords`) with empty `{}` args instead of the
-      // caller's real inputs, and the underlying OOM would go unclassified.
-      // Record it for the execution loop to surface (and release the VM if
-      // fatal), and abandon this tool call instead of executing it.
-      // `toNormalizedError` disposes the owned JSException value.
       this.hostSettleError ??= this.toNormalizedError(error)
       this.tasks.delete(task)
       deferred.dispose()
@@ -607,26 +568,13 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     if (error instanceof JSException) {
       try {
         const value = error.value
-        // QuickJS throws a bare `null` exception value when the heap is too
-        // exhausted to allocate an Error object. (A literal `throw null` in
-        // sandbox code is indistinguishable and is treated the same way.)
         if (value.type === 'null') {
           return memoryLimitError(error.stack)
         }
-        // A thrown plain object/array surfaces through quickjs-bun's
-        // JSException as the generic "QuickJS object was thrown"; recover its
-        // `message` (and `name`) so the model still gets useful feedback for
-        // self-correction — parity with the WASM driver.
-        if (value.type === 'object' || value.type === 'array') {
+        const isStructured = value.type === 'object' || value.type === 'array'
+        if (isStructured) {
           const message = this.readValueProp(value, 'message')
           if (message !== undefined) {
-            // Route the recovered name/message back through normalizeError so a
-            // fatal limit thrown as an Error *object* (with some heap headroom
-            // QuickJS throws `InternalError: out of memory`, and stack overflow
-            // surfaces as an `InternalError`/`RangeError` object rather than a
-            // bare `null`) is still classified as MemoryLimit/StackOverflow and
-            // releases the VM, instead of being returned verbatim and letting
-            // an exhausted VM be reused.
             const recovered = new Error(message)
             recovered.name = this.readValueProp(value, 'name') ?? error.name
             if (error.stack !== undefined) recovered.stack = error.stack

@@ -13,12 +13,12 @@
  * native-key map) in the summarize wrapper.
  */
 export const MAX_TOKENS_KEYS = [
-  'max_output_tokens', // OpenAI (Responses)
-  'max_tokens', // Anthropic / Grok
-  'max_completion_tokens', // Groq
-  'maxOutputTokens', // Gemini
-  'maxCompletionTokens', // OpenRouter
-  'maxTokens', // generic / migration leftover (no adapter reads it)
+  'max_output_tokens',
+  'max_tokens',
+  'max_completion_tokens',
+  'maxOutputTokens',
+  'maxCompletionTokens',
+  'maxTokens',
 ] as const
 
 /**

@@ -1,32 +1,3 @@
-/**
- * A durable {@link RunEventLog} backed by Durable Object storage — the storage
- * half of the serverless/edge run model. The coordinator appends every
- * {@link StreamChunk} the agent emits under a monotonic `seq`; clients tail from
- * a cursor. Because events are PERSISTED (not held in a caller's open stream), a
- * reconnecting tab, a dropped WebSocket, or a coordinator that hibernated
- * between chunks all resume cleanly: replay everything after the client's
- * `lastSeq`, then live-tail to terminal.
- *
- * Mirrors {@link InMemoryRunEventLog} exactly.
- * Storage layout (keys scoped by `runId` so one DO can host many runs):
- * - `rec:<runId>`        → the {@link RunLogRecord}
- * - `evt:<runId>:<seq8>` → the chunk for that seq (seq zero-padded to 8 digits
- *                          so `list({ prefix })` returns events in seq order).
- *
- * LIVE-DATA MIGRATION: `rec:` values written before the run vocabulary
- * converged on core's (see the module header in `./run-log`) are converted by
- * {@link migrateStoredRunRecord} on first read and written back immediately, so
- * each record pays the conversion exactly once and every read path — `get`,
- * `append`'s precondition check, the watchdog's {@link list} — observes only
- * the converged layout. Event values (`evt:`) are raw chunks and need no
- * migration.
- *
- * The live-tail wake-up (the in-memory waiter set) is per-INSTANCE; if the
- * instance is evicted mid-run, a reader re-reads the persisted backlog and the
- * `TAIL_POLL_MS` fallback poll keeps it progressing. No event is ever lost.
- *
- * NOTE: Workers-runtime code — compiles against `@cloudflare/workers-types`.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import { migrateStoredRunRecord } from './run-log'
 import type {
@@ -39,7 +10,8 @@ import type {
 import type { RunError, StreamChunk, TerminalRunStatus } from '@tanstack/ai'
 
 /** How long a post-eviction reader waits before re-polling storage (ms). */
-const TAIL_POLL_MS = 250
+const /** How long a post-eviction reader waits before re-polling storage (ms). */
+  TAIL_POLL_MS = 250
 
 /**
  * What a `rec:` key may hold: the converged layout, or the pre-convergence one
@@ -154,9 +126,6 @@ export class DurableObjectRunEventLog implements RunEventLog {
     if (!record) return // unknown runId is a no-op
     const next: RunLogRecord = { ...record, ...patch, updatedAt: Date.now() }
     await this.storage.put(recKey(runId), next)
-    // A patch may terminalize the shared status field (core's driver writes its
-    // terminal status through `RunStore.update`) — parked readers must see it
-    // now, not a TAIL_POLL_MS later.
     this.wake(runId)
   }
 
@@ -222,6 +191,7 @@ export class DurableObjectRunEventLog implements RunEventLog {
         this.waiters.set(runId, set)
       }
       const localSet = set
+      /** Wake (and clear) every reader blocked on this run. */
       const wake = (): void => {
         localSet.delete(wake)
         clearTimeout(timer)

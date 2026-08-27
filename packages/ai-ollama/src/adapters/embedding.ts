@@ -79,9 +79,6 @@ export class OllamaEmbeddingAdapter<
     }
 
     try {
-      // Built incrementally so optional keys are omitted entirely when unset
-      // (exactOptionalPropertyTypes). Provider options use camelCase
-      // (`keepAlive`) and are mapped to the SDK's snake_case wire fields.
       const request: EmbedRequest = {
         model,
         input: texts,

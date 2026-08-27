@@ -147,7 +147,8 @@ export function toolCacheMiddleware(
     name: 'tool-cache-middleware',
 
     onBeforeToolCall: async (_ctx, hookCtx) => {
-      if (toolNames && !toolNames.includes(hookCtx.toolName)) {
+      const isUncachedTool = toolNames && !toolNames.includes(hookCtx.toolName)
+      if (isUncachedTool) {
         return undefined
       }
 
@@ -168,7 +169,8 @@ export function toolCacheMiddleware(
 
     onAfterToolCall: async (_ctx, info) => {
       if (!info.ok) return
-      if (toolNames && !toolNames.includes(info.toolName)) return
+      const isUncachedTool = toolNames && !toolNames.includes(info.toolName)
+      if (isUncachedTool) return
 
       // Re-derive the key from the raw arguments to match what onBeforeToolCall produces
       let parsedArgs: unknown

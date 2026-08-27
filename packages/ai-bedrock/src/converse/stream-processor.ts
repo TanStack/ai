@@ -2,6 +2,30 @@ import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
+function usageFromMetadata(
+  ev: ConverseStreamOutput,
+):
+  | { promptTokens: number; completionTokens: number; totalTokens: number }
+  | undefined {
+  if (!('metadata' in ev)) return undefined
+  const u = ev.metadata?.usage
+  if (!u) return undefined
+  return {
+    promptTokens: u.inputTokens ?? 0,
+    completionTokens: u.outputTokens ?? 0,
+    totalTokens: u.totalTokens ?? 0,
+  }
+}
+
+function mapConverseStopReason(
+  stopReason: string | undefined,
+): NonNullable<AdapterYieldChunk['finishReason']> {
+  if (stopReason === 'tool_use') return 'tool_calls'
+  if (stopReason === 'max_tokens') return 'length'
+  if (stopReason === 'content_filtered') return 'content_filter'
+  return 'stop'
+}
+
 /**
  * Converse delivers server-side failures — throttling, request validation,
  * mid-stream model faults, and service-unavailable — as in-band stream events
@@ -78,17 +102,11 @@ export async function* processConverseStream(
   let reasoningMessageId: string | undefined
   let hasClosedReasoning = false
 
-  // Tool-call lifecycle, keyed by Converse contentBlockIndex. Converse opens a
-  // tool-use block with `contentBlockStart`, streams arg fragments via
-  // `contentBlockDelta`, and closes it with `contentBlockStop`.
   const toolCallsByIndex = new Map<
     number,
     { id: string; name: string; started: boolean }
   >()
 
-  // Usage + finish-reason are captured during iteration and folded into the
-  // single terminal RUN_FINISHED, matching openai-base's deferred-finish
-  // contract (usage may arrive after the finish signal).
   let usage:
     | { promptTokens: number; completionTokens: number; totalTokens: number }
     | undefined
@@ -121,6 +139,115 @@ export async function* processConverseStream(
     }
   }
 
+  function* handleContentBlockStart(
+    ev: Extract<ConverseStreamOutput, { contentBlockStart?: unknown }>,
+  ): Generator<AdapterYieldChunk> {
+    const start = ev.contentBlockStart
+    const toolUse = start?.start?.toolUse
+    if (!start) return
+    if (!toolUse) return
+    yield* closeReasoning()
+    const id = toolUse.toolUseId ?? newMessageId()
+    const name = toolUse.name ?? ''
+    const index = start.contentBlockIndex ?? 0
+    toolCallsByIndex.set(index, {
+      id,
+      name,
+      started: true,
+    })
+    yield {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: id,
+      toolCallName: name,
+      toolName: name,
+      timestamp: Date.now(),
+      index,
+    }
+  }
+
+  function* handleContentBlockDelta(
+    ev: Extract<ConverseStreamOutput, { contentBlockDelta?: unknown }>,
+  ): Generator<AdapterYieldChunk> {
+    const block = ev.contentBlockDelta
+    const delta = block?.delta
+    const index = block?.contentBlockIndex ?? 0
+
+    if (delta && 'toolUse' in delta && delta.toolUse?.input !== undefined) {
+      const toolCall = toolCallsByIndex.get(index)
+      if (toolCall?.started) {
+        yield {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: toolCall.id,
+          timestamp: Date.now(),
+          delta: delta.toolUse.input,
+        }
+      }
+      return
+    }
+
+    if (
+      delta &&
+      'reasoningContent' in delta &&
+      delta.reasoningContent &&
+      'text' in delta.reasoningContent &&
+      delta.reasoningContent.text !== undefined
+    ) {
+      if (!reasoningMessageId) {
+        reasoningMessageId = newMessageId()
+        yield {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: reasoningMessageId,
+          role: 'reasoning',
+          timestamp: Date.now(),
+        }
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: delta.reasoningContent.text,
+        timestamp: Date.now(),
+      }
+      return
+    }
+
+    if (delta && 'text' in delta && delta.text !== undefined) {
+      yield* closeReasoning()
+      if (!hasEmittedTextMessageStart) {
+        hasEmittedTextMessageStart = true
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          timestamp: Date.now(),
+        }
+      }
+      accumulatedContent += delta.text
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: delta.text,
+        content: accumulatedContent,
+        timestamp: Date.now(),
+      }
+    }
+  }
+
+  function* handleContentBlockStop(
+    ev: Extract<ConverseStreamOutput, { contentBlockStop?: unknown }>,
+  ): Generator<AdapterYieldChunk> {
+    const stopIndex = ev.contentBlockStop?.contentBlockIndex ?? 0
+    const toolCall = toolCallsByIndex.get(stopIndex)
+    if (!toolCall?.started) return
+    yield {
+      type: EventType.TOOL_CALL_END,
+      toolCallId: toolCall.id,
+      toolCallName: toolCall.name,
+      toolName: toolCall.name,
+      timestamp: Date.now(),
+    }
+    toolCallsByIndex.delete(stopIndex)
+  }
+
   for await (const ev of stream) {
     yield* ensureRunStarted()
 
@@ -131,138 +258,27 @@ export async function* processConverseStream(
     if ('messageStart' in ev) continue
 
     if ('contentBlockStart' in ev) {
-      const start = ev.contentBlockStart
-      const toolUse = start?.start?.toolUse
-      if (start && toolUse) {
-        yield* closeReasoning()
-        const id = toolUse.toolUseId ?? newMessageId()
-        const name = toolUse.name ?? ''
-        const index = start.contentBlockIndex ?? 0
-        toolCallsByIndex.set(index, {
-          id,
-          name,
-          started: true,
-        })
-        yield {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: id,
-          toolCallName: name,
-          toolName: name,
-          timestamp: Date.now(),
-          index,
-        }
-      }
+      yield* handleContentBlockStart(ev)
       continue
     }
 
     if ('contentBlockDelta' in ev) {
-      const block = ev.contentBlockDelta
-      const delta = block?.delta
-      const index = block?.contentBlockIndex ?? 0
-
-      // Tool-call argument fragments (partial JSON).
-      if (delta && 'toolUse' in delta && delta.toolUse?.input !== undefined) {
-        const toolCall = toolCallsByIndex.get(index)
-        if (toolCall?.started) {
-          yield {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: toolCall.id,
-            timestamp: Date.now(),
-            delta: delta.toolUse.input,
-          }
-        }
-        continue
-      }
-
-      // Reasoning content.
-      if (
-        delta &&
-        'reasoningContent' in delta &&
-        delta.reasoningContent &&
-        'text' in delta.reasoningContent &&
-        delta.reasoningContent.text !== undefined
-      ) {
-        if (!reasoningMessageId) {
-          reasoningMessageId = newMessageId()
-          yield {
-            type: EventType.REASONING_MESSAGE_START,
-            messageId: reasoningMessageId,
-            role: 'reasoning',
-            timestamp: Date.now(),
-          }
-        }
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: reasoningMessageId,
-          delta: delta.reasoningContent.text,
-          timestamp: Date.now(),
-        }
-        continue
-      }
-
-      // Text content.
-      if (delta && 'text' in delta && delta.text !== undefined) {
-        yield* closeReasoning()
-        if (!hasEmittedTextMessageStart) {
-          hasEmittedTextMessageStart = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId,
-            role: 'assistant',
-            timestamp: Date.now(),
-          }
-        }
-        accumulatedContent += delta.text
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId,
-          delta: delta.text,
-          content: accumulatedContent,
-          timestamp: Date.now(),
-        }
-      }
+      yield* handleContentBlockDelta(ev)
       continue
     }
 
     if ('contentBlockStop' in ev) {
-      const stopIndex = ev.contentBlockStop?.contentBlockIndex ?? 0
-      const toolCall = toolCallsByIndex.get(stopIndex)
-      if (toolCall?.started) {
-        yield {
-          type: EventType.TOOL_CALL_END,
-          toolCallId: toolCall.id,
-          toolCallName: toolCall.name,
-          toolName: toolCall.name,
-          timestamp: Date.now(),
-        }
-        toolCallsByIndex.delete(stopIndex)
-      }
+      yield* handleContentBlockStop(ev)
       continue
     }
 
     if ('messageStop' in ev) {
-      const stopReason = ev.messageStop?.stopReason
-      // Map Converse stopReason to AG-UI's narrower finishReason vocabulary.
-      finishReason =
-        stopReason === 'tool_use'
-          ? 'tool_calls'
-          : stopReason === 'max_tokens'
-            ? 'length'
-            : stopReason === 'content_filtered'
-              ? 'content_filter'
-              : 'stop'
+      finishReason = mapConverseStopReason(ev.messageStop?.stopReason)
       continue
     }
 
     if ('metadata' in ev) {
-      const u = ev.metadata?.usage
-      if (u) {
-        usage = {
-          promptTokens: u.inputTokens ?? 0,
-          completionTokens: u.outputTokens ?? 0,
-          totalTokens: u.totalTokens ?? 0,
-        }
-      }
+      usage = usageFromMetadata(ev) ?? usage
       continue
     }
   }

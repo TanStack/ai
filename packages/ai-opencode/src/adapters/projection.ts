@@ -1,39 +1,3 @@
-/**
- * OpenCode workspace projector — mirrors the Claude Code reference
- * implementation at `packages/ai-claude-code/src/adapters/projection.ts`.
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. This adapter
- * reads it in `chatStream` setup and projects workspace inputs into OpenCode's
- * native format:
- *
- *   - MCP servers   → `opencode.json` at the workspace root (mcp section).
- *                     Written on EVERY call (never marker-gated) so rotated
- *                     secrets always re-apply.
- *   - gitSkill repos → OpenCode has no recognised skills directory; we
- *                      warn-and-skip rather than invent a path.
- *   - agentSkill    → no bare-name primitive in opencode; warn-and-skip.
- *   - plugins       → opencode has no `opencode plugin install` command;
- *                     warn-and-skip.
- *
- * The `opencode.json` mcp-section shape mirrors the `OPENCODE_CONFIG_CONTENT`
- * shape already used by the adapter's host-tool-bridge, ensuring both
- * mechanisms use the same server-entry schema:
- *
- *   ```json
- *   { "mcp": { "<name>": { "type": "remote", "url": "...", "enabled": true,
- *                           "headers": { ... } } } }
- *   ```
- *
- * OpenCode merges project-scoped `opencode.json` with its environment config,
- * so the workspace file coexists safely with the runtime `OPENCODE_CONFIG_CONTENT`
- * env written for the host-tool-bridge.
- *
- * External-convention caveat: the `opencode.json` location and the `remote`
- * MCP-entry shape are derived from the adapter's existing `OPENCODE_CONFIG_CONTENT`
- * usage. Where OpenCode has no clean primitive (gitSkill dir, agentSkill,
- * plugins) we no-op with a warning instead of fabricating a command.
- */
 import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
@@ -91,7 +55,8 @@ function buildMcpSection(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']

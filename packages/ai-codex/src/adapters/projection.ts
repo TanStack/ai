@@ -1,35 +1,3 @@
-/**
- * Codex workspace projector — mirrors the claude-code reference
- * (`packages/ai-claude-code/src/adapters/projection.ts`).
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. Each harness
- * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Codex that means:
- *
- *   - MCP servers   → `[mcp_servers.<name>]` tables in `<root>/.codex/config.toml`
- *                     (TOML), reusing the same `mcp_servers.*` key shape the
- *                     adapter already uses to wire the host tool-bridge.
- *   - gitSkill repos → linked under codex's skills dir when one exists; Codex
- *                      has no documented project skills dir, so we warn-and-skip.
- *   - agentSkill     → no codex primitive pulls a public skill by bare name, so
- *                      we warn-and-skip rather than invent one.
- *   - plugins        → Codex has no plugin concept, so we warn-and-skip.
- *
- * The secret-bearing MCP config is (re)written on EVERY call, re-resolving
- * secrets each time, so codex always reads current values and a snapshot can
- * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
- * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
- * one-time marker file under the workspace.
- *
- * Codex specifics (verified against the codex config schema):
- *   - Codex reads `[mcp_servers.<name>]` from `<root>/.codex/config.toml`, with a
- *     streamable-HTTP server taking `url` plus optional `http_headers`
- *     (a literal header table). We write resolved header values directly into
- *     `http_headers` so a rotated secret re-applies on every projection.
- *   - AGENTS.md is written universally by bootstrap (codex reads it natively),
- *     so it is NOT rewritten here.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -105,7 +73,8 @@ function buildMcpServers(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']
@@ -123,7 +92,8 @@ function buildMcpServers(
  */
 function renderMcpToml(servers: Record<string, CodexMcpServer>): string {
   const blocks: Array<string> = []
-  for (const [name, server] of Object.entries(servers)) {
+  const mcpServers = Object.entries(servers)
+  for (const [name, server] of mcpServers) {
     const lines: Array<string> = [
       `[mcp_servers.${name}]`,
       `url = ${tomlString(server.url)}`,

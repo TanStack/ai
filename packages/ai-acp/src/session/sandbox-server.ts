@@ -25,6 +25,7 @@ export interface StartAcpServerOptions {
   command: string
   /** Build the WebSocket URL once the server is ready and the port is exposed. */
   buildWsUrl: (input: {
+    /** Sandbox channel used to build {@link wsUrl} (auth headers, when issued). */
     channel: SandboxChannel
     port: number
     stdout: string
@@ -49,6 +50,7 @@ function waitForReady(
   proc: SpawnHandle,
   options: Pick<StartAcpServerOptions, 'isReady' | 'readyMarker' | 'timeoutMs'>,
 ): Promise<{ stdout: string; stderr: string }> {
+  /** Substring/regex marker used when {@link isReady} is omitted. */
   const readyMarker = options.readyMarker ?? DEFAULT_READY_MARKER
   const isReady =
     options.isReady ?? ((output: string) => output.includes(readyMarker))
@@ -78,7 +80,8 @@ function waitForReady(
         settle(() => resolve({ stdout, stderr }))
         return
       }
-      if (stdoutDone && stderrDone) {
+      const streamsEnded = stdoutDone && stderrDone
+      if (streamsEnded) {
         settle(() =>
           reject(
             new Error(
@@ -154,6 +157,7 @@ export async function startAcpServerInSandbox(
 
   const { stdout } = await waitForReady(proc, options)
   const channel = await sandbox.ports.connect(options.port)
+  /** WebSocket URL the orchestrator uses to reach the in-sandbox ACP server. */
   const wsUrl = options.buildWsUrl({
     channel,
     port: options.port,

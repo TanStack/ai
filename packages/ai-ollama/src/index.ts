@@ -1,7 +1,3 @@
-// ===========================
-// New tree-shakeable adapters
-// ===========================
-
 // Text/Chat adapter
 export {
   OllamaTextAdapter,
@@ -39,10 +35,6 @@ export {
   convertFunctionToolToAdapterFormat,
   convertToolsToProviderFormat,
 } from './tools/index'
-
-// ===========================
-// Type Exports
-// ===========================
 
 export type {
   OllamaImageMetadata,

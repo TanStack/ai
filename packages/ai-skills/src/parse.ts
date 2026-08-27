@@ -41,7 +41,7 @@ const NAME_RE = /^[a-z0-9-]+$/
 /** Split leading `---` frontmatter from the body. Returns null if absent. */
 function splitFrontmatter(
   raw: string,
-): { frontmatter: string; body: string } | null {
+): { frontmatter: string /** frontmatter stripped. */; body: string } | null {
   // Tolerate a BOM and leading blank lines before the opening fence.
   const text = raw.replace(/^﻿/, '')
   const match = /^\s*---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n([\s\S]*))?$/.exec(
@@ -51,18 +51,92 @@ function splitFrontmatter(
   return { frontmatter: match[1] ?? '', body: match[2] ?? '' }
 }
 
+const indentOf = (s: string) => s.length - s.trimStart().length
+
+function unquote(s: string): string {
+  const isQuoted =
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  if (isQuoted) {
+    return s.slice(1, -1)
+  }
+  return s
+}
+
+/** Block scalar: `>` (folded) or `|` (literal), with optional chomp/indent. */
+function parseBlockScalar(
+  lines: Array<string>,
+  start: number,
+  indicator: string,
+): { value: string; next: number } | undefined {
+  const isBlockScalar =
+    indicator === '>' || indicator === '|' || /^[>|][+-]?\d*$/.test(indicator)
+  if (!isBlockScalar) return undefined
+
+  const folded = indicator.startsWith('>')
+  const collected: Array<string> = []
+  let i = start
+  while (i < lines.length) {
+    const next = lines[i]
+    if (next === undefined) break
+    const isTopLevelContent = next.trim() !== '' && indentOf(next) === 0
+    if (isTopLevelContent) break
+    collected.push(next)
+    i++
+  }
+  const nonEmpty = collected.filter((l) => l.trim() !== '')
+  const minIndent = nonEmpty.length ? Math.min(...nonEmpty.map(indentOf)) : 0
+  const stripped = collected.map((l) => l.slice(minIndent))
+  const value = folded
+    ? stripped.join(' ').replace(/\s+/g, ' ').trim()
+    : stripped.join('\n').trim()
+  return { value, next: i }
+}
+
+/** Indented children: a block list (`- x`) or a nested map (`k: v`), one level. */
+function parseIndentedChildren(
+  lines: Array<string>,
+  start: number,
+): { value: unknown; next: number } {
+  const items: Array<string> = []
+  const map: Record<string, string> = {}
+  let j = start
+  while (j < lines.length) {
+    const next = lines[j]
+    if (next === undefined) break
+    if (next.trim() === '') {
+      j++
+      continue
+    }
+    if (indentOf(next) === 0) break
+    const t = next.trim()
+    if (t.startsWith('- ')) {
+      items.push(unquote(t.slice(2).trim()))
+      j++
+      continue
+    }
+    const c = t.indexOf(':')
+    if (c === -1) break
+    map[t.slice(0, c).trim()] = unquote(t.slice(c + 1).trim())
+    j++
+  }
+  if (items.length) return { value: items, next: j }
+  if (Object.keys(map).length) return { value: map, next: j }
+  return { value: '', next: j }
+}
+
 /** Parse the flat frontmatter block into raw string/list/map values. */
 function parseBlock(frontmatter: string): Record<string, unknown> {
   const lines = frontmatter.split(/\r?\n/)
   const out: Record<string, unknown> = {}
   let i = 0
 
-  const indentOf = (s: string) => s.length - s.trimStart().length
-
   while (i < lines.length) {
     const line = lines[i]
     if (line === undefined) break
-    if (line.trim() === '' || line.trimStart().startsWith('#')) {
+    const isIgnorableLine =
+      line.trim() === '' || line.trimStart().startsWith('#')
+    if (isIgnorableLine) {
       i++
       continue
     }
@@ -79,63 +153,22 @@ function parseBlock(frontmatter: string): Record<string, unknown> {
     const key = line.slice(0, colon).trim()
     const value = line.slice(colon + 1).trim()
 
-    // Block scalar: `>` (folded) or `|` (literal), with optional chomp/indent.
-    if (value === '>' || value === '|' || /^[>|][+-]?\d*$/.test(value)) {
-      const folded = value.startsWith('>')
-      const collected: Array<string> = []
-      i++
-      while (i < lines.length) {
-        const next = lines[i]
-        if (next === undefined) break
-        if (next.trim() !== '' && indentOf(next) === 0) break
-        collected.push(next)
-        i++
-      }
-      // Strip the common leading indentation of the block.
-      const nonEmpty = collected.filter((l) => l.trim() !== '')
-      const minIndent = nonEmpty.length
-        ? Math.min(...nonEmpty.map(indentOf))
-        : 0
-      const stripped = collected.map((l) => l.slice(minIndent))
-      out[key] = folded
-        ? stripped.join(' ').replace(/\s+/g, ' ').trim()
-        : stripped.join('\n').trim()
+    const scalar = parseBlockScalar(lines, i + 1, value)
+    if (scalar) {
+      out[key] = scalar.value
+      i = scalar.next
       continue
     }
 
-    // Empty value → indented children: a block list (`- x`) or a nested map
-    // (`k: v`), one level deep.
     if (value === '') {
-      const items: Array<string> = []
-      const map: Record<string, string> = {}
-      let j = i + 1
-      while (j < lines.length) {
-        const next = lines[j]
-        if (next === undefined) break
-        if (next.trim() === '') {
-          j++
-          continue
-        }
-        if (indentOf(next) === 0) break
-        const t = next.trim()
-        if (t.startsWith('- ')) {
-          items.push(unquote(t.slice(2).trim()))
-        } else {
-          const c = t.indexOf(':')
-          if (c === -1) break
-          map[t.slice(0, c).trim()] = unquote(t.slice(c + 1).trim())
-        }
-        j++
-      }
-      if (items.length) out[key] = items
-      else if (Object.keys(map).length) out[key] = map
-      else out[key] = ''
-      i = Math.max(j, i + 1)
+      const parsed = parseIndentedChildren(lines, i + 1)
+      out[key] = parsed.value
+      i = Math.max(parsed.next, i + 1)
       continue
     }
 
-    // Inline list `[a, b]`.
-    if (value.startsWith('[') && value.endsWith(']')) {
+    const isInlineList = value.startsWith('[') && value.endsWith(']')
+    if (isInlineList) {
       out[key] = value
         .slice(1, -1)
         .split(',')
@@ -151,20 +184,11 @@ function parseBlock(frontmatter: string): Record<string, unknown> {
   return out
 }
 
-function unquote(s: string): string {
-  if (
-    (s.startsWith('"') && s.endsWith('"')) ||
-    (s.startsWith("'") && s.endsWith("'"))
-  ) {
-    return s.slice(1, -1)
-  }
-  return s
-}
-
 function asStringMap(value: unknown): Record<string, string> | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(value)) {
+  const entries = Object.entries(value)
+  for (const [k, v] of entries) {
     if (typeof v === 'string') out[k] = v
   }
   return Object.keys(out).length ? out : undefined
@@ -215,7 +239,8 @@ export function parseSkill(
     })
   }
 
-  if (opts.strict && warnings.length) {
+  const shouldPromoteWarnings = Boolean(opts.strict) && warnings.length > 0
+  if (shouldPromoteWarnings) {
     throw new SkillParseError(warnings.map((w) => w.message).join('; '))
   }
 

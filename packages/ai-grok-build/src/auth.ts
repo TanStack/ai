@@ -13,7 +13,8 @@ export type GrokBuildAcpAuthMethod = 'xai.api_key' | 'grok.com'
 export type GrokBuildAuthMode = 'host' | 'api-key'
 
 /** Isolated sandboxes have no host CLI login, so this is the default. */
-const DEFAULT_GROK_AUTH_MODE: GrokBuildAuthMode = 'api-key'
+const /** Isolated sandboxes have no host CLI login, so this is the default. */
+  DEFAULT_GROK_AUTH_MODE: GrokBuildAuthMode = 'api-key'
 
 /**
  * Pick the Grok ACP auth method for {@link startAcpSession} when using

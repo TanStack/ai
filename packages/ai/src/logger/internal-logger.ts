@@ -7,17 +7,6 @@ import type { DebugCategories, Logger } from './types'
 export type ResolvedCategories = Required<DebugCategories>
 
 /**
- * Package-internal logger wrapper used by every activity and adapter in
- * `@tanstack/ai`. Wraps a user-supplied (or default `ConsoleLogger`) `Logger`
- * plus a fully-resolved per-category map. Each category has a dedicated
- * method that no-ops when its flag is `false`, or prepends a
- * `[tanstack-ai:<category>] ` prefix and calls the underlying logger's
- * `error` (for the `errors` category) or `debug` (for everything else).
- *
- * Not exported from the package root. Adapter packages consume it via the
- * `@tanstack/ai/adapter-internals` subpath export.
- */
-/**
  * Emoji marker per category — bracketing the `[tanstack-ai:<cat>]` tag on
  * both sides makes it trivial to visually pick out a category when scanning
  * dense streaming logs.

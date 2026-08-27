@@ -78,10 +78,10 @@ export interface AnthropicContainerOptions {
 
 export interface AnthropicContextManagementOptions {
   /**
-   * Context management configuration.
-
-This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
-   */
+     * Context management configuration.
+  
+  This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
+     */
   context_management?: BetaContextManagementConfig | null
 }
 
@@ -102,28 +102,28 @@ export interface AnthropicServiceTierOptions {
 
 export interface AnthropicStopSequencesOptions {
   /**
-   * Custom text sequences that will cause the model to stop generating.
-
-Anthropic models will normally stop when they have naturally completed their turn, which will result in a response stop_reason of "end_turn".
-
-If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
-   */
+     * Custom text sequences that will cause the model to stop generating.
+  
+  Anthropic models will normally stop when they have naturally completed their turn, which will result in a response stop_reason of "end_turn".
+  
+  If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
+     */
   stop_sequences?: Array<string>
 }
 
 export interface AnthropicThinkingOptions {
   /**
-     * Configuration for enabling Claude's extended thinking.
-
-When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
-     */
+       * Configuration for enabling Claude's extended thinking.
+  
+  When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
+       */
   thinking?:
     | {
         /**
-* Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
-
-Must be ≥1024 and less than max_tokens
-*/
+        * Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
+        
+        Must be ≥1024 and less than max_tokens
+        */
         budget_tokens: number
 
         type: 'enabled'
@@ -134,13 +134,6 @@ Must be ≥1024 and less than max_tokens
 }
 
 export interface AnthropicAdaptiveThinkingOptions {
-  /**
-   * Configuration for Claude's adaptive thinking (Opus 4.6+).
-   *
-   * In adaptive mode, Claude dynamically decides when and how much to think.
-   * Use the effort parameter to control thinking depth.
-   * `thinking: {type: "enabled"}` with `budget_tokens` is deprecated on Opus 4.6.
-   */
   thinking?:
     | {
         type: 'adaptive'
@@ -159,9 +152,6 @@ export interface AnthropicAdaptiveThinkingOptions {
         display?: 'summarized' | 'omitted'
       }
     | {
-        /**
-         * @deprecated Use `type: 'adaptive'` with the effort parameter on Opus 4.6+.
-         */
         budget_tokens: number
         type: 'enabled'
       }
@@ -182,14 +172,6 @@ export interface AnthropicAdaptiveThinkingOptions {
 export interface AnthropicAdaptiveOnlyThinkingOptions {
   thinking?: {
     type: 'adaptive'
-    /**
-     * Controls what (if any) thinking content is streamed back.
-     *
-     * - `'summarized'`: stream summarized thinking via `thinking_delta`
-     *   events (the user-visible reasoning text).
-     * - `'omitted'` (default): stream the thinking block's
-     *   `signature_delta` only (no reasoning text reaches the client).
-     */
     display?: 'summarized' | 'omitted'
   }
 }
@@ -208,11 +190,6 @@ export interface AnthropicAdaptiveOrDisabledThinkingOptions {
   thinking?:
     | {
         type: 'adaptive'
-        /**
-         * Controls what (if any) thinking content is streamed back.
-         * Defaults to `'omitted'` — set `'summarized'` to receive the
-         * reasoning text.
-         */
         display?: 'summarized' | 'omitted'
       }
     | {
@@ -262,10 +239,6 @@ export interface AnthropicOutputConfigOptions {
    * preserved when the engine adds `format`.
    */
   output_config?: {
-    /**
-     * `'xhigh'` is accepted on Claude Opus 4.7+, Claude Sonnet 5, and
-     * Claude Fable 5; older models support `'low'`–`'max'` only.
-     */
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
   }
 }
@@ -276,13 +249,13 @@ export interface AnthropicToolChoiceOptions {
 
 export interface AnthropicSamplingOptions {
   /**
-   * Only sample from the top K options for each subsequent token.
-
-Used to remove "long tail" low probability responses.
-Recommended for advanced use cases only. You usually only need to use temperature.
-
-Required range: x >= 0
-   */
+     * Only sample from the top K options for each subsequent token.
+  
+  Used to remove "long tail" low probability responses.
+  Recommended for advanced use cases only. You usually only need to use temperature.
+  
+  Required range: x >= 0
+     */
   top_k?: number
   /**
    * Amount of randomness injected into the response.
@@ -297,10 +270,6 @@ Required range: x >= 0
    * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
    */
   top_p?: number
-  /**
-   * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
-   * Range x >= 1.
-   */
   max_tokens?: number
 }
 
@@ -322,10 +291,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
 
   messages: Array<MessageParam>
 
-  /**
-   * The maximum number of tokens to generate before stopping.  This parameter only specifies the absolute maximum number of tokens to generate.
-   * Range x >= 1.
-   */
   max_tokens: number
   /**
    * Whether to incrementally stream the response using server-sent events.
@@ -344,21 +309,6 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
 
   tools?: Array<AnthropicTool>
 
-  /**
-   * Schema-constrained final answer in a single Messages request (issue
-   * #605). Set by the engine when the adapter declared
-   * `supportsCombinedToolsAndSchema` and a caller passed `outputSchema`
-   * to `chat()`. The model emits tool calls during the agent loop and a
-   * schema-matching JSON message on the natural final turn — no separate
-   * finalization round-trip needed.
-   *
-   * The SDK type (`BetaOutputConfig`) currently exposes only `effort`;
-   * `format` is accepted at runtime per the deprecation notice on the
-   * older `output_format` field
-   * (https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
-   * We type it explicitly here so the adapter call site doesn't need a
-   * cast.
-   */
   output_config?: {
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
     format?: {
@@ -369,7 +319,9 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
 }
 
 const validateTopPandTemperature = (options: InternalTextProviderOptions) => {
-  if (options.top_p !== undefined && options.temperature !== undefined) {
+  const hasBothTopPAndTemperature =
+    options.top_p !== undefined && options.temperature !== undefined
+  if (hasBothTopPAndTemperature) {
     throw new Error('You should either set top_p or temperature, but not both.')
   }
 }

@@ -1,81 +1,3 @@
-/**
- * Provider conformance for TAKEOVER: a second driver picking up a run whose
- * first driver died, against a REAL sandbox.
- *
- * WHY THIS EXISTS SEPARATELY FROM THE UNIT TESTS. Every takeover unit test in
- * this package drives fakes — a scripted `spawn`, a `test -f` that answers from
- * a boolean, a log that is an array. Fakes model what we believe the shell and
- * the filesystem do, and on this feature that belief has been wrong three times:
- * `base64` delivers zero bytes on a live pipe, `tail -f` on a missing file exits
- * instead of waiting, and a provider's `kill` does not always reap a grandchild.
- * Each one passed every fake. So the four properties a takeover actually rests
- * on are asserted here through a provider's real `spawn`/`exec` against a real
- * journal file:
- *
- * 1. **The delivered sequence is the run's sequence, with no duplicated
- *    prefix.** Asserted as a TRANSCRIPT, never as "chunks arrived": a takeover
- *    that replays the whole journal and re-appends everything satisfies the weak
- *    assertion while showing the user the entire run twice. That is the exact
- *    failure `alignToStoredLog` exists to prevent, and the only assertion that
- *    can see it is one that compares the stored log to the expected sequence
- *    element for element.
- * 2. **The attach preflight decides, or fails, but never hangs.** It probes with
- *    the provider's real `exec` (`test -f`), which is the layer where a fake's
- *    assumptions break, and its three verdicts (`unknown-run`, `terminal-run`,
- *    `journal-timeout`) plus the legitimate late-journal race are all timing
- *    against a real filesystem.
- * 3. **The epoch fence and its latch hold under real concurrency.** Two drivers
- *    reading one real journal at once: the second wins, the first appends
- *    NOTHING — not even `pipeToRunLog`'s recovery `RUN_ERROR` — and cannot
- *    terminalize the record out from under the live successor.
- * 4. **A terminal run's journal is deleted, and a later attach says so.** The
- *    deletion is a real `rm` of real files, and the follow-up attach must report
- *    `terminal-run` rather than tailing the file that `journalFollowCommand`
- *    would helpfully re-create.
- *
- * WHAT IS REAL HERE. The provider (its `spawn`, `exec`, and shell), the journal
- * (a real NDJSON file the agent's stdout is redirected into), the agent (a real
- * process writing real lines with a real pause in the middle), the reader
- * (`readJournalNdjson`, including the follow/poll strategy split and the attach
- * preflight), the alignment (`alignedIfAttaching` over the real
- * `resolveSandboxDurability` output), the claim and BOTH fences
- * (`sandboxRunDriver`), and the run record (`InMemoryRunStore`). The event log is
- * in-process, exactly as the recommended `memoryStream` backend is.
- *
- * A provider that cannot satisfy the contract MUST declare `unsupported.reason`.
- * As in the journal suite there is deliberately no silent-skip path: a
- * conformance case that quietly returns prints as a pass, which is how an
- * unimplemented capability ships green.
- *
- * FOUND BY THIS SUITE, FIXED IN THE PROVIDER, STILL NOT ASSERTED HERE. On
- * local-process under Windows (git-bash `sh`), the follow read's `tail`
- * grandchild used to SURVIVE `proc.kill()`: `LocalProcessHandle.killTree` ran
- * `taskkill /PID <sh> /T /F` and returned as soon as `spawnSync` reported no
- * `error`. Two things were wrong. It never checked taskkill's exit status — and
- * that alone would not have caught it, because MSYS's fork emulation leaves the
- * `tail.exe` pointing at an intermediate shell that has already exited, so
- * `taskkill /T` (live parent links only) cannot reach it and still exits `0`.
- * Measured by counting `tail.exe` before and after a run: this suite leaked 4 per
- * run and the shipped journal suite 2, accumulating for the life of the machine.
- * It was a provider defect, not a takeover defect — every case here still
- * delivered the right transcript, because `untilAborted` (see
- * `journal-reader.ts`) stops honoring the pipe once the signal fires rather than
- * waiting for the kill, which is exactly why it never failed a test.
- * `killTree` now resolves the tree through MSYS's own process table and verifies
- * the survivors are gone (0 per run), covered in
- * `ai-sandbox-local-process/tests/kill-tree.test.ts`.
- * Deliberately still NOT asserted in this suite: a per-provider process census is
- * not portable (Docker's `tail` dies with its container), and a conformance case
- * that counted host processes would fail for reasons unrelated to takeover.
- *
- * EVERY WAIT IN THIS FILE IS BOUNDED. A hang stalls CI instead of failing it, so
- * each journal read carries a timeout signal, each poll loop carries a deadline
- * and a message naming what never happened, and each case carries an explicit
- * per-test timeout.
- *
- * Vitest is an OPTIONAL peer dependency: this module is imported only from test
- * files, which already run under Vitest.
- */
 import { describe, expect, it } from 'vitest'
 import { EventType, InMemoryRunStore } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
@@ -129,7 +51,8 @@ export interface TakeoverConformanceConfig {
 const CONFORMANCE_JOURNAL_DIR = '/tmp/tanstack-takeover-conformance'
 
 /** Poll interval handed to providers that cannot follow a growing file. */
-const POLL_INTERVAL_MS = 50
+const /** Poll interval handed to providers that cannot follow a growing file. */
+  POLL_INTERVAL_MS = 50
 
 /**
  * Quiescence window for the successor's first append. Short because the
@@ -183,6 +106,7 @@ interface ConformanceLog {
 
 function conformanceLog(): ConformanceLog {
   const entries: Array<{ offset: string; chunk: StreamChunk }> = []
+  /** `close()` calls — proof that `close` is NOT fenced. */
   let closes = 0
   return {
     log: {
@@ -195,9 +119,6 @@ function conformanceLog(): ConformanceLog {
             return offset
           }),
         ),
-      // Nothing in this suite tails the log — every assertion reads the stored
-      // transcript with `snapshot()`, which is also what `alignToStoredLog`
-      // uses, and a `read` would park until `close()` (see `align.ts`).
       read: () => (async function* empty() {})(),
       close: () => {
         closes += 1
@@ -483,13 +404,6 @@ function driverFor(input: {
     durability: () => input.log,
     fenceQuietMs: FENCE_QUIET_MS,
     drive: ({ runId, signal }) => {
-      // The read is bounded independently of `signal`: an `InMemoryLockStore`
-      // hands out a signal it never aborts, so a journal that stops growing
-      // would otherwise park this read forever and turn a broken takeover into a
-      // hung CI job instead of a failing assertion.
-      //
-      // Not the assertion — see {@link READ_BACKSTOP_MS}. `backstopped()` below
-      // is what proves the clock was not what ended the read.
       const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
       backstops.push(backstop)
       const bounded = AbortSignal.any([signal, backstop])
@@ -538,11 +452,7 @@ async function cleanup(handle: SandboxHandle, runId: string): Promise<void> {
     await handle.process.exec(
       journalCleanupCommand(journalPaths(runId, CONFORMANCE_JOURNAL_DIR)),
     )
-  } catch {
-    // The sandbox may already be gone. Nothing under test depends on the files
-    // being absent afterwards — the cases that DO assert deletion assert it
-    // directly.
-  }
+  } catch {}
 }
 
 /**
@@ -561,9 +471,6 @@ export function runTakeoverConformance(
       return
     }
 
-    // ---------------------------------------------------------------------
-    // 1. A real takeover, end to end.
-    // ---------------------------------------------------------------------
     it(
       'delivers the run sequence exactly once when a second driver takes over mid-stream',
       { timeout: 180_000 },
@@ -579,14 +486,7 @@ export function runTakeoverConformance(
         try {
           const fresh = durabilityFor(runs, log.log, false)
 
-          // THE HOST THAT DIES. A real claim, a real fence, a real journal read
-          // of a real agent — and then it stops after `prefixLength` chunks
-          // without closing the log and without terminalizing the record, which
-          // is what a host vanishing looks like from the outside.
           const deliveredByFirst: Array<StreamChunk> = []
-          // A backstop, so a reader that delivers nothing fails instead of
-          // parking CI. Not the assertion — `backstopped` below proves it was not
-          // what ended the loop.
           const firstBackstop = AbortSignal.timeout(READ_BACKSTOP_MS)
           await withRunClaim(
             { runs, locks: new InMemoryLockStore(), runId },
@@ -601,7 +501,8 @@ export function runTakeoverConformance(
                 signal: firstBackstop,
                 journal: journalOptions(fresh, runId),
               })
-              for await (const chunk of translate(runId, lines)) {
+              const translatedLines = translate(runId, lines)
+              for await (const chunk of translatedLines) {
                 await fenced.append([chunk])
                 deliveredByFirst.push(chunk)
                 // Breaking ends the reader's `tail` before this host walks away;
@@ -610,10 +511,6 @@ export function runTakeoverConformance(
               }
             },
           )
-          // The causal witness for the dying host's read: it must stop because
-          // the consumer broke at `prefixLength`, not because the clock ran out.
-          // A backstopped read here delivers a short prefix and the takeover the
-          // case exists to exercise would start from the wrong offset.
           expect({ backstopped: firstBackstop.aborted }).toEqual({
             backstopped: false,
           })
@@ -636,21 +533,10 @@ export function runTakeoverConformance(
             threadId,
           })
 
-          // THE CAUSAL WITNESS, first — see {@link READ_BACKSTOP_MS}. The
-          // transcript assertions below can only speak about chunks that
-          // arrived; this one says the successor's read ended because the
-          // journal ended, not because the clock did. Without it a backstopped
-          // read reports as a confusing short-transcript diff.
           expect({ backstopped: successor.backstopped() }).toEqual({
             backstopped: false,
           })
 
-          // THE TRANSCRIPT, element for element. This is the assertion that can
-          // see the failure the feature exists to prevent: a takeover that
-          // replays the journal from byte 0 without aligning re-appends the
-          // prefix, so `stored` would be 9 entries beginning `1,2,3,1,2,3,…` —
-          // and the user would watch the first half of the run twice. "Chunks
-          // arrived" passes against that; this does not.
           expect(transcript(log.stored())).toEqual(transcript(expected))
           // Stated separately so a failure reads as what it is rather than as a
           // 9-vs-6 array diff.
@@ -672,9 +558,6 @@ export function runTakeoverConformance(
       },
     )
 
-    // ---------------------------------------------------------------------
-    // 2. The attach preflight, against a real filesystem.
-    // ---------------------------------------------------------------------
     it(
       'fails an attach to an unknown runId with unknown-run, without waiting it out',
       { timeout: 120_000 },
@@ -699,9 +582,6 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('unknown-run')
-          // Decided from the RECORD, not by waiting it out: one `test -f`, then
-          // the store. A preflight that polled to the deadline would run ~80
-          // probes here. See `countingExec` for why this is not a stopwatch.
           expect(probes.execs()).toBe(1)
         } finally {
           await dispose()
@@ -752,10 +632,6 @@ export function runTakeoverConformance(
         const paths = journalPaths(runId, CONFORMANCE_JOURNAL_DIR)
         try {
           const runs = await runningRun(runId, threadId)
-          // A real driver writing its real first line ~400ms after the attach
-          // starts probing. This is the NORMAL case — `journalFollowCommand`'s
-          // `: >> file` exists for it — so failing fast here would reintroduce
-          // the defect that fix cured.
           const writer = sleep(400).then(() =>
             handle.process.exec(
               journaledCommand(`printf '{"delta":"1"}\\n'`, paths),
@@ -809,13 +685,6 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('journal-timeout')
-          // The three assertions above ARE the proof the bound was applied: an
-          // unbounded wait never produces a `JournalAttachUnavailableError` at
-          // all, and `'600ms'` in the message is the configured bound reported
-          // back. No stopwatch assertion here on purpose — the case's own
-          // `{ timeout: 120_000 }` already converts an unbounded wait into a
-          // failure, and a wall-clock ceiling would red a CORRECT implementation
-          // on a machine where one `docker exec` was measured at 95s.
           expect(error.message).toContain('600ms')
         } finally {
           await dispose()
@@ -823,9 +692,6 @@ export function runTakeoverConformance(
       },
     )
 
-    // ---------------------------------------------------------------------
-    // 3. The epoch fence and the shared latch, under real concurrency.
-    // ---------------------------------------------------------------------
     it(
       'lets the second of two concurrent drivers win, and the loser appends nothing at all',
       { timeout: 180_000 },
@@ -850,13 +716,6 @@ export function runTakeoverConformance(
             },
           )
 
-          // The LOSER: the original host, so it does not align (there is nothing
-          // stored when it starts). Gated before its first chunk reaches the
-          // log, which is where the fence has to catch it — after the successor
-          // has claimed and finished. The gate sits INSIDE the source stream, so
-          // the loser's alignment snapshot (were it attaching) and its first
-          // append both happen after the release, exactly as a host paused by a
-          // GC or a VM suspend would.
           const released = gate()
           const losingDriver = driverFor({
             handle,
@@ -890,10 +749,6 @@ export function runTakeoverConformance(
             attach: true,
           })
           await takeOver(winner.driver, { runs, runId, threadId })
-          // The causal witness, before the transcript — see
-          // {@link READ_BACKSTOP_MS}. The winner drives the run to its sentinel,
-          // so a clock-ended read here must say so rather than surface as a
-          // missing chunk.
           expect({ backstopped: winner.backstopped() }).toEqual({
             backstopped: false,
           })
@@ -902,19 +757,10 @@ export function runTakeoverConformance(
           // Now let the superseded host try to write.
           released.open()
           await loser
-          // The causal witness, and here it is load-bearing rather than merely
-          // diagnostic: the loser's gate is awaited from INSIDE its read, so a
-          // backstopped read would abandon the stream during the wait, the loser
-          // would never attempt an append at all, and every "nothing lands"
-          // assertion below would pass vacuously without the fence ever running.
           expect({ backstopped: losingDriver.backstopped() }).toEqual({
             backstopped: false,
           })
 
-          // NOTHING lands — not the run's chunks a second time, and not
-          // `pipeToRunLog`'s recovery `RUN_ERROR` either. That log belongs to the
-          // WINNER: a terminal `RUN_ERROR` from a dead host would fail the stream
-          // for every client attached to the live, healthy run.
           expect(transcript(log.stored())).toEqual(transcript(expected))
           expect(
             log.stored().some((chunk) => chunk.type === EventType.RUN_ERROR),
@@ -925,10 +771,6 @@ export function runTakeoverConformance(
           expect(record?.status).toBe('completed')
           expect(record?.error).toBeUndefined()
           expect(record?.driverEpoch).toBe(2)
-          // `close()` is deliberately OUTSIDE both fences: it runs on the very
-          // teardown caused by losing the claim, and a fenced close would wedge
-          // the record at `'running'` with every live tailer parked forever. Two
-          // drivers, two closes.
           expect(log.closes()).toBe(2)
         } finally {
           await cleanup(handle, runId)
@@ -937,9 +779,6 @@ export function runTakeoverConformance(
       },
     )
 
-    // ---------------------------------------------------------------------
-    // 4. Journal cleanup on a terminal run, and the attach that follows it.
-    // ---------------------------------------------------------------------
     it(
       "deletes a terminal run's journal, and a later attach reports terminal-run instead of hanging",
       { timeout: 180_000 },
@@ -959,22 +798,17 @@ export function runTakeoverConformance(
             { journal: journalOptions(fresh, runId) },
           )
           const seen: Array<StreamChunk> = []
-          // A backstop, so a reader that delivers nothing fails instead of
-          // parking CI. Not the assertion — `backstopped` below proves it was not
-          // what ended the loop.
           const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
-          for await (const chunk of translate(
+          const takeoverLines = translate(
             runId,
             readJournalNdjson(handle, {
               signal: backstop,
               journal: journalOptions(fresh, runId),
             }),
-          )) {
+          )
+          for await (const chunk of takeoverLines) {
             seen.push(chunk)
           }
-          // The causal witness, first: this loop has no `break`, so the ONLY
-          // honest reasons for it to end are the sentinel or the backstop. A
-          // clock-ended read must say so rather than report a short transcript.
           expect({ backstopped: backstop.aborted }).toEqual({
             backstopped: false,
           })
@@ -984,13 +818,6 @@ export function runTakeoverConformance(
             transcript(expectedTranscript(runId, deltas)),
           )
 
-          // Real files, really gone — asserted through the shell, never
-          // `handle.fs.exists`: on local-process the two resolve `/tmp`
-          // differently, so an `fs` probe would answer about a path the journal
-          // was never written to (`journal.ts` rule 3).
-          // Named rather than two bare `.not.toBe(0)` assertions on an exit
-          // code, so a regression reports WHICH file survived instead of
-          // `expected +0 not to be +0`.
           const journalProbe = await handle.process.exec(
             journalExistsCommand(paths),
           )
@@ -1002,10 +829,6 @@ export function runTakeoverConformance(
             stderrSidecarDeleted: stderrProbe.exitCode !== 0,
           }).toEqual({ journalDeleted: true, stderrSidecarDeleted: true })
 
-          // The run is over, so the record says so — and the attach that follows
-          // must answer from the record rather than tail the journal, which
-          // `journalFollowCommand` would obligingly re-create as an empty file
-          // that no sentinel can ever arrive in.
           await runs.update(runId, {
             status: 'completed',
             finishedAt: Date.now(),
@@ -1024,11 +847,6 @@ export function runTakeoverConformance(
           expect(error).toBeInstanceOf(JournalAttachUnavailableError)
           if (!(error instanceof JournalAttachUnavailableError)) return
           expect(error.reason).toBe('terminal-run')
-          // The journal really is gone (asserted above), so the preflight takes
-          // the record arm: one `test -f`, then the store, no wait. This is the
-          // bound that failed as `expected 9652 to be less than 4000` under
-          // parallel Docker load, where the 9.6s was one `docker exec`
-          // round-trip and not the preflight — see `countingExec`.
           expect(probes.execs()).toBe(1)
         } finally {
           await cleanup(handle, runId)

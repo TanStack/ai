@@ -8,7 +8,6 @@
  *
  * @see https://docs.llmgateway.io
  */
-
 export interface ChatCompletionNamedToolChoice {
   /** Always `function` for a named tool choice. */
   type: 'function'
@@ -38,10 +37,7 @@ export interface ResponseFormatText {
 }
 
 export interface ResponseFormatJsonSchemaJsonSchema {
-  /**
-   * The name of the response format. Must be a-z, A-Z, 0-9, or contain
-   * underscores and dashes, with a maximum length of 64.
-   */
+  /** The name of the function to call. */
   name: string
 
   /**

@@ -1,9 +1,3 @@
-/**
- * @module @tanstack/ai-vercel-gateway
- *
- * Vercel AI Gateway adapter for TanStack AI.
- */
-
 export {
   VercelGatewayTextAdapter,
   type VercelGatewayTextConfig,

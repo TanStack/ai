@@ -8,16 +8,6 @@ import type {
   MemorySnapshotEvent,
 } from '@tanstack/ai-event-client'
 
-/**
- * DevTools-side accumulator for the `memory:*` event stream. Kept as a set of
- * pure reducers (mirroring `hook-registry.ts`) so the mapping from events →
- * view state is unit-testable in isolation, without a Solid store.
- *
- * Memory is keyed by composite scope (`tenantId`/`userId`/`threadId`), NOT by
- * hook — several hooks can share one scope. The `MemoryPanel` reads a single
- * `MemoryScopeState` by key; the per-hook tab just resolves which key to show.
- */
-
 /** One row in a scope's operations timeline. */
 export interface MemoryEventRecord {
   id: string
@@ -28,6 +18,7 @@ export interface MemoryEventRecord {
     | 'persist:completed'
     | 'error'
   timestamp: number
+  /** Most recent adapter id seen for this scope. */
   adapter: string
   /** recall:started — the recall query (last user text). */
   query?: string
@@ -107,7 +98,8 @@ export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
 
 /** Human-readable label for the Memory panel scope picker. */
 export function memoryScopeLabel(entry: MemoryScopeState): string {
-  if (entry.key === '(unknown)' || !entry.threadId) return '(unknown)'
+  const isUnknownScope = entry.key === '(unknown)' || !entry.threadId
+  if (isUnknownScope) return '(unknown)'
   const parts = [
     entry.tenantId,
     entry.userId,
@@ -153,7 +145,11 @@ function eventId(
   type: string,
   ts: number,
 ): string {
-  if (payload.eventId && payload.eventId.length > 0) return payload.eventId
+  const eventIdValue = payload.eventId
+  if (eventIdValue !== undefined) {
+    const hasEventId = eventIdValue.length > 0
+    if (hasEventId) return eventIdValue
+  }
   return `${type}:${ts}:${fallbackCounter++}`
 }
 

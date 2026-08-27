@@ -135,10 +135,15 @@ export function ChatMessage(props: ChatMessageProps) {
 function MessagePart(props: {
   part: any
   isThinkingComplete?: boolean
+  /** Custom renderer for text parts */
   textPartRenderer?: ChatMessageProps['textPartRenderer']
+  /** Custom renderer for thinking parts */
   thinkingPartRenderer?: ChatMessageProps['thinkingPartRenderer']
+  /** Named tool renderers - use the tool name as the key */
   toolsRenderer?: ChatMessageProps['toolsRenderer']
+  /** Default tool renderer when tool name not found in toolsRenderer */
   defaultToolRenderer?: ChatMessageProps['defaultToolRenderer']
+  /** Custom renderer for tool result parts */
   toolResultRenderer?: ChatMessageProps['toolResultRenderer']
 }) {
   // Text part

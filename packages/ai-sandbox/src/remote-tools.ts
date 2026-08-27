@@ -1,28 +1,3 @@
-/**
- * Host-tool delegation for the CO-LOCATED ("combined") sandbox model.
- *
- * In the co-located model the harness loop AND its MCP tool-bridge run INSIDE
- * the container (the in-container sandbox is just `local-process`, so the
- * existing adapter + `nodeHttpBridgeProvisioner` serve the bridge on the
- * container's own `localhost` with native stdin — nothing new there). The one
- * thing that still must cross the container→orchestrator boundary is the
- * **execution** of `chat()`-provided server tools: their `execute()` closures
- * (DB / secrets / app state) live in the orchestrator, not the container.
- *
- * This module is that narrow seam:
- * - {@link remoteToolStubs} (container side) rebuilds `chat()` tools from
- *   serialized {@link ToolDescriptor}s; each stub's `execute` delegates to a
- *   {@link RemoteToolExecutor} instead of running locally. The adapter bridges
- *   these stubs exactly like real tools.
- * - {@link httpRemoteToolExecutor} (container side) is the default executor: it
- *   POSTs `{ name, args }` to the orchestrator's tool-exec endpoint.
- * - {@link executeHostTool} (orchestrator side) runs the REAL tool and returns
- *   its raw result — the only host code the container can reach.
- *
- * So the public network surface shrinks from "the whole MCP protocol" (served
- * from the orchestrator in the DO-drives-container model) to "one authenticated
- * tool-exec call" — the MCP transport itself never leaves the container.
- */
 import type { AnyTool } from '@tanstack/ai'
 import type { ToolDescriptor } from './tool-bridge'
 
@@ -165,7 +140,10 @@ export function executeHostTool(
   tools: Array<AnyTool>,
   name: string,
   args: unknown,
-  options: { context?: unknown; signal?: AbortSignal } = {},
+  options: {
+    context?: unknown /** Cancels the in-flight remote call when the in-container run aborts. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<unknown> {
   const tool = tools.find((candidate) => candidate.name === name)
   if (!tool?.execute) {

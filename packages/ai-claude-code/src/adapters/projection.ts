@@ -1,31 +1,3 @@
-/**
- * Claude Code workspace projector — the reference implementation the other
- * harness projectors (codex, opencode) mirror.
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. Each harness
- * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Claude Code that means:
- *
- *   - MCP servers   → a project-scoped `.mcp.json` at the workspace root.
- *   - gitSkill repos → linked under `.claude/skills/<basename>`.
- *   - agentSkill     → no reliable claude primitive pulls a public skill by
- *                      bare name, so we warn and skip rather than invent one.
- *   - plugins        → `claude plugin install <name> --scope project`
- *                      (best-effort; project scope so the adapter's default
- *                      `--setting-sources project` loads it).
- *
- * The secret-bearing `.mcp.json` is (re)written on EVERY call, re-resolving
- * secrets each time, so claude always reads current values and a snapshot can
- * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
- * operations (gitSkill links, plugin installs, agentSkill handling) are guarded
- * by a one-time marker file under the workspace.
- *
- * External-convention caveat: the `.mcp.json` location/shape, the skills dir,
- * and the plugin-install command are verified against the installed `claude`
- * CLI. Where claude has no clean primitive (agentSkill by bare name) we no-op
- * with a warning instead of fabricating a command.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -91,7 +63,8 @@ function buildMcpConfig(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']

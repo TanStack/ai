@@ -1,31 +1,3 @@
-/**
- * `ContainerSandboxCoordinator` — the concrete {@link SandboxCoordinator} for
- * the CO-LOCATED ("combined") model: the harness loop AND its MCP tool-bridge
- * run INSIDE the container; this DO stays OUTSIDE as a thin durable coordinator.
- *
- *     Worker (stateless trigger)
- *        → ContainerSandboxCoordinator (this DO: thin durable coordinator)
- *           → Container (runs the in-container harness runner that runs chat())
- *
- * The defining difference from {@link ChatSandboxCoordinator}: this DO does NOT
- * call `chat()` / the adapter itself. It implements the one per-model seam,
- * {@link buildRunStream}, by POSTing `/run` to the in-container runner over the
- * sandbox binding and adapting its NDJSON `StreamChunk` stream — so the base's
- * `RunController` / run-log / streaming tail all work unchanged.
- *
- * TWO channels cross the container ↔ DO boundary; everything else (the MCP
- * transport, native stdin) is in-container localhost:
- *   • events OUT: runner → DO  (NDJSON of StreamChunk, appended to the run-log)
- *   • host-tool EXECUTION: container → DO  (`/tool-exec/:runId`, bearer-gated) —
- *     the REAL tool `execute()` (DB / secrets / app state) lives HERE.
- *
- * The per-run config — host tools, workspace, harness, model — is the subclass's
- * {@link config} method.
- *
- * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
- * AI types; not runtime-verified in this repo (no Workers runtime / container
- * build here). It follows the proven run-log / remote-tool contracts.
- */
 import { EventType } from '@tanstack/ai'
 import {
   executeHostTool,
@@ -42,7 +14,8 @@ import type { WorkspaceDefinition } from '@tanstack/ai-sandbox'
 import type { Sandbox } from '@cloudflare/sandbox'
 
 /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
-const RUNNER_PORT = 8080
+const /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
+  RUNNER_PORT = 8080
 
 /**
  * The Env bindings a {@link ContainerSandboxCoordinator} requires. The
@@ -90,6 +63,7 @@ export interface ContainerRunConfig {
 interface ToolExecState {
   token: string
   hostTools: Array<AnyTool>
+  /** Runtime context forwarded to each host tool's `execute()` (DB / app state). */
   context?: unknown
   /** Aborted once the run is terminal so a still-running host tool is cancelled. */
   abort: AbortController
@@ -112,9 +86,6 @@ async function* ndjsonToChunks(
   body: ReadableStream<Uint8Array>,
 ): AsyncIterable<StreamChunk> {
   const reader = body.getReader()
-  // Decode incrementally with `stream: true` so a multi-byte char split across
-  // two reads is reassembled correctly (TextDecoderStream's DOM/Workers typings
-  // disagree across versions; a plain TextDecoder is version-robust and no-cast).
   const decoder = new TextDecoder()
   let buffer = ''
   let result = await reader.read()
@@ -182,20 +153,12 @@ export abstract class ContainerSandboxCoordinator<
   /** Last `/health` probe error, surfaced if the runner never comes up. */
   private lastProbeError?: unknown
 
-  // ===========================================================================
-  // Subclass seam: the per-run configuration
-  // ===========================================================================
-
   /**
    * Resolve the host tools, workspace, harness, and model for one run.
    * Implemented by the app subclass (or supplied by
    * {@link createCloudflareSandboxAgent}).
    */
   protected abstract config(input: StartRunInput): ContainerRunConfig
-
-  // ===========================================================================
-  // The one per-model seam: drive the in-container runner
-  // ===========================================================================
 
   /**
    * Mint the per-run tool-exec token, POST `/run` to the in-container runner, and
@@ -244,9 +207,6 @@ export abstract class ContainerSandboxCoordinator<
   ): AsyncIterable<StreamChunk> {
     const sandbox = getSandbox(this.env.Sandbox, input.threadId)
     await this.ensureRunner(sandbox, runConfig.workspace)
-    // Container→Worker origin: `PUBLIC_HOSTNAME` if set, else derived from the
-    // trigger request (locally → host.docker.internal). The tool-exec token rides
-    // this URL. See `resolveBridgeOrigin`.
     const origin = resolveBridgeOrigin(this.env, input)
     const body: ContainerRunRequest = {
       runId: input.runId,
@@ -317,7 +277,8 @@ export abstract class ContainerSandboxCoordinator<
   ): Record<string, string> {
     const env = this.env as Record<string, unknown>
     const out: Record<string, string> = {}
-    for (const name of Object.keys(workspace.secrets ?? {})) {
+    const secretNames = Object.keys(workspace.secrets ?? {})
+    for (const name of secretNames) {
       const value = env[name]
       if (typeof value === 'string' && value !== '') out[name] = value
     }
@@ -329,11 +290,6 @@ export abstract class ContainerSandboxCoordinator<
     workspace: WorkspaceDefinition,
   ): Promise<void> {
     if (await this.runnerHealthy(sandbox)) return
-    // Inject the run's declared secrets into the container env so the in-container
-    // CLI can authenticate. Values never land in argv or the run-log. Harness-
-    // agnostic: whichever secret names the workspace declared (ANTHROPIC_API_KEY,
-    // CODEX_API_KEY, …) are read from `env` by name. The runner process inherits
-    // this env at boot, so secrets must be set BEFORE startProcess.
     const secretEnv = this.secretEnvFromWorkspace(workspace)
     if (Object.keys(secretEnv).length > 0) {
       await sandbox.setEnvVars(secretEnv)
@@ -374,10 +330,6 @@ export abstract class ContainerSandboxCoordinator<
       return false
     }
   }
-
-  // ===========================================================================
-  // The host-tool-exec callback (`/tool-exec/:runId`), from the base fetch
-  // ===========================================================================
 
   protected override handleRoute(
     request: Request,

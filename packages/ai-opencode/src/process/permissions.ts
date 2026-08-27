@@ -36,7 +36,8 @@ export type PermissionHandler = (
 ) => Promise<OpencodePermissionResponse> | OpencodePermissionResponse
 
 /** Permission categories treated as file mutations for `'acceptEdits'`. */
-const EDIT_TYPES = new Set(['edit', 'write', 'patch'])
+const /** Permission categories treated as file mutations for `'acceptEdits'`. */
+  EDIT_TYPES = new Set(['edit', 'write', 'patch'])
 
 /**
  * Decide whether an OpenCode permission request targets one of the bridged
@@ -48,14 +49,20 @@ export function matchBridgedToolName(
   request: OpencodePermissionRequest,
   bridgedToolNames: ReadonlySet<string> | undefined,
 ): boolean {
-  if (!bridgedToolNames || bridgedToolNames.size === 0) return false
+  if (!bridgedToolNames) return false
+  if (bridgedToolNames.size === 0) return false
   for (const field of [request.type, request.title]) {
-    if (typeof field !== 'string' || field === '') continue
+    if (typeof field !== 'string') continue
+    if (field === '') continue
     if (bridgedToolNames.has(field)) return true
-    if (field.startsWith('tanstack_') && bridgedToolNames.has(field.slice(9))) {
+    const underscoredAlias =
+      field.startsWith('tanstack_') && bridgedToolNames.has(field.slice(9))
+    if (underscoredAlias) {
       return true
     }
-    if (field.startsWith('tanstack.') && bridgedToolNames.has(field.slice(9))) {
+    const dottedAlias =
+      field.startsWith('tanstack.') && bridgedToolNames.has(field.slice(9))
+    if (dottedAlias) {
       return true
     }
   }
@@ -78,7 +85,8 @@ export function resolvePermission(
   if (mode === 'bypassPermissions') {
     return 'once'
   }
-  if (mode === 'acceptEdits' && EDIT_TYPES.has(request.type)) {
+  const allowEdit = mode === 'acceptEdits' && EDIT_TYPES.has(request.type)
+  if (allowEdit) {
     return 'once'
   }
   return 'reject'
@@ -103,7 +111,8 @@ export function resolveInteractivePermission(
   if (matchBridgedToolName(request, bridgedToolNames))
     return { response: 'once' }
   if (mode === 'bypassPermissions') return { response: 'once' }
-  if (mode === 'acceptEdits' && EDIT_TYPES.has(request.type)) {
+  const allowEdit = mode === 'acceptEdits' && EDIT_TYPES.has(request.type)
+  if (allowEdit) {
     return { response: 'once' }
   }
 

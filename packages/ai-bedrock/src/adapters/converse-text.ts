@@ -46,6 +46,130 @@ import type {
 /** Config for the Converse adapter — same client config as the chat adapter. */
 export interface BedrockConverseConfig extends BedrockClientConfig {}
 
+function emitStructuredRunStarted(
+  runId: string,
+  threadId: string,
+  model: string,
+  parentRunId: string | undefined,
+): AdapterYieldChunk {
+  return {
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId,
+    model,
+    timestamp: Date.now(),
+    parentRunId,
+  }
+}
+
+function structuredFragmentFromDelta(
+  ev: ConverseStreamOutput,
+): string | undefined {
+  if (!('contentBlockDelta' in ev)) return undefined
+  const delta = ev.contentBlockDelta?.delta
+  if (!delta) return undefined
+  if (!('toolUse' in delta)) return undefined
+  return delta.toolUse?.input
+}
+
+function* emitStructuredTextDelta(args: {
+  started: boolean
+  messageId: string
+  fragment: string
+  accumulatedRaw: string
+  model: string
+}): Generator<AdapterYieldChunk> {
+  if (args.started) {
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: args.messageId,
+      role: 'assistant',
+      model: args.model,
+      timestamp: Date.now(),
+    }
+  }
+  yield {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId: args.messageId,
+    delta: args.fragment,
+    content: args.accumulatedRaw,
+    model: args.model,
+    timestamp: Date.now(),
+  }
+}
+
+function mapStructuredStopReason(
+  stopReason: string | undefined,
+): 'stop' | 'length' | 'content_filter' {
+  if (stopReason === 'max_tokens') return 'length'
+  if (stopReason === 'content_filtered') return 'content_filter'
+  return 'stop'
+}
+
+function* finishStructuredOutputStream(args: {
+  adapterName: string
+  accumulatedRaw: string
+  runId: string
+  threadId: string
+  model: string
+  finishReason: 'stop' | 'length' | 'content_filter'
+}): Generator<AdapterYieldChunk> {
+  if (args.accumulatedRaw.length === 0) {
+    yield {
+      type: EventType.RUN_ERROR,
+      runId: args.runId,
+      model: args.model,
+      timestamp: Date.now(),
+      message: `${args.adapterName}.structuredOutputStream: response contained no content`,
+      code: 'empty-response',
+      error: {
+        message: `${args.adapterName}.structuredOutputStream: response contained no content`,
+        code: 'empty-response',
+      },
+    }
+    return
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(args.accumulatedRaw)
+  } catch {
+    yield {
+      type: EventType.RUN_ERROR,
+      runId: args.runId,
+      model: args.model,
+      timestamp: Date.now(),
+      message: `Failed to parse structured output as JSON. Content: ${args.accumulatedRaw.slice(0, 200)}${args.accumulatedRaw.length > 200 ? '...' : ''}`,
+      code: 'parse-error',
+      error: {
+        message: 'Failed to parse structured output as JSON',
+        code: 'parse-error',
+      },
+    }
+    return
+  }
+
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.complete',
+    value: {
+      object: parsed,
+      raw: args.accumulatedRaw,
+    },
+    model: args.model,
+    timestamp: Date.now(),
+  }
+
+  yield {
+    type: EventType.RUN_FINISHED,
+    runId: args.runId,
+    threadId: args.threadId,
+    model: args.model,
+    timestamp: Date.now(),
+    finishReason: args.finishReason,
+  }
+}
+
 /**
  * Bedrock Converse text adapter. Wires the Converse translation modules (message
  * converter, tool converter, stream processor, structured-output forced-tool
@@ -62,12 +186,6 @@ export interface BedrockConverseConfig extends BedrockClientConfig {}
  */
 export class BedrockConverseTextAdapter<
   TModel extends BedrockConverseModels,
-  // Constraint mirrors the chat adapter (text.ts): the base parameterises
-  // `TProviderOptions extends Record<string, any>`, and our default
-  // `ResolveConverseProviderOptions<TModel>` resolves to an interface lacking an
-  // implicit index signature — which `Record<string, unknown>` would reject but
-  // `Record<string, any>` accepts. Confined to the generic constraint (the
-  // established adapter pattern) — no value `as` cast is introduced.
   TProviderOptions extends Record<string, any> =
     ResolveConverseProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
@@ -85,9 +203,6 @@ export class BedrockConverseTextAdapter<
 
   constructor(config: BedrockConverseConfig, model: TModel) {
     super({}, model)
-    // Defer client construction and auth resolution: the AWS SDK is Node/
-    // server-only, so we must not pull it into the static graph here. The
-    // client (and its dynamic import) is built lazily on first SDK call.
     this.clientConfig = config
   }
 
@@ -167,10 +282,6 @@ export class BedrockConverseTextAdapter<
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SDK seams (overridden in tests so no real AWS call happens)
-  // ---------------------------------------------------------------------------
-
   protected async sendStream(
     input: ConverseStreamCommandInput,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
@@ -190,10 +301,6 @@ export class BedrockConverseTextAdapter<
     const client = await this.getClient()
     return client.send(new ConverseCommand(input))
   }
-
-  // ---------------------------------------------------------------------------
-  // Public adapter surface
-  // ---------------------------------------------------------------------------
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
@@ -313,21 +420,15 @@ export class BedrockConverseTextAdapter<
       }
       const stream = await this.sendStream(input)
 
-      // The forced tool streams its `input` as partial-JSON fragments inside
-      // `contentBlockDelta.delta.toolUse.input`. We surface them as
-      // TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching openai-base which
-      // carries the structured JSON as text deltas.
       for await (const ev of stream) {
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
-          yield {
-            type: EventType.RUN_STARTED,
+          yield emitStructuredRunStarted(
             runId,
             threadId,
-            model: chatOptions.model,
-            timestamp: Date.now(),
-            parentRunId: chatOptions.parentRunId,
-          }
+            chatOptions.model,
+            chatOptions.parentRunId,
+          )
         }
 
         // Surface in-band server/throttle/validation errors instead of
@@ -335,44 +436,24 @@ export class BedrockConverseTextAdapter<
         throwIfConverseStreamError(ev)
 
         if ('contentBlockDelta' in ev) {
-          const delta = ev.contentBlockDelta?.delta
-          const fragment =
-            delta && 'toolUse' in delta ? delta.toolUse?.input : undefined
+          const fragment = structuredFragmentFromDelta(ev)
           if (fragment !== undefined) {
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId,
-                role: 'assistant',
-                model: chatOptions.model,
-                timestamp: Date.now(),
-              }
-            }
+            const started = !hasEmittedTextMessageStart
+            hasEmittedTextMessageStart = true
             accumulatedRaw += fragment
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
+            yield* emitStructuredTextDelta({
+              started,
               messageId,
-              delta: fragment,
-              content: accumulatedRaw,
+              fragment,
+              accumulatedRaw,
               model: chatOptions.model,
-              timestamp: Date.now(),
-            }
+            })
           }
           continue
         }
 
         if ('messageStop' in ev) {
-          const stopReason = ev.messageStop?.stopReason
-          // The forced structured-output tool produces stopReason 'tool_use' on
-          // success, but that's an implementation detail — a cleanly-completed
-          // structured run reports 'stop', matching openai-base's contract.
-          finishReason =
-            stopReason === 'max_tokens'
-              ? 'length'
-              : stopReason === 'content_filtered'
-                ? 'content_filter'
-                : 'stop'
+          finishReason = mapStructuredStopReason(ev.messageStop?.stopReason)
           continue
         }
       }
@@ -398,60 +479,14 @@ export class BedrockConverseTextAdapter<
         }
       }
 
-      if (accumulatedRaw.length === 0) {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId,
-          model: chatOptions.model,
-          timestamp: Date.now(),
-          message: `${this.name}.structuredOutputStream: response contained no content`,
-          code: 'empty-response',
-          error: {
-            message: `${this.name}.structuredOutputStream: response contained no content`,
-            code: 'empty-response',
-          },
-        }
-        return
-      }
-
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(accumulatedRaw)
-      } catch {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId,
-          model: chatOptions.model,
-          timestamp: Date.now(),
-          message: `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`,
-          code: 'parse-error',
-          error: {
-            message: 'Failed to parse structured output as JSON',
-            code: 'parse-error',
-          },
-        }
-        return
-      }
-
-      yield {
-        type: EventType.CUSTOM,
-        name: 'structured-output.complete',
-        value: {
-          object: parsed,
-          raw: accumulatedRaw,
-        },
-        model: chatOptions.model,
-        timestamp: Date.now(),
-      }
-
-      yield {
-        type: EventType.RUN_FINISHED,
+      yield* finishStructuredOutputStream({
+        adapterName: this.name,
+        accumulatedRaw,
         runId,
         threadId,
         model: chatOptions.model,
-        timestamp: Date.now(),
         finishReason,
-      }
+      })
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
@@ -497,10 +532,6 @@ export class BedrockConverseTextAdapter<
     return false
   }
 
-  // ---------------------------------------------------------------------------
-  // Request construction
-  // ---------------------------------------------------------------------------
-
   /**
    * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
    * structuredOutput, and structuredOutputStream (the latter two override
@@ -518,10 +549,6 @@ export class BedrockConverseTextAdapter<
       ? toToolConfig(convertTools(options.tools), 'auto')
       : undefined
 
-    // Sampling options live on `modelOptions` (typed as the narrowed
-    // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
-    // Completions field names); translate them into Converse's `inferenceConfig`,
-    // which uses AWS-native camelCase keys.
     const modelOptions = options.modelOptions
     const temperature = modelOptions?.temperature
     const topP = modelOptions?.top_p
@@ -584,11 +611,6 @@ function extractStructuredToolInput(
   const content: Array<ContentBlock> = message?.content ?? []
   for (const block of content) {
     if ('toolUse' in block && block.toolUse) {
-      // Only accept the forced structured tool (an unnamed block is allowed,
-      // since the forced tool is the only one configured). A differently-named
-      // tool-use block is a hallucinated/leftover call whose arbitrary input
-      // must not be returned as the validated result — leave it to the caller's
-      // `throw` so the failure is accurate instead of silently wrong.
       if (
         block.toolUse.name === STRUCTURED_TOOL_NAME ||
         block.toolUse.name === undefined

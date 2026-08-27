@@ -36,6 +36,89 @@ function shouldSkipInstrumentation(mw: ChatMiddleware<any, any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
 }
 
+function applyOnChunkResult(input: {
+  result: StreamChunk | Array<StreamChunk> | null | undefined | void
+  original: StreamChunk
+  chunkType: StreamChunk['type']
+  nextChunks: Array<StreamChunk>
+  skip: boolean
+  mw: ChatMiddleware<any, any>
+  ctx: ChatMiddlewareContext<any>
+  logger: InternalLogger
+}): void {
+  const { result, original, chunkType, nextChunks, skip, mw, ctx, logger } =
+    input
+  if (result === null) {
+    if (!skip) {
+      logger.middleware(
+        `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=<dropped>`,
+        {
+          middleware: mw.name ?? 'unnamed',
+          hook: 'onChunk',
+          dropped: true,
+        },
+      )
+      aiEventClient.emit('middleware:chunk:transformed', {
+        ...instrumentCtx(ctx),
+        middlewareName: mw.name || 'unnamed',
+        originalChunkType: chunkType,
+        resultCount: 0,
+        wasDropped: true,
+      })
+    }
+    return
+  }
+  if (result === undefined) {
+    nextChunks.push(original)
+    return
+  }
+  if (Array.isArray(result)) {
+    nextChunks.push(...result)
+    if (!skip) {
+      logger.middleware(
+        `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => r.type).join(',')}]`,
+        {
+          middleware: mw.name ?? 'unnamed',
+          hook: 'onChunk',
+          in: original,
+          out: result,
+        },
+      )
+      aiEventClient.emit('middleware:chunk:transformed', {
+        ...instrumentCtx(ctx),
+        middlewareName: mw.name || 'unnamed',
+        originalChunkType: chunkType,
+        resultCount: result.length,
+        wasDropped: false,
+      })
+    }
+    return
+  }
+  if (result) {
+    nextChunks.push(result)
+    if (!skip) {
+      logger.middleware(
+        `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
+        {
+          middleware: mw.name ?? 'unnamed',
+          hook: 'onChunk',
+          in: original,
+          out: result,
+        },
+      )
+      aiEventClient.emit('middleware:chunk:transformed', {
+        ...instrumentCtx(ctx),
+        middlewareName: mw.name || 'unnamed',
+        originalChunkType: chunkType,
+        resultCount: 1,
+        wasDropped: false,
+      })
+    }
+    return
+  }
+  nextChunks.push(original)
+}
+
 /** Build the base context for middleware instrumentation events. */
 function instrumentCtx(ctx: ChatMiddlewareContext<any>) {
   return {
@@ -120,10 +203,10 @@ export class MiddlewareRunner<
             cancel: 1,
             stop: 2,
           }
-          if (
+          const shouldTakeResume =
             toolResume === undefined ||
             priority[next.toolResume] > priority[toolResume]
-          ) {
+          if (shouldTakeResume) {
             toolResume = next.toolResume
           }
         }
@@ -164,8 +247,8 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const result = await mw.onConfig(ctx, current)
-        const hasTransform = result !== undefined && result !== null
-        if (hasTransform) {
+        const hasConfigPatch = result !== undefined && result !== null
+        if (hasConfigPatch) {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
@@ -185,9 +268,9 @@ export class MiddlewareRunner<
             hookName: 'onConfig',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasConfigPatch,
           })
-          if (hasTransform) {
+          if (hasConfigPatch) {
             aiEventClient.emit('middleware:config:transformed', {
               ...base,
               middlewareName: mw.name || 'unnamed',
@@ -219,8 +302,8 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const result = await mw.onStructuredOutputConfig(ctx, current)
-        const hasTransform = result !== undefined && result !== null
-        if (hasTransform) {
+        const hasStructuredPatch = result !== undefined && result !== null
+        if (hasStructuredPatch) {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
@@ -240,17 +323,13 @@ export class MiddlewareRunner<
             hookName: 'onStructuredOutputConfig',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasStructuredPatch,
           })
-          if (hasTransform) {
+          if (hasStructuredPatch) {
             aiEventClient.emit('middleware:config:transformed', {
               ...base,
               middlewareName: mw.name || 'unnamed',
               iteration: ctx.iteration,
-              // `result` is `Partial<StructuredOutputMiddlewareConfig>` —
-              // Object.fromEntries(Object.entries(result)) yields the
-              // structural `Record<string, unknown>` the event emitter wants
-              // without an `as` cast.
               changes: Object.fromEntries(Object.entries(result)),
             })
           }
@@ -359,7 +438,6 @@ export class MiddlewareRunner<
 
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
-        // Cast: @ag-ui/core Zod passthrough types prevent direct `.type` access
         const chunkType = c.type
         if (!skip) {
           this.logger.middleware(
@@ -368,72 +446,16 @@ export class MiddlewareRunner<
           )
         }
         const result = await mw.onChunk(ctx, c)
-        if (result === null) {
-          // Drop this chunk
-          if (!skip) {
-            this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=<dropped>`,
-              {
-                middleware: mw.name ?? 'unnamed',
-                hook: 'onChunk',
-                dropped: true,
-              },
-            )
-            aiEventClient.emit('middleware:chunk:transformed', {
-              ...instrumentCtx(ctx),
-              middlewareName: mw.name || 'unnamed',
-              originalChunkType: chunkType,
-              resultCount: 0,
-              wasDropped: true,
-            })
-          }
-          continue
-        } else if (result === undefined) {
-          // Pass through — no instrumentation for pass-throughs
-          nextChunks.push(c)
-        } else if (Array.isArray(result)) {
-          // Expand
-          nextChunks.push(...result)
-          if (!skip) {
-            this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=[${result.map((r: StreamChunk) => r.type).join(',')}]`,
-              {
-                middleware: mw.name ?? 'unnamed',
-                hook: 'onChunk',
-                in: c,
-                out: result,
-              },
-            )
-            aiEventClient.emit('middleware:chunk:transformed', {
-              ...instrumentCtx(ctx),
-              middlewareName: mw.name || 'unnamed',
-              originalChunkType: chunkType,
-              resultCount: result.length,
-              wasDropped: false,
-            })
-          }
-        } else {
-          // Replace
-          nextChunks.push(result)
-          if (!skip) {
-            this.logger.middleware(
-              `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
-              {
-                middleware: mw.name ?? 'unnamed',
-                hook: 'onChunk',
-                in: c,
-                out: result,
-              },
-            )
-            aiEventClient.emit('middleware:chunk:transformed', {
-              ...instrumentCtx(ctx),
-              middlewareName: mw.name || 'unnamed',
-              originalChunkType: chunkType,
-              resultCount: 1,
-              wasDropped: false,
-            })
-          }
-        }
+        applyOnChunkResult({
+          result,
+          original: c,
+          chunkType,
+          nextChunks,
+          skip,
+          mw,
+          ctx,
+          logger: this.logger,
+        })
       }
       chunks = nextChunks
     }
@@ -487,7 +509,7 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const decision = await mw.onBeforeToolCall(ctx, hookCtx)
-        const hasTransform = decision !== undefined && decision !== null
+        const hasDecision = decision !== undefined && decision !== null
         if (!skip) {
           this.logger.middleware(
             `hook=onBeforeToolCall middleware=${mw.name ?? 'unnamed'}`,
@@ -499,10 +521,10 @@ export class MiddlewareRunner<
             hookName: 'onBeforeToolCall',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasDecision,
           })
         }
-        if (hasTransform) {
+        if (hasDecision) {
           return decision
         }
       }
@@ -728,7 +750,8 @@ export class MiddlewareRunner<
         const failure = await this.captureTerminalHook(mw, 'onAbort', () =>
           hook.call(mw, ctx, info),
         )
-        if (failure === undefined && !skip) {
+        const hookSucceeded = failure === undefined && !skip
+        if (hookSucceeded) {
           this.logger.middleware(
             `hook=onAbort middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onAbort' },
@@ -773,7 +796,8 @@ export class MiddlewareRunner<
         const failure = await this.captureTerminalHook(mw, 'onError', () =>
           hook.call(mw, ctx, info),
         )
-        if (failure === undefined && !skip) {
+        const hookSucceeded = failure === undefined && !skip
+        if (hookSucceeded) {
           this.logger.middleware(
             `hook=onError middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onError' },

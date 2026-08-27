@@ -16,10 +16,6 @@ function normalizePersistedState(
   return undefined
 }
 
-// `StreamChunk` is a discriminated union; `toolCallId` / `messageId` /
-// `parentMessageId` exist on only some members. Narrow with `in` (matching
-// `getChunkRunId`) instead of asserting a shape, so the field's real type is
-// preserved and a protocol rename can't be read past silently.
 function getChunkToolCallId(chunk: StreamChunk): string | undefined {
   return 'toolCallId' in chunk && typeof chunk.toolCallId === 'string'
     ? chunk.toolCallId
@@ -89,10 +85,8 @@ export class ChatPersistor {
   /** Persist the current state as one combined `{ messages, resume? }` record. */
   private writeState(): void {
     const messages = [...this.lastMessages]
-    // Nothing to persist (no transcript, no resume pointer): remove the key
-    // rather than writing an empty `{ messages: [] }`, so a cleared
-    // conversation does not leave a stale record behind.
-    if (messages.length === 0 && !this.lastResume) {
+    const isEmptyState = messages.length === 0 && !this.lastResume
+    if (isEmptyState) {
       const generation = this.generation
       this.runOperation(() => {
         if (generation !== this.generation) {
@@ -114,10 +108,6 @@ export class ChatPersistor {
       return this.adapter.setItem(this.id, state)
     })
   }
-
-  // ---------------------------------------------------------------------------
-  // Storage orchestration
-  // ---------------------------------------------------------------------------
 
   /**
    * Synchronously read the persisted state for constructor-time hydration.
@@ -160,7 +150,10 @@ export class ChatPersistor {
     const hydrationGeneration = this.messagesGeneration
     persistedState
       .then((state) => {
-        if (!state || this.messagesGeneration !== hydrationGeneration) {
+        if (!state) {
+          return
+        }
+        if (this.messagesGeneration !== hydrationGeneration) {
           return
         }
         this.lastResume = state.resume ?? null
@@ -249,10 +242,6 @@ export class ChatPersistor {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Clear-during-stream suppression
-  // ---------------------------------------------------------------------------
-
   /**
    * Capture the message/run ids that exist at the moment of a clear so chunks
    * still arriving for them can be ignored.
@@ -283,7 +272,8 @@ export class ChatPersistor {
   /** Whether a chunk belongs to cleared state and should not be processed. */
   shouldIgnoreChunk(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    if (runId && this.clearedRunIds.has(runId)) {
+    const hasClearedRunId = runId && this.clearedRunIds.has(runId)
+    if (hasClearedRunId) {
       if (chunk.type === 'RUN_STARTED') {
         this.ignoredActiveRunIds.add(runId)
         this.currentRunlessRunId = runId
@@ -292,7 +282,8 @@ export class ChatPersistor {
       return true
     }
 
-    if (runId && this.ignoredActiveRunIds.has(runId)) {
+    const hasIgnoredActiveRunId = runId && this.ignoredActiveRunIds.has(runId)
+    if (hasIgnoredActiveRunId) {
       this.markIgnoredChunkIds(chunk)
       return true
     }
@@ -303,12 +294,16 @@ export class ChatPersistor {
     }
 
     const toolCallId = getChunkToolCallId(chunk)
-    if (toolCallId && this.clearedToolCallIds.has(toolCallId)) {
+    const hasClearedToolCallId =
+      toolCallId && this.clearedToolCallIds.has(toolCallId)
+    if (hasClearedToolCallId) {
       return true
     }
 
     const parentMessageId = getChunkParentMessageId(chunk)
-    if (parentMessageId && this.clearedMessageIds.has(parentMessageId)) {
+    const hasClearedMessageId =
+      parentMessageId && this.clearedMessageIds.has(parentMessageId)
+    if (hasClearedMessageId) {
       if (toolCallId) {
         this.clearedToolCallIds.add(toolCallId)
       }
@@ -364,9 +359,6 @@ export class ChatPersistor {
     if (!runId) return null
     this.ignoredActiveRunIds.delete(runId)
     this.clearedRunIds.delete(runId)
-    // Advance to another still-ignored run (mirroring `onRunSettled`) so that
-    // when two cleared runs drain concurrently, draining one via a runId-less
-    // RUN_ERROR doesn't stop suppressing the other's runless content.
     this.currentRunlessRunId =
       this.ignoredActiveRunIds.values().next().value ?? null
     return runId
@@ -385,11 +377,12 @@ export class ChatPersistor {
 
   private isRunlessChunkFromIgnoredRun(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    if (runId || !this.currentRunlessRunId) return false
-    if (
+    if (runId) return false
+    if (!this.currentRunlessRunId) return false
+    const isUnknownRunlessId =
       !this.ignoredActiveRunIds.has(this.currentRunlessRunId) &&
       !this.clearedRunIds.has(this.currentRunlessRunId)
-    ) {
+    if (isUnknownRunlessId) {
       return false
     }
     return (

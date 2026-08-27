@@ -36,7 +36,8 @@ import type { GrokClientConfig } from '../utils/client'
 export interface GrokImageConfig extends GrokClientConfig {}
 
 /** Maximum source images accepted by xAI's image edit endpoint. */
-const MAX_EDIT_IMAGES = 3
+const /** Maximum source images accepted by xAI's image edit endpoint. */
+  MAX_EDIT_IMAGES = 3
 
 /**
  * Maps the generic `size` option onto Imagine API parameters: the
@@ -118,7 +119,9 @@ export class GrokImageAdapter<
     const resolved = resolveMediaPrompt(options.prompt)
     const prompt = resolved.text
 
-    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+    const hasUnsupportedPromptMedia =
+      resolved.videos.length > 0 || resolved.audios.length > 0
+    if (hasUnsupportedPromptMedia) {
       throw new Error(
         `grok.generateImages does not support video / audio prompt parts on model ${model}.`,
       )
@@ -140,10 +143,6 @@ export class GrokImageAdapter<
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
-    // grok-imagine models are aspect-ratio sized: the generic `size` option
-    // carries an "aspectRatio_resolution" template (e.g. '16:9_2k', like
-    // Gemini native image models) and maps to the Imagine API's
-    // `aspect_ratio` / `resolution` parameters instead of OpenAI-style `size`.
     const isImagine = isGrokImagineImageModel(model)
     const request = {
       model,

@@ -1,7 +1,3 @@
-/**
- * Adapt a sandbox {@link SpawnHandle} into byte streams for ACP stdio
- * (newline-delimited JSON-RPC).
- */
 import type { SpawnHandle } from '@tanstack/ai-sandbox'
 import type { AcpByteTransport } from './types'
 

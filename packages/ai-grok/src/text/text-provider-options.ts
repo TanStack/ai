@@ -1,11 +1,3 @@
-/**
- * Grok Text Provider Options
- *
- * Grok uses xAI's OpenAI-compatible Responses API. Engine-managed fields
- * such as `model`, `input`, `tools`, and `text.format` are owned by the
- * adapter; user-supplied values live under `modelOptions`.
- */
-
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
 export type GrokReasoningEffort = 'none' | 'low' | 'medium' | 'high'

@@ -42,6 +42,16 @@ import type {
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
+function assignDefined<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | undefined,
+): void {
+  if (value !== undefined) {
+    target[key] = value
+  }
+}
+
 /**
  * Configuration for Gemini image adapter
  */
@@ -166,21 +176,12 @@ export class GeminiImageAdapter<
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
 
-    // The portable `size` option is the baseline; modelOptions.imageConfig is
-    // the provider escape hatch and wins per field, so a caller passing only
-    // `imageConfig.imageSize` keeps the aspectRatio derived from `size`.
     const imageConfig: ImageConfig = {
       ...(parsedSize?.aspectRatio && { aspectRatio: parsedSize.aspectRatio }),
       ...(parsedSize?.resolution && { imageSize: parsedSize.resolution }),
       ...modelOptions?.imageConfig,
     }
 
-    // Named picks, never a wholesale spread: the Imagen-shaped fields of
-    // GeminiImageProviderOptions (personGeneration, safetyFilterLevel,
-    // addWatermark, outputMimeType, …) are only valid on GenerateImagesConfig
-    // and would be rejected by generateContent. Picking by name means no
-    // Imagen field can reach this path even if one slips past the per-model
-    // provider-options map.
     const nativeConfig: GenerateContentConfig = {
       ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
       ...(modelOptions?.safetySettings !== undefined && {
@@ -196,9 +197,6 @@ export class GeminiImageAdapter<
 
     const config: GenerateContentConfig = {
       ...nativeConfig,
-      // Include TEXT so the model can interleave descriptions between images.
-      // IMPORTANT: responseModalities is a protected default — set it AFTER
-      // nativeConfig so nothing can silently disable image output.
       responseModalities: ['TEXT', 'IMAGE'],
       ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
     }
@@ -266,11 +264,6 @@ export class GeminiImageAdapter<
         },
       }
     }
-    // URL sources (public HTTPS, Files API URIs, gs://) pass through as
-    // `fileData` and Gemini fetches them server-side — same as the chat
-    // adapter. Fetching locally and inlining as base64 double-buffers the
-    // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers).
     return {
       fileData: {
         fileUri: part.source.value,
@@ -299,10 +292,6 @@ export class GeminiImageAdapter<
       }
     }
 
-    // If the model returned only text parts (for example a safety refusal
-    // or a "can't do that" message), surface the text instead of silently
-    // resolving to an empty images array — otherwise callers can't tell a
-    // generation failure apart from a genuine empty response.
     if (images.length === 0) {
       const reason =
         textParts.length > 0
@@ -315,10 +304,6 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      // Surface token usage (with per-modality breakdown) when the model
-      // reports it (e.g. Nano Banana via generateContent). Conditionally spread
-      // to satisfy exactOptionalPropertyTypes — only include usage when
-      // present. See #330.
       ...(response.usageMetadata
         ? { usage: buildGeminiUsage(response.usageMetadata) }
         : {}),
@@ -329,68 +314,39 @@ export class GeminiImageAdapter<
     options: ImageGenerationOptions<GeminiAnyImageProviderOptions>,
   ): GenerateImagesConfig {
     const { size, numberOfImages, modelOptions } = options
-
-    // Build with conditional spreads — under exactOptionalPropertyTypes the
-    // vendor `GenerateImagesConfig` fields are `field?: T` (no `| undefined`),
-    // so we can only assign the property when we actually have a value.
-    const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
-
-    // Named picks, never a wholesale spread — the mirror image of the native
-    // path below. A native-only field (safetySettings, thinkingConfig,
-    // imageConfig, systemInstruction) belongs to GenerateContentConfig and is
-    // rejected by generateImages with 400 INVALID_ARGUMENT, so it must not be
-    // able to reach here even when the caller's `modelOptions` was typed
-    // against both shapes at once (e.g. an adapter inferred from a union of
-    // model names).
-    return {
+    const config: GenerateImagesConfig = {
       numberOfImages: numberOfImages ?? 1,
-      // Map size to aspect ratio if provided; modelOptions.aspectRatio,
-      // picked after it, overrides.
-      ...(sizeAspectRatio !== undefined && { aspectRatio: sizeAspectRatio }),
-      ...(modelOptions?.aspectRatio !== undefined && {
-        aspectRatio: modelOptions.aspectRatio,
-      }),
-      ...(modelOptions?.personGeneration !== undefined && {
-        personGeneration: modelOptions.personGeneration,
-      }),
-      ...(modelOptions?.safetyFilterLevel !== undefined && {
-        safetyFilterLevel: modelOptions.safetyFilterLevel,
-      }),
-      ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
-      ...(modelOptions?.addWatermark !== undefined && {
-        addWatermark: modelOptions.addWatermark,
-      }),
-      ...(modelOptions?.language !== undefined && {
-        language: modelOptions.language,
-      }),
-      ...(modelOptions?.negativePrompt !== undefined && {
-        negativePrompt: modelOptions.negativePrompt,
-      }),
-      ...(modelOptions?.outputMimeType !== undefined && {
-        outputMimeType: modelOptions.outputMimeType,
-      }),
-      ...(modelOptions?.outputCompressionQuality !== undefined && {
-        outputCompressionQuality: modelOptions.outputCompressionQuality,
-      }),
-      ...(modelOptions?.guidanceScale !== undefined && {
-        guidanceScale: modelOptions.guidanceScale,
-      }),
-      ...(modelOptions?.enhancePrompt !== undefined && {
-        enhancePrompt: modelOptions.enhancePrompt,
-      }),
-      ...(modelOptions?.includeSafetyAttributes !== undefined && {
-        includeSafetyAttributes: modelOptions.includeSafetyAttributes,
-      }),
-      ...(modelOptions?.includeRaiReason !== undefined && {
-        includeRaiReason: modelOptions.includeRaiReason,
-      }),
-      ...(modelOptions?.outputGcsUri !== undefined && {
-        outputGcsUri: modelOptions.outputGcsUri,
-      }),
-      ...(modelOptions?.labels !== undefined && {
-        labels: modelOptions.labels,
-      }),
     }
+    const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
+    assignDefined(
+      config,
+      'aspectRatio',
+      modelOptions?.aspectRatio ?? sizeAspectRatio,
+    )
+    if (!modelOptions) return config
+    assignDefined(config, 'personGeneration', modelOptions.personGeneration)
+    assignDefined(config, 'safetyFilterLevel', modelOptions.safetyFilterLevel)
+    assignDefined(config, 'seed', modelOptions.seed)
+    assignDefined(config, 'addWatermark', modelOptions.addWatermark)
+    assignDefined(config, 'language', modelOptions.language)
+    assignDefined(config, 'negativePrompt', modelOptions.negativePrompt)
+    assignDefined(config, 'outputMimeType', modelOptions.outputMimeType)
+    assignDefined(
+      config,
+      'outputCompressionQuality',
+      modelOptions.outputCompressionQuality,
+    )
+    assignDefined(config, 'guidanceScale', modelOptions.guidanceScale)
+    assignDefined(config, 'enhancePrompt', modelOptions.enhancePrompt)
+    assignDefined(
+      config,
+      'includeSafetyAttributes',
+      modelOptions.includeSafetyAttributes,
+    )
+    assignDefined(config, 'includeRaiReason', modelOptions.includeRaiReason)
+    assignDefined(config, 'outputGcsUri', modelOptions.outputGcsUri)
+    assignDefined(config, 'labels', modelOptions.labels)
+    return config
   }
 
   private transformImagenResponse(
@@ -412,28 +368,20 @@ export class GeminiImageAdapter<
         })
         continue
       }
-      // Imagen can drop individual entries with a raiFilteredReason when
-      // Responsible-AI filters fire. Preserve the reason so callers can
-      // surface it instead of silently getting back fewer images.
       const reason = (item as { raiFilteredReason?: string }).raiFilteredReason
       if (reason) {
         filterReasons.push(reason)
       }
     }
 
-    // Every entry was filtered — no usable images to return. Throw rather
-    // than resolve to an empty array so the caller is forced to handle the
-    // failure mode explicitly.
-    if (entries.length > 0 && images.length === 0) {
+    const allImagesFiltered = entries.length > 0 && images.length === 0
+    if (allImagesFiltered) {
       const joined = filterReasons.length > 0 ? filterReasons.join('; ') : ''
       throw new Error(
         `Imagen ${model} returned no images: all ${entries.length} generated image(s) were filtered by Responsible-AI${joined ? ` (${joined})` : ''}.`,
       )
     }
 
-    // Partial filter: surface via console.warn since ImageGenerationResult
-    // has no warnings field. Callers that care can still inspect the count
-    // mismatch between requested and returned images.
     if (filterReasons.length > 0 && typeof console !== 'undefined') {
       console.warn(
         `[gemini-image] ${filterReasons.length} of ${entries.length} images from ${model} were filtered by Responsible-AI: ${filterReasons.join('; ')}`,
@@ -460,25 +408,7 @@ export function createGeminiImage(
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
-/**
- * Creates a Gemini image adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'imagen-4.0-generate-001')
- * @param apiKey - Your Google API key
- * @param config - Optional additional configuration
- * @returns Configured Gemini image adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createGeminiImage('imagen-4.0-generate-001', "your-api-key");
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A cute baby sea otter'
- * });
- * ```
- */
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
 export function createGeminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   apiKey: string,
@@ -502,30 +432,7 @@ export function geminiImage(
   model: 'gemini-3-pro-image-preview',
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
-/**
- * Creates a Gemini image adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
- *
- * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'imagen-4.0-generate-001')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini image adapter instance with resolved types
- * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiImage('imagen-4.0-generate-001');
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A beautiful sunset over mountains'
- * });
- * ```
- */
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
 export function geminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,

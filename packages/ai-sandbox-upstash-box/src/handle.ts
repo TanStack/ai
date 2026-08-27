@@ -78,15 +78,15 @@ function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
   const size = fields?.groups?.size
-  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  if (!mode) throw new Error(`invalid lstat output: ${output}`)
+  if (!size) throw new Error(`invalid lstat output: ${output}`)
   const parsedMode = Number.parseInt(mode, 16)
   const parsedSize = Number(size)
-  if (
+  const isInvalidLstat =
     !Number.isSafeInteger(parsedMode) ||
     !Number.isSafeInteger(parsedSize) ||
     parsedSize < 0
-  )
-    throw new Error(`invalid lstat output: ${output}`)
+  if (isInvalidLstat) throw new Error(`invalid lstat output: ${output}`)
   const type = parsedMode & 0xf000
   if (type === 0x8000)
     return { type: 'file', mode: parsedMode, size: parsedSize }
@@ -110,7 +110,8 @@ class AsyncChunkQueue implements AsyncIterable<string> {
   ) {}
 
   push(chunk: string): void {
-    if (chunk === '' || this.ended) return
+    const shouldIgnoreChunk = chunk === '' || this.ended
+    if (shouldIgnoreChunk) return
     this.bytes += Buffer.byteLength(chunk)
     if (this.bytes > MAX_STREAM_BYTES) {
       this.truncated = true
@@ -258,7 +259,9 @@ export class UpstashBoxHandle implements SandboxHandle {
   }
 
   private abs(p: string): string {
-    if (p === this.workspaceRoot || p.startsWith(`${this.workspaceRoot}/`)) {
+    const isInsideWorkspaceRoot =
+      p === this.workspaceRoot || p.startsWith(`${this.workspaceRoot}/`)
+    if (isInsideWorkspaceRoot) {
       return p
     }
     if (p === '/workspace') return this.workspaceRoot
@@ -270,7 +273,8 @@ export class UpstashBoxHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    const isLstatAbsent = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (isLstatAbsent) return undefined
     if (r.exitCode !== 0) {
       const output = `${r.stdout}\n${r.stderr}`
       throw new Error(`lstat failed: ${output.trim()}`)
@@ -340,7 +344,8 @@ export class UpstashBoxHandle implements SandboxHandle {
     })
 
     started.session = session
-    if (stdoutQ.overflowed || stderrQ.overflowed) session.kill('TERM')
+    const didOutputOverflow = stdoutQ.overflowed || stderrQ.overflowed
+    if (didOutputOverflow) session.kill('TERM')
 
     const onAbort = (): void => session.kill('TERM')
     opts?.signal?.addEventListener('abort', onAbort, { once: true })

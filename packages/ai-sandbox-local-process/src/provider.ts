@@ -79,6 +79,7 @@ class LocalProcessProvider implements SandboxProvider {
     })
   }
 
+  /** Override the default temp base dir for generated sandboxes. */
   private baseDir(): string {
     return (
       this.config.baseDir ?? path.join(os.tmpdir(), 'tanstack-ai-sandboxes')

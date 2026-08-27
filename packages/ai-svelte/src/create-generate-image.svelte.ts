@@ -120,6 +120,7 @@ export function createGenerateImage<TTransformed = void>(
 ): CreateGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -137,15 +138,19 @@ export function createGenerateImage<TTransformed = void>(
   })
 
   return {
+    /** The generation result containing images, or null */
     get result() {
       return gen.result
     },
+    /** Whether generation is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

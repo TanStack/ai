@@ -36,7 +36,9 @@ export function resolvePermission(
     return allow()
   }
   if (mode === 'bypassPermissions') return allow()
-  if (mode === 'acceptEdits' && EDIT_KINDS.has(request.toolCall.kind ?? '')) {
+  const allowEdit =
+    mode === 'acceptEdits' && EDIT_KINDS.has(request.toolCall.kind ?? '')
+  if (allowEdit) {
     return allow()
   }
   return reject()
@@ -59,7 +61,9 @@ export function resolveInteractivePermission(
     return { outcome: allow() }
   }
   if (mode === 'bypassPermissions') return { outcome: allow() }
-  if (mode === 'acceptEdits' && EDIT_KINDS.has(request.toolCall.kind ?? '')) {
+  const allowEdit =
+    mode === 'acceptEdits' && EDIT_KINDS.has(request.toolCall.kind ?? '')
+  if (allowEdit) {
     return { outcome: allow() }
   }
 

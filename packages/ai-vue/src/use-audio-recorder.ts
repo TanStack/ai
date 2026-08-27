@@ -39,12 +39,6 @@ export interface UseAudioRecorderReturn<TOutput> {
  * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
  * while a stop is in flight, e.g. on unmount) — handle one channel, not both.
  */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`useAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -61,7 +55,9 @@ export function useAudioRecorder(
     ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
     ...(options.onError !== undefined && { onError: options.onError }),
   })
+  /** Readonly ref: true while actively capturing audio. */
   const isRecording = ref(false)
+  /** Readonly ref: latest recording (transformed if `onComplete` provided), or null. */
   const recording = shallowRef<unknown>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
@@ -73,6 +69,7 @@ export function useAudioRecorder(
     recorder.cancel()
   })
 
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)

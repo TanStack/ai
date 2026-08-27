@@ -68,6 +68,7 @@ class SpritesProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
+  /** Internal port proxied to the public URL. Defaults to 8080. */
   private get httpPort(): number {
     return this.config.httpPort ?? SPRITE_DEFAULT_HTTP_PORT
   }
@@ -88,10 +89,6 @@ class SpritesProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    // Honor the deterministic id ensure() supplies (see SandboxCreateInput.id).
-    // The sprite's preview URL is keyed by name, so a random name would strand
-    // an out-of-band reconnect (a preview iframe) on a different sprite than the
-    // one the agent edits. Fall back to a random name for direct/advanced use.
     const name =
       input.id ??
       `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
@@ -106,9 +103,6 @@ class SpritesProvider implements SandboxProvider {
       await this.client.setUrlAuth(sprite.name, this.urlAuth, input.signal)
     }
 
-    // Ensure the workspace dir exists before any cwd-bound command runs in it.
-    // Run from `/` (not the workdir, which does not exist yet) so the exec's own
-    // cwd resolution does not fail for a non-default `workdir`.
     const mkdir = this.client.exec(sprite.name, {
       argv: ['mkdir', '-p', this.workdir],
       cwd: '/',

@@ -1,17 +1,16 @@
 import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { parse as parsePartialJSON } from 'partial-json'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../../utils/client'
+import { translateInteractionEvents } from './translate-events'
 import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
-import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
@@ -32,7 +31,6 @@ import type {
 } from '@tanstack/ai'
 
 import type {
-  GeminiInteractionsCustomEvent,
   GeminiInteractionsCustomEventValue,
   GeminiInteractionsStream,
 } from './events'
@@ -54,13 +52,6 @@ type InteractionsTool = NonNullable<
 
 type ContentBlock = Interactions.Content
 
-// The Interactions API takes `input` as a list of *Steps* (not a list of
-// content blocks, and not a list of `Turn`s — the SDK's type union is
-// misleading on both counts). The live API enforces the Step envelope —
-// raw content arrays produce `invalid_request` / "value at top-level
-// must be a list". The wire discriminator is snake_case
-// (`user_input` / `function_result`); see
-// https://ai.google.dev/api/interactions-api for the full Step union.
 type UserInputStep = {
   type: 'user_input'
   content: Array<ContentBlock>
@@ -74,11 +65,6 @@ type FunctionResultStep = {
 type InteractionsStep = UserInputStep | FunctionResultStep
 type InteractionsRequestInput = Array<InteractionsStep>
 
-// Concrete wire shape we send to `client.interactions.create`. The SDK's
-// own param union types `input` as `string | Content[] | Turn[] | ...`
-// which is wrong for the live API (see the InteractionsRequestInput
-// comment above), so we type `input` ourselves and cast just once at the
-// SDK boundary instead of casting every field through.
 type GeminiInteractionsRequestBody = Omit<
   Interactions.CreateModelInteractionParamsStreaming,
   'input' | 'stream'
@@ -86,22 +72,6 @@ type GeminiInteractionsRequestBody = Omit<
   input: InteractionsRequestInput
   stream?: boolean
 }
-
-type ToolCallState = {
-  name: string
-  // Accumulated args as a parsed object. Kept here in object form so a
-  // garbled delta can't corrupt previously-merged fragments (the prior
-  // string-then-reparse pipeline replaced the whole accumulator on any
-  // parse failure). Stringified only when emitting AG-UI events.
-  args: Record<string, unknown>
-  index: number
-  started: boolean
-  ended: boolean
-}
-
-// ===========================
-// Type Resolution Helpers
-// ===========================
 
 /**
  * Resolve provider options for a specific model. The Interactions API's
@@ -185,20 +155,6 @@ export class GeminiTextInteractionsAdapter<
   override readonly name = 'gemini-text-interactions' as const
 
   private readonly client: GoogleGenAI
-  // Tracks the most recent server-assigned interaction id per threadId
-  // so the adapter can chain follow-up calls on the same thread without
-  // the caller having to thread the id manually. Two callers rely on
-  // this:
-  //   1. The agent loop's tool-call iterations (each iteration is a new
-  //      `chatStream` call with accumulated tool messages).
-  //   2. The agentic-structured composition: a `chatStream` run followed
-  //      by `structuredOutput` on the accumulated messages.
-  // Cross-request chaining is the caller's job via
-  // `modelOptions.previous_interaction_id`. To keep stale ids from
-  // chaining a brand-new turn, `chatStream` evicts at the START when
-  // the caller signals fresh-turn intent (no caller-provided id AND a
-  // single user message — anything else is a follow-up). Errors evict
-  // immediately so a failed turn never chains into the next one.
   private readonly interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
@@ -213,36 +169,84 @@ export class GeminiTextInteractionsAdapter<
     const threadId = options.threadId ?? generateId(this.name)
     const timestamp = Date.now()
     const { logger } = options
+    const interactionIdByThread = this.interactionIdByThread
 
-    // Fresh-turn intent: caller didn't thread an id AND only a single
-    // user message is queued. Drop any stale captured id so we don't
-    // silently chain off a prior turn the caller doesn't know about.
-    // Multi-message inputs are follow-ups (agent-loop iteration or
-    // structuredOutput composition) and keep the Map entry.
-    if (
+    const isFreshTurn =
       !options.modelOptions?.previous_interaction_id &&
       options.messages.length === 1 &&
       options.messages[0]?.role === 'user'
-    ) {
-      this.interactionIdByThread.delete(threadId)
+    if (isFreshTurn) {
+      interactionIdByThread.delete(threadId)
     }
 
-    // Resolve `previous_interaction_id`. Caller-provided wins; otherwise
-    // fall back to the id we captured during a prior iteration of this
-    // same agent-loop run (matched by threadId).
     const effectivePreviousInteractionId =
       options.modelOptions?.previous_interaction_id ??
-      this.interactionIdByThread.get(threadId)
+      interactionIdByThread.get(threadId)
 
     let sawTerminalEvent = false
-    // Sentinel for the `.return()` abandonment path. Set to `true` only at
-    // the bottom of the `try` block — so a consumer-initiated close (via
-    // upstream `break` or abort) leaves it `false`, distinguishing
-    // abandonment from normal completion. This is the only signal that
-    // catches abandonment AFTER a `RUN_FINISHED(tool_calls)`, where
-    // `sawTerminalEvent` is `true` but the in-loop deliberately kept the
-    // map entry for an agent-loop iteration that will now never run.
     let completedTryBlock = false
+
+    const captureInteractionId = (chunk: AdapterYieldChunk) => {
+      const isInteractionId =
+        chunk.type === EventType.CUSTOM && chunk.name === 'gemini.interactionId'
+      if (!isInteractionId) return
+      const value =
+        chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+      interactionIdByThread.set(threadId, value.interactionId)
+    }
+
+    const recordTerminal = (chunk: AdapterYieldChunk) => {
+      if (chunk.type === EventType.RUN_FINISHED) {
+        sawTerminalEvent = true
+        return
+      }
+      if (chunk.type === EventType.RUN_ERROR) {
+        sawTerminalEvent = true
+        interactionIdByThread.delete(threadId)
+      }
+    }
+
+    const truncationError = function* (): Generator<AdapterYieldChunk> {
+      interactionIdByThread.delete(threadId)
+      const message =
+        'Gemini Interactions stream ended without a terminal event (no interaction.complete or error)'
+      logger.errors('gemini-text-interactions.chatStream truncated', {
+        source: 'gemini-text-interactions.chatStream',
+        runId,
+        threadId,
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model: options.model,
+        timestamp,
+        message,
+        error: { message },
+      }
+    }
+
+    const fatalError = function* (
+      error: unknown,
+    ): Generator<AdapterYieldChunk> {
+      interactionIdByThread.delete(threadId)
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during the interactions stream.'
+      logger.errors('gemini-text-interactions.chatStream fatal', {
+        error,
+        source: 'gemini-text-interactions.chatStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model: options.model,
+        timestamp,
+        message,
+        error: { message },
+      }
+    }
+
     try {
       const request = buildInteractionsRequest({
         ...options,
@@ -265,7 +269,7 @@ export class GeminiTextInteractionsAdapter<
         { signal: options.abortController?.signal },
       )) as AsyncIterable<InteractionSSEEvent>
 
-      for await (const chunk of translateInteractionEvents(
+      const translatedEvents = translateInteractionEvents(
         stream,
         options.model,
         runId,
@@ -274,89 +278,22 @@ export class GeminiTextInteractionsAdapter<
         timestamp,
         this.name,
         logger,
-      )) {
-        // Capture the server-assigned id so the next agent-loop
-        // iteration on this thread can chain off it. The CUSTOM event
-        // is also yielded downstream as usual — callers consume it via
-        // `onCustomEvent` for cross-request chaining.
-        //
-        // The yield type can't be narrowed to GeminiInteractionsStream
-        // here without fighting zod-passthrough variance (StreamChunk's
-        // CustomEvent variant carries `[k: string]: unknown`), so we
-        // narrow via the literal `name` and trust the typed
-        // construction inside `translateInteractionEvents`.
-        if (
-          chunk.type === EventType.CUSTOM &&
-          chunk.name === 'gemini.interactionId'
-        ) {
-          const value =
-            chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
-          this.interactionIdByThread.set(threadId, value.interactionId)
-        }
-        if (chunk.type === EventType.RUN_FINISHED) {
-          sawTerminalEvent = true
-          // Keep the captured id for follow-ups (next agent-loop
-          // iteration OR a structuredOutput call composing this turn).
-          // The next *fresh* chatStream call evicts at the top via the
-          // fresh-turn guard.
-        } else if (chunk.type === EventType.RUN_ERROR) {
-          sawTerminalEvent = true
-          this.interactionIdByThread.delete(threadId)
-        }
+      )
+      for await (const chunk of translatedEvents) {
+        captureInteractionId(chunk)
+        recordTerminal(chunk)
         yield chunk
       }
 
       if (!sawTerminalEvent) {
-        // SDK stream ended without either `interaction.complete` or
-        // `error` — surface the truncation rather than silently leaving
-        // downstream consumers waiting on a `RUN_FINISHED` that will
-        // never come.
-        this.interactionIdByThread.delete(threadId)
-        const message =
-          'Gemini Interactions stream ended without a terminal event (no interaction.complete or error)'
-        logger.errors('gemini-text-interactions.chatStream truncated', {
-          source: 'gemini-text-interactions.chatStream',
-          runId,
-          threadId,
-        })
-        yield {
-          type: EventType.RUN_ERROR,
-          runId,
-          model: options.model,
-          timestamp,
-          message,
-          error: { message },
-        }
+        yield* truncationError()
       }
       completedTryBlock = true
     } catch (error) {
-      this.interactionIdByThread.delete(threadId)
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred during the interactions stream.'
-      logger.errors('gemini-text-interactions.chatStream fatal', {
-        error,
-        source: 'gemini-text-interactions.chatStream',
-      })
-      yield {
-        type: EventType.RUN_ERROR,
-        runId,
-        model: options.model,
-        timestamp,
-        message,
-        error: { message },
-      }
+      yield* fatalError(error)
     } finally {
-      // Abandonment cleanup — consumer `.return()` (upstream `break` /
-      // abort) bypasses both the truncation guard and the catch handler.
-      // `completedTryBlock` is the sentinel that distinguishes natural
-      // completion from abandonment; on abandonment we evict so a stale
-      // id from a half-finished turn can't chain into a follow-up. The
-      // catch handler also lands here with the flag false; its explicit
-      // delete is harmless to repeat.
       if (!completedTryBlock) {
-        this.interactionIdByThread.delete(threadId)
+        interactionIdByThread.delete(threadId)
       }
     }
   }
@@ -368,12 +305,6 @@ export class GeminiTextInteractionsAdapter<
     const { logger } = chatOptions
     const threadId = chatOptions.threadId
 
-    // Mirror the chatStream fallback: the agentic-structured flow runs
-    // the chat loop first and then calls structuredOutput with the
-    // accumulated `messages`. If any tool ran during the loop, the
-    // messages include assistant/tool turns; without a chained
-    // previous_interaction_id those would throw "cannot send prior
-    // conversation history on a fresh interaction".
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??
       (threadId ? this.interactionIdByThread.get(threadId) : undefined)
@@ -386,10 +317,6 @@ export class GeminiTextInteractionsAdapter<
       },
     })
 
-    // SDK 2.x: `response_mime_type` has been removed and `response_format`
-    // is now polymorphic — each entry has a `type` discriminator and the
-    // mime type lives inside the entry. See:
-    // https://ai.google.dev/gemini-api/docs/interactions-breaking-changes-may-2026
     const request: GeminiInteractionsRequestBody = {
       ...baseRequest,
       response_format: {
@@ -509,22 +436,6 @@ function buildInteractionsRequest(
   }
 }
 
-// Google's Interactions API takes `input` as `Array<Step>`. Each Step
-// is `{type: 'user_input' | 'function_result' | ..., ...}` — content
-// blocks (text/image/etc.) live nested inside a Step's `content` array,
-// they are NOT valid at the top level. Sending raw `Array<Content>`
-// produces `invalid_request` / "value at top-level must be a list",
-// because the API is looking for a Step list at the top level and
-// gets content objects instead. The SDK's type union
-// (`string | Array<Content> | Array<Turn> | ...`) is misleading; see
-// https://ai.google.dev/api/interactions-api for the real Step union.
-//
-// When `hasPreviousInteraction` is true the server holds the transcript
-// up through the last assistant turn, so we only send the steps that
-// come after it (a new `user_input`, one or more `function_result`s
-// continuing a tool call, etc.). Otherwise the conversation is fresh
-// and only the latest user turn is supported — multi-turn replay
-// without `previous_interaction_id` is not part of the API contract.
 function convertMessagesToInteractionsInput(
   messages: Array<ModelMessage>,
   hasPreviousInteraction: boolean,
@@ -542,7 +453,8 @@ function convertMessagesToInteractionsInput(
     ? messagesAfterLastAssistant(messages)
     : messages
 
-  if (hasPreviousInteraction && source.length === 0) {
+  const hasNoFollowUp = hasPreviousInteraction && source.length === 0
+  if (hasNoFollowUp) {
     throw new Error(
       'Gemini Interactions adapter: modelOptions.previous_interaction_id was provided but no new messages were found after the last assistant turn. Append at least one user or tool message before chaining.',
     )
@@ -572,10 +484,6 @@ function convertMessagesToInteractionsInput(
     return [{ type: 'user_input', content }]
   }
 
-  // Chained path: each post-assistant message becomes one Step. A user
-  // reply maps to `user_input`; a tool reply maps to `function_result`.
-  // Assistant turns shouldn't appear here (sliced off above) — if one
-  // somehow does we skip it rather than letting it shape the wire.
   const steps: Array<InteractionsStep> = []
   for (const msg of source) {
     if (msg.role === 'tool' && msg.toolCallId) {
@@ -601,12 +509,6 @@ function convertMessagesToInteractionsInput(
   return steps
 }
 
-// The Interactions API's `function_result.result` field is a string. We
-// fail loudly on non-string tool content rather than silently coercing
-// to `''` — silent coercion meant the model lost the entire tool
-// output for callers that returned content as an array (e.g. image +
-// text) or `null`. If you need to send structured tool output, encode
-// it yourself before passing.
 function serializeToolResultContent(
   content: ModelMessage['content'] | undefined,
 ): string {
@@ -621,9 +523,6 @@ function serializeToolResultContent(
   )
 }
 
-// Extracts the content blocks (text / image / audio / video / document)
-// from a single message. Tool calls and tool results live one level up
-// as Steps, not as content, so they are NOT emitted here.
 function messageToContentBlocks(msg: ModelMessage): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
@@ -653,30 +552,6 @@ function messagesAfterLastAssistant(
   return messages
 }
 
-// Leniently parse the *accumulated* streamed tool-call argument buffer.
-// Streamed `arguments_delta` fragments are individually incomplete JSON, so
-// a strict `JSON.parse` would throw (and log noise) on every fragment until
-// the final one. `partial-json` recovers a best-effort object from a
-// truncated buffer instead. Returns `undefined` when nothing usable could be
-// parsed, so callers can keep the last good value rather than clobber
-// previously-merged args with `{}`.
-function parsePartialToolArguments(
-  raw: string,
-): Record<string, unknown> | undefined {
-  if (!raw) return undefined
-  try {
-    const parsed = parsePartialJSON(raw)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined
-  } catch {
-    return undefined
-  }
-}
-
-// `satisfies` pins these arrays to the SDK's narrow mime-type unions: if
-// Google removes a format the build breaks, and if they add one ours keeps
-// working (we just won't accept the new one until added here).
 const IMAGE_MIME_TYPES = [
   'image/png',
   'image/jpeg',
@@ -781,790 +656,138 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   }
 }
 
-// Built-in Gemini tools use snake_case field names in the Interactions API
-// that differ from the camelCase fields used on `client.models.generateContent`
-// (e.g. `fileSearchStoreNames` vs `file_search_store_names`). Translate
-// explicitly so callers keep using the same tool factories across adapters.
+function convertGoogleSearchTool(tool: Tool): InteractionsTool {
+  const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
+    searchTypes?: {
+      webSearch?: unknown
+      imageSearch?: unknown
+    }
+  }
+  const searchTypes: Array<'web_search' | 'image_search'> = []
+  if (metadata.searchTypes?.webSearch !== undefined) {
+    searchTypes.push('web_search')
+  }
+  if (metadata.searchTypes?.imageSearch !== undefined) {
+    searchTypes.push('image_search')
+  }
+  return {
+    type: 'google_search',
+    ...(searchTypes.length > 0 ? { search_types: searchTypes } : {}),
+  }
+}
+
+function convertFileSearchTool(tool: Tool): InteractionsTool {
+  const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
+    fileSearchStoreNames?: Array<string>
+    topK?: number
+    metadataFilter?: string
+  }
+  return {
+    type: 'file_search',
+    ...(metadata.fileSearchStoreNames
+      ? { file_search_store_names: metadata.fileSearchStoreNames }
+      : {}),
+    ...(metadata.topK !== undefined ? { top_k: metadata.topK } : {}),
+    ...(metadata.metadataFilter !== undefined
+      ? { metadata_filter: metadata.metadataFilter }
+      : {}),
+  }
+}
+
+function convertComputerUseTool(tool: Tool): InteractionsTool {
+  const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
+    environment?: string
+    excludedPredefinedFunctions?: Array<string>
+  }
+  if (metadata.environment && metadata.environment !== 'browser') {
+    throw new Error(
+      `computer_use environment "${metadata.environment}" is not supported on the Gemini Interactions API. Only "browser" is accepted.`,
+    )
+  }
+  return {
+    type: 'computer_use',
+    ...(metadata.environment
+      ? { environment: metadata.environment as 'browser' }
+      : {}),
+    ...(metadata.excludedPredefinedFunctions
+      ? {
+          excludedPredefinedFunctions: metadata.excludedPredefinedFunctions,
+        }
+      : {}),
+  }
+}
+
+function convertFunctionTool(tool: Tool): InteractionsTool {
+  if (!tool.description) {
+    throw new Error(
+      `Tool ${tool.name} requires a description for the Gemini Interactions adapter`,
+    )
+  }
+  return {
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: sanitizeToolParameters(
+      tool.inputSchema ?? { type: 'object', properties: {} },
+    ),
+  }
+}
+
+const TOOL_CONVERTERS = new Map<string, (tool: Tool) => InteractionsTool>([
+  ['google_search', convertGoogleSearchTool],
+  ['code_execution', () => ({ type: 'code_execution' })],
+  ['url_context', () => ({ type: 'url_context' })],
+  ['file_search', convertFileSearchTool],
+  ['computer_use', convertComputerUseTool],
+  [
+    'google_search_retrieval',
+    () => {
+      throw new Error(
+        '`google_search_retrieval` is not supported on the Gemini Interactions API. Use `googleSearchTool()` (`google_search`) with `geminiTextInteractions()`, or call `geminiText()` for the legacy retrieval tool.',
+      )
+    },
+  ],
+  [
+    'google_maps',
+    () => {
+      throw new Error(
+        '`google_maps` is not yet supported on the Gemini Interactions API. Use `geminiText()` for Google Maps grounding.',
+      )
+    },
+  ],
+])
+
+function convertOneTool(tool: Tool): InteractionsTool | undefined {
+  const kind = getGeminiProviderToolKind(tool)
+  if (kind === undefined) return convertFunctionTool(tool)
+  const converter = TOOL_CONVERTERS.get(kind)
+  if (!converter) return undefined
+  return converter(tool)
+}
+
 function convertToolsToInteractionsFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<InteractionsTool> | undefined {
-  if (!tools || tools.length === 0) return undefined
+  if (!tools) return undefined
+  if (tools.length === 0) return undefined
   assertUniqueToolNames(tools)
 
   const result: Array<InteractionsTool> = []
-
   for (const tool of tools) {
-    switch (getGeminiProviderToolKind(tool)) {
-      case 'google_search': {
-        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
-          searchTypes?: {
-            webSearch?: unknown
-            imageSearch?: unknown
-          }
-        }
-        const searchTypes: Array<'web_search' | 'image_search'> = []
-        if (metadata.searchTypes?.webSearch !== undefined) {
-          searchTypes.push('web_search')
-        }
-        if (metadata.searchTypes?.imageSearch !== undefined) {
-          searchTypes.push('image_search')
-        }
-        result.push({
-          type: 'google_search',
-          ...(searchTypes.length > 0 ? { search_types: searchTypes } : {}),
-        })
-        break
-      }
-      case 'code_execution': {
-        result.push({ type: 'code_execution' })
-        break
-      }
-      case 'url_context': {
-        result.push({ type: 'url_context' })
-        break
-      }
-      case 'file_search': {
-        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
-          fileSearchStoreNames?: Array<string>
-          topK?: number
-          metadataFilter?: string
-        }
-        result.push({
-          type: 'file_search',
-          ...(metadata.fileSearchStoreNames
-            ? { file_search_store_names: metadata.fileSearchStoreNames }
-            : {}),
-          ...(metadata.topK !== undefined ? { top_k: metadata.topK } : {}),
-          ...(metadata.metadataFilter !== undefined
-            ? { metadata_filter: metadata.metadataFilter }
-            : {}),
-        })
-        break
-      }
-      case 'computer_use': {
-        const metadata = (getGeminiProviderToolMetadata(tool) ?? {}) as {
-          environment?: string
-          excludedPredefinedFunctions?: Array<string>
-        }
-        if (metadata.environment && metadata.environment !== 'browser') {
-          throw new Error(
-            `computer_use environment "${metadata.environment}" is not supported on the Gemini Interactions API. Only "browser" is accepted.`,
-          )
-        }
-        result.push({
-          type: 'computer_use',
-          ...(metadata.environment
-            ? { environment: metadata.environment as 'browser' }
-            : {}),
-          ...(metadata.excludedPredefinedFunctions
-            ? {
-                excludedPredefinedFunctions:
-                  metadata.excludedPredefinedFunctions,
-              }
-            : {}),
-        })
-        break
-      }
-      case 'google_search_retrieval':
-        throw new Error(
-          '`google_search_retrieval` is not supported on the Gemini Interactions API. Use `googleSearchTool()` (`google_search`) with `geminiTextInteractions()`, or call `geminiText()` for the legacy retrieval tool.',
-        )
-      case 'google_maps':
-        throw new Error(
-          '`google_maps` is not yet supported on the Gemini Interactions API. Use `geminiText()` for Google Maps grounding.',
-        )
-      case undefined: {
-        if (!tool.description) {
-          throw new Error(
-            `Tool ${tool.name} requires a description for the Gemini Interactions adapter`,
-          )
-        }
-        result.push({
-          type: 'function',
-          name: tool.name,
-          description: tool.description,
-          parameters: sanitizeToolParameters(
-            tool.inputSchema ?? { type: 'object', properties: {} },
-          ),
-        })
-      }
-    }
+    const converted = convertOneTool(tool)
+    if (converted) result.push(converted)
   }
-
   return result
 }
 
-// Map of API-level status values onto the AG-UI `finishReason` field.
-// `requires_action` is the Interactions API's signal that the model
-// produced one or more function calls and is waiting for results — we
-// always map that to 'tool_calls' regardless of whether deltas were
-// observed (a function_call may have arrived in a single delta with no
-// other content). `incomplete` is the truncation signal (max_tokens
-// exceeded etc.) — map to 'length'. `completed` is normal stop.
-function statusToFinishReason(
-  status: Interaction['status'] | undefined,
-  sawFunctionCall: boolean,
-): 'stop' | 'length' | 'tool_calls' | null {
-  if (status === 'requires_action') return 'tool_calls'
-  if (status === 'incomplete') return 'length'
-  if (sawFunctionCall) return 'tool_calls'
-  return 'stop'
-}
-
-// Statuses that mean the interaction did not produce a usable result.
-// `failed`/`cancelled` map to RUN_ERROR. `incomplete` is the model
-// hitting a stop condition (max_tokens etc.) and is reported via
-// `finishReason: 'length'` on RUN_FINISHED so callers can decide how to
-// react without it looking like a hard error.
-function statusIsError(
-  status: Interaction['status'] | undefined,
-): status is 'failed' | 'cancelled' {
-  return status === 'failed' || status === 'cancelled'
-}
-
-async function* translateInteractionEvents(
-  stream: AsyncIterable<InteractionSSEEvent>,
-  model: string,
-  runId: string,
-  threadId: string,
-  parentRunId: string | undefined,
-  timestamp: number,
-  adapterName: string,
-  logger: InternalLogger,
-): AsyncIterable<AdapterYieldChunk> {
-  const messageId = generateId(adapterName)
-  let hasEmittedRunStarted = false
-  let hasEmittedTextMessageStart = false
-  let textAccumulated = ''
-  let interactionId: string | undefined
-  let sawFunctionCall = false
-  const toolCalls = new Map<string, ToolCallState>()
-  let nextToolIndex = 0
-  let thinkingStepId: string | null = null
-  let thinkingAccumulated = ''
-  let reasoningMessageId: string | null = null
-  let hasClosedReasoning = false
-  // SDK 2.x routes events by step `index`, not by content id. We need to
-  // map the index of an in-flight `function_call` step back to the tool
-  // call id so subsequent `step.delta` (arguments_delta) and `step.stop`
-  // events can update / close the right TOOL_CALL_*.
-  const indexToToolCallId = new Map<number, string>()
-  // Function-call arguments now stream as partial JSON fragments
-  // (`StepDelta.ArgumentsDelta.arguments`) rather than as pre-parsed
-  // object deltas. Buffer the raw strings per tool call so we can
-  // attempt one JSON parse per delta and recover gracefully if the
-  // fragment isn't yet syntactically complete.
-  const argStringByToolCallId = new Map<string, string>()
-
-  const closeReasoningIfNeeded = function* (): Generator<AdapterYieldChunk> {
-    if (reasoningMessageId && !hasClosedReasoning) {
-      hasClosedReasoning = true
-      yield {
-        type: EventType.REASONING_MESSAGE_END,
-        messageId: reasoningMessageId,
-        model,
-        timestamp,
-      }
-      yield {
-        type: EventType.REASONING_END,
-        messageId: reasoningMessageId,
-        model,
-        timestamp,
-      }
-      // Reset so that a later `thought_summary` delta (the API
-      // interleaves text → thought → text on some models) opens a
-      // fresh reasoning block instead of re-using an already-ended
-      // messageId, which would violate AG-UI ordering.
-      thinkingStepId = null
-      reasoningMessageId = null
-      hasClosedReasoning = false
-    }
-  }
-
-  // Seals any in-flight messages and tool calls. Called both on the
-  // normal terminal path (`interaction.complete`) and on the error path
-  // (`error` SSE event + premature EOF) so the StreamProcessor never
-  // sees orphan TEXT_MESSAGE_START / TOOL_CALL_START / REASONING_*
-  // events on RUN_ERROR.
-  const closeOpenState = function* (): Generator<AdapterYieldChunk> {
-    yield* closeReasoningIfNeeded()
-    for (const [toolCallId, state] of toolCalls) {
-      if (state.ended) continue
-      state.ended = true
-      yield {
-        type: EventType.TOOL_CALL_END,
-        toolCallId,
-        toolName: state.name,
-        model,
-        timestamp,
-        input: state.args,
-      }
-    }
-    if (hasEmittedTextMessageStart) {
-      hasEmittedTextMessageStart = false
-      yield {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId,
-        model,
-        timestamp,
-      }
-    }
-  }
-
-  const emitRunStartedIfNeeded = function* (): Generator<AdapterYieldChunk> {
-    if (!hasEmittedRunStarted) {
-      hasEmittedRunStarted = true
-      yield {
-        type: EventType.RUN_STARTED,
-        runId,
-        threadId,
-        model,
-        timestamp,
-        parentRunId,
-      }
-    }
-  }
-
-  for await (const event of stream) {
-    logger.provider(`provider=gemini-text-interactions`, { event })
-    switch (event.event_type) {
-      case 'interaction.created': {
-        interactionId = event.interaction.id
-        yield* emitRunStartedIfNeeded()
-        break
-      }
-
-      case 'step.start': {
-        yield* emitRunStartedIfNeeded()
-        const step = event.step
-        const index = event.index
-        switch (step.type) {
-          case 'function_call': {
-            yield* closeReasoningIfNeeded()
-            sawFunctionCall = true
-            const toolCallId = step.id
-            indexToToolCallId.set(index, toolCallId)
-            // `step.arguments` is required on FunctionCallStep but may
-            // be an empty `{}` placeholder when streaming, where the
-            // real args arrive as `arguments_delta` events. Treat both
-            // uniformly: stash whatever we got, stringify once.
-            const initialArgs = step.arguments
-            const state: ToolCallState = {
-              name: step.name,
-              args: { ...initialArgs },
-              index: nextToolIndex++,
-              started: true,
-              ended: false,
-            }
-            toolCalls.set(toolCallId, state)
-            argStringByToolCallId.set(
-              toolCallId,
-              Object.keys(initialArgs).length > 0
-                ? JSON.stringify(initialArgs)
-                : '',
-            )
-            yield {
-              type: EventType.TOOL_CALL_START,
-              toolCallId,
-              toolCallName: state.name,
-              toolName: state.name,
-              // Bind the tool call to the same assistant message id the
-              // eventual TEXT_MESSAGE_START uses so the message id stays
-              // stable when a function_call arrives before any text (#477).
-              parentMessageId: messageId,
-              model,
-              timestamp,
-              index: state.index,
-            }
-            if (Object.keys(initialArgs).length > 0) {
-              const argsJson = JSON.stringify(initialArgs)
-              yield {
-                type: EventType.TOOL_CALL_ARGS,
-                toolCallId,
-                model,
-                timestamp,
-                delta: argsJson,
-                args: argsJson,
-              }
-            }
-            break
-          }
-          case 'thought': {
-            // Open the reasoning block lazily — content lands here via
-            // `step.delta { thought_summary }` events. If the server
-            // ships a non-empty `summary` array up-front (rare, unary
-            // responses), surface it immediately.
-            if (thinkingStepId === null || reasoningMessageId === null) {
-              thinkingStepId = generateId(adapterName)
-              reasoningMessageId = generateId(adapterName)
-              yield {
-                type: EventType.REASONING_START,
-                messageId: reasoningMessageId,
-                model,
-                timestamp,
-              }
-              yield {
-                type: EventType.REASONING_MESSAGE_START,
-                messageId: reasoningMessageId,
-                role: 'reasoning',
-                model,
-                timestamp,
-              }
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                stepType: 'thinking',
-              }
-            }
-            for (const part of step.summary ?? []) {
-              if (part.type !== 'text' || !part.text) continue
-              thinkingAccumulated += part.text
-              yield {
-                type: EventType.REASONING_MESSAGE_CONTENT,
-                messageId: reasoningMessageId,
-                delta: part.text,
-                model,
-                timestamp,
-              }
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                delta: part.text,
-                content: thinkingAccumulated,
-              }
-            }
-            break
-          }
-          case 'model_output': {
-            yield* closeReasoningIfNeeded()
-            // Some servers ship an initial `content` array on
-            // `step.start` (notably non-streaming and ahead-of-stream
-            // unary completions). Treat any prefilled text content the
-            // same way a `text` step.delta would.
-            for (const part of step.content ?? []) {
-              if (part.type !== 'text' || !part.text) continue
-              if (!hasEmittedTextMessageStart) {
-                hasEmittedTextMessageStart = true
-                yield {
-                  type: EventType.TEXT_MESSAGE_START,
-                  messageId,
-                  model,
-                  timestamp,
-                  role: 'assistant',
-                }
-              }
-              textAccumulated += part.text
-              yield {
-                type: EventType.TEXT_MESSAGE_CONTENT,
-                messageId,
-                model,
-                timestamp,
-                delta: part.text,
-                content: textAccumulated,
-              }
-            }
-            break
-          }
-          case 'google_search_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.googleSearchCall',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'google_search_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.googleSearchResult',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'code_execution_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.codeExecutionCall',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'code_execution_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.codeExecutionResult',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'url_context_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.urlContextCall',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'url_context_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.urlContextResult',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'file_search_call': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.fileSearchCall',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          case 'file_search_result': {
-            yield* closeReasoningIfNeeded()
-            yield {
-              type: EventType.CUSTOM,
-              name: 'gemini.fileSearchResult',
-              value: step,
-              model,
-              timestamp,
-            }
-            break
-          }
-          // Unhandled step types (user_input on GET timelines,
-          // mcp_server_*, google_maps_*, function_result) fall through
-          // to the observability default so SDK drift is visible.
-          case 'user_input':
-          case 'mcp_server_tool_call':
-          case 'mcp_server_tool_result':
-          case 'google_maps_call':
-          case 'google_maps_result':
-          case 'function_result':
-          default:
-            logger.provider(`gemini-text-interactions unhandled step.start`, {
-              step,
-            })
-            break
-        }
-        break
-      }
-
-      case 'step.delta': {
-        yield* emitRunStartedIfNeeded()
-        const delta = event.delta
-        const index = event.index
-        switch (delta.type) {
-          case 'text': {
-            yield* closeReasoningIfNeeded()
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId,
-                model,
-                timestamp,
-                role: 'assistant',
-              }
-            }
-            textAccumulated += delta.text
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId,
-              model,
-              timestamp,
-              delta: delta.text,
-              content: textAccumulated,
-            }
-            break
-          }
-          case 'arguments_delta': {
-            // Streamed function-call arguments. Identity (id, name) was
-            // delivered on the matching `step.start` and recorded in
-            // indexToToolCallId.
-            const toolCallId = indexToToolCallId.get(index)
-            if (!toolCallId) {
-              logger.provider(
-                `gemini-text-interactions arguments_delta for unknown step index`,
-                { index, delta },
-              )
-              break
-            }
-            const state = toolCalls.get(toolCallId)
-            if (!state) break
-            const fragment = delta.arguments ?? ''
-            const buffer =
-              (argStringByToolCallId.get(toolCallId) ?? '') + fragment
-            argStringByToolCallId.set(toolCallId, buffer)
-            // Parse the accumulated buffer leniently: streamed arg fragments
-            // are individually incomplete JSON, so use a partial-JSON parser
-            // that tolerates truncation rather than logging a parse error per
-            // fragment. Only overwrite `state.args` when we actually recovered
-            // an object, so a momentarily-unparseable fragment can't reset
-            // previously-merged args back to `{}`.
-            const parsed = parsePartialToolArguments(buffer)
-            if (parsed) state.args = parsed
-            yield {
-              type: EventType.TOOL_CALL_ARGS,
-              toolCallId,
-              model,
-              timestamp,
-              delta: fragment,
-              args: buffer,
-            }
-            break
-          }
-          case 'thought_summary': {
-            const thoughtText =
-              delta.content && 'text' in delta.content ? delta.content.text : ''
-            if (!thoughtText) break
-            if (thinkingStepId === null || reasoningMessageId === null) {
-              thinkingStepId = generateId(adapterName)
-              reasoningMessageId = generateId(adapterName)
-              yield {
-                type: EventType.REASONING_START,
-                messageId: reasoningMessageId,
-                model,
-                timestamp,
-              }
-              yield {
-                type: EventType.REASONING_MESSAGE_START,
-                messageId: reasoningMessageId,
-                role: 'reasoning',
-                model,
-                timestamp,
-              }
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: thinkingStepId,
-                stepId: thinkingStepId,
-                model,
-                timestamp,
-                stepType: 'thinking',
-              }
-            }
-            thinkingAccumulated += thoughtText
-            yield {
-              type: EventType.REASONING_MESSAGE_CONTENT,
-              messageId: reasoningMessageId,
-              delta: thoughtText,
-              model,
-              timestamp,
-            }
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: thinkingStepId,
-              stepId: thinkingStepId,
-              model,
-              timestamp,
-              delta: thoughtText,
-              content: thinkingAccumulated,
-            }
-            break
-          }
-          // The remaining StepDelta variants (image/audio/video/document
-          // for output modalities a text adapter shouldn't see, tool
-          // call/result deltas which are surfaced via step.start in this
-          // adapter, thought_signature, annotation deltas, mcp/google
-          // maps variants) fall through to the observability default.
-          case 'image':
-          case 'audio':
-          case 'video':
-          case 'document':
-          case 'thought_signature':
-          case 'text_annotation_delta':
-          case 'code_execution_call':
-          case 'code_execution_result':
-          case 'url_context_call':
-          case 'url_context_result':
-          case 'google_search_call':
-          case 'google_search_result':
-          case 'file_search_call':
-          case 'file_search_result':
-          case 'mcp_server_tool_call':
-          case 'mcp_server_tool_result':
-          case 'google_maps_call':
-          case 'google_maps_result':
-          case 'function_result':
-          default:
-            logger.provider(
-              `gemini-text-interactions unhandled step.delta type`,
-              { delta },
-            )
-            break
-        }
-        break
-      }
-
-      case 'step.stop': {
-        // Close any open function_call so downstream consumers get the
-        // matching TOOL_CALL_END once the arguments are complete. Other
-        // step types don't carry adapter-level open state.
-        const toolCallId = indexToToolCallId.get(event.index)
-        if (toolCallId) {
-          const state = toolCalls.get(toolCallId)
-          if (state && !state.ended) {
-            state.ended = true
-            yield {
-              type: EventType.TOOL_CALL_END,
-              toolCallId,
-              toolName: state.name,
-              model,
-              timestamp,
-              input: state.args,
-            }
-          }
-          indexToToolCallId.delete(event.index)
-        }
-        break
-      }
-
-      case 'interaction.status_update': {
-        break
-      }
-
-      case 'interaction.completed': {
-        if (event.interaction.id) {
-          interactionId = event.interaction.id
-        }
-
-        yield* closeOpenState()
-
-        const status = event.interaction.status
-        if (statusIsError(status)) {
-          const message = `Gemini Interactions ${status}: the interaction ended without a usable response.`
-          logger.errors(
-            'gemini-text-interactions.translateInteractionEvents non-success status',
-            {
-              source: 'gemini-text-interactions.chatStream',
-              status,
-              interactionId,
-            },
-          )
-          yield {
-            type: EventType.RUN_ERROR,
-            runId,
-            model,
-            timestamp,
-            message,
-            code: status,
-            error: { message, code: status },
-          }
-          return
-        }
-
-        const usage = event.interaction.usage
-        const finishReason = statusToFinishReason(status, sawFunctionCall)
-
-        if (interactionId) {
-          yield {
-            type: EventType.CUSTOM,
-            name: 'gemini.interactionId',
-            value: { interactionId },
-            model,
-            timestamp,
-          }
-        }
-
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId,
-          threadId,
-          model,
-          timestamp,
-          finishReason,
-          usage: usage
-            ? {
-                promptTokens: usage.total_input_tokens ?? 0,
-                completionTokens: usage.total_output_tokens ?? 0,
-                totalTokens: usage.total_tokens ?? 0,
-              }
-            : undefined,
-        }
-        return
-      }
-
-      case 'error': {
-        // Close any in-flight TEXT_MESSAGE_START / TOOL_CALL_START /
-        // REASONING_* so downstream consumers don't see orphan open
-        // state after RUN_ERROR.
-        yield* closeOpenState()
-        const rawMessage = event.error?.message
-        const message =
-          typeof rawMessage === 'string' && rawMessage.length > 0
-            ? rawMessage
-            : `Gemini Interactions error (no message): ${JSON.stringify(event.error ?? {})}`
-        const rawCode = event.error?.code
-        const code =
-          typeof rawCode === 'string' || typeof rawCode === 'number'
-            ? String(rawCode)
-            : undefined
-        yield {
-          type: EventType.RUN_ERROR,
-          runId,
-          model,
-          timestamp,
-          message,
-          code,
-          error: { message, code },
-        }
-        return
-      }
-
-      default:
-        logger.provider(`gemini-text-interactions unhandled event_type`, {
-          event,
-        })
-        break
-    }
-  }
-
-  // Stream ended without `interaction.complete` or `error` (both `return`
-  // out of the loop). Seal any in-flight TEXT/TOOL/REASONING blocks here
-  // so the truncation-fallback RUN_ERROR yielded by `chatStream` doesn't
-  // leave orphan `*_START` events open downstream.
-  yield* closeOpenState()
-}
-
 function extractTextFromInteraction(interaction: Interaction): string {
-  // SDK 2.x: the response carries a `steps` array; `output_text` is a
-  // convenience the SDK derives from the last model output. Prefer the
-  // SDK sugar when it's populated, then fall back to walking
-  // model_output steps for adapters / responses that don't get the
-  // sugar (e.g. older SDK builds).
   if (typeof interaction.output_text === 'string' && interaction.output_text) {
     return interaction.output_text
   }
   let text = ''
   for (const step of interaction.steps ?? []) {
-    if (step.type !== 'model_output' || !step.content) continue
+    if (step.type !== 'model_output') continue
+    if (!step.content) continue
     for (const part of step.content) {
       if (part.type === 'text') {
         text += part.text
@@ -1574,20 +797,15 @@ function extractTextFromInteraction(interaction: Interaction): string {
   return text
 }
 
-// The live Interactions API rejects tool parameter schemas that contain
-// an empty `required: []` array with the misleading top-level error
-// `"value at top-level must be a list"`. Empty `properties: {}` and
-// `parameters: {}` are both fine — only the empty `required` array is
-// poison. The Zod -> JSON Schema converter (and many hand-written
-// schemas) emit `required: []` whenever a tool has zero required
-// parameters, so we strip those instances recursively before sending.
-// Non-empty `required` arrays are passed through unchanged.
 function sanitizeToolParameters(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'required' && Array.isArray(value) && value.length === 0) {
+  const schemaEntries = Object.entries(schema)
+  for (const [key, value] of schemaEntries) {
+    const isEmptyRequired =
+      key === 'required' && Array.isArray(value) && value.length === 0
+    if (isEmptyRequired) {
       continue
     }
     out[key] = sanitizeToolParameters(value)
@@ -1595,7 +813,4 @@ function sanitizeToolParameters(schema: unknown): unknown {
   return out
 }
 
-// Re-export the stream type so consumers can import it alongside the
-// adapter from a single path: `import type { GeminiInteractionsStream }
-// from '@tanstack/ai-gemini/experimental'`.
 export type { GeminiInteractionsStream }

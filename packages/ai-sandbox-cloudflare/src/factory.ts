@@ -1,44 +1,3 @@
-/**
- * `createCloudflareSandboxAgent` — the headline DX: one configured function call
- * returns the Durable Object coordinator, the Sandbox DO, and the Worker fetch
- * handler, so a Cloudflare app's whole `worker.ts` is just export wiring:
- *
- * ```ts
- * const agent = createCloudflareSandboxAgent({
- *   adapter: () => claudeCodeText('sonnet'),
- * })
- * export const RunCoordinator = agent.Coordinator
- * export const Sandbox = agent.Sandbox
- * export default agent.worker
- * ```
- *
- * Two modes, switched by `config.mode`:
- *  - `'do-drives'` (default) → a {@link ChatSandboxCoordinator}: the DO runs
- *    `chat()` itself and hosts the MCP tool-bridge.
- *  - `'colocated'` → a {@link ContainerSandboxCoordinator}: an in-container
- *    runner runs `chat()`; the DO is a thin coordinator that executes host tools.
- *
- * Env bindings (set in `wrangler.jsonc`):
- *  - `RUN_COORDINATOR` — this coordinator DO's own namespace (so the Worker can
- *    address it by `threadId`). Class name: whatever you export `Coordinator` as.
- *  - `Sandbox` — the `@cloudflare/sandbox` Sandbox DO namespace (the container
- *    hosts). Bind the exported `Sandbox` class.
- *  - `PUBLIC_HOSTNAME` — OPTIONAL. Hostname the CONTAINER uses to reach the Worker's
- *    tool-bridge / tool-exec endpoint. Unset → request-derived (local dev →
- *    `host.docker.internal`). See `resolveBridgeOrigin`.
- *  - `PREVIEW_HOSTNAME` — OPTIONAL. Custom domain (with a `*.<domain>` route) for
- *    browser-facing `exposePort` preview URLs. Unset → request-derived (local dev →
- *    `localhost`); REQUIRED on a `*.workers.dev` deploy, which has no wildcard
- *    subdomains. See `resolvePreviewHost`.
- *  - The harness's API key (`ANTHROPIC_API_KEY` for Claude Code, `CODEX_API_KEY` for
- *    codex, …) — supplied by YOUR app, never by the package. Declare it as a secret
- *    on the run's workspace (via a `sandbox`/`workspace` resolver) and add the field
- *    to your own env type; the coordinator injects each declared secret into the
- *    sandbox env by name. The package itself is harness-agnostic and binds no key.
- *
- * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
- * AI types; not runtime-verified in this repo (no Workers runtime here).
- */
 import { defineSandbox, defineWorkspace } from '@tanstack/ai-sandbox'
 import { Sandbox } from '@cloudflare/sandbox'
 import { cloudflareSandbox } from './provider'
@@ -156,22 +115,9 @@ function defaultSandbox<TEnv extends SandboxAgentEnv>(
     id: 'cf-edge-agent',
     provider: cloudflareSandbox({
       binding: env.Sandbox,
-      // Browser-facing preview host: `PREVIEW_HOSTNAME` if set, else derived from
-      // the trigger request (local dev → `localhost`; deployed → a custom domain,
-      // since `*.workers.dev` has no wildcard). See `resolvePreviewHost`.
       previewHostname: resolvePreviewHost(env, input),
     }),
-    workspace:
-      workspace ??
-      // The container image ships the harness CLI; no source to clone, and NO auth
-      // secrets — the package is harness-agnostic, so it can't know which key the
-      // CLI needs. Supply the harness's API key via a `workspace` with `secrets`
-      // (or a custom `sandbox` resolver), e.g.:
-      //   workspace: defineWorkspace({
-      //     source: { type: 'none' },
-      //     secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }),
-      //   })
-      defineWorkspace({ source: { type: 'none' } }),
+    workspace: workspace ?? defineWorkspace({ source: { type: 'none' } }),
     // One sandbox per thread, so a follow-up run resumes the same workspace.
     lifecycle: { reuse: 'thread' },
   })
@@ -188,6 +134,7 @@ function resolveCoordinator<TEnv extends SandboxAgentEnv>(
 export function createCloudflareSandboxAgent<
   TEnv extends SandboxAgentEnv = SandboxAgentEnv,
 >(config: CloudflareSandboxAgentConfig<TEnv>): CloudflareSandboxAgent<TEnv> {
+  /** The Worker fetch handler — `export default` it. */
   const worker = createSandboxAgentWorker<TEnv>(resolveCoordinator)
 
   if (config.mode === 'colocated') {
@@ -208,6 +155,7 @@ export function createCloudflareSandboxAgent<
   const doDrives = config
   class ConfiguredChatCoordinator extends ChatSandboxCoordinator<TEnv> {
     protected override config(input: StartRunInput): ChatRunConfig {
+      /** chat()-provided server tools, resolved per run (DO-drives: bridged over MCP). */
       const tools = doDrives.tools?.(input, this.env)
       return {
         adapter: doDrives.adapter(input, this.env),

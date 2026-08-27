@@ -36,6 +36,7 @@ export interface CodeExecutionToolOptions {
 
 interface CodeExecutionToolMetadata {
   config: CodeExecutionToolConfig
+  /** Hosted skills to load into the code-execution container (max 8). */
   skills?: Array<AnthropicContainerSkill>
 }
 
@@ -47,9 +48,6 @@ export type AnthropicCodeExecutionTool = ProviderTool<
 export function convertCodeExecutionToolToAdapterFormat(
   tool: Tool,
 ): CodeExecutionToolConfig {
-  // The converter is only called for real `code_execution` tools, so a
-  // non-undefined config is expected — but read via optional chaining so an
-  // absent metadata object doesn't throw.
   return readCodeExecutionConfig(tool) as CodeExecutionToolConfig
 }
 
@@ -98,7 +96,9 @@ export function codeExecutionTool(
       })
     }
     for (const skill of skills) {
-      if (skill.skill_id.length < 1 || skill.skill_id.length > 64) {
+      const skillIdOutOfRange =
+        skill.skill_id.length < 1 || skill.skill_id.length > 64
+      if (skillIdOutOfRange) {
         throw new Error('skill_id must be between 1 and 64 characters.')
       }
     }

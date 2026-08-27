@@ -1,3 +1,72 @@
+const ONE_OF_UNSUPPORTED =
+  'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types'
+
+function widenOptionalProperty(prop: Record<string, any>): Record<string, any> {
+  if (prop.anyOf) {
+    if (!prop.anyOf.some((v: any) => v.type === 'null')) {
+      return { ...prop, anyOf: [...prop.anyOf, { type: 'null' }] }
+    }
+    return prop
+  }
+  if (prop.type && !Array.isArray(prop.type)) {
+    return { ...prop, type: [prop.type, 'null'] }
+  }
+  if (Array.isArray(prop.type) && !prop.type.includes('null')) {
+    return { ...prop, type: [...prop.type, 'null'] }
+  }
+  return prop
+}
+
+function rewriteObjectProperty(
+  prop: Record<string, any>,
+  required: Array<string>,
+  propName: string,
+): Record<string, any> {
+  const wasOptional = !required.includes(propName)
+
+  if (prop.type === 'object' && prop.properties) {
+    prop = makeStructuredOutputCompatible(prop, prop.required || [])
+  } else if (prop.type === 'array' && prop.items) {
+    prop = {
+      ...prop,
+      items: makeStructuredOutputCompatible(
+        prop.items,
+        prop.items.required || [],
+      ),
+    }
+  } else if (prop.anyOf) {
+    prop = makeStructuredOutputCompatible(prop, prop.required || [])
+  } else if (prop.oneOf) {
+    throw new Error(ONE_OF_UNSUPPORTED)
+  }
+
+  if (wasOptional) {
+    prop = widenOptionalProperty(prop)
+  }
+
+  return prop
+}
+
+function rewriteObjectProperties(
+  result: Record<string, any>,
+  required: Array<string>,
+): void {
+  const properties = { ...result.properties }
+  const allPropertyNames = Object.keys(properties)
+
+  for (const propName of allPropertyNames) {
+    properties[propName] = rewriteObjectProperty(
+      properties[propName],
+      required,
+      propName,
+    )
+  }
+
+  result.properties = properties
+  result.required = allPropertyNames
+  result.additionalProperties = false
+}
+
 /**
  * Transform a JSON schema to be compatible with OpenAI-style structured output requirements.
  * The base requirements (which OpenRouter inherits because it routes to upstream OpenAI-compatible
@@ -20,52 +89,7 @@ export function makeStructuredOutputCompatible(
     (Array.isArray(result['required']) ? result['required'] : [])
 
   if (result.type === 'object' && result.properties) {
-    const properties = { ...result.properties }
-    const allPropertyNames = Object.keys(properties)
-
-    for (const propName of allPropertyNames) {
-      let prop = properties[propName]
-      const wasOptional = !required.includes(propName)
-
-      // Step 1: Recurse into nested structures
-      if (prop.type === 'object' && prop.properties) {
-        prop = makeStructuredOutputCompatible(prop, prop.required || [])
-      } else if (prop.type === 'array' && prop.items) {
-        prop = {
-          ...prop,
-          items: makeStructuredOutputCompatible(
-            prop.items,
-            prop.items.required || [],
-          ),
-        }
-      } else if (prop.anyOf) {
-        prop = makeStructuredOutputCompatible(prop, prop.required || [])
-      } else if (prop.oneOf) {
-        throw new Error(
-          'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
-        )
-      }
-
-      // Step 2: Apply null-widening for optional properties (after recursion)
-      if (wasOptional) {
-        if (prop.anyOf) {
-          // For anyOf, add a null variant if not already present
-          if (!prop.anyOf.some((v: any) => v.type === 'null')) {
-            prop = { ...prop, anyOf: [...prop.anyOf, { type: 'null' }] }
-          }
-        } else if (prop.type && !Array.isArray(prop.type)) {
-          prop = { ...prop, type: [prop.type, 'null'] }
-        } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
-          prop = { ...prop, type: [...prop.type, 'null'] }
-        }
-      }
-
-      properties[propName] = prop
-    }
-
-    result.properties = properties
-    result.required = allPropertyNames
-    result.additionalProperties = false
+    rewriteObjectProperties(result, required)
   }
 
   if (result.type === 'array' && result.items) {
@@ -82,9 +106,7 @@ export function makeStructuredOutputCompatible(
   }
 
   if (result.oneOf) {
-    throw new Error(
-      'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
-    )
+    throw new Error(ONE_OF_UNSUPPORTED)
   }
 
   return result

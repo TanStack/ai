@@ -593,7 +593,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       activeBridgeByHookId.delete(this.options.hookId)
     }
 
-    for (const unsubscribe of this.unsubscribers.splice(0)) {
+    const splicedUnsubscribers = this.unsubscribers.splice(0)
+    for (const unsubscribe of splicedUnsubscribers) {
       unsubscribe()
     }
   }
@@ -637,7 +638,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private prepareForEmit(): boolean {
-    if (this.disposed || this.superseded) {
+    const isInactive = this.disposed || this.superseded
+    if (isInactive) {
       return false
     }
     this.activate()
@@ -696,12 +698,14 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   private handleRequestState(
     event: AIDevtoolsEvent<{ targetHookId?: string }>,
   ): void {
-    if (this.disposed || this.superseded) {
+    const isInactive = this.disposed || this.superseded
+    if (isInactive) {
       return
     }
 
     const targetHookId = event.payload.targetHookId
-    if (targetHookId && targetHookId !== this.options.hookId) {
+    const isOtherHook = targetHookId && targetHookId !== this.options.hookId
+    if (isOtherHook) {
       return
     }
 
@@ -730,21 +734,19 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private matchesFixtureTarget(fixture: AIDevtoolsToolFixture): boolean {
-    if (!fixture.hookId && !fixture.threadId) {
+    const hasNoTarget = !fixture.hookId && !fixture.threadId
+    if (hasNoTarget) {
       return false
     }
 
-    // Fixture routing: `hookId` wins when present (latest bridge for that
-    // registry key). `threadId` is the fallback for fixtures scoped only to a
-    // conversation / generation slot without a hook id.
     if (fixture.hookId) {
       return fixture.hookId === this.options.hookId
     }
 
-    if (
+    const isOtherThread =
       fixture.threadId &&
       (!this.options.threadId || fixture.threadId !== this.options.threadId)
-    ) {
+    if (isOtherThread) {
       return false
     }
     return true
@@ -793,10 +795,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
     }
   }
 }
-
-// Owns the chat-client devtools surface so the chat client itself stays a
-// pure transport. Fixture replay, per-run / per-stream event context, and
-// snapshot emission all live here; a no-op bridge can drop in for prod.
 
 export interface ChatDevtoolsBridgeOptions extends AIDevtoolsBridgeOptions<AIDevtoolsChatSnapshot> {
   getMessages: () => Array<UIMessage>
@@ -885,9 +883,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     )
   }
 
-  // Called when the chat client has just generated a runId for outbound emits;
-  // the matching RUN_STARTED chunk from the adapter lands later and
-  // observeChunk keeps the same context.
   beginRun(runId: string, threadId: string): void {
     this.currentRunId = runId
     this.currentRunThreadId = threadId
@@ -900,12 +895,15 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
       return
     }
 
-    if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+    const isTerminalChunk =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (isTerminalChunk) {
       const runId =
         chunk.type === 'RUN_FINISHED'
           ? chunk.runId
           : (chunk as { runId?: string }).runId
-      if (!runId || runId === this.currentRunId) {
+      const isOwnRun = !runId || runId === this.currentRunId
+      if (isOwnRun) {
         const context = this.getCurrentRunEventContext()
         if (context) {
           this.lastRunEventContext = context
@@ -1246,7 +1244,10 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     messages: Array<UIMessage>,
   ): { message: UIMessage; toolCallId: string } | undefined {
     const sourceMessage = fixture.message
-    if (!sourceMessage || !Array.isArray(sourceMessage.parts)) {
+    if (!sourceMessage) {
+      return undefined
+    }
+    if (!Array.isArray(sourceMessage.parts)) {
       return undefined
     }
 
@@ -1291,7 +1292,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   ): Map<string, string> {
     const ids = new Map<string, string>()
     for (const part of parts) {
-      if (!isRecord(part) || part.type !== 'tool-call') continue
+      const isToolCallPart = isRecord(part) && part.type === 'tool-call'
+      if (!isToolCallPart) continue
       if (typeof part.id !== 'string') continue
       ids.set(part.id, this.resolveFixtureToolCallId(part.id, messages))
     }
@@ -1432,10 +1434,6 @@ function hasToolCallId(
   )
 }
 
-// Devtools surface for GenerationClient / VideoGenerationClient. Owns per-run
-// history, active-run lifecycle, and snapshot emission; the generation client
-// pushes its core state in via the record* methods.
-
 export interface AIDevtoolsGenerationSnapshotBase<TOutput> {
   input: unknown
   result: TOutput | null
@@ -1515,14 +1513,13 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 
   ensureRunStarted(runId: string): void {
-    if (this.activeRunStarted && this.activeRunId === runId) return
-
-    if (
-      !this.activeRunStarted &&
-      this.activeRunId &&
-      this.activeRunId !== runId
-    ) {
-      this.renameRun(this.activeRunId, runId)
+    if (this.activeRunStarted) {
+      if (this.activeRunId === runId) return
+    } else {
+      const activeRunId = this.activeRunId
+      if (activeRunId && activeRunId !== runId) {
+        this.renameRun(activeRunId, runId)
+      }
     }
 
     this.activeRunId = runId
@@ -1721,10 +1718,6 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 }
 
-// Video-job specialization: snapshots also carry the job id and the latest
-// provider-reported video status so the panel can show streaming progress
-// before the final URL lands.
-
 export interface AIDevtoolsVideoSnapshotBase<
   TOutput,
 > extends AIDevtoolsGenerationSnapshotBase<TOutput> {
@@ -1831,10 +1824,6 @@ export class VideoDevtoolsBridge<
   }
 }
 
-// Wraps the plain emitter so callers can do `this.events.X(...)` and get:
-// auto-attached run/thread context on every event that accepts one,
-// an auto-emitted snapshot after each event, and passive streamId tracking
-// so resolveStreamId() works without the chat client telling it.
 class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   constructor(
     private readonly getClientId: () => string,

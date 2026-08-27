@@ -1,14 +1,3 @@
-/**
- * Shared internals for the built-in `inMemory()` and `redis()` adapters.
- *
- * NOT part of the public contract — nothing here is exported from the package
- * root. Both built-in adapters keep a set of scored, optionally-embedded
- * `MemoryRecord`s and expose only `recall`/`save`; this module holds the record
- * model, the scoring/rendering helpers, and the extract→store→score→render
- * pipeline they share. The only thing an adapter supplies is a {@link RecordStore}
- * (a Map for in-memory, Redis keys for redis).
- */
-
 import type {
   MemoryFact,
   MemoryFragment,
@@ -87,10 +76,6 @@ export interface RecordStore {
   loadScope: (scope: MemoryScope) => Promise<Array<MemoryRecord>>
 }
 
-// ===========================
-// Scope
-// ===========================
-
 /**
  * Normalize an optional scope dimension: empty string is treated as unset so
  * `''` and `undefined` compare equal.
@@ -115,14 +100,13 @@ export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   return true
 }
 
-// ===========================
-// Scoring helpers
-// ===========================
-
 const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
 export function cosine(a?: Array<number>, b?: Array<number>): number {
-  if (!a || !b || a.length !== b.length || a.length === 0) return 0
+  if (!a) return 0
+  if (!b) return 0
+  if (a.length !== b.length) return 0
+  if (a.length === 0) return 0
   let dot = 0
   let aMag = 0
   let bMag = 0
@@ -133,7 +117,8 @@ export function cosine(a?: Array<number>, b?: Array<number>): number {
     aMag += av ** 2
     bMag += bv ** 2
   }
-  if (aMag === 0 || bMag === 0) return 0
+  const zeroMagnitude = aMag === 0 || bMag === 0
+  if (zeroMagnitude) return 0
   return dot / (Math.sqrt(aMag) * Math.sqrt(bMag))
 }
 
@@ -199,10 +184,6 @@ export function defaultRenderMemory(hits: Array<MemoryHit>): string {
     ),
   ].join('\n')
 }
-
-// ===========================
-// Shared recall / save pipeline
-// ===========================
 
 /** Portable record id — real UUID where available, deterministic fallback otherwise. */
 export function newRecordId(): string {
@@ -310,7 +291,9 @@ export async function recallRecords(
   query: string,
   options: BuiltinOptions,
 ): Promise<RecallResult> {
+  /** Max hits returned by recall. Defaults to 6. */
   const topK = options.topK ?? 6
+  /** Drop hits scoring below this. Defaults to 0.15. */
   const minScore = options.minScore ?? 0.15
   const now = Date.now()
 
@@ -319,6 +302,7 @@ export async function recallRecords(
     : undefined
 
   const records = await store.loadScope(scope)
+  /** Restrict recall to these kinds. Defaults to all. */
   const kinds = options.kinds
   const candidates =
     kinds && kinds.length > 0

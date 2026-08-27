@@ -16,7 +16,9 @@ export function mergeMetadata(
   if (incoming == null) return current
   if (current == null) return { ...incoming }
   const merged: MetadataRecord = { ...current, ...incoming }
-  if (isPlainRecord(current.tanstack) && isPlainRecord(incoming.tanstack)) {
+  const bothTanstackRecords =
+    isPlainRecord(current.tanstack) && isPlainRecord(incoming.tanstack)
+  if (bothTanstackRecords) {
     merged.tanstack = { ...current.tanstack, ...incoming.tanstack }
   }
   return merged

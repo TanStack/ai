@@ -1,10 +1,3 @@
-/**
- * Image Activity
- *
- * Generates images from text prompts.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -35,16 +28,9 @@ import type {
   StreamChunk,
 } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'image' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'image' as const
 
 /**
  * Extract model-specific provider options from an ImageAdapter via ~types.
@@ -93,10 +79,6 @@ export type ImagePromptForModel<TAdapter, TModel extends string> =
         ? MediaPromptFor<ModsByName[TModel][number]>
         : MediaPrompt
     : MediaPrompt
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the image activity.
@@ -175,10 +157,6 @@ export type ImageActivityOptions<
       >
     })
 
-// ===========================
-// Activity Result Type
-// ===========================
-
 /**
  * Result type for the image activity.
  * - If stream is true: AsyncIterable<StreamChunk>
@@ -192,10 +170,6 @@ export type ImageActivityResult<TStream extends boolean = false> =
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * Image activity - generates images from text prompts.
@@ -250,11 +224,6 @@ export function generateImage<
 ): ImageActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
       (resolved) => runGenerateImage({ ...options, runId: resolved.runId }),
       options,
     ) as ImageActivityResult<TStream>
@@ -353,11 +322,6 @@ async function runGenerateImage<
       requestId,
       provider: adapter.name,
       model,
-      // GeneratedImage is a discriminated `{ url } | { b64Json }` union, but the
-      // wire shape on the devtools event is a plain optional pair. Use
-      // conditional spreads so the emitted record only sets the field actually
-      // present — `exactOptionalPropertyTypes` rejects `field: undefined`
-      // against `field?: string` targets.
       images: result.images.map((image) => ({
         url: image.url,
         b64Json: image.b64Json,
@@ -409,10 +373,6 @@ async function runGenerateImage<
     throw error
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the generateImage() function without executing.

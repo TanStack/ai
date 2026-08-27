@@ -37,17 +37,21 @@ export interface BedrockEmbeddingConfig extends Pick<
 > {}
 
 /** InvokeModel calls issued concurrently during a per-item fan-out. */
-const MAX_CONCURRENT_INVOCATIONS = 5
+const /** InvokeModel calls issued concurrently during a per-item fan-out. */
+  MAX_CONCURRENT_INVOCATIONS = 5
 
 /** Valid `dimensions` for `amazon.titan-embed-text-v2:0`. */
-const TITAN_TEXT_DIMENSIONS: ReadonlyArray<number> = [256, 512, 1024]
+const /** Valid `dimensions` for `amazon.titan-embed-text-v2:0`. */
+  TITAN_TEXT_DIMENSIONS: ReadonlyArray<number> = [256, 512, 1024]
 
 /** Valid `dimensions` (outputEmbeddingLength) for `amazon.titan-embed-image-v1`. */
-const TITAN_IMAGE_DIMENSIONS: ReadonlyArray<number> = [256, 384, 1024]
+const /** Valid `dimensions` (outputEmbeddingLength) for `amazon.titan-embed-image-v1`. */
+  TITAN_IMAGE_DIMENSIONS: ReadonlyArray<number> = [256, 384, 1024]
 const TITAN_IMAGE_DEFAULT_DIMENSIONS = 1024
 
 /** Cohere embed accepts at most 96 texts per InvokeModel call. */
-const COHERE_MAX_BATCH_SIZE = 96
+const /** Cohere embed accepts at most 96 texts per InvokeModel call. */
+  COHERE_MAX_BATCH_SIZE = 96
 
 /**
  * Bedrock Embedding Adapter
@@ -70,10 +74,6 @@ const COHERE_MAX_BATCH_SIZE = 96
  */
 export class BedrockEmbeddingAdapter<
   TModel extends BedrockEmbeddingModel,
-  // Same rationale as the text adapters: the base parameterises
-  // `TProviderOptions extends object`, and the per-model options interfaces
-  // lack implicit index signatures — `Record<string, any>` (not `unknown`)
-  // accepts them. Confined to the generic constraint; no value cast.
   TProviderOptions extends Record<string, any> =
     ResolveEmbeddingProviderOptions<TModel>,
 > extends BaseEmbeddingAdapter<
@@ -88,9 +88,6 @@ export class BedrockEmbeddingAdapter<
 
   constructor(config: BedrockEmbeddingConfig, model: TModel) {
     super(model, {})
-    // Defer client construction and auth resolution: the AWS SDK is Node/
-    // server-only, so we must not pull it into the static graph here. The
-    // client (and its dynamic import) is built lazily on first SDK call.
     this.clientConfig = config
   }
 
@@ -160,10 +157,6 @@ export class BedrockEmbeddingAdapter<
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SDK seam (overridden in tests so no real AWS call happens)
-  // ---------------------------------------------------------------------------
-
   /** Send one InvokeModel call and parse its JSON response body. */
   protected async invokeModel(
     modelId: string,
@@ -181,10 +174,6 @@ export class BedrockEmbeddingAdapter<
     )
     return JSON.parse(new TextDecoder().decode(response.body))
   }
-
-  // ---------------------------------------------------------------------------
-  // Public adapter surface
-  // ---------------------------------------------------------------------------
 
   async createEmbeddings(
     options: EmbeddingOptions<TProviderOptions>,
@@ -217,10 +206,6 @@ export class BedrockEmbeddingAdapter<
       throw error
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Per-model request mapping
-  // ---------------------------------------------------------------------------
 
   /**
    * `amazon.titan-embed-text-v2:0` — one text per InvokeModel call, fanned
@@ -373,10 +358,6 @@ export class BedrockEmbeddingAdapter<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Response-body narrowing (SDK JSON boundary)
-// ---------------------------------------------------------------------------
-
 interface TitanEmbeddingBody {
   embedding: Array<number>
   /** 0 when the response omits it (e.g. image-only Titan Multimodal calls). */
@@ -399,6 +380,7 @@ function readTitanEmbeddingBody(
       `${context}: response body is missing the "embedding" array`,
     )
   }
+  /** 0 when the response omits it (e.g. image-only Titan Multimodal calls). */
   const inputTextTokenCount =
     isRecord(raw) && typeof raw.inputTextTokenCount === 'number'
       ? raw.inputTextTokenCount
@@ -420,10 +402,6 @@ function readCohereEmbeddingBody(
   }
   return embeddings
 }
-
-// ---------------------------------------------------------------------------
-// Input mapping helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Map an ImagePart to Titan's `inputImage` (RAW base64, no data: prefix).
@@ -480,10 +458,6 @@ async function mapWithConcurrency<T, TResult>(
   await Promise.all(Array.from({ length: workerCount }, () => worker()))
   return results
 }
-
-// ---------------------------------------------------------------------------
-// Factories
-// ---------------------------------------------------------------------------
 
 /**
  * Creates a Bedrock embedding adapter with an explicit API key (bearer).

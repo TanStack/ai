@@ -1,8 +1,3 @@
-/**
- * Re-export fal.ai's comprehensive type system for full model support.
- * The fal.ai SDK provides types for 600+ models through EndpointTypeMap.
- * These types give you full autocomplete and type safety for any model.
- */
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 import type { MediaPromptModality } from '@tanstack/ai'
 import type { FalImageFieldName } from './image/generated/image-field-overrides'

@@ -1,27 +1,3 @@
-/**
- * `ChatSandboxCoordinator` — the concrete {@link SandboxCoordinator} for the
- * DO-DRIVES model: the Durable Object runs `chat()` ITSELF and hosts the MCP
- * tool-bridge from its own `fetch` handler.
- *
- *     Worker (stateless trigger)
- *        → ChatSandboxCoordinator (this DO: runs chat(), owns the sandbox + log)
- *           → Cloudflare Sandbox (the container the agent executes in)
- *
- * It implements the one per-model seam, {@link buildRunStream}, by running
- * `chat()` in the DO with two middlewares: our DO-backed tool-bridge provisioner
- * (so the bridge is served from this DO instead of a `node:http` listener) and
- * `withSandbox(...)` (the handle the harness adapter needs). The per-run config —
- * which adapter, which sandbox, which chat()-tools — is the subclass's
- * {@link config} method; everything else (run-log, streaming tail, watchdog) is
- * inherited from the base.
- *
- * The MCP tool-bridge lives at `/_bridge/:runId`, gated by a per-run bearer
- * token, served from {@link handleRoute}. The in-sandbox agent reaches it via
- * the Worker's public hostname.
- *
- * NOTE: Workers-runtime code — compiles against the real Cloudflare + TanStack
- * AI types; not runtime-verified in this repo (no Workers runtime here).
- */
 import { chat, defineChatMiddleware } from '@tanstack/ai'
 import {
   ToolBridgeProvisionerCapability,
@@ -93,20 +69,12 @@ export abstract class ChatSandboxCoordinator<
    */
   private readonly bridges = new Map<string, BridgeState>()
 
-  // ===========================================================================
-  // Subclass seam: the per-run configuration
-  // ===========================================================================
-
   /**
    * Resolve the adapter, sandbox, and chat()-tools for one run. Implemented by
    * the app subclass (or supplied by {@link createCloudflareSandboxAgent}); this
    * is the only model-specific input the DO-drives coordinator needs.
    */
   protected abstract config(input: StartRunInput): ChatRunConfig
-
-  // ===========================================================================
-  // The one per-model seam: run chat() in the DO
-  // ===========================================================================
 
   /**
    * Run `chat()` IN the DO, streaming its `StreamChunk`s. `stream: true` (with no
@@ -144,10 +112,6 @@ export abstract class ChatSandboxCoordinator<
     this.bridges.delete(runId)
   }
 
-  // ===========================================================================
-  // The DO-backed tool-bridge provisioner + endpoint
-  // ===========================================================================
-
   /**
    * A tiny middleware that PROVIDES our DO-backed {@link ToolBridgeProvisioner}.
    * The harness adapter reads it via `getOptional` and falls back to the
@@ -175,9 +139,6 @@ export abstract class ChatSandboxCoordinator<
     const env = this.env
     const bridges = this.bridges
     const { runId, threadId } = input
-    // Container→Worker origin: `PUBLIC_HOSTNAME` if set, else derived from the
-    // trigger request (locally → host.docker.internal). The bearer token rides
-    // this URL. See `resolveBridgeOrigin`.
     const origin = resolveBridgeOrigin(env, input)
     return {
       provision(tools, options): Promise<ProvisionedBridge> {

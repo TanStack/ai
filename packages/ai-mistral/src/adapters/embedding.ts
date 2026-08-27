@@ -61,16 +61,15 @@ export class MistralEmbeddingAdapter<
     const { model, logger, modelOptions } = options
     const texts = requireTextOnlyEmbeddingInput(options.input, this.name, model)
 
-    if (options.dimensions !== undefined && model === 'mistral-embed') {
+    const rejectsDimensions =
+      options.dimensions !== undefined && model === 'mistral-embed'
+    if (rejectsDimensions) {
       throw new Error(
         'mistral-embed does not support requesting dimensions (output is a fixed 1024-dimension vector). Use codestral-embed for dimension reduction, or omit `dimensions`.',
       )
     }
 
     try {
-      // Spread modelOptions first so it can never override the validated
-      // fields (server routes often pass modelOptions through from untyped
-      // client input).
       const request: EmbeddingRequest = {
         ...modelOptions,
         model,

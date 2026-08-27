@@ -7,7 +7,6 @@
  * and the package's public types don't depend on the agent SDK's bundled
  * `@anthropic-ai/sdk` type imports.
  */
-
 export interface SdkInitMessage {
   type: 'system'
   subtype: 'init'

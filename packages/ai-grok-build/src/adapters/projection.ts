@@ -1,39 +1,3 @@
-/**
- * Grok Build workspace projector — mirrors the codex reference
- * (`packages/ai-codex/src/adapters/projection.ts`).
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. Each harness
- * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Grok Build that means:
- *
- *   - MCP servers   → `[mcp_servers.<name>]` tables in `<root>/.grok/config.toml`
- *                     (TOML), matching the shape `projectGrokMcpBridge` uses for
- *                     the host tool-bridge. Workspace projection MERGES only its
- *                     own `mcp_servers` entries so an existing bridge table (or
- *                     other non-workspace servers) is preserved — unlike codex,
- *                     where the bridge is passed via CLI `--config` flags instead
- *                     of sharing the same file.
- *   - gitSkill repos → linked under `<root>/.grok/skills/<basename>` via symlink,
- *                      falling back to recursive copy.
- *   - agentSkill     → no grok primitive pulls a public skill by bare name, so
- *                      we warn-and-skip rather than invent one.
- *   - plugins        → Grok Build has no plugin concept, so we warn-and-skip.
- *
- * The secret-bearing MCP config is (re)written on EVERY call, re-resolving
- * secrets each time, so grok always reads current values and a snapshot can
- * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
- * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
- * one-time marker file under the workspace.
- *
- * Grok specifics (verified against the grok config schema):
- *   - Grok reads `[mcp_servers.<name>]` from `<cwd>/.grok/config.toml`, with a
- *     streamable-HTTP server taking `url`, `enabled`, and optional nested
- *     `[mcp_servers.<name>.headers]` tables. We write resolved header values
- *     directly so a rotated secret re-applies on every projection.
- *   - AGENTS.md is written universally by bootstrap (grok reads it natively),
- *     so it is NOT rewritten here.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -110,7 +74,8 @@ function buildMcpServers(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']
@@ -139,11 +104,14 @@ function stripMcpServerSections(toml: string, names: Set<string>): string {
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    const isTableHeader = trimmed.startsWith('[') && trimmed.endsWith(']')
+    if (isTableHeader) {
       const serverName = mcpServerNameFromHeader(trimmed)
-      if (serverName !== undefined && names.has(serverName)) {
-        skipping = true
-        continue
+      if (serverName !== undefined) {
+        if (names.has(serverName)) {
+          skipping = true
+          continue
+        }
       }
       skipping = false
     }

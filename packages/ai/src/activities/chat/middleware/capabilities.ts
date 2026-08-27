@@ -16,7 +16,13 @@ export interface CapabilityContext {
 /** Reads a capability value off a context. Overloaded so the flag narrows the return. */
 export interface CapabilityGetter<TValue> {
   (ctx: CapabilityContext): TValue
-  (ctx: CapabilityContext, opts: { optional: true }): TValue | undefined
+  (
+    ctx: CapabilityContext,
+    opts: {
+      /** When true, return undefined instead of throwing if the capability is absent. */
+      optional: true
+    },
+  ): TValue | undefined
 }
 
 /** Writes a capability value onto a context. */
@@ -73,6 +79,7 @@ export class CapabilityRegistry {
     this.provided.add(handle)
   }
 
+  /** @internal Presence check for the post-setup assertion. */
   has(handle: CapabilityHandle): boolean {
     return this.provided.has(handle)
   }

@@ -118,6 +118,7 @@ export function injectGenerateAudio<TTransformed = void>(
 ): InjectGenerateAudioResult<
   InferGenerationOutputFromReturn<AudioGenerationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'angular',

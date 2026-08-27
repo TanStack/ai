@@ -1,19 +1,3 @@
-/**
- * @tanstack/ai-isolate-daytona
- *
- * Daytona sandbox driver for TanStack AI Code Mode.
- * Execute LLM-generated code inside a caller-provided Daytona sandbox.
- *
- * @example
- * ```typescript
- * import { createDaytonaIsolateDriver } from '@tanstack/ai-isolate-daytona'
- *
- * const driver = createDaytonaIsolateDriver({ sandbox })
- * ```
- *
- * @packageDocumentation
- */
-
 export {
   createDaytonaIsolateDriver,
   type DaytonaIsolateDriverConfig,

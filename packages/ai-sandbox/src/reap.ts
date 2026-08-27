@@ -1,67 +1,3 @@
-/**
- * The sweep `RunStore.listReclaimable` was always missing a consumer for: take a
- * detached run whose viewer never came back, save its transcript, terminalize its
- * record, and tear its sandbox down.
- *
- * THE ONE RULE THAT SHAPES EVERYTHING HERE: **never drive a run to find out
- * whether it finished.**
- *
- * The obvious design — hand the run to `pipeToRunLog` under a short
- * `runBudgetMs` and see whether it terminalizes — was measured and is broken.
- * `pipeToRunLog` is total by construction: it ALWAYS writes a terminal status and
- * ALWAYS calls `durability.close()`. Against a run that has not finished, all
- * three producer shapes are destructive:
- *
- * | producer's reaction to the budget signal | stored status | `close()` |
- * | ---------------------------------------- | ------------- | --------- |
- * | ignores it and keeps producing           | `aborted`     | called    |
- * | returns on abort (the realistic `drive`)  | `aborted`     | called    |
- * | throws an AbortError                     | `failed`      | called    |
- *
- * The middle row USED to read `completed`, which was the fatal one: a signal-aware
- * producer exits its loop NORMALLY, and `pipeToRunLog` only checked its signal
- * per chunk, so a healthy mid-flight run was recorded as `'completed'` with a
- * `finishedAt` — a false transcript. That gap is fixed (`run.ts` re-checks the
- * signal after the loop), so the status is now honest on all three rows. The rule
- * above is UNCHANGED, because the status was never the whole harm: every row
- * writes a terminal record and closes a log that commit `5a1f821c9` deliberately
- * leaves OPEN for takeover (ending every attached client's stream), and a terminal
- * record drops out of `listReclaimable` forever, so TTL expiry can never reclaim
- * that run's sandbox. A cost leak with no recovery path. There is therefore no
- * "still running" outcome in {@link ReapRunOutcome}: it is unreachable by
- * construction, not merely unlikely.
- *
- * So sentinel-reached is detected OUT OF BAND, through the in-sandbox journal
- * ({@link probeRunExit}), and `pipeToRunLog` is entered only for a run already
- * KNOWN to have finished, or for one whose TTL has expired (terminal either way).
- * On the FINALIZATION path `runBudgetMs` therefore degrades from a load-bearing
- * mechanism into a safety net whose expiry is a genuine anomaly — see
- * `'budget-exceeded'`. On the EXPIRY path it stays load-bearing: nothing polls the
- * cancel this module records, so the budget is what ends the drive of an expired
- * run whose agent is still producing, and its expiry there is the designed path.
- *
- * WHY THE PROBE IS INJECTED (`ReapOptions.hasFinished`) rather than resolved
- * here, exactly like `ReapOptions.reclaim`:
- *
- * - It cannot read `durability.snapshot()`. After a detach nothing appends to the
- *   delivery log — the host that would have appended is the host that left — so
- *   the log is frozen at the last delivered chunk while the JOURNAL keeps
- *   growing. The log can only ever say "no news".
- * - It cannot resolve a `SandboxHandle` either. `SandboxInstanceStore` is
- *   `get`/`upsert`/`delete` with no `list` (see `reclaim.ts` for why that is
- *   deliberate), and only the application maps a `sandboxKey` to a live handle.
- *
- * NEVER REJECTS. This runs from a cron, an `alarm()`, or a `waitUntil` with
- * nobody to catch it, so every per-run failure is logged and folded into
- * {@link ReapResult} rather than escaping.
- *
- * NEVER CLEARS `detachedSince`. That field is what the reaper SELECTS on, and
- * `packages/ai/src/stream-to-response.ts`'s `startRunDriver` clears it because a
- * real viewer stopping the TTL clock is the opposite job. Its comment there names
- * borrowing that path "the single most likely bug in this phase"; clearing the
- * marker would reset the TTL on every sweep and a detached run would never
- * expire.
- */
 import { isTerminalRunStatus, requestRunCancel } from '@tanstack/ai'
 import {
   DEFAULT_FENCE_QUIET_MS,
@@ -114,7 +50,8 @@ export const DEFAULT_RUN_BUDGET_MS = 30_000
 export const DEFAULT_MAX_RUNS = 25
 
 /** Journal tail bytes {@link probeRunExit} reads. The sentinel is the last line. */
-export const DEFAULT_EXIT_PROBE_BYTES = 4096
+export const /** Journal tail bytes {@link probeRunExit} reads. The sentinel is the last line. */
+  DEFAULT_EXIT_PROBE_BYTES = 4096
 
 /**
  * What the out-of-band probe learned about a detached run's agent.
@@ -127,7 +64,10 @@ export const DEFAULT_EXIT_PROBE_BYTES = 4096
  */
 export type RunExitProbe =
   /** The `{"__exit":N}` sentinel is in the journal. The agent is over. */
-  | { state: 'finished'; exitCode: number }
+  | {
+      state: 'finished' /** The agent's exit code, when the probe read one. */
+      exitCode: number
+    }
   /** No sentinel. The agent is mid-flight (or never started). LEAVE IT ALONE. */
   | { state: 'producing' }
   /** The probe could not answer — no sandbox, `exec` rejected, frame undecodable. */
@@ -135,68 +75,13 @@ export type RunExitProbe =
 
 /** What one sweep did to one run. */
 export type ReapRunOutcome =
-  /**
-   * The probe saw `{"__exit":N}`, the run was driven to a terminal status, and
-   * its transcript is saved. The happy path.
-   */
   | 'finalized'
-  /**
-   * Past `detachedRunTtlMs`. Cancelled first, then driven to terminal. The probe
-   * is skipped: the outcome is terminal whether the agent finished or not.
-   *
-   * Reported even when {@link ReapOptions.runBudgetMs} is what ended the drive —
-   * on this path that is the mechanism rather than an anomaly, so `'expired'` is
-   * the truthful outcome. The run's own `status` distinguishes the two shapes:
-   * an agent that had already finished replays to `'completed'`, while one still
-   * producing when the budget fired is `'aborted'`.
-   */
   | 'expired'
-  /**
-   * Still producing. `pipeToRunLog` was NEVER entered — nothing appended, no
-   * terminal record written, `close()` not called, `detachedSince` untouched.
-   */
   | 'producing'
   /** The probe could not answer. Left exactly as untouched as `'producing'`. */
   | 'unknown'
-  /**
-   * ANOMALY. The drive outran {@link ReapOptions.runBudgetMs} on a run the
-   * journal already said was finished. The record IS terminal and the log IS
-   * closed (`pipeToRunLog` guarantees both), so this is a diagnostic, not a leak
-   * — but a finished run that would not replay in 30s means the journal read, the
-   * translation, or the log is misbehaving.
-   *
-   * FINALIZATION ONLY. An expired run that outran its budget reports `'expired'`:
-   * there was no probe on that path and the agent may legitimately still have been
-   * producing, so the budget firing is the designed stop, not a misbehaving replay.
-   */
   | 'budget-exceeded'
-  /**
-   * Another host holds the claim, or held it and superseded us mid-drive. Normal:
-   * a real viewer attaching mid-sweep is exactly this. Also covers a run that
-   * reached terminal in another host's hands between the listing and the claim.
-   */
   | 'not-claimed'
-  /**
-   * The transcript IS saved and the record IS terminal — only
-   * {@link ReapOptions.reclaim} threw, so the sandbox is still up.
-   *
-   * A DISTINCT outcome rather than `'failed'`, because the two need opposite
-   * operator responses and `'failed'` cannot express this one: it carries no
-   * `status` and no `exitCode`, so "transcript saved, sandbox NOT reclaimed"
-   * read identically to "the sweep failed and the run was never finalized".
-   *
-   * NOT RETRYABLE BY THE SWEEP. The record is terminal by now, so the run has
-   * left `listReclaimable` for good; the sandbox leaks until something else
-   * tears it down. This entry, with its `error`, is the only notice of that.
-   *
-   * OVERWRITES `'budget-exceeded'` when both happened, because the leak is what
-   * needs acting on — {@link ReapRunEntry.terminalizedAnyway} is what preserves
-   * the budget half of that pair.
-   *
-   * `sandboxReclaimer` REJECTS on its `'destroy-failed'` arm precisely so this
-   * outcome is reachable through the shipped reclaimer and not only through a
-   * custom one; see `SandboxReclaimFailedError` in `reclaim.ts`.
-   */
   | 'reclaim-failed'
   /** Something threw. Logged, recorded here, and the sweep continued. */
   | 'failed'
@@ -289,7 +174,8 @@ async function* singleValue(value: string): AsyncIterable<string> {
 async function decodeFrame(stdout: string): Promise<string> {
   const decoder = new TextDecoder()
   let text = ''
-  for await (const bytes of decodeBase64Stream(singleValue(stdout))) {
+  const decodedChunks = decodeBase64Stream(singleValue(stdout))
+  for await (const bytes of decodedChunks) {
     text += decoder.decode(bytes, { stream: true })
   }
   return text + decoder.decode()
@@ -327,9 +213,6 @@ export async function probeRunExit(input: {
         input.maxBytes ?? DEFAULT_EXIT_PROBE_BYTES,
       ),
     )
-    // `paths` supplies the per-run sentinel nonce: without it a mid-flight
-    // agent that printed any JSON object carrying `__exit` would read as
-    // `'finished'` here, and the caller would drive and reclaim a LIVE run.
     const exitCode = parseJournalExit(await decodeFrame(result.stdout), paths)
     return exitCode === null
       ? { state: 'producing' }
@@ -375,7 +258,9 @@ function safeLog(
 /** Resolved-once settings shared by every run in one sweep. */
 interface ReapContext<TOffset extends string = string> {
   options: ReapOptions<TOffset>
+  /** Safety net per drive. Defaults to {@link DEFAULT_RUN_BUDGET_MS}. */
   runBudgetMs: number
+  /** Quiescence window; defaults to `DEFAULT_FENCE_QUIET_MS`. */
   fenceQuietMs: number
   /** Inclusive expiry cutoff: `detachedSince <= cutoff` is expired. */
   cutoff: number
@@ -387,6 +272,88 @@ function isClaimRefusal(error: unknown): boolean {
     error instanceof RunClaimNotAcquiredError ||
     error instanceof RunClaimLostError
   )
+}
+
+function unknownProbeError(probe: RunExitProbe): { error?: unknown } {
+  const hasNoUnknownError =
+    probe.state !== 'unknown' || probe.error === undefined
+  if (hasNoUnknownError) return {}
+  return { error: probe.error }
+}
+
+type ReapProbeDecision =
+  | { kind: 'expired' }
+  | { kind: 'leave'; entry: ReapRunEntry }
+  | { kind: 'finished'; exitCode: number }
+
+async function classifyReapProbe<TOffset extends string>(
+  record: RunRecord,
+  ctx: ReapContext<TOffset>,
+  counters: {
+    /** Runs {@link ReapOptions.hasFinished} was actually called for. */
+    probed: number
+  },
+): Promise<ReapProbeDecision> {
+  const expired =
+    record.detachedSince !== undefined && record.detachedSince <= ctx.cutoff
+  if (expired) return { kind: 'expired' }
+  counters.probed += 1
+  const probe = await ctx.options.hasFinished(record)
+  if (probe.state !== 'finished') {
+    const extra = unknownProbeError(probe)
+    safeLog(
+      ctx.options.logger,
+      'sandbox',
+      `reap: leaving run ${record.runId} alone`,
+      {
+        runId: record.runId,
+        state: probe.state,
+        ...extra,
+      },
+    )
+    return {
+      kind: 'leave',
+      entry: { runId: record.runId, outcome: probe.state, ...extra },
+    }
+  }
+  return { kind: 'finished', exitCode: probe.exitCode }
+}
+
+function classifyDriveOutcome(
+  expired: boolean,
+  terminal: boolean,
+  budgetAborted: boolean,
+): ReapRunOutcome {
+  const isBudgetExceeded = budgetAborted && !expired
+  if (isBudgetExceeded) return 'budget-exceeded'
+  if (!terminal) return 'not-claimed'
+  return expired ? 'expired' : 'finalized'
+}
+
+async function reclaimTerminalRun<TOffset extends string>(
+  record: RunRecord,
+  ctx: ReapContext<TOffset>,
+  status: RunStatus,
+): Promise<{ outcome?: 'reclaim-failed'; error?: unknown }> {
+  if (!isTerminalRunStatus(status) || ctx.options.reclaim === undefined) {
+    return {}
+  }
+  try {
+    await ctx.options.reclaim(record)
+    return {}
+  } catch (error) {
+    safeLog(
+      ctx.options.logger,
+      'errors',
+      `reap: reclaiming run ${record.runId} failed`,
+      {
+        runId: record.runId,
+        status,
+        error,
+      },
+    )
+    return { outcome: 'reclaim-failed', error }
+  }
 }
 
 /**
@@ -421,39 +388,11 @@ async function reapOne<TOffset extends string>(
   const { runId, threadId } = record
 
   try {
-    // INCLUSIVE, exactly as `RunStore.listReclaimable` documents its own cutoff:
-    // a run detached at precisely `now - ttlMs` IS expired. The two must agree,
-    // or a run would be listed as reclaimable and then classified as fresh on
-    // every single sweep, forever.
-    const expired =
-      record.detachedSince !== undefined && record.detachedSince <= ctx.cutoff
-
-    let exitCode: number | undefined
-    if (!expired) {
-      counters.probed += 1
-      const probe = await ctx.options.hasFinished(record)
-      if (probe.state !== 'finished') {
-        // THE LEAVE-ALONE PATH. Deliberately returns before `withRunClaim`, so
-        // not even `driverEpoch` moves — and above all `detachedSince` is left
-        // exactly as it was, since it is both this run's TTL evidence and the
-        // field the next sweep selects on.
-        safeLog(logger, 'sandbox', `reap: leaving run ${runId} alone`, {
-          runId,
-          state: probe.state,
-          ...(probe.state === 'unknown' && probe.error !== undefined
-            ? { error: probe.error }
-            : {}),
-        })
-        return {
-          runId,
-          outcome: probe.state,
-          ...(probe.state === 'unknown' && probe.error !== undefined
-            ? { error: probe.error }
-            : {}),
-        }
-      }
-      exitCode = probe.exitCode
-    }
+    const decision = await classifyReapProbe(record, ctx, counters)
+    if (decision.kind === 'leave') return decision.entry
+    const expired = decision.kind === 'expired'
+    const exitCode =
+      decision.kind === 'finished' ? decision.exitCode : undefined
 
     // Armed INSIDE the claim, below. Read after it for the outcome, so it is
     // hoisted here rather than declared in the callback.
@@ -468,39 +407,16 @@ async function reapOne<TOffset extends string>(
       },
       async (claim) => {
         if (expired) {
-          // RE-DERIVED FROM A RECORD READ INSIDE THE LOCK, never from the listed
-          // one. `stream-to-response.ts`'s `startRunDriver` CLEARS
-          // `detachedSince` when a real viewer attaches — deliberately stopping
-          // the TTL clock — and it takes this same per-run lock, so an
-          // expiry decided at listing time is stale by the time the claim is
-          // held. Cancelling on the stale value poisoned a now-live run:
-          // nothing in the tree ever clears `cancelRequested`, so on that
-          // viewer's next ORDINARY disconnect `middleware.ts`'s
-          // `wasCancelRequested` read skips the detach branch and destroys the
-          // sandbox of a healthy, actively-viewed run.
           const current = await runs.get(runId)
           if (current === null) {
             throw new RunClaimNotAcquiredError(runId, 'unknown')
           }
-          if (
+          const isNewerDetached =
             current.detachedSince === undefined ||
             current.detachedSince > ctx.cutoff
-          ) {
-            // The viewer came back. `'not-claimed'` already documents "a real
-            // viewer attaching mid-sweep is exactly this", and refusing here
-            // leaves the run as untouched as the leave-alone path does: no
-            // cancel, no append, no terminal record, no `close()`.
+          if (isNewerDetached) {
             throw new RunClaimNotAcquiredError(runId, 'superseded')
           }
-          // BEFORE the drive, never after — and never before the claim.
-          // `withSandbox`'s `onAbort` resolves the out-of-band cancel band from
-          // the record, so recording the intent first is what makes the teardown
-          // an explicit cancel that DESTROYS the sandbox rather than a second
-          // detach that re-arms `detachedSince` and leaves the run to be swept
-          // again forever. Recorded after the drive it is pure bookkeeping on a
-          // run that already tore down the wrong way. Recorded before the CLAIM
-          // it is an unfenced, sticky write on a record this host does not own,
-          // derived from a value the lock exists to make current.
           await requestRunCancel(runs, runId)
         }
         // Before the first append, never after: `pipeToRunLog` snapshots to align.
@@ -508,31 +424,9 @@ async function reapOne<TOffset extends string>(
           ctx.options.durability(runId),
           ctx.fenceQuietMs,
         )
-        // A safety net, not a mechanism (see the module doc). `AbortSignal.any`
-        // is this package's idiom for linking one — see
-        // `testkit/takeover-conformance.ts`.
-        //
-        // ARMED HERE, not before `withRunClaim`. Both the lock wait and the
-        // quiescence wait consume a timer started earlier: quiescence always
-        // sleeps at least one `fenceQuietMs` and may sleep six, and lock
-        // acquisition waits behind whoever holds it, unbounded. The effective
-        // budget was silently `runBudgetMs − fenceQuietMs − lockWait`, and once
-        // it went negative the claim was acquired with the timer already fired:
-        // `pipeToRunLog` hit its entry `signal.aborted` check before pulling one
-        // chunk, so a FINISHED agent's transcript was recorded `'aborted'` and
-        // its log closed — and a terminal record leaves `listReclaimable`
-        // forever, so that transcript was then unreplayable while `reclaim`
-        // destroyed the sandbox holding the only copy. The budget bounds the
-        // DRIVE, not the queue.
         budget = AbortSignal.timeout(ctx.runBudgetMs)
-        // `claim.signal` is in the composed signal because losing the lease MUST
-        // stop the drive: a successor that took the run over is appending to the
-        // same log, and this drive continuing would double every chunk.
         const signal = AbortSignal.any([claim.signal, budget])
         return pipeToRunLog(ctx.options.drive({ runId, threadId, signal }), {
-          // BOTH seams, over the SAME claim, as `driver.ts` explains: fencing the
-          // log alone just moves the harm to "a dead host marks the successor's
-          // live run failed".
           runs: fenceRunStore(runs, claim, {
             ...(logger === undefined ? {} : { logger }),
           }),
@@ -547,68 +441,15 @@ async function reapOne<TOffset extends string>(
     )
 
     const terminal = isTerminalRunStatus(final.status)
-    let outcome: ReapRunOutcome
-    // `&& !expired` is the whole subtlety. The budget is an ANOMALY only on the
-    // finalization path, where the probe already said the agent hit its sentinel
-    // and a replay that will not finish in 30s means the journal read, the
-    // translation, or the log is misbehaving. On the EXPIRY path there was no
-    // probe and the agent may well be mid-sentence: `requestRunCancel` writes a
-    // record field whose only reader is `withSandbox`'s `onAbort` (which runs
-    // after something else has already aborted), so the budget is the sole thing
-    // that ends the drive of a still-producing expired run. That is the designed
-    // path, not a misbehaving one, and reporting it as the anomaly made
-    // `'expired'` unreachable for exactly the runs the TTL exists to expire.
-    // `budget` is armed inside the claim, so reaching here means it was armed;
-    // `?? false` keeps the read total rather than asserting that.
-    if ((budget?.aborted ?? false) && !expired) {
-      outcome = 'budget-exceeded'
-    } else if (!terminal) {
-      // The terminal write was SUPPRESSED and `finish`'s re-read answered with a
-      // live record, which `fenceRunStore` only does when this host lost the claim
-      // to another one. That is the same fact as a refused claim, reported the
-      // same way rather than as a success that wrote nothing.
-      outcome = 'not-claimed'
-    } else {
-      outcome = expired ? 'expired' : 'finalized'
-    }
+    let outcome = classifyDriveOutcome(
+      expired,
+      terminal,
+      budget?.aborted ?? false,
+    )
 
-    // CAPTURED BEFORE THE RECLAIM BLOCK, which may overwrite `outcome` with
-    // `'reclaim-failed'`. Conditioning the `terminalizedAnyway` spread on the
-    // post-reclaim `outcome` dropped the budget diagnostic from exactly the
-    // entries that need it most: a run that blew its budget AND then failed to
-    // reclaim reported neither fact but the leak, and an operator cannot
-    // diagnose a leak on a run whose replay was already misbehaving without
-    // knowing that it was.
     const budgetAnomaly = outcome === 'budget-exceeded'
-
-    let reclaimError: unknown
-    if (terminal && ctx.options.reclaim !== undefined) {
-      try {
-        // `record`, NOT `final`. When the terminal `update` fails, `finish` returns
-        // a LOCALLY REBUILT record that carries only `runId`/`threadId`/`startedAt`
-        // plus the terminal patch — no `sandboxKey` — so `reclaimSandbox` would see
-        // `undefined`, answer `'no-sandbox-key'`, and the sandbox would leak
-        // silently on exactly the path where something already went wrong.
-        await ctx.options.reclaim(record)
-      } catch (error) {
-        // CAUGHT HERE rather than in the outer catch, which would report a bare
-        // `'failed'` with no `status` and no `exitCode`. `reclaimSandbox`
-        // deliberately does not guard `instances.get` (its contract is that the
-        // CALLER records the failure) and neither does `sandboxReclaimer`, so a
-        // throwing instance store landed there. By this point the record is
-        // terminal and the log closed, so the run is out of `listReclaimable`
-        // forever and no later sweep will retry: the sandbox leaks, and an
-        // operator reading `'failed'` cannot tell "transcript saved, sandbox NOT
-        // reclaimed" from "the sweep failed and the run was never finalized".
-        reclaimError = error
-        outcome = 'reclaim-failed'
-        safeLog(logger, 'errors', `reap: reclaiming run ${runId} failed`, {
-          runId,
-          status: final.status,
-          error,
-        })
-      }
-    }
+    const reclaim = await reclaimTerminalRun(record, ctx, final.status)
+    if (reclaim.outcome) outcome = reclaim.outcome
 
     return {
       runId,
@@ -616,7 +457,7 @@ async function reapOne<TOffset extends string>(
       status: final.status,
       ...(exitCode === undefined ? {} : { exitCode }),
       ...(budgetAnomaly ? { terminalizedAnyway: terminal } : {}),
-      ...(reclaimError === undefined ? {} : { error: reclaimError }),
+      ...(reclaim.error === undefined ? {} : { error: reclaim.error }),
     }
   } catch (error) {
     if (isClaimRefusal(error)) {
@@ -690,9 +531,7 @@ export async function reapDetachedRuns<TOffset extends string = string>(
     return empty()
   }
 
-  // Capped so one invocation cannot outlive its platform's budget and be killed
-  // mid-drive. `slice` and not a `break`, so `considered` reports the batch the
-  // sweep actually took responsibility for.
+  /** Batch cap. Defaults to {@link DEFAULT_MAX_RUNS}. */
   const maxRuns = Math.max(0, Math.trunc(options.maxRuns ?? DEFAULT_MAX_RUNS))
   const batch = candidates.slice(0, maxRuns)
 
@@ -704,10 +543,6 @@ export async function reapDetachedRuns<TOffset extends string = string>(
   }
   const counters = { probed: 0 }
 
-  // Sequential on purpose: each run costs a lock, a provider round-trip, and a
-  // full replay, and a cron invocation's budget is the scarce resource. Fanning
-  // out would multiply peak load against the provider for no throughput a
-  // subsequent tick cannot supply.
   for (const record of batch) {
     const entry = await reapOne(record, ctx, counters)
     outcomes[entry.outcome] += 1

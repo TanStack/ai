@@ -1,14 +1,3 @@
-/**
- * The durability seam for a sandboxed run: the option shape `withSandbox` takes,
- * the capability harness adapters read, and the two guards that keep a
- * "durable" run actually recoverable.
- *
- * A run is durable only when BOTH a `RunStore` and a `StreamDurability` are
- * wired, because either alone is useless: a record with no event log cannot be
- * replayed, and a log with no record cannot be found, claimed, or reaped. So the
- * capability exists or it does not — there is no half-configured state, and
- * every existing app (which wires neither) keeps today's behavior untouched.
- */
 import { createCapability } from '@tanstack/ai'
 import { DEFAULT_JOURNAL_DIR } from './journal'
 import { alignToStoredLog, isBridgeCustomChunk } from './align'
@@ -105,6 +94,7 @@ export interface SandboxRunDurability {
   journalDir: string
   attach: boolean
   detachOnDisconnect: boolean
+  /** Journal poll interval for providers that cannot follow. */
   pollIntervalMs?: number
   attachWaitMs?: number
 }
@@ -118,8 +108,8 @@ export const SandboxDurabilityCapability =
   createCapability<SandboxRunDurability>()('sandbox-durability')
 
 /** Destructured accessors, matching `./capabilities`. */
-export const [getSandboxDurability, provideSandboxDurability] =
-  SandboxDurabilityCapability
+export const /** Destructured accessors, matching `./capabilities`. */
+  [getSandboxDurability, provideSandboxDurability] = SandboxDurabilityCapability
 
 /**
  * A durable run was started without a caller-supplied `runId`.
@@ -159,7 +149,8 @@ export function resolveDurableRunId(
   runId: string | undefined,
   options: { durable: boolean; adapter: string; fallback: () => string },
 ): string {
-  if (runId !== undefined && runId.length > 0) return runId
+  const hasRunId = runId !== undefined && runId.length > 0
+  if (hasRunId) return runId
   if (options.durable) throw new DurableRunIdRequiredError(options.adapter)
   return options.fallback()
 }
@@ -227,8 +218,10 @@ export function resolveDurableThreadId(
     fallback: () => string
   },
 ): string {
-  if (threadId !== undefined && threadId.length > 0) return threadId
-  if (options.durable && options.attaching) {
+  const hasThreadId = threadId !== undefined && threadId.length > 0
+  if (hasThreadId) return threadId
+  const isAttachingDurable = options.durable && options.attaching
+  if (isAttachingDurable) {
     throw new DurableThreadIdRequiredError(options.adapter)
   }
   return options.fallback()
@@ -371,7 +364,8 @@ export function alignedIfAttaching(
   durability: SandboxRunDurability | undefined,
   logger?: InternalLogger,
 ): AsyncIterable<StreamChunk> {
-  if (durability === undefined || !durability.attach) return chunks
+  const shouldSkipAttach = durability === undefined || !durability.attach
+  if (shouldSkipAttach) return chunks
   return alignToStoredLog(chunks, {
     durability: durability.adapter,
     isOutOfBand: isBridgeCustomChunk,

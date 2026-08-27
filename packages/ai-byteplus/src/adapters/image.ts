@@ -173,7 +173,9 @@ export class BytePlusImageAdapter<
 
     const resolved = resolveMediaPrompt(options.prompt)
 
-    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+    const hasUnsupportedMedia =
+      resolved.videos.length > 0 || resolved.audios.length > 0
+    if (hasUnsupportedMedia) {
       throw new Error(
         `byteplus.generateImages does not support video / audio prompt parts on model ${model}.`,
       )
@@ -249,12 +251,6 @@ export class BytePlusImageAdapter<
     logger: InternalLogger,
     numberOfImages: number | undefined,
   ): ImageGenerationResult {
-    // Shape pinned by a live seedream-4-0-250828 call and the Ark OpenAPI
-    // document. Validate rather than cast: `readJsonBody` returns `undefined`
-    // for an empty body and the raw text for a non-JSON one (an HTML error
-    // page from a proxy in front of the API), and casting either would report
-    // "returned no images" with the body — the only evidence of what actually
-    // happened — thrown away.
     if (typeof body !== 'object' || body === null) {
       throw bytePlusArkError(
         200,
@@ -266,11 +262,6 @@ export class BytePlusImageAdapter<
 
     const images: Array<GeneratedImage> = []
     const failures: Array<BytePlusImageErrorObject> = []
-    // Items matching none of the three known shapes. Ark's OpenAPI document
-    // describes a second, nested item form, so this is a live possibility
-    // rather than a defensive branch — and an unrecognized item that is
-    // neither counted nor reported turns provider drift into an
-    // "returned no images" with no attribution at all.
     let unrecognized = 0
     for (const item of payload.data ?? []) {
       if (item.b64_json) {
@@ -322,10 +313,6 @@ export class BytePlusImageAdapter<
           failures,
         },
       )
-      // The caller asked for a group and is getting a short array. Warn
-      // unconditionally: the `numberOfImages` warning below only fires when
-      // the count was set explicitly, so a partial failure would otherwise
-      // return successfully with no signal at all.
       logger.warn(
         `byteplus: ${failures.length} of ${failures.length + images.length} ` +
           `images failed to generate; returning ${images.length}.`,

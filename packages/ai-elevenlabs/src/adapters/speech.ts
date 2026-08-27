@@ -98,6 +98,7 @@ export class ElevenLabsSpeechAdapter<
       { provider: 'elevenlabs', model: this.model },
     )
     try {
+      /** ElevenLabs voice ID to synthesize. Required if `generateSpeech().voice` is not set. */
       const voiceId = options.voice ?? options.modelOptions?.voiceId
       if (!voiceId) {
         throw new Error(

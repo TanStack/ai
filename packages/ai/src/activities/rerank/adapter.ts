@@ -64,8 +64,11 @@ export abstract class BaseRerankAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
 > implements RerankAdapter<TModel, TProviderOptions> {
+  /** Discriminator for adapter kind */
   readonly kind = 'rerank' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime

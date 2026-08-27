@@ -1,23 +1,3 @@
-/**
- * MCP tool-proxy bridge, shared by all harness adapters.
- *
- * Exposes chat()-provided server tools to an in-sandbox agent as an MCP server.
- * The agent (inside the sandbox) calls `mcp__tanstack__<tool>`; the call is
- * proxied OUT to a bridge endpoint, where the tool's `execute()` runs in the
- * orchestrator process (with its closures / DB / secrets), and the result is
- * returned into the sandbox.
- *
- * The bridge is split into a transport-agnostic CORE and a TRANSPORT:
- * - {@link createToolBridgeCore} owns tool dispatch + the permission resolver
- *   (no I/O). It is what makes the bridge portable.
- * - {@link startHostToolBridge} is the `node:http` transport for a long-running
- *   host (laptop / CI / Docker orchestrator). It binds loopback unless the
- *   sandbox must reach it via `host.docker.internal`, and authenticates with a
- *   constant-time bearer check.
- * - A serverless/edge orchestrator (e.g. a Durable Object) instead serves the
- *   SAME core from its own `fetch` handler — no raw TCP listener — see
- *   {@link handleBridgeJsonRpc} and the Cloudflare example.
- */
 import { createServer } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -82,6 +62,7 @@ export interface ToolBridgeCoreOptions {
 
 /** An MCP tool descriptor as advertised to the in-sandbox agent. */
 export interface ToolDescriptor {
+  /** MCP server name; tools appear to the agent as `mcp__<name>__<tool>`. */
   name: string
   description?: string
   inputSchema: { type: 'object'; [key: string]: unknown }
@@ -96,12 +77,12 @@ function toObjectSchema(schema: unknown): {
   type: 'object'
   [key: string]: unknown
 } {
-  if (
+  const isObjectSchema =
     schema !== null &&
     typeof schema === 'object' &&
     'type' in schema &&
     schema.type === 'object'
-  ) {
+  if (isObjectSchema) {
     return { ...schema, type: 'object' }
   }
   return { type: 'object', properties: {} }
@@ -153,7 +134,8 @@ export function createToolBridgeCore(
     },
 
     async callTool(name, args) {
-      if (permission && name === permission.toolName) {
+      const isPermissionTool = permission && name === permission.toolName
+      if (isPermissionTool) {
         const result = await permission.resolve(args ?? {})
         return { content: [{ type: 'text', text: JSON.stringify(result) }] }
       }
@@ -305,6 +287,7 @@ export async function startHostToolBridge(
   tools: Array<AnyTool>,
   options: StartBridgeOptions,
 ): Promise<HostToolBridge> {
+  /** Per-run bearer token gating the endpoint. */
   const token = randomBytes(24).toString('hex')
   const core = createToolBridgeCore(tools, options)
   // Loopback by default; widen to all interfaces only for the Docker bridge,
@@ -354,6 +337,7 @@ export async function startHostToolBridge(
     httpServer.listen(0, bindAddress, resolve),
   )
   const port = (httpServer.address() as AddressInfo).port
+  /** URL the SANDBOX uses to reach this bridge. */
   const url = `http://${options.hostForSandbox}:${port}/mcp`
 
   return {
@@ -390,12 +374,13 @@ export interface ToolBridgeProvisioner {
 }
 
 /** Default provisioner: a `node:http` listener on the host. */
-export const nodeHttpBridgeProvisioner: ToolBridgeProvisioner = {
-  provision(tools, options) {
-    const { provider, ...core } = options
-    return startHostToolBridge(tools, {
-      hostForSandbox: hostForSandbox(provider),
-      ...core,
-    })
-  },
-}
+export const /** Default provisioner: a `node:http` listener on the host. */
+  nodeHttpBridgeProvisioner: ToolBridgeProvisioner = {
+    provision(tools, options) {
+      const { provider, ...core } = options
+      return startHostToolBridge(tools, {
+        hostForSandbox: hostForSandbox(provider),
+        ...core,
+      })
+    },
+  }

@@ -16,7 +16,8 @@ import type { SandboxHandle } from './contracts'
 import type { WorkspaceSkill } from './workspace'
 
 /** CLI instruction-file names that should resolve to AGENTS.md. */
-const SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
+const /** CLI instruction-file names that should resolve to AGENTS.md. */
+  SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
 
 /**
  * Resolve the directory a `gitSkill` repo is cloned into when no explicit
@@ -74,7 +75,10 @@ export async function discoverSkillDirs(
   handle: SandboxHandle,
   cloneDir: string,
 ): Promise<Array<DiscoveredSkillDir>> {
-  const found = await walkSkillDirs((dir) => handle.fs.list(dir), cloneDir)
+  const found = await walkSkillDirs(
+    (dir: string) => handle.fs.list(dir),
+    cloneDir,
+  )
   if (found.length === 0) {
     return [{ name: basenameOf(cloneDir), dir: cloneDir }]
   }
@@ -101,7 +105,8 @@ export function mergeAgentsContent(
 ): string | undefined {
   const scriptsSection =
     scripts !== undefined ? formatWorkspaceScriptsSection(scripts) : ''
-  if (base === undefined && scriptsSection.length === 0) return undefined
+  const hasNoAgentsText = base === undefined && scriptsSection.length === 0
+  if (hasNoAgentsText) return undefined
   if (base === undefined) return scriptsSection
   if (scriptsSection.length === 0) return base
   return `${base.trimEnd()}\n\n${scriptsSection}`

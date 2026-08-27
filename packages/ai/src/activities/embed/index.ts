@@ -1,10 +1,3 @@
-/**
- * Embed Activity
- *
- * Generates embedding vectors from text and (for multimodal models) image
- * inputs. This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
@@ -25,16 +18,9 @@ import type {
   EmbeddingResult,
 } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'embedding' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'embedding' as const
 
 /**
  * Extract model-specific provider options from an EmbeddingAdapter via ~types.
@@ -75,10 +61,6 @@ export type EmbeddingInputForModel<TAdapter, TModel extends string> =
             | Array<EmbeddingInputItemFor<ModsByName[TModel][number]>>
         : EmbeddingInputItem | Array<EmbeddingInputItem>
     : EmbeddingInputItem | Array<EmbeddingInputItem>
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the embed activity.
@@ -136,10 +118,6 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-// ===========================
-// Activity Implementation
-// ===========================
-
 /**
  * Embed activity - generates embedding vectors from text and image inputs.
  *
@@ -194,6 +172,7 @@ export async function embed<
   const requestId = createId('embedding')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  /** Provider-specific options for embedding generation */
   const modelOptions = (options as { modelOptions?: Record<string, unknown> })
     .modelOptions
 
@@ -295,10 +274,6 @@ export async function embed<
     throw error
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the embed() function without executing.

@@ -6,11 +6,16 @@ export class GrokVertexAuthError extends Error {
 }
 
 function isMissingGoogleAuthLibrary(error: unknown): boolean {
-  if (!(error instanceof Error) || !('code' in error)) {
+  if (!(error instanceof Error)) {
+    return false
+  }
+  if (!('code' in error)) {
     return false
   }
   const code = error.code
-  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
+  const isUnresolvedImport =
+    code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
+  if (!isUnresolvedImport) {
     return false
   }
   return error.message.includes('google-auth-library')
@@ -38,14 +43,20 @@ export type GrokVertexConfig = {
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) {
+  if (value === undefined) {
+    return undefined
+  }
+  if (value.length === 0) {
     return undefined
   }
   return value
 }
 
 function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
+  if (typeof process === 'undefined') {
+    return undefined
+  }
+  if (process.env === undefined) {
     return undefined
   }
   return nonEmpty(process.env[name])
@@ -106,7 +117,12 @@ export async function resolveGrokVertexAccessToken(
   if (config.authClient !== undefined) {
     const headers = await config.authClient.getRequestHeaders()
     const authorization = headers.get('Authorization')
-    if (authorization === null || !authorization.startsWith('Bearer ')) {
+    if (authorization === null) {
+      throw new GrokVertexAuthError(
+        'Grok Vertex authClient.getRequestHeaders() must return an Authorization Bearer token.',
+      )
+    }
+    if (!authorization.startsWith('Bearer ')) {
       throw new GrokVertexAuthError(
         'Grok Vertex authClient.getRequestHeaders() must return an Authorization Bearer token.',
       )
@@ -121,7 +137,12 @@ export async function resolveGrokVertexAccessToken(
     })
     const client = await auth.getClient()
     const token = await client.getAccessToken()
-    if (token.token === null || token.token === undefined) {
+    if (token.token === null) {
+      throw new GrokVertexAuthError(
+        'Grok Vertex could not load a Google access token from Application Default Credentials.',
+      )
+    }
+    if (token.token === undefined) {
       throw new GrokVertexAuthError(
         'Grok Vertex could not load a Google access token from Application Default Credentials.',
       )

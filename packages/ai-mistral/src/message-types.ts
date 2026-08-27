@@ -7,7 +7,6 @@
  *
  * @see https://docs.mistral.ai/api/
  */
-
 export interface ChatCompletionContentPartText {
   /** The text content. */
   text: string
@@ -17,7 +16,15 @@ export interface ChatCompletionContentPartText {
 }
 
 export interface ChatCompletionContentPartImage {
-  imageUrl: string | { url: string; detail?: 'auto' | 'low' | 'high' }
+  imageUrl:
+    | string
+    | {
+        url: string /**
+         * Specifies the detail level of the image.
+         * @default 'auto'
+         */
+        detail?: 'auto' | 'low' | 'high'
+      }
 
   /** The type of the content part. */
   type: 'image_url'
@@ -55,10 +62,7 @@ export interface ChatCompletionMessageToolCall {
 export type FunctionParameters = { [key: string]: unknown }
 
 export interface FunctionDefinition {
-  /**
-   * The name of the function. Must be a-z, A-Z, 0-9, or contain underscores and
-   * dashes, with a maximum length of 64.
-   */
+  /** The name of the function to call. */
   name: string
 
   /** A description of what the function does. */
@@ -75,10 +79,12 @@ export interface ChatCompletionTool {
   /** The type of the tool. */
   type: 'function'
 
+  /** The function that the model called. */
   function: FunctionDefinition
 }
 
 export interface ChatCompletionNamedToolChoice {
+  /** The type of the content part. */
   type: 'function'
   function: {
     name: string
@@ -142,8 +148,10 @@ export interface ResponseFormatJsonSchema {
   type: 'json_schema'
   jsonSchema: {
     name: string
+    /** A description of what the function does. */
     description?: string
     schemaDefinition: { [key: string]: unknown }
+    /** Whether to enable strict schema adherence. */
     strict?: boolean
   }
 }
@@ -157,10 +165,6 @@ export type MistralTextMetadata = Record<string, never>
  * Metadata for Mistral image content parts.
  */
 export interface MistralImageMetadata {
-  /**
-   * Specifies the detail level of the image.
-   * @default 'auto'
-   */
   detail?: 'auto' | 'low' | 'high'
 }
 
@@ -186,6 +190,7 @@ export type MistralDocumentMetadata = Record<string, never>
  * Map of modality types to their Mistral-specific metadata types.
  */
 export interface MistralMessageMetadataByModality {
+  /** The text content. */
   text: MistralTextMetadata
   image: MistralImageMetadata
   audio: MistralAudioMetadata

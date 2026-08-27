@@ -13,10 +13,6 @@ import type {
   VideoDevtoolsBridgeFactory,
 } from './devtools-noop'
 
-// ===========================
-// Inference Utilities
-// ===========================
-
 /**
  * Maps an `onResult` transform's raw return type to the stored output type.
  *
@@ -53,10 +49,6 @@ export type InferGenerationOutput<TResult, TFn> = TFn extends (
 ) => infer R
   ? InferGenerationOutputFromReturn<TResult, R>
   : TResult
-
-// ===========================
-// State
-// ===========================
 
 /**
  * State machine for generation clients.
@@ -105,6 +97,7 @@ export function createGenerationHydrationError(
   cause?: unknown,
 ): Error {
   const suffix = cause instanceof Error ? `: ${cause.message}` : ''
+  /** Error message if status is 'failed' */
   const error = new Error(
     `[TanStack AI] Restoring the last generation for this thread failed — ${detail}${suffix}`,
   )
@@ -138,6 +131,7 @@ export function clientStateFromResumeStatus(
 
 /** @internal */
 export interface GenerationResumeState {
+  /** Required by `persistence`. The stable scope runs are filed under. */
   threadId: string
   runId: string
   /**
@@ -152,6 +146,7 @@ export interface GenerationResumeState {
 export interface GenerationResultSnapshot {
   id?: string
   model?: string
+  /** Current status of the video generation job */
   status?: string
   /**
    * The provider's async job handle (e.g. a Veo/fal video job id used for
@@ -159,6 +154,7 @@ export interface GenerationResultSnapshot {
    * {@link GenerationResumeState.runId}.
    */
   providerJobId?: string
+  /** When the URL expires, if applicable */
   expiresAt?: string
   /**
    * The text output of a text activity (a transcription's `text` or a summary's
@@ -169,6 +165,7 @@ export interface GenerationResultSnapshot {
   text?: string
   /** Token usage, persisted so a text result that requires it can be rebuilt. */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
 
@@ -230,6 +227,19 @@ export interface GenerationResumeSnapshot {
  */
 export type GenerationPersistenceOptions =
   | {
+      /**
+       * How this generation persists across reloads.
+       *
+       * - Omit or `false`: ephemeral, in-memory only.
+       * - `true`: server-driven. On mount the client hydrates the last generation
+       *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
+       *   from the connection or the option below) and repaints that snapshot. It
+       *   never auto-starts a run.
+       *
+       * The record lives on the server, written by `withGenerationPersistence`. The
+       * browser caches nothing, so a generation's history is never duplicated into
+       * client storage.
+       */
       persistence: true
       /** Required by `persistence`. The stable scope runs are filed under. */
       threadId: string
@@ -239,10 +249,6 @@ export type GenerationPersistenceOptions =
       /** Stable scope for the generation slot (also the wire / DevTools identity). */
       threadId?: string
     }
-
-// ===========================
-// Event Constants
-// ===========================
 
 /**
  * Well-known CUSTOM event names used by generation clients.
@@ -261,10 +267,6 @@ export const GENERATION_EVENTS = {
   /** Video job status update */
   VIDEO_STATUS: 'video:status',
 } as const
-
-// ===========================
-// Transport Types
-// ===========================
 
 /**
  * Options passed to a fetcher function by the generation client.
@@ -299,10 +301,7 @@ export type GenerationTransport<TInput, TResult> =
   | { connection: ConnectConnectionAdapter; fetcher?: never }
   | { fetcher: GenerationFetcher<TInput, TResult>; connection?: never }
 
-// ===========================
-// Client Options
-// ===========================
-
+// eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
 /**
  * Options for the GenerationClient.
  *
@@ -310,32 +309,7 @@ export type GenerationTransport<TInput, TResult> =
  * @template TResult - The result type returned by the generation
  * @template TOutput - The output type after optional transform (defaults to TResult)
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
 export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
-  /**
-   * The **scope** this generation belongs to: a stable, app-chosen name for the
-   * slot successive runs fill, not a link to a chat conversation. This is the
-   * only identity for the client: wire thread id, DevTools hook id, and
-   * persistence key.
-   *
-   * A generation hook starts empty and produces many runs over its life. Each
-   * run gets its own `runId`, but they all belong to one scope. Persistence
-   * keys on this: server-driven hydrates the last run for it on mount. It is
-   * also sent as the AG-UI thread id on the wire, since the protocol requires
-   * one.
-   *
-   * Derive it from your own domain. It must be meaningful before any media
-   * exists and identical after a reload:
-   *
-   * ```ts
-   * threadId: `video-${videoId}-start-frame`
-   * ```
-   *
-   * **Required whenever `persistence` is set.** An app that cannot name the
-   * scope has nothing to restore *to*, and a generated fallback would key each
-   * reload differently, silently restoring nothing. Optional only for
-   * ephemeral runs. If omitted, the client mints a wire id after mount.
-   */
   threadId?: string
 
   /** Additional body parameters to send with connect-based adapter requests */
@@ -357,19 +331,6 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /** Metadata used to register this generation hook with TanStack AI Devtools */
   devtools?: Partial<AIDevtoolsClientMetadata>
 
-  /**
-   * How this generation persists across reloads.
-   *
-   * - Omit or `false`: ephemeral, in-memory only.
-   * - `true`: server-driven. On mount the client hydrates the last generation
-   *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
-   *   from the connection or the option below) and repaints that snapshot. It
-   *   never auto-starts a run.
-   *
-   * The record lives on the server, written by `withGenerationPersistence`. The
-   * browser caches nothing, so a generation's history is never duplicated into
-   * client storage.
-   */
   persistence?: boolean
 
   /**
@@ -460,9 +421,127 @@ export interface GenerationRestoredResult {
   providerJobId?: string
   expiresAt?: string
   text?: string
+  /** Token usage, persisted so a text result that requires it can be rebuilt. */
   usage?: TokenUsage
   activity?: PersistedArtifactRef['source']['activity']
   artifacts: Array<PersistedArtifactRef>
+}
+
+function chunkCorrelationId(
+  chunk: StreamChunk,
+  key: 'threadId' | 'runId',
+): string | undefined {
+  const tanstack = tanstackMetadata(chunk)
+  const fromChunk = stringField(chunk, key)
+  if (fromChunk) return fromChunk
+  const fromMeta = tanstack?.[key]
+  return typeof fromMeta === 'string' ? fromMeta : undefined
+}
+
+function createCarriedResumeSnapshot(
+  previous: GenerationResumeSnapshot | null | undefined,
+  chunk: StreamChunk,
+): GenerationResumeSnapshot {
+  const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
+  const previousArtifacts = carried?.pendingArtifacts ?? []
+  return {
+    schemaVersion: 1,
+    resumeState: carried?.resumeState ?? null,
+    status: carried?.status ?? 'idle',
+    ...(carried?.activity ? { activity: carried.activity } : {}),
+    ...(previousArtifacts.length > 0
+      ? { pendingArtifacts: [...previousArtifacts] }
+      : {}),
+    ...(carried?.result ? { result: { ...carried.result } } : {}),
+    ...(carried?.error ? { error: { ...carried.error } } : {}),
+    lastEvent: createGenerationEventSnapshot(chunk),
+  }
+}
+
+function applyResumeIdentity(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  const threadId = chunkCorrelationId(chunk, 'threadId')
+  const runId = chunkCorrelationId(chunk, 'runId')
+  if (threadId && runId) {
+    next.resumeState = { threadId, runId }
+    next.status = 'running'
+    return
+  }
+  if (chunk.type === 'RUN_STARTED') {
+    next.status = 'running'
+  }
+}
+
+type CustomStreamChunk = Extract<StreamChunk, { type: 'CUSTOM' }>
+
+function applyArtifactsCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: CustomStreamChunk,
+): void {
+  const artifacts = collectArtifactRefs(chunk.value)
+  if (artifacts.length === 0) return
+  next.pendingArtifacts = artifacts
+  next.activity = artifacts[0]?.source.activity
+}
+
+function applyResultCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: CustomStreamChunk,
+): void {
+  const result = createGenerationResultSnapshot(chunk.value)
+  if (!result) return
+  next.result = result
+  if (result.artifacts && result.artifacts.length > 0) {
+    next.pendingArtifacts = result.artifacts
+    next.activity = result.artifacts[0]?.source.activity
+  }
+}
+
+function applyVideoJobCreatedCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: CustomStreamChunk,
+): void {
+  const providerJobId = isObject(chunk.value)
+    ? stringField(chunk.value, 'jobId')
+    : undefined
+  if (providerJobId) {
+    next.result = { ...next.result, providerJobId }
+  }
+}
+
+const generationCustomEventHandlers: Record<
+  string,
+  (next: GenerationResumeSnapshot, chunk: CustomStreamChunk) => void
+> = {
+  [GENERATION_EVENTS.ARTIFACTS]: applyArtifactsCustomEvent,
+  [GENERATION_EVENTS.RESULT]: applyResultCustomEvent,
+  [GENERATION_EVENTS.VIDEO_JOB_CREATED]: applyVideoJobCreatedCustomEvent,
+}
+
+function applyGenerationCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  if (chunk.type !== 'CUSTOM') return
+  generationCustomEventHandlers[chunk.name]?.(next, chunk)
+}
+
+function applyGenerationRunTerminal(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  if (chunk.type === 'RUN_FINISHED') {
+    next.resumeState = null
+    next.status = 'complete'
+    return
+  }
+  if (chunk.type === 'RUN_ERROR') {
+    next.resumeState = null
+    next.status = 'error'
+    next.error = createGenerationErrorSnapshot(chunk)
+  }
 }
 
 /**
@@ -478,71 +557,10 @@ export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
   chunk: StreamChunk,
 ): GenerationResumeSnapshot {
-  const tanstack = tanstackMetadata(chunk)
-  const threadId =
-    stringField(chunk, 'threadId') ??
-    (typeof tanstack?.threadId === 'string' ? tanstack.threadId : undefined)
-  const runId =
-    stringField(chunk, 'runId') ??
-    (typeof tanstack?.runId === 'string' ? tanstack.runId : undefined)
-  const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
-  const previousArtifacts = carried?.pendingArtifacts ?? []
-  const next: GenerationResumeSnapshot = {
-    schemaVersion: 1,
-    resumeState: carried?.resumeState ?? null,
-    status: carried?.status ?? 'idle',
-    ...(carried?.activity ? { activity: carried.activity } : {}),
-    ...(previousArtifacts.length > 0
-      ? { pendingArtifacts: [...previousArtifacts] }
-      : {}),
-    ...(carried?.result ? { result: { ...carried.result } } : {}),
-    ...(carried?.error ? { error: { ...carried.error } } : {}),
-    lastEvent: createGenerationEventSnapshot(chunk),
-  }
-
-  if (threadId && runId) {
-    next.resumeState = { threadId, runId }
-    next.status = 'running'
-  } else if (chunk.type === 'RUN_STARTED') {
-    next.status = 'running'
-  }
-
-  if (chunk.type === 'CUSTOM') {
-    if (chunk.name === GENERATION_EVENTS.ARTIFACTS) {
-      const artifacts = collectArtifactRefs(chunk.value)
-      if (artifacts.length > 0) {
-        next.pendingArtifacts = artifacts
-        next.activity = artifacts[0]?.source.activity
-      }
-    } else if (chunk.name === GENERATION_EVENTS.RESULT) {
-      const result = createGenerationResultSnapshot(chunk.value)
-      if (result) {
-        next.result = result
-        if (result.artifacts && result.artifacts.length > 0) {
-          next.pendingArtifacts = result.artifacts
-          next.activity = result.artifacts[0]?.source.activity
-        }
-      }
-    } else if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
-      // Capture the provider job id as soon as the job exists — for a long
-      // video run this is the one piece of identity worth having after a
-      // reload, and the terminal `generation:result` may never arrive.
-      const providerJobId = isObject(chunk.value)
-        ? stringField(chunk.value, 'jobId')
-        : undefined
-      if (providerJobId) {
-        next.result = { ...next.result, providerJobId }
-      }
-    }
-  } else if (chunk.type === 'RUN_FINISHED') {
-    next.resumeState = null
-    next.status = 'complete'
-  } else if (chunk.type === 'RUN_ERROR') {
-    next.resumeState = null
-    next.status = 'error'
-    next.error = createGenerationErrorSnapshot(chunk)
-  }
-
+  const next = createCarriedResumeSnapshot(previous, chunk)
+  applyResumeIdentity(next, chunk)
+  applyGenerationCustomEvent(next, chunk)
+  applyGenerationRunTerminal(next, chunk)
   return next
 }
 
@@ -564,7 +582,8 @@ export function parseGenerationResumeSnapshot(
   if (!isObject(value)) return undefined
 
   const schemaVersion = Reflect.get(value, 'schemaVersion')
-  if (schemaVersion !== undefined && schemaVersion !== 1) return undefined
+  const isUnsupportedSchema = schemaVersion !== undefined && schemaVersion !== 1
+  if (isUnsupportedSchema) return undefined
 
   const status = generationResumeStatusField(value, 'status')
   if (!status) return undefined
@@ -575,7 +594,8 @@ export function parseGenerationResumeSnapshot(
     if (!isObject(rawResumeState)) return undefined
     const threadId = stringField(rawResumeState, 'threadId')
     const runId = stringField(rawResumeState, 'runId')
-    if (!threadId || !runId) return undefined
+    if (!threadId) return undefined
+    if (!runId) return undefined
     resumeState = { threadId, runId }
   }
 
@@ -626,10 +646,6 @@ function generationResumeStatusField(
   }
 }
 
-// ===========================
-// Video-Specific Options
-// ===========================
-
 /**
  * Video status information returned during job polling.
  */
@@ -671,10 +687,6 @@ export interface VideoGenerationClientOptions<
   GenerationClientOptions<VideoGenerateInput, VideoGenerateResult, TOutput>,
   'devtoolsBridgeFactory'
 > {
-  /**
-   * Factory that constructs the video devtools bridge. Default is a no-op
-   * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
-   */
   devtoolsBridgeFactory?: VideoDevtoolsBridgeFactory
 
   /** Callback when a video job is created */
@@ -688,10 +700,6 @@ export interface VideoGenerationClientOptions<
   /** @internal Called when video status changes */
   onVideoStatusChange?: (status: VideoStatusInfo | null) => void
 }
-
-// ===========================
-// Input Types
-// ===========================
 
 /**
  * Input for image generation.
@@ -775,11 +783,6 @@ export interface SummarizeGenerateInput {
  * Input for video generation.
  */
 export interface VideoGenerateInput {
-  /**
-   * Description of the desired video: plain text, or an ordered array of
-   * content parts (text + image) for image-conditioned generation
-   * (image-to-video, start/end frames).
-   */
   prompt: MediaPrompt
   /** Video size — format depends on provider (e.g., "16:9", "1280x720") */
   size?: string
@@ -812,10 +815,6 @@ export function createGenerationResultSnapshot(
   const id = stringField(value, 'id')
   const model = stringField(value, 'model')
   const status = stringField(value, 'status')
-  // A live provider result carries its job handle as `jobId` (e.g.
-  // `VideoGenerateResult.jobId`); a persisted snapshot carries it as
-  // `providerJobId`. Accept both — this narrows raw results AND stored
-  // snapshots.
   const providerJobId =
     stringField(value, 'providerJobId') ?? stringField(value, 'jobId')
   // A transcription's output is `text`; a summary's is `summary`. Capture either
@@ -832,11 +831,10 @@ export function createGenerationResultSnapshot(
   const expiresAt = Reflect.get(value, 'expiresAt')
   if (typeof expiresAt === 'string') {
     snapshot.expiresAt = expiresAt
-  } else if (expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime())) {
-    // `toISOString()` throws on an invalid Date. This runs per chunk on live
-    // provider values, so drop an unusable date like every other bad field
-    // here rather than throwing out of the stream loop.
-    snapshot.expiresAt = expiresAt.toISOString()
+  } else {
+    if (expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime())) {
+      snapshot.expiresAt = expiresAt.toISOString()
+    }
   }
   if (artifacts.length > 0) {
     snapshot.artifacts = artifacts
@@ -884,32 +882,35 @@ function createPersistedArtifactRefSnapshot(
   const runId = stringField(value, 'runId')
   const name = stringField(value, 'name')
   const mimeType = stringField(value, 'mimeType')
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   const size = numberField(value, 'size')
   const createdAt = stringField(value, 'createdAt')
   const activity = persistedArtifactActivityField(source, 'activity')
   const path = stringField(source, 'path')
   const provider = stringField(source, 'provider')
   const model = stringField(source, 'model')
-  if (
-    !role ||
-    !artifactId ||
-    !threadId ||
-    !runId ||
-    !name ||
-    !mimeType ||
-    size === undefined ||
-    !createdAt ||
-    !activity ||
-    !path ||
-    !provider ||
-    !model
-  ) {
+  const isCompleteArtifact =
+    role &&
+    artifactId &&
+    threadId &&
+    runId &&
+    name &&
+    mimeType &&
+    size !== undefined &&
+    createdAt &&
+    activity &&
+    path &&
+    provider &&
+    model
+  if (!isCompleteArtifact) {
     return undefined
   }
 
   const sourceUrl = durableUrlField(value, 'sourceUrl')
+  /** URL to the generated video (when completed) */
   const url = serveUrlField(value, 'url')
   const mediaType = persistedArtifactMediaTypeField(source, 'mediaType')
+  /** Job identifier */
   const jobId = stringField(source, 'jobId')
   const expiresAt = stringField(source, 'expiresAt')
 
@@ -938,7 +939,8 @@ function createPersistedArtifactRefSnapshot(
 
 function durableUrlField(value: object, key: string): string | undefined {
   const field = stringField(value, key)
-  if (!field || field.length > 2048) return undefined
+  if (!field) return undefined
+  if (field.length > 2048) return undefined
   try {
     const url = new URL(field)
     return url.protocol === 'http:' || url.protocol === 'https:'
@@ -958,12 +960,11 @@ function durableUrlField(value: object, key: string): string | undefined {
  */
 function serveUrlField(value: object, key: string): string | undefined {
   const field = stringField(value, key)
-  if (!field || field.length > 2048) return undefined
-  // A single leading `/` is a safe same-origin path. Reject protocol-relative
-  // `//host` AND a backslash bypass (`/\host` — the URL parser treats `\` as `/`
-  // for http(s), so it would resolve to a foreign origin as an `<img src>`).
-  if (field.startsWith('/') && !field.startsWith('//') && !field.includes('\\'))
-    return field
+  if (!field) return undefined
+  if (field.length > 2048) return undefined
+  const isRelativeUrl =
+    field.startsWith('/') && !field.startsWith('//') && !field.includes('\\')
+  if (isRelativeUrl) return field
   try {
     const url = new URL(field)
     return url.protocol === 'http:' || url.protocol === 'https:'

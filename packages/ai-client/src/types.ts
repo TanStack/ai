@@ -47,6 +47,7 @@ export type ChatPendingInterrupt = Interrupt
  */
 export interface ChatResumeSnapshot {
   resumeState: ChatResumeState
+  /** @deprecated Use `interrupts`. Same snapshot today. */
   pendingInterrupts?: Array<ChatPendingInterrupt>
 }
 
@@ -58,12 +59,27 @@ export type InterruptItemStatus =
   | 'error'
 
 export interface BoundInterruptBase {
+  /**
+   * Optional custom ID for the message.
+   * If not provided, a unique ID will be generated.
+   */
   readonly id: string
   readonly interruptId: string
   readonly reason: string
   readonly message?: string
   readonly responseSchema?: Readonly<Record<string, unknown>>
   readonly expiresAt?: string
+  /**
+   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
+   *
+   * @example
+   * ```ts
+   * await client.sendMessage({
+   *   content: 'Show me failed logins',
+   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
+   * })
+   * ```
+   */
   readonly metadata?: Readonly<Record<string, unknown>>
   readonly threadId: string
   readonly interruptedRunId: string
@@ -205,15 +221,6 @@ export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
         readonly toolName: TTool['name']
         readonly toolCallId: string
         readonly originalArgs: InferToolInput<TTool>
-        // A single generic call signature — not two overloads. Overloads break
-        // editor autocomplete: a half-typed options literal (e.g.
-        // `resolveInterrupt(true, { payload: {` ) satisfies neither overload,
-        // so TS resolves no signature and offers no contextual completions.
-        // Making `approved` a generic discriminant lets TS infer it from the
-        // first argument and pick the matching branch for the rest params, so
-        // `payload` / `editedArgs` / the correct schema's fields complete
-        // per-branch (a plain union-of-tuples would offer both branches'
-        // fields) while still enforcing the right shape.
         resolveInterrupt: <TApproved extends boolean>(
           approved: TApproved,
           ...args: TApproved extends true
@@ -232,10 +239,6 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
       : never
     : never
 
-// Client tools resolve through their `.client()` implementation (auto-run) or
-// `addToolResult` — never as a bound interrupt. The `client-tool-execution`
-// pause is handled internally and is intentionally absent from this public
-// union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
@@ -266,6 +269,7 @@ export interface ChatInterruptState<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
 > {
+  /** First-party generic interrupts this client can type and resolve. */
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. Same snapshot today. */
   readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
@@ -286,6 +290,7 @@ export interface ChatFetcherInput {
   threadId: string
   runId: string
   parentRunId?: string
+  /** Present while a run is in flight or paused on an interrupt; absent otherwise. */
   resume?: Array<RunAgentResumeItem>
 }
 
@@ -343,21 +348,18 @@ export type ChatTransport =
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'complete'
+  | 'error'
 
 /**
  * Tool result states - track the lifecycle of a tool result
  */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = 'streaming' | 'complete' | 'error'
 
 /**
  * ChatClient state - track the lifecycle of a chat
@@ -395,22 +397,7 @@ export interface MultimodalContent {
    * Can be a simple string or an array of content parts for multimodal messages.
    */
   content: string | Array<ContentPart>
-  /**
-   * Optional custom ID for the message.
-   * If not provided, a unique ID will be generated.
-   */
   id?: string
-  /**
-   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
-   *
-   * @example
-   * ```ts
-   * await client.sendMessage({
-   *   content: 'Show me failed logins',
-   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
-   * })
-   * ```
-   */
   metadata?: Record<string, any>
 }
 
@@ -541,9 +528,9 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
            * never satisfies) and strip `undefined` before comparing to `true`.
            */
           approval?: {
-            id: string // Unique approval ID
-            needsApproval: boolean // Always true if present
-            approved?: boolean // User's decision (undefined until responded)
+            id: string
+            needsApproval: boolean
+            approved?: boolean
           }
         }
       : // Tools without `needsApproval: true` never carry an approval field.
@@ -559,6 +546,7 @@ type UntypedToolCallPart = {
   id: string
   name: string
   arguments: string
+  /** Parsed tool input (typed from inputSchema) */
   input?: any
   state: ToolCallState
   approval?: {
@@ -566,6 +554,7 @@ type UntypedToolCallPart = {
     needsApproval: boolean
     approved?: boolean
   }
+  /** Tool execution output (for client tools or after approval) */
   output?: any
 }
 
@@ -600,6 +589,7 @@ export interface ToolResultPart {
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
+  /** @deprecated Use `errors[0]`. */
   error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>
   createdAt?: Date
@@ -646,10 +636,6 @@ export interface UIMessage<
   name?: string
   parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date
-  /**
-   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
-   * User keys stay at the top.
-   */
   metadata?: Record<string, any>
 }
 
@@ -786,7 +772,15 @@ type UnionToIntersection<T> = [T] extends [never]
 type DefinedContext<T> = Exclude<T, undefined>
 
 type ContextFromExecute<T> = T extends (...args: any) => any
-  ? NonNullable<Parameters<T>[1]> extends { context: infer TContext }
+  ? NonNullable<Parameters<T>[1]> extends {
+      /**
+       * Client-local runtime context passed to client tool implementations.
+       *
+       * This value is not serialized to the server. Use `forwardedProps` for
+       * explicit client-to-server handoff of serializable values.
+       */
+      context: infer TContext
+    }
     ? KnownContext<TContext>
     : never
   : never
@@ -871,13 +865,6 @@ export interface ChatClientBaseOptions<
    */
   forwardedProps?: Record<string, any>
 
-  /**
-   * @deprecated Use `forwardedProps` instead. `body` continues to work
-   * unchanged — its values are merged into the AG-UI
-   * `RunAgentInput.forwardedProps` field on the wire and are also
-   * mirrored under the legacy `data` field for servers that have not
-   * migrated yet. Will be removed in a future major release.
-   */
   body?: Record<string, any>
 
   /**
@@ -895,12 +882,6 @@ export interface ChatClientBaseOptions<
    */
   byokProvider?: () => string | undefined
 
-  /**
-   * Client-local runtime context passed to client tool implementations.
-   *
-   * This value is not serialized to the server. Use `forwardedProps` for
-   * explicit client-to-server handoff of serializable values.
-   */
   context?: TContext
 
   /**

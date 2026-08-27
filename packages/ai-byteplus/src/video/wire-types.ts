@@ -1,29 +1,4 @@
 /**
- * Wire types for the BytePlus Ark Seedance video task API
- * (`/contents/generations/tasks`).
- *
- * Hand-written minimal shapes covering only the fields this adapter sends and
- * reads, with provenance noted inline. Three sources:
- *
- * 1. The harvested OpenAPI 3.1 documents for the `ark` service, actions
- *    `CreateContentsGenerationsTasks` (`x-updated-time: 2026-05-07`),
- *    `GetContentsGenerationsTask` (`2026-04-14`),
- *    `ListContentsGenerationsTasks` (`2026-03-24`) and
- *    `DeleteContentsGenerationsTasks` — authoritative for field names,
- *    defaults and response shapes.
- * 2. Live calls against `https://ark.ap-southeast.bytepluses.com/api/v3` on
- *    2026-07-31 with a real `ARK_API_KEY`, which pinned the create response,
- *    the per-model parameter applicability (see
- *    `video-provider-options.ts`) and the `content[]` role vocabulary.
- * 3. The Seedance prose docs, for the retention windows.
- *
- * Two casing traps worth knowing: the response frame-rate field is
- * `framespersecond` (all lowercase, no underscores), and `resolution` is
- * matched case-insensitively on the way in (`4K`, `4k` and even `1080P` are
- * all accepted — live-verified), so this package standardizes on lowercase.
- */
-
-/**
  * Task lifecycle states.
  *
  * `queued` and `running` are non-terminal; the rest are terminal. `cancelled`
@@ -80,7 +55,9 @@ export interface BytePlusVideoImageContent {
 /** A video input. Reference-media mode requires `role: 'reference_video'`. */
 export interface BytePlusVideoVideoContent {
   type: 'video_url'
+  /** MP4 download URL. */
   video_url: { url: string }
+  /** Omitted for a bare first frame — the API defaults to `first_frame`. */
   role?: BytePlusVideoContentRole
 }
 
@@ -245,25 +222,32 @@ export interface BytePlusVideoTask {
   /** Unix seconds of the last status change — for a succeeded task, when the
    * output (and its 24-hour URL) was produced. */
   updated_at?: number
+  /** Prompt text plus any image / video / audio inputs. */
   content?: BytePlusVideoTaskContent
+  /** Randomness seed; integers in `[-1, 2^32-1]`, where `-1` means unseeded. */
   seed?: number
+  /** Resolution tier, e.g. `720p`. Matched case-insensitively by the API. */
   resolution?: string
+  /** Output aspect ratio, e.g. `16:9`. `adaptive` follows the input frame. */
   ratio?: string
   duration?: number | string
+  /** Frame count, an alternative to `duration` that allows fractional seconds. */
   frames?: number
   /** Frame rate. Lowercase and unseparated on the wire — not `frames_per_second`. */
   framespersecond?: number
+  /** Generate a synchronized audio track. Default `false`. */
   generate_audio?: boolean
+  /** `default` (online) or `flex` (offline batch, half price). */
   service_tier?: string
+  /** Cheap low-fidelity preview render. Default `false`. */
   draft?: boolean
   draft_task_id?: string
+  /** Seconds from `created_at` after which the task is marked `expired`. */
   execution_expires_after?: number
+  /** Opaque per-end-user identifier for abuse attribution, max 64 chars. */
   safety_identifier?: string
   usage?: BytePlusVideoTaskUsage
 
-  // The two fields below came back on a live succeeded task
-  // (`seedance-1-0-pro-fast-251015`, 2026-07-31) but are absent from the
-  // harvested Get schema.
   /** Queue priority the task ran at. */
   priority?: number
   /** Container of the generated video, e.g. `mp4`. */
@@ -296,7 +280,3 @@ export interface BytePlusVideoTaskListResponse {
   items?: Array<BytePlusVideoTaskListItem>
   total?: number
 }
-
-// `DELETE /contents/generations/tasks/{id}` cancels a `queued` task and
-// deletes anything already terminal; its documented success body is an empty
-// object, so no response interface is declared for it.

@@ -1,21 +1,4 @@
 /**
- * BytePlus ModelArk chat message types.
- *
- * Ark's `/chat/completions` wire format is OpenAI Chat Completions plus a few
- * Ark-only extensions, so the OpenAI SDK types (via `@tanstack/openai-base`)
- * cover everything except the fields below. This file is the source of truth
- * for the Ark-only parts of a chat message:
- *
- * - `encrypted_content` on the assistant message (thinking-summary models)
- * - `video_url` content parts (no OpenAI equivalent)
- * - `input_audio` accepting a `url` as well as inline base64
- *
- * Field shapes verified live against
- * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31 — see the
- * probe findings referenced from `model-meta.ts`.
- */
-
-/**
  * Opaque signature blob emitted alongside `reasoning_content` by the
  * thinking-summary models (see `BYTEPLUS_THINKING_SUMMARY_MODELS`).
  *
@@ -58,8 +41,19 @@ export interface BytePlusImagePixelLimit {
 export interface BytePlusImageUrlContentPart {
   type: 'image_url'
   image_url: {
+    /** Public audio URL. Mutually exclusive with `data`. */
     url: string
+    /**
+     * Processing detail for the image. Ark adds `xhigh` to OpenAI's set.
+     *
+     * @default 'auto'
+     */
     detail?: 'auto' | 'low' | 'high' | 'xhigh'
+    /**
+     * Bounds the pixel count the image is scaled to before tokenization —
+     * see {@link BytePlusImagePixelLimit}. Lower `max_pixels` trades detail for
+     * input tokens.
+     */
     image_pixel_limit?: BytePlusImagePixelLimit
   }
 }
@@ -116,18 +110,8 @@ export interface BytePlusTextMetadata {}
  * Metadata for BytePlus image content parts.
  */
 export interface BytePlusImageMetadata {
-  /**
-   * Processing detail for the image. Ark adds `xhigh` to OpenAI's set.
-   *
-   * @default 'auto'
-   */
   detail?: 'auto' | 'low' | 'high' | 'xhigh'
 
-  /**
-   * Bounds the pixel count the image is scaled to before tokenization —
-   * see {@link BytePlusImagePixelLimit}. Lower `max_pixels` trades detail for
-   * input tokens.
-   */
   image_pixel_limit?: BytePlusImagePixelLimit
 }
 
@@ -135,10 +119,7 @@ export interface BytePlusImageMetadata {
  * Metadata for BytePlus audio content parts.
  */
 export interface BytePlusAudioMetadata {
-  /**
-   * Container format for inline base64 audio. Inferred from the part's
-   * `mimeType` when omitted.
-   */
+  /** Container format of `data`. Required whenever `data` is set. */
   format?: BytePlusInputAudioContentPart['input_audio']['format']
 }
 

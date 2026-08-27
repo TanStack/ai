@@ -15,10 +15,12 @@ import type {
 } from '@tanstack/ai-code-mode'
 
 /** Default memory limit in MB (matches Node isolate driver default). */
-const DEFAULT_MEMORY_LIMIT_MB = 128
+const /** Default memory limit in MB (matches Node isolate driver default). */
+  DEFAULT_MEMORY_LIMIT_MB = 128
 
 /** Default max stack size in bytes for QuickJS runtime. */
-const DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+const /** Default max stack size in bytes for QuickJS runtime. */
+  DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
 /**
  * Configuration for the QuickJS WASM isolate driver
@@ -88,13 +90,10 @@ function injectBinding(
     const argsJson = vm.getString(argsHandle)
     const promise = vm.newPromise()
 
-    // A timed-out execution cancels every outstanding tool call by settling
-    // its deferred with a timeout envelope, so the guest program itself can
-    // settle and the VM can be disposed (freeing a runtime that still holds
-    // an unsettled program promise aborts the shared WASM module).
     const resolveWithPayload = (payloadJson: string) => {
       execState.pendingCancels.delete(cancel)
-      if (!vm.alive || !promise.alive) return
+      const isIsolateDead = !vm.alive || !promise.alive
+      if (isIsolateDead) return
       const payloadHandle = vm.newString(payloadJson)
       promise.resolve(payloadHandle)
       payloadHandle.dispose()
@@ -107,17 +106,11 @@ function injectBinding(
 
     void invokeBinding(binding, argsJson).then(resolveWithPayload)
 
-    // Resume guest code waiting on the promise. Defense in depth: outside an
-    // active execute() the interrupt deadline is 0, so a stray job from an
-    // abandoned execution is interrupted instead of running unbounded.
     void promise.settled.then(() => {
       try {
         if (vm.runtime.alive) {
           const jobs = vm.runtime.executePendingJobs()
           if (jobs.error) {
-            // Errors thrown inside guest async code reject the observed program
-            // promise instead of surfacing here; anything that does land here
-            // would otherwise be silently swallowed and leak its handle.
             logs.push(
               `ERROR: uncaught error in sandboxed code: ${JSON.stringify(vm.dump(jobs.error))}`,
             )
@@ -217,9 +210,6 @@ export function createQuickJSIsolateDriver(
       const memoryLimitMb = isolateConfig.memoryLimit ?? defaultMemoryLimit
       const maxStackSizeBytes = defaultMaxStackSize
 
-      // Create a plain (non-asyncify) QuickJS context. Host async functions
-      // are bridged with QuickJS promises instead of asyncify suspensions,
-      // so the sync WASM build is sufficient and sidesteps asyncify bugs.
       const QuickJS = await loadQuickJS()
       const vm = QuickJS.newContext()
 
@@ -264,17 +254,13 @@ export function createQuickJSIsolateDriver(
       infoFn.dispose()
       consoleObj.dispose()
 
-      // Shared between execute() and the tool bindings: the interrupt
-      // deadline (0 means "no execution active" — any guest job that tries
-      // to run outside execute() is interrupted immediately) and the cancel
-      // callbacks for tool calls still awaiting their host promise.
       const execState: ExecState = {
         deadline: 0,
         pendingCancels: new Set<() => void>(),
       }
 
-      // Inject each tool binding as an async function
-      for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
+      const toolBindings = Object.entries(isolateConfig.bindings)
+      for (const [name, binding] of toolBindings) {
         injectBinding(vm, name, binding, logs, execState)
       }
 

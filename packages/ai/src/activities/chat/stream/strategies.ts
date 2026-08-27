@@ -1,9 +1,3 @@
-/**
- * Built-in Chunk Strategies
- *
- * Strategies for controlling when text updates are emitted to the UI
- */
-
 import type { ChunkStrategy } from './types'
 
 /**

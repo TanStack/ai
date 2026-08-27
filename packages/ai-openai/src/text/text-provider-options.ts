@@ -37,30 +37,37 @@ export interface OpenAISamplingOptions {
 // Core, always-available options for Responses API
 export interface OpenAIBaseOptions extends OpenAISamplingOptions {
   /**
-
-Whether to run the model response in the background. Learn more here:
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-background
- @default false
-   */
+  
+  Whether to run the model response in the background. Learn more here:
+  https://platform.openai.com/docs/api-reference/responses/create#responses_create-background
+   @default false
+     */
   background?: boolean
   /**
    * The conversation that this response belongs to. Items from this conversation are prepended to input_items for this response request. Input items and output items from this response are automatically added to this conversation after this response completes.
    *
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-conversation
    */
-  conversation?: string | { id: string }
+  conversation?:
+    | string
+    | {
+        /**
+         * Unique identifier of your prompt, found in the dashboard
+         */
+        id: string
+      }
   /**
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-include
-   Specify additional output data to include in the model response. Currently supported values are:
-  
-  web_search_call.action.sources: Include the sources of the web search tool call.
-  code_interpreter_call.outputs: Includes the outputs of python code execution in code interpreter tool call items.
-  computer_call_output.output.image_url: Include image urls from the computer call output.
-  file_search_call.results: Include the search results of the file search tool call.
-  message.input_image.image_url: Include image urls from the input message.
-  message.output_text.logprobs: Include logprobs with assistant messages.
-  reasoning.encrypted_content: Includes an encrypted version of reasoning tokens in reasoning item outputs. This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly (like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program).
-  */
+     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-include
+     Specify additional output data to include in the model response. Currently supported values are:
+    
+    web_search_call.action.sources: Include the sources of the web search tool call.
+    code_interpreter_call.outputs: Includes the outputs of python code execution in code interpreter tool call items.
+    computer_call_output.output.image_url: Include image urls from the computer call output.
+    file_search_call.results: Include the search results of the file search tool call.
+    message.input_image.image_url: Include image urls from the input message.
+    message.output_text.logprobs: Include logprobs with assistant messages.
+    reasoning.encrypted_content: Includes an encrypted version of reasoning tokens in reasoning item outputs. This enables reasoning items to be used in multi-turn conversations when using the Responses API statelessly (like when the store parameter is set to false, or when an organization is enrolled in the zero data retention program).
+    */
   include?: Array<OpenAI.Responses.ResponseIncludable>
 
   /**
@@ -73,9 +80,6 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
    * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt
    */
   prompt?: {
-    /**
-     * Unique identifier of your prompt, found in the dashboard
-     */
     id: string
     /**
      * A specific version of your prompt (defaults to the "current" version as specified in the dashboard)
@@ -105,17 +109,17 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   safety_identifier?: string
 
   /**
-   * Specifies the processing type used for serving the request.
-
-If set to 'auto', then the request will be processed with the service tier configured in the Project settings. Unless otherwise configured, the Project will use 'default'.
-If set to 'default', then the request will be processed with the standard pricing and performance for the selected model.
-If set to 'flex' or 'priority', then the request will be processed with the corresponding service tier.
-When not set, the default behavior is 'auto'.
-When the service_tier parameter is set, the response body will include the service_tier value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
-
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-service_tier
-@default 'auto'
-   */
+     * Specifies the processing type used for serving the request.
+  
+  If set to 'auto', then the request will be processed with the service tier configured in the Project settings. Unless otherwise configured, the Project will use 'default'.
+  If set to 'default', then the request will be processed with the standard pricing and performance for the selected model.
+  If set to 'flex' or 'priority', then the request will be processed with the corresponding service tier.
+  When not set, the default behavior is 'auto'.
+  When the service_tier parameter is set, the response body will include the service_tier value based on the processing mode actually used to serve the request. This response value may be different from the value set in the parameter.
+  
+  https://platform.openai.com/docs/api-reference/responses/create#responses_create-service_tier
+  @default 'auto'
+     */
   service_tier?: 'auto' | 'default' | 'flex' | 'priority'
 
   /**
@@ -137,11 +141,11 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   top_logprobs?: number
 
   /**
-   * The truncation strategy to use for the model response.
-  
-  auto: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation.
-  disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
-   */
+     * The truncation strategy to use for the model response.
+    
+    auto: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation.
+    disabled (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
+     */
   truncation?: 'auto' | 'disabled'
 }
 
@@ -180,33 +184,17 @@ export interface OpenAIReasoningOptions {
  * Reasoning options for computer-use-preview model (includes 'concise' summary).
  */
 export interface OpenAIReasoningOptionsWithConcise {
-  /**
-   * Reasoning controls for models that support it.
-   * Lets you guide how much chain-of-thought computation to spend.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-   * https://platform.openai.com/docs/guides/reasoning
-   */
   reasoning?: {
-    /**
-     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-     */
     effort?: ReasoningEffort
-    /**
-     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
-     * `concise` is only supported for `computer-use-preview` models.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-     */
     summary?: ReasoningSummary | 'concise'
   }
 }
 
 export interface OpenAIStructuredOutputOptions {
   /**
-   * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
-  https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
-   */
+     * Configuration options for a text response from the model. Can be plain text or structured JSON data. Learn more:
+    https://platform.openai.com/docs/api-reference/responses/create#responses_create-text
+     */
   text?: OpenAI.Responses.ResponseTextConfig
 }
 
@@ -247,11 +235,11 @@ export interface OpenAIStreamingOptions {
 
 export interface OpenAIMetadataOptions {
   /**
-   * Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
-
-Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters.
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-metadata
-   */
+     * Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
+  
+  Keys are strings with a maximum length of 64 characters. Values are strings with a maximum length of 512 characters.
+  https://platform.openai.com/docs/api-reference/responses/create#responses_create-metadata
+     */
   metadata?: Record<string, string>
 }
 
@@ -269,11 +257,11 @@ export type ExternalTextProviderOptions = OpenAIBaseOptions &
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   input: string | ResponseInput
   /**
-   * A system (or developer) message inserted into the model's context.
-
-When using along with previous_response_id, the instructions from a previous response will not be carried over to the next response. This makes it simple to swap out system (or developer) messages in new responses.
-https://platform.openai.com/docs/api-reference/responses/create#responses_create-instructions
-   */
+     * A system (or developer) message inserted into the model's context.
+  
+  When using along with previous_response_id, the instructions from a previous response will not be carried over to the next response. This makes it simple to swap out system (or developer) messages in new responses.
+  https://platform.openai.com/docs/api-reference/responses/create#responses_create-instructions
+     */
   instructions?: string
 
   /**
@@ -315,7 +303,9 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 const validateConversationAndPreviousResponseId = (
   options: InternalTextProviderOptions,
 ) => {
-  if (options.conversation && options.previous_response_id) {
+  const hasConflictingIds =
+    Boolean(options.conversation) && Boolean(options.previous_response_id)
+  if (hasConflictingIds) {
     throw new Error(
       "Cannot use both 'conversation' and 'previous_response_id' in the same request.",
     )

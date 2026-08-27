@@ -13,7 +13,9 @@ export type { ImageGenerationToolConfig }
 export type ImageGenerationTool = ImageGenerationToolConfig
 
 const validatePartialImages = (value: number | undefined) => {
-  if (value !== undefined && (value < 0 || value > 3)) {
+  const isPartialImagesOutOfRange =
+    value !== undefined && (value < 0 || value > 3)
+  if (isPartialImagesOutOfRange) {
     throw new Error('partial_images must be between 0 and 3')
   }
 }

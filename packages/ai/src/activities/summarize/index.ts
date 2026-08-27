@@ -1,10 +1,3 @@
-/**
- * Summarize Activity
- *
- * Generates summaries from text input.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -29,16 +22,9 @@ import type { GenerationMiddleware } from '../middleware/types'
 import type { SummarizeAdapter } from './adapter'
 import type { StreamChunk, SummarizationResult } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'summarize' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'summarize' as const
 
 /** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> = TAdapter extends {
@@ -46,10 +32,6 @@ export type SummarizeProviderOptions<TAdapter> = TAdapter extends {
 }
   ? P
   : object
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the summarize activity.
@@ -128,10 +110,6 @@ export interface SummarizeActivityOptions<
   debug?: DebugOption
 }
 
-// ===========================
-// Activity Result Type
-// ===========================
-
 /**
  * Result type for the summarize activity.
  * - If stream is true: AsyncIterable<StreamChunk>
@@ -142,17 +120,9 @@ export type SummarizeActivityResult<TStream extends boolean> =
     ? AsyncIterable<StreamChunk>
     : Promise<SummarizationResult>
 
-// ===========================
-// Helper Functions
-// ===========================
-
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * Summarize activity - generates summaries from text.
@@ -294,9 +264,6 @@ async function runSummarize(
       abortControls.signal,
     )
     abortControls.clear()
-    // Transforms run before anything observes the result — the same order every
-    // media activity uses — so the run record and the returned value are the
-    // same object.
     const result = await applyGenerationResultTransforms(mwCtx, rawResult)
 
     const duration = Date.now() - startTime
@@ -382,10 +349,6 @@ async function* runStreamingSummarize(
     stream: true,
   })
 
-  // Thread the caller's run identity through so the emitted `RUN_STARTED`
-  // carries it — keeps a delivery-durable route's log keyed by the id the
-  // client rejoins with (mid-run reload resumability). Conditional spreads keep
-  // the fields off the object entirely under `exactOptionalPropertyTypes`.
   const summarizeOptions = {
     model,
     text,
@@ -409,12 +372,6 @@ async function* runStreamingSummarize(
   }
 
   try {
-    // Fall back to non-streaming — wrap the result with streamGenerationResult,
-    // forwarding the run identity so its RUN_STARTED matches too. The generation
-    // itself goes through `runSummarize`, so middleware (and its result
-    // transforms) run exactly as they do for a non-streaming call. Only `runId`
-    // is taken from the resolved wire identity — `threadId` stays the CALLER's,
-    // since a minted one would file the run in a slot no client can hydrate.
     yield* streamGenerationResult(
       (resolved) =>
         runSummarize({ ...options, stream: false, runId: resolved.runId }),
@@ -468,7 +425,9 @@ async function* runNativeSummarizeStream(
   let settled = false
   try {
     for await (const chunk of stream) {
-      if (chunk.type === 'CUSTOM' && chunk.name === 'generation:result') {
+      const isGenerationResult =
+        chunk.type === 'CUSTOM' && chunk.name === 'generation:result'
+      if (isGenerationResult) {
         const result = await applyGenerationResultTransforms<unknown>(
           mwCtx,
           chunk.value,
@@ -506,10 +465,6 @@ async function* runNativeSummarizeStream(
     throw error
   } finally {
     if (!settled) {
-      // The consumer abandoned the stream mid-summary, so the generator is being
-      // unwound at a `yield`. Report a cancel, not an error, so an observer ends
-      // its span (and persistence marks the run interrupted) instead of leaving
-      // the run open forever.
       await runGenerationAbort(middleware, mwCtx, {
         reason: 'Summarize stream abandoned before completion',
         duration: Date.now() - startTime,
@@ -517,10 +472,6 @@ async function* runNativeSummarizeStream(
     }
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the summarize() function without executing.

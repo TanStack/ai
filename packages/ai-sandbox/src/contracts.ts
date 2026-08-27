@@ -1,18 +1,3 @@
-/**
- * Provider-agnostic sandbox contracts.
- *
- * A {@link SandboxProvider} owns an isolation primitive (Docker container,
- * Cloudflare DO-backed container, a local OS process tree, …) and knows how to
- * create / resume / restore / destroy a {@link SandboxHandle}. A
- * `SandboxHandle` is the uniform runtime surface every consumer (harness
- * adapters, the workspace bootstrap engine, advanced users) codes against.
- *
- * Providers differ in what they can do — see {@link SandboxCapabilities}. The
- * mandatory `fs` and `exec` capabilities are guaranteed by the contract;
- * everything else is optional and capability-gated. Calling an unsupported
- * optional method throws {@link UnsupportedCapabilityError} rather than
- * silently no-opping.
- */
 import type { WorkspaceDefinition } from './workspace'
 import type { SandboxPolicy } from './policy'
 
@@ -143,10 +128,14 @@ export type SandboxFsStat =
  */
 export interface SandboxGit {
   clone: (input: {
+    /** URL the host can reach (localhost / host-bound port / authenticated preview URL). */
     url: string
     dir?: string
     ref?: string
-    auth?: { username?: string; token: string }
+    auth?: {
+      username?: string /** Bearer token gating the channel, when the provider issues one. */
+      token: string
+    }
     depth?: number | 'full'
   }) => Promise<void>
   status: (dir?: string) => Promise<string>
@@ -185,6 +174,7 @@ export interface SandboxEnv {
 
 /** Opaque reference to a stored snapshot, used to restore later. */
 export interface SnapshotRef {
+  /** Provider-assigned id used to reconnect to this sandbox. */
   id: string
   label?: string
 }
@@ -204,10 +194,13 @@ export interface SandboxHandle {
   readonly workspaceRoot?: string
   /** What this sandbox can do. */
   readonly capabilities: SandboxCapabilities
+  /** Read/write/list/… via {@link SandboxFs}. Always true (mandatory). */
   readonly fs: SandboxFs
   readonly git: SandboxGit
   readonly process: SandboxProcess
+  /** Expose a port and resolve a reachable channel via {@link SandboxPorts}. */
   readonly ports: SandboxPorts
+  /** Per-create / per-command environment variables. */
   readonly env: SandboxEnv
   /** Capability-gated: throws UnsupportedCapabilityError if `capabilities.snapshots` is false. */
   snapshot?: (label?: string) => Promise<SnapshotRef>
@@ -218,21 +211,11 @@ export interface SandboxHandle {
 
 /** Input passed to {@link SandboxProvider.create}. */
 export interface SandboxCreateInput {
-  /**
-   * Deterministic instance id the caller wants the provider to use. `ensure()`
-   * passes the compound sandbox key here so the provider-assigned id is
-   * reconstructable from run context (thread/workspace/tenant/reuse) instead of
-   * being a random value only recoverable from the sandbox store. Providers
-   * whose native id is addressable by name (e.g. Cloudflare's DO id) SHOULD
-   * honor it (`input.id ?? <random>`); providers that mint their own opaque id
-   * MAY ignore it. Consumers that reconnect out-of-band — e.g. attaching a
-   * preview iframe to the exact sandbox an agent is editing — rely on this being
-   * honored to avoid addressing two different sandboxes.
-   */
   id?: string
   workspace?: WorkspaceDefinition
   policy?: SandboxPolicy
   env?: Record<string, string>
+  /** Abort the command/process when this signal fires. */
   signal?: AbortSignal
   /** Harness adapter name. Optional. Providers that do not use it ignore it. */
   adapterName?: string

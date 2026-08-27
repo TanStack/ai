@@ -15,10 +15,6 @@ export interface ChatProps {
   /** Client-side tools with execute functions */
   tools?: Array<any>
   /** Custom tool components registry for rendering */
-  // toolComponents?: Record<
-  //   string,
-  //   (props: { input: any; output?: any }) => JSX.Element
-  // >
 }
 
 export interface ChatInputProps {
@@ -53,10 +49,12 @@ export interface ThinkingPartProps {
 }
 
 export interface ToolCallRenderProps {
+  /** Custom message ID generator */
   id: string
   name: string
   arguments: string
   state: string
+  /** Approval metadata */
   approval?: any
   output?: any
 }
@@ -112,6 +110,7 @@ export interface ToolApprovalProps {
   approval: {
     id: string
     needsApproval: boolean
+    /** User's decision (if responded) */
     approved?: boolean
   }
   /** CSS class name */

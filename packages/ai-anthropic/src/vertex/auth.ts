@@ -24,14 +24,20 @@ export type AnthropicVertexConfig = Omit<
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) {
+  if (value === undefined) {
+    return undefined
+  }
+  if (value.length === 0) {
     return undefined
   }
   return value
 }
 
 function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
+  if (typeof process === 'undefined') {
+    return undefined
+  }
+  if (process.env === undefined) {
     return undefined
   }
   return nonEmpty(process.env[name])

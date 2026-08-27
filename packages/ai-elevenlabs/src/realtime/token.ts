@@ -49,11 +49,6 @@ export function elevenlabsRealtimeToken(
       // Signed URLs are valid for 30 minutes
       const expiresAt = Date.now() + 30 * 60 * 1000
 
-      // Conditionally spread optional fields — the vendor target type
-      // (`RealtimeSessionConfig` in `@tanstack/ai`) uses strict
-      // `field?: T` semantics under `exactOptionalPropertyTypes`, so we
-      // omit keys entirely when the override is absent rather than
-      // setting them to `undefined`.
       return {
         provider: 'elevenlabs',
         token: response.signedUrl,

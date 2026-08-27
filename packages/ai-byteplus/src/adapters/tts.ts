@@ -25,7 +25,8 @@ import type {
 } from '../audio/tts-provider-options'
 
 /** Path of the synchronous Seed Speech synthesis endpoint. */
-const TTS_CREATE_PATH = '/api/v3/tts/create'
+const /** Path of the synchronous Seed Speech synthesis endpoint. */
+  TTS_CREATE_PATH = '/api/v3/tts/create'
 
 /**
  * Name of the request field carrying the text to speak.
@@ -154,9 +155,6 @@ export class BytePlusTTSAdapter<
           method: 'POST',
           headers: bytePlusVoiceHeaders(this.apiKey, {
             ...this.defaultHeaders,
-            // Client-generated per-request id. BytePlus echoes it in their
-            // request logs, which is what support asks for when diagnosing a
-            // synthesis failure.
             'X-Api-Request-Id': newRequestId(),
           }),
           body: JSON.stringify(body),
@@ -171,25 +169,17 @@ export class BytePlusTTSAdapter<
 
       const data = payload as BytePlusTTSCreateResponse
 
-      // Seed Speech reports status in the body, not only in the HTTP status:
-      // a 200 can carry a non-zero `code`. Check it before looking at `audio`,
-      // because a failed call may still return a partial or placeholder
-      // payload that would otherwise be handed back as if it were valid.
-      //
-      // `code` is accepted as a number *or* a string. The success envelope was
-      // never confirmed against a live key (no voice key yet — see
-      // `audio/wire-types.ts`), and `readStringField` already tolerates both
-      // forms when rendering the error, so requiring a number here would let
-      // `{"code": "45000010"}` through both this gate and the one below.
       if (!isZeroCode(data.code)) {
         throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
       }
 
-      // Belt and braces for a 200 that reports success but carries nothing to
-      // play. Say that the adapter rejected it, rather than reusing the
-      // envelope-error phrasing — a bare "failed (200)" gives no hint that the
-      // response was well-formed and simply empty.
-      if (typeof data.audio !== 'string' || data.audio.length === 0) {
+      if (typeof data.audio !== 'string') {
+        throw new Error(
+          `BytePlus Seed Speech text-to-speech returned a success response ` +
+            `with no audio (model ${model}).`,
+        )
+      }
+      if (data.audio.length === 0) {
         throw new Error(
           `BytePlus Seed Speech text-to-speech returned a success response ` +
             `with no audio (model ${model}).`,
@@ -248,6 +238,39 @@ export function buildTTSRequestBody(options: {
   // rates the endpoint accepts, so relying on it is a coin flip.
   const sampleRate = modelOptions?.sample_rate ?? DEFAULT_SAMPLE_RATE
 
+  const audioConfig = buildTTSAudioConfig({
+    audioFormat,
+    sampleRate,
+    speed,
+    modelOptions,
+    logger,
+  })
+
+  const body: BytePlusTTSCreateRequest = {
+    model,
+    [TTS_TEXT_FIELD]: text,
+    references: modelOptions?.references ?? [
+      {
+        speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
+      },
+    ],
+    audio_config: audioConfig,
+  }
+  if (modelOptions?.watermark !== undefined) {
+    body.watermark = modelOptions.watermark
+  }
+
+  return { body, audioFormat, sampleRate }
+}
+
+function buildTTSAudioConfig(options: {
+  audioFormat: BytePlusTTSAudioFormat
+  sampleRate: number
+  speed: number | undefined
+  modelOptions: BytePlusTTSProviderOptions | undefined
+  logger: InternalLogger
+}): BytePlusTTSAudioConfig {
+  const { audioFormat, sampleRate, speed, modelOptions, logger } = options
   const audioConfig: BytePlusTTSAudioConfig = {
     format: audioFormat,
     sample_rate: sampleRate,
@@ -270,26 +293,7 @@ export function buildTTSRequestBody(options: {
   if (speechRate !== undefined) {
     audioConfig.speech_rate = speechRate
   }
-
-  const body: BytePlusTTSCreateRequest = {
-    model,
-    [TTS_TEXT_FIELD]: text,
-    // The voice belongs inside `references`, not at the top level — a
-    // top-level `speaker` is silently ignored by the server. The flat member
-    // shape here is the best-supported reading of the docs; see
-    // `BytePlusTTSReference` for the unresolved part and the live-probe flag.
-    references: modelOptions?.references ?? [
-      {
-        speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
-      },
-    ],
-    audio_config: audioConfig,
-  }
-  if (modelOptions?.watermark !== undefined) {
-    body.watermark = modelOptions.watermark
-  }
-
-  return { body, audioFormat, sampleRate }
+  return audioConfig
 }
 
 /**
@@ -404,9 +408,9 @@ export function toDurationSeconds(
   raw: number | string | undefined,
 ): number | undefined {
   const value = typeof raw === 'string' ? Number(raw) : raw
-  if (value === undefined || !Number.isFinite(value) || value <= 0) {
-    return undefined
-  }
+  if (value === undefined) return undefined
+  if (!Number.isFinite(value)) return undefined
+  if (value <= 0) return undefined
   return value
 }
 

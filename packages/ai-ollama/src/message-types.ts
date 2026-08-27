@@ -1,13 +1,4 @@
 /**
- * Ollama-specific metadata types for multimodal content parts.
- * These are placeholder types for future Ollama multimodal support.
- *
- * Ollama currently supports image input for vision-capable models like llava and bakllava.
- *
- * @see https://github.com/ollama/ollama/blob/main/docs/api.md
- */
-
-/**
  * Metadata for Ollama image content parts.
  * Ollama primarily uses base64-encoded images.
  */
@@ -24,9 +15,6 @@ export interface OllamaImageMetadata {
  * Placeholder for future audio support.
  */
 export interface OllamaAudioMetadata {
-  /**
-   * The format of the audio.
-   */
   format?: 'wav' | 'mp3' | 'ogg'
 }
 
@@ -35,9 +23,6 @@ export interface OllamaAudioMetadata {
  * Placeholder for future video support.
  */
 export interface OllamaVideoMetadata {
-  /**
-   * The format of the video.
-   */
   format?: 'mp4' | 'webm'
 }
 

@@ -68,7 +68,8 @@ export async function* parseSSEResponse(
 
   const reader = getResponseStreamReader(response)
 
-  for await (const line of readStreamLines(reader, abortSignal)) {
+  const streamLines = readStreamLines(reader, abortSignal)
+  for await (const line of streamLines) {
     const data = parseSseDataLine(line)
 
     if (data === '[DONE]') {

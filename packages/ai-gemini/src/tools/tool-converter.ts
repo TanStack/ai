@@ -32,7 +32,10 @@ import type { ToolUnion } from '@google/genai'
 export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<ToolUnion> {
-  if (!tools || tools.length === 0) {
+  if (!tools) {
+    return []
+  }
+  if (tools.length === 0) {
     return []
   }
   assertUniqueToolNames(tools)

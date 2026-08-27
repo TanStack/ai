@@ -60,17 +60,21 @@ type IterationStep =
 // --- Helpers ---
 
 function getApprovalStatus(toolCall: ToolCall): string | undefined {
-  if (toolCall.approvalApproved === true || toolCall.state === 'approved') {
+  const isApproved =
+    toolCall.approvalApproved === true || toolCall.state === 'approved'
+  if (isApproved) {
     return 'approved'
   }
-  if (toolCall.approvalApproved === false || toolCall.state === 'denied') {
+  const isDenied =
+    toolCall.approvalApproved === false || toolCall.state === 'denied'
+  if (isDenied) {
     return 'denied'
   }
-  if (
-    toolCall.approvalRequired ||
-    toolCall.approvalId ||
+  const isApprovalRequested =
+    Boolean(toolCall.approvalRequired) ||
+    Boolean(toolCall.approvalId) ||
     toolCall.state === 'approval-requested'
-  ) {
+  if (isApprovalRequested) {
     return 'approval requested'
   }
   if (toolCall.state === 'approval-responded') {
@@ -120,9 +124,13 @@ function buildSteps(
           })
         }
       }
-      if (msg.toolCalls && msg.toolCalls.length > 0) {
-        for (const tc of msg.toolCalls) {
-          steps.push({ kind: 'tool_call', toolCall: tc, message: msg })
+      const toolCalls = msg.toolCalls
+      if (toolCalls) {
+        const hasToolCalls = toolCalls.length > 0
+        if (hasToolCalls) {
+          for (const tc of toolCalls) {
+            steps.push({ kind: 'tool_call', toolCall: tc, message: msg })
+          }
         }
       }
       if (msg.content) {
@@ -167,10 +175,13 @@ const MiddlewareStep: Component<{
 
   const suffix = () => {
     if (ev().wasDropped) return 'DROP'
-    if (ev().hookName === 'onChunk' && ev().hasTransform) return 'TRANSFORM'
-    if (ev().hookName === 'onConfig' && ev().hasTransform) return 'TRANSFORM'
-    if (ev().hookName === 'onBeforeToolCall' && ev().hasTransform)
-      return 'DECISION'
+    const isChunkTransform = ev().hookName === 'onChunk' && ev().hasTransform
+    if (isChunkTransform) return 'TRANSFORM'
+    const isConfigTransform = ev().hookName === 'onConfig' && ev().hasTransform
+    if (isConfigTransform) return 'TRANSFORM'
+    const isToolCallDecision =
+      ev().hookName === 'onBeforeToolCall' && ev().hasTransform
+    if (isToolCallDecision) return 'DECISION'
     return null
   }
 
@@ -674,22 +685,27 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   const systemPrompts = () => iter().systemPrompts || []
 
   /** Count actual tool invocations in this iteration's messages */
-  const toolInvocationCounts = createMemo(() => {
-    const counts = new Map<string, number>()
-    const msgIds = new Set(iter().messageIds)
-    for (const msg of props.messages) {
-      if (msgIds.has(msg.id) && msg.toolCalls) {
-        for (const tc of msg.toolCalls) {
-          counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+  const /** Count actual tool invocations in this iteration's messages */
+    toolInvocationCounts = createMemo(() => {
+      const counts = new Map<string, number>()
+      const msgIds = new Set(iter().messageIds)
+      for (const msg of props.messages) {
+        if (msgIds.has(msg.id)) {
+          const toolCalls = msg.toolCalls
+          if (toolCalls) {
+            for (const tc of toolCalls) {
+              counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+            }
+          }
         }
       }
-    }
-    return counts
-  })
+      return counts
+    })
 
   const totalToolCalls = createMemo(() => {
     let count = 0
-    for (const v of toolInvocationCounts().values()) count += v
+    const invocationCounts = toolInvocationCounts().values()
+    for (const v of invocationCounts) count += v
     return count
   })
   const modelOptions = () => iter().modelOptions

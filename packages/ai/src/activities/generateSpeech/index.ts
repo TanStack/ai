@@ -1,10 +1,3 @@
-/**
- * TTS Activity
- *
- * Generates speech audio from text using text-to-speech models.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -29,16 +22,8 @@ import type { GenerationMiddleware } from '../middleware/types'
 import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'tts' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */ kind = 'tts' as const
 
 /**
  * Extract provider options from a TTSAdapter via ~types.
@@ -48,10 +33,6 @@ export type TTSProviderOptions<TAdapter> = TAdapter extends {
 }
   ? P
   : object
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the TTS activity.
@@ -114,10 +95,6 @@ export interface TTSActivityOptions<
   abortSignal?: AbortSignal
 }
 
-// ===========================
-// Activity Result Type
-// ===========================
-
 /**
  * Result type for the TTS activity.
  * - If stream is true: AsyncIterable<StreamChunk>
@@ -129,10 +106,6 @@ export type TTSActivityResult<TStream extends boolean = false> =
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * TTS activity - generates speech from text.
@@ -170,11 +143,6 @@ export function generateSpeech<
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
       (resolved) => runGenerateSpeech({ ...options, runId: resolved.runId }),
       options,
     ) as TTSActivityResult<TStream>
@@ -328,10 +296,6 @@ async function runGenerateSpeech<
     throw error
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the generateSpeech() function without executing.

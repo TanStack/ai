@@ -41,12 +41,6 @@ export interface CreateAudioRecorderReturn<TOutput> {
  * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
  * while a stop is in flight) — handle one channel, not both.
  */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`createAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function createAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -67,13 +61,16 @@ export function createAudioRecorder(
     ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
     ...(options.onError !== undefined && { onError: options.onError }),
   })
+  /** Reactive: true while actively capturing audio. */
   let isRecording = $state(false)
+  /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
   let recording = $state<unknown>(null)
 
   recorder.subscribe((state) => {
     isRecording = state === 'recording'
   })
 
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)
@@ -91,6 +88,7 @@ export function createAudioRecorder(
     get isRecording() {
       return isRecording
     },
+    /** Whether the browser supports recording. */
     get isSupported() {
       return AudioRecorder.isSupported()
     },

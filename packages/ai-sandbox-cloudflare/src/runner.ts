@@ -1,42 +1,3 @@
-/**
- * `runInContainerHarness` — the IN-CONTAINER harness runner, shipped from the
- * package so a co-located app's container program is a single function call.
- *
- * This is the heart of the CO-LOCATED model: the agent harness loop AND its MCP
- * tool-bridge run HERE, on the container's own localhost. The Durable Object
- * outside never calls `chat()`; it POSTs `/run` to this server and reads the
- * NDJSON stream back.
- *
- *   DO  ── POST /run {messages, harness, model, workspace, toolDescriptors,
- *                     toolExecUrl, toolExecToken} ──▶  THIS
- *   THIS ── NDJSON stream of StreamChunk ──────────────────────────────────▶  DO
- *
- * It is a tiny `node:http` server (NODE/container side — NOT Workers; it uses
- * `localProcessSandbox`). On `POST /run` it validates the {@link
- * ContainerRunRequest}, builds `chat()` with the in-container `local-process`
- * sandbox and the adapter the CALLER resolves, and streams each {@link
- * StreamChunk} back as NDJSON (one JSON object per line).
- *
- * Why the MCP bridge is genuinely in-container: the in-container sandbox is
- * `localProcessSandbox()` — the container IS the host — so the harness adapter
- * serves its tool-bridge over the container's own `localhost` and feeds the
- * prompt over NATIVE writable stdin (no file-redirect; the bridge URL/token
- * never leave the container). The MCP protocol never crosses the network.
- *
- * The ONE thing that still crosses back to the DO is host-tool EXECUTION: each
- * tool rebuilt by {@link remoteToolStubs} delegates its `execute()` to {@link
- * httpRemoteToolExecutor}, which POSTs `{ name, args }` (bearer-gated) to the
- * DO's `toolExecUrl`:
- *
- *   agent → in-container MCP bridge → stub.execute → httpRemoteToolExecutor → DO
- *
- * The app supplies only `resolveAdapter` — which `*Text` adapter to build for a
- * given `{ harness, model }`. The server + `chat()` wiring lives here, so the
- * package doesn't depend on every adapter package.
- *
- * NOTE: container-side Node code — compiles against the real TanStack AI types;
- * not runtime-verified in this repo (no container build in CI).
- */
 import { createServer } from 'node:http'
 import { EventType, chat } from '@tanstack/ai'
 import {
@@ -172,11 +133,9 @@ async function handleRun(
     'content-type': 'application/x-ndjson',
     'cache-control': 'no-cache',
   })
-  // The DO appends each line to its durable run-log; here we are the producer,
-  // so we surface a mid-stream failure as a terminal RUN_ERROR line the DO will
-  // append + finish on, never a silently truncated stream.
   try {
-    for await (const chunk of runAgent(request, resolveAdapter)) {
+    const chunks = runAgent(request, resolveAdapter)
+    for await (const chunk of chunks) {
       res.write(`${JSON.stringify(chunk)}\n`)
     }
   } catch (error) {
@@ -195,11 +154,14 @@ async function handleRun(
 export function runInContainerHarness(
   options: RunInContainerHarnessOptions,
 ): ContainerHarnessServer {
+  /** Port to listen on. Defaults to `RUNNER_PORT` env, then `8080`. */
   const port =
     options.port ?? Number.parseInt(process.env.RUNNER_PORT ?? '8080', 10)
 
+  /** The underlying `node:http` server (already `listen()`ing). */
   const server = createServer((req, res) => {
-    if (req.method === 'POST' && req.url === '/run') {
+    const isRunRequest = req.method === 'POST' && req.url === '/run'
+    if (isRunRequest) {
       handleRun(req, res, options.resolveAdapter).catch((error: unknown) => {
         // A failure BEFORE we start streaming (e.g. a malformed body) is a 400 —
         // surfaced, never swallowed.
@@ -211,7 +173,8 @@ export function runInContainerHarness(
       })
       return
     }
-    if (req.method === 'GET' && req.url === '/health') {
+    const isHealthRequest = req.method === 'GET' && req.url === '/health'
+    if (isHealthRequest) {
       res.writeHead(200).end('ok')
       return
     }

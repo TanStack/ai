@@ -32,6 +32,33 @@ import type {
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
+function persistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TSchema extends SchemaInput | undefined,
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+>(
+  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+):
+  | { persistence: NonNullable<typeof options.persistence>; threadId: string }
+  | { threadId?: typeof options.threadId } {
+  if (typeof options.threadId === 'string' && options.persistence) {
+    return { persistence: options.persistence, threadId: options.threadId }
+  }
+  return options.threadId !== undefined ? { threadId: options.threadId } : {}
+}
+
+function definedFields(
+  fields: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  const fieldEntries = Object.entries(fields)
+  for (const [key, value] of fieldEntries) {
+    if (value !== undefined) out[key] = value
+  }
+  return out
+}
+
 /**
  * Creates a reactive chat instance for Svelte 5.
  *
@@ -89,61 +116,19 @@ export function createChat<
     resuming: false,
   })
 
-  // Structured-output `partial` / `final` are derived from `messages` —
-  // specifically from the structured-output part on the latest assistant
-  // message (the one after the most recent user message). Per-turn parts
-  // keep history coherent without a separate reset signal.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Create ChatClient instance.
-  // Note: Svelte's createChat runs once per instance and `options` is captured
-  // by reference. Callbacks are therefore frozen to whatever the caller passed
-  // at creation — to swap them dynamically, mutate the options object
-  // in-place or call `client.updateOptions(...)` imperatively.
-  // Optional fields use conditional spread because the target
-  // `ChatClientOptions` declares them as `field?: T` (absent vs. present)
-  // rather than `field?: T | undefined`. Under `exactOptionalPropertyTypes`,
-  // passing an explicit `undefined` for an absent-only optional is a type
-  // error, so we omit the key when the caller's value is undefined.
   const transport = options.connection
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`. When no `threadId` is given the
-  // client mints one after mount, so an ephemeral chat still works but is not
-  // restored on reload.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    ...(options.initialMessages !== undefined && {
-      initialMessages: options.initialMessages,
-    }),
-    ...(typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(options.body !== undefined && { body: options.body }),
-    ...(options.forwardedProps !== undefined && {
-      forwardedProps: options.forwardedProps,
-    }),
-    ...(options.byok !== undefined && { byok: options.byok }),
+    ...persistenceOptions(options),
     byokProvider: () => options.byokProvider?.(),
-    ...(options.context !== undefined && { context: options.context }),
-    devtools: {
-      ...options.devtools,
-      framework: 'svelte',
-      hookName: 'useChat',
-      outputKind: options.outputSchema ? 'structured' : 'chat',
-    },
-    ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
+    tools: options.tools,
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },
@@ -153,16 +138,6 @@ export function createChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    tools: options.tools,
-    ...(options.interrupts !== undefined && {
-      interrupts: options.interrupts,
-    }),
-    ...(options.onCustomEvent !== undefined && {
-      onCustomEvent: options.onCustomEvent,
-    }),
-    ...(options.streamProcessor !== undefined && {
-      streamProcessor: options.streamProcessor,
-    }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
     },
@@ -185,7 +160,6 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
-    ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
     },
@@ -196,6 +170,25 @@ export function createChat<
       interruptState = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    ...definedFields({
+      initialMessages: options.initialMessages,
+      initialResumeSnapshot: options.initialResumeSnapshot,
+      body: options.body,
+      forwardedProps: options.forwardedProps,
+      byok: options.byok,
+      context: options.context,
+      onResponse: options.onResponse,
+      interrupts: options.interrupts,
+      onCustomEvent: options.onCustomEvent,
+      streamProcessor: options.streamProcessor,
+      queue: options.queue,
+    }),
   })
 
   function syncResumeState() {
@@ -215,20 +208,8 @@ export function createChat<
   if (typeof window !== 'undefined') {
     try {
       onMount(() => {
-        // Delivery-durability resume is transparent: the resumable SSE
-        // connection adapter reattaches via the browser's native
-        // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
         syncResumeState()
         client.attach()
-        // ONLY THE VIEW ON SCREEN HOLDS A STREAM. `onMount`'s returned function
-        // runs when the component is destroyed, which is the one automatic
-        // teardown Svelte gives us here — and it is enough, because a connection
-        // is all that must go. A page can own many chats and a browser allows
-        // only ~6 connections per origin, so one long-lived stream per chat
-        // starves every other request once a few views have been open.
-        //
-        // `detach` keeps the transcript and the resume pointer, so re-entering
-        // the view picks the run back up from the durable log.
         return () => {
           client.detach()
         }
@@ -237,10 +218,6 @@ export function createChat<
       // Svelte lifecycle hooks are only valid during component initialization.
     }
   }
-
-  // Note: `dispose()` remains manual — it releases devtools and marks the client
-  // dead, which only the owner can decide. The CONNECTION is released
-  // automatically by the `onMount` teardown above.
 
   // Define methods
   const sendMessage = async (
@@ -359,12 +336,6 @@ export function createChat<
     client.updateOptions({ context: newContext })
   }
 
-  // The "active" structured-output part is the one on the assistant message
-  // after the latest user message. When no user message exists yet (e.g.
-  // `initialMessages` carries only a stale assistant turn), we return null
-  // rather than scanning history — otherwise a `final` from a previous
-  // session would leak in on first render. Uses `$derived.by` so the
-  // multi-line scan re-runs whenever `messages` changes.
   const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {

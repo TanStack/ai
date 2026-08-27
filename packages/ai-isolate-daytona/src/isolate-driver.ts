@@ -87,18 +87,23 @@ function createResultMarker(): string {
 }
 
 function validateTimeoutMs(timeout: number, fieldName: string): number {
-  if (!Number.isFinite(timeout) || timeout <= 0) {
+  if (!Number.isFinite(timeout)) {
+    throw new Error(`${fieldName} must be a finite positive number`)
+  }
+  if (timeout <= 0) {
     throw new Error(`${fieldName} must be a finite positive number`)
   }
   return timeout
 }
 
 function validateMaxToolRounds(maxToolRounds: number): number {
-  if (
-    !Number.isFinite(maxToolRounds) ||
-    !Number.isInteger(maxToolRounds) ||
-    maxToolRounds < 0
-  ) {
+  if (!Number.isFinite(maxToolRounds)) {
+    throw new Error('maxToolRounds must be a finite non-negative integer')
+  }
+  if (!Number.isInteger(maxToolRounds)) {
+    throw new Error('maxToolRounds must be a finite non-negative integer')
+  }
+  if (maxToolRounds < 0) {
     throw new Error('maxToolRounds must be a finite non-negative integer')
   }
   return maxToolRounds
@@ -166,7 +171,12 @@ function readExecutionError(
   }
 
   const { name, message, stack } = value
-  if (typeof name !== 'string' || typeof message !== 'string') {
+  if (typeof name !== 'string') {
+    throw new Error(
+      `Daytona envelope field '${fieldName}' must include string name and message`,
+    )
+  }
+  if (typeof message !== 'string') {
     throw new Error(
       `Daytona envelope field '${fieldName}' must include string name and message`,
     )
@@ -192,7 +202,10 @@ function readToolCalls(value: unknown): Array<ToolCallRequest> {
     }
 
     const { id, name, args } = item
-    if (typeof id !== 'string' || typeof name !== 'string') {
+    if (typeof id !== 'string') {
+      throw new Error('Daytona tool call must include string id and name')
+    }
+    if (typeof name !== 'string') {
       throw new Error('Daytona tool call must include string id and name')
     }
     if (!TOOL_CALL_ID.test(id)) {
@@ -286,7 +299,10 @@ function parseExecutionEnvelope(
   const jsonText = markerLine.slice(resultMarker.length)
   const parsed: unknown = JSON.parse(jsonText)
 
-  if (!isRecord(parsed) || typeof parsed.status !== 'string') {
+  if (!isRecord(parsed)) {
+    throw new Error('Daytona codeRun marker did not contain a valid envelope')
+  }
+  if (typeof parsed.status !== 'string') {
     throw new Error('Daytona codeRun marker did not contain a valid envelope')
   }
 

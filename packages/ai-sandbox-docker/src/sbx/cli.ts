@@ -83,10 +83,10 @@ export function defaultSpawn(
 
 export function mapSbxError(error: unknown, binary: string): Error {
   if (
-    error &&
     typeof error === 'object' &&
+    error !== null &&
     'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
+    error.code === 'ENOENT'
   ) {
     return new Error(INSTALL_HELP)
   }
@@ -110,7 +110,9 @@ function throwIfFailed(
   const stderr = result.stderr.trim()
   // Guest exec can print "unauthorized" on stderr. Only host CLI
   // stderr on host commands is a login error. Never scan `exec`.
-  if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
+  const isHostLoginFailure =
+    isHostCliCommand(args) && isLoginError(stderr.toLowerCase())
+  if (isHostLoginFailure) {
     throw new Error(`${LOGIN_HELP}\n${stderr}`)
   }
   throw new Error(
@@ -152,7 +154,9 @@ export async function runSbx(
     // Guest exec can print "unauthorized" on stdout. Only host CLI
     // stderr on host commands is a login error. Never scan `exec`.
     const stderr = result.stderr.trim()
-    if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
+    const isHostLoginFailure =
+      isHostCliCommand(args) && isLoginError(stderr.toLowerCase())
+    if (isHostLoginFailure) {
       throw new Error(`${LOGIN_HELP}\n${stderr}`)
     }
     return result
@@ -243,7 +247,8 @@ export function sbxExecArgs(
 ): Array<string> {
   const args = ['exec']
   if (opts?.cwd) args.push('-w', opts.cwd)
-  for (const [key, value] of Object.entries(opts?.env ?? {})) {
+  const envEntries = Object.entries(opts?.env ?? {})
+  for (const [key, value] of envEntries) {
     args.push('-e', `${key}=${value}`)
   }
   args.push('--', name, 'sh', '-c', command)
@@ -259,7 +264,8 @@ export function parseJsonAfterBanner(stdout: string): unknown {
   let sawStart = false
   for (let i = 0; i < stdout.length; i++) {
     const ch = stdout[i]
-    if (ch !== '{' && ch !== '[') continue
+    const isJsonStart = ch === '{' || ch === '['
+    if (!isJsonStart) continue
     sawStart = true
     try {
       return JSON.parse(stdout.slice(i)) as unknown

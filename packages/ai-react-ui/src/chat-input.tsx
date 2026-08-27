@@ -65,12 +65,15 @@ export function ChatInput({
 }: ChatInputProps) {
   const { sendMessage, isLoading } = useChatContext()
   const [value, setValue] = useState('')
+  /** Ref to the input element */
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
+  /** Is input disabled */
   const disabled = disabledProp || isLoading
 
   const handleSubmit = () => {
-    if (!value.trim() || disabled) return
+    if (!value.trim()) return
+    if (disabled) return
     void sendMessage(value)
     setValue('')
   }
@@ -107,7 +110,8 @@ export function ChatInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (submitOnEnter && e.key === 'Enter') {
+          const submitOnEnterKey = submitOnEnter && e.key === 'Enter'
+          if (submitOnEnterKey) {
             e.preventDefault()
             handleSubmit()
           }
@@ -155,13 +159,15 @@ export function ChatInput({
           whiteSpace: 'nowrap',
         }}
         onMouseEnter={(e) => {
-          if (!disabled && value.trim()) {
+          const canHover = !disabled && Boolean(value.trim())
+          if (canHover) {
             ;(e.target as HTMLButtonElement).style.backgroundColor =
               'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
-          if (!disabled && value.trim()) {
+          const canHover = !disabled && Boolean(value.trim())
+          if (canHover) {
             ;(e.target as HTMLButtonElement).style.backgroundColor =
               'rgb(249, 115, 22)'
           }

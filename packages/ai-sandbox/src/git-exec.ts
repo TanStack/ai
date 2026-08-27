@@ -1,23 +1,3 @@
-/**
- * An exec-backed {@link SandboxGit} implementation. Providers without a native
- * git API (local-process, Docker) get a uniform `sandbox.git` by desugaring to
- * `process.exec("git …")`. Providers WITH native git (Daytona, Cloudflare) may
- * supply their own implementation instead.
- *
- * Security:
- * - Every interpolated value is single-quote escaped (no shell injection).
- * - A `--` end-of-options separator precedes untrusted positionals and values
- *   are rejected if they begin with `-`, so a repo URL / ref / path can't
- *   smuggle a git flag (e.g. `--upload-pack=…`).
- * - Auth tokens NEVER appear in argv (they'd leak via `ps` / process logs).
- *   Instead a one-shot `credential.helper` reads the token from the child
- *   process ENV. The helper string is single-quoted so the OUTER shell never
- *   expands the env var — only git's own helper subshell does, at use time.
- *
- * NOTE: `SandboxProcess.exec` takes a command STRING by design (the sandbox
- * runs shell commands), so we mitigate flag smuggling with `--` + validation
- * rather than an argv array.
- */
 import type { SandboxGit, SandboxProcess } from './contracts'
 
 /** POSIX single-quote escape: wrap in '…' and escape embedded quotes. */
@@ -34,9 +14,6 @@ function assertNoLeadingDash(value: string, name: string): void {
   }
 }
 
-// Credential helper that prints creds read from the child ENV. Single-quoted at
-// the call site so the outer shell passes it literally; git expands the vars in
-// its own helper subshell, keeping the token out of argv.
 const CREDENTIAL_HELPER =
   '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
 
@@ -58,13 +35,10 @@ export function createExecBackedGit(
       if (ref !== undefined) assertNoLeadingDash(ref, 'ref')
       const refArg = ref ? `--branch ${q(ref)} ` : ''
       const resolvedDepth = depth ?? 1
-      // `depth` is interpolated unquoted into the command, so validate it the
-      // same way other positionals are guarded — a non-positive-integer (e.g. an
-      // untyped caller passing a string) must never reach the shell.
-      if (
+      const isInvalidCloneDepth =
         resolvedDepth !== 'full' &&
         (!Number.isInteger(resolvedDepth) || resolvedDepth <= 0)
-      ) {
+      if (isInvalidCloneDepth) {
         throw new Error('git-exec: depth must be a positive integer or "full".')
       }
       const depthArg =

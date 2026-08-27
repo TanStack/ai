@@ -1,13 +1,3 @@
-/**
- * Provider options for the Bedrock embedding models.
- *
- * `dimensions` is deliberately absent from every options shape: it's a
- * first-class top-level option on `embed()`. The adapter maps it onto each
- * model's native field (Titan Text `dimensions`, Titan Multimodal
- * `embeddingConfig.outputEmbeddingLength`) and rejects it for the Cohere
- * models, whose output size is fixed.
- */
-
 /** Options for `amazon.titan-embed-text-v2:0`. */
 export interface BedrockTitanTextEmbeddingProviderOptions {
   /**

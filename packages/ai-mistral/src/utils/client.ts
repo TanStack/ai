@@ -55,7 +55,8 @@ export function createMistralClient(config: MistralClientConfig): Mistral {
         resolveRequestUrl === undefined ? req.url : resolveRequestUrl(false)
       const next = new Request(nextUrl, req)
       if (defaultHeaders) {
-        for (const [key, value] of Object.entries(defaultHeaders)) {
+        const headerEntries = Object.entries(defaultHeaders)
+        for (const [key, value] of headerEntries) {
           next.headers.set(key, value)
         }
       }

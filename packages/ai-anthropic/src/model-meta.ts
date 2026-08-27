@@ -309,9 +309,6 @@ const CLAUDE_OPUS_4_1 = {
     AnthropicSamplingOptions
 >
 
-// Claude Opus 4.7 removed budget-based extended thinking and the sampling
-// parameters (`temperature`, `top_p`, `top_k`) — sending either returns a
-// 400. Use adaptive thinking with `output_config.effort` instead.
 const CLAUDE_OPUS_4_7 = {
   name: 'claude-opus-4-7',
   id: 'claude-opus-4-7',
@@ -398,11 +395,6 @@ const CLAUDE_OPUS_4_8 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Fable 5: thinking is always on — the only accepted explicit
-// `thinking` config is `{type: 'adaptive'}` (disabled/budget_tokens 400),
-// and the sampling parameters (`temperature`, `top_p`, `top_k`) are
-// rejected. Its provider options therefore use the adaptive-only thinking
-// shape and `max_tokens` without the sampling knobs.
 const CLAUDE_FABLE_5 = {
   name: 'claude-fable-5',
   id: 'claude-fable-5',
@@ -445,12 +437,6 @@ const CLAUDE_FABLE_5 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Sonnet 5: adaptive thinking is the default (omitting `thinking`
-// runs adaptive); `{type: 'disabled'}` opts out, but the manual
-// `{type: 'enabled', budget_tokens}` shape and non-default sampling
-// parameters (`temperature`, `top_p`, `top_k`) are rejected with a 400.
-// Pricing below is the sticker $3/$15 per MTok (an introductory $2/$10
-// applies through 2026-08-31).
 const CLAUDE_SONNET_5 = {
   name: 'claude-sonnet-5',
   id: 'claude-sonnet-5',
@@ -695,15 +681,7 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_HAIKU_4_5.id,
 ])
 
-// const ANTHROPIC_IMAGE_MODELS = [] as const
-// const ANTHROPIC_EMBEDDING_MODELS = [] as const
-// const ANTHROPIC_AUDIO_MODELS = [] as const
-// const ANTHROPIC_VIDEO_MODELS = [] as const
-
 export type AnthropicChatModel = (typeof ANTHROPIC_MODELS)[number]
-// Manual type map for per-model provider options
-// Models are differentiated by which thinking shapes and sampling
-// parameters the API accepts.
 export type AnthropicChatModelProviderOptionsByName = {
   // 4.6 generation: adaptive thinking plus the deprecated budget-based
   // shape; sampling parameters still accepted.
@@ -799,9 +777,6 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
-  // Claude Sonnet 5: adaptive thinking by default, explicit disable
-  // allowed; no budget_tokens, no sampling parameters — see the
-  // CLAUDE_SONNET_5 constant above.
   [CLAUDE_SONNET_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &

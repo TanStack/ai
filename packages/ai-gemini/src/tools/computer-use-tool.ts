@@ -14,9 +14,6 @@ export type GeminiComputerUseTool = ProviderTool<'gemini', 'computer_use'>
 
 export function convertComputerUseToolToAdapterFormat(tool: Tool) {
   const metadata = getGeminiProviderToolMetadata(tool) as ComputerUseToolConfig
-  // Vendor `ComputerUse` fields are `field?: T` (no `| undefined`) under EOPT,
-  // so spread each field conditionally rather than emitting explicit
-  // `undefined`s on the wire payload.
   return {
     computerUse: {
       ...(metadata.environment !== undefined && {

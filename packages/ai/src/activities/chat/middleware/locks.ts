@@ -1,11 +1,3 @@
-/**
- * Distributed-mutex primitive — the neutral home for the `'locks'` capability.
- *
- * Capability identity is by object reference (see `createCapability`). Any
- * middleware may PROVIDE a {@link LockStore} via {@link withLocks} /
- * {@link provideLocks}; consumers (notably `@tanstack/ai-sandbox` `ensure`)
- * read it with {@link getLocks}. Coordination, not state persistence.
- */
 import { createCapability } from './capabilities'
 import { defineChatMiddleware } from './define'
 import type { ChatMiddleware, ChatMiddlewareContext } from './types'
@@ -43,7 +35,8 @@ export function defineLock(lock: LockStore): LockStore {
 export const LocksCapability = createCapability<LockStore>()('locks')
 
 /** Destructured accessors: `getLocks(ctx)` / `provideLocks(ctx, store)`. */
-export const [getLocks, provideLocks] = LocksCapability
+export const /** Destructured accessors: `getLocks(ctx)` / `provideLocks(ctx, store)`. */
+  [getLocks, provideLocks] = LocksCapability
 
 /**
  * In-memory {@link LockStore} — a per-key promise chain. Correct within a single
@@ -60,9 +53,6 @@ export class InMemoryLockStore implements LockStore {
     const runCriticalSection = () => fn(new AbortController().signal)
     // Chain after the prior holder regardless of how it settled.
     const run = prior.then(runCriticalSection, runCriticalSection)
-    // Swallow rejections so one failure doesn't poison the lock, then drop the
-    // chain entry once this tail is still the latest — otherwise long-lived
-    // processes accumulate settled promises for every distinct key forever.
     const settled = run.then(
       () => undefined,
       () => undefined,

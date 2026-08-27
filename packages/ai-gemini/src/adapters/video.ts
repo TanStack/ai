@@ -102,7 +102,12 @@ async function imagePartToVeoImage(
   }
   if (url.startsWith('data:')) {
     const match = url.match(/^data:([^;,]+)?(;base64)?,(.*)$/)
-    if (!match || !match[2]) {
+    if (!match) {
+      throw new Error(
+        'gemini: only base64 data: URIs are supported for video image inputs.',
+      )
+    }
+    if (!match[2]) {
       throw new Error(
         'gemini: only base64 data: URIs are supported for video image inputs.',
       )
@@ -370,9 +375,6 @@ export class GeminiVideoAdapter<
         )
       }
 
-      // Reject out-of-range durations locally rather than snapping (which
-      // would silently change the clip length the caller asked for) or
-      // letting the live API reject them after the round trip.
       const durations = this.availableDurations()
       if (
         duration !== undefined &&
@@ -384,10 +386,6 @@ export class GeminiVideoAdapter<
         )
       }
 
-      // Aspect ratio and clip length ride on `response_format`. Duration is
-      // a `"<seconds>s"` string, accepted anywhere in the 3–10s range
-      // (fractional included) and defaulting to 10s when omitted — verified
-      // against the live API; the docs don't publish the range constraints.
       const responseFormat =
         size !== undefined || duration !== undefined
           ? {
@@ -497,9 +495,6 @@ export class GeminiVideoAdapter<
       }
     }
 
-    // The operation can finish "successfully" with every sample dropped by
-    // Responsible-AI filters — surface that as a failure instead of letting
-    // getVideoUrl() throw on an empty response.
     const videos = operation.response?.generatedVideos ?? []
     if (videos.length === 0) {
       const reasons = operation.response?.raiMediaFilteredReasons

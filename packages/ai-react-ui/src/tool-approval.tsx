@@ -12,6 +12,7 @@ export interface ToolApprovalProps {
   approval: {
     id: string
     needsApproval: boolean
+    /** User's decision (if responded) */
     approved?: boolean
   }
   /** CSS class name */
@@ -74,6 +75,7 @@ export function ToolApproval({
     })
   }
 
+  /** Whether user has responded */
   const hasResponded = approval.approved !== undefined
 
   const renderProps: ToolApprovalRenderProps = {

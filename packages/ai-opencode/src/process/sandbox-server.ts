@@ -1,9 +1,3 @@
-/**
- * Boot an `opencode serve` HTTP server INSIDE a sandbox and expose its port so
- * the host `@opencode-ai/sdk` client can connect over `baseUrl`. Mirrors the
- * SDK's own server launch (`opencode serve --hostname=H --port=P`, ready when
- * stdout logs `opencode server listening`).
- */
 import type { SandboxHandle, SpawnHandle } from '@tanstack/ai-sandbox'
 
 const READY_MARKER = 'opencode server listening'
@@ -46,9 +40,6 @@ export async function startOpencodeServerInSandbox(
   await waitForReady(proc, options.timeoutMs ?? 30_000)
 
   const channel = await sandbox.ports.connect(options.port)
-  // Carry the channel's auth so the host client can reach a token-gated preview.
-  // Prefer ready-made `headers`; fall back to a bearer token if that's all the
-  // provider issued.
   const headers =
     channel.headers ??
     (channel.token ? { Authorization: `Bearer ${channel.token}` } : undefined)
@@ -62,9 +53,6 @@ export async function startOpencodeServerInSandbox(
 function waitForReady(proc: SpawnHandle, timeoutMs: number): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let stdout = ''
-    // Capture stderr too: opencode logs startup failures (e.g. "address already
-    // in use" when a previous run's server still holds the port) to stderr, not
-    // stdout. Without this the error message is empty and the real cause is lost.
     let stderr = ''
     // Holder object so reads stay typed as `boolean` across async closures
     // (a plain `let` gets flow-narrowed to a literal and trips lint).

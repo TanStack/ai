@@ -179,7 +179,8 @@ export function runSandboxCheckpointStoreConformance(
         (value) => `sandbox-files/sha256/${value.padStart(64, '0')}`,
       )
       let parent: string | null = null
-      for (const [index, id] of ids.entries()) {
+      const idEntries = ids.entries()
+      for (const [index, id] of idEntries) {
         const blobKey = keys[index]
         if (!blobKey) throw new Error(`Missing blob key for '${id}'`)
         await append(store, {

@@ -7,7 +7,6 @@
  * memory-efficient than the byte-walking fallback. The fallbacks use Node's
  * `Buffer` when present, then `atob`/`btoa` for browser / edge runtimes.
  */
-
 interface Uint8ArrayWithBase64 {
   fromBase64?: (input: string) => Uint8Array
 }

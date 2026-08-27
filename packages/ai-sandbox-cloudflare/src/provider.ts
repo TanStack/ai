@@ -45,6 +45,7 @@ class CloudflareProvider implements SandboxProvider {
     return CLOUDFLARE_CAPS
   }
 
+  /** Working directory inside the container. Defaults to `/workspace`. */
   private get workdir(): string {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
@@ -56,10 +57,6 @@ class CloudflareProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    // Honor the deterministic id `ensure()` supplies so reconnecting consumers
-    // (e.g. a preview iframe) address the same DO the agent edits. The DO id is
-    // `idFromName(id)`, so any stable string works; fall back to a random id
-    // when created outside `defineSandbox` (advanced direct use).
     const id = input.id ?? crypto.randomUUID()
     const sandbox = getSandbox(this.config.binding, id, this.sandboxOptions)
     if (input.env && Object.keys(input.env).length > 0) {
@@ -75,9 +72,6 @@ class CloudflareProvider implements SandboxProvider {
   }
 
   resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
-    // The Durable Object is durable, so the sandbox is always addressable by
-    // id. (The container disk may have been wiped on cold start — withSandbox
-    // re-bootstraps under the same identity when durableFilesystem is false.)
     const sandbox = getSandbox(
       this.config.binding,
       input.id,

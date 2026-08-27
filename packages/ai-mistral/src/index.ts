@@ -1,10 +1,3 @@
-/**
- * @module @tanstack/ai-mistral
- *
- * Mistral provider adapter for TanStack AI.
- * Provides tree-shakeable adapters for Mistral's Chat Completions API.
- */
-
 // Text (Chat) adapter
 export {
   MistralTextAdapter,

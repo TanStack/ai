@@ -50,7 +50,8 @@ async function run(
   middleware: ReadonlyArray<GenerationMiddleware> | undefined,
   invoke: (mw: GenerationMiddleware) => void | Promise<void>,
 ): Promise<void> {
-  if (!middleware || middleware.length === 0) return
+  if (!middleware) return
+  if (middleware.length === 0) return
   for (const mw of middleware) {
     await invoke(mw)
   }

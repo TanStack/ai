@@ -1,12 +1,4 @@
 /**
- * OpenAI-specific metadata types for multimodal content parts.
- * These types extend the base ContentPart metadata with OpenAI-specific options.
- *
- * @see https://platform.openai.com/docs/guides/vision
- * @see https://platform.openai.com/docs/guides/audio
- */
-
-/**
  * Metadata for OpenAI image content parts.
  * Controls how the model processes and analyzes images.
  */
@@ -61,13 +53,6 @@ export interface OpenAIDocumentMetadata {
    * @default 'document.pdf'
    */
   filename?: string
-  /**
-   * Rendering quality for the file's page images. Omitted by default so the
-   * API applies its own default ('auto'), which resolves to 'low' or 'high'
-   * depending on the model.
-   *
-   * @see https://developers.openai.com/api/docs/guides/pdf-files
-   */
   detail?: 'auto' | 'low' | 'high'
 }
 

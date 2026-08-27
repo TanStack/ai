@@ -8,18 +8,6 @@ import type {
 } from '@tanstack/ai'
 import type { GenerationRestoredResult } from './generation-types'
 
-/**
- * Per-activity `reconstructResult` mappers. On mount restore the generic
- * `GenerationClient` hands each specialized hook a {@link GenerationRestoredResult}
- * (the metadata that survived persistence plus the durable artifact refs, each
- * carrying its serve `url`); the mapper rebuilds the concrete typed result so
- * `result` repaints as if the run had just finished, with media resolved to the
- * durable serve route rather than the provider's expired link.
- *
- * A mapper returns `null` when the snapshot cannot rebuild a valid result; then
- * `result` stays null while `status` / `error` / `resumeState` still repaint.
- */
-
 /** Output artifact refs of a given media type that carry a durable serve URL. */
 function mediaUrls(
   restored: GenerationRestoredResult,

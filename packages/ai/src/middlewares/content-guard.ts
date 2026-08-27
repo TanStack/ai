@@ -36,15 +36,7 @@ export interface ContentGuardMiddlewareOptions {
    */
   rules: Array<ContentGuardRule>
 
-  /**
-   * Matching strategy:
-   * - 'delta': Apply rules to each delta as it arrives. Fast, real-time,
-   *   but patterns spanning chunk boundaries may be missed.
-   * - 'buffered': Accumulate content and apply rules to settled portions,
-   *   holding back a look-behind buffer to catch cross-boundary patterns.
-   *
-   * @default 'buffered'
-   */
+  /** Which strategy was used */
   strategy?: 'delta' | 'buffered'
 
   /**
@@ -126,7 +118,9 @@ function createDeltaStrategy(
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       if (chunk.type !== 'TEXT_MESSAGE_CONTENT') return
 
+      /** The original text before filtering */
       const original = chunk.delta
+      /** The filtered text after rules applied */
       const filtered = applyRules(original, rules)
 
       if (filtered === original) return // unchanged, pass through
@@ -142,10 +136,6 @@ function createDeltaStrategy(
 
       if (blockOnMatch) return null // drop chunk
 
-      // Strip out the previous `content` field by destructuring it away — with
-      // `exactOptionalPropertyTypes` we can't assign `content: undefined`
-      // against `content?: string`. The replacement event carries only the
-      // filtered delta.
       const { content: _strippedContent, ...rest } = chunk
       void _strippedContent
       return {
@@ -177,7 +167,8 @@ function createBufferedStrategy(
 
     const filtered = applyRules(rawAccumulated, rules)
 
-    if (blockOnMatch && filtered !== rawAccumulated) {
+    const shouldBlock = blockOnMatch && filtered !== rawAccumulated
+    if (shouldBlock) {
       if (onFiltered) {
         onFiltered({
           messageId: lastMessageId,
@@ -192,7 +183,8 @@ function createBufferedStrategy(
 
     const remaining = filtered.slice(emittedFilteredLength)
     if (remaining.length > 0) {
-      if (filtered !== rawAccumulated && onFiltered) {
+      const canNotifyFilter = filtered !== rawAccumulated && onFiltered
+      if (canNotifyFilter) {
         onFiltered({
           messageId: lastMessageId,
           original: rawAccumulated,
@@ -226,7 +218,9 @@ function createBufferedStrategy(
 
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       // Flush buffer on stream end events
-      if (chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED') {
+      const isFlushEvent =
+        chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED'
+      if (isFlushEvent) {
         const flushed = flushBuffer()
         if (flushed) return [flushed, chunk]
         return // pass through end event
@@ -236,7 +230,9 @@ function createBufferedStrategy(
 
       // Flush buffer on message boundary change
       const pending: Array<StreamChunk> = []
-      if (lastMessageId && chunk.messageId !== lastMessageId) {
+      const isMessageBoundary =
+        lastMessageId && chunk.messageId !== lastMessageId
+      if (isMessageBoundary) {
         const flushed = flushBuffer()
         if (flushed) pending.push(flushed)
       }
@@ -252,7 +248,8 @@ function createBufferedStrategy(
         return pending.length > 0 ? pending : null
       }
 
-      if (blockOnMatch && filtered !== rawAccumulated) {
+      const shouldBlock = blockOnMatch && filtered !== rawAccumulated
+      if (shouldBlock) {
         if (onFiltered) {
           onFiltered({
             messageId: chunk.messageId,
@@ -266,7 +263,8 @@ function createBufferedStrategy(
 
       const newDelta = filtered.slice(emittedFilteredLength, safeFilteredEnd)
 
-      if (filtered !== rawAccumulated && onFiltered) {
+      const canNotifyFilter = filtered !== rawAccumulated && onFiltered
+      if (canNotifyFilter) {
         onFiltered({
           messageId: chunk.messageId,
           original: rawAccumulated,

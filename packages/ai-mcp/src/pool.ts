@@ -104,12 +104,7 @@ export async function createMCPClients<
     )
   }
 
-  // Cast via `unknown`: the runtime map is descriptor-agnostic
-  // (`MCPClient<ServerDescriptor>` values), but per-key the public type is the
-  // narrowed `MCPClient<TServers[K]>`. Those no longer structurally overlap
-  // because `tools()` is now descriptor-typed (`DescriptorTools<TServer>`), yet
-  // the generated descriptor is a compile-time overlay only — the runtime
-  // values are identical, so the through-`unknown` cast is sound here.
+  /** Typed per-server access (typed defs, resources, prompts on one server). */
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
   const clients = Object.fromEntries(ok.map((r) => r.value)) as unknown as {
     [K in keyof TServers]: MCPClient<TServers[K]>
@@ -163,10 +158,6 @@ export async function createMCPClients<
       )
     },
     async readResource(uri: string): Promise<ReadResourceResult> {
-      // Ownership isn't tracked, so try each client. A non-owning server may
-      // resolve an unrelated URI, so only accept a result whose `contents`
-      // actually include the requested `uri`; otherwise keep trying. A ui://
-      // read must reach the server that owns it.
       const errors: Array<unknown> = []
       const all = Object.values(clients)
       for (const c of all) {
@@ -181,13 +172,6 @@ export async function createMCPClients<
           errors.push(err)
         }
       }
-      // Distinguish the two failure modes and never leave `cause` undefined:
-      // - at least one client threw → attach EVERY thrown error as an
-      //   AggregateError cause. Keeping all of them matters in a multi-server
-      //   pool: if the owning server fails first and an unrelated server fails
-      //   after, a "last error wins" cause would bury the error you actually need.
-      // - every client responded but none owned the uri → there is no thrown
-      //   error to attach, so explain that the uri was not found on any server.
       if (errors.length > 0) {
         throw new Error(
           `Failed to read MCP resource "${uri}": no client could resolve it (${errors.length} error(s) attached)`,
@@ -198,6 +182,7 @@ export async function createMCPClients<
         `Failed to read MCP resource "${uri}": no configured MCP server owns this uri`,
       )
     },
+    /** Close every client. */
     async close(): Promise<void> {
       await Promise.all(
         Object.values(clients).map((c) =>

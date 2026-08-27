@@ -1,7 +1,3 @@
-// Dependency-free SHA-256 (FIPS 180-4). Sync and isomorphic (Node + browser)
-// so interrupt hashing needs no crypto library. Users can replace the whole
-// algorithm through the `interrupts.hash` option; this is only the default.
-// ponytail: bundled ~60-line hash, swap via interrupts.hash if you need more.
 const SHA256_K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
   0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -46,10 +42,10 @@ function sha256Hex(input: string): string {
   for (let offset = 0; offset < total; offset += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4)
     for (let i = 16; i < 64; i++) {
-      const x15 = w[i - 15] ?? 0
-      const x2 = w[i - 2] ?? 0
-      const s0 = rotr(x15, 7) ^ rotr(x15, 18) ^ (x15 >>> 3)
-      const s1 = rotr(x2, 17) ^ rotr(x2, 19) ^ (x2 >>> 10)
+      const farWord = w[i - 15] ?? 0
+      const nearWord = w[i - 2] ?? 0
+      const s0 = rotr(farWord, 7) ^ rotr(farWord, 18) ^ (farWord >>> 3)
+      const s1 = rotr(nearWord, 17) ^ rotr(nearWord, 19) ^ (nearWord >>> 10)
       w[i] = ((w[i - 16] ?? 0) + s0 + (w[i - 7] ?? 0) + s1) >>> 0
     }
 
@@ -127,11 +123,11 @@ function canonical(value: unknown, active: WeakSet<object>): string {
   if (active.has(value)) {
     throw new TypeError('Interrupt values must not cycle.')
   }
-  if (
+  const hasExoticPrototype =
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) !== Object.prototype &&
     Object.getPrototypeOf(value) !== null
-  ) {
+  if (hasExoticPrototype) {
     throw new TypeError('Interrupt values must use plain JSON objects.')
   }
 

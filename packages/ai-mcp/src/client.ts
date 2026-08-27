@@ -48,12 +48,6 @@ export interface MCPClient<
    */
   tools: {
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
-    /**
-     * Explicit: bind these TanStack toolDefinitions to the server (typed +
-     * validated, allowlist). Note: when the client has a `prefix`, the
-     * runtime tool name is `${prefix}_${def.name}` while the static `TName`
-     * stays the unprefixed definition name.
-     */
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
       defs: TDefs,
       options?: ToolsOptions,
@@ -110,9 +104,6 @@ class MCPClientImpl<
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
   readonly #transport: TransportConfig | undefined
-  // Retained for the same reason as #transport: the MCP Apps call handler
-  // rebuilds a client per call from getInfo(), and a rebuilt client that lost
-  // `jsonSchemaValidator` falls straight back to AJV.
   readonly #clientOptions: ClientOptions | undefined
 
   constructor(
@@ -125,9 +116,6 @@ class MCPClientImpl<
     this.prefix = prefix
     this.#transport = transport
     this.#clientOptions = clientOptions
-    // `clientOptions` is spread rather than passed straight through so an
-    // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
-    // for why edge runtimes need `jsonSchemaValidator` in particular.
     this.#client = new Client({ name, version }, clientOptions)
   }
 
@@ -180,23 +168,11 @@ class MCPClientImpl<
         const bound = def.server(
           makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
         ) as ServerTool
-        // A caller-supplied definition may already carry its own `mcp` block,
-        // and `metadata.mcp` is untyped there — only spread it when it really
-        // is a plain object.
         const existingMcp: unknown = bound.metadata?.mcp
         const mcpBase =
           existingMcp !== null && typeof existingMcp === 'object'
             ? existingMcp
             : {}
-        // Rebuilt rather than mutated in place: assigning `metadata` on a
-        // `ServerTool` can't narrow its declared `Record<string, any> |
-        // undefined` type, so a fresh literal is what lets the return value be
-        // an `McpServerTool` (typed `metadata.mcp`) without a cast.
-        //
-        // Stamping MCP metadata lets `serverToolNameOf` (and the call handler)
-        // recover the UNPREFIXED native name + serverId, and carries the
-        // server's display title / annotations to the host — mirrors
-        // toServerTools.
         const tool: McpServerTool = {
           ...bound,
           ...(this.prefix ? { name: `${this.prefix}_${def.name}` } : {}),

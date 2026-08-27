@@ -94,6 +94,7 @@ export async function reconstructChat(
     throw new Error('reconstructChat requires stores.messages.')
   }
 
+  /** Query parameter carrying the thread id. Defaults to `threadId`. */
   const param = options?.param ?? 'threadId'
   const threadId = new URL(request.url).searchParams.get(param) ?? ''
 
@@ -113,19 +114,10 @@ export async function reconstructChat(
     }
   }
 
-  // Resolve the active run BEFORE reading the transcript. `withPersistence`
-  // persists the final transcript BEFORE marking a run complete, so observing
-  // "no active run" here guarantees the transcript read below is the FINAL one.
-  // Reading them in the other order opens a finish-window race: a fast run that
-  // completes between the two reads would return a stale streaming snapshot with
-  // `activeRun: null`, leaving the client stuck on the partial (no run to tail).
   const active = threadId
     ? await persistence.stores.runs?.findActiveRun(threadId)
     : null
   const stored = threadId ? await messageStore.loadThread(threadId) : []
-  // Pending interrupts for the thread, so a reload re-prompts the approval from
-  // the server. Each stored `payload` is the full interrupt descriptor the
-  // client hydrates; they share the run they paused.
   const pending = threadId
     ? ((await persistence.stores.interrupts?.listPending(threadId)) ?? [])
     : []

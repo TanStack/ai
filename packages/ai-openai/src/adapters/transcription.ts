@@ -32,10 +32,73 @@ function isDiarizeModel(model: string): model is DiarizeModel {
   return DIARIZE_MODELS.includes(model as DiarizeModel)
 }
 
-// OpenAI diarized segments carry string ids like `seg_0`, but the shared
-// TranscriptionSegment.id is numeric: parse the numeric suffix (or a plain
-// numeric string) and fall back to the array index otherwise. The empty-string
-// guard matters because Number('') is 0, which would collide with `seg_0`.
+function hasDiarizationOnlyOptions(
+  responseFormat: OpenAITranscriptionResponseFormat | undefined,
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): boolean {
+  return (
+    responseFormat === 'diarized_json' ||
+    modelOptions?.response_format === 'diarized_json' ||
+    modelOptions?.known_speaker_names !== undefined ||
+    modelOptions?.known_speaker_references !== undefined
+  )
+}
+
+function assertDiarizeUnsupportedOptions(
+  prompt: string | undefined,
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): void {
+  const hasPrompt = prompt !== undefined || modelOptions?.prompt !== undefined
+  if (hasPrompt) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support prompts.',
+    )
+  }
+  if (modelOptions?.include !== undefined) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support the include option.',
+    )
+  }
+  if (modelOptions?.timestamp_granularities !== undefined) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support timestamp_granularities.',
+    )
+  }
+}
+
+function assertDiarizeKnownSpeakers(
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): void {
+  const names = modelOptions?.known_speaker_names
+  const references = modelOptions?.known_speaker_references
+  if ((names === undefined) !== (references === undefined)) {
+    throw new Error(
+      'OpenAI diarization known_speaker_names and known_speaker_references must both be provided together.',
+    )
+  }
+  const hasTooManyNames = names !== undefined && names.length > 4
+  if (hasTooManyNames) {
+    throw new Error(
+      'OpenAI diarization transcription models support at most 4 known speaker names.',
+    )
+  }
+  const hasTooManyReferences = references !== undefined && references.length > 4
+  if (hasTooManyReferences) {
+    throw new Error(
+      'OpenAI diarization transcription models support at most 4 known speaker references.',
+    )
+  }
+  if (
+    names !== undefined &&
+    references !== undefined &&
+    names.length !== references.length
+  ) {
+    throw new Error(
+      `OpenAI diarization known_speaker_names and known_speaker_references must have matching lengths; received ${names.length} names and ${references.length} references.`,
+    )
+  }
+}
+
 function mapDiarizedSegmentId(id: string, index: number): number {
   const match = /^seg_(\d+)$/.exec(id)
   if (match) return Number(match[1])
@@ -48,10 +111,6 @@ function mapDiarizedSegmentId(id: string, index: number): number {
   return index
 }
 
-/**
- * Build TokenUsage from transcription response.
- * Whisper-1 uses duration-based billing, GPT-4o models use token-based billing.
- */
 /**
  * Duration-billed usage: zeroed token fields with the billed seconds carried
  * on `billed` and, for backward compatibility, the deprecated
@@ -75,11 +134,6 @@ function buildTranscriptionUsage(
 ): TokenUsage | undefined {
   const usage = response?.usage
 
-  // GPT-4o transcription models are billed by token. Surface the token counts
-  // and the per-modality input breakdown when present. These models must never
-  // fall through to the duration path below — when usage is absent there is no
-  // billing data to report, so return undefined rather than fabricating a
-  // duration-based result for a token-billed model.
   if (model.startsWith('gpt-4o')) {
     if (!usage) {
       return undefined
@@ -178,9 +232,6 @@ export class OpenAITranscriptionAdapter<
           request,
         )) as OpenAI_SDK.Audio.TranscriptionDiarized
 
-        // Guard the cast: a proxy/gateway or API change that returns a
-        // non-diarized shape would otherwise fail with a context-free
-        // TypeError deep in the mapping below.
         if (!Array.isArray(response.segments)) {
           throw new Error(
             `OpenAI diarized transcription response did not include segments (model=${model}, response_format=diarized_json).`,
@@ -207,9 +258,6 @@ export class OpenAITranscriptionAdapter<
           model,
           text: response.text,
           duration: response.duration,
-          // Always include segments (even empty) for diarized requests: the
-          // caller asked for speaker segments, so an empty list is meaningful
-          // and should not look like a non-diarized result.
           segments,
           ...(usage !== undefined && { usage }),
         }
@@ -221,18 +269,12 @@ export class OpenAITranscriptionAdapter<
           response_format: 'verbose_json',
         })) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
 
-        // `TranscriptionResult` declares optional fields without `| undefined`,
-        // so under exactOptionalPropertyTypes we must omit absent fields rather
-        // than assigning `undefined`.
         const segments = response.segments?.map(
           (seg): TranscriptionSegment => ({
             id: seg.id,
             start: seg.start,
             end: seg.end,
             text: seg.text,
-            // The OpenAI SDK types `avg_logprob` as `number`, so call Math.exp
-            // directly. Guarding with `seg.avg_logprob ?` would treat `0`
-            // (perfect confidence) as missing.
             confidence: Math.exp(seg.avg_logprob),
           }),
         )
@@ -318,20 +360,11 @@ export class OpenAITranscriptionAdapter<
         ? 'diarized_json'
         : this.mapResponseFormat(effectiveResponseFormat)
 
-    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
-    // `T | undefined` in optional fields. Build the request incrementally and
-    // only set optional fields when they're actually defined.
-    // Spread modelOptions first so it can never override the validated
-    // `model`/`file` fields (server routes often pass modelOptions through
-    // from untyped client input).
     const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
       ...modelOptions,
       model,
       file,
     }
-    // `stream` is not a supported provider option for this adapter; an
-    // untyped passthrough setting it would flip the SDK into streaming mode
-    // and break response parsing.
     delete request.stream
     if (language !== undefined) {
       request.language = language
@@ -339,10 +372,10 @@ export class OpenAITranscriptionAdapter<
     if (prompt !== undefined) {
       request.prompt = prompt
     }
-    if (
+    const needsAutoChunking =
       isDiarizeTranscriptionModel &&
       modelOptions?.chunking_strategy === undefined
-    ) {
+    if (needsAutoChunking) {
       request.chunking_strategy = 'auto'
     }
     request.response_format = responseFormatValue
@@ -359,20 +392,17 @@ export class OpenAITranscriptionAdapter<
     isDiarizeTranscriptionModel: boolean
     effectiveResponseFormat?: OpenAITranscriptionResponseFormat
   }): OpenAITranscriptionResponseMode {
-    if (
+    const isDiarizedMode =
       effectiveResponseFormat === 'diarized_json' ||
       (isDiarizeTranscriptionModel && effectiveResponseFormat === undefined)
-    ) {
+    if (isDiarizedMode) {
       return 'diarized'
     }
 
-    // Only Whisper supports verbose_json. gpt-4o-transcribe and
-    // gpt-4o-mini-transcribe accept only json/text and reject verbose_json
-    // with HTTP 400 (the diarize model is handled above).
-    if (
+    const isVerboseMode =
       effectiveResponseFormat === 'verbose_json' ||
       (effectiveResponseFormat === undefined && model === 'whisper-1')
-    ) {
+    if (isVerboseMode) {
       return 'verbose'
     }
 
@@ -438,16 +468,10 @@ export class OpenAITranscriptionAdapter<
     const isDiarizeTranscriptionModel = isDiarizeModel(model)
     const modelOptionsResponseFormat = modelOptions?.response_format
 
-    // `chunking_strategy` is deliberately NOT rejected here: per the OpenAI
-    // API it is a general transcription parameter for all models (only
-    // *required* for gpt-4o-transcribe-diarize inputs longer than 30s).
-    if (
+    const hasDiarizeOptionsOnWrongModel =
       !isDiarizeTranscriptionModel &&
-      (responseFormat === 'diarized_json' ||
-        modelOptionsResponseFormat === 'diarized_json' ||
-        modelOptions?.known_speaker_names !== undefined ||
-        modelOptions?.known_speaker_references !== undefined)
-    ) {
+      hasDiarizationOnlyOptions(responseFormat, modelOptions)
+    if (hasDiarizeOptionsOnWrongModel) {
       throw new Error(
         `OpenAI speaker diarization options (response_format: 'diarized_json', known_speaker_names, known_speaker_references) are only supported with OpenAI diarization transcription models; model is "${model}".`,
       )
@@ -455,6 +479,18 @@ export class OpenAITranscriptionAdapter<
 
     if (!isDiarizeTranscriptionModel) return
 
+    this.assertDiarizeResponseFormats(
+      responseFormat,
+      modelOptionsResponseFormat,
+    )
+    assertDiarizeUnsupportedOptions(prompt, modelOptions)
+    assertDiarizeKnownSpeakers(modelOptions)
+  }
+
+  private assertDiarizeResponseFormats(
+    responseFormat: OpenAITranscriptionResponseFormat | undefined,
+    modelOptionsResponseFormat: OpenAITranscriptionResponseFormat | undefined,
+  ): void {
     const requestedResponseFormats = [
       this.mapResponseFormat(responseFormat),
       ...(modelOptionsResponseFormat !== undefined
@@ -470,63 +506,6 @@ export class OpenAITranscriptionAdapter<
     if (unsupportedResponseFormat !== undefined) {
       throw new Error(
         `OpenAI diarization transcription models only support json, text, and diarized_json response formats; received "${unsupportedResponseFormat}".`,
-      )
-    }
-
-    if (prompt !== undefined || modelOptions?.prompt !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support prompts.',
-      )
-    }
-
-    if (modelOptions?.include !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support the include option.',
-      )
-    }
-
-    if (modelOptions?.timestamp_granularities !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support timestamp_granularities.',
-      )
-    }
-
-    if (
-      (modelOptions?.known_speaker_names === undefined) !==
-      (modelOptions?.known_speaker_references === undefined)
-    ) {
-      throw new Error(
-        'OpenAI diarization known_speaker_names and known_speaker_references must both be provided together.',
-      )
-    }
-
-    if (modelOptions?.known_speaker_names !== undefined) {
-      const knownSpeakerCount = modelOptions.known_speaker_names.length
-      if (knownSpeakerCount > 4) {
-        throw new Error(
-          'OpenAI diarization transcription models support at most 4 known speaker names.',
-        )
-      }
-    }
-
-    if (modelOptions?.known_speaker_references !== undefined) {
-      const knownSpeakerReferenceCount =
-        modelOptions.known_speaker_references.length
-      if (knownSpeakerReferenceCount > 4) {
-        throw new Error(
-          'OpenAI diarization transcription models support at most 4 known speaker references.',
-        )
-      }
-    }
-
-    if (
-      modelOptions?.known_speaker_names !== undefined &&
-      modelOptions.known_speaker_references !== undefined &&
-      modelOptions.known_speaker_names.length !==
-        modelOptions.known_speaker_references.length
-    ) {
-      throw new Error(
-        `OpenAI diarization known_speaker_names and known_speaker_references must have matching lengths; received ${modelOptions.known_speaker_names.length} names and ${modelOptions.known_speaker_references.length} references.`,
       )
     }
   }

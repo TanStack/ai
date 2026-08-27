@@ -157,9 +157,6 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * </div>
  * ```
  */
-// `TTransformed` infers from the `onResult` return position so the callback
-// parameter is typed as `VideoGenerateResult` and `result` narrows to the
-// transform's return. See issue #848.
 export function createGenerateVideo<TTransformed = void>(
   options: Omit<
     CreateGenerateVideoOptions,
@@ -176,19 +173,21 @@ export function createGenerateVideo<TTransformed = void>(
   >
 
   // Create reactive state using Svelte 5 runes
+  /** The final video result (with URL), or null */
   let result = $state<TOutput | null>(null)
+  /** The current job ID, or null */
   let jobId = $state<string | null>(null)
+  /** Current video generation status info, or null */
   let videoStatus = $state<VideoStatusInfo | null>(null)
+  /** Whether generation/polling is in progress */
   let isLoading = $state(false)
+  /** Current error, if any */
   let error = $state<Error | undefined>(undefined)
+  /** Current state of the generation */
   let status = $state<GenerationClientState>('idle')
   let runId = $state<string | null>(null)
   let disposed = false
 
-  // `body` uses a conditional spread because `VideoGenerationClientOptions.body`
-  // is declared `body?: Record<string, any>` (absent vs. present) under
-  // `exactOptionalPropertyTypes`. The optional caller `options.body` may be
-  // undefined, in which case we want the key to be absent on the target.
   const baseOptions = {
     body: options.body,
     ...(typeof options.threadId === 'string' && options.persistence
@@ -214,9 +213,6 @@ export function createGenerateVideo<TTransformed = void>(
       hookName: 'createGenerateVideo',
       outputKind: 'video' as const,
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
       result: VideoGenerateResult,
     ) => TOutput | null | void,
@@ -287,34 +283,30 @@ export function createGenerateVideo<TTransformed = void>(
   // persisted state is read-only for display.
   client.mountDevtools()
 
-  // Note: Cleanup is handled by calling dispose() directly when needed.
-  // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
-  // during component initialization, so we don't add automatic cleanup here.
-  // Users should call video.dispose() in their component's cleanup if needed.
-
+  /** Trigger video generation */
   const generate = async (input: VideoGenerateInput) => {
-    // Svelte has no remount effect to revive a disposed client (the other
-    // frameworks revive via mountDevtools() in their mount effects), so an
-    // explicit generate() after dispose() is the Svelte revive path: bring
-    // the client and the reactive bindings back together.
     disposed = false
     client.mountDevtools()
     await client.generate(input)
   }
 
+  /** Abort the current generation/polling */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear all state and return to idle */
   const reset = () => {
     client.reset()
   }
 
+  /** Stop in-flight work and unregister devtools listeners */
   const dispose = () => {
     disposed = true
     client.dispose()
   }
 
+  /** Update additional body parameters */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
   }

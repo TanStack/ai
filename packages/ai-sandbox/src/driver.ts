@@ -1,42 +1,3 @@
-/**
- * The convenience that turns core's *injected* takeover seams into this
- * package's real ones.
- *
- * `@tanstack/ai`'s `RunDriverOptions` deliberately takes `claim` and `pipe` as
- * functions instead of importing them: {@link withRunClaim} and
- * {@link pipeToRunLog} live here, and core must not depend on this package to
- * serve a plain chat run. {@link sandboxRunDriver} fills both in so an
- * application writes four fields instead of six, and — more importantly — so
- * the *fencing* is wired correctly by construction rather than by every caller
- * remembering to.
- *
- * WHAT IS EASY TO GET WRONG HERE, and therefore what this module exists to
- * make impossible:
- *
- * 1. **Carrying the real epoch into `pipe`.** Core's `pipe` receives only
- *    `{ runId, threadId, signal }` — no epoch — because core has no concept of
- *    one. But {@link fenceDurability} needs the epoch this driver actually
- *    acquired: a hardcoded epoch (say `0`) is not a weaker fence, it is a
- *    permanently *tripped* one, since `withRunClaim` bumps `driverEpoch` to at
- *    least `1` before `fn` ever runs, so `observed > claim.epoch` holds on the
- *    very first append and EVERY takeover fails. The claim is therefore
- *    captured in a closure by the `claim` wrapper and read back by `pipe`.
- * 2. **Fencing `close()`.** {@link fenceDurability} wraps only `append` for the
- *    reason spelled out in `claim.ts`: `close()` runs on every teardown path,
- *    including the teardown caused by losing the claim, and a fenced `close`
- *    would wedge the record at `'running'` with every live tailer parked
- *    forever. This module must not add a second fence around it.
- * 2b. **Fencing only ONE of the two authoritative seams.** A run's facts live in
- *    its log *and* in its record, and `pipeToRunLog` reacts to a refused append
- *    by writing a terminal record — so wrapping the log alone just moves the harm
- *    from "a dead host poisons the successor's stream" to "a dead host marks the
- *    successor's live run failed". {@link fenceRunStore} must be wired here too,
- *    over the SAME claim, which is what makes the two fences share one latch.
- * 3. **Skipping quiescence.** The successor's first append must come after the
- *    stored log has stopped growing, so a predecessor still writing is observed
- *    rather than raced. The gate belongs inside `pipe`, before `pipeToRunLog`
- *    takes its first `snapshot`.
- */
 import { pipeToRunLog } from './run'
 import {
   DEFAULT_FENCE_QUIET_MS,
@@ -143,11 +104,8 @@ export class RunDriverPipeOutsideClaimError extends Error {
 export function sandboxRunDriver<TOffset extends string = string>(
   input: SandboxRunDriverOptions<TOffset>,
 ): RunDriverOptions {
+  /** Quiescence window; defaults to {@link DEFAULT_FENCE_QUIET_MS}. */
   const fenceQuietMs = input.fenceQuietMs ?? DEFAULT_FENCE_QUIET_MS
-  // The seam between core's `claim` and core's `pipe`. One options object serves
-  // one attach request and therefore one run, so a single slot is enough; it is
-  // cleared on the way out so a `pipe` after the claim released cannot reuse a
-  // stale epoch.
   let current: RunClaim | undefined
 
   return {
@@ -181,11 +139,6 @@ export function sandboxRunDriver<TOffset extends string = string>(
       // and a predecessor still writing must be observed, not raced.
       await awaitLogQuiescence(input.durability(i.runId), fenceQuietMs)
       return pipeToRunLog(stream, {
-        // BOTH authoritative seams are fenced at the epoch this driver actually
-        // acquired, and they must be: `pipeToRunLog` answers a refused append by
-        // recording a terminal record, so fencing only the log leaves a
-        // superseded host marking a live run `'failed'` (see `fenceRunStore`).
-        // Neither fence covers `close()` — that stays unfenced on purpose.
         runs: fenceRunStore(input.runs, claim, {
           ...(input.logger === undefined ? {} : { logger: input.logger }),
         }),

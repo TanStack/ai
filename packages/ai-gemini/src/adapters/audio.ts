@@ -85,13 +85,6 @@ export class GeminiAudioAdapter<
     })
 
     try {
-      // FIXME (SDK audit): Lyria 3 music generation may not belong on
-      // generateContent at all — @google/genai exposes a `LiveMusicSession`
-      // (`ai.live.music.connect`) with a `musicGenerationConfig` object.
-      // `seed` is valid on GenerateContentConfig, and Lyria always returns
-      // MP3 today, so we don't forward `responseMimeType` either.
-      // The runtime test `emits only GenerateContentConfig-valid fields`
-      // asserts the config shape so a later SDK audit can catch regressions.
       const response = await this.client.models.generateContent({
         model,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -110,10 +103,6 @@ export class GeminiAudioAdapter<
         throw new Error('No audio data in Gemini Lyria response')
       }
 
-      // audioPart was selected because mimeType.startsWith('audio/') was
-      // truthy, so the mime type is guaranteed to be a string here. Trust the
-      // value Gemini returned rather than inventing a non-standard
-      // `audio/mp3` fallback (IANA is `audio/mpeg`).
       const contentType = audioPart.inlineData.mimeType
 
       return {

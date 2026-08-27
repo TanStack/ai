@@ -33,9 +33,11 @@ function loadedFromMessages(messages: Array<Message>): Array<string> {
       }
     }
     for (const part of message.parts ?? []) {
-      if (part.type === 'tool-call' && part.toolName === 'load_skill') {
-        const name = parseSkillName(part.arguments)
-        if (name) names.add(name)
+      if (part.type === 'tool-call') {
+        if (part.toolName === 'load_skill') {
+          const name = parseSkillName(part.arguments)
+          if (name) names.add(name)
+        }
       }
     }
   }
@@ -63,7 +65,8 @@ export const SkillsPanel: Component = () => {
 
   const loaded = createMemo(() => {
     const fromSnap = new Set(snapshot()?.activated ?? [])
-    for (const name of loadedFromMessages(conversation()?.messages ?? [])) {
+    const loadedNames = loadedFromMessages(conversation()?.messages ?? [])
+    for (const name of loadedNames) {
       fromSnap.add(name)
     }
     return fromSnap

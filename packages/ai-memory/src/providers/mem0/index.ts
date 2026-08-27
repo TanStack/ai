@@ -1,12 +1,3 @@
-/**
- * mem0 memory adapter — talks to a mem0 server over plain HTTP (no SDK, so no
- * peer dependency). mem0 owns extraction and ranking server-side; this adapter
- * maps the `recall`/`save` contract onto its `/memories` and `/search` endpoints.
- *
- * Requires a running mem0 server. Point it at one via `baseUrl` (or the
- * `MEM0_URL` env var); pass `apiKey` (or `MEM0_ADMIN_API_KEY`) when it's secured.
- */
-
 import type {
   MemoryAdapter,
   MemoryFact,
@@ -56,10 +47,14 @@ function itemsOf(data: unknown): Array<Record<string, unknown>> {
 }
 
 export function mem0(options: Mem0Options = {}): MemoryAdapter {
+  /** mem0 server URL. Defaults to `MEM0_URL` or `http://localhost:8000`. */
   const baseUrl =
     options.baseUrl ?? process.env.MEM0_URL ?? 'http://localhost:8000'
+  /** Bearer token. Defaults to `MEM0_ADMIN_API_KEY`. */
   const apiKey = options.apiKey ?? process.env.MEM0_ADMIN_API_KEY ?? ''
+  /** Ask mem0 to rerank search results. Defaults to `true`. */
   const rerank = options.rerank ?? true
+  /** Minimum search score. Defaults to `0.1`. */
   const threshold = options.threshold ?? 0.1
 
   function headers(): Record<string, string> {

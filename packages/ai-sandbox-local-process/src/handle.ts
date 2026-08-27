@@ -1,14 +1,3 @@
-/**
- * SandboxHandle backed by the host machine — no isolation. The "sandbox" is a
- * real host directory; fs/exec/git operate directly on it.
- *
- * TRUST BOUNDARY: local-process runs commands and file writes on the HOST with
- * the privileges of the current process. It provides NO isolation, NO network
- * policy, and `exec` runs through a shell. Use it only in trusted/dev contexts
- * (the fast no-Docker dev loop); never expose it to untrusted prompts in a
- * context where host compromise matters. For isolation use the Docker or
- * Cloudflare providers.
- */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, watch as watchFs } from 'node:fs'
 import * as fsp from 'node:fs/promises'
@@ -49,7 +38,8 @@ function posixShell(): string {
   if (process.env.TANSTACK_SANDBOX_SH) {
     candidates.push(process.env.TANSTACK_SANDBOX_SH)
   }
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+  const pathDirs = (process.env.PATH ?? '').split(path.delimiter)
+  for (const dir of pathDirs) {
     if (/\\git\\cmd\\?$/i.test(dir)) {
       candidates.push(path.join(dir, '..', 'usr', 'bin', 'sh.exe'))
       candidates.push(path.join(dir, '..', 'bin', 'sh.exe'))
@@ -77,7 +67,8 @@ let cachedShellPathDirs: Array<string> | undefined
 function posixShellPathDirs(): Array<string> {
   if (cachedShellPathDirs !== undefined) return cachedShellPathDirs
   const sh = posixShell()
-  if (process.platform !== 'win32' || sh === 'sh') {
+  const skipGitPathDirs = process.platform !== 'win32' || sh === 'sh'
+  if (skipGitPathDirs) {
     return (cachedShellPathDirs = [])
   }
   const dirs = [path.dirname(sh)] // …\Git\usr\bin — holds sed/dirname/uname/sh
@@ -118,16 +109,6 @@ export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
   ports: true,
   backgroundProcesses: true,
   writableStdin: true,
-  // `killTree` forcibly kills the spawned `sh` wrapper AND its descendants — on
-  // POSIX by signalling the whole process GROUP (the wrapper is spawned
-  // `detached`, so a negative pid reaches every descendant), on Windows by
-  // `taskkill /T` plus a verified sweep of the MSYS descendants `/T` cannot
-  // reach. The same `killTree` runs on `signal` abort in both `exec` and
-  // `spawn`, so a spawned process is always forcibly terminable by the caller.
-  //
-  // Signalling the wrapper alone is NOT enough on either platform and this must
-  // not be "simplified" back to that: `sh -c '<cmd>'` does not reliably exec its
-  // command, so killing the `sh` leaves the command running (see `killTree`).
   killableProcesses: true,
   snapshots: false,
   networkPolicy: false,
@@ -189,11 +170,13 @@ function delay(ms: number): Promise<void> {
 const BUSY_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
 
 /** Bounded backoff for {@link removeDirWithRetry}: 10 attempts, ~2.75s total. */
-const REMOVE_MAX_ATTEMPTS = 10
+const /** Bounded backoff for {@link removeDirWithRetry}: 10 attempts, ~2.75s total. */
+  REMOVE_MAX_ATTEMPTS = 10
 const REMOVE_RETRY_DELAY_MS = 50
 
 /** How long {@link LocalProcessHandle.destroy} waits for a killed child to exit. */
-const CHILD_EXIT_TIMEOUT_MS = 5_000
+const /** How long {@link LocalProcessHandle.destroy} waits for a killed child to exit. */
+  CHILD_EXIT_TIMEOUT_MS = 5_000
 
 /**
  * `rm -rf` a directory, retrying while the OS still reports it busy.
@@ -224,7 +207,8 @@ export async function removeDirWithRetry(
       return
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
-      if (code === undefined || !BUSY_ERROR_CODES.has(code)) throw error
+      if (code === undefined) throw error
+      if (!BUSY_ERROR_CODES.has(code)) throw error
       lastError = error
       if (attempt < REMOVE_MAX_ATTEMPTS) {
         await delay(REMOVE_RETRY_DELAY_MS * attempt)
@@ -244,15 +228,13 @@ export async function removeDirWithRetry(
  * CWD until it is really gone, so teardown must confirm rather than assume.
  */
 function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) {
+  const alreadyExited = child.exitCode !== null || child.signalCode !== null
+  if (alreadyExited) {
     return Promise.resolve(true)
   }
   return new Promise<boolean>((resolve) => {
     const onExit = (): void => resolve(true)
     child.once('exit', onExit)
-    // `unref` so a child that exits promptly does not hold the event loop open
-    // for the rest of the timeout. Promise resolution is once-only, so whichever
-    // of the two paths fires first wins and the other becomes a no-op.
     setTimeout(() => {
       child.off('exit', onExit)
       resolve(false)
@@ -280,20 +262,21 @@ interface MsysProcess {
  */
 export function parseMsysProcessTable(stdout: string): Array<MsysProcess> {
   const rows: Array<MsysProcess> = []
-  for (const line of stdout.split('\n')) {
+  const lines = stdout.split('\n')
+  for (const line of lines) {
     const cols = line.trim().split(/\s+/)
     if (cols.length < 4) continue
     const pid = Number(cols[0])
     const ppid = Number(cols[1])
     const winpid = Number(cols[3])
-    if (
+    const invalidRow =
       !Number.isInteger(pid) ||
       !Number.isInteger(ppid) ||
       !Number.isInteger(winpid) ||
       pid <= 0 ||
       ppid <= 0 ||
       winpid <= 0
-    ) {
+    if (invalidRow) {
       continue
     }
     rows.push({ pid, ppid, winpid })
@@ -312,6 +295,7 @@ export function msysDescendantWinPids(
   rows: Array<MsysProcess>,
   rootWinPid: number,
 ): Array<number> {
+  /** Real host directory backing this sandbox (its workspace root). */
   const root = rows.find((r) => r.winpid === rootWinPid)
   if (!root) return []
   const byPpid = new Map<number, Array<MsysProcess>>()
@@ -406,7 +390,8 @@ export function classifyTaskkillResult(
   stderr: string,
 ): TaskkillOutcome {
   if (status === 0) return 'killed'
-  if (status === 128 || ALREADY_EXITED_STDERR.test(stderr)) {
+  const alreadyExited = status === 128 || ALREADY_EXITED_STDERR.test(stderr)
+  if (alreadyExited) {
     return 'already-exited'
   }
   return 'failed'
@@ -492,13 +477,6 @@ function killTree(
   child: ChildProcess,
   signal?: NodeJS.Signals | number,
   logger?: LocalProcessLogger,
-  /**
-   * A process table already snapshotted by the caller, for tearing down several
-   * children at once. `msysProcessTable` costs a full `sh -c ps` spawn, so
-   * taking it once per teardown instead of once per child keeps `destroy` from
-   * blowing a caller's test timeout. It must still have been taken BEFORE any
-   * `taskkill` in the batch — which is exactly what one up-front snapshot gives.
-   */
   rows?: Array<MsysProcess>,
 ): void {
   const pid = child.pid
@@ -509,11 +487,6 @@ function killTree(
       // signalling `pid` alone would orphan.
       process.kill(-pid, signal ?? 'SIGTERM')
     } catch (error) {
-      // ESRCH means the group is already gone — the ordinary "it exited on its
-      // own" teardown, not a failure, and must stay silent (see the
-      // already-exited reasoning on `classifyTaskkillResult`). Anything else and
-      // we still try the wrapper alone: worse than a group kill, better than
-      // giving up.
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
         logger?.warn('local-process: could not signal the process group', {
           pid,
@@ -683,10 +656,6 @@ export class LocalProcessHandle implements SandboxHandle {
       },
     }
 
-    // Native recursive file watching is supported on Windows/macOS but not
-    // Linux (Node throws ERR_FEATURE_UNAVAILABLE_ON_PLATFORM). Expose the
-    // optional `fs.watch` seam only where it works; on Linux it stays
-    // undefined so `watchWorkspace` falls back to the portable exec-poll path.
     if (process.platform !== 'linux') {
       this.fs.watch = (p, onEvent) => {
         const dir = this.resolve(p)
@@ -744,7 +713,9 @@ export class LocalProcessHandle implements SandboxHandle {
     const rootWithSep = this.root.endsWith(path.sep)
       ? this.root
       : this.root + path.sep
-    if (resolved !== this.root && !resolved.startsWith(rootWithSep)) {
+    const escapesRoot =
+      resolved !== this.root && !resolved.startsWith(rootWithSep)
+    if (escapesRoot) {
       throw new Error(
         `local-process: path "${p}" resolves outside the sandbox root "${this.root}".`,
       )
@@ -780,14 +751,6 @@ export class LocalProcessHandle implements SandboxHandle {
       (child) => child.exitCode === null && child.signalCode === null,
     )
     if (live.length === 0) return
-    // ONE process-table snapshot for the whole batch, taken before any kill.
-    // The snapshot is not free — measured on Windows 11, `sh -c ps` costs
-    // ~1.9s and `taskkill /T` another ~1.9-3.0s, so a teardown that must
-    // actually kill a live child costs seconds. Taking the snapshot once per
-    // teardown rather than once per child is what keeps that from multiplying.
-    // It cannot be skipped: `taskkill /T` alone cannot reach an MSYS stray
-    // (see `killTree`), and such a stray holds files INSIDE the dir we are
-    // about to remove.
     const rows =
       process.platform === 'win32'
         ? msysProcessTable(this.options.logger)
@@ -799,21 +762,9 @@ export class LocalProcessHandle implements SandboxHandle {
       live.map((child) => waitForExit(child, CHILD_EXIT_TIMEOUT_MS)),
     )
 
-    // ESCALATE to SIGKILL on POSIX for anything that survived the first signal.
-    // `killTree` sends `signal ?? 'SIGTERM'` exactly once, which a child may
-    // ignore or block — and `LOCAL_PROCESS_CAPS.killableProcesses: true` promises
-    // forcible termination, not a polite request. The Windows branch already
-    // escalates (`taskkill /F`, then per-stray) and the Docker handle escalates to
-    // SIGKILL unconditionally, so without this POSIX is the weak half of one
-    // contract. It matters beyond the promise: a survivor keeps its CWD handle on
-    // the very directory `removeDirWithRetry` is about to delete.
-    //
-    // Escalation lives HERE and not in `killTree` on purpose, so an explicit
-    // `SpawnHandle.kill('SIGTERM')` keeps its single-signal meaning for callers
-    // who chose that signal deliberately. Only teardown, which must be total,
-    // upgrades.
     const survivors = live.filter((_, i) => exited[i] === false)
-    if (survivors.length > 0 && process.platform !== 'win32') {
+    const needsSigkill = survivors.length > 0 && process.platform !== 'win32'
+    if (needsSigkill) {
       for (const child of survivors) {
         killTree(child, 'SIGKILL', this.options.logger)
       }
@@ -843,10 +794,6 @@ export class LocalProcessHandle implements SandboxHandle {
 
   private mergedEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...process.env, ...this.envVars, ...extra }
-    // Drop scrubbed vars so a host CLI falls back to its own stored auth
-    // (e.g. remove ANTHROPIC_API_KEY → Claude Code uses the logged-in
-    // subscription instead of billing the API). Delete (not blank) so the var
-    // is truly absent, not present-but-empty.
     for (const key of this.options.scrubEnv ?? []) delete env[key]
     // Prepend git-bash's tool dirs (Windows) so the POSIX `sh` can find sed/uname/
     // git/etc. that npm CLI shims depend on.
@@ -855,9 +802,6 @@ export class LocalProcessHandle implements SandboxHandle {
 
   private exec(command: string, opts?: ProcessOptions): Promise<ExecResult> {
     return new Promise<ExecResult>((resolve, reject) => {
-      // Run via a POSIX `sh` on every platform (see posixShell) so the adapter's
-      // single-quote-quoted commands work identically — including native Windows,
-      // where `shell: true` would be cmd.exe and mangle the quoting.
       const child = spawn(posixShell(), ['-c', command], {
         cwd: this.resolveCwd(opts?.cwd),
         env: this.mergedEnv(opts?.env),

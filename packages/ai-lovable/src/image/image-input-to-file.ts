@@ -74,8 +74,10 @@ export async function imagePartToFile(
 
 function inferMimeFromUrl(url: string): string {
   const match = url.match(/\.(png|jpe?g|webp|gif)(?:\?|#|$)/i)
-  if (!match || !match[1]) return DEFAULT_MIME
+  if (!match) return DEFAULT_MIME
+  if (!match[1]) return DEFAULT_MIME
   const ext = match[1].toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+  if (ext === 'jpg') return 'image/jpeg'
+  if (ext === 'jpeg') return 'image/jpeg'
   return `image/${ext}`
 }

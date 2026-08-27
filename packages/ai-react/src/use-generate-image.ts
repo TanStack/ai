@@ -155,6 +155,7 @@ export function useGenerateImage<TTransformed = void>(
 ): UseGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'react',

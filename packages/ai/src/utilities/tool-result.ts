@@ -16,7 +16,9 @@ const CONTENT_PART_TYPES = new Set([
 export function isContentPart(value: unknown): value is ContentPart {
   if (typeof value !== 'object' || value === null) return false
   const part = value as Record<string, unknown>
-  if (typeof part.type !== 'string' || !CONTENT_PART_TYPES.has(part.type)) {
+  const isUnknownPartType =
+    typeof part.type !== 'string' || !CONTENT_PART_TYPES.has(part.type)
+  if (isUnknownPartType) {
     return false
   }
   if (part.type === 'text') {
@@ -26,9 +28,6 @@ export function isContentPart(value: unknown): value is ContentPart {
   if (typeof source !== 'object' || source === null) return false
   const src = source as Record<string, unknown>
   if (typeof src.value !== 'string') return false
-  // `data` sources require a mimeType (matches ContentPartDataSource); `url`
-  // sources don't. Requiring it here keeps the runtime guard consistent with
-  // the type and avoids emitting `data:undefined;base64,...` downstream.
   if (src.type === 'data') return typeof src.mimeType === 'string'
   return src.type === 'url'
 }

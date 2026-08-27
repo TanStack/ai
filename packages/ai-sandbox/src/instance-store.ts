@@ -1,12 +1,3 @@
-/**
- * Durable sandbox **instance** map — which provider sandbox (and snapshot) to
- * resume for a compound key. Owned by `@tanstack/ai-sandbox` (not chat
- * persistence): domain is runtime placement for `ensure`, not conversation state.
- *
- * Pass to `withSandbox(sandbox, { instances })`, which uses it in `ensure`
- * (in-memory fallback when absent). {@link SandboxInstanceStoreCapability} is
- * the ambient alternative for platform-level wiring.
- */
 import { createCapability } from '@tanstack/ai'
 
 /** One persisted sandbox instance, keyed by the compound sandbox instance key. */
@@ -80,8 +71,9 @@ export const SandboxInstanceStoreCapability =
   createCapability<SandboxInstanceStore>()('sandbox-instance-store')
 
 /** Destructured accessors: `getSandboxInstanceStore` / `provideSandboxInstanceStore`. */
-export const [getSandboxInstanceStore, provideSandboxInstanceStore] =
-  SandboxInstanceStoreCapability
+export const /** Destructured accessors: `getSandboxInstanceStore` / `provideSandboxInstanceStore`. */
+  [getSandboxInstanceStore, provideSandboxInstanceStore] =
+    SandboxInstanceStoreCapability
 
 /** In-memory {@link SandboxInstanceStore}. Resume works only within one process. */
 export class InMemorySandboxInstanceStore implements SandboxInstanceStore {
@@ -101,22 +93,3 @@ export class InMemorySandboxInstanceStore implements SandboxInstanceStore {
     return Promise.resolve()
   }
 }
-
-/**
- * Wiring note: hand the store straight to the consumer —
- * `withSandbox(sandbox, { instances: store })`. That cannot be mis-ordered,
- * unlike a separate provider middleware composed after `withSandbox` (which
- * silently degrades to the in-memory fallback).
- *
- * ```ts
- * middleware: [
- *   withLocks(locks), // from @tanstack/ai/locks — multi-replica
- *   withSandbox(sandbox, { instances: instanceStore }),
- * ]
- * ```
- *
- * For ambient/platform wiring (a hosting layer injecting infra without touching
- * the call site), any middleware may still
- * `provideSandboxInstanceStore(ctx, store)` on the capability bus; an explicit
- * option takes precedence over it.
- */

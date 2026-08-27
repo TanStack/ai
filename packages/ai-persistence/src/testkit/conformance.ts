@@ -1,39 +1,3 @@
-/**
- * Shared conformance suite for the `AIPersistence` store contract.
- *
- * Every backend runs this identical suite — the in-memory reference store and
- * every adapter you write against your own database — so that schema drift or
- * an implementation gap fails immediately. It exercises every method of every
- * store the persistence exposes and is the authoritative compatibility gate for
- * the store interfaces in `../types.ts`.
- *
- * Covers all seven stores: the four chat state stores (`messages`, `runs`,
- * `interrupts`, `metadata`) and the three generation stores (`generationRuns`,
- * `artifacts`, `blobs`). Locks are not part of this suite — they are a separate
- * coordination concern (`LockStore` + `withLocks`), not a store.
- *
- * SKIPPING (declare or fail): a backend that deliberately omits a store must
- * declare it in `options.skip`, and one that omits an OPTIONAL store method
- * must declare it in `options.skipMethods`. Anything absent and not declared
- * fails the suite loudly, and anything declared absent is reported by vitest as
- * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
- * not run must never be indistinguishable from one that did. A chat-only
- * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores.
- *
- * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
- * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
- * sandboxed runs, a chat app never writes them, and requiring them here made every
- * backend implement four columns and an omitted-vs-explicit-undefined rule it had no
- * use for. They are proven by `runDurableRunFieldsConformance` from
- * `@tanstack/ai-sandbox/testkit`, next to the takeover and reaper suites that consume
- * them. A backend that never runs sandboxes can leave the columns out.
- *
- * RESERVED RUN-ID PREFIX: `rc-` belongs to the `listReclaimable` case, which
- * filters the method's (not thread-scoped) result down to `rc-` ids before an
- * exact-set assertion. A new case in `describe('runs')` must NOT seed a run id
- * starting with `rc-`, or it silently changes that expected set.
- */
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
@@ -306,9 +270,6 @@ export function runPersistenceConformance(
         })
         expect(resumedAfterUpdate).toEqual(done)
 
-        // `error` is a structured RunError: the prose `message` plus the
-        // optional machine-branchable `code`. Both must survive the round-trip,
-        // so a backend that flattens the record to a bare string fails here.
         await store.update('run-1', {
           status: 'failed',
           error: { message: 'boom', code: 'provider_overloaded' },
@@ -325,12 +286,6 @@ export function runPersistenceConformance(
         expect(await store.get('run-absent')).toBeNull()
       })
 
-      // The idempotency invariant has teeth precisely where it is dangerous:
-      // resuming a run that already FINISHED must not resurrect it. An adapter
-      // written as `INSERT ... ON CONFLICT DO UPDATE SET status='running'`
-      // looks correct on a still-running record and silently revives dead ones,
-      // after which `findActiveRun` hands clients a run that will never emit
-      // again. Assert the terminal status and `finishedAt` both survive.
       it('createOrResume never resurrects a finished run', async (ctx) => {
         const store = resolveStore('runs')
         if (!store) return ctx.skip('store not provided')
@@ -415,9 +370,6 @@ export function runPersistenceConformance(
         expect(await store.findActiveRun(thread)).toBeNull()
       })
 
-      // `listByThread` is optional on the RunStore contract; a declared omission
-      // is reported as skipped and an undeclared one fails. Any backend that has
-      // it must return that thread's runs ordered ascending by `startedAt`.
       it('lists runs by thread when supported', async (ctx) => {
         const runs = resolveStore('runs')
         if (!runs) return ctx.skip('store not provided')
@@ -439,16 +391,6 @@ export function runPersistenceConformance(
         expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
       })
 
-      // `listReclaimable` is optional on the RunStore contract; a declared
-      // omission is reported as skipped and an undeclared one fails. Any
-      // backend that has it must
-      // surface only runs where ALL THREE hold: status === 'running',
-      // detachedSince is set, and detachedSince <= now - ttlMs (inclusive
-      // cutoff). Each negative fixture below pins one of those conditions so
-      // a backend that drops any single check (e.g. "return every run", or
-      // "ignore status", or "ignore detachedSince") fails this case. Do not
-      // simplify these away to a bare `toContain` — that is exactly the
-      // weakness this case was strengthened to catch.
       it('lists reclaimable detached runs when supported', async (ctx) => {
         const runs = resolveStore('runs')
         if (!runs) return ctx.skip('store not provided')
@@ -468,9 +410,6 @@ export function runPersistenceConformance(
         })
         await runs.update('rc-included', { detachedSince: 1_000 })
 
-        // Positive boundary: detachedSince exactly equals the cutoff. Pins
-        // the `<=` (inclusive) semantics — a backend that uses `<` instead
-        // would wrongly exclude this run.
         await runs.createOrResume({
           runId: 'rc-boundary',
           threadId: 'rc-t',
@@ -478,10 +417,6 @@ export function runPersistenceConformance(
         })
         await runs.update('rc-boundary', { detachedSince: cutoff })
 
-        // Negative: still running, but detached AFTER the cutoff (not yet
-        // abandoned long enough). Pins the `<= cutoff` comparison — a
-        // backend that returns every detached run regardless of how recent
-        // would wrongly include this one.
         await runs.createOrResume({
           runId: 'rc-too-recent',
           threadId: 'rc-t',
@@ -489,9 +424,6 @@ export function runPersistenceConformance(
         })
         await runs.update('rc-too-recent', { detachedSince: cutoff + 1 })
 
-        // Negative: detached past the cutoff, but no longer running (already
-        // completed). Pins the `status === 'running'` check — a backend
-        // that ignores status would wrongly include this one.
         await runs.createOrResume({
           runId: 'rc-completed',
           threadId: 'rc-t',
@@ -503,10 +435,6 @@ export function runPersistenceConformance(
           finishedAt: 2_000,
         })
 
-        // Negative: running, but never detached at all. Pins the
-        // `detachedSince !== undefined` check — a backend that treats a
-        // missing `detachedSince` as "always reclaimable" would wrongly
-        // include this one.
         await runs.createOrResume({
           runId: 'rc-never-detached',
           threadId: 'rc-t',
@@ -515,28 +443,12 @@ export function runPersistenceConformance(
 
         const reclaimable = await runs.listReclaimable({ now, ttlMs })
 
-        // Scope the assertion to ids seeded by this case: `listReclaimable`
-        // is not thread-scoped, so it also sees `'running'` runs seeded by
-        // sibling cases in this shared-store `describe('runs', ...)` block
-        // (e.g. `other-1`, `lt-a`, `lt-b`). Those all lack `detachedSince`,
-        // so a correct implementation already excludes them — but filtering
-        // here keeps this assertion from depending on that fact holding for
-        // every other case forever. Ordering is not part of this method's
-        // contract, so sort before an exact-set comparison.
         const ourIds = reclaimable
           .map((r) => r.runId)
           .filter((id) => id.startsWith('rc-'))
           .sort()
         expect(ourIds).toEqual(['rc-boundary', 'rc-included'])
 
-        // The four assertions below are scoped by exact runId (never by the
-        // `rc-` exact-set comparison above), so each uses its own randomUUID
-        // fixture and cannot perturb the fixed-set assertion just made.
-
-        // (1) `ttlMs: 0` pins the cutoff as inclusive: a run detached at
-        // exactly `now` (cutoff === now) must still come back. A backend
-        // using strict `<` instead of `<=` would silently never reclaim a
-        // run detached exactly at the boundary.
         const zeroTtlRunId = `rc-${crypto.randomUUID()}`
         await runs.createOrResume({
           runId: zeroTtlRunId,
@@ -553,13 +465,6 @@ export function runPersistenceConformance(
             ?.detachedSince,
         ).toBe(now)
 
-        // (2) Re-attaching — `update(runId, { detachedSince: undefined })`
-        // — must drop the run out of the list. This is the most important
-        // assertion in this case: a SQL `SET`-clause builder that filters
-        // `undefined` out of the patch (`'field' in patch` instead of
-        // `patch.field !== undefined`) keeps the old `detachedSince`, so a
-        // run a user has actively re-attached to still looks detached — and
-        // the reaper then cancels a run someone is watching.
         const reattachedRunId = `rc-${crypto.randomUUID()}`
         await runs.createOrResume({
           runId: reattachedRunId,
@@ -593,10 +498,6 @@ export function runPersistenceConformance(
           afterTerminal.some((r) => terminalRunIds.includes(r.runId)),
         ).toBe(false)
 
-        // (4) `'interrupted'` does not appear. The documented predicate is
-        // `status === 'running'`; an interrupted run is a human-in-the-loop
-        // pause that interrupt-resume continues, not abandoned work a reaper
-        // should tear down.
         const interruptedRunId = `rc-${crypto.randomUUID()}`
         await runs.createOrResume({
           runId: interruptedRunId,
@@ -852,9 +753,6 @@ export function runPersistenceConformance(
         expect(await store.get('gen-absent')).toBeNull()
       })
 
-      // `findLatestForThread` is REQUIRED: `reconstructGeneration` hydrates a
-      // server-driven client from the stable thread id alone, so a backend that
-      // always answers `null` silently restores nothing rather than degrading.
       it('findLatestForThread returns the most recently started linked run', async () => {
         const store = resolveStore('generationRuns')
         if (!store) return
@@ -1122,12 +1020,6 @@ export function runPersistenceConformance(
         const store = resolveStore('blobs')
         if (!store) return
 
-        // A TransformStream's readable side carries no declared length —
-        // exactly what a fetch-based producer hands the store when the origin
-        // chunks its reply (or its length can't be trusted). Byte bodies take
-        // a different branch in most stores and prove nothing about the
-        // streaming path, so this case is the one that keeps a store honest:
-        // it must drain the stream, not require a length up front.
         const bytes = new Uint8Array(64 * 1024).map((_, i) => i % 251)
         const source = required(new Response(bytes).body, 'response body')
         const lengthless = source.pipeThrough(
@@ -1147,11 +1039,6 @@ export function runPersistenceConformance(
         const store = resolveStore('blobs')
         if (!store) return
 
-        // The real-world combination: a length-less stream PLUS the hint —
-        // which is what the artifact middleware sends when the origin declared
-        // a trustworthy `content-length`. The hint is advisory (a store may
-        // use it to pick an upload strategy); the drained bytes stay the
-        // record of truth, so `size` must still be the count of what arrived.
         const bytes = new Uint8Array(9 * 1024).map((_, i) => i % 251)
         const source = required(new Response(bytes).body, 'response body')
         const lengthless = source.pipeThrough(
@@ -1174,10 +1061,6 @@ export function runPersistenceConformance(
         const store = resolveStore('blobs')
         if (!store) return
 
-        // Range reads are what a serve route turns into `206` +
-        // `Content-Range` — the shape `<video>` seeking is built on. `size`
-        // keeps reporting the WHOLE object so the route can finish the
-        // `Content-Range` header from the same result.
         const bytes = new Uint8Array(1024).map((_, i) => i % 251)
         await store.put('blob/range', bytes)
 
@@ -1266,9 +1149,6 @@ export function runPersistenceConformance(
         const store = resolveStore('blobs')
         if (!store) return
 
-        // `_` and `%` are LIKE metacharacters: a SQL backend that forgets to
-        // escape them would match `list-x/…` here. And SQLite's LIKE is
-        // case-insensitive for ASCII, so `LIST_/` must not match either.
         await store.put('list_/b', new Uint8Array([2]))
         await store.put('list_/a', new Uint8Array([1]))
         await store.put('list_/c', new Uint8Array([3]))

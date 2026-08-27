@@ -1,34 +1,5 @@
-/**
- * `SandboxCoordinator` — the abstract Durable Object base for the serverless/
- * edge agent run model. It owns everything the two concrete models share:
- *
- * - a durable, resumable run-log ({@link DurableObjectRunEventLog});
- * - `startRun`: open the run, kick off the model's chunk stream WITHOUT blocking
- *   the trigger, start piping it into the log via {@link RunController}, register
- *   the resulting `done` promise with `ctx.waitUntil` (keeping the instance alive
- *   until the run is terminal rather than letting it hibernate mid-run), and arm
- *   a watchdog alarm;
- * - `status` (poll fallback) + a hibernatable WebSocket tail with a resumable
- *   cursor (replay after `lastSeq`, then live-tail, reconnect-safe);
- * - routing for `GET /runs/:id` and `GET /runs/:id/stream`, delegating any other
- *   path to {@link handleRoute} (which a subclass overrides for e.g. `/_bridge`
- *   or `/tool-exec`).
- *
- * Subclasses implement {@link buildRunStream} — the ONE difference between the
- * models: run `chat()` in the DO ({@link ChatSandboxCoordinator}) or drive an
- * in-container runner ({@link ContainerSandboxCoordinator}).
- *
- * NOTE: Workers-runtime code — compiles against `@cloudflare/workers-types`; not
- * runtime-verified in this repo.
- */
 import { DurableObject } from 'cloudflare:workers'
 import { EventType, isTerminalRunStatus } from '@tanstack/ai'
-// The PORTABLE run driver: this coordinator is a platform binding of core's
-// `RunController`, not a driver of its own. The DO run log backs both of the
-// driver's seams through the adapters in './durability' — `runLogStore` for
-// the lifecycle record, `runLogStream` for the per-run event log — and the
-// vocabulary is core's throughout (historical `done`/`error` records are
-// migrated on read; see './run-log').
 import { RunController } from '@tanstack/ai-sandbox'
 import { runLogStore, runLogStream } from './durability'
 import { DurableObjectRunEventLog } from './run-log-do'
@@ -36,7 +7,8 @@ import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { RunLogRecord } from './run-log'
 
 /** Re-arm window for the liveness watchdog while a run is in flight (ms). */
-const WATCHDOG_MS = 30_000
+const /** Re-arm window for the liveness watchdog while a run is in flight (ms). */
+  WATCHDOG_MS = 30_000
 
 /**
  * How long a non-terminal run may go without ANY new event before the watchdog
@@ -70,10 +42,6 @@ export interface StartRunInput {
   metadata?: Record<string, unknown>
 }
 
-// Host resolvers live in their own (Workers-free) module so they stay pure and
-// unit-testable; re-exported here because the coordinators build their callback
-// URLs with them. `resolveBridgeOrigin` = container→Worker (/_bridge, /tool-exec);
-// `resolvePreviewHost` = browser→container previews. See their docstrings.
 export { resolveBridgeOrigin, resolvePreviewHost } from './public-host'
 
 /** Cursor stashed on each hibernatable WebSocket so it survives eviction. */
@@ -116,10 +84,6 @@ export abstract class SandboxCoordinator<
     })
   }
 
-  // ===========================================================================
-  // Subclass seam
-  // ===========================================================================
-
   /**
    * Produce the run's `StreamChunk` stream. The ONE model-specific method:
    * `ChatSandboxCoordinator` runs `chat()` here; `ContainerSandboxCoordinator`
@@ -148,20 +112,10 @@ export abstract class SandboxCoordinator<
     })
   }
 
-  // ===========================================================================
-  // Trigger (called by the Worker; returns immediately)
-  // ===========================================================================
-
   async startRun(input: StartRunInput): Promise<{ runId: string }> {
     const existing = await this.log.get(input.runId)
     if (existing) return { runId: input.runId } // idempotent re-trigger
 
-    // Open the run BEFORE building the stream. `pipeToRunLog`'s never-rejects
-    // guarantee only covers failures AFTER the stream is handed to it — a throw
-    // while BUILDING the stream (config(), chat() validation, mint a token)
-    // would otherwise leave no record and no terminal event, so a tailing client
-    // would never see the failure. Opening here (idempotent with pipeToRunLog's
-    // own open) lets us record it.
     await this.log.open({ runId: input.runId, threadId: input.threadId })
     let stream: AsyncIterable<StreamChunk>
     try {
@@ -182,11 +136,6 @@ export abstract class SandboxCoordinator<
       threadId: input.threadId,
       stream,
     })
-    // Keep the instance alive until the run is terminal. `pipeToRunLog` never
-    // rejects (failures land in the log), but this must not DEPEND on that:
-    // `.finally` adopts a rejection, which would hand `waitUntil` a rejected
-    // promise. Two-argument `then` settles fulfilled either way while still
-    // running the settle hook.
     const settle = (): void => this.onRunSettled(input.runId)
     this.ctx.waitUntil(done.then(settle, settle))
     await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
@@ -199,17 +148,14 @@ export abstract class SandboxCoordinator<
     return this.log.get(runId)
   }
 
-  // ===========================================================================
-  // HTTP surface
-  // ===========================================================================
-
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const parts = url.pathname.split('/').filter(Boolean)
 
     if (parts[0] === 'runs' && typeof parts[1] === 'string') {
       if (parts[2] === 'stream') return this.acceptStream(parts[1], request)
-      if (parts.length === 2 && request.method === 'GET') {
+      const isRunStatusGet = parts.length === 2 && request.method === 'GET'
+      if (isRunStatusGet) {
         const record = await this.status(parts[1])
         return record
           ? this.jsonResponse(record)
@@ -218,10 +164,6 @@ export abstract class SandboxCoordinator<
     }
     return this.handleRoute(request, parts)
   }
-
-  // ===========================================================================
-  // WebSocket streaming with hibernation + resumable cursor
-  // ===========================================================================
 
   private async acceptStream(
     runId: string,
@@ -260,11 +202,8 @@ export abstract class SandboxCoordinator<
     this.pumping.add(socket)
     const done = (async () => {
       try {
-        // The tail reads the log directly by seq — the client wire protocol
-        // (`?lastSeq`, `{seq, chunk}` frames) is seq-based, and `log.read` is
-        // the seq-cursor surface. Core's `controller.attach` serves consumers
-        // that speak opaque `StreamDurability` offsets instead.
-        for await (const event of this.log.read(runId, { fromSeq })) {
+        const events = this.log.read(runId, { fromSeq })
+        for await (const event of events) {
           socket.send(JSON.stringify(event))
           socket.serializeAttachment({
             runId,
@@ -298,9 +237,6 @@ export abstract class SandboxCoordinator<
     ws: WebSocket,
     _message: string | ArrayBuffer,
   ): void {
-    // Only meaningful as a post-hibernation resume nudge: restart the tail from
-    // the persisted cursor IF no pump is live (the guard in `pump` enforces the
-    // "resume exactly once" invariant when the original pump is still running).
     const attachment: unknown = ws.deserializeAttachment()
     if (isSocketAttachment(attachment)) {
       this.pump(ws, attachment.runId, attachment.lastSeq)
@@ -315,10 +251,6 @@ export abstract class SandboxCoordinator<
     // Nothing to clean up: the run-log is durable and independent of any socket.
   }
 
-  // ===========================================================================
-  // Watchdog alarm — keeps a run observable across hibernation
-  // ===========================================================================
-
   override async alarm(): Promise<void> {
     try {
       // Through the log (not a raw `rec:` list) so legacy records are migrated
@@ -329,9 +261,6 @@ export abstract class SandboxCoordinator<
       for (const record of runs) {
         if (isTerminalRunStatus(record.status)) continue
         if (now - record.updatedAt > WATCHDOG_STALL_MS) {
-          // No progress for too long — the driver is presumed dead. Fail the run
-          // so tailing clients stop waiting forever (the whole point of the
-          // watchdog; without this a stuck run sits at `running` indefinitely).
           await this.failStalledRun(record.runId)
         } else {
           active = true

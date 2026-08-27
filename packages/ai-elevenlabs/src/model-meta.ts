@@ -1,12 +1,6 @@
 import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
 
 /**
- * ElevenLabs model identifiers. The lists below are the source of truth —
- * callers are blocked from passing unknown model IDs. Keep them in sync with
- * the ElevenLabs SDK via the automated update pipeline.
- */
-
-/**
  * Text-to-speech models.
  * @see https://elevenlabs.io/docs/models
  */

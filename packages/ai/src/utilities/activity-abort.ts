@@ -7,7 +7,6 @@
  * classifies aborts so lifecycle middleware gets `onAbort` rather than
  * `onError`.
  */
-
 const ABORT_ERROR_NAMES = new Set([
   'AbortError',
   'TimeoutError',
@@ -84,7 +83,9 @@ export function createActivityAbortControls(options: {
   let timeoutSignal: AbortSignal | undefined
 
   if (options.timeout !== undefined) {
-    if (!Number.isFinite(options.timeout) || options.timeout < 0) {
+    const isBadTimeout =
+      !Number.isFinite(options.timeout) || options.timeout < 0
+    if (isBadTimeout) {
       throw new Error(
         `Invalid activity timeout: expected a non-negative finite number, got ${String(options.timeout)}`,
       )
@@ -97,6 +98,7 @@ export function createActivityAbortControls(options: {
     }, ms)
   }
 
+  /** Effective signal, or `undefined` when neither timeout nor caller signal. */
   const signal = combineAbortSignals(options.abortSignal, timeoutSignal)
 
   return {

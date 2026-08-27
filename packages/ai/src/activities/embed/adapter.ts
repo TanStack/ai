@@ -83,8 +83,11 @@ export abstract class BaseEmbeddingAdapter<
   TModelProviderOptionsByName,
   TModelInputModalitiesByName
 > {
+  /** Discriminator for adapter kind */
   readonly kind = 'embedding' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime

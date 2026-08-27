@@ -68,10 +68,6 @@ export interface ChatSandboxHooks<TContext = unknown> {
   ) => void | Promise<void>
 }
 
-// ===========================
-// Middleware Context
-// ===========================
-
 /**
  * Phase of the chat middleware lifecycle.
  * - 'init': Initial config transform before the chat engine starts
@@ -295,22 +291,21 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   provide: <TValue>(capability: Capability<TValue>, value: TValue) => void
 }
 
-// ===========================
-// Config passed to onConfig
-// ===========================
-
 /**
  * Chat configuration that middleware can observe or transform.
  * This is a subset of the chat engine's effective configuration
  * that middleware is allowed to modify.
  */
 export interface ChatMiddlewareConfig {
+  /** Current messages array (read-only view) */
   messages: Array<ModelMessage>
+  /** System prompts configured for this chat */
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   resume?: Array<RunAgentResumeItem> | undefined
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
+  /** Provider-specific model options */
   modelOptions?: Record<string, unknown> | undefined
 }
 
@@ -358,10 +353,6 @@ export interface StructuredOutputMiddlewareConfig extends Omit<
   outputSchema: JSONSchema
 }
 
-// ===========================
-// Tool Call Hook Context
-// ===========================
-
 /**
  * Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
  */
@@ -389,9 +380,18 @@ export type BeforeToolCallDecision =
   | void
   | undefined
   | null
-  | { type: 'transformArgs'; args: unknown }
-  | { type: 'skip'; result: unknown }
-  | { type: 'abort'; reason?: string }
+  | {
+      type: 'transformArgs' /** Parsed arguments for the tool call */
+      args: unknown
+    }
+  | {
+      type: 'skip' /** The result (if ok) or error (if not ok) */
+      result: unknown
+    }
+  | {
+      type: 'abort' /** The reason for the abort, if provided */
+      reason?: string
+    }
 
 /**
  * Outcome information provided to onAfterToolCall.
@@ -411,12 +411,9 @@ export interface AfterToolCallInfo {
   duration: number
   /** The result (if ok) or error (if not ok) */
   result?: unknown
+  /** The error that caused the failure */
   error?: unknown
 }
-
-// ===========================
-// Iteration Info
-// ===========================
 
 /**
  * Information passed to onIteration at the start of each agent loop iteration.
@@ -428,10 +425,6 @@ export interface IterationInfo {
   messageId: string
 }
 
-// ===========================
-// Tool Phase Complete Info
-// ===========================
-
 /**
  * Aggregate information passed to onToolPhaseComplete after all tool calls
  * in an iteration have been processed.
@@ -441,9 +434,12 @@ export interface ToolPhaseCompleteInfo {
   toolCalls: Array<ToolCall>
   /** Completed tool results */
   results: Array<{
+    /** ID of the tool call */
     toolCallId: string
+    /** Name of the tool */
     toolName: string
     result: unknown
+    /** Duration of tool execution in milliseconds */
     duration?: number
   }>
   /** Tools that need user approval */
@@ -461,10 +457,6 @@ export interface ToolPhaseCompleteInfo {
   }>
 }
 
-// ===========================
-// Usage Info
-// ===========================
-
 /**
  * Token usage statistics passed to the onUsage hook.
  * Extracted from the RUN_FINISHED chunk when usage data is present.
@@ -474,10 +466,6 @@ export interface ToolPhaseCompleteInfo {
  * this publicly exported type.
  */
 export interface UsageInfo extends TokenUsage {}
-
-// ===========================
-// Terminal Hook Info
-// ===========================
 
 /**
  * Information passed to onFinish.
@@ -529,10 +517,6 @@ export interface ErrorInfo {
   duration: number
 }
 
-// ===========================
-// Middleware Interface
-// ===========================
-
 /**
  * Chat middleware interface.
  *
@@ -574,7 +558,10 @@ export interface ChatMiddleware<
    * Requests from every middleware in the same boundary form one batch.
    */
   onInterruptBoundary?: (
-    ctx: ChatMiddlewareContext<TContext> & { phase: InterruptBoundaryPhase },
+    ctx: ChatMiddlewareContext<TContext> & {
+      /** Current lifecycle phase */
+      phase: InterruptBoundaryPhase
+    },
   ) =>
     | InterruptBoundaryResult<TInterruptDefinitions>
     | Promise<InterruptBoundaryResult<TInterruptDefinitions>>

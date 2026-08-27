@@ -1,14 +1,6 @@
-/**
- * Build in-container `sh -c` commands that write a file without putting the
- * whole payload on one argv.
- *
- * Linux `MAX_ARG_STRLEN` is 128 KiB for a single argument. A snapshot restore
- * of a lockfile or generated source exceeds that when the bytes are quoted
- * into `printf`.
- */
-
 /** Stay well under `MAX_ARG_STRLEN` after base64 and quoting. */
-export const FS_WRITE_BYTE_CHUNK = 32_768
+export const /** Stay well under `MAX_ARG_STRLEN` after base64 and quoting. */
+  FS_WRITE_BYTE_CHUNK = 32_768
 
 function quote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`

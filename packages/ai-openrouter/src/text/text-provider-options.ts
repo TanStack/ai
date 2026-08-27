@@ -6,10 +6,6 @@ import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
 
 type OpenRouterChatModel = (typeof OPENROUTER_CHAT_MODELS)[number]
 
-// ---------------------------------------------------------------------------
-// Type aliases derived from the SDK's ChatRequest
-// ---------------------------------------------------------------------------
-
 export type ProviderPreferences = NonNullable<ChatRequest['provider']>
 
 export type Plugin = NonNullable<ChatRequest['plugins']>[number]
@@ -39,10 +35,6 @@ export type ReasoningOptions = NonNullable<ChatRequest['reasoning']> & {
 
 export type StreamOptions = NonNullable<ChatRequest['streamOptions']>
 
-// ---------------------------------------------------------------------------
-// ImageConfig – no SDK equivalent
-// ---------------------------------------------------------------------------
-
 export type ImageConfig = {
   /**
    * The aspect ratio for generated images.
@@ -51,10 +43,6 @@ export type ImageConfig = {
 
   image_size?: '1k' | '2k' | '4k'
 }
-
-// ---------------------------------------------------------------------------
-// Composite option types used by model-meta and the text adapter
-// ---------------------------------------------------------------------------
 
 export type OpenRouterCommonOptions = Pick<
   ChatRequest,

@@ -27,7 +27,8 @@ function generateExampleFromSchema(schema: Record<string, unknown>): string {
     const props = schema.properties as Record<string, { type: string }>
     const example: Record<string, unknown> = {}
 
-    for (const [key, value] of Object.entries(props)) {
+    const propertyEntries = Object.entries(props)
+    for (const [key, value] of propertyEntries) {
       if (value.type === 'string') example[key] = `'example_${key}'`
       else if (value.type === 'number') example[key] = 0
       else if (value.type === 'boolean') example[key] = true

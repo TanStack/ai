@@ -28,10 +28,6 @@ export type OllamaProviderUsageDetails = {
 export function buildOllamaUsage(
   response: ChatResponse,
 ): TokenUsage | undefined {
-  // Ollama can omit prompt_eval_count / eval_count at runtime even though the
-  // SDK types them as required. `|| 0` coalesces a missing count to 0 for
-  // arithmetic so totalTokens never becomes NaN, and stays lint-clean (matches
-  // the other provider builders).
   const promptTokens = response.prompt_eval_count || 0
   const completionTokens = response.eval_count || 0
   const hasTokenCounts = promptTokens > 0 || completionTokens > 0
@@ -61,7 +57,8 @@ export function buildOllamaUsage(
   }
 
   // Nothing useful to report: no token counts and no duration metrics.
-  if (!hasTokenCounts && !hasProviderDetails) {
+  const nothingToReport = !hasTokenCounts && !hasProviderDetails
+  if (nothingToReport) {
     return undefined
   }
 

@@ -1,39 +1,3 @@
-/**
- * Deterministic chunk identity — the prerequisite that makes journal replay
- * exact.
- *
- * The design premise is that re-translating a journal prefix reproduces the
- * chunks a previous host already delivered, so a successor can recognize and
- * skip them (see `align.ts`, a later task). Two things in the default path
- * break that premise:
- *
- * 1. `ChatAdapter.generateId()` — `packages/ai/src/activities/chat/adapter.ts:227`,
- *    read directly for this task — is:
- *
- *    ```ts
- *    protected generateId(): string {
- *      return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
- *    }
- *    ```
- *
- *    and every harness translator mints message ids through it (wired as
- *    `genId` in the Grok Build, Claude Code, and Codex text adapters). Both
- *    `Date.now()` and `Math.random()` are non-reproducible: replaying the same
- *    journal bytes through a second `generateId()` call produces a different
- *    id every time, so "same bytes ⇒ same chunks" is false on the journaled
- *    path today. {@link createRunScopedIdGen} replaces it with a run-scoped
- *    counter that has neither a clock nor randomness, so two generators built
- *    from the same `runId` always produce the same sequence.
- * 2. Chunks also carry `timestamp: Date.now()`, which cannot be reproduced at
- *    all, deterministic id or not. {@link chunkFingerprint} therefore excludes
- *    exactly that field — nothing downstream keys on a chunk's timestamp, so
- *    leaving it wall-clock is safe, but every other field must participate in
- *    the comparison or a real divergence would go undetected.
- * 3. Adapter yields still carry leftover TanStack extras (`content`, `args`,
- *    `finishReason`). The durability log stores spec chunks. Fingerprints keep
- *    only AG-UI spec keys and drop `metadata.tanstack`, so a live adapter yield
- *    matches the stored spec chunk.
- */
 import type { StreamChunk } from '@tanstack/ai'
 import {
   isSpecTopLevelKey,
@@ -131,12 +95,16 @@ function stableStringify(
  */
 function fingerprintableChunk(chunk: StreamChunk): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(chunk)) {
+  const chunkEntries = Object.entries(chunk)
+  for (const [key, value] of chunkEntries) {
     if (key === 'timestamp') continue
     if (!isSpecTopLevelKey(chunk.type, key)) continue
-    if (key === 'metadata' && value != null && typeof value === 'object') {
+    const isMetadataObject =
+      key === 'metadata' && value != null && typeof value === 'object'
+    if (isMetadataObject) {
       const rest: Record<string, unknown> = {}
-      for (const [metaKey, metaValue] of Object.entries(value)) {
+      const metadataEntries = Object.entries(value)
+      for (const [metaKey, metaValue] of metadataEntries) {
         if (metaKey === 'tanstack') continue
         rest[metaKey] = metaValue
       }

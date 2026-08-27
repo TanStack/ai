@@ -83,6 +83,7 @@ export interface OpenAIRealtimeClientSecretResponse {
   /** Effective session config the key was minted for */
   session: {
     type: string
+    /** Model to use (default: 'gpt-realtime') */
     model: string
   }
 }

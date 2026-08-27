@@ -62,10 +62,6 @@ export function convertFunctionToolToChatCompletionsFormat(
     } satisfies ChatCompletionFunctionTool
   }
 
-  // Shallow-copy the converter's result before mutating: a subclass-supplied
-  // schemaConverter has no contract requirement to return a fresh object,
-  // and a passthrough `(s) => s` would otherwise have its caller's schema
-  // mutated by the `additionalProperties = false` assignment below.
   const jsonSchema = {
     ...schemaConverter(inputSchema, inputSchema.required || []),
   }

@@ -1,10 +1,3 @@
-/**
- * Stream Processor Types
- *
- * Unified types for stream processing used by both server and client.
- * The canonical chunk format is StreamChunk from @tanstack/ai types.
- */
-
 import type {
   StreamChunk,
   ToolCall,

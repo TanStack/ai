@@ -163,12 +163,6 @@ export interface CreateGenerationReturn<
  * </div>
  * ```
  */
-// `TTransformed` infers from the `onResult` return position (a covariant
-// inference site that works even for an optional nested property), which types
-// the callback parameter as `TResult` and narrows `result`. Inferring the
-// whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
-// issue #848.
 export function createGeneration<
   TInput extends Record<string, any>,
   TResult,
@@ -186,18 +180,17 @@ export function createGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   // Create reactive state using Svelte 5 runes
+  /** The generation result, or null if not yet generated */
   let result = $state<TOutput | null>(null)
+  /** Whether a generation is currently in progress */
   let isLoading = $state(false)
+  /** Current error, if any */
   let error = $state<Error | undefined>(undefined)
+  /** Current state of the generation client */
   let status = $state<GenerationClientState>('idle')
   let runId = $state<string | null>(null)
   let disposed = false
 
-  // `body` uses a conditional spread because `GenerationClientOptions.body`
-  // is declared `body?: Record<string, any>` (absent vs. present) under
-  // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
-  // rejected — the optional caller `options.body` may be undefined, in which
-  // case we want the key to be absent.
   const clientOptions: Omit<
     GenerationClientOptions<TInput, TResult, TOutput>,
     'persistence' | 'threadId'
@@ -218,9 +211,6 @@ export function createGeneration<
       framework: 'svelte',
       hookName: 'createGeneration',
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
@@ -291,34 +281,30 @@ export function createGeneration<
   // persisted state is read-only for display.
   client.mountDevtools()
 
-  // Note: Cleanup is handled by calling dispose() directly when needed.
-  // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
-  // during component initialization, so we don't add automatic cleanup here.
-  // Users should call gen.dispose() in their component's cleanup if needed.
-
+  /** Trigger a generation request */
   const generate = async (input: TInput) => {
-    // Svelte has no remount effect to revive a disposed client (the other
-    // frameworks revive via mountDevtools() in their mount effects), so an
-    // explicit generate() after dispose() is the Svelte revive path: bring
-    // the client and the reactive bindings back together.
     disposed = false
     client.mountDevtools()
     await client.generate(input)
   }
 
+  /** Abort the current generation */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear result, error, and return to idle */
   const reset = () => {
     client.reset()
   }
 
+  /** Stop in-flight work and unregister devtools listeners */
   const dispose = () => {
     disposed = true
     client.dispose()
   }
 
+  /** Update additional body parameters */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
   }

@@ -1,21 +1,3 @@
-/**
- * Sandbox file-event hooks — observe create / change / delete of files inside a
- * sandbox (e.g. as an in-sandbox agent edits the workspace).
- *
- * Provider-agnostic: coded against the {@link SandboxHandle} contract only.
- * Two mechanisms, auto-selected:
- *
- * - **Native** — when a provider implements the optional `fs.watch` seam
- *   (local-process does, via Node `fs.watch`), OS events drive the feed with low
- *   latency.
- * - **Exec-poll** — otherwise (Docker, Cloudflare, any exec-only provider), a
- *   single `find … -printf` snapshot of `mtime\tsize\tpath` is taken every
- *   `intervalMs` and diffed. Works on any Linux container with GNU findutils
- *   (true for `node:*` / debian images) with no extra deps or image changes.
- *
- * The feed intentionally rides only the portable surface, so the same
- * `watchWorkspace` call behaves identically across providers.
- */
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { SandboxHandle } from './contracts'
 import type { SandboxFileEvent } from '@tanstack/ai'
@@ -76,7 +58,8 @@ export function diffSnapshots(
     if (before === undefined) events.push({ type: 'create', path, timestamp })
     else if (before !== sig) events.push({ type: 'change', path, timestamp })
   }
-  for (const path of prev.keys()) {
+  const previousPaths = prev.keys()
+  for (const path of previousPaths) {
     if (!next.has(path)) events.push({ type: 'delete', path, timestamp })
   }
   return events
@@ -105,11 +88,13 @@ function buildFindCommand(ignore: Array<string>): string {
 function parseFindOutput(stdout: string, root: string): Map<string, string> {
   const base = root.replace(/\/+$/, '')
   const snapshot = new Map<string, string>()
-  for (const line of stdout.split('\n')) {
+  const findLines = stdout.split('\n')
+  for (const line of findLines) {
     if (line === '') continue
     const firstTab = line.indexOf('\t')
     const secondTab = line.indexOf('\t', firstTab + 1)
-    if (firstTab === -1 || secondTab === -1) continue
+    const isMalformedLine = firstTab === -1 || secondTab === -1
+    if (isMalformedLine) continue
     const mtime = line.slice(0, firstTab)
     const size = line.slice(firstTab + 1, secondTab)
     const rel = line.slice(secondTab + 1).replace(/^\.\/?/, '')
@@ -133,8 +118,10 @@ export async function watchWorkspace(
   handle: SandboxHandle,
   options: WatchOptions,
 ): Promise<SandboxWatchHandle> {
+  /** Workspace root to watch. Defaults to `/workspace`. */
   const root = options.root ?? DEFAULT_WORKSPACE_ROOT
   const ignore = options.ignore ?? DEFAULT_IGNORE
+  /** Poll interval for the exec-poll fallback, in ms. Defaults to 700. */
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS
 
   // Already aborted before we start — don't begin any async work.
@@ -158,15 +145,6 @@ async function startNativeWatch(
   // correctly (create vs change).
   const seed = await collectPaths(handle, root, ignore, logger)
   const known = seed.files
-  // If the ROOT list failed, `known` is untrustworthy — every pre-existing
-  // file would misclassify as `create` on its first edit. Re-seed lazily on
-  // the next event(s): by the time real activity arrives the fs has usually
-  // recovered, and re-listing then establishes the baseline. Dedupe concurrent
-  // re-seeds behind a single in-flight promise.
-  // ponytail: a file genuinely CREATED in the narrow window between the failed
-  // seed and the first event gets picked up by the re-seed and so mislabels as
-  // `change` once. That's strictly better than the whole-run mislabel a
-  // never-recovered empty seed causes, and `diff()` is correct regardless.
   let seeded = seed.rootOk
   let reseeding: Promise<void> | null = null
   const ensureSeeded = (): Promise<void> => {
@@ -249,12 +227,6 @@ async function startPollWatch(
   const command = buildFindCommand(ignore)
   const controller = new AbortController()
 
-  // A poll result: the parsed snapshot plus whether `find` completed cleanly.
-  // `null` means the poll produced no usable output at all (thrown exec, or a
-  // non-zero exit with empty stdout) — callers preserve the previous snapshot.
-  // Collapsing a failed poll to `{}` would make the next diff fabricate a
-  // `delete` for every tracked file (and a `create` for each on recovery) —
-  // one transient `find` blip would fan a phantom storm out to hooks/stream.
   interface Poll {
     map: Map<string, string>
     /** `false` when `find` exited non-zero but still printed rows (partial). */
@@ -272,15 +244,7 @@ async function startPollWatch(
       })
       consecutiveThrows = 0 // exec returned (any exit code) — the seam is alive
     } catch (error) {
-      // Thrown exec — container not ready, `find` seam rejects, or a
-      // mid-teardown abort. Treat as a failed poll so BOTH the initial seed
-      // and every tick preserve `previous` instead of rejecting setup (which
-      // would crash the run and leak the sandbox) or the interval.
       if (isInitial) {
-        // The INITIAL poll can't be a teardown (a pre-aborted signal is guarded
-        // in `watchWorkspace`), so a throw here is an unambiguous anomaly (`find`
-        // missing, container never ready) that leaves the watcher dead for the
-        // whole run — surface it at `warn`.
         logger?.warn('sandbox watch: initial `find` poll threw', {
           root,
           error,
@@ -292,10 +256,6 @@ async function startPollWatch(
           error,
         })
       } else {
-        // Steady-state throw while NOT tearing down. One is usually a transient
-        // blip (→ `sandbox`), but a run of them means the exec seam is wedged:
-        // every poll returns null and the watcher emits nothing for the rest of
-        // the run. That silent-death case escalates to `warn` (on by default).
         consecutiveThrows += 1
         if (consecutiveThrows >= STEADY_STATE_THROW_WARN_AFTER) {
           logger?.warn('sandbox watch: `find` poll threw repeatedly', {
@@ -312,13 +272,6 @@ async function startPollWatch(
     if (result.exitCode === 0) {
       return { map: parseFindOutput(result.stdout, root), complete: true }
     }
-    // Non-zero exit doesn't mean "no data": GNU `find` exits >0 on the first
-    // permission-denied entry it hits mid-traversal (common in containers, and
-    // the ignore list is a `-not -path` filter, not `-prune`, so `find` still
-    // descends into unreadable dirs) yet still prints every readable file. Use
-    // that partial output — marked `complete: false` so the tick merges rather
-    // than diffs it — instead of blinding the watcher for the whole run. Only a
-    // non-zero exit with NO output is a truly failed poll.
     if (result.stdout !== '') {
       logger?.sandbox(
         'sandbox watch: `find` non-zero exit with partial output',
@@ -334,15 +287,7 @@ async function startPollWatch(
     return null
   }
 
-  // `null` until the first poll that yields usable output. A failed INITIAL
-  // poll must NOT seed an empty baseline — the first successful poll would then
-  // diff against `{}` and fabricate a `create` for every pre-existing file. So
-  // the first non-null snapshot is adopted as the baseline WITHOUT diffing.
   let previous: Map<string, string> | null = null
-  // Whether `previous` was established from a COMPLETE poll. A baseline seeded
-  // from a PARTIAL poll is provisional — files unreadable during that poll are
-  // absent from it and would later fabricate `create`s when they recover — so
-  // the first complete poll re-baselines without diffing.
   let seededFromComplete = false
   {
     const poll = await snapshot(true)
@@ -366,10 +311,6 @@ async function startPollWatch(
         return
       }
       if (!seededFromComplete && poll.complete) {
-        // First complete poll after a provisional (partial) seed — re-baseline
-        // WITHOUT diffing, so files merely unreadable at seed time don't
-        // fabricate `create`s. (Real creates during this degraded-startup
-        // window are missed — an acceptable trade for not fabricating events.)
         logger?.sandbox(
           'sandbox watch: re-baselined after provisional partial seed',
           { root },
@@ -378,15 +319,11 @@ async function startPollWatch(
         seededFromComplete = true
         return
       }
-      // A partial (non-`complete`) poll can't distinguish "deleted" from
-      // "transiently unreadable this poll", so MERGE it over `previous`: pick
-      // up new/changed files without fabricating a `delete` for a path this
-      // poll simply couldn't see. A real deletion still surfaces on the next
-      // complete poll.
       const next = poll.complete
         ? poll.map
         : new Map([...previous, ...poll.map])
-      for (const event of diffSnapshots(previous, next, Date.now())) {
+      const snapshotEvents = diffSnapshots(previous, next, Date.now())
+      for (const event of snapshotEvents) {
         onEvent(event)
       }
       previous = next
@@ -400,6 +337,7 @@ async function startPollWatch(
   // Don't keep the event loop alive on the watcher alone.
   if (typeof timer.unref === 'function') timer.unref()
 
+  /** Stop the watcher and release its resources. */
   const stop = (): Promise<void> => {
     if (state.running) {
       state.running = false

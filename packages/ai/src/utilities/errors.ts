@@ -53,7 +53,7 @@ export function errorMessage(err: unknown): string | undefined {
   if (err instanceof Error) return err.message
   if (typeof err === 'string') return err
   if (err && typeof err === 'object' && 'message' in err) {
-    const m = (err as { message?: unknown }).message
+    const m = err.message
     if (typeof m === 'string') return m
   }
   return undefined
@@ -66,7 +66,7 @@ export function errorMessage(err: unknown): string | undefined {
 export function errorTypeName(err: unknown): string {
   if (err instanceof Error) return err.name || 'Error'
   if (err && typeof err === 'object' && 'name' in err) {
-    const n = (err as { name?: unknown }).name
+    const n = err.name
     if (typeof n === 'string') return n
   }
   return 'Error'

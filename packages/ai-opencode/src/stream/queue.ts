@@ -14,7 +14,8 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   private failed = false
 
   push(value: T): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     const waiter = this.waiters.shift()
     if (waiter) {
       waiter.resolve({ value, done: false })
@@ -25,19 +26,23 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
 
   /** Signal normal completion; pending and future reads resolve as done. */
   end(): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     this.ended = true
-    for (const waiter of this.waiters.splice(0)) {
+    const pendingWaiters = this.waiters.splice(0)
+    for (const waiter of pendingWaiters) {
       waiter.resolve({ value: undefined, done: true })
     }
   }
 
   /** Signal failure; pending and future reads reject (after buffered values drain). */
   fail(error: unknown): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     this.failed = true
     this.error = error
-    for (const waiter of this.waiters.splice(0)) {
+    const pendingWaiters = this.waiters.splice(0)
+    for (const waiter of pendingWaiters) {
       waiter.reject(error)
     }
   }

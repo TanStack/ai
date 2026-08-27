@@ -8,10 +8,12 @@ import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Codex thread (session) id. */
-export const SESSION_ID_EVENT = 'codex.session-id'
+export const /** Name of the CUSTOM event carrying the Codex thread (session) id. */
+  SESSION_ID_EVENT = 'codex.session-id'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -181,9 +183,11 @@ export async function* translateThreadEvents(
 
   let runStarted = false
   /** Tool calls started but with no result yet. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet. */
+    unresolvedToolCalls = new Set<string>()
   /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
-  const openedToolItems = new Set<string>()
+  const /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
+    openedToolItems = new Set<string>()
 
   function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
@@ -267,7 +271,8 @@ export async function* translateThreadEvents(
   ): Generator<AdapterYieldChunk> {
     yield* startText(messageId)
     const state = openText.get(messageId)
-    if (state === undefined || state.ended) return
+    if (state === undefined) return
+    if (state.ended) return
     if (text.length <= state.emitted) return
     const delta = text.slice(state.emitted)
     state.emitted = text.length
@@ -283,7 +288,8 @@ export async function* translateThreadEvents(
 
   function* endText(messageId: string): Generator<AdapterYieldChunk> {
     const state = openText.get(messageId)
-    if (state === undefined || state.ended) return
+    if (state === undefined) return
+    if (state.ended) return
     state.ended = true
     yield {
       type: EventType.TEXT_MESSAGE_END,
@@ -420,11 +426,15 @@ export async function* translateThreadEvents(
       // needs RUN_STARTED first.
       yield* startRun()
 
-      if (event.type === 'item.started' || event.type === 'item.updated') {
+      if (event.type === 'item.started') {
         if (event.item.type === 'agent_message') {
           yield* handleAgentMessage(event.item, false)
-        } else if (event.type === 'item.started' && isToolItem(event.item)) {
+        } else if (isToolItem(event.item)) {
           yield* openToolCall(event.item)
+        }
+      } else if (event.type === 'item.updated') {
+        if (event.item.type === 'agent_message') {
+          yield* handleAgentMessage(event.item, false)
         }
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
@@ -441,12 +451,19 @@ export async function* translateThreadEvents(
           finishReason: 'stop',
           ...(usage !== undefined && { usage }),
         }
-      } else if (event.type === 'turn.failed' || event.type === 'error') {
+      } else if (event.type === 'turn.failed') {
         yield* synthesizeUnresolvedResults()
-        const message =
-          event.type === 'turn.failed'
-            ? (event.error?.message ?? 'Codex turn failed')
-            : event.message
+        const message = event.error?.message ?? 'Codex turn failed'
+        yield {
+          type: EventType.RUN_ERROR,
+          model,
+          timestamp: now(),
+          message,
+          error: { message },
+        }
+      } else if (event.type === 'error') {
+        yield* synthesizeUnresolvedResults()
+        const message = event.message
         yield {
           type: EventType.RUN_ERROR,
           model,
@@ -460,10 +477,6 @@ export async function* translateThreadEvents(
     }
     yield* emitStructuredFromLast()
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
     yield* synthesizeUnresolvedResults()
     throw error
   }

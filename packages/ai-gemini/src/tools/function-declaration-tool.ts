@@ -10,13 +10,15 @@ const validateFunctionDeclarationTool = (tool: FunctionDeclarationTool) => {
     )
   }
 
-  if (tool.parameters && tool.parametersJsonSchema) {
+  const hasBothParameterSchemas = tool.parameters && tool.parametersJsonSchema
+  if (hasBothParameterSchemas) {
     throw new Error(
       `FunctionDeclarationTool cannot have both 'parameters' and 'parametersJsonSchema' defined. Please use only one.`,
     )
   }
 
-  if (tool.response && tool.responseJsonSchema) {
+  const hasBothResponseSchemas = tool.response && tool.responseJsonSchema
+  if (hasBothResponseSchemas) {
     throw new Error(
       `FunctionDeclarationTool cannot have both 'response' and 'responseJsonSchema' defined. Please use only one.`,
     )

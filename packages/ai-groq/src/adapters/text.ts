@@ -22,9 +22,6 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export interface GroqTextConfig extends GroqClientConfig {}
 
-/**
- * Re-export of the public provider options type
- */
 export type { ExternalTextProviderOptions as GroqTextProviderOptions } from '../text/text-provider-options'
 
 /**
@@ -72,13 +69,9 @@ export class GroqTextAdapter<
         error: string
       }
     | undefined {
-    if (
-      !isRecord(rawEvent) ||
-      rawEvent.code !== 'tool_use_failed' ||
-      typeof rawEvent.failed_generation !== 'string'
-    ) {
-      return undefined
-    }
+    if (!isRecord(rawEvent)) return undefined
+    if (rawEvent.code !== 'tool_use_failed') return undefined
+    if (typeof rawEvent.failed_generation !== 'string') return undefined
 
     let failedGeneration: unknown
     try {
@@ -86,13 +79,9 @@ export class GroqTextAdapter<
     } catch {
       return undefined
     }
-    if (
-      !isRecord(failedGeneration) ||
-      typeof failedGeneration.name !== 'string' ||
-      failedGeneration.name.trim().length === 0
-    ) {
-      return undefined
-    }
+    if (!isRecord(failedGeneration)) return undefined
+    if (typeof failedGeneration.name !== 'string') return undefined
+    if (failedGeneration.name.trim().length === 0) return undefined
 
     const rawArguments = failedGeneration.arguments
     let argumentsJson: string

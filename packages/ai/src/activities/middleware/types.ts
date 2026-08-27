@@ -1,27 +1,5 @@
 import type { TokenUsage } from '../../types'
 
-// ===========================
-// Generation middleware
-// ===========================
-//
-// The base, activity-agnostic middleware contract. Every activity — chat and
-// the media activities — runs middleware that satisfies this shape. `chat()`
-// accepts the richer `ChatMiddleware` superset (it adds config/chunk/tool
-// hooks and capability primitives on top of these lifecycle hooks); media
-// activities accept `GenerationMiddleware` directly.
-//
-// The relationship is intentionally STRUCTURAL, not nominal: `ChatMiddleware`
-// does not `extends GenerationMiddleware`. Chat hooks use function-property
-// syntax, so under `strictFunctionTypes` a narrowed-context subtype would be
-// rejected; declaring it via inheritance would force method syntax and reopen
-// a bivariance hole (a chat hook reading `ctx.messages` slotted where only a
-// base context exists). Instead, the base context/info types are SUPERTYPES
-// (fewer fields) and the chat context/info types are SUBTYPES (more fields),
-// so a single value whose lifecycle hooks are authored against the base — like
-// `otelMiddleware()` — satisfies `GenerationMiddleware & ChatMiddleware` by
-// contravariance, while an arbitrary `ChatMiddleware` is NOT assignable to
-// `GenerationMiddleware`.
-
 /**
  * The activity an observability event describes.
  *
@@ -120,10 +98,6 @@ export type GenerationResultTransform<TResult = unknown, TContext = unknown> = (
   ctx: GenerationResultTransformContext<TContext>,
 ) => TResult | undefined | Promise<TResult | undefined>
 
-// ===========================
-// Hook payloads
-// ===========================
-
 /**
  * Token usage passed to {@link GenerationMiddleware.onUsage}. Kept as an
  * interface extending `TokenUsage` to preserve declaration merging for this
@@ -154,10 +128,6 @@ export interface GenerationErrorInfo {
   /** Wall-clock duration until the failure, in milliseconds. */
   duration: number
 }
-
-// ===========================
-// Middleware interface
-// ===========================
 
 /**
  * Activity-agnostic, observe-only middleware.

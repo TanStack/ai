@@ -78,10 +78,9 @@ function escapeScopeValue(value: string): string {
 const warnedMalformedIds = new Set<string>()
 const MALFORMED_WARN_CAP = 100
 function warnMalformedRow(id: string, err: unknown): void {
-  if (
-    warnedMalformedIds.has(id) ||
-    warnedMalformedIds.size >= MALFORMED_WARN_CAP
-  ) {
+  const skipWarn =
+    warnedMalformedIds.has(id) || warnedMalformedIds.size >= MALFORMED_WARN_CAP
+  if (skipWarn) {
     return
   }
   warnedMalformedIds.add(id)
@@ -92,23 +91,10 @@ function warnMalformedRow(id: string, err: unknown): void {
   )
 }
 
-/**
- * Production memory adapter backed by plain Redis (no vector index required).
- * Ranks client-side (lexical + optional cosine + recency + importance), so it's
- * suited to up to ~10k records per scope. Bring your own client (`ioredis`, or
- * node-redis wrapped with {@link fromNodeRedis}).
- *
- * Storage model:
- * ```text
- * {prefix}:record:{id}                                          -> JSON MemoryRecord
- * {prefix}:index:{tenantId or _}:{userId or _}:{threadId}       -> Set<id>
- * ```
- * Segments are escaped (so `:`, `\\`, `_` in values cannot collide). Missing
- * optional dims become `_` (omit ≠ match any — same exact-match model as the
- * built-in `sameScope` helper). No dual-read of older index layouts.
- */
+/** A Redis client implementing {@link RedisLike} (ioredis, or wrapped node-redis). */
 export function redis(options: RedisOptions): MemoryAdapter {
   const client = options.redis
+  /** Key prefix. Defaults to `'tanstack-ai:memory'`. */
   const prefix = options.prefix ?? 'tanstack-ai:memory'
 
   const scopeKey = (scope: MemoryScope): string => {

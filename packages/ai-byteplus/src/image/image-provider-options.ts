@@ -1,10 +1,3 @@
-/**
- * Provider options and request validation for Seedream image generation.
- *
- * Field names, enums, defaults and ranges come from the harvested Ark
- * OpenAPI document for the `ImageGenerations` action; the Seedream 4.0
- * behaviour noted below was confirmed live on 2026-07-31.
- */
 import { BYTEPLUS_IMAGE_MAX_REFERENCE_IMAGES } from '../model-meta'
 import type {
   BytePlusImageOutputFormat,
@@ -160,7 +153,8 @@ export function parseBytePlusImageSize(
   if (pixels) {
     const width = Number(pixels[1])
     const height = Number(pixels[2])
-    if (width > 0 && height > 0) return { kind: 'pixels', width, height }
+    const hasPositivePixels = width > 0 && height > 0
+    if (hasPositivePixels) return { kind: 'pixels', width, height }
   }
 
   return undefined
@@ -264,6 +258,7 @@ export function resolveBytePlusSequentialImages(
   numberOfImages: number | undefined,
 ): {
   sequential_image_generation?: BytePlusSequentialImageGeneration
+  /** Bounds for group-image mode. Only read when the mode is `auto`. */
   sequential_image_generation_options?: BytePlusSequentialImageGenerationOptions
 } {
   if (numberOfImages === undefined) return {}

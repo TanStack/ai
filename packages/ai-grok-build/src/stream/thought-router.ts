@@ -2,13 +2,14 @@ import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /** Harness-native tool names surfaced in Grok `thought` narration. */
-export const GROK_NATIVE_TOOL_NAMES = [
-  'run_terminal_command',
-  'get_command_or_subagent_output',
-  'tanstackStartRecipe',
-  'exposePreview',
-  'expose_preview',
-] as const
+export const /** Harness-native tool names surfaced in Grok `thought` narration. */
+  GROK_NATIVE_TOOL_NAMES = [
+    'run_terminal_command',
+    'get_command_or_subagent_output',
+    'tanstackStartRecipe',
+    'exposePreview',
+    'expose_preview',
+  ] as const
 
 type NativeToolName = (typeof GROK_NATIVE_TOOL_NAMES)[number]
 
@@ -51,24 +52,25 @@ const TOOL_ENTRY_PATTERNS: Array<{ re: RegExp; name: NativeToolName }> = [
 ]
 
 /** Distinct literals we must not split across token boundaries when flushing planning. */
-const HOLD_LITERALS = [
-  'run_terminal_command',
-  'get_command_or_subagent_output',
-  'tanstackStartRecipe',
-  'exposePreview',
-  'expose_preview',
-  'mcp__tanstack__',
-  'Use run_terminal_command',
-  'For tanstackStartRecipe',
-  'command ran',
-  'ran successfully',
-  'Still installing',
-  'running in background',
-  'npx --yes',
-  'pnpm dev',
-  'pnpm install',
-  'npm run dev',
-]
+const /** Distinct literals we must not split across token boundaries when flushing planning. */
+  HOLD_LITERALS = [
+    'run_terminal_command',
+    'get_command_or_subagent_output',
+    'tanstackStartRecipe',
+    'exposePreview',
+    'expose_preview',
+    'mcp__tanstack__',
+    'Use run_terminal_command',
+    'For tanstackStartRecipe',
+    'command ran',
+    'ran successfully',
+    'Still installing',
+    'running in background',
+    'npx --yes',
+    'pnpm dev',
+    'pnpm install',
+    'npm run dev',
+  ]
 
 export function findEarliestToolEntry(
   buffer: string,
@@ -194,7 +196,8 @@ export class GrokThoughtRouter {
   }
 
   private *closeReasoning(): Generator<AdapterYieldChunk> {
-    if (!this.reasoningOpen || this.reasoningId === null) return
+    if (!this.reasoningOpen) return
+    if (this.reasoningId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_END,
       messageId: this.reasoningId,
@@ -229,7 +232,8 @@ export class GrokThoughtRouter {
 
   private *openActiveTool(): Generator<AdapterYieldChunk> {
     const tool = this.activeTool
-    if (!tool || tool.opened) return
+    if (!tool) return
+    if (tool.opened) return
     tool.opened = true
     const input: Record<string, unknown> = {}
     if (tool.command) input.command = tool.command
@@ -322,10 +326,6 @@ export class GrokThoughtRouter {
     this.cursor = index
   }
 
-  // Returns the mode after draining ('tool' once a tool entry is reached,
-  // otherwise still 'planning'). Returned rather than read from `this.mode` at
-  // the call site so the caller sees the post-mutation value (TS can't narrow a
-  // field across the generator call).
   private *drainPlanning(): Generator<AdapterYieldChunk, 'planning' | 'tool'> {
     while (this.cursor < this.buffer.length) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
@@ -400,7 +400,9 @@ export class GrokThoughtRouter {
   }
 
   *finalize(): Generator<AdapterYieldChunk> {
-    if (this.mode === 'planning' && this.cursor < this.buffer.length) {
+    const hasUnemittedPlanning =
+      this.mode === 'planning' && this.cursor < this.buffer.length
+    if (hasUnemittedPlanning) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
       if (entry) {
         if (entry.index > this.cursor) {
@@ -414,7 +416,8 @@ export class GrokThoughtRouter {
       }
     }
 
-    if (this.mode === 'tool' && this.activeTool) {
+    const hasOpenTool = this.mode === 'tool' && this.activeTool
+    if (hasOpenTool) {
       yield* this.closeActiveTool(this.buffer.slice(this.cursor))
       this.cursor = this.buffer.length
     }

@@ -121,9 +121,6 @@ export class OpenAIImageAdapter<
       })
     }
 
-    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
-    // `T | undefined` in optional fields. Build the request incrementally and
-    // only set `size` when it's actually defined.
     const request: OpenAI_SDK.Images.ImageGenerateParams = {
       model,
       prompt,
@@ -146,9 +143,6 @@ export class OpenAIImageAdapter<
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
-          // `GeneratedImage.revisedPrompt` is declared as `revisedPrompt?: string`
-          // (no `| undefined`) so under exactOptionalPropertyTypes we must omit
-          // the field entirely when the SDK didn't return one.
           const revisedPromptField =
             item.revised_prompt !== undefined
               ? { revisedPrompt: item.revised_prompt }
@@ -248,10 +242,6 @@ export class OpenAIImageAdapter<
       ? await imagePartToFile(maskParts[0], 'mask', this.allowUrlFetch)
       : undefined
 
-    // `modelOptions` is typed across all four image models (including dall-e-3's
-    // `quality: 'hd' | 'standard'` which isn't valid for edit). dall-e-3 has
-    // already been rejected above, so any remaining quality value is valid for
-    // the edit endpoint — cast the spread to clear the union mismatch.
     const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
       model,
       prompt,

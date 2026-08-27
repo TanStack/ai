@@ -89,9 +89,6 @@ export class OpenAIVideoAdapter<
   protected clientConfig: OpenAIVideoConfig
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
-    // `VideoAdapterConfig` declares its optional fields without `| undefined`,
-    // which collides with `OpenAIClientConfig` fields like `timeout?: number | undefined`.
-    // We hold our own typed copy on `clientConfig` and pass an empty object up.
     super({}, model)
     this.clientConfig = config
     const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
@@ -109,22 +106,7 @@ export class OpenAIVideoAdapter<
     validateVideoSeconds(model, seconds)
 
     const resolved = resolveMediaPrompt(options.prompt)
-
-    if (resolved.videos.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not support video prompt parts (model: ${model}).`,
-      )
-    }
-    if (resolved.audios.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}).`,
-      )
-    }
-    if (resolved.images.length > 1) {
-      throw new Error(
-        `${this.name}: Sora accepts at most one input_reference image; received ${resolved.images.length}.`,
-      )
-    }
+    this.assertSoraPromptParts(model, resolved)
 
     const request: OpenAI_SDK.Videos.VideoCreateParams = {
       model,
@@ -167,13 +149,36 @@ export class OpenAIVideoAdapter<
         error: toRunErrorPayload(error, `${this.name}.createVideoJob failed`),
         source: `${this.name}.createVideoJob`,
       })
-      if (error?.message?.includes('videos') || error?.code === 'invalid_api') {
+      const isVideoApiUnavailable =
+        error?.message?.includes('videos') || error?.code === 'invalid_api'
+      if (isVideoApiUnavailable) {
         throw new Error(
           `Video generation API is not available. The API may require special access. ` +
             `Original error: ${error.message}`,
         )
       }
       throw error
+    }
+  }
+
+  private assertSoraPromptParts(
+    model: string,
+    resolved: ReturnType<typeof resolveMediaPrompt>,
+  ): void {
+    if (resolved.videos.length > 0) {
+      throw new Error(
+        `${this.name}.createVideoJob does not support video prompt parts (model: ${model}).`,
+      )
+    }
+    if (resolved.audios.length > 0) {
+      throw new Error(
+        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}).`,
+      )
+    }
+    if (resolved.images.length > 1) {
+      throw new Error(
+        `${this.name}: Sora accepts at most one input_reference image; received ${resolved.images.length}.`,
+      )
     }
   }
 
@@ -204,9 +209,6 @@ export class OpenAIVideoAdapter<
     try {
       const videosClient = this.getVideosClient()
       const response = await videosClient.retrieve(jobId)
-      // `VideoStatusResult` declares optional fields without `| undefined`;
-      // spread conditionally so we omit absent fields rather than assigning
-      // `undefined`.
       return {
         jobId,
         status: this.mapStatus(response.status),
@@ -227,9 +229,6 @@ export class OpenAIVideoAdapter<
     try {
       const videosClient = this.getVideosClient()
 
-      // Prefer retrieve() because many openai-compatible backends (and the
-      // aimock test harness) return the URL directly on the video resource
-      // and do not implement a separate /content endpoint.
       const videoInfo = await videosClient.retrieve(jobId)
       if (videoInfo.url) {
         // `VideoUrlResult.expiresAt` is `expiresAt?: Date` without `| undefined`;
@@ -243,96 +242,18 @@ export class OpenAIVideoAdapter<
         }
       }
 
-      // SDK download fall-through: try the various possible method names.
       if (typeof videosClient.downloadContent === 'function') {
-        const contentResponse = await videosClient.downloadContent(jobId)
-        const videoBlob = await contentResponse.blob()
-        const buffer = await videoBlob.arrayBuffer()
-        warnIfLargeMediaBuffer(buffer.byteLength, 'video.downloadContent')
-        const base64 = arrayBufferToBase64(buffer)
-        const mimeType =
-          contentResponse.headers.get('content-type') || 'video/mp4'
-        // Omit `expiresAt` to satisfy exactOptionalPropertyTypes; data URLs do
-        // not have a vendor-provided expiry.
-        return {
+        return await videoUrlFromDownloadContent(
           jobId,
-          url: `data:${mimeType};base64,${base64}`,
-        }
-      }
-
-      let response: any
-      if (typeof videosClient.content === 'function') {
-        response = await videosClient.content(jobId)
-      } else if (typeof videosClient.getContent === 'function') {
-        response = await videosClient.getContent(jobId)
-      } else if (typeof videosClient.download === 'function') {
-        response = await videosClient.download(jobId)
-      } else {
-        // Last resort: raw fetch with auth header.
-        const baseUrl = this.clientConfig.baseURL || 'https://api.openai.com/v1'
-        const apiKey = this.clientConfig.apiKey
-
-        const contentResponse = await fetch(
-          `${baseUrl}/videos/${jobId}/content`,
-          { method: 'GET', headers: { Authorization: `Bearer ${apiKey}` } },
-        )
-
-        if (!contentResponse.ok) {
-          const contentType = contentResponse.headers.get('content-type')
-          if (contentType?.includes('application/json')) {
-            const errorData = await contentResponse.json().catch(() => ({}))
-            throw new Error(
-              errorData.error?.message ||
-                `Failed to get video content: ${contentResponse.status}`,
-            )
-          }
-          throw new Error(
-            `Failed to get video content: ${contentResponse.status}`,
-          )
-        }
-
-        const videoBlob = await contentResponse.blob()
-        const buffer = await videoBlob.arrayBuffer()
-        warnIfLargeMediaBuffer(buffer.byteLength, 'video.fetch')
-        const base64 = arrayBufferToBase64(buffer)
-        const mimeType =
-          contentResponse.headers.get('content-type') || 'video/mp4'
-        return {
-          jobId,
-          url: `data:${mimeType};base64,${base64}`,
-        }
-      }
-
-      // The fall-through SDK methods produce a Blob-ish or fetch-`Response`-ish
-      // object. Read as bytes + wrap in a data URL so callers see a playable
-      // URL instead of an endpoint URL.
-      const fallthroughBlob =
-        typeof response?.blob === 'function'
-          ? await response.blob()
-          : response instanceof Blob
-            ? response
-            : null
-      if (!fallthroughBlob) {
-        throw new Error(
-          `Video content download via SDK fall-through returned an unexpected shape (no blob()).`,
+          videosClient.downloadContent,
         )
       }
-      const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
-      warnIfLargeMediaBuffer(
-        fallthroughBuffer.byteLength,
-        'video.sdkFallthrough',
-      )
-      const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
-      const fallthroughMime =
-        (typeof response?.headers?.get === 'function'
-          ? response.headers.get('content-type')
-          : undefined) ||
-        fallthroughBlob.type ||
-        'video/mp4'
-      return {
-        jobId,
-        url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
+
+      const sdkContent = await this.fetchVideoContentViaSdk(jobId, videosClient)
+      if (sdkContent) {
+        return await videoUrlFromSdkFallthrough(jobId, sdkContent)
       }
+      return await videoUrlFromRawFetch(jobId, this.clientConfig)
     } catch (error: any) {
       if (error.status === 404) {
         throw new Error(`Video job not found: ${jobId}`)
@@ -366,6 +287,102 @@ export class OpenAIVideoAdapter<
       default:
         return 'processing'
     }
+  }
+
+  private async fetchVideoContentViaSdk(
+    jobId: string,
+    videosClient: ReturnType<OpenAIVideoAdapter<TModel>['getVideosClient']>,
+  ): Promise<unknown | undefined> {
+    if (typeof videosClient.content === 'function') {
+      return await videosClient.content(jobId)
+    }
+    if (typeof videosClient.getContent === 'function') {
+      return await videosClient.getContent(jobId)
+    }
+    if (typeof videosClient.download === 'function') {
+      return await videosClient.download(jobId)
+    }
+    return undefined
+  }
+}
+
+async function videoUrlFromDownloadContent(
+  jobId: string,
+  downloadContent: (id: string) => Promise<Response>,
+): Promise<VideoUrlResult> {
+  const contentResponse = await downloadContent(jobId)
+  const videoBlob = await contentResponse.blob()
+  const buffer = await videoBlob.arrayBuffer()
+  warnIfLargeMediaBuffer(buffer.byteLength, 'video.downloadContent')
+  const base64 = arrayBufferToBase64(buffer)
+  const mimeType = contentResponse.headers.get('content-type') || 'video/mp4'
+  return {
+    jobId,
+    url: `data:${mimeType};base64,${base64}`,
+  }
+}
+
+async function videoUrlFromRawFetch(
+  jobId: string,
+  clientConfig: OpenAIVideoConfig,
+): Promise<VideoUrlResult> {
+  const baseUrl = clientConfig.baseURL || 'https://api.openai.com/v1'
+  const apiKey = clientConfig.apiKey
+  const contentResponse = await fetch(`${baseUrl}/videos/${jobId}/content`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+
+  if (!contentResponse.ok) {
+    const contentType = contentResponse.headers.get('content-type')
+    if (contentType?.includes('application/json')) {
+      const errorData = await contentResponse.json().catch(() => ({}))
+      throw new Error(
+        errorData.error?.message ||
+          `Failed to get video content: ${contentResponse.status}`,
+      )
+    }
+    throw new Error(`Failed to get video content: ${contentResponse.status}`)
+  }
+
+  const videoBlob = await contentResponse.blob()
+  const buffer = await videoBlob.arrayBuffer()
+  warnIfLargeMediaBuffer(buffer.byteLength, 'video.fetch')
+  const base64 = arrayBufferToBase64(buffer)
+  const mimeType = contentResponse.headers.get('content-type') || 'video/mp4'
+  return {
+    jobId,
+    url: `data:${mimeType};base64,${base64}`,
+  }
+}
+
+async function videoUrlFromSdkFallthrough(
+  jobId: string,
+  response: any,
+): Promise<VideoUrlResult> {
+  const fallthroughBlob =
+    typeof response?.blob === 'function'
+      ? await response.blob()
+      : response instanceof Blob
+        ? response
+        : null
+  if (!fallthroughBlob) {
+    throw new Error(
+      `Video content download via SDK fall-through returned an unexpected shape (no blob()).`,
+    )
+  }
+  const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
+  warnIfLargeMediaBuffer(fallthroughBuffer.byteLength, 'video.sdkFallthrough')
+  const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
+  const fallthroughMime =
+    (typeof response?.headers?.get === 'function'
+      ? response.headers.get('content-type')
+      : undefined) ||
+    fallthroughBlob.type ||
+    'video/mp4'
+  return {
+    jobId,
+    url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
   }
 }
 

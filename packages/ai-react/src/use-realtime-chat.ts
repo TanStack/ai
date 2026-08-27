@@ -81,10 +81,6 @@ export function useRealtimeChat(
   // Create client instance - use ref to ensure we reuse the same instance
   // This handles React StrictMode double-rendering
   if (!clientRef.current) {
-    // Each optional source field is spread conditionally because the
-    // `RealtimeClientOptions` target declares strict optionals
-    // (`field?: T`) and `exactOptionalPropertyTypes` rejects passing
-    // `undefined` for absent values.
     const initial = optionsRef.current
     clientRef.current = new RealtimeClient({
       getToken: initial.getToken,

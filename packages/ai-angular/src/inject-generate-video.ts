@@ -100,9 +100,6 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
   runId: Signal<string | null>
 }
 
-// `TTransformed` infers from the `onResult` return position so the callback
-// parameter is typed as `VideoGenerateResult` and `result` narrows to the
-// transform's return. See issue #848.
 export function injectGenerateVideo<TTransformed = void>(
   options: Omit<
     InjectGenerateVideoOptions,
@@ -160,9 +157,6 @@ export function injectGenerateVideo<TTransformed = void>(
       hookName: 'injectGenerateVideo',
       outputKind: 'video' as const,
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
       result: VideoGenerateResult,
     ) => TOutput | null | void,

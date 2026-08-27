@@ -16,7 +16,11 @@ import type {
  * @experimental Video generation is an experimental feature and may change.
  */
 export type DurationOptions<T extends string | number | undefined> =
-  | { kind: 'discrete'; values: ReadonlyArray<NonNullable<T>> }
+  | {
+      /** Discriminator for adapter kind - used to determine API shape */
+      kind: 'discrete'
+      values: ReadonlyArray<NonNullable<T>>
+    }
   | { kind: 'range'; min: number; max: number; step?: number; unit: 'seconds' }
   | {
       kind: 'mixed'
@@ -160,7 +164,9 @@ export abstract class BaseVideoAdapter<
   TModelDurationByName
 > {
   readonly kind = 'video' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime
@@ -191,18 +197,10 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
 
-  /**
-   * Default implementation returns `{ kind: 'none' }`. Adapters that have
-   * declared their per-model duration map should override this.
-   */
   availableDurations(): DurationOptions<TModelDurationByName[TModel]> {
     return { kind: 'none' }
   }
 
-  /**
-   * Default implementation returns `undefined`. Adapters that have declared
-   * their per-model duration map should override.
-   */
   snapDuration(_seconds: number): TModelDurationByName[TModel] | undefined {
     return undefined
   }

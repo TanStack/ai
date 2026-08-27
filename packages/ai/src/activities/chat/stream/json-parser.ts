@@ -1,9 +1,3 @@
-/**
- * JSON Parser for partial/incomplete JSON strings
- *
- * Used during streaming to parse tool call arguments that may be incomplete.
- */
-
 import { parse as parsePartialJSONLib } from 'partial-json'
 
 /**
@@ -23,13 +17,9 @@ export interface JSONParser {
  * This parser can handle incomplete JSON strings during streaming
  */
 export class PartialJSONParser implements JSONParser {
-  /**
-   * Parse a potentially incomplete JSON string
-   * @param jsonString - The JSON string to parse (may be incomplete)
-   * @returns The parsed object, or undefined if parsing fails
-   */
   parse(jsonString: string): any {
-    if (!jsonString || jsonString.trim() === '') {
+    const isBlank = !jsonString || jsonString.trim() === ''
+    if (isBlank) {
       return undefined
     }
 

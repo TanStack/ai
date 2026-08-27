@@ -154,9 +154,6 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * }
  * ```
  */
-// `TTransformed` infers from the `onResult` return position so the callback
-// parameter is typed as `VideoGenerateResult` and `result` narrows to the
-// transform's return. See issue #848.
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
@@ -190,11 +187,6 @@ export function useGenerateVideo<TTransformed = void>(
   const client = useMemo(() => {
     const opts = optionsRef.current
 
-    // Conditional spread for `body` (strict-optional in target).
-    // Optional callbacks are wrapped in non-returning bodies so
-    // `?.()`'s implicit `undefined` doesn't widen the function
-    // return type (which `exactOptionalPropertyTypes` rejects
-    // against the strict-optional target).
     const baseOptions: Omit<
       VideoGenerationClientOptions<TOutput>,
       'persistence' | 'threadId'
@@ -213,9 +205,6 @@ export function useGenerateVideo<TTransformed = void>(
         hookName: 'useGenerateVideo',
         outputKind: 'video' as const,
       },
-      // The transform's raw return type (`TTransformed`) and the stored output
-      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-      // the cast bridges the relationship that the conditional type hides.
       onResult: ((r: VideoGenerateResult) =>
         optionsRef.current.onResult?.(r)) as (
         result: VideoGenerateResult,
@@ -297,9 +286,6 @@ export function useGenerateVideo<TTransformed = void>(
     })
   }, [client, options.body])
 
-  // Mount devtools and clean up on unmount. Generation runs are never
-  // auto-started on mount — persisted state is only displayed. Mounting
-  // revives the client after a StrictMode dispose → remount replay.
   useEffect(() => {
     disposedRef.current = false
     client.mountDevtools()
@@ -310,6 +296,7 @@ export function useGenerateVideo<TTransformed = void>(
     }
   }, [client])
 
+  /** Trigger video generation */
   const generate = useCallback(
     async (input: VideoGenerateInput) => {
       await client.generate(input)
@@ -317,10 +304,12 @@ export function useGenerateVideo<TTransformed = void>(
     [client],
   )
 
+  /** Abort the current generation/polling */
   const stop = useCallback(() => {
     client.stop()
   }, [client])
 
+  /** Clear all state and return to idle */
   const reset = useCallback(() => {
     client.reset()
   }, [client])

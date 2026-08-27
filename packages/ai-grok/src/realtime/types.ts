@@ -54,14 +54,6 @@ export interface GrokRealtimeTokenOptions {
 export interface GrokRealtimeOptions {
   /** Connection mode (default: 'webrtc' in browser). */
   connectionMode?: 'webrtc' | 'websocket'
-  /**
-   * Enable debug logging for this adapter.
-   *
-   * - `true`: log all categories via the default `ConsoleLogger`
-   * - `false`: silence everything including errors
-   * - `DebugConfig`: per-category toggles plus an optional custom `logger`
-   * - omitted: only the `errors` category is active (default behaviour)
-   */
   debug?: DebugOption
 }
 
@@ -73,6 +65,7 @@ export interface GrokRealtimeOptions {
 export interface GrokRealtimeSessionResponse {
   id: string
   object: string
+  /** Model to use (default: 'grok-voice-think-fast-2.0'). */
   model: string
   modalities: Array<string>
   instructions: string
@@ -87,6 +80,7 @@ export interface GrokRealtimeSessionResponse {
     threshold?: number
     prefix_padding_ms?: number
     silence_duration_ms?: number
+    /** Eagerness level for turn detection */
     eagerness?: string
   } | null
   tools: Array<{

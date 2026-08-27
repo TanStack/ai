@@ -1,24 +1,4 @@
-/**
- * Public contract for the TanStack AI memory subsystem.
- *
- * A memory backend implements ONE contract with two verbs: {@link MemoryAdapter.recall}
- * and {@link MemoryAdapter.save}. This is deliberately the shape every real memory
- * provider (mem0, honcho, hindsight, …) already exposes — "what's relevant for this
- * query?" and "remember this turn". The middleware ({@link memoryMiddleware}) is thin:
- * it calls `recall` before the model runs and defers `save` after the turn finishes.
- *
- * Adapters own everything else. Extraction (turning a turn into stored facts),
- * ranking, rendering into a prompt, scope isolation, and expiry are all the
- * adapter's responsibility — the middleware never inspects records. The built-in
- * `inMemory()` / `redis()` adapters keep their store/scoring internals private
- * behind `recall`/`save`; vendor adapters map these two verbs onto their APIs.
- */
-
 import type { Scope, Tool } from '@tanstack/ai'
-
-// ===========================
-// Scope & turn primitives
-// ===========================
 
 /**
  * Isolation scope for memory reads and writes. Alias of the shared {@link Scope}
@@ -39,10 +19,6 @@ export interface MemoryTurn {
   user: string
   assistant: string
 }
-
-// ===========================
-// Recall
-// ===========================
 
 /** A discrete recalled item, when the adapter produces them. */
 export interface MemoryFragment {
@@ -83,10 +59,6 @@ export interface RecallResult {
   raw?: unknown
 }
 
-// ===========================
-// Save
-// ===========================
-
 /**
  * Receipt for a single underlying write performed by {@link MemoryAdapter.save}.
  * One turn can produce several receipts (e.g. hindsight writes the user and
@@ -102,10 +74,6 @@ export interface SaveReceipt {
   raw?: unknown
 }
 
-// ===========================
-// Optional introspection (devtools / admin panels)
-// ===========================
-
 /** Full snapshot returned by the optional {@link MemoryAdapter.inspect}. */
 export interface MemorySnapshot {
   /** ISO timestamp when the snapshot was taken. */
@@ -116,16 +84,15 @@ export interface MemorySnapshot {
 
 /** A flat fact row returned by the optional {@link MemoryAdapter.listFacts}. */
 export interface MemoryFact {
+  /** Stable id used in logs, devtools, and event payloads (e.g. 'in-memory', 'hindsight'). */
   id: string
+  /** The recalled text. */
   text: string
+  /** Provenance hint (record id, vendor result type, etc.). */
   source?: string
   /** ISO timestamp, when the adapter tracks creation time. */
   createdAt?: string
 }
-
-// ===========================
-// Adapter contract
-// ===========================
 
 /**
  * The single memory adapter contract. All backends — the built-in `inMemory()`

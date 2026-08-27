@@ -1,10 +1,3 @@
-/**
- * Transcription Activity
- *
- * Transcribes audio to text using speech-to-text models.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
@@ -33,16 +26,9 @@ import type {
   TranscriptionResult,
 } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
-export const kind = 'transcription' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
+export const /** The adapter kind this activity handles */
+  kind = 'transcription' as const
 
 /**
  * Extract provider options from a TranscriptionAdapter via ~types.
@@ -52,10 +38,6 @@ export type TranscriptionProviderOptions<TAdapter> = TAdapter extends {
 }
   ? P
   : object
-
-// ===========================
-// Activity Options Type
-// ===========================
 
 /**
  * Options for the transcription activity.
@@ -121,10 +103,6 @@ export interface TranscriptionActivityOptions<
   abortSignal?: AbortSignal
 }
 
-// ===========================
-// Activity Result Type
-// ===========================
-
 /**
  * Result type for the transcription activity.
  * - If stream is true: AsyncIterable<StreamChunk>
@@ -138,10 +116,6 @@ export type TranscriptionActivityResult<TStream extends boolean = false> =
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
-
-// ===========================
-// Activity Implementation
-// ===========================
 
 /**
  * Transcription activity - converts audio to text.
@@ -197,11 +171,6 @@ export function generateTranscription<
 ): TranscriptionActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      // Only `runId` is taken from the resolved wire identity. `threadId` stays
-      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
-      // when none was passed, and spreading that over the options would hand
-      // middleware a thread id known to nobody, which persistence would then
-      // file the run under. Matches `generateVideo`.
       (resolved) =>
         runGenerateTranscription({ ...options, runId: resolved.runId }),
       options,
@@ -351,10 +320,6 @@ async function runGenerateTranscription<
     throw error
   }
 }
-
-// ===========================
-// Options Factory
-// ===========================
 
 /**
  * Create typed options for the generateTranscription() function without executing.

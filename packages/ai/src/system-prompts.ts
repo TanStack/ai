@@ -68,19 +68,12 @@ export interface NormalizedSystemPrompt<TMetadata = unknown> {
  * `"undefined"` into the model's system prompt with no signal.
  */
 export function normalizeSystemPrompts<TMetadata = unknown>(
-  // Accept the wide public shape (`SystemPrompt<unknown>`) regardless of the
-  // caller's `TMetadata`. Adapters know their own metadata shape; the
-  // generic narrows the *output* so adapter code can read `p.metadata.X`
-  // without an additional cast.
   prompts: ReadonlyArray<SystemPrompt> | undefined,
 ): Array<NormalizedSystemPrompt<TMetadata>> {
-  if (!prompts || prompts.length === 0) return []
+  if (!prompts) return []
+  if (prompts.length === 0) return []
   return prompts.map((p, i) => {
     if (typeof p === 'string') return { content: p }
-    // Defence in depth: TypeScript narrows `p` to the object arm here, but
-    // this function is a public API boundary that callers can reach via
-    // plain JS or `as any`. Re-validate at runtime so we never stream a
-    // literal `"undefined"` into the model.
     const candidate = p as unknown
     if (candidate === null || typeof candidate !== 'object') {
       throw new TypeError(

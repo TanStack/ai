@@ -35,7 +35,10 @@ function build<TModel extends LovableModelId>(
   model: TModel,
   config: LovableClientConfig & { api?: LovableTextApi },
 ): AnyLovableTextAdapter<TModel> {
-  if (config.api === 'chat' || config.api === 'chat-completions') {
+  if (config.api === 'chat') {
+    return new LovableTextAdapter(stripApi(config), model)
+  }
+  if (config.api === 'chat-completions') {
     return new LovableTextAdapter(stripApi(config), model)
   }
   return new LovableResponsesTextAdapter(stripApi(config), model)

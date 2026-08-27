@@ -1,11 +1,8 @@
 /**
- * Shared types between the Cloudflare Worker and the driver
- */
-
-/**
  * Tool schema passed to the worker
  */
 export interface ToolSchema {
+  /** Name of the tool to call */
   name: string
   description: string
   inputSchema: Record<string, unknown>
@@ -55,8 +52,11 @@ export interface ToolResultPayload {
 export type ExecuteResponse =
   | {
       status: 'done'
+      /** Whether the tool call succeeded */
       success: boolean
+      /** The result value if successful */
       value?: unknown
+      /** Error message if failed */
       error?:
         | {
             name: string

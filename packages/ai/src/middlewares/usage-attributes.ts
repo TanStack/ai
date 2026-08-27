@@ -30,9 +30,6 @@ export function usageAttributes(
     'gen_ai.usage.input_tokens': usage.promptTokens,
     'gen_ai.usage.output_tokens': usage.completionTokens,
   }
-  // The self-describing billed quantity: the unit rides along as a string
-  // attribute so backends can label/aggregate non-token usage without
-  // out-of-band knowledge of the provider.
   if (usage.billed !== undefined) {
     const quantity = firstNumber(usage.billed.quantity)
     if (quantity !== undefined) {

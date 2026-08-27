@@ -43,14 +43,14 @@ export function convertWebSearchToolToAdapterFormat(
         parameters?: OpenRouterWebSearchServerTool['parameters']
       }
     | undefined
-  if (!metadata || metadata.__kind !== WEB_SEARCH_TOOL_KIND) {
+  if (metadata?.__kind !== WEB_SEARCH_TOOL_KIND) {
     throw new Error(
       `convertWebSearchToolToAdapterFormat: tool "${tool.name}" is not a valid webSearchTool() output (missing branded metadata).`,
     )
   }
   return {
     type: 'openrouter:web_search',
-    ...(metadata.parameters !== undefined && {
+    ...(metadata?.parameters !== undefined && {
       parameters: metadata.parameters,
     }),
   }

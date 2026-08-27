@@ -1,11 +1,3 @@
-/**
- * Type-safe secret references for sandbox workspace definitions.
- *
- * Values are stored in a Map under a non-enumerable symbol key on the returned
- * object so that `Object.keys(secrets)` only yields the ref names, never the
- * registry or the underlying plaintext values.
- */
-
 /** A reference to a named secret — carries only the name, never the value. */
 export type SecretRef = { readonly __secretName: string }
 
@@ -18,7 +10,8 @@ export type Secrets<TKeys extends string = string> = {
 }
 
 /** Internal symbol used to store the value registry on a Secrets object. */
-const REGISTRY = Symbol('secrets.registry')
+const /** Internal symbol used to store the value registry on a Secrets object. */
+  REGISTRY = Symbol('secrets.registry')
 
 /** Create a typed secrets object from a plain record of name→value pairs. */
 export function createSecrets<T extends Record<string, string>>(
@@ -27,7 +20,8 @@ export function createSecrets<T extends Record<string, string>>(
   const registry = new Map<string, string>(Object.entries(values))
   const obj = {} as Record<string, SecretRef>
 
-  for (const name of Object.keys(values)) {
+  const secretNames = Object.keys(values)
+  for (const name of secretNames) {
     obj[name] = Object.freeze({ __secretName: name })
   }
 
@@ -94,7 +88,8 @@ export function resolveAllSecrets(secrets: Secrets): Record<string, string> {
     )
   }
   const result: Record<string, string> = {}
-  for (const [key, value] of registry.entries()) {
+  const secretEntries = registry.entries()
+  for (const [key, value] of secretEntries) {
     result[key] = value
   }
   return result

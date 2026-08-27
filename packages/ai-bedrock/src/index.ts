@@ -1,12 +1,3 @@
-/**
- * @module @tanstack/ai-bedrock
- *
- * Amazon Bedrock adapter for TanStack AI via Bedrock's OpenAI-compatible APIs
- * and the native Converse API.  The public `bedrockText` / `createBedrockText`
- * factory branches between the Converse adapter (DEFAULT), the Chat Completions
- * adapter (`api: 'chat'`), and the Responses adapter (`api: 'responses'`).
- */
-
 import { BedrockTextAdapter } from './adapters/text'
 import { BedrockResponsesTextAdapter } from './adapters/responses-text'
 import { BedrockConverseTextAdapter } from './adapters/converse-text'

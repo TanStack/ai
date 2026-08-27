@@ -1,28 +1,4 @@
 /**
- * The one-way channel from a chat run to the durable DELIVERY sink that is
- * persisting it.
- *
- * The sink (`durableStreamSource` in `./stream-to-response.ts`) has to answer one
- * question on the abort path: was this disconnect a DETACH — the agent keeps
- * running and a later attach will continue the log — or the end of the run? Only
- * the run's own middleware can answer it (`withSandbox`'s `onAbort` resolves both
- * out-of-band cancel bands and `detachOnDisconnect`), and the sink cannot reach
- * the middleware capability bus: it lives one layer up, in the transport, and is
- * handed nothing but the stream and a durability adapter.
- *
- * So the fact travels on the STREAM ITSELF, keyed by the exact object `chat()`
- * returned. That is the seam an application cannot forget to wire: passing the
- * stream to `toServerSentEventsResponse(stream, { durability })` is already
- * mandatory, and it is the same object both sides hold. The alternative — a
- * `detachable` flag on the response options — has to be re-wired correctly at
- * every durable call site, and a forgotten one silently terminalizes a healthy
- * detached run's log, which is the exact defect this channel exists to fix.
- *
- * The value is a THUNK, not a boolean: the verdict is only known during the run's
- * teardown, long after the response object was built.
- */
-
-/**
  * Per-stream detach predicates. Keyed weakly by the stream object, so a stream
  * that is dropped without ever being consumed takes its entry with it.
  */

@@ -57,10 +57,6 @@ export class OpenAIEmbeddingAdapter<
     const texts = requireTextOnlyEmbeddingInput(options.input, this.name, model)
 
     try {
-      // Spread modelOptions first so it can never override the validated
-      // fields (server routes often pass modelOptions through from untyped
-      // client input). encoding_format is pinned to float so vectors are
-      // always number[].
       const request: OpenAI_SDK.EmbeddingCreateParams = {
         ...modelOptions,
         model,

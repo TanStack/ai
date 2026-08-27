@@ -17,7 +17,7 @@ import type {
  *
  * @public
  */
-export declare const toolApprovalCapability: unique symbol
+declare const toolApprovalCapability: unique symbol
 
 export interface ToolApprovalCapabilityMarker<
   TNeedsApproval extends boolean,
@@ -109,20 +109,12 @@ export interface ClientTool<
   TOutput extends SchemaInput | undefined = undefined,
   TName extends string = string,
   TContext = unknown,
-  // Captured as a literal (`true` / `false`) so downstream types — notably
-  // the tool-call part's `approval` field — can be gated on it. Defaults to
-  // `false` when the tool config omits `needsApproval`.
   TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
 > extends ToolApprovalCapabilityMarker<TNeedsApproval, TApprovalSchema> {
   __toolSide: 'client'
   name: TName
   description: string
-  // Note: `inputSchema` / `outputSchema` stay as bare optionals (not
-  // widened to `| undefined`). They participate in inference via
-  // `InferToolInput` / `InferToolOutput` — widening with `| undefined`
-  // breaks the `infer TInput extends StandardJSONSchemaV1<...>` chain
-  // because `undefined` doesn't extend the schema constraint.
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: TNeedsApproval
@@ -332,9 +324,6 @@ export function toolDefinition<
   TInput extends SchemaInput | undefined = undefined,
   TOutput extends SchemaInput | undefined = undefined,
   TName extends string = string,
-  // `const` forces the literal (`true` / `false`) to be captured from the
-  // config's optional `needsApproval` — without it TS widens to `boolean`,
-  // which collapses the approval gate in `ToolCallPartForTool`.
   const TNeedsApproval extends boolean = false,
   TApprovalSchema extends ApprovalSchemaConfig | undefined = undefined,
 >(
@@ -346,7 +335,9 @@ export function toolDefinition<
     TApprovalSchema
   >,
 ): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> {
-  if (config.approvalSchema !== undefined && config.needsApproval !== true) {
+  const isOrphanApprovalSchema =
+    config.approvalSchema !== undefined && config.needsApproval !== true
+  if (isOrphanApprovalSchema) {
     throw new TypeError('approvalSchema requires needsApproval: true.')
   }
   const inputSchema = config.inputSchema as TInput

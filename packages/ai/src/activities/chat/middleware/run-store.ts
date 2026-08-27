@@ -1,13 +1,3 @@
-/**
- * Run lifecycle types — the neutral home for what a "run" is.
- *
- * Shared by `@tanstack/ai-persistence` (which exposes a `runs` store through
- * `withPersistence`) and `@tanstack/ai-sandbox` (whose run driver records run
- * status). Living in core is what lets one `RunRecord` per run be shared by
- * both, instead of each package keeping its own and disagreeing. Same rationale
- * as `LockStore` (`packages/ai/src/locks.ts`), which is likewise a
- * coordination primitive that core owns so that no consumer package has to.
- */
 import { createCapability } from './capabilities'
 import type { TokenUsage } from '../../../types'
 
@@ -36,9 +26,6 @@ export type TerminalRunStatus = 'completed' | 'failed' | 'aborted'
  */
 export type RunStatus = 'running' | 'interrupted' | TerminalRunStatus
 
-// A Record keyed by the union is exhaustiveness-checked: adding a member to
-// TerminalRunStatus is a compile error here until this map is updated. A
-// `Set<RunStatus>` would silently answer `false` for the new member instead.
 const TERMINAL: Record<TerminalRunStatus, true> = {
   completed: true,
   failed: true,
@@ -376,6 +363,7 @@ export class InMemoryRunStore implements RunStore {
     return Promise.resolve()
   }
 
+  /** Current record, or null when unknown. */
   get(runId: string): Promise<RunRecord | null> {
     return Promise.resolve(this.runs.get(runId) ?? null)
   }
@@ -403,9 +391,13 @@ export class InMemoryRunStore implements RunStore {
 
   findActiveRun(threadId: string): Promise<RunRecord | null> {
     let active: RunRecord | null = null
-    for (const run of this.runs.values()) {
-      if (run.threadId !== threadId || run.status !== 'running') continue
-      if (active === null || run.startedAt > active.startedAt) active = run
+    const runs = this.runs.values()
+    for (const run of runs) {
+      const isInactiveRun =
+        run.threadId !== threadId || run.status !== 'running'
+      if (isInactiveRun) continue
+      const isNewerRun = active === null || run.startedAt > active.startedAt
+      if (isNewerRun) active = run
     }
     return Promise.resolve(active)
   }

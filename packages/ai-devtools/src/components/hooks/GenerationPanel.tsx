@@ -327,7 +327,8 @@ const GenerationOutputTile: Component<{
       }`}
       onClick={props.onOpen}
       onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        const isActivateKey = event.key === 'Enter' || event.key === ' '
+        if (isActivateKey) {
           event.preventDefault()
           props.onOpen()
         }
@@ -579,7 +580,10 @@ function runSortTime(run: GenerationRunView): number {
 }
 
 function runFromUnknown(value: unknown): GenerationRunView | undefined {
-  if (!isRecord(value) || typeof value.id !== 'string') {
+  if (!isRecord(value)) {
+    return undefined
+  }
+  if (typeof value.id !== 'string') {
     return undefined
   }
 
@@ -639,67 +643,64 @@ function outputsFromRun(
   run: GenerationRunView,
   runLabelValue: string,
 ): Array<GenerationOutputView> {
-  if (run.preview.kind === 'image' || run.preview.kind === 'audio') {
-    const kind = run.preview.kind
-    const items = run.preview.items
-
-    return items.map((item, index) => ({
-      id: `${run.id}:${kind}:${index}`,
-      runId: run.id,
-      runLabel: runLabelValue,
-      title: `${titleCase(kind)} ${index + 1}`,
-      kind,
-      item,
-      ...completedAtPatch(run),
-    }))
-  }
-
-  if (run.preview.kind === 'video') {
-    const preview = run.preview
-    const items = preview.items
-    const job = preview.job
-
-    return items.map((item, index) => ({
-      id: `${run.id}:video:${index}`,
-      runId: run.id,
-      runLabel: runLabelValue,
-      title: `Video ${index + 1}`,
-      kind: 'video',
-      item,
-      ...(job ? { job } : {}),
-      ...completedAtPatch(run),
-    }))
-  }
-
-  if (run.preview.kind === 'text' && run.preview.text.trim().length > 0) {
-    return [
-      {
-        id: `${run.id}:text`,
+  const preview = run.preview
+  switch (preview.kind) {
+    case 'image':
+    case 'audio': {
+      const kind = preview.kind
+      return preview.items.map((item, index) => ({
+        id: `${run.id}:${kind}:${index}`,
         runId: run.id,
         runLabel: runLabelValue,
-        title: 'Text',
-        kind: 'text',
-        text: run.preview.text,
+        title: `${titleCase(kind)} ${index + 1}`,
+        kind,
+        item,
         ...completedAtPatch(run),
-      },
-    ]
-  }
-
-  if (run.preview.kind === 'structured') {
-    return [
-      {
-        id: `${run.id}:structured`,
+      }))
+    }
+    case 'video': {
+      const job = preview.job
+      return preview.items.map((item, index) => ({
+        id: `${run.id}:video:${index}`,
         runId: run.id,
         runLabel: runLabelValue,
-        title: 'Structured',
-        kind: 'structured',
-        value: run.preview.value,
+        title: `Video ${index + 1}`,
+        kind: 'video',
+        item,
+        ...(job ? { job } : {}),
         ...completedAtPatch(run),
-      },
-    ]
+      }))
+    }
+    case 'text': {
+      const hasText = preview.text.trim().length > 0
+      if (!hasText) return []
+      return [
+        {
+          id: `${run.id}:text`,
+          runId: run.id,
+          runLabel: runLabelValue,
+          title: 'Text',
+          kind: 'text',
+          text: preview.text,
+          ...completedAtPatch(run),
+        },
+      ]
+    }
+    case 'structured':
+      return [
+        {
+          id: `${run.id}:structured`,
+          runId: run.id,
+          runLabel: runLabelValue,
+          title: 'Structured',
+          kind: 'structured',
+          value: preview.value,
+          ...completedAtPatch(run),
+        },
+      ]
+    default:
+      return []
   }
-
-  return []
 }
 
 function completedAtPatch(
@@ -728,35 +729,39 @@ function previewFromUnknown(
   value: unknown,
   fallbackResult: unknown,
 ): GenerationPreviewState {
-  if (isRecord(value) && typeof value.kind === 'string') {
-    if (value.kind === 'image') {
-      return { kind: 'image', items: mediaItemsFromUnknown(value.items) }
-    }
-    if (value.kind === 'audio') {
-      return { kind: 'audio', items: mediaItemsFromUnknown(value.items) }
-    }
-    if (value.kind === 'video') {
-      return {
-        kind: 'video',
-        items: mediaItemsFromUnknown(value.items),
-        ...(isVideoJob(value.job) ? { job: value.job } : {}),
+  if (isRecord(value)) {
+    if (typeof value.kind === 'string') {
+      if (value.kind === 'image') {
+        return { kind: 'image', items: mediaItemsFromUnknown(value.items) }
       }
-    }
-    if (value.kind === 'text') {
-      return {
-        kind: 'text',
-        text: typeof value.text === 'string' ? value.text : '',
+      if (value.kind === 'audio') {
+        return { kind: 'audio', items: mediaItemsFromUnknown(value.items) }
       }
-    }
-    if (value.kind === 'structured') {
-      return { kind: 'structured', value: value.value }
-    }
-    if (value.kind === 'empty') {
-      return { kind: 'empty' }
+      if (value.kind === 'video') {
+        return {
+          kind: 'video',
+          items: mediaItemsFromUnknown(value.items),
+          ...(isVideoJob(value.job) ? { job: value.job } : {}),
+        }
+      }
+      if (value.kind === 'text') {
+        return {
+          kind: 'text',
+          text: typeof value.text === 'string' ? value.text : '',
+        }
+      }
+      if (value.kind === 'structured') {
+        return { kind: 'structured', value: value.value }
+      }
+      if (value.kind === 'empty') {
+        return { kind: 'empty' }
+      }
     }
   }
 
-  if (fallbackResult === null || fallbackResult === undefined) {
+  const isEmptyFallback =
+    fallbackResult === null || fallbackResult === undefined
+  if (isEmptyFallback) {
     return { kind: 'empty' }
   }
 
@@ -767,7 +772,10 @@ function previewFromUnknown(
 }
 
 function progressFromUnknown(value: unknown): GenerationProgress | undefined {
-  if (!isRecord(value) || typeof value.value !== 'number') {
+  if (!isRecord(value)) {
+    return undefined
+  }
+  if (typeof value.value !== 'number') {
     return undefined
   }
 
@@ -783,9 +791,8 @@ function mediaItemsFromUnknown(value: unknown): Array<GenerationMediaItem> {
 }
 
 function isMediaItem(value: unknown): value is GenerationMediaItem {
-  if (!isRecord(value) || typeof value.src !== 'string') {
-    return false
-  }
+  if (!isRecord(value)) return false
+  if (typeof value.src !== 'string') return false
   return true
 }
 
@@ -795,10 +802,9 @@ function isVideoJob(value: unknown): value is GenerationVideoJob {
 
 function errorTextFromUnknown(value: unknown): string | undefined {
   if (typeof value === 'string') return value
-  if (isRecord(value) && typeof value.message === 'string') {
-    return value.message
-  }
-  return undefined
+  if (!isRecord(value)) return undefined
+  if (typeof value.message !== 'string') return undefined
+  return value.message
 }
 
 function stringFromUnknown(value: unknown): string | undefined {
@@ -814,7 +820,8 @@ function videoStatusLabel(value: unknown): string | undefined {
 
   const status = stringFromUnknown(value.status)
   const progress = numberFromUnknown(value.progress)
-  if (!status && progress === undefined) return undefined
+  const hasNoStatus = !status && progress === undefined
+  if (hasNoStatus) return undefined
 
   return [status, progress !== undefined ? formatProgress(progress) : undefined]
     .filter((part): part is string => Boolean(part))

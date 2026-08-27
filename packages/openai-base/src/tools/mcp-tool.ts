@@ -13,10 +13,12 @@ export type { MCPToolConfig }
 export type MCPTool = MCPToolConfig
 
 export function validateMCPtool(tool: MCPToolConfig) {
-  if (!tool.server_url && !tool.connector_id) {
+  const hasNoServerTarget = !tool.server_url && !tool.connector_id
+  if (hasNoServerTarget) {
     throw new Error('Either server_url or connector_id must be provided.')
   }
-  if (tool.connector_id && tool.server_url) {
+  const hasBothServerTargets = Boolean(tool.connector_id && tool.server_url)
+  if (hasBothServerTargets) {
     throw new Error('Only one of server_url or connector_id can be provided.')
   }
 }

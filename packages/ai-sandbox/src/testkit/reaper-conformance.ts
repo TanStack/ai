@@ -1,84 +1,3 @@
-/**
- * Provider conformance for the two unattended sweeps: `pruneJournals`
- * (`journal-sweep.ts`) and `reapDetachedRuns` (`reap.ts`), against a REAL
- * sandbox.
- *
- * WHY THIS EXISTS SEPARATELY FROM THE UNIT TESTS. Both sweeps are almost
- * entirely *shell* — `ls -1`, `stat -c '%Y %n'`, `rm -f`, `tail -c -N | base64`
- * — composed as strings by `journal.ts` and executed by a provider. The unit
- * suites drive fakes: an `exec` that answers from a scripted table, a
- * filesystem that is a `Map`. A fake cannot be wrong about `stat` the way a
- * BusyBox actually is, and on this feature that gap has already produced four
- * defects that every unit test passed (see `takeover-conformance.ts`'s module
- * doc for the roster). So the four properties the sweeps rest on are asserted
- * here through a real shell against real files:
- *
- * 1. **A deletion really deletes, and a keep really keeps.** Asserted with
- *    `test -f` through the provider's shell, NEVER `handle.fs.exists`: on
- *    local-process the two resolve `/tmp` differently, so an `fs` probe answers
- *    about a path the journal was never written to (`journal.ts` rule 3). A
- *    sweep that "succeeded" while deleting nothing passes an `fs` probe.
- * 2. **The age gate's self-witness works on THIS shell.** `journalMtimeListCommand`
- *    passes the directory as `stat`'s own first operand precisely because
- *    BusyBox exits 1 with EMPTY stdout on an unrecognised flag, and an empty
- *    parse read as an empty directory would delete every live run's journal. The
- *    docker provider's image is `alpine:3` — BusyBox 1.37, where `find -newermt`
- *    and `find -printf` are unrecognised — so the docker matrix is the authority
- *    on this case, not the local-process one (on Windows local-process execs
- *    through git-bash, whose `find`/`stat` are GNU-flavoured).
- * 3. **The reaper never drives a live run.** The `'producing'` case asserts
- *    ABSENCE — nothing appended, `close()` not called, not one `runs.update`,
- *    `detachedSince` intact — because that is the shape of the defect
- *    `probeRunExit` exists to prevent: entering `pipeToRunLog` to "check" writes
- *    a terminal status and drops the run out of `listReclaimable` forever.
- * 4. **A shell-hostile runId cannot become a shell-hostile command.** The encode
- *    → journal → follow → `ls` → decode → `rm` round trip runs on a runId
- *    containing `/`, a space, `;`, `$( )` and an embedded `touch`, with a canary
- *    file asserted absent. An ENCODING bug here is arbitrary command execution
- *    inside the sandbox, not a cosmetic defect.
- *
- *    **What the canary proves, exactly, and what it does not.** It detects a
- *    runId reaching the shell WITHOUT `encodeRunId` — that is the mutation it
- *    bites on, and it bites hard: `journaledCommand`, `journalFollowCommand`,
- *    `journalExitProbeCommand`, `journalStderrReadCommand` and
- *    `journalCleanupCommand` all interpolate the path, so the `;touch` executes
- *    and the canary appears. It is BLIND to the loss of `journal.ts`'s
- *    `shellQuote`, the second and independent layer. Measured: with `shellQuote`
- *    reduced to the identity while `encodeRunId` stays, the redirect target
- *    becomes `>> /tmp/…/rp-a_3btouch_20_2ftmp…ndjson` — a single shell word of
- *    `[A-Za-z0-9._/-]`, because the encoder already removed every character a
- *    shell can act on — so no canary fires and NOTHING in this suite, or in any
- *    other real-provider suite, changes. Do not read a green run here as licence
- *    to "simplify" `shellQuote` away.
- *
- *    The quoting is pinned instead by exact-string unit tests in
- *    `packages/ai-sandbox/tests/journal.test.ts`, which compare each composed
- *    command to a literal containing the quotes. By name, one per command:
- *    `journaledCommand` — "redirects stdout to the journal, stderr to its own
- *    file, and appends the exit sentinel" plus "quotes an adversarial runId so it
- *    cannot inject shell metacharacters"; `journalFollowCommand` — "translates a
- *    0-based consumed-byte count into tail -c +N (1-based)";
- *    `journalReadCommand` — "the bounded read drops -f and keeps the base64
- *    frame, so a poll cannot hang"; `journalExistsCommand` — "probes through the
- *    shell, never through fs.*"; `journalStderrReadCommand` — "reads a BOUNDED
- *    tail of the sidecar, base64-framed, stderr silenced";
- *    `journalCleanupCommand`, `journalMtimeListCommand` and
- *    `journalExitProbeCommand` — the first `it` under each of their `describe`s.
- *    Those are the tests that go red on a dropped `shellQuote`; keep them exact.
- *
- * A provider that cannot satisfy the contract MUST declare `unsupported.reason`.
- * As in the journal and takeover suites there is deliberately no silent-skip
- * path: a conformance case that quietly returns prints as a pass, which is how
- * an unimplemented capability ships green.
- *
- * EVERY WAIT IN THIS FILE IS BOUNDED, and every journal directory is unique per
- * case — see {@link caseDir}. This suite DELETES FILES, and
- * `DEFAULT_JOURNAL_DIR` is a fixed absolute path shared with every other test
- * and, on local-process, with a developer's real runs.
- *
- * Vitest is an OPTIONAL peer dependency: this module is imported only from test
- * files, which already run under Vitest.
- */
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { EventType, InMemoryRunStore } from '@tanstack/ai'
@@ -141,7 +60,8 @@ export interface ReaperConformanceConfig {
 }
 
 /** Poll interval handed to providers that cannot follow a growing file. */
-const POLL_INTERVAL_MS = 50
+const /** Poll interval handed to providers that cannot follow a growing file. */
+  POLL_INTERVAL_MS = 50
 
 /**
  * Quiescence window for the reaper's first append. Short because the agent in
@@ -164,7 +84,8 @@ const FENCE_QUIET_MS = 25
 const READ_BACKSTOP_MS = 90_000
 
 /** Long enough that nothing in this suite is ever classified as expired. */
-const NEVER_EXPIRES_MS = 60 * 60 * 1000
+const /** Long enough that nothing in this suite is ever classified as expired. */
+  NEVER_EXPIRES_MS = 60 * 60 * 1000
 
 /**
  * A journal directory nothing else on the machine writes to, created fresh for
@@ -206,11 +127,7 @@ function quote(value: string): string {
 async function removeDir(handle: SandboxHandle, dir: string): Promise<void> {
   try {
     await handle.process.exec(`rm -rf ${quote(dir)}`)
-  } catch {
-    // The sandbox may already be gone, and on docker it is about to be. Nothing
-    // under test depends on the directory being absent afterwards — the cases
-    // that DO assert deletion assert it directly, per file.
-  }
+  } catch {}
 }
 
 /**
@@ -227,9 +144,6 @@ async function fileExists(
   path: string,
 ): Promise<boolean> {
   const probe = await handle.process.exec(
-    // Only `journal` is read by the probe, and its parameter is typed
-    // `Pick<JournalPaths, 'journal'>` for exactly this reason: an arbitrary path
-    // has no run behind it, so there is no nonce or sidecar to invent.
     journalExistsCommand({ journal: path }),
   )
   return probe.exitCode === 0
@@ -541,9 +455,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       return
     }
 
-    // -----------------------------------------------------------------------
-    // 1. `pruneJournals` against a real filesystem.
-    // -----------------------------------------------------------------------
     it(
       "deletes a terminal run's journal AND its .err sidecar, while a running run's journal survives the same sweep",
       { timeout: 60_000 },
@@ -653,9 +564,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
             failures: [],
           })
 
-          // And the `rm -f` the sweep issues is itself idempotent on this shell.
-          // Asserted directly because the sweep folds a non-zero `rm` into
-          // `kept: 'delete-failed'` and would therefore hide it as a keep.
           const rerun = await handle.process.exec(journalCleanupCommand(paths))
           expect(rerun.exitCode).toBe(0)
         } finally {
@@ -673,10 +581,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
         const dir = caseDir()
         const runId = uniqueRunId('undecodable')
         const paths = journalPaths(runId, dir)
-        // `_1.` is not a two-hex-digit escape, so this name is `malformed` — the
-        // shape a truncated or foreign file has. `decodeJournalRunId` must refuse
-        // it, and the sweep must keep it WITHOUT asking the store, because a
-        // plausible-but-wrong runId could answer `terminal` for someone else.
         const strayName = 'reaper-conformance-stray_1.ndjson'
         const strayPath = `${dir}/${strayName}`
         try {
@@ -715,9 +619,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       },
     )
 
-    // -----------------------------------------------------------------------
-    // 2. The age gate on a real shell.
-    // -----------------------------------------------------------------------
     const mtimeSkip = config.mtimeListUnsupported
     const itMtime = (title: string, timeout: number, fn: () => Promise<void>) =>
       it(
@@ -737,19 +638,12 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
         try {
           await runAgent(handle, paths, ['1'])
           const listing = await mtimeListing(handle, dir)
-          // The witness is what makes "no files" distinguishable from "the
-          // mechanism is unavailable". On BusyBox 1.37 — the docker provider's
-          // `alpine:3` — `find -newermt`/`-printf` are unrecognised and exit 1
-          // with empty stdout, which is exactly why the design is a witness line
-          // rather than a `find` and an exit code.
           expect(hasWitnessLine(listing.stdout, dir)).toBe(true)
           expect([...listing.entries.keys()].sort()).toEqual(
             [basename(dir, paths.journal), basename(dir, paths.stderr)].sort(),
           )
-          // Real epoch times, not the parser's zeroes: a `%Y` the shell did not
-          // expand would parse as no entry at all, and a `stat` that printed
-          // something else would land far from now.
-          for (const mtimeMs of listing.entries.values()) {
+          const listingValues = listing.entries.values()
+          for (const mtimeMs of listingValues) {
             expect(Math.abs(Date.now() - mtimeMs)).toBeLessThan(120_000)
           }
         } finally {
@@ -771,9 +665,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           expect(hasWitnessLine(listing.stdout, dir)).toBe(true)
           expect([...listing.entries.keys()]).toEqual([])
 
-          // And the sweep agrees: an empty directory is a LISTED age gate, not an
-          // unavailable one. `'unavailable'` here would silently disable orphan
-          // expiry forever on this provider.
           const result = await pruneJournals({
             handle,
             runs: new InMemoryRunStore(),
@@ -814,11 +705,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           await sleep(2_500)
           await runAgent(handle, newer, ['1'])
 
-          // The cutoff is computed from the REAL mtimes the real shell reported,
-          // not from a fabricated timestamp: that is the whole point of running
-          // this against a provider. `pruneJournals` keeps when the NEWEST of a
-          // run's files is strictly newer than the cutoff, so placing the cutoff
-          // between the two runs must expire exactly one of them.
           const listing = await mtimeListing(handle, dir)
           const newestOf = (paths: JournalPaths): number =>
             Math.max(
@@ -868,9 +754,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       },
     )
 
-    // -----------------------------------------------------------------------
-    // 3. `reapDetachedRuns` end to end.
-    // -----------------------------------------------------------------------
     it(
       'finalizes a detached run whose agent reached its sentinel, and its transcript lands',
       { timeout: 120_000 },
@@ -887,9 +770,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           await detachedRun(runs, runId, threadId, detachedSince)
           await runAgent(handle, paths, deltas)
 
-          // The probe, on its own, before any sweep: this read is what makes the
-          // reaper safe, and it must answer from the JOURNAL rather than from the
-          // delivery log (which a detached run's dead host stopped appending to).
           expect(await probeRunExit({ handle, runId, dir })).toEqual({
             state: 'finished',
             exitCode: 0,
@@ -909,10 +789,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
             fenceQuietMs: FENCE_QUIET_MS,
           })
 
-          // The causal witness, before anything downstream — see
-          // {@link READ_BACKSTOP_MS}. The reaper's read ends at the sentinel; if
-          // the clock ended it instead, the transcript below is short and the
-          // failure must name the backstop rather than a missing chunk.
           expect({ backstopped: journalDrive.backstopped() }).toEqual({
             backstopped: false,
           })
@@ -951,9 +827,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
         const threadId = `${runId}-t`
         const paths = journalPaths(runId, dir)
         const store = countingRunStore(new InMemoryRunStore())
-        // A REAL agent that has written a line and is genuinely still alive: no
-        // sentinel can be in the journal, and driving it would truncate a healthy
-        // run's transcript at line one.
         const agent = await handle.process.spawn(
           journaledCommand(`${emitLines(['1'])}; sleep 30`, paths),
         )
@@ -1008,13 +881,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
             failed: 0,
           })
 
-          // ABSENCE, asserted in one object so a regression names which
-          // guarantee broke instead of failing on whichever line came first.
-          // Every one of these is a way the pre-`probeRunExit` design destroyed a
-          // live run: an append duplicates its prefix, a `close()` ends every
-          // attached client's stream, an `update` writes `'completed'` and drops
-          // the run out of `listReclaimable` forever, and a moved
-          // `detachedSince` restarts its TTL.
           const record = await store.runs.get(runId)
           expect({
             driveCalled,
@@ -1049,9 +915,6 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       },
     )
 
-    // -----------------------------------------------------------------------
-    // 4. A shell-hostile runId, end to end. SECURITY-RELEVANT.
-    // -----------------------------------------------------------------------
     it(
       'round-trips a shell-hostile runId through encode, journal, follow, sidecar read, list, decode and delete without executing any of it' +
         (config.followUnsupported === undefined
@@ -1065,42 +928,17 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
         // The canary lives OUTSIDE `dir` so the teardown `rm -rf` cannot be what
         // makes the final assertion pass.
         const canary = `/tmp/rp-pwn-${nonce}`
-        // `/` would escape the directory, the space would split the word, `;` and
-        // `$( )` would start new commands, and the `touch` is a real payload with
-        // an observable effect. Every one of these must survive as DATA.
-        //
-        // THE ORDER OF THE PAYLOAD IS DELIBERATE and was measured: the `;touch`
-        // comes BEFORE the space and the `/`. With raw interpolation, the
-        // journaled command's redirect target is one word, so a payload whose
-        // space precedes the `;` (`rp-a b;touch …`) makes the mangled command a
-        // SYNTAX ERROR — the injected `touch` never runs and the canary below
-        // would be decoration that can never fire. With the `;` first, the
-        // vulnerable form parses as a command LIST and the payload really
-        // executes (verified against a hand-composed unquoted, unencoded command
-        // on this provider: canary present). So the canary is a live detector.
         const runId = `rp-a;touch ${canary};b c/d$(x)-${nonce}`
         const threadId = `${runId}-t`
         const paths = journalPaths(runId, dir)
         const journalName = basename(dir, paths.journal)
         try {
-          // This case's agent writes to STDERR as well, so the sidecar read
-          // below has real bytes to compare against: an empty sidecar is also
-          // what a `journalStderrReadCommand` that read the wrong path (or
-          // nothing at all) would return, and that read is the only coverage
-          // that command has anywhere.
           await handle.process.exec(
             journaledCommand(
               `${emitLines(['1'])}; printf 'boom\\n' 1>&2`,
               paths,
             ),
           )
-          // THE SECURITY ASSERTION, and deliberately the FIRST one: nothing the
-          // runId contains was executed. It is stated before the cheaper
-          // structural checks below on purpose — a defect that reintroduces raw
-          // interpolation would also fail the filename shape, and a case that
-          // short-circuited there would never prove this probe is live rather
-          // than decorative. Re-asserted after the delete, because the sweep
-          // composes a DIFFERENT command (`rm -f`) from the same id.
           expect(await fileExists(handle, canary)).toBe(false)
           expect(await probeRunExit({ handle, runId, dir })).toEqual({
             state: 'finished',
@@ -1111,50 +949,24 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
           expect(journalName).toMatch(/^[A-Za-z0-9._-]+\.ndjson$/)
           expect(paths.journal.startsWith(`${dir}/`)).toBe(true)
 
-          // THE FOLLOW PATH, against this same hostile id.
-          //
-          // `journalFollowCommand` is the WORST command in the set under a
-          // dropped `encodeRunId`: it interpolates the journal path THREE times
-          // (`mkdir -p`, `: >> path`, `tail -c +N -f path`) and joins its prep
-          // steps with `;` rather than `&&`, so `: >> /tmp/dir/rp-a;touch
-          // <canary>;…` is a complete redirect followed by a command LIST — the
-          // payload runs on EVERY attach, and a failing prep step does not stop
-          // it. Nothing else reaches this command with a hostile runId: the
-          // reaper's own probes are all bounded reads, and the takeover suite,
-          // the only other real-provider consumer of the follow path, builds
-          // alnum-only ids. So it is exercised here, where the hostile id and a
-          // live canary already exist, for the cost of one read.
-          //
-          // The strategy is FORCED rather than capability-derived so this is the
-          // follow command and not the bounded one, and the declaration is
-          // checked against the live handle in both directions — a config that
-          // does not describe the provider must fail rather than silently drop
-          // this read.
           expect(journalReadStrategy(handle)).toBe(
             config.followUnsupported === undefined ? 'follow' : 'poll',
           )
           if (config.followUnsupported === undefined) {
             const followed: Array<string> = []
-            // A backstop, so a reader that delivers nothing fails instead of
-            // parking CI — a `tail -f` never ends on its own, so this read has no
-            // other floor. Not the assertion — `backstopped` below proves it was
-            // not what ended the loop.
             const backstop = AbortSignal.timeout(READ_BACKSTOP_MS)
-            for await (const line of readJournal(handle, {
+            const journalLines = readJournal(handle, {
               paths,
               fromByte: 0,
               strategy: 'follow',
               signal: backstop,
-            })) {
+            })
+            for await (const line of journalLines) {
               followed.push(line.line)
               // The agent has already reached its sentinel, so this arrives; a
               // `tail -f` never ends on its own.
               if (line.line.includes(EXIT_SENTINEL_KEY)) break
             }
-            // The causal witness, first: the loop must end on the sentinel
-            // `break`, not on the clock. A backstopped follow read otherwise
-            // reports as a one-element-vs-two array diff that says nothing about
-            // why.
             expect({ backstopped: backstop.aborted }).toEqual({
               backstopped: false,
             })

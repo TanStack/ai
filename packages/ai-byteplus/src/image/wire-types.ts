@@ -1,22 +1,3 @@
-/**
- * Wire types for the BytePlus Ark image endpoint (`POST /images/generations`).
- *
- * Hand-written minimal shapes covering only the fields this adapter sends and
- * reads. Provenance for every field is noted inline. Two sources:
- *
- * 1. The harvested OpenAPI 3.1 document for the `ark` service, action
- *    `ImageGenerations` (`x-updated-time: 2026-06-08`) — authoritative for
- *    field names, enum values, defaults and ranges.
- * 2. A live `seedream-4-0-250828` call against
- *    `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31, which
- *    pinned the actual response shape.
- *
- * The endpoint deviates from OpenAI's `/images/generations` in three ways that
- * matter: there is no `n` parameter, `size` accepts a shorthand token as well
- * as `WxH`, and input images for editing ride along in a top-level `image`
- * field rather than a separate `/images/edits` endpoint.
- */
-
 /** How generated images come back. `url` links expire 24 hours after generation. */
 export type BytePlusImageResponseFormat = 'url' | 'b64_json'
 
@@ -132,6 +113,7 @@ export interface BytePlusImageData {
   url?: string
   b64_json?: string
   size?: string
+  /** Present when the request as a whole failed. */
   error?: BytePlusImageErrorObject
 }
 
@@ -159,6 +141,7 @@ export interface BytePlusImageErrorObject {
 
 /** Response body of `POST /images/generations`. */
 export interface BytePlusImageGenerationResponse {
+  /** Seedream model id (or a preconfigured endpoint id). */
   model?: string
   /** Unix timestamp (seconds) of creation. */
   created?: number

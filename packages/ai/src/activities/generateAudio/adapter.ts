@@ -63,8 +63,11 @@ export abstract class BaseAudioAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
 > implements AudioAdapter<TModel, TProviderOptions> {
+  /** Discriminator for adapter kind - used to determine API shape */
   readonly kind = 'audio' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime

@@ -27,6 +27,7 @@ export type AcpSessionTransport =
       kind: 'stream'
       stream: AcpJsonRpcStream
       dispose: () => Promise<void>
+      /** Last bytes of stderr, for error messages. */
       stderrTail?: () => string
     }
 

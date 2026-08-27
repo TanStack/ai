@@ -205,8 +205,11 @@ export abstract class BaseTextAdapter<
   TToolCallMetadata,
   TSystemPromptMetadata
 > {
+  /** Discriminator for adapter kind */
   readonly kind = 'text' as const
+  /** Provider name identifier (e.g., 'openai', 'anthropic') */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
 
@@ -231,10 +234,6 @@ export abstract class BaseTextAdapter<
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk>
 
-  /**
-   * Generate structured output using the provider's native structured output API.
-   * Concrete implementations should override this to use provider-specific structured output.
-   */
   abstract structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>>

@@ -2,19 +2,6 @@ import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { ClientOptions } from 'openai'
 
 /**
- * BytePlus splits its APIs across two hosts with two different products,
- * two different auth headers, and two different API keys:
- *
- * - **Ark (ModelArk)** — chat, video (Seedance) and image (Seedream).
- *   `Authorization: Bearer $ARK_API_KEY`.
- * - **Seed Speech** — TTS and ASR on the voice host.
- *   `X-Api-Key: $BYTEPLUS_VOICE_API_KEY`.
- *
- * Ark keys are region-isolated: a key issued for `ap-southeast` does not work
- * against the EU host and vice versa.
- */
-
-/**
  * Default Ark data-plane base URL (Asia-Pacific south-east).
  *
  * Per the BytePlus docs the EU endpoint
@@ -51,6 +38,7 @@ export const BYTEPLUS_VOICE_BASE_URL =
  *   which owns its own retry policy.
  */
 export interface BytePlusArkConfig extends Omit<ClientOptions, 'apiKey'> {
+  /** Seed Speech API key — *not* the Ark key. Sent as `X-Api-Key`. */
   apiKey: string
 }
 
@@ -126,7 +114,10 @@ export function getBytePlusVoiceApiKeyFromEnv(): string {
  */
 export function withBytePlusArkDefaults<TConfig extends BytePlusArkConfig>(
   config: TConfig,
-): Omit<TConfig, 'baseURL'> & { baseURL: string } {
+): Omit<TConfig, 'baseURL'> & {
+  /** Overrides {@link BYTEPLUS_VOICE_BASE_URL}. */
+  baseURL: string
+} {
   return {
     ...config,
     baseURL: (config.baseURL || BYTEPLUS_ARK_BASE_URL).replace(/\/+$/, ''),
@@ -184,10 +175,8 @@ export function toHeaderRecord(
     return record
   }
 
-  // Record form. A value may be null/undefined (openai's "unset this header"
-  // signal) or an array for a repeated header; neither maps onto a single
-  // string, so both are dropped.
-  for (const [key, value] of Object.entries(headers)) {
+  const headerEntries = Object.entries(headers)
+  for (const [key, value] of headerEntries) {
     if (typeof value === 'string') record[key] = value
   }
 
@@ -214,7 +203,8 @@ function applyReservedHeaders(
 ): Record<string, string> {
   const blocked = new Set(Object.keys(reserved).map((key) => key.toLowerCase()))
   const merged: Record<string, string> = {}
-  for (const [key, value] of Object.entries(extraHeaders ?? {})) {
+  const extraHeaderEntries = Object.entries(extraHeaders ?? {})
+  for (const [key, value] of extraHeaderEntries) {
     if (!blocked.has(key.toLowerCase())) merged[key] = value
   }
   return { ...merged, ...reserved }
@@ -305,7 +295,8 @@ export async function readJsonBody(response: Response): Promise<unknown> {
  */
 export function describeBody(body: unknown): string | undefined {
   if (typeof body === 'string') return body || undefined
-  if (typeof body !== 'object' || body === null) return undefined
+  if (typeof body !== 'object') return undefined
+  if (body === null) return undefined
   try {
     return JSON.stringify(body)
   } catch {
@@ -315,9 +306,9 @@ export function describeBody(body: unknown): string | undefined {
 }
 
 function readStringField(value: unknown, field: string): string | undefined {
-  if (typeof value !== 'object' || value === null || !(field in value)) {
-    return undefined
-  }
+  if (typeof value !== 'object') return undefined
+  if (value === null) return undefined
+  if (!(field in value)) return undefined
   const candidate = Reflect.get(value, field)
   if (typeof candidate === 'string') return candidate
   if (typeof candidate === 'number') return String(candidate)

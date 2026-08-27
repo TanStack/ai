@@ -81,18 +81,15 @@ async function emitUiResourceIfLinked<TContext>(
 ): Promise<void> {
   const mcp = readMcpAppMeta(tool)
   const uiUri = mcp?.uiResourceUri
-  if (!uiUri || !mcp.readResource) return
+  if (!mcp || uiUri == null || typeof mcp.readResource !== 'function') {
+    return
+  }
 
   // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
   // an exception from the emit path can't be mislabeled as a read failure.
   let matched: McpResourceReadResult['contents'][number] | undefined
   try {
     const res = await mcp.readResource(uiUri)
-    // Emit ONLY the content whose uri matches the requested `uiUri`. A source
-    // can return unrelated contents; falling back to `contents[0]` would risk
-    // rendering a widget that doesn't correspond to the linked resource. This
-    // is a display widget — a mismatched resource is worse than none, so if no
-    // content matches we fail-soft (warn + return) rather than emit.
     matched = res.contents.find((c) => c.uri === uiUri)
   } catch (err) {
     // fail-soft — the text tool-result already flows; a broken widget must
@@ -106,10 +103,6 @@ async function emitUiResourceIfLinked<TContext>(
     )
     return
   }
-  // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
-  // every emitted event by the `executeToolCalls` context wrapper, so the
-  // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
-  // still satisfied downstream.
   context.emitCustomEvent('ui-resource', {
     resource: {
       uri: matched.uri,
@@ -146,9 +139,6 @@ export class MiddlewareAbortError extends Error {
   }
 }
 
-// The leaf context-inference primitives (ContextFromTool, MergeContext,
-// UnionToIntersection, DefinedContext) are shared with the chat activity
-// options layer — see ../runtime-context-types.
 type RequiredContextFromToolUnion<T> = T extends unknown
   ? undefined extends ContextFromTool<T>
     ? never
@@ -175,6 +165,87 @@ type ContextFromTools<TTools> = TTools extends readonly [
 type ExecuteToolsContextArgs<TContext> = undefined extends TContext
   ? [userContext?: TContext]
   : [userContext: TContext]
+
+function parseManagedToolArgs(tool: AnyTool, toolCall: ToolCall): unknown {
+  const argsString = toolCall.function.arguments.trim() || '{}'
+  let args: unknown
+  try {
+    const parsed = JSON.parse(argsString)
+    args = parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    throw new Error(
+      `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
+    )
+  }
+  if (!tool.inputSchema) return args
+  if (!isStandardSchema(tool.inputSchema)) return args
+  try {
+    return parseWithStandardSchema(tool.inputSchema, args)
+  } catch (validationError: unknown) {
+    const message =
+      validationError instanceof Error
+        ? validationError.message
+        : 'Validation failed'
+    throw new Error(`Input validation failed for tool ${tool.name}: ${message}`)
+  }
+}
+
+function validateManagedToolOutput(tool: AnyTool, result: unknown): unknown {
+  if (!tool.outputSchema) return result
+  if (!isStandardSchema(tool.outputSchema)) return result
+  try {
+    return parseWithStandardSchema(tool.outputSchema, result)
+  } catch (validationError: unknown) {
+    const message =
+      validationError instanceof Error
+        ? validationError.message
+        : 'Validation failed'
+    throw new Error(
+      `Output validation failed for tool ${tool.name}: ${message}`,
+    )
+  }
+}
+
+async function executeManagedToolCall<TContext>(
+  tool: AnyTool | undefined,
+  toolCall: ToolCall,
+  hasRuntimeContext: boolean,
+  userContext: TContext | undefined,
+): Promise<{
+  content: string | Array<ContentPart>
+  state?: ToolOutputState
+  /**
+   * Parsed tool output before wire serialization. Surfaced on engine-emitted
+   * `TOOL_CALL_END` events so consumers can read typed `output` without
+   * re-parsing `result`. Undefined on error paths and when execution is skipped.
+   */
+  output?: unknown
+}> {
+  if (!tool?.execute) {
+    return {
+      content: `Tool ${toolCall.function.name} does not have an execute function`,
+    }
+  }
+  try {
+    const args = parseManagedToolArgs(tool, toolCall)
+    const executionContext = {
+      toolCallId: toolCall.id,
+      context: userContext,
+      emitCustomEvent: () => {},
+    } as ToolExecutionContext<TContext>
+    let result = hasRuntimeContext
+      ? await tool.execute(args, executionContext)
+      : await tool.execute(args)
+    result = validateManagedToolOutput(tool, result)
+    return { content: normalizeToolResult(result), output: result }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      content: `Error executing tool: ${message}`,
+      state: 'output-error',
+    }
+  }
+}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -251,7 +322,8 @@ export class ToolCallManager<
    */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
     const extra = event as AdapterYieldChunk
-    for (const [, toolCall] of this.toolCallsMap.entries()) {
+    const toolCallsMapEntries = this.toolCallsMap.entries()
+    for (const [, toolCall] of toolCallsMapEntries) {
       if (toolCall.id === event.toolCallId) {
         if (typeof extra.args === 'string' && extra.args !== '') {
           toolCall.function.arguments = extra.args
@@ -268,7 +340,8 @@ export class ToolCallManager<
    * Called when TOOL_CALL_END is received
    */
   completeToolCall(event: ToolCallEndEvent): void {
-    for (const toolCall of this.toolCallsMap.values()) {
+    const toolCallsMap = this.toolCallsMap.values()
+    for (const toolCall of toolCallsMap) {
       if (toolCall.id !== event.toolCallId) continue
       if (event.input === undefined) return
       const normalized =
@@ -311,83 +384,15 @@ export class ToolCallManager<
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
-      let toolResultContent: string | Array<ContentPart>
-      let toolResultState: ToolOutputState | undefined
-      // Holds the parsed/validated execution output before serialization.
-      // Stays `undefined` when the tool has no `execute` (client-only
-      // tools) or when execution throws.
-      let toolOutput: unknown
-      if (tool?.execute) {
-        try {
-          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
-          let args: unknown
-          try {
-            const argsString = toolCall.function.arguments.trim() || '{}'
-            const parsed = JSON.parse(argsString)
-            args = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch (parseError) {
-            throw new Error(
-              `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
-            )
-          }
-
-          // Validate input against inputSchema (for Standard Schema compliant schemas)
-          if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
-            try {
-              args = parseWithStandardSchema(tool.inputSchema, args)
-            } catch (validationError: unknown) {
-              const message =
-                validationError instanceof Error
-                  ? validationError.message
-                  : 'Validation failed'
-              throw new Error(
-                `Input validation failed for tool ${tool.name}: ${message}`,
-              )
-            }
-          }
-
-          // Execute the tool
-          const executionContext = {
-            toolCallId: toolCall.id,
-            context: userContext,
-            emitCustomEvent: () => {},
-          } as ToolExecutionContext<TContext>
-          let result = hasRuntimeContext
-            ? await tool.execute(args, executionContext)
-            : await tool.execute(args)
-
-          // Validate output against outputSchema if provided (for Standard
-          // Schema compliant schemas). Unlike the previous implementation we
-          // intentionally validate `undefined`/`null` results too, so a tool
-          // whose schema forbids them surfaces a validation error instead of
-          // silently passing — the schema itself decides whether they're valid.
-          if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
-            try {
-              result = parseWithStandardSchema(tool.outputSchema, result)
-            } catch (validationError: unknown) {
-              const message =
-                validationError instanceof Error
-                  ? validationError.message
-                  : 'Validation failed'
-              throw new Error(
-                `Output validation failed for tool ${tool.name}: ${message}`,
-              )
-            }
-          }
-
-          toolOutput = result
-          toolResultContent = normalizeToolResult(result)
-        } catch (error: unknown) {
-          // If tool execution fails, add error message
-          const message =
-            error instanceof Error ? error.message : 'Unknown error'
-          toolResultContent = `Error executing tool: ${message}`
-          toolResultState = 'output-error'
-        }
-      } else {
-        // Tool doesn't have execute function, add placeholder
-        toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
-      }
+      const executed = await executeManagedToolCall(
+        tool,
+        toolCall,
+        hasRuntimeContext,
+        userContext,
+      )
+      const toolResultContent = executed.content
+      const toolResultState = executed.state
+      const toolOutput = executed.output
 
       // Emit TOOL_CALL_END event
       yield {
@@ -437,11 +442,6 @@ export interface ToolResult {
    * Parsed tool input after JSON parse + optional Standard Schema validation.
    */
   input?: unknown
-  /**
-   * Parsed tool output before wire serialization. Surfaced on engine-emitted
-   * `TOOL_CALL_END` events so consumers can read typed `output` without
-   * re-parsing `result`. Undefined on error paths and when execution is skipped.
-   */
   output?: unknown
 }
 
@@ -613,13 +613,9 @@ export async function* executeServerTool<TContext = unknown>(
     }
     const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
+    /** Duration of tool execution in milliseconds (only for server-executed tools) */
     const duration = Date.now() - startTime
 
-    // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
-    // a `ui-resource` CUSTOM event. The MCP source stays live until the run
-    // drains (MCPManager's `connection:'close'` policy disposes on completion),
-    // so `readResource` is callable here. Fail-soft: a read error warns and
-    // emits nothing — the text result still flows.
     await emitUiResourceIfLinked(tool, context)
 
     // Flush remaining events (including any queued ui-resource event)
@@ -728,6 +724,240 @@ function buildClientToolResult(
   }
 }
 
+function parseExecuteToolCallInput(
+  tool: AnyTool,
+  toolCall: ToolCall,
+  toolName: string,
+): { ok: true; input: unknown } | { ok: false; result: ToolResult } {
+  let input: unknown = {}
+  const argsStr = toolCall.function.arguments.trim() || '{}'
+  if (argsStr) {
+    try {
+      const parsed = JSON.parse(argsStr)
+      input = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return {
+        ok: false,
+        result: {
+          toolCallId: toolCall.id,
+          toolName,
+          result: {
+            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+          },
+          input,
+          state: 'output-error',
+        },
+      }
+    }
+  }
+  if (!tool.inputSchema) {
+    return { ok: true, input }
+  }
+  if (!isStandardSchema(tool.inputSchema)) {
+    return { ok: true, input }
+  }
+  try {
+    return { ok: true, input: parseWithStandardSchema(tool.inputSchema, input) }
+  } catch (validationError: unknown) {
+    const message =
+      validationError instanceof Error
+        ? validationError.message
+        : 'Validation failed'
+    return {
+      ok: false,
+      result: {
+        toolCallId: toolCall.id,
+        toolName,
+        result: {
+          error: `Input validation failed for tool ${tool.name}: ${message}`,
+        },
+        input,
+        state: 'output-error',
+      },
+    }
+  }
+}
+
+function handleClientToolCall(input: {
+  tool: AnyTool
+  toolCall: ToolCall
+  toolName: string
+  parsedInput: unknown
+  approvals: Map<string, ToolApprovalResolution>
+  clientResults: Map<string, any>
+  resumeState?: ToolResumeExecutionState
+  /** Tool results ready to send to LLM */
+  results: Array<ToolResult>
+  /** Tools that need user approval before execution */
+  needsApproval: Array<ApprovalRequest>
+  /** Tools that need client-side execution */
+  needsClientExecution: Array<ClientToolRequest>
+}): void {
+  const {
+    tool,
+    toolCall,
+    toolName,
+    approvals,
+    clientResults,
+    resumeState,
+    results,
+    needsApproval,
+    needsClientExecution,
+  } = input
+  let parsedInput = input.parsedInput
+  if (!tool.needsApproval) {
+    if (clientResults.has(toolCall.id)) {
+      results.push(
+        buildClientToolResult(
+          toolCall.id,
+          toolName,
+          tool,
+          clientResults.get(toolCall.id),
+          parsedInput,
+        ),
+      )
+      return
+    }
+    needsClientExecution.push({
+      toolCallId: toolCall.id,
+      toolName,
+      input: parsedInput,
+    })
+    return
+  }
+  const approvalId = `approval_${toolCall.id}`
+  const resolution = approvalResolution(approvals, toolCall.id)
+  if (resolution === undefined) {
+    needsApproval.push({
+      toolCallId: toolCall.id,
+      toolName: toolCall.function.name,
+      input: parsedInput,
+      approvalId,
+    })
+    return
+  }
+  if (!isApproved(resolution)) {
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result:
+        resumeState?.deniedToolResults?.get(toolCall.id) ??
+        deniedApprovalResult(resolution),
+      input: parsedInput,
+      state: 'output-error',
+    })
+    return
+  }
+  parsedInput = editedApprovalArgs(resolution) ?? parsedInput
+  if (clientResults.has(toolCall.id)) {
+    results.push(
+      buildClientToolResult(
+        toolCall.id,
+        toolName,
+        tool,
+        clientResults.get(toolCall.id),
+        parsedInput,
+      ),
+    )
+    return
+  }
+  needsClientExecution.push({
+    toolCallId: toolCall.id,
+    toolName,
+    input: parsedInput,
+  })
+}
+
+async function* handleServerToolCall<TContext>(input: {
+  tool: AnyTool
+  toolCall: ToolCall
+  toolName: string
+  parsedInput: unknown
+  approvals: Map<string, ToolApprovalResolution>
+  resumeState?: ToolResumeExecutionState
+  middlewareHooks?: ToolExecutionMiddlewareHooks
+  context: ToolExecutionContext<TContext>
+  pendingEvents: Array<CustomEvent>
+  results: Array<ToolResult>
+  needsApproval: Array<ApprovalRequest>
+}): AsyncGenerator<CustomEvent, void, void> {
+  const {
+    tool,
+    toolCall,
+    toolName,
+    approvals,
+    resumeState,
+    middlewareHooks,
+    context,
+    pendingEvents,
+    results,
+    needsApproval,
+  } = input
+  let parsedInput = input.parsedInput
+  if (tool.needsApproval) {
+    const approvalId = `approval_${toolCall.id}`
+    const resolution = approvalResolution(approvals, toolCall.id)
+    if (resolution === undefined) {
+      needsApproval.push({
+        toolCallId: toolCall.id,
+        toolName,
+        input: parsedInput,
+        approvalId,
+      })
+      return
+    }
+    if (!isApproved(resolution)) {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result:
+          resumeState?.deniedToolResults?.get(toolCall.id) ??
+          deniedApprovalResult(resolution),
+        input: parsedInput,
+        state: 'output-error',
+      })
+      return
+    }
+    parsedInput = editedApprovalArgs(resolution) ?? parsedInput
+  }
+  if (middlewareHooks) {
+    const decision = await applyBeforeToolCallDecision(
+      toolCall,
+      tool,
+      parsedInput,
+      toolName,
+      middlewareHooks,
+      results,
+    )
+    if (!decision.proceed) return
+    parsedInput = decision.input
+  }
+  yield* executeServerTool(
+    toolCall,
+    tool,
+    toolName,
+    parsedInput,
+    context,
+    pendingEvents,
+    results,
+    middlewareHooks,
+  )
+}
+
+function shouldSkipToolWhileApprovalsPending(
+  tool: AnyTool,
+  toolCall: ToolCall,
+  approvals: Map<string, ToolApprovalResolution>,
+  hasPendingApprovals: boolean,
+): boolean {
+  if (!hasPendingApprovals) return false
+  const isPendingApproval =
+    Boolean(tool.needsApproval) &&
+    approvalResolution(approvals, toolCall.id) === undefined
+  const isPlainClientRequest = !tool.needsApproval && !tool.execute
+  return !isPendingApproval && !isPlainClientRequest
+}
+
 /**
  * Execute tool calls based on their configuration.
  * Yields CustomEvent chunks during tool execution for real-time progress updates.
@@ -760,284 +990,150 @@ export async function* executeToolCalls<TContext = unknown>(
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
-
-  // Create tool lookup map
   const toolMap = new Map<string, AnyTool>()
   for (const tool of tools) {
     toolMap.set(tool.name, tool)
   }
 
-  // Batch gating: when any tool in the batch still needs an approval decision,
-  // defer all execution so side effects don't happen before the user decides.
   const hasPendingApprovals = toolCalls.some((tc) => {
     const t = toolMap.get(tc.function.name)
     return (
-      t?.needsApproval &&
+      Boolean(t?.needsApproval) &&
       approvalResolution(approvals, tc.id) === undefined &&
       !resumeState?.cancelledToolCallIds?.has(tc.id)
     )
   })
 
   for (const toolCall of toolCalls) {
-    const tool = toolMap.get(toolCall.function.name)
-    const toolName = toolCall.function.name
-
-    if (!tool) {
-      // Unknown tool - return error
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: { error: `Unknown tool: ${toolName}` },
-        state: 'output-error',
-      })
-      continue
-    }
-
-    // Skip non-pending tools while approvals are outstanding
-    if (hasPendingApprovals) {
-      const isPendingApproval =
-        tool.needsApproval &&
-        approvalResolution(approvals, toolCall.id) === undefined
-      const isPlainClientRequest = !tool.needsApproval && !tool.execute
-      if (!isPendingApproval && !isPlainClientRequest) {
-        continue
-      }
-    }
-
-    if (resumeState?.cancelledToolCallIds?.has(toolCall.id)) {
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: { error: 'Tool execution cancelled' },
-        state: 'output-error',
-      })
-      continue
-    }
-
-    // Parse arguments
-    let input: unknown = {}
-    const argsStr = toolCall.function.arguments.trim() || '{}'
-    if (argsStr) {
-      try {
-        const parsed = JSON.parse(argsStr)
-        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: {
-            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
-          },
-          input,
-          state: 'output-error',
-        })
-        continue
-      }
-    }
-
-    // Validate input against inputSchema (for Standard Schema compliant schemas)
-    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
-      try {
-        input = parseWithStandardSchema(tool.inputSchema, input)
-      } catch (validationError: unknown) {
-        const message =
-          validationError instanceof Error
-            ? validationError.message
-            : 'Validation failed'
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: {
-            error: `Input validation failed for tool ${tool.name}: ${message}`,
-          },
-          // raw parse may have failed validation — still attach best-effort input
-          input,
-          state: 'output-error',
-        })
-        continue
-      }
-    }
-
-    // Create a ToolExecutionContext for this tool call with event emission
-    const pendingEvents: Array<CustomEvent> = []
-    const context = {
-      toolCallId: toolCall.id,
-      context: userContext,
-      abortSignal,
-      emitCustomEvent: (eventName: string, value: Record<string, any>) => {
-        if (createCustomEventChunk) {
-          pendingEvents.push(
-            createCustomEventChunk(eventName, {
-              ...value,
-              toolCallId: toolCall.id,
-            }),
-          )
-        }
-      },
-    } as ToolExecutionContext<TContext>
-
-    // CASE 1: Client-side tool (no execute function)
-    if (!tool.execute) {
-      // Check if tool needs approval
-      if (tool.needsApproval) {
-        const approvalId = `approval_${toolCall.id}`
-        const resolution = approvalResolution(approvals, toolCall.id)
-
-        // Check if approval decision exists
-        if (resolution !== undefined) {
-          const approved = isApproved(resolution)
-
-          if (approved) {
-            input = editedApprovalArgs(resolution) ?? input
-            // Approved - check if client has executed
-            if (clientResults.has(toolCall.id)) {
-              results.push(
-                buildClientToolResult(
-                  toolCall.id,
-                  toolName,
-                  tool,
-                  clientResults.get(toolCall.id),
-                  input,
-                ),
-              )
-            } else {
-              // Approved but not executed yet - request client execution
-              needsClientExecution.push({
-                toolCallId: toolCall.id,
-                toolName,
-                input,
-              })
-            }
-          } else {
-            // User declined
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result:
-                resumeState?.deniedToolResults?.get(toolCall.id) ??
-                deniedApprovalResult(resolution),
-              input,
-              state: 'output-error',
-            })
-          }
-        } else {
-          // Need approval first
-          needsApproval.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
-            input,
-            approvalId,
-          })
-        }
-      } else {
-        // No approval needed - check if client has executed
-        if (clientResults.has(toolCall.id)) {
-          results.push(
-            buildClientToolResult(
-              toolCall.id,
-              toolName,
-              tool,
-              clientResults.get(toolCall.id),
-              input,
-            ),
-          )
-        } else {
-          // Request client execution
-          needsClientExecution.push({
-            toolCallId: toolCall.id,
-            toolName,
-            input,
-          })
-        }
-      }
-      continue
-    }
-
-    // CASE 2: Server tool with approval required
-    if (tool.needsApproval) {
-      const approvalId = `approval_${toolCall.id}`
-      const resolution = approvalResolution(approvals, toolCall.id)
-
-      // Check if approval decision exists
-      if (resolution !== undefined) {
-        const approved = isApproved(resolution)
-
-        if (approved) {
-          input = editedApprovalArgs(resolution) ?? input
-          // Apply middleware before-hook for approved tools
-          if (middlewareHooks) {
-            const decision = await applyBeforeToolCallDecision(
-              toolCall,
-              tool,
-              input,
-              toolName,
-              middlewareHooks,
-              results,
-            )
-            if (!decision.proceed) continue
-            input = decision.input
-          }
-
-          yield* executeServerTool(
-            toolCall,
-            tool,
-            toolName,
-            input,
-            context,
-            pendingEvents,
-            results,
-            middlewareHooks,
-          )
-        } else {
-          // User declined
-          results.push({
-            toolCallId: toolCall.id,
-            toolName,
-            result:
-              resumeState?.deniedToolResults?.get(toolCall.id) ??
-              deniedApprovalResult(resolution),
-            input,
-            state: 'output-error',
-          })
-        }
-      } else {
-        // Need approval
-        needsApproval.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-          approvalId,
-        })
-      }
-      continue
-    }
-
-    // CASE 3: Normal server tool - execute immediately
-    if (middlewareHooks) {
-      const decision = await applyBeforeToolCallDecision(
-        toolCall,
-        tool,
-        input,
-        toolName,
-        middlewareHooks,
-        results,
-      )
-      if (!decision.proceed) continue
-      input = decision.input
-    }
-
-    yield* executeServerTool(
+    yield* executeOneToolCall({
       toolCall,
-      tool,
-      toolName,
-      input,
-      context,
-      pendingEvents,
-      results,
+      tool: toolMap.get(toolCall.function.name),
+      approvals,
+      clientResults,
+      createCustomEventChunk,
       middlewareHooks,
-    )
+      userContext,
+      abortSignal,
+      resumeState,
+      hasPendingApprovals,
+      results,
+      needsApproval,
+      needsClientExecution,
+    })
   }
 
   return { results, needsApproval, needsClientExecution }
+}
+
+async function* executeOneToolCall<TContext>(input: {
+  toolCall: ToolCall
+  tool: AnyTool | undefined
+  approvals: Map<string, ToolApprovalResolution>
+  clientResults: Map<string, any>
+  createCustomEventChunk?: (
+    eventName: string,
+    value: Record<string, any>,
+  ) => CustomEvent
+  middlewareHooks?: ToolExecutionMiddlewareHooks
+  userContext?: TContext
+  abortSignal?: AbortSignal
+  resumeState?: ToolResumeExecutionState
+  hasPendingApprovals: boolean
+  results: Array<ToolResult>
+  needsApproval: Array<ApprovalRequest>
+  needsClientExecution: Array<ClientToolRequest>
+}): AsyncGenerator<CustomEvent, void, void> {
+  const {
+    toolCall,
+    tool,
+    approvals,
+    clientResults,
+    createCustomEventChunk,
+    middlewareHooks,
+    userContext,
+    abortSignal,
+    resumeState,
+    hasPendingApprovals,
+    results,
+    needsApproval,
+    needsClientExecution,
+  } = input
+  const toolName = toolCall.function.name
+  if (!tool) {
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: { error: `Unknown tool: ${toolName}` },
+      state: 'output-error',
+    })
+    return
+  }
+  if (
+    shouldSkipToolWhileApprovalsPending(
+      tool,
+      toolCall,
+      approvals,
+      hasPendingApprovals,
+    )
+  ) {
+    return
+  }
+  if (resumeState?.cancelledToolCallIds?.has(toolCall.id)) {
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: { error: 'Tool execution cancelled' },
+      state: 'output-error',
+    })
+    return
+  }
+  const parsed = parseExecuteToolCallInput(tool, toolCall, toolName)
+  if (!parsed.ok) {
+    results.push(parsed.result)
+    return
+  }
+  const pendingEvents: Array<CustomEvent> = []
+  const context = {
+    toolCallId: toolCall.id,
+    context: userContext,
+    abortSignal,
+    emitCustomEvent: (eventName: string, value: Record<string, any>) => {
+      if (createCustomEventChunk) {
+        pendingEvents.push(
+          createCustomEventChunk(eventName, {
+            ...value,
+            toolCallId: toolCall.id,
+          }),
+        )
+      }
+    },
+  } as ToolExecutionContext<TContext>
+  if (!tool.execute) {
+    handleClientToolCall({
+      tool,
+      toolCall,
+      toolName,
+      parsedInput: parsed.input,
+      approvals,
+      clientResults,
+      resumeState,
+      results,
+      needsApproval,
+      needsClientExecution,
+    })
+    return
+  }
+  yield* handleServerToolCall({
+    tool,
+    toolCall,
+    toolName,
+    parsedInput: parsed.input,
+    approvals,
+    resumeState,
+    middlewareHooks,
+    context,
+    pendingEvents,
+    results,
+    needsApproval,
+  })
 }

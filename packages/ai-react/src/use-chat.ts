@@ -43,9 +43,6 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
-  // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a React recreation key
-  // when no `threadId` is given. It is never sent on the wire.
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
@@ -107,10 +104,6 @@ export function useChat<
     const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
-    // Build options with conditional spreads for fields whose source
-    // type is `T | undefined` but the ChatClient target uses a strict
-    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
-    // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
     const transport = initialOptions.connection
       ? { connection: initialOptions.connection }
@@ -121,15 +114,12 @@ export function useChat<
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance) {
+      if (!currentInstance) return undefined
+      if (activeClientRef.current !== currentInstance) {
         return undefined
       }
       return currentInstance
     }
-    // ChatClient may publish while its constructor is running or while async
-    // persistence resolves before commit. Preserve those exact notifications
-    // until this render commits; invoking them here would run state setters and
-    // user callbacks for a client React may abandon.
     const initializationState = {
       ready: false,
       callbacks: [] as Array<() => void>,
@@ -140,8 +130,8 @@ export function useChat<
         return
       }
       const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance)
-        return
+      if (!currentInstance) return
+      if (activeClientRef.current !== currentInstance) return
       callback()
     }
     const instance = new ChatClient<TTools, TContext, TInterrupts>({
@@ -310,10 +300,6 @@ export function useChat<
     }
   }, [client])
 
-  // Sync each wire-payload slot in its own effect so an unrelated option
-  // changing doesn't re-run the others. `updateOptions` declares strict-optional
-  // fields and rejects explicit `undefined` under EOPT, so guard the optional
-  // slots before passing them.
   useEffect(() => {
     client.updateOptions({ body: options.body })
   }, [client, options.body])
@@ -345,31 +331,11 @@ export function useChat<
       client.subscribe()
       subscribedRef.current = true
     } else if (subscribedRef.current) {
-      // Only tear down a subscription we actually started. Calling
-      // `unsubscribe()` on initial mount (when `live` was never enabled) would
-      // abort an in-flight delivery resume — `resumeInFlightRun` is kicked off
-      // in the client constructor, and `unsubscribe()` cancels the shared
-      // in-flight stream — so a mid-stream reload would drop its rejoin before
-      // it delivers a single chunk. This is exactly why a reload froze instead
-      // of continuing.
       client.unsubscribe()
       subscribedRef.current = false
     }
   }, [client, options.live])
 
-  // ONLY THE VIEW ON SCREEN HOLDS A STREAM.
-  //
-  // A page can own many chats — 40 sandboxes, 40 conversations — and a browser
-  // allows only ~6 connections per origin. One long-lived stream per chat reaches
-  // that ceiling after a handful of views, and every request after it QUEUES:
-  // measured, an in-page fetch took over two minutes while the same request from
-  // outside the browser took 17ms. So the connection follows the view.
-  //
-  // Immediate, not deferred: the deferred teardown below can be skipped when the
-  // same client remounts, which is right for disposal but useless for a
-  // connection. `attach` is idempotent and `detach` keeps the transcript and the
-  // resume pointer, so a Strict Mode remount is just detach-then-attach and the
-  // run is picked straight back up from the durable log.
   useEffect(() => {
     client.attach()
     return () => {
@@ -387,9 +353,6 @@ export function useChat<
       cleanupInvalidationRef.current = null
     }
     client.mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter re-attaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
     syncResumeState(client)
 
     return () => {
@@ -399,14 +362,6 @@ export function useChat<
         }
         cleanupInvalidationRef.current = null
       }, 0)
-      // Soft cleanup only: do NOT stop/unsubscribe here. React Strict Mode
-      // remounts fire this cleanup then re-attach the same client one tick
-      // later; calling `stop()` would abort a constructor rejoin
-      // (`resumeInFlightRun`) and can wipe the durable resume pointer before
-      // the first chunk. Real teardown lives in the deferred dispose path
-      // below, which only runs when the client is not remounted.
-      // Subscribe/unsubscribe on `options.live` is still owned by the
-      // dedicated effect above for live toggles.
       const disposal = {
         client,
         timeout: setTimeout(() => {
@@ -545,16 +500,6 @@ export function useChat<
     [client],
   )
 
-  // The "active" structured-output part is the one on the assistant message
-  // that follows the latest user message. No such message exists between
-  // sendMessage() and the first chunk, so partial/final naturally read as
-  // cleared. Historical parts on earlier assistant messages remain available
-  // via `messages` directly.
-  //
-  // When there is NO user message yet (e.g. `initialMessages` contains only
-  // a stale assistant turn or a system prompt) we deliberately return null
-  // rather than scanning historical assistants — otherwise a `final` from a
-  // previous session would leak into the hook value on first render.
   const renderedMessages = client.getMessages()
 
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
@@ -584,15 +529,13 @@ export function useChat<
   }, [activeStructuredPart])
 
   const final = useMemo<Final | null>(() => {
-    if (!activeStructuredPart || activeStructuredPart.status !== 'complete') {
+    if (!activeStructuredPart) return null
+    if (activeStructuredPart.status !== 'complete') {
       return null
     }
     return activeStructuredPart.data as Final
   }, [activeStructuredPart])
 
-  // The runtime shape unconditionally exposes partial/final; the public
-  // return type hides them when no outputSchema was supplied. TS can't
-  // structurally narrow across that conditional, so the `as` is the seam.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,

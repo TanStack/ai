@@ -741,62 +741,6 @@ const GPT_AUDIO = {
     OpenAIMetadataOptions
 >
 
-/* const GPT_REALTIME = {
-  name: 'gpt-realtime',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 4,
-      cached: 0.5,
-    },
-    output: {
-      normal: 16,
-    },
-  },
-  supports: {
-    input: ['text', 'audio', 'image'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
->
-
-const GPT_REALTIME_MINI = {
-  name: 'gpt-realtime-mini',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio and image tokens to input output
-    input: {
-      normal: 0.6,
-      cached: 0.06,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
-  supports: {
-    input: ['text', 'audio', 'image'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
-> */
-
 const GPT_AUDIO_MINI = {
   name: 'gpt-audio-mini',
   context_window: 128_000,
@@ -1241,34 +1185,6 @@ const GPT_4O_MINI_AUDIO = {
     OpenAIMetadataOptions
 >
 
-/* const GPT_4O_MINI_REALTIME = {
-  name: 'gpt-4o-mini-realtime',
-  context_window: 16_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add audio tokens
-    input: {
-      normal: 0.6,
-      cached: 0.3,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
->
- */
 const O1 = {
   name: 'o1',
   context_window: 200_000,
@@ -1298,26 +1214,6 @@ const O1 = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const OMNI_MODERATION = {
-  name: 'omni-moderation',
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['batch', 'moderation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 const GPT_4O = {
   name: 'gpt-4o',
@@ -1442,34 +1338,6 @@ const GPT_4O_MINI = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const GPT__4O_REALTIME = {
-  name: 'gpt-4o-realtime',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 5,
-      cached: 2.5,
-    },
-    output: {
-      normal: 20,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
-> */
 
 const GPT_4_TURBO = {
   name: 'gpt-4-turbo',
@@ -1698,99 +1566,6 @@ const GPT_4 = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
-/*
-const GPT_4O_MINI_TRANSCRIBE = {
-  name: 'gpt-4o-mini-transcribe',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-01-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 1.25,
-    },
-    output: {
-      normal: 5,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['realtime', 'transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const GPT_4O_MINI_TTS = {
-  name: 'gpt-4o-mini-tts',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 0.6,
-    },
-    output: {
-      normal: 12,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const GPT_4O_TRANSCRIBE = {
-  name: 'gpt-4o-transcribe',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['realtime', 'transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
-/*
-const GPT_4O_TRANSCRIBE_DIARIZE = {
-  name: 'gpt-4o-transcribe-diarize',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 const GPT_5_1_CHAT = {
   name: 'gpt-5.1-chat-latest',
@@ -1865,48 +1640,6 @@ const GPT_5_CHAT = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const TTS_1 = {
-  name: 'tts-1',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TTS_1_HD = {
-  name: 'tts-1-hd',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 30,
-    },
-    output: {
-      normal: 30,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
 const GPT_5_4_MINI = {
@@ -2528,7 +2261,9 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
  */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  const isGpt5SamplingBlocked =
+    model.startsWith('gpt-5') && !model.endsWith('-chat-latest')
+  if (isGpt5SamplingBlocked) return true
   if (model === 'codex-mini-latest') return true
   return false
 }
@@ -2545,33 +2280,8 @@ export const OPENAI_IMAGE_MODELS = [
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
-/* const OPENAI_AUDIO_MODELS = [
-  // Transcription models
-  GPT_4O_TRANSCRIBE.name,
-  GPT_4O_TRANSCRIBE_DIARIZE.name,
-  GPT_4O_MINI_TRANSCRIBE.name,
-  // Realtime models
-  GPT_REALTIME.name,
-  GPT_REALTIME_MINI.name,
-  GPT__4O_REALTIME.name,
-  GPT_4O_MINI_REALTIME.name,
-  // Text-to-speech models
-  GPT_4O_MINI_TTS.name,
-  TTS_1.name,
-  TTS_1_HD.name,
-] as const */
 
 // Transcription-only models (based on endpoints: "transcription")
-/* const OPENAI_TRANSCRIPTION_MODELS = [
-  GPT_4O_TRANSCRIBE.name,
-  GPT_4O_TRANSCRIBE_DIARIZE.name,
-  GPT_4O_MINI_TRANSCRIBE.name,
-] as const
-
-/**
- * Video generation models (based on endpoints: "video")
- * @experimental Video generation is an experimental feature and may change.
- */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
 export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]

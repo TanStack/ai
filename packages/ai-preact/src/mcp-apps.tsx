@@ -1,16 +1,3 @@
-/**
- * MCPAppResource — Preact wrapper for rendering MCP App UI resources.
- *
- * PREACT/COMPAT NOTE:
- * `@mcp-ui/client@7.1.1` is published React-only: `AppRenderer` is a React
- * `forwardRef` component. There is NO dedicated preact entry point and NO web
- * component variant. This wrapper imports `{ AppRenderer }` from
- * `'@mcp-ui/client'` identically to the React wrapper and relies on the
- * *consumer's* `preact/compat` alias (resolving `react` / `react-dom` to
- * `preact/compat`) to render the React component under Preact.
- * Wiring up that alias is the consumer's responsibility and is NOT
- * runtime-verified in this repository.
- */
 import { AppRenderer } from '@mcp-ui/client'
 import type { AppRendererProps } from '@mcp-ui/client'
 import type { UIResourcePart } from '@tanstack/ai'

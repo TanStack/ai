@@ -86,6 +86,7 @@ class DaytonaProvider implements SandboxProvider {
   }
 
   private createParams(input: {
+    /** Snapshot/image to create the sandbox from (forwarded to `daytona.create`). */
     snapshot?: string
     id?: string
     policy?: SandboxCreateInput['policy']
@@ -141,7 +142,9 @@ class DaytonaProvider implements SandboxProvider {
       const sandbox = await this.daytona.get(input.id)
       // Idle sandboxes auto-stop. get() still returns them, but exec fails
       // until they are started again.
-      if (sandbox.state === 'stopped' || sandbox.state === 'archived') {
+      const needsStart =
+        sandbox.state === 'stopped' || sandbox.state === 'archived'
+      if (needsStart) {
         await sandbox.start()
       }
       return new DaytonaHandle({ sandbox, workdir: this.workdir })

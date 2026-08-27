@@ -145,7 +145,8 @@ export async function codeModeWithSnippets({
   }
 
   // 7. Convert selected snippets to direct tools and add to registry (if enabled)
-  if (snippetsAsTools && selectedSnippets.length > 0) {
+  const addSnippetTools = snippetsAsTools && selectedSnippets.length > 0
+  if (addSnippetTools) {
     const snippetToolsList = snippetsToTools({
       snippets: selectedSnippets,
       driver: config.driver,

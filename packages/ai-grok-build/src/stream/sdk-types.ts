@@ -8,7 +8,6 @@
  * **legacy** Codex-like shapes below are kept for fixture tests and backward
  * compatibility.
  */
-
 export interface GrokBuildUsage {
   input_tokens?: number
   output_tokens?: number

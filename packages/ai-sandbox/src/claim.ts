@@ -1,80 +1,11 @@
-/**
- * The single-writer claim: what makes a takeover safe to attempt at all.
- *
- * WHY THIS MODULE EXISTS. `alignToStoredLog` decides where its appends start by
- * reading `durability.snapshot()`, and `snapshot()` carries NO LOCK — core says
- * so explicitly (`packages/ai/src/stream-durability.ts`: "a concurrent `append`
- * may land immediately after the snapshot is taken"). If two hosts drive one
- * run, both snapshot, both compute a "remainder", and both append it. The log
- * then holds the same logical chunk twice under two different offsets, and the
- * client CANNOT survive that: `ai-client`'s de-dup is keyed on the adapter's
- * offset string, so a re-appended chunk looks new, and the stream processor
- * applies text and tool-argument deltas unconditionally. The visible result is
- * doubled message text and `{"a":1}{"a":1}` tool arguments.
- *
- * Takeover is by definition two hosts wanting one run, so nothing may read a
- * journal for a run it has not claimed.
- *
- * THREE LAYERS, strongest first:
- *
- * 1. **The lease.** {@link withRunClaim} runs the whole drive inside
- *    `LockStore.withLock('run-driver:<runId>', …)`, so the snapshot and every
- *    append that follows are one critical section. A lease-backed lock aborts
- *    the callback signal the moment ownership is lost, and
- *    {@link fenceDurability} turns that into a thrown {@link RunClaimLostError}
- *    BEFORE the append reaches the log.
- * 2. **The epoch.** Each successful claim bumps `RunRecord.driverEpoch`.
- *    {@link fenceDurability} re-reads it every
- *    {@link DEFAULT_EPOCH_RECHECK_APPENDS} appends and refuses to append once a
- *    higher epoch exists. This covers what a lease cannot: an
- *    `InMemoryLockStore`, whose signal is a fresh `AbortController().signal`
- *    that is never aborted, and any backend whose renewal is coarser than the
- *    run's append rate. Once EITHER fence has refused an append, the fence
- *    latches shut and every later append refuses without re-reading anything.
- * 3. **Quiescence.** {@link awaitLogQuiescence} requires the stored log to stop
- *    growing before the successor appends anything, so a predecessor that is
- *    still writing is OBSERVED rather than raced.
- *
- * THE LOG IS NOT THE ONLY AUTHORITATIVE CHANNEL. A host that has lost its claim
- * must not write authoritative facts about the run through ANY seam, and there
- * are two: the event log and the run RECORD. Fencing only the log moves the harm
- * rather than removing it — a superseded driver whose append was refused folds
- * that refusal into a terminal `runs.update`, so the record reads `'failed'` for
- * a run the successor is healthily streaming, and `isTerminalRunStatus` (which
- * `findActiveRun`, the resume driver, and `reapDetachedRuns` all branch on) then
- * answers `true` for a live run. {@link fenceRunStore} closes that seam; both
- * fences share one per-claim latch so they can never disagree about whether the
- * claim is still held.
- *
- * WHY THE EPOCH RE-CHECK COUNTS APPENDS, NOT MILLISECONDS. `pipeToRunLog`
- * appends ONE chunk per call, so a time-based interval couples the fence's
- * resolution to the run's chunk rate: at 500 chunks/sec a 2s interval lets a
- * superseded driver write ~1000 chunks before it notices. A count gives a hard
- * bound independent of rate — see {@link DEFAULT_EPOCH_RECHECK_APPENDS}.
- *
- * WHAT THIS IS NOT. It is not airtight fencing.
- *
- * - A predecessor paused (GC, VM suspend) for longer than the quiescence
- *   window, between its last fence check and its append landing at the backend,
- *   can still write one batch. Closing that requires a compare-and-set on the
- *   durability write; `StreamDurability.append` has no such parameter and this
- *   phase deliberately does not add one.
- * - Layer 3 is only meaningful across PROCESSES. On a single-process
- *   `InMemoryLockStore` the two claims are serialized by the lock, not
- *   concurrent, so `awaitLogQuiescence` can never observe a predecessor still
- *   writing there — and consequently no unit test on that backend proves layer
- *   3 does anything. What the tests do prove on that backend is layer 2.
- *
- * The mitigation for both is deployment-level: use a lease-backed distributed
- * `LockStore`, and keep `fenceQuietMs` above the lease's renewal interval.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type { LockStore } from '@tanstack/ai/locks'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /** Quiescence window before a successor's first append. */
-export const DEFAULT_FENCE_QUIET_MS = 5_000
+export const /** Quiescence window before a successor's first append. */
+  DEFAULT_FENCE_QUIET_MS = 5_000
 
 /**
  * Appends a fenced log makes between `driverEpoch` re-reads.
@@ -90,7 +21,8 @@ export const DEFAULT_FENCE_QUIET_MS = 5_000
 export const DEFAULT_EPOCH_RECHECK_APPENDS = 32
 
 /** Probes {@link awaitLogQuiescence} makes before giving up. */
-const MAX_QUIESCENCE_PROBES = 6
+const /** Probes {@link awaitLogQuiescence} makes before giving up. */
+  MAX_QUIESCENCE_PROBES = 6
 
 /** Lock key for a run's driver. Per-run, so two runs never serialize. */
 export function runDriverLockKey(runId: string): string {
@@ -179,6 +111,7 @@ export async function withRunClaim<T>(
     if (isTerminalRunStatus(record.status)) {
       throw new RunClaimNotAcquiredError(runId, 'terminal')
     }
+    /** This driver's fencing token; strictly greater than any predecessor's. */
     const epoch = (record.driverEpoch ?? 0) + 1
     await runs.update(runId, { driverEpoch: epoch })
     logger?.sandbox(`run ${runId}: driver claim acquired at epoch ${epoch}`, {
@@ -348,9 +281,6 @@ export function fenceDurability<TOffset extends string = string>(
     1,
     Math.trunc(options.epochRecheckAppends ?? DEFAULT_EPOCH_RECHECK_APPENDS),
   )
-  // Seeded at the threshold so the FIRST append always re-reads the epoch: a
-  // successor may have claimed between this fence being built and its first
-  // write.
   let appendsSinceEpochRead = recheckAppends
   // Latched by the FIRST refusal and never cleared, and SHARED with this claim's
   // record fence so the two seams cannot disagree.
@@ -446,23 +376,18 @@ export function fenceRunStore(
     findActiveRun: (threadId) => runs.findActiveRun(threadId),
     update: async (runId, patch) => {
       const status = patch.status
-      if (
-        runId !== claim.runId ||
-        status === undefined ||
-        !isTerminalRunStatus(status)
-      ) {
+      const isTerminalClaimWrite =
+        runId === claim.runId &&
+        status !== undefined &&
+        isTerminalRunStatus(status)
+      if (!isTerminalClaimWrite) {
         return runs.update(runId, patch)
       }
+      /** `undefined` while the fence is open; otherwise the refusal to replay. */
       const lost =
         claimLostSynchronously(claim, latch) ??
-        // Unthrottled, unlike the append path: a terminal write happens once per
-        // run, so one store read is not a hot cost — and it is the read that
-        // catches a superseded driver whose stream ended without ever appending.
         (await claimLostByEpoch(claim, latch, runs))
       if (lost === undefined) return runs.update(runId, patch)
-      // Absorbing this silently would make it invisible: a detached run has no
-      // caller to report to. The logger is consumer-supplied, so a throwing sink
-      // must not turn a suppression into a rejection.
       try {
         options.logger?.sandbox(
           `run ${runId}: suppressed a terminal '${status}' record write from a superseded driver`,

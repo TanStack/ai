@@ -15,6 +15,47 @@ import type { GroqClientConfig } from '../utils/client'
  */
 export interface GroqTranscriptionConfig extends GroqClientConfig {}
 
+async function groqTranscriptionError(response: Response): Promise<string> {
+  const body = await response
+    .json()
+    .catch(() => null as Record<string, unknown> | null)
+  return (
+    (body?.error as { message?: string } | undefined)?.message ??
+    `Groq API error ${response.status}`
+  )
+}
+
+function parseVerboseTranscription(
+  data: GroqVerboseTranscriptionResponse,
+  model: string,
+  adapterName: string,
+): TranscriptionResult {
+  const requestId = data.x_groq?.id ?? generateId(adapterName)
+  const segments = data.segments?.map(
+    (seg): TranscriptionSegment => ({
+      id: seg.id,
+      start: seg.start,
+      end: seg.end,
+      text: seg.text,
+      confidence: Math.exp(seg.avg_logprob),
+    }),
+  )
+  const words = data.words?.map((w) => ({
+    word: w.word,
+    start: w.start,
+    end: w.end,
+  }))
+  return {
+    id: requestId,
+    model,
+    text: data.text,
+    ...(data.language !== undefined && { language: data.language }),
+    ...(data.duration !== undefined && { duration: data.duration }),
+    ...(segments !== undefined && { segments }),
+    ...(words !== undefined && { words }),
+  }
+}
+
 /**
  * Flattens the `openai` SDK's `HeadersLike` config value into a plain record so
  * it can be merged into the raw `fetch` request this adapter issues. Handles
@@ -37,7 +78,8 @@ function normalizeHeaders(
   } else if (Array.isArray(headers)) {
     for (const [key, value] of headers) assign(key, value)
   } else {
-    for (const [key, value] of Object.entries(headers)) assign(key, value)
+    const headerEntries = Object.entries(headers)
+    for (const [key, value] of headerEntries) assign(key, value)
   }
   return out
 }
@@ -106,10 +148,9 @@ export class GroqTranscriptionAdapter<
     const { model, audio, language, prompt, responseFormat, modelOptions } =
       options
 
-    // Groq's transcription endpoint only accepts 'json', 'text', and
-    // 'verbose_json'. Reject 'srt'/'vtt' up front so callers get a clear
-    // message instead of an opaque Groq HTTP error.
-    if (responseFormat === 'srt' || responseFormat === 'vtt') {
+    const isSubtitleFormat =
+      responseFormat === 'srt' || responseFormat === 'vtt'
+    if (isSubtitleFormat) {
       throw new Error(
         `Groq transcription does not support responseFormat='${responseFormat}'. ` +
           `Supported values: 'json', 'text', 'verbose_json'.`,
@@ -135,9 +176,6 @@ export class GroqTranscriptionAdapter<
       }
     }
 
-    // HTTP/HTTPS URLs are forwarded directly via Groq's `url` field, which
-    // avoids a round-trip upload. All other inputs (File, Blob, ArrayBuffer,
-    // base64, data URL) are converted to a File and sent as `file`.
     if (typeof audio === 'string' && /^https?:\/\//.test(audio)) {
       form.append('url', audio)
     } else {
@@ -160,69 +198,54 @@ export class GroqTranscriptionAdapter<
       })
 
       if (!response.ok) {
-        const body = await response
-          .json()
-          .catch(() => null as Record<string, unknown> | null)
-        const message =
-          (body?.error as { message?: string } | undefined)?.message ??
-          `Groq API error ${response.status}`
-        throw new Error(message)
+        throw new Error(await groqTranscriptionError(response))
       }
 
-      if (useVerbose) {
-        const data = (await response.json()) as GroqVerboseTranscriptionResponse
-        const requestId = data.x_groq?.id ?? generateId(this.name)
-
-        // `TranscriptionResult` declares optional fields without `| undefined`,
-        // so under exactOptionalPropertyTypes we must omit absent fields rather
-        // than assigning `undefined`.
-        const segments = data.segments?.map(
-          (seg): TranscriptionSegment => ({
-            id: seg.id,
-            start: seg.start,
-            end: seg.end,
-            text: seg.text,
-            confidence: Math.exp(seg.avg_logprob),
-          }),
-        )
-        const words = data.words?.map((w) => ({
-          word: w.word,
-          start: w.start,
-          end: w.end,
-        }))
-
-        return {
-          id: requestId,
-          model,
-          text: data.text,
-          ...(data.language !== undefined && { language: data.language }),
-          ...(data.duration !== undefined && { duration: data.duration }),
-          ...(segments !== undefined && { segments }),
-          ...(words !== undefined && { words }),
-        }
-      } else if (effectiveFormat === 'text') {
-        const text = await response.text()
-        return {
-          id: generateId(this.name),
-          model,
-          text,
-          ...(language !== undefined && { language }),
-        }
-      } else {
-        const data = (await response.json()) as GroqJsonTranscriptionResponse
-        return {
-          id: data.x_groq?.id ?? generateId(this.name),
-          model,
-          text: data.text,
-          ...(language !== undefined && { language }),
-        }
-      }
+      return await this.parseTranscriptionResponse(
+        response,
+        model,
+        language,
+        useVerbose,
+        effectiveFormat,
+      )
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.transcribe fatal`, {
         error,
         source: `${this.name}.transcribe`,
       })
       throw error
+    }
+  }
+
+  private async parseTranscriptionResponse(
+    response: Response,
+    model: string,
+    language: string | undefined,
+    useVerbose: boolean,
+    effectiveFormat: string,
+  ): Promise<TranscriptionResult> {
+    if (useVerbose) {
+      return parseVerboseTranscription(
+        (await response.json()) as GroqVerboseTranscriptionResponse,
+        model,
+        this.name,
+      )
+    }
+    if (effectiveFormat === 'text') {
+      const text = await response.text()
+      return {
+        id: generateId(this.name),
+        model,
+        text,
+        ...(language !== undefined && { language }),
+      }
+    }
+    const data = (await response.json()) as GroqJsonTranscriptionResponse
+    return {
+      id: data.x_groq?.id ?? generateId(this.name),
+      model,
+      text: data.text,
+      ...(language !== undefined && { language }),
     }
   }
 

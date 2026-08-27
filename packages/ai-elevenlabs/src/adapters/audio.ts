@@ -146,6 +146,7 @@ export class ElevenLabsAudioAdapter<
     // Gated by isElevenLabsMusicModel() in generateAudio().
     const modelId = this.model as ElevenLabsMusicModel
     const music = (options.modelOptions ?? {}) as ElevenLabsMusicProviderOptions
+    /** Output audio format. Defaults to `mp3_44100_128`. */
     const outputFormat = music.outputFormat
 
     const stream = await this.client.music.compose({

@@ -28,13 +28,6 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class BedrockTextAdapter<
   TModel extends BedrockChatModels,
-  // Constraint mirrors ai-groq and the base, which parameterises
-  // `TProviderOptions extends Record<string, any>`. Our default
-  // `ResolveProviderOptions<TModel>` resolves to the `BedrockTextProviderOptions`
-  // interface, which (lacking an implicit index signature) `Record<string,
-  // unknown>` would reject but `Record<string, any>` accepts. This `any` is
-  // confined to the generic constraint (the established ai-groq pattern) — no
-  // value/shape `as` cast is introduced.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -69,14 +62,17 @@ export class BedrockTextAdapter<
 
 /** Cast-free narrowing of a Chat Completions chunk's reasoning delta. */
 function readDeltaReasoning(chunk: unknown): { text: string } | undefined {
-  if (typeof chunk !== 'object' || chunk === null || !('choices' in chunk))
-    return undefined
+  if (typeof chunk !== 'object') return undefined
+  if (chunk === null) return undefined
+  if (!('choices' in chunk)) return undefined
   if (!Array.isArray(chunk.choices)) return undefined
   const choice: unknown = chunk.choices[0]
-  if (typeof choice !== 'object' || choice === null || !('delta' in choice))
-    return undefined
+  if (typeof choice !== 'object') return undefined
+  if (choice === null) return undefined
+  if (!('delta' in choice)) return undefined
   const delta = choice.delta
-  if (typeof delta !== 'object' || delta === null) return undefined
+  if (typeof delta !== 'object') return undefined
+  if (delta === null) return undefined
   const raw =
     'reasoning' in delta && typeof delta.reasoning === 'string'
       ? delta.reasoning

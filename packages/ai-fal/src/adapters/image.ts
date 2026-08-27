@@ -111,10 +111,6 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     resolved: ResolvedMediaPrompt,
   ): FalModelInput<TModel> {
     const sizeParams = mapSizeToFalFormat(options.size)
-    // Order matters: size and derived image-input fields first, then
-    // modelOptions (so explicit user overrides win for mask_url /
-    // control_image_url / reference_image_urls), then the call-controlled
-    // prompt / num_images, which always take precedence.
     const inputFields = mapImageInputsToFalFields(this.model, resolved.images)
     const input = {
       ...sizeParams,

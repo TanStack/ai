@@ -1,19 +1,3 @@
-/**
- * The reusable "run an agent CLI inside a sandbox and stream its events out"
- * primitive. Harness adapters (claude-code, codex, …) spawn their CLI via the
- * uniform {@link SandboxHandle} and consume newline-delimited JSON from stdout,
- * which they then translate into AG-UI StreamChunks.
- *
- * This is intentionally transport-minimal: a stdout NDJSON pipe. Multi-client
- * reconnect / replay belongs to the persistence/EventLog layer, not here.
- *
- * The `journal` option adds a second, opt-in transport: instead of holding the
- * agent's stdout pipe directly, the host redirects it into an append-only file
- * inside the sandbox and tails that file. See `journal.ts` for why (host death
- * cannot SIGPIPE the agent, and a later host can resume the same file from byte
- * 0). `spawnNdjson`'s signature and unjournaled behavior are unchanged; every
- * existing caller keeps working exactly as before.
- */
 import {
   journalCleanupCommand,
   journalPaths,
@@ -180,7 +164,8 @@ export async function startJournaledAgent(
 }
 
 /** Chars of stderr attached to a non-zero-exit error, on both paths. */
-const STDERR_ERROR_CHARS = 1000
+const /** Chars of stderr attached to a non-zero-exit error, on both paths. */
+  STDERR_ERROR_CHARS = 1000
 
 async function* singleValue(value: string): AsyncIterable<string> {
   yield value
@@ -204,7 +189,8 @@ async function readStderrTail(
     const result = await handle.process.exec(journalStderrReadCommand(paths))
     const decoder = new TextDecoder()
     let text = ''
-    for await (const bytes of decodeBase64Stream(singleValue(result.stdout))) {
+    const decodedChunks = decodeBase64Stream(singleValue(result.stdout))
+    for await (const bytes of decodedChunks) {
       text += decoder.decode(bytes, { stream: true })
     }
     text += decoder.decode()
@@ -225,11 +211,7 @@ async function cleanupJournal(
 ): Promise<void> {
   try {
     await handle.process.exec(journalCleanupCommand(paths))
-  } catch {
-    // The sandbox may already be gone, `/tmp` may be read-only, the provider's
-    // `exec` may reject. Nothing about a completed run depends on the files
-    // still existing OR on them being gone, so there is nothing to report.
-  }
+  } catch {}
 }
 
 /**
@@ -284,11 +266,6 @@ export async function* readJournalNdjson(
   options: JournaledOptions,
 ): AsyncIterable<unknown> {
   const paths = resolvePaths(options)
-  // ATTACH ONLY, and before the first read. `journalFollowCommand` CREATES the
-  // journal it tails, so an attach for a runId that never had one would
-  // otherwise create an empty file and tail it forever with no sentinel ever
-  // arriving. A fresh run must not be gated: its journal is created by its own
-  // `journaledCommand` spawn, which `spawnNdjson` has just issued.
   if (options.journal.attach === true) {
     await awaitAttachableJournal(handle, {
       paths,
@@ -303,7 +280,7 @@ export async function* readJournalNdjson(
     })
   }
   let exitCode: number | undefined
-  for await (const { line } of readJournal(handle, {
+  const journalLines = readJournal(handle, {
     paths,
     fromByte: 0,
     runId: options.journal.runId,
@@ -314,12 +291,10 @@ export async function* readJournalNdjson(
     ...(options.journal.attachWaitMs === undefined
       ? {}
       : { firstByteTimeoutMs: options.journal.attachWaitMs }),
-  })) {
+  })
+  for await (const { line } of journalLines) {
     const trimmed = line.trim()
     if (trimmed === '') continue
-    // The sentinel test comes FIRST and is nonce-checked, so an agent line that
-    // merely looks like a sentinel is delivered as the event it is instead of
-    // truncating the run (see `parseExitSentinel`).
     const sentinel = parseExitSentinel(trimmed, paths)
     if (sentinel !== null) {
       exitCode = sentinel
@@ -335,20 +310,6 @@ export async function* readJournalNdjson(
     yield parsed
   }
 
-  // The stream ended with no sentinel. Two very different causes share this
-  // shape, and collapsing them is how a torn-down read used to be recorded as a
-  // short but SUCCESSFUL run:
-  //
-  // - The CONSUMER aborted (lease lost, client gone, host shutting down). Not a
-  //   failure and not terminal: return, having deleted nothing, because a
-  //   successor host may still need every byte. `pipeToRunLog`'s post-loop check
-  //   turns this into `'aborted'`.
-  // - The read DIED (the `tail` was killed, the sandbox was destroyed, the pipe
-  //   was torn down). The iterable ends without an error, so returning here made
-  //   the adapter emit a normally-completing but silently TRUNCATED run — in a
-  //   function whose documented job is to throw so the adapter converts it to a
-  //   `RUN_ERROR`. `signal.aborted` is what tells the two apart, and the throw
-  //   matches the shape the unjournaled path already uses for a bad exit.
   if (exitCode === undefined) {
     if (options.signal?.aborted === true) return
     throw new Error(
@@ -402,10 +363,6 @@ export async function* spawnNdjson(
     await proc.stdin.end()
   }
 
-  // Drain stderr concurrently. A CLI that fails before producing stdout (a
-  // broken install, an auth/permission refusal, …) prints to stderr and exits
-  // non-zero; without this, stdout-only parsing yields nothing and the failure
-  // vanishes. Capturing it lets us surface the cause below.
   const stderrChunks: Array<string> = []
   const stderrDrained = (async () => {
     try {
@@ -415,7 +372,8 @@ export async function* spawnNdjson(
     }
   })()
 
-  for await (const line of toLines(proc.stdout)) {
+  const stdoutLines = toLines(proc.stdout)
+  for await (const line of stdoutLines) {
     const trimmed = line.trim()
     if (trimmed === '') continue
     let parsed: unknown
@@ -430,9 +388,6 @@ export async function* spawnNdjson(
 
   const exitCode = await proc.wait()
   await stderrDrained
-  // A non-zero exit means the agent CLI itself failed. Throw so the adapter's
-  // catch turns it into a RUN_ERROR the UI can show, instead of ending the
-  // stream silently with no events.
   if (exitCode !== 0) {
     const stderr = stderrChunks.join('').trim()
     throw new Error(

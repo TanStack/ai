@@ -36,24 +36,24 @@ export function parseClientSecretResponse(
   // Validate shape before dereferencing — the API could return an error
   // envelope with 200 status, or a partial response under protocol drift.
   if (
-    !data ||
-    typeof data.value !== 'string' ||
-    typeof data.expires_at !== 'number' ||
-    !Number.isFinite(data.expires_at)
+    data &&
+    typeof data.value === 'string' &&
+    typeof data.expires_at === 'number' &&
+    Number.isFinite(data.expires_at)
   ) {
-    throw new Error(
-      'OpenAI realtime client secret response missing or malformed `value`/`expires_at`',
-    )
+    return {
+      provider: 'openai',
+      token: data.value,
+      expiresAt: data.expires_at * 1000,
+      config: {
+        model: data.session?.model ?? fallbackModel,
+      },
+    }
   }
 
-  return {
-    provider: 'openai',
-    token: data.value,
-    expiresAt: data.expires_at * 1000,
-    config: {
-      model: data.session?.model ?? fallbackModel,
-    },
-  }
+  throw new Error(
+    'OpenAI realtime client secret response missing or malformed `value`/`expires_at`',
+  )
 }
 
 /**
@@ -87,9 +87,6 @@ export function openaiRealtimeToken(
     async generateToken(): Promise<RealtimeToken> {
       const model: OpenAIRealtimeModel = options.model ?? 'gpt-realtime'
 
-      // Only the model is sent server-side; all other session config
-      // (instructions, voice, tools, VAD) is applied client-side via
-      // session.update.
       const response = await fetch(OPENAI_REALTIME_CLIENT_SECRETS_URL, {
         method: 'POST',
         headers: {

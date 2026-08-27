@@ -63,8 +63,8 @@ export function withSandboxUserAgent(
  * may already exist (notably the default `/vercel/sandbox`).
  */
 export function isDirAlreadyExistsError(error: unknown): boolean {
-  if (!(error instanceof APIError) || error.response.status !== 400)
-    return false
+  if (!(error instanceof APIError)) return false
+  if (error.response.status !== 400) return false
   const json: unknown = error.json
   const detail =
     typeof json === 'object' &&
@@ -94,18 +94,18 @@ class VercelProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
+  /** Ports to expose; reachable from the host via `ports.connect(port)`. */
   private get ports(): Array<number> {
     return this.config.ports ?? []
   }
 
   /** Auth overrides shared by create/get/stop, omitting undefined fields. */
-  private auth(): { token?: string; teamId?: string; projectId?: string } {
+  private auth(): {
+    token?: string /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
+    teamId?: string /** Vercel project id. Falls back to `VERCEL_PROJECT_ID`. */
+    projectId?: string
+  } {
     const out: { token?: string; teamId?: string; projectId?: string } = {}
-    // Fall back to env when not set in config. We must resolve these ourselves:
-    // when given no explicit `token`, the Vercel SDK runs its OWN credential
-    // resolution, which PREFERS `VERCEL_OIDC_TOKEN` over the access-token path —
-    // so a stale/expired OIDC token wins and access-token auth never kicks in.
-    // Passing `token` explicitly forces access-token auth.
     const token = this.config.token ?? process.env.VERCEL_TOKEN
     const teamId = this.config.teamId ?? process.env.VERCEL_TEAM_ID
     const projectId = this.config.projectId ?? process.env.VERCEL_PROJECT_ID
@@ -129,14 +129,6 @@ class VercelProvider implements SandboxProvider {
         : {}),
       ...(input.env ? { env: input.env } : {}),
     })
-    // Ensure the workspace dir exists via the native (cwd-independent) mkDir —
-    // running a command with a not-yet-existing `cwd` would fail, so we must not
-    // route this through the handle (which runs every command in `workdir`).
-    //
-    // The SDK's `mkDir` is NOT idempotent: it returns HTTP 400 (`file_error` /
-    // "File exists") when the target already exists, and the default workdir
-    // `/vercel/sandbox` ships in the runtime image — so a fresh sandbox already
-    // has it. Treat an "already exists" failure as success; rethrow anything else.
     try {
       await sandbox.mkDir(this.workdir)
     } catch (error) {

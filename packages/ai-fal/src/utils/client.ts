@@ -22,9 +22,6 @@ export function configureFalClient(config?: FalClientConfig): void {
   const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
   fal.config({
     credentials: apiKey,
-    // Wrap the (optionally overridden) fetch to read fal's
-    // `x-fal-billable-units` header off every response so adapters can surface
-    // the billed quantity as `result.usage`. See ./billing.ts.
     fetch: createBillingFetch(config?.fetch),
     ...(config?.proxyUrl ? { proxyUrl: config.proxyUrl } : {}),
   })
@@ -54,14 +51,12 @@ export function extractUrlExtension(url: string): string | undefined {
   }
   // Drop trailing slashes so `/path/audio.mp3/` still yields `mp3`.
   const normalized = pathname.replace(/\/+$/, '')
-  // Require at least one `/` — otherwise we're looking at an empty pathname
-  // (bare-host URLs like `https://x.com/` land here after stripping the
-  // trailing slash).
   if (!normalized.includes('/')) return undefined
   const lastSegment = normalized.split('/').pop()
   if (!lastSegment) return undefined
   const extension = lastSegment.split('.').pop()
-  if (!extension || extension === lastSegment) return undefined
+  if (!extension) return undefined
+  if (extension === lastSegment) return undefined
   return /^[a-z0-9]{2,5}$/i.test(extension) ? extension : undefined
 }
 

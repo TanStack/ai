@@ -34,12 +34,13 @@ export function stripUnsupportedFormats(node: any): any {
   if (node === null || typeof node !== 'object') return node
 
   const out: Record<string, any> = {}
-  for (const [key, value] of Object.entries(node)) {
-    if (
+  const nodeEntries = Object.entries(node)
+  for (const [key, value] of nodeEntries) {
+    const isUnsupportedStringFormat =
       key === 'format' &&
       typeof value === 'string' &&
       !SUPPORTED_STRING_FORMATS.has(value)
-    ) {
+    if (isUnsupportedStringFormat) {
       continue
     }
     out[key] = stripUnsupportedFormats(value)
@@ -175,11 +176,10 @@ export function isStrictModeCompatible(schema: unknown): boolean {
  * only widening introduced inside one of their variants triggers fallback.
  */
 function containsUntrackableAnyOfWidening(schema: unknown): boolean {
-  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+  if (!isSchemaObject(schema)) {
     return false
   }
-  return coerceStrictSchema(schema as Record<string, any>)
-    .hasUntrackableAnyOfWidening
+  return coerceStrictSchema(schema).hasUntrackableAnyOfWidening
 }
 
 /**
@@ -191,7 +191,7 @@ function containsOpenObject(node: unknown): boolean {
   if (Array.isArray(node)) {
     return node.some(containsOpenObject)
   }
-  if (node === null || typeof node !== 'object') return false
+  if (!isSchemaObject(node)) return false
 
   const schema = node as Record<string, unknown>
   const type = schema['type']
@@ -199,10 +199,10 @@ function containsOpenObject(node: unknown): boolean {
     type === 'object' || (Array.isArray(type) && type.includes('object'))
 
   if (isObjectSchema) {
-    if (
+    const allowsAdditionalProperties =
       'additionalProperties' in schema &&
       schema['additionalProperties'] !== false
-    ) {
+    if (allowsAdditionalProperties) {
       return true
     }
 
@@ -211,7 +211,9 @@ function containsOpenObject(node: unknown): boolean {
       properties !== null &&
       typeof properties === 'object' &&
       !Array.isArray(properties)
-    if (!hasProperties && schema['additionalProperties'] !== false) {
+    const isOpenObjectWithoutProperties =
+      !hasProperties && schema['additionalProperties'] !== false
+    if (isOpenObjectWithoutProperties) {
       return true
     }
   }
@@ -223,8 +225,9 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
   if (Array.isArray(node)) {
     return node.some(containsStrictUnsupportedKeyword)
   }
-  if (node === null || typeof node !== 'object') return false
-  for (const [key, value] of Object.entries(node)) {
+  if (!isSchemaObject(node)) return false
+  const nodeEntries = Object.entries(node)
+  for (const [key, value] of nodeEntries) {
     if (STRICT_UNSUPPORTED_KEYWORDS.includes(key)) return true
     if (containsStrictUnsupportedKeyword(value)) return true
   }
@@ -233,10 +236,7 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
 
 /** A schema-position node that declares no type and so 400s strict mode. */
 function isTypelessSchema(node: unknown): boolean {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
-    // JSON Schema permits bare boolean nodes; malformed inputs may contain
-    // other primitives. OpenAI's strict subset requires a declared type, so
-    // preserve the containing tool by sending it in non-strict mode.
+  if (!isSchemaObject(node)) {
     return true
   }
   return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
@@ -249,7 +249,7 @@ function isTypelessSchema(node: unknown): boolean {
  * not e.g. an empty `properties` map.
  */
 function containsTypelessSchema(node: unknown): boolean {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+  if (!isSchemaObject(node)) {
     return false
   }
   const schema = node as Record<string, any>
@@ -290,20 +290,174 @@ function acceptsNull(schema: unknown): boolean {
   if (schema === true) return true
   if (!isSchemaObject(schema)) return false
 
-  if ('const' in schema && schema.const !== null) return false
-  if (Array.isArray(schema.enum) && !schema.enum.includes(null)) return false
+  const hasNonNullConst = 'const' in schema && schema.const !== null
+  if (hasNonNullConst) return false
+  const enumRejectsNull =
+    Array.isArray(schema.enum) && !schema.enum.includes(null)
+  if (enumRejectsNull) return false
 
-  if (typeof schema.type === 'string' && schema.type !== 'null') return false
-  if (Array.isArray(schema.type) && !schema.type.includes('null')) return false
+  const hasNonNullStringType =
+    typeof schema.type === 'string' && schema.type !== 'null'
+  if (hasNonNullStringType) return false
+  const typeListRejectsNull =
+    Array.isArray(schema.type) && !schema.type.includes('null')
+  if (typeListRejectsNull) return false
 
-  if (
+  const anyOfRejectsNull =
     Array.isArray(schema.anyOf) &&
     !schema.anyOf.some((variant: unknown) => acceptsNull(variant))
-  ) {
+  if (anyOfRejectsNull) {
     return false
   }
 
   return true
+}
+
+const ONE_OF_UNSUPPORTED =
+  'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types'
+
+function recurseIntoProperty(prop: unknown): {
+  prop: unknown
+  childMap: NullWideningMap | undefined
+  hasUntrackableAnyOfWidening: boolean
+} {
+  if (!isSchemaObject(prop)) {
+    return {
+      prop,
+      childMap: undefined,
+      hasUntrackableAnyOfWidening: false,
+    }
+  }
+  if (prop.type === 'object' && prop.properties) {
+    const nested = coerceStrictSchema(prop, prop.required || [])
+    return {
+      prop: nested.schema,
+      childMap: nested.nullWideningMap,
+      hasUntrackableAnyOfWidening: nested.hasUntrackableAnyOfWidening,
+    }
+  }
+  if (prop.type === 'array') {
+    const nested = coerceStrictSchema(prop, [])
+    return {
+      prop: nested.schema,
+      childMap: nested.nullWideningMap,
+      hasUntrackableAnyOfWidening: nested.hasUntrackableAnyOfWidening,
+    }
+  }
+  if (prop.anyOf) {
+    const nested = coerceStrictSchema(prop, prop.required || [])
+    return {
+      prop: nested.schema,
+      childMap: nested.nullWideningMap,
+      hasUntrackableAnyOfWidening: nested.hasUntrackableAnyOfWidening,
+    }
+  }
+  if (prop.oneOf) {
+    throw new Error(ONE_OF_UNSUPPORTED)
+  }
+  return {
+    prop,
+    childMap: undefined,
+    hasUntrackableAnyOfWidening: false,
+  }
+}
+
+function widenOptionalProperty(prop: unknown): {
+  prop: unknown
+  widenedHere: boolean
+} {
+  const originallyAcceptedNull = acceptsNull(prop)
+  let next = prop
+
+  if (isSchemaObject(next) && 'const' in next && next.const !== null) {
+    const { const: constValue, ...withoutConst } = next
+    next = { ...withoutConst, enum: [constValue, null] }
+  } else if (
+    isSchemaObject(next) &&
+    Array.isArray(next.enum) &&
+    !next.enum.includes(null)
+  ) {
+    next = { ...next, enum: [...next.enum, null] }
+  }
+
+  if (isSchemaObject(next) && next.anyOf) {
+    // A genuine null branch can use type, enum, or const. Only add a
+    // provider omission marker when the original union rejected null.
+    if (!acceptsNull(next)) {
+      next = { ...next, anyOf: [...next.anyOf, { type: 'null' }] }
+    }
+  } else if (isSchemaObject(next) && next.type && !Array.isArray(next.type)) {
+    next = { ...next, type: [next.type, 'null'] }
+  } else if (
+    isSchemaObject(next) &&
+    Array.isArray(next.type) &&
+    !next.type.includes('null')
+  ) {
+    next = { ...next, type: [...next.type, 'null'] }
+  }
+
+  return {
+    prop: next,
+    widenedHere: !originallyAcceptedNull && acceptsNull(next),
+  }
+}
+
+function coerceObjectProperty(
+  prop: unknown,
+  wasOptional: boolean,
+): {
+  prop: unknown
+  childMap: NullWideningMap | undefined
+  widenedHere: boolean
+  hasUntrackableAnyOfWidening: boolean
+} {
+  const nested = recurseIntoProperty(prop)
+  if (!wasOptional) {
+    return {
+      prop: nested.prop,
+      childMap: nested.childMap,
+      widenedHere: false,
+      hasUntrackableAnyOfWidening: nested.hasUntrackableAnyOfWidening,
+    }
+  }
+  const widened = widenOptionalProperty(nested.prop)
+  return {
+    prop: widened.prop,
+    childMap: nested.childMap,
+    widenedHere: widened.widenedHere,
+    hasUntrackableAnyOfWidening: nested.hasUntrackableAnyOfWidening,
+  }
+}
+
+function coerceObjectProperties(
+  properties: Record<string, any>,
+  required: Array<string>,
+): {
+  properties: Record<string, any>
+  propertyMaps: Record<string, NullWideningMap>
+  hasUntrackableAnyOfWidening: boolean
+} {
+  const next = { ...properties }
+  const propertyMaps: Record<string, NullWideningMap> = {}
+  let hasUntrackableAnyOfWidening = false
+
+  const propertyNames = Object.keys(next)
+  for (const propName of propertyNames) {
+    const coerced = coerceObjectProperty(
+      next[propName],
+      !required.includes(propName),
+    )
+    next[propName] = coerced.prop
+    hasUntrackableAnyOfWidening ||= coerced.hasUntrackableAnyOfWidening
+    if (coerced.childMap || coerced.widenedHere) {
+      propertyMaps[propName] = {
+        ...(coerced.childMap ?? {}),
+        ...(coerced.widenedHere ? { widened: true } : {}),
+      }
+    }
+  }
+
+  return { properties: next, propertyMaps, hasUntrackableAnyOfWidening }
 }
 
 function coerceStrictSchema(
@@ -320,91 +474,13 @@ function coerceStrictSchema(
   if (result.type === 'object' && result.properties) {
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
-    const propertyMaps: Record<string, NullWideningMap> = {}
-
-    for (const propName of allPropertyNames) {
-      let prop = properties[propName]
-      const wasOptional = !required.includes(propName)
-      let childMap: NullWideningMap | undefined
-      let widenedHere = false
-
-      // Step 1: Recurse into nested structures
-      if (isSchemaObject(prop) && prop.type === 'object' && prop.properties) {
-        const nested = coerceStrictSchema(prop, prop.required || [])
-        prop = nested.schema
-        childMap = nested.nullWideningMap
-        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (isSchemaObject(prop) && prop.type === 'array') {
-        const nested = coerceStrictSchema(prop, [])
-        prop = nested.schema
-        childMap = nested.nullWideningMap
-        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (isSchemaObject(prop) && prop.anyOf) {
-        const nested = coerceStrictSchema(prop, prop.required || [])
-        prop = nested.schema
-        childMap = nested.nullWideningMap
-        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (isSchemaObject(prop) && prop.oneOf) {
-        throw new Error(
-          'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
-        )
-      }
-
-      // Step 2: Apply null-widening for optional properties (after recursion)
-      if (wasOptional) {
-        const originallyAcceptedNull = acceptsNull(prop)
-
-        // `type: [..., 'null']` alone does not make null valid when an enum or
-        // const still excludes it; strict decoding would be forced to emit the
-        // original literal instead of the synthetic omission marker.
-        if (isSchemaObject(prop) && 'const' in prop && prop.const !== null) {
-          const { const: constValue, ...withoutConst } = prop
-          prop = { ...withoutConst, enum: [constValue, null] }
-        } else if (
-          isSchemaObject(prop) &&
-          Array.isArray(prop.enum) &&
-          !prop.enum.includes(null)
-        ) {
-          prop = { ...prop, enum: [...prop.enum, null] }
-        }
-
-        if (isSchemaObject(prop) && prop.anyOf) {
-          // A genuine null branch can use type, enum, or const. Only add a
-          // provider omission marker when the original union rejected null.
-          if (!acceptsNull(prop)) {
-            prop = { ...prop, anyOf: [...prop.anyOf, { type: 'null' }] }
-          }
-        } else if (
-          isSchemaObject(prop) &&
-          prop.type &&
-          !Array.isArray(prop.type)
-        ) {
-          prop = { ...prop, type: [prop.type, 'null'] }
-        } else if (
-          isSchemaObject(prop) &&
-          Array.isArray(prop.type) &&
-          !prop.type.includes('null')
-        ) {
-          prop = { ...prop, type: [...prop.type, 'null'] }
-        }
-
-        widenedHere = !originallyAcceptedNull && acceptsNull(prop)
-      }
-
-      properties[propName] = prop
-      if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
-      }
-    }
-
-    result.properties = properties
+    const coerced = coerceObjectProperties(properties, required)
+    result.properties = coerced.properties
     result.required = allPropertyNames
     result.additionalProperties = false
-    if (Object.keys(propertyMaps).length > 0) {
-      nullWideningMap.properties = propertyMaps
+    hasUntrackableAnyOfWidening ||= coerced.hasUntrackableAnyOfWidening
+    if (Object.keys(coerced.propertyMaps).length > 0) {
+      nullWideningMap.properties = coerced.propertyMaps
     }
   }
 
@@ -450,9 +526,7 @@ function coerceStrictSchema(
   }
 
   if (result.oneOf) {
-    throw new Error(
-      'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
-    )
+    throw new Error(ONE_OF_UNSUPPORTED)
   }
 
   return {

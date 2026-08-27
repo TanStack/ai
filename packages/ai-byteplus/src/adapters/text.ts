@@ -55,9 +55,6 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export interface BytePlusTextConfig extends BytePlusArkConfig {}
 
-/**
- * Re-export of the public provider options type.
- */
 export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
 
 /**
@@ -83,10 +80,6 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  */
 export class BytePlusTextAdapter<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
-  // `Record<string, any>` (not `unknown`) mirrors the OpenAI/Groq/Grok text
-  // adapters: the resolved provider options are an interface with no index
-  // signature, assignable to `Record<string, any>` but not to
-  // `Record<string, unknown>`. See issue #821.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -158,26 +151,17 @@ export class BytePlusTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const captured: { encryptedContent?: string } = {}
 
-    for await (const event of super.processStreamChunks(
+    const streamChunks = super.processStreamChunks(
       captureEncryptedContent(stream, captured),
       options,
       aguiState,
-    )) {
-      if (
+    )
+    for await (const event of streamChunks) {
+      const attachSignature =
         event.type === EventType.STEP_FINISHED &&
         captured.encryptedContent !== undefined &&
         event.signature === undefined
-      ) {
-        // `delta` is stamped alongside the signature because the two consumers
-        // read this event differently. `chat()`'s server agent loop accumulates
-        // thinking ONLY from `STEP_FINISHED.delta` and then drops the whole
-        // step — signature included — when the accumulated content is empty
-        // (`finalizeCurrentThinkingStep`); the OpenAI base emits `content` but
-        // never `delta`, so without this the blob never reaches the
-        // continuation message. The client `StreamProcessor` can't double-count
-        // it: it short-circuits STEP_FINISHED content once
-        // `hasSeenReasoningEvents` is set, which the REASONING_MESSAGE_CONTENT
-        // events preceding every STEP_FINISHED here always set.
+      if (attachSignature) {
         yield {
           ...event,
           signature: captured.encryptedContent,
@@ -210,16 +194,15 @@ export class BytePlusTextAdapter<
     message: ModelMessage,
   ): ChatCompletionMessageParam {
     const converted = super.convertMessage(message)
-    if (converted.role !== 'assistant' || !emitsEncryptedContent(this.model)) {
+    const skipEncryptedContent =
+      converted.role !== 'assistant' || !emitsEncryptedContent(this.model)
+    if (skipEncryptedContent) {
       return converted
     }
 
     const encryptedContent = lastThinkingSignature(message)
     if (encryptedContent === undefined) return converted
 
-    // Intersection rather than a cast: `encrypted_content` is an Ark-only
-    // field with no slot on the OpenAI message param, and the intersection is
-    // still assignable to `ChatCompletionMessageParam`.
     const withEncrypted: typeof converted & BytePlusEncryptedContentFields = {
       ...converted,
       encrypted_content: encryptedContent,
@@ -331,9 +314,6 @@ export class BytePlusTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const unsupported = this.structuredOutputUnsupportedMessage()
     if (unsupported) {
-      // Mirror the base's contract: failures inside structuredOutputStream
-      // surface as a RUN_STARTED → RUN_ERROR pair rather than a throw, so
-      // consumers keep a single error-handling path.
       const runId = generateId(this.name)
       yield {
         type: EventType.RUN_STARTED,
@@ -438,7 +418,8 @@ function asChatContentPart(
  * inline base64 becomes a `data:` URI.
  */
 function toUrlOrDataUri(source: ContentPartSource): string {
-  if (source.type !== 'data' || source.value.startsWith('data:')) {
+  const alreadyUri = source.type !== 'data' || source.value.startsWith('data:')
+  if (alreadyUri) {
     return source.value
   }
   // A missing mimeType would interpolate as "data:undefined;base64,…" and be

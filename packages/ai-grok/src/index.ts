@@ -1,7 +1,3 @@
-// ============================================================================
-// New Tree-Shakeable Adapters (Recommended)
-// ============================================================================
-
 // Text (Chat) adapter - for chat/text completion
 export {
   GrokTextAdapter,
@@ -83,10 +79,6 @@ export type {
   GrokSTTAudioFormat,
 } from './audio/transcription-provider-options'
 
-// ============================================================================
-// Type Exports
-// ============================================================================
-
 export type {
   GrokChatModelProviderOptionsByName,
   GrokChatModelToolCapabilitiesByName,
@@ -119,10 +111,6 @@ export type {
   GrokDocumentMetadata,
   GrokMessageMetadataByModality,
 } from './message-types'
-
-// ============================================================================
-// Realtime (Voice Agent) Adapters
-// ============================================================================
 
 export { grokRealtimeToken, grokRealtime } from './realtime/index'
 

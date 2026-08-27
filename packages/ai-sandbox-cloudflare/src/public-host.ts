@@ -1,19 +1,3 @@
-/**
- * Host resolution for the two DISTINCT public surfaces the sandbox layer exposes.
- * Kept in its own (Workers-free) module so it stays pure and unit-testable.
- *
- * These were once a single `PUBLIC_HOSTNAME`, but they have different reachers and
- * therefore different correct values:
- *
- *  - **Bridge / tool-exec** — the off-isolate CONTAINER calls back into the Worker
- *    (`/_bridge`, `/tool-exec`). It must reach the Worker, so locally that's
- *    `host.docker.internal` (the container can't reach the host's `localhost`).
- *  - **Preview** — the BROWSER opens an `exposePort` URL that `proxyToSandbox`
- *    routes into the container. It needs WILDCARD DNS, so locally that's
- *    `*.localhost` (browsers resolve it to loopback with zero setup) and in
- *    production a CUSTOM DOMAIN (`*.workers.dev` has no wildcard subdomains).
- */
-
 /** Hostnames that mean "this machine" (the loopback the container can't reach). */
 function isLoopbackHost(host: string): boolean {
   const name = host.split(':')[0]

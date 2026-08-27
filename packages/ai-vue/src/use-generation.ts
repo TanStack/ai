@@ -152,12 +152,6 @@ export interface UseGenerationReturn<
  * </script>
  * ```
  */
-// `TTransformed` infers from the `onResult` return position (a covariant
-// inference site that works even for an optional nested property), which types
-// the callback parameter as `TResult` and narrows `result`. Inferring the
-// whole callback as a defaulted type parameter instead collapses to the
-// default, leaving the parameter `any` — a hard error under `strict`. See
-// issue #848.
 export function useGeneration<
   TInput extends Record<string, any>,
   TResult,
@@ -175,16 +169,17 @@ export function useGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
 
+  /** The generation result, or null if not yet generated */
   const result = shallowRef<TOutput | null>(null)
+  /** Whether a generation is currently in progress */
   const isLoading = shallowRef(false)
+  /** Current error, if any */
   const error = shallowRef<Error | undefined>(undefined)
+  /** Current state of the generation client */
   const status = shallowRef<GenerationClientState>('idle')
   const runId = shallowRef<string | null>(null)
   let disposed = false
 
-  // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
-  // optional (`body?: Record<string, any>`), and under EOPT we must omit the
-  // key when absent rather than assign `undefined`.
   const clientOptions: Omit<
     GenerationClientOptions<TInput, TResult, TOutput>,
     'persistence' | 'threadId'
@@ -205,9 +200,6 @@ export function useGeneration<
       framework: 'vue',
       hookName: 'useGeneration',
     },
-    // The transform's raw return type (`TTransformed`) and the stored output
-    // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-    // the cast bridges the relationship that the conditional type hides.
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
@@ -274,9 +266,6 @@ export function useGeneration<
     )
   }
 
-  // Sync body changes to the client.
-  // Conditional spread: `updateOptions` declares `body?: Record<string, any>`
-  // (strict optional) and rejects explicit `undefined` under EOPT.
   watch(
     () => options.body,
     (newBody) => {
@@ -298,24 +287,23 @@ export function useGeneration<
     client.dispose()
   })
 
+  /** Trigger a generation request */
   const generate = async (input: TInput) => {
     await client.generate(input)
   }
 
+  /** Abort the current generation */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear result, error, and return to idle */
   const reset = () => {
     client.reset()
   }
 
   return {
     generate,
-    // `readonly()` distributes `DeepReadonly`/`UnwrapNestedRefs` over the
-    // `TOutput` conditional, which TS can't prove equal to the declared
-    // `DeepReadonly<ShallowRef<TOutput | null>>` while `TTransformed` is free.
-    // They are identical at runtime; the cast restores the declared shape.
     result: readonly(result) as UseGenerationReturn<TOutput>['result'],
     isLoading: readonly(isLoading),
     error: readonly(error),

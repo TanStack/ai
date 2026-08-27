@@ -27,9 +27,6 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export interface GrokTextConfig extends GrokClientConfig {}
 
-/**
- * Alias for TextProviderOptions for external use
- */
 export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../text/text-provider-options'
 
 /**
@@ -44,10 +41,6 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  */
 export class GrokTextAdapter<
   TModel extends GrokTextAdapterModel,
-  // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
-  // adapter: the resolved Grok provider options are a type-alias intersection
-  // with no explicit index signature, which is assignable to
-  // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -76,7 +69,9 @@ export class GrokTextAdapter<
     })
     void _baseTools
 
-    if (this.model === 'grok-build-0.1' && request.reasoning !== undefined) {
+    const rejectsReasoningOnBuild =
+      this.model === 'grok-build-0.1' && request.reasoning !== undefined
+    if (rejectsReasoningOnBuild) {
       throw new Error(
         'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
       )

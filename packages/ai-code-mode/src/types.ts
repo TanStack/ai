@@ -6,10 +6,6 @@ import type {
 } from '@tanstack/ai'
 import type { SecretParameterHandler } from './validate-bindings'
 
-// ============================================================================
-// Isolate Driver Interfaces
-// ============================================================================
-
 /**
  * Interface for isolate/sandbox drivers
  * Each runtime environment implements this to provide sandboxed code execution
@@ -106,17 +102,10 @@ export interface NormalizedError {
   code?: string
 }
 
-// ============================================================================
-// Tool Binding Interfaces
-// ============================================================================
-
 /**
  * A tool transformed into a format suitable for sandbox injection
  */
 export interface ToolBinding {
-  /**
-   * Unique tool identifier
-   */
   name: string
 
   /**
@@ -134,19 +123,11 @@ export interface ToolBinding {
    */
   outputSchema?: Record<string, unknown> | undefined
 
-  /**
-   * The execute function that will be injected into the sandbox.
-   * Accepts optional context for emitting custom events.
-   */
   execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown>
 }
 
 // Re-export for convenience
 export type { ToolExecutionContext }
-
-// ============================================================================
-// Code Mode Tool Types
-// ============================================================================
 
 /**
  * Server-side tool types that can be passed to Code Mode.
@@ -171,14 +152,8 @@ export interface CodeModeToolConfig {
    */
   tools: Array<CodeModeTool>
 
-  /**
-   * Execution timeout in milliseconds (default: 30000)
-   */
   timeout?: number
 
-  /**
-   * Memory limit for isolate in MB (default: 128)
-   */
   memoryLimit?: number
 
   /**
@@ -262,9 +237,6 @@ export interface CodeModeToolConfig {
  * Result returned by the execute_typescript tool
  */
 export interface CodeModeToolResult {
-  /**
-   * Whether execution completed without errors
-   */
   success: boolean
 
   /**
@@ -272,14 +244,8 @@ export interface CodeModeToolResult {
    */
   result?: unknown
 
-  /**
-   * Console output captured during execution
-   */
   logs?: Array<string>
 
-  /**
-   * Error details if execution failed
-   */
   error?:
     | {
         message: string

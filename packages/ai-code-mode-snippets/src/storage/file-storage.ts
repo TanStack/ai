@@ -49,10 +49,6 @@ export function createFileSnippetStorage(
 
   console.log('[FileSnippetStorage] Initialized with directory:', directory)
 
-  // Snippet names are used both as on-disk directory segments and as
-  // `snippet_<name>` sandbox tool names, so they must be a single safe
-  // identifier segment. Rejecting anything else keeps an LLM-supplied name
-  // (e.g. `../../etc`) from escaping `directory` during read/write/delete.
   const SAFE_SNIPPET_NAME = /^[A-Za-z0-9_-]+$/
 
   function isSafeSnippetName(name: string): boolean {

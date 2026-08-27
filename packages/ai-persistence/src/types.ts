@@ -7,50 +7,7 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 
-// Re-export the shared identity type so app code can import Scope from either
-// `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
-// pair a client-visible `threadId` with a server-trusted `userId`/`tenantId`
-// before authorizing load/save (e.g. via `reconstructChat({ authorize })`).
 export type { Scope }
-
-// ===========================================================================
-// Store contracts
-// ===========================================================================
-//
-// EVOLUTION POLICY
-// ----------------
-// These store interfaces are the compatibility surface between the core
-// middleware and every backend — the in-memory reference store and every
-// adapter an application writes against its own database.
-//
-//   - Store METHODS are REQUIRED. A new method is a breaking contract change:
-//     every adapter gets a compile error and implements it. Do NOT add methods
-//     as optional-and-feature-detected (`store.method?.(...)`) — an adapter
-//     that has not implemented one is then indistinguishable from one whose
-//     answer is legitimately empty, so the feature silently does nothing in
-//     production instead of failing at build time. `findActiveRun` was optional
-//     for exactly one release cycle and cost us precisely that: reconnect
-//     degraded to "no active run" on every backend that had not caught up.
-//   - Capability tiers belong at the STORE level, not the method level. A
-//     backend that only stores a transcript declares `ChatTranscriptStores`
-//     (no `runs`); it does not declare a half-implemented `RunStore`.
-//   - Never tighten an existing method's required arguments or widen its
-//     required return shape in a breaking way.
-//
-// The shared conformance testkit (`./testkit/conformance.ts`) is the
-// authoritative compatibility gate: every invariant documented on the methods
-// below is asserted there, and every backend runs the identical suite. If an
-// invariant is not encoded in the testkit, adapters cannot discover it — so
-// promote new invariants into both the JSDoc here AND the testkit.
-//
-// TIMESTAMP CONVENTION
-// --------------------
-// Store *records* (`RunRecord`, `InterruptRecord`, `ArtifactRecord`,
-// `BlobRecord`) speak **epoch milliseconds** (`number`), the native unit for
-// SQL/`BIGINT` columns and `Date.now()`. Wire/result references that leave the
-// persistence layer (e.g. core's `PersistedArtifactRef.createdAt`) speak
-// **ISO-8601 strings**. The middleware performs the number→ISO conversion at
-// the boundary; do not mix the two on a single field.
 
 /**
  * Durable store for a thread's full message transcript.
@@ -85,9 +42,6 @@ export interface MessageStore {
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 
-// Run lifecycle types live in `@tanstack/ai` and are re-exported here: one run,
-// one record — shared by this package's `runs` store and `@tanstack/ai-sandbox`'s
-// run driver, instead of each package keeping a rival definition that can drift.
 export type {
   RunStatus,
   TerminalRunStatus,
@@ -305,14 +259,7 @@ export interface InterruptStore {
  * The same `key` under different namespaces is independent.
  */
 export interface MetadataStore {
-  /**
-   * Return the stored value for `(namespace, key)`, or `null` if absent.
-   *
-   * CAVEAT: the return type is `unknown | null`, where `| null` collapses into
-   * `unknown` — a stored value of `null` is therefore **indistinguishable from
-   * absence** at the type level. Callers that must persist a real `null`
-   * distinctly from "not set" should wrap it (e.g. store `{ value: null }`).
-   */
+  /** Return the run record for `runId`, or `null` if none exists. */
   get: (namespace: string, key: string) => Promise<unknown | null>
   /** Insert or overwrite the value for `(namespace, key)`. */
   set: (namespace: string, key: string, value: unknown) => Promise<void>
@@ -322,32 +269,6 @@ export interface MetadataStore {
    */
   delete: (namespace: string, key: string) => Promise<void>
 }
-
-// ===========================================================================
-// Store typers
-// ===========================================================================
-//
-// Identity helpers that type a store implementation inline: pass an object
-// literal and get autocomplete + contract checking, with no separate
-// `: MessageStore` return annotation. They compose into `defineAIPersistence`,
-// which infers **exact presence** — a store you define becomes a defined,
-// non-optional, autocompleted key on `persistence.stores`, and accessing a store
-// you did not define is a compile error.
-//
-// ```ts
-// const persistence = defineAIPersistence({
-//   stores: {
-//     messages: defineMessageStore({ loadThread, saveThread }),
-//     runs: defineRunStore({ createOrResume, update, get, findActiveRun }),
-//   },
-// })
-// persistence.stores.runs        // RunStore (defined)
-// persistence.stores.interrupts  // compile error — not provided
-// ```
-//
-// Presence is per STORE, not per method: every method of a store you define is
-// required (see the evolution policy above). Omitting one is a compile error,
-// not a partial store.
 
 /** Type a {@link MessageStore} implementation inline. */
 export function defineMessageStore(store: MessageStore): MessageStore {
@@ -413,12 +334,6 @@ export interface ArtifactStore {
   save: (record: ArtifactRecord) => Promise<void>
   /** Return the artifact for `artifactId`, or `null` if none exists. */
   get: (artifactId: string) => Promise<ArtifactRecord | null>
-  /**
-   * All artifacts for a run in deterministic snapshot order: `createdAt`
-   * ascending, then `artifactId` ascending by the unsigned UTF-8 bytes of
-   * each string (compare bytes left-to-right; shorter equal prefixes first).
-   * Returns `[]` when the run has none.
-   */
   list: (runId: string) => Promise<Array<ArtifactRecord>>
   /**
    * All artifacts for a thread in deterministic snapshot order.
@@ -427,11 +342,6 @@ export interface ArtifactStore {
    * equal prefixes first).
    */
   listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
-  /**
-   * Delete a single artifact by id. A no-op if absent, mirroring
-   * {@link BlobStore.delete} — the two are written and deleted as a pair, so
-   * their contracts match.
-   */
   delete: (artifactId: string) => Promise<void>
   /**
    * Delete every artifact belonging to `runId`. A no-op when the run has none.
@@ -502,11 +412,6 @@ export interface BlobObject extends BlobRecord {
   arrayBuffer: () => Promise<ArrayBuffer>
   text: () => Promise<string>
   body?: ReadableStream<Uint8Array>
-  /**
-   * The slice this object exposes, when a {@link BlobGetOptions.range} was
-   * requested and honoured: `offset` as asked, `length` as actually served
-   * (clamped to the end of the object). Absent on a whole-object read.
-   */
   range?: { offset: number; length: number }
 }
 
@@ -557,40 +462,11 @@ export interface BlobStore {
     body: BlobBody,
     options?: BlobPutOptions,
   ) => Promise<BlobRecord>
-  /**
-   * Return the object at `key` (metadata + byte accessors), or `null`.
-   *
-   * RANGE SEMANTICS: with `options.range`, return only that slice — the bytes
-   * a `206` response carries — and report it back as `range`. `size` still
-   * reports the whole object, so the caller can build `Content-Range` without
-   * a second `head`. The reported `length` is what was actually served: a
-   * requested `length` past the end clamps. An `offset` at or past the end is
-   * a caller error, not a store one — the size is on the artifact record, so a
-   * serve route answers `416` before ever asking the store.
-   *
-   * Range support is part of the contract for any store that holds bytes (the
-   * conformance testkit asserts it): serving a whole file where a slice was
-   * asked for is what makes `<video>` seeking, and Safari playback at all,
-   * fail. A reference-only backend that stores no bytes skips `blobs`
-   * entirely rather than half-implementing it.
-   */
   get: (key: string, options?: BlobGetOptions) => Promise<BlobObject | null>
   /** Return only the metadata for `key`, or `null`. */
   head: (key: string) => Promise<BlobRecord | null>
   /** Remove the object at `key`. A no-op if absent. */
   delete: (key: string) => Promise<void>
-  /**
-   * List objects, optionally filtered by `prefix`, in ascending key order.
-   *
-   * CURSOR SEMANTICS: `prefix` matches literally and case-sensitively (SQL
-   * backends must escape LIKE metacharacters, so `run_` matches only the exact
-   * bytes `run_`, not `_` as a wildcard). When `limit` is given and more keys
-   * match, the page is `truncated: true` with a `cursor`; passing that `cursor`
-   * back returns the strictly-following keys (keys `> cursor`). Cursor ordering
-   * is the same byte ordering as the sort, so paging visits every key exactly
-   * once with no gaps or repeats. `limit: 0` yields an empty, untruncated page
-   * with no cursor.
-   */
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
@@ -611,6 +487,7 @@ export interface AIPersistenceStores {
   interrupts?: InterruptStore
   metadata?: MetadataStore
   generationRuns?: GenerationRunStore
+  /** Durable artifact references, when an artifacts + blobs backend is used. */
   artifacts?: ArtifactStore
   blobs?: BlobStore
 }
@@ -793,7 +670,8 @@ const storeKeys = [
 const storeKeySet = new Set<string>(storeKeys)
 
 function assertKnownStoreKeys(stores: object, location: string): void {
-  for (const key of Object.keys(stores)) {
+  const keys = Object.keys(stores)
+  for (const key of keys) {
     if (!storeKeySet.has(key)) {
       throw new Error(`Unknown AIPersistence ${location} key: ${key}`)
     }
@@ -816,7 +694,9 @@ export function validateChatPersistenceStores(
   if (!persistence.stores.messages) {
     throw new Error('Chat persistence requires stores.messages.')
   }
-  if (persistence.stores.interrupts && !persistence.stores.runs) {
+  const interruptsNeedRuns =
+    persistence.stores.interrupts && !persistence.stores.runs
+  if (interruptsNeedRuns) {
     throw new Error('Chat persistence stores.interrupts requires stores.runs.')
   }
 }

@@ -9,13 +9,16 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the OpenCode session id. */
-export const SESSION_ID_EVENT = 'opencode.session-id'
+export const /** Name of the CUSTOM event carrying the OpenCode session id. */
+  SESSION_ID_EVENT = 'opencode.session-id'
 
 /** Name of the CUSTOM event carrying the harness's todo list updates. */
-export const TODO_EVENT = 'opencode.todo'
+export const /** Name of the CUSTOM event carrying the harness's todo list updates. */
+  TODO_EVENT = 'opencode.todo'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -43,9 +46,12 @@ export function resolveToolName(
   tool: string,
   bridgedToolNames: ReadonlySet<string> | undefined,
 ): string {
-  if (!bridgedToolNames || bridgedToolNames.size === 0) return tool
+  if (!bridgedToolNames) return tool
+  if (bridgedToolNames.size === 0) return tool
   if (bridgedToolNames.has(tool)) return tool
-  if (tool.startsWith('tanstack_') && bridgedToolNames.has(tool.slice(9))) {
+  const isPrefixedBridge =
+    tool.startsWith('tanstack_') && bridgedToolNames.has(tool.slice(9))
+  if (isPrefixedBridge) {
     return tool.slice(9)
   }
   return tool
@@ -118,14 +124,18 @@ export async function* translateOpencodeStream(
 
   let runStarted = false
   /** Tool calls started but with no result yet, keyed by callID. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet, keyed by callID. */
+    unresolvedToolCalls = new Set<string>()
   /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
-  const openedToolCalls = new Set<string>()
+  const /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
+    openedToolCalls = new Set<string>()
   /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
-  const resolvedToolCalls = new Set<string>()
+  const /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
+    resolvedToolCalls = new Set<string>()
 
   /** Accumulated text per text-part id, for delta derivation. */
-  const textAccumulators = new Map<string, string>()
+  const /** Accumulated text per text-part id, for delta derivation. */
+    textAccumulators = new Map<string, string>()
   let openTextId: string | null = null
   let openReasoningId: string | null = null
 
@@ -313,7 +323,9 @@ export async function* translateOpencodeStream(
     yield* openToolCall(part)
 
     const state = part.state
-    if (state.status !== 'completed' && state.status !== 'error') return
+    const stillRunning =
+      state.status !== 'completed' && state.status !== 'error'
+    if (stillRunning) return
     if (resolvedToolCalls.has(part.callID)) return
     resolvedToolCalls.add(part.callID)
     unresolvedToolCalls.delete(part.callID)
@@ -409,10 +421,6 @@ export async function* translateOpencodeStream(
       }
     }
   } catch (error) {
-    // The run is dying (abort, server exit, or connection failure). Close any
-    // open message and pair started tool calls with a synthetic result first
-    // so the next request's pending-tool-call scan doesn't try to execute
-    // them, then let the adapter surface the error as RUN_ERROR.
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()

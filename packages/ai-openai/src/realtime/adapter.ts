@@ -116,10 +116,6 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up data channel for bidirectional communication. Captured into a const
-  // so closures see a non-nullable reference (teardown re-points the outer
-  // `dataChannel` to null, but in-flight closures still need to close their
-  // own channel).
   const channel = pc.createDataChannel('oai-events')
   dataChannel = channel
 
@@ -175,7 +171,8 @@ async function createWebRTCConnection(
     })
 
     // Add audio track to peer connection
-    for (const track of localStream.getAudioTracks()) {
+    const offerAudioTracks = localStream.getAudioTracks()
+    for (const track of offerAudioTracks) {
       pc.addTrack(track, localStream)
     }
   } catch (error) {
@@ -188,11 +185,6 @@ async function createWebRTCConnection(
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
-  // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
-  // so it must NOT be passed as a query param — GA rejects `?model=` with a
-  // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
-  // coerce to `null`, which `RequestInit.body` accepts.
   const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
     method: 'POST',
     headers: {
@@ -220,186 +212,139 @@ async function createWebRTCConnection(
   // Set up input audio analysis now that we have the stream
   setupInputAudioAnalysis(localStream)
 
-  // Handle server events
+  function setRealtimeMode(mode: RealtimeMode) {
+    currentMode = mode
+    emit('mode_change', { mode })
+  }
+
+  function emitAssistantTranscript(text: string, isFinal: boolean) {
+    emit('transcript', { role: 'assistant', transcript: text, isFinal })
+  }
+
+  function handleFunctionCallDone(event: Record<string, unknown>) {
+    // Realtime payloads include both call_id and item_id; some sessions omit one.
+    const callId = (event['call_id'] ?? event['item_id']) as string | undefined
+    const name = event['name'] as string
+    const args = event['arguments'] as string
+    if (!callId) {
+      logger.errors(
+        'openai.realtime function_call_arguments.done missing ids',
+        {
+          event,
+          source: 'openai.realtime',
+        },
+      )
+      return
+    }
+    try {
+      const input = JSON.parse(args)
+      emit('tool_call', { toolCallId: callId, toolName: name, input })
+    } catch {
+      emit('tool_call', {
+        toolCallId: callId,
+        toolName: name,
+        input: args,
+      })
+    }
+  }
+
+  function appendOpenAIRealtimePart(
+    message: RealtimeMessage,
+    part: Record<string, unknown>,
+  ) {
+    // GA renamed assistant content types: `audio` -> `output_audio`,
+    // `text` -> `output_text`
+    if (part.type === 'output_audio' && part.transcript) {
+      message.parts.push({
+        type: 'audio',
+        transcript: part.transcript as string,
+      })
+      return
+    }
+    if (part.type === 'output_text' && part.text) {
+      message.parts.push({
+        type: 'text',
+        content: part.text as string,
+      })
+    }
+  }
+
+  function handleResponseDone(event: Record<string, unknown>) {
+    const response = event.response as Record<string, unknown>
+    const output = response.output as Array<Record<string, unknown>> | undefined
+
+    setRealtimeMode('listening')
+    if (!currentMessageId) return
+
+    const message: RealtimeMessage = {
+      id: currentMessageId,
+      role: 'assistant',
+      timestamp: Date.now(),
+      parts: [],
+    }
+    for (const item of output || []) {
+      const isMessageItem = item.type === 'message' && item.content
+      if (!isMessageItem) continue
+      const content = item.content as Array<Record<string, unknown>>
+      for (const part of content) appendOpenAIRealtimePart(message, part)
+    }
+    emit('message_complete', { message })
+    currentMessageId = null
+  }
+
+  const openaiServerEventHandlers: Record<
+    string,
+    (event: Record<string, unknown>) => void
+  > = {
+    'session.created': () => {},
+    'session.updated': () => {},
+    'input_audio_buffer.speech_started': () => setRealtimeMode('listening'),
+    'input_audio_buffer.speech_stopped': () => setRealtimeMode('thinking'),
+    'input_audio_buffer.committed': () => {},
+    'conversation.item.input_audio_transcription.completed': (event) => {
+      emit('transcript', {
+        role: 'user',
+        transcript: event.transcript as string,
+        isFinal: true,
+      })
+    },
+    'response.created': () => setRealtimeMode('thinking'),
+    'response.output_item.added': (event) => {
+      const item = event.item as Record<string, unknown>
+      if (item.type === 'message') currentMessageId = item.id as string
+    },
+    'response.output_audio_transcript.delta': (event) =>
+      emitAssistantTranscript(event.delta as string, false),
+    'response.output_audio_transcript.done': (event) =>
+      emitAssistantTranscript(event.transcript as string, true),
+    'response.output_text.delta': (event) =>
+      emitAssistantTranscript(event.delta as string, false),
+    'response.output_text.done': (event) =>
+      emitAssistantTranscript(event.text as string, true),
+    'response.output_audio.delta': () => {
+      if (currentMode !== 'speaking') setRealtimeMode('speaking')
+    },
+    'response.output_audio.done': () => {},
+    'response.function_call_arguments.done': handleFunctionCallDone,
+    'response.done': handleResponseDone,
+    'conversation.item.truncated': () => {
+      emit(
+        'interrupted',
+        currentMessageId ? { messageId: currentMessageId } : {},
+      )
+    },
+    error: (event) => {
+      const error = event.error as Record<string, unknown>
+      emit('error', {
+        error: new Error((error.message as string) || 'Unknown error'),
+      })
+    },
+  }
+
   function handleServerEvent(event: Record<string, unknown>) {
     const type = event.type as string
-
-    switch (type) {
-      case 'session.created':
-      case 'session.updated':
-        // Session ready
-        break
-
-      case 'input_audio_buffer.speech_started':
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
-        break
-
-      case 'input_audio_buffer.speech_stopped':
-        currentMode = 'thinking'
-        emit('mode_change', { mode: 'thinking' })
-        break
-
-      case 'input_audio_buffer.committed':
-        // Audio buffer committed for processing
-        break
-
-      case 'conversation.item.input_audio_transcription.completed': {
-        const transcript = event.transcript as string
-        emit('transcript', { role: 'user', transcript, isFinal: true })
-        break
-      }
-
-      case 'response.created':
-        currentMode = 'thinking'
-        emit('mode_change', { mode: 'thinking' })
-        break
-
-      case 'response.output_item.added': {
-        const item = event.item as Record<string, unknown>
-        if (item.type === 'message') {
-          currentMessageId = item.id as string
-        }
-        break
-      }
-
-      case 'response.output_audio_transcript.delta': {
-        const delta = event.delta as string
-        emit('transcript', {
-          role: 'assistant',
-          transcript: delta,
-          isFinal: false,
-        })
-        break
-      }
-
-      case 'response.output_audio_transcript.done': {
-        const transcript = event.transcript as string
-        emit('transcript', { role: 'assistant', transcript, isFinal: true })
-        break
-      }
-
-      case 'response.output_text.delta': {
-        const delta = event.delta as string
-        emit('transcript', {
-          role: 'assistant',
-          transcript: delta,
-          isFinal: false,
-        })
-        break
-      }
-
-      case 'response.output_text.done': {
-        const text = event.text as string
-        emit('transcript', {
-          role: 'assistant',
-          transcript: text,
-          isFinal: true,
-        })
-        break
-      }
-
-      case 'response.output_audio.delta':
-        if (currentMode !== 'speaking') {
-          currentMode = 'speaking'
-          emit('mode_change', { mode: 'speaking' })
-        }
-        break
-
-      case 'response.output_audio.done':
-        break
-
-      case 'response.function_call_arguments.done': {
-        // Realtime payloads include both call_id and item_id; some sessions omit one.
-        const callId = (event['call_id'] ?? event['item_id']) as
-          | string
-          | undefined
-        const name = event['name'] as string
-        const args = event['arguments'] as string
-        if (!callId) {
-          logger.errors(
-            'openai.realtime function_call_arguments.done missing ids',
-            {
-              event,
-              source: 'openai.realtime',
-            },
-          )
-          break
-        }
-        try {
-          const input = JSON.parse(args)
-          emit('tool_call', { toolCallId: callId, toolName: name, input })
-        } catch {
-          emit('tool_call', {
-            toolCallId: callId,
-            toolName: name,
-            input: args,
-          })
-        }
-        break
-      }
-
-      case 'response.done': {
-        const response = event.response as Record<string, unknown>
-        const output = response.output as
-          | Array<Record<string, unknown>>
-          | undefined
-
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
-
-        // Emit message complete if we have a current message
-        if (currentMessageId) {
-          const message: RealtimeMessage = {
-            id: currentMessageId,
-            role: 'assistant',
-            timestamp: Date.now(),
-            parts: [],
-          }
-
-          // Extract content from output items
-          for (const item of output || []) {
-            if (item.type === 'message' && item.content) {
-              const content = item.content as Array<Record<string, unknown>>
-              for (const part of content) {
-                // GA renamed assistant content types: `audio` -> `output_audio`,
-                // `text` -> `output_text`
-                if (part.type === 'output_audio' && part.transcript) {
-                  message.parts.push({
-                    type: 'audio',
-                    transcript: part.transcript as string,
-                  })
-                } else if (part.type === 'output_text' && part.text) {
-                  message.parts.push({
-                    type: 'text',
-                    content: part.text as string,
-                  })
-                }
-              }
-            }
-          }
-
-          emit('message_complete', { message })
-          currentMessageId = null
-        }
-        break
-      }
-
-      case 'conversation.item.truncated':
-        emit(
-          'interrupted',
-          currentMessageId ? { messageId: currentMessageId } : {},
-        )
-        break
-
-      case 'error': {
-        const error = event.error as Record<string, unknown>
-        emit('error', {
-          error: new Error((error.message as string) || 'Unknown error'),
-        })
-        break
-      }
-    }
+    const handler = openaiServerEventHandlers[type]
+    if (handler) handler(event)
   }
 
   // Set up audio analysis for output
@@ -490,7 +435,8 @@ async function createWebRTCConnection(
   const connection: RealtimeConnection = {
     async disconnect() {
       if (localStream) {
-        for (const track of localStream.getTracks()) {
+        const mediaTracks = localStream.getTracks()
+        for (const track of mediaTracks) {
           track.stop()
         }
         localStream = null
@@ -521,7 +467,8 @@ async function createWebRTCConnection(
       // Audio capture is established during connection setup
       // This method enables the tracks and signals listening mode
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const captureTracks = localStream.getAudioTracks()
+        for (const track of captureTracks) {
           track.enabled = true
         }
       }
@@ -532,7 +479,8 @@ async function createWebRTCConnection(
     stopAudioCapture() {
       // Disable tracks rather than stopping them to allow re-enabling
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const captureTracks = localStream.getAudioTracks()
+        for (const track of captureTracks) {
           track.enabled = false
         }
       }
@@ -649,9 +597,6 @@ async function createWebRTCConnection(
           }
         }
 
-        // Normalize to 0-1 range (max deviation is 128)
-        // Scale by 1.5x so that ~66% amplitude reads as full scale
-        // This provides good visual feedback without pegging too early
         const normalized = maxDeviation / 128
         return Math.min(1, normalized * 1.5)
       }

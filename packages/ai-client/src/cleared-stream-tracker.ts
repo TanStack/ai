@@ -48,7 +48,8 @@ export class ClearedStreamTracker {
 
   shouldIgnoreChunk(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    if (runId && this.clearedRunIds.has(runId)) {
+    const hasClearedRunId = runId && this.clearedRunIds.has(runId)
+    if (hasClearedRunId) {
       if (chunk.type === 'RUN_STARTED') {
         this.ignoredActiveRunIds.add(runId)
         this.currentRunlessRunId = runId
@@ -57,7 +58,8 @@ export class ClearedStreamTracker {
       return true
     }
 
-    if (runId && this.ignoredActiveRunIds.has(runId)) {
+    const hasIgnoredActiveRunId = runId && this.ignoredActiveRunIds.has(runId)
+    if (hasIgnoredActiveRunId) {
       this.markIgnoredChunkIds(chunk)
       return true
     }
@@ -68,12 +70,16 @@ export class ClearedStreamTracker {
     }
 
     const toolCallId = getChunkToolCallId(chunk)
-    if (toolCallId && this.clearedToolCallIds.has(toolCallId)) {
+    const hasClearedToolCallId =
+      toolCallId && this.clearedToolCallIds.has(toolCallId)
+    if (hasClearedToolCallId) {
       return true
     }
 
     const parentMessageId = getChunkParentMessageId(chunk)
-    if (parentMessageId && this.clearedMessageIds.has(parentMessageId)) {
+    const hasClearedMessageId =
+      parentMessageId && this.clearedMessageIds.has(parentMessageId)
+    if (hasClearedMessageId) {
       if (toolCallId) {
         this.clearedToolCallIds.add(toolCallId)
       }
@@ -130,11 +136,12 @@ export class ClearedStreamTracker {
 
   private isRunlessChunkFromIgnoredRun(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    if (runId || !this.currentRunlessRunId) return false
-    if (
+    if (runId) return false
+    if (!this.currentRunlessRunId) return false
+    const isUnknownRunlessId =
       !this.ignoredActiveRunIds.has(this.currentRunlessRunId) &&
       !this.clearedRunIds.has(this.currentRunlessRunId)
-    ) {
+    if (isUnknownRunlessId) {
       return false
     }
     return (

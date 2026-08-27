@@ -1,10 +1,3 @@
-/**
- * Message Updaters (Internal)
- *
- * Internal helper functions for updating UIMessage parts.
- * These are used by StreamProcessor to manage the message array.
- */
-
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -35,7 +28,8 @@ export function updateTextPart(
     const parts = [...msg.parts]
     const lastPart = parts.length > 0 ? parts[parts.length - 1] : null
 
-    if (lastPart && lastPart.type === 'text') {
+    const canExtendText = lastPart && lastPart.type === 'text'
+    if (canExtendText) {
       // Update the last text part (continuing same text segment)
       parts[parts.length - 1] = { type: 'text', content }
     } else {
@@ -73,13 +67,10 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
-    // Carry forward metadata from either the new toolCall or the existing
-    // part. Once the adapter has emitted metadata for a tool call (e.g.
-    // Gemini's thoughtSignature on TOOL_CALL_START) we must not lose it on
-    // subsequent updates that don't re-supply it.
     const metadata = toolCall.metadata ?? existing?.metadata
     // Same for the parsed input: it's supplied once at completion, so
     // subsequent arg-less updates (approval, etc.) must not drop it.
+    /** Parsed input — set when the arguments are complete. */
     const input = toolCall.input ?? existing?.input
 
     const toolCallPart: ToolCallPart = {
@@ -363,15 +354,7 @@ export function completeStructuredOutputPart(
     if (resolvedRaw === '' && data !== undefined) {
       try {
         resolvedRaw = JSON.stringify(data)
-      } catch {
-        // Unserializable (circular, BigInt, throwing toJSON). Leave raw
-        // empty. Both downstream paths handle this: `ag-ui-wire.ts`
-        // `collectText` skips complete parts with empty raw entirely, and
-        // `uiMessageToModelMessages` falls back to a defensive
-        // `safeJsonStringify(data)` which itself returns `''` for the same
-        // unserializable inputs — so the turn is silently dropped from the
-        // next request rather than shipping garbage or crashing the stream.
-      }
+      } catch {}
     }
 
     const nextPart: StructuredOutputPart = {

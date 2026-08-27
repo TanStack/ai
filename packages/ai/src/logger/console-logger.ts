@@ -33,11 +33,11 @@ function resolveMetaStrategy(): MetaStrategy {
     // A locked-down runtime with a throwing `userAgent` getter is not workerd;
     // fall through to the remaining checks rather than crash the log call.
   }
-  if (
+  const isNodeRuntime =
     typeof process !== 'undefined' &&
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a partial process global (bundler shims) may lack versions
     typeof process.versions?.node === 'string'
-  ) {
+  if (isNodeRuntime) {
     return 'dir'
   }
   return 'arg'

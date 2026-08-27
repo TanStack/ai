@@ -69,7 +69,8 @@ function isByokCeremonyCancel(error: unknown): boolean {
 function sanitizeKeyring(value: unknown): Keyring {
   if (typeof value !== 'object' || value === null) return {}
   const keys: Keyring = {}
-  for (const [provider, key] of Object.entries(value)) {
+  const objectEntries = Object.entries(value)
+  for (const [provider, key] of objectEntries) {
     if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
       keys[provider] = key
     }
@@ -154,7 +155,8 @@ export class ByokClient {
       if (key) headers[byokHeaderName(provider)] = key
       return headers
     }
-    for (const [id, key] of Object.entries(this.#keys)) {
+    const objectEntries = Object.entries(this.#keys)
+    for (const [id, key] of objectEntries) {
       if (key) headers[byokHeaderName(id)] = key
     }
     return headers
@@ -162,7 +164,8 @@ export class ByokClient {
 
   async prepare(provider?: ProviderId): Promise<void> {
     await this.#ready
-    if (this.storage.unlockable && this.#locked) {
+    const needsUnlock = this.storage.unlockable && this.#locked
+    if (needsUnlock) {
       await this.unlock()
     }
     if (!provider) return
@@ -194,7 +197,8 @@ export class ByokClient {
     if (nextKey.length === 0) {
       throw new Error('BYOK key must be non-empty')
     }
-    if (this.storage.unlockable && this.#locked) {
+    const needsUnlock = this.storage.unlockable && this.#locked
+    if (needsUnlock) {
       await this.unlock()
     }
     const previousKeys = this.#keys
@@ -231,7 +235,8 @@ export class ByokClient {
     await this.#ready
     if (provider) {
       requireProviderId(provider)
-      if (this.storage.unlockable && this.#locked) {
+      const needsUnlock = this.storage.unlockable && this.#locked
+      if (needsUnlock) {
         await this.unlock()
       }
       const previousKeys = this.#keys
@@ -279,10 +284,13 @@ export class ByokClient {
     try {
       const loaded = sanitizeKeyring(await this.storage.load())
       this.#keys = { ...loaded, ...this.#keys }
-      for (const [id, value] of Object.entries(loaded)) {
-        if (!isProviderId(id) || !value) continue
+      const objectEntries = Object.entries(loaded)
+      for (const [id, value] of objectEntries) {
+        if (!isProviderId(id)) continue
+        if (!value) continue
         const existing = this.#statuses[id]
-        if (!existing || existing.state === 'locked') {
+        const shouldSetStatus = !existing || existing.state === 'locked'
+        if (shouldSetStatus) {
           this.#statuses[id] = { state: 'set', masked: maskKey(value) }
         }
       }
@@ -304,10 +312,12 @@ export class ByokClient {
   }
 
   #lockedProvider(): ProviderId | undefined {
-    if (this.#prompt && isProviderId(this.#prompt.provider)) {
-      return this.#prompt.provider
+    const prompt = this.#prompt
+    if (prompt && isProviderId(prompt.provider)) {
+      return prompt.provider
     }
-    for (const [id, status] of Object.entries(this.#statuses)) {
+    const objectEntries = Object.entries(this.#statuses)
+    for (const [id, status] of objectEntries) {
       if (status?.state === 'locked' && isProviderId(id)) return id
     }
     return undefined
@@ -318,8 +328,10 @@ export class ByokClient {
       if (!this.storage.peek) return
       try {
         const preview = await this.storage.peek()
-        for (const [id, last4] of Object.entries(preview)) {
-          if (!isProviderId(id) || this.#statuses[id]) continue
+        const objectEntries = Object.entries(preview)
+        for (const [id, last4] of objectEntries) {
+          if (!isProviderId(id)) continue
+          if (this.#statuses[id]) continue
           this.#statuses[id] = {
             state: 'locked',
             masked: last4 ? last4 : '••',
@@ -337,8 +349,10 @@ export class ByokClient {
     try {
       const loaded = sanitizeKeyring(await this.storage.load())
       this.#keys = { ...loaded, ...this.#keys }
-      for (const [id, value] of Object.entries(loaded)) {
-        if (!isProviderId(id) || !value) continue
+      const objectEntries2 = Object.entries(loaded)
+      for (const [id, value] of objectEntries2) {
+        if (!isProviderId(id)) continue
+        if (!value) continue
         this.#statuses[id] = { state: 'set', masked: maskKey(value) }
       }
       this.#storageError = null

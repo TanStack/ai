@@ -53,6 +53,7 @@ class DockerProvider implements SandboxProvider {
     return DOCKER_CAPS
   }
 
+  /** Working directory inside the container. Defaults to `/workspace`. */
   private get workdir(): string {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
@@ -76,6 +77,7 @@ class DockerProvider implements SandboxProvider {
     sourceContainerId: string,
   ): Promise<SandboxHandle> => {
     const source = this.docker.getContainer(sourceContainerId)
+    /** Image to run, e.g. `node:22`. Pulled automatically if absent locally. */
     const image = await source.commit({
       repo: 'tanstack-ai-sandbox-fork',
       tag: `${sourceContainerId.slice(0, 12)}-${Date.now()}`,
@@ -113,10 +115,6 @@ class DockerProvider implements SandboxProvider {
       },
     })
 
-    // If anything after createContainer fails (start, or the first exec to
-    // create the workspace dir), the container already exists and would leak as
-    // a stopped container — these accumulate and strain the daemon. Tear it down
-    // on any instantiation failure before propagating the error.
     try {
       await container.start()
       const handle = new DockerHandle({
@@ -181,7 +179,8 @@ class DockerProvider implements SandboxProvider {
     } catch {
       // already stopped / gone
     }
-    if (this.config.removeOnDestroy ?? true) {
+    const shouldRemoveOnDestroy = this.config.removeOnDestroy ?? true
+    if (shouldRemoveOnDestroy) {
       try {
         await container.remove({ force: true, v: true })
       } catch {

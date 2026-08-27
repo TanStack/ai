@@ -5,7 +5,8 @@
 export type ProviderId = string
 
 /** `[a-z][a-z0-9-]{0,63}` — lowercase, no underscores, max 64 chars. */
-export const BYOK_PROVIDER_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
+export const /** `[a-z][a-z0-9-]{0,63}` — lowercase, no underscores, max 64 chars. */
+  BYOK_PROVIDER_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
 
 export const BYOK_HEADER_PREFIX = 'x-byok-'
 

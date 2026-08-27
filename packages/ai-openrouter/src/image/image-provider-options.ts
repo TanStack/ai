@@ -33,16 +33,16 @@ export type OpenRouterImageModelProviderOptionsByName = {
  */
 export type OpenRouterImageModelSizeByName = {
   [K in (typeof OPENROUTER_IMAGE_MODELS)[number]]:
-    | '1024x1024' // "1:1"
-    | '832x1248' // "2:3"
-    | '1248x832' // "3:2"
-    | '864x1184' // "3:4"
-    | '1184x864' // "4:3"
-    | '896x1152' // "4:5"
-    | '1152x896' // "5:4"
-    | '768x1344' // "9:16"
-    | '1344x768' // "16:9"
-    | '1536x672' // "21:9"
+    | '1024x1024'
+    | '832x1248'
+    | '1248x832'
+    | '864x1184'
+    | '1184x864'
+    | '896x1152'
+    | '1152x896'
+    | '768x1344'
+    | '1344x768'
+    | '1536x672'
 }
 
 /**

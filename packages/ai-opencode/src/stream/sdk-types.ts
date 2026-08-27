@@ -7,7 +7,6 @@
  * and the package's public types don't depend on the SDK's generated schema
  * types. Unknown part or event types fall through every branch at runtime.
  */
-
 export interface OpencodeTokens {
   input?: number
   output?: number

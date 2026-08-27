@@ -1,13 +1,3 @@
-/**
- * Grok Video Generation Provider Options (xAI Imagine API)
- *
- * Based on https://docs.x.ai/developers/model-capabilities/video/generation
- * (plus the image-to-video, reference-to-video, editing, and extension pages
- * under the same section).
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { GrokVideoModel } from '../model-meta'
 
@@ -90,9 +80,17 @@ export const GROK_VIDEO_MAX_DURATION = 15
  * e.g. "16:9_720p" → { aspectRatio: "16:9", resolution: "720p" }.
  * Returns undefined when the string doesn't match the template.
  */
-export function parseGrokVideoSize(
-  size: string,
-): { aspectRatio: string; resolution?: string } | undefined {
+export function parseGrokVideoSize(size: string):
+  | {
+      aspectRatio: string /**
+       * Output resolution tier. Generation only — edit / extend outputs inherit
+       * the source clip's geometry and the adapter rejects this in those modes.
+       * `1080p` is grok-imagine-video-1.5 generation only; reference-to-video
+       * is capped at 720p.
+       */
+      resolution?: string
+    }
+  | undefined {
   const match = size.match(/^([\d.]+:[\d.]+)(?:_(.+))?$/)
   const [, aspectRatio, resolution] = match ?? []
   if (aspectRatio === undefined) return undefined
@@ -120,12 +118,15 @@ export function validateVideoSize(
 ): asserts size is GrokVideoSize | undefined {
   if (size === undefined) return
   const parsed = parseGrokVideoSize(size)
-  if (!parsed || !GROK_VIDEO_ASPECT_RATIOS.includes(parsed.aspectRatio)) {
-    throw new Error(
-      `Size "${size}" is not supported by model "${model}". Expected ` +
-        `"aspectRatio" or "aspectRatio_resolution" (e.g. "16:9_720p") with ` +
-        `aspect ratio one of: ${GROK_VIDEO_ASPECT_RATIOS.join(', ')}`,
-    )
+  const sizeError =
+    `Size "${size}" is not supported by model "${model}". Expected ` +
+    `"aspectRatio" or "aspectRatio_resolution" (e.g. "16:9_720p") with ` +
+    `aspect ratio one of: ${GROK_VIDEO_ASPECT_RATIOS.join(', ')}`
+  if (!parsed) {
+    throw new Error(sizeError)
+  }
+  if (!GROK_VIDEO_ASPECT_RATIOS.includes(parsed.aspectRatio)) {
+    throw new Error(sizeError)
   }
   if (
     parsed.resolution !== undefined &&
@@ -227,12 +228,6 @@ export interface GrokVideoBaseProviderOptions {
    */
   aspect_ratio?: GrokVideoAspectRatio
 
-  /**
-   * Output resolution tier. Generation only — edit / extend outputs inherit
-   * the source clip's geometry and the adapter rejects this in those modes.
-   * `1080p` is grok-imagine-video-1.5 generation only; reference-to-video
-   * is capped at 720p.
-   */
   resolution?: GrokVideoResolution
 
   /**

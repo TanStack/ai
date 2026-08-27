@@ -1,20 +1,7 @@
-/**
- * Code wrapping utilities for the Cloudflare Worker.
- * Extracted for testability without a live worker_loader binding.
- */
-
 import type { ToolResultPayload, ToolSchema } from '../types'
 
-// Tool names are interpolated into generated JS as (1) function identifiers
-// and (2) string literals. Rejecting anything outside this pattern closes
-// the injection vector that would otherwise let a malicious tool name
-// break out of the wrapper.
 const VALID_TOOL_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
 
-// Reserved words and contextual keywords that look like identifiers but can't
-// be used as JS function names. Catching them here gives callers a clear
-// "Invalid tool name" error at generation time instead of a cryptic
-// SyntaxError when the wrapped code is eval'd.
 const RESERVED_TOOL_NAMES = new Set([
   'break',
   'case',

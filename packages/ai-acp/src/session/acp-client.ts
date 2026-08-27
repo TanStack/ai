@@ -130,19 +130,11 @@ export async function startAcpSession(
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: CLIENT_INFO,
         clientCapabilities: {
-          // The agent runs inside the sandbox with direct filesystem + shell
-          // access, so it never needs to delegate file/terminal I/O back to the
-          // client. We advertise these as unsupported; per the ACP spec the
-          // agent MUST then treat them as unavailable and not call them.
           fs: { readTextFile: false, writeTextFile: false },
         },
       }),
     )
 
-    // Protocol-version negotiation: the agent echoes the version it will speak.
-    // The spec says a client SHOULD close the connection if that version is one
-    // it doesn't support. We only implement the current PROTOCOL_VERSION, so a
-    // higher number means the agent needs a newer client than this one.
     if (
       typeof initResult.protocolVersion === 'number' &&
       initResult.protocolVersion > PROTOCOL_VERSION

@@ -115,6 +115,7 @@ export function createSummarize<TTransformed = void>(
 ): CreateSummarizeReturn<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -132,15 +133,19 @@ export function createSummarize<TTransformed = void>(
   })
 
   return {
+    /** The summarization result, or null */
     get result() {
       return gen.result
     },
+    /** Whether summarization is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

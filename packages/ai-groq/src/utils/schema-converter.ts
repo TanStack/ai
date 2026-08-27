@@ -14,9 +14,10 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
 
   if (result.properties && typeof result.properties === 'object') {
     const properties: Record<string, any> = {}
-    for (const [key, value] of Object.entries(
+    const propertyEntries = Object.entries(
       result.properties as Record<string, any>,
-    )) {
+    )
+    for (const [key, value] of propertyEntries) {
       properties[key] =
         typeof value === 'object' && value !== null && !Array.isArray(value)
           ? removeEmptyRequired(value)

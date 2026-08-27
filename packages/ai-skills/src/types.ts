@@ -68,9 +68,12 @@ export type ModelFamily = 'anthropic' | 'openai' | 'gemini' | 'other'
 /** Map a provider name (`ctx.provider`) to its {@link ModelFamily}. */
 export function modelFamilyOf(provider: string): ModelFamily {
   const p = provider.toLowerCase()
-  if (p.includes('anthropic') || p.includes('claude')) return 'anthropic'
-  if (p.includes('openai') || p.includes('gpt')) return 'openai'
-  if (p.includes('gemini') || p.includes('google')) return 'gemini'
+  const isAnthropicProvider = p.includes('anthropic') || p.includes('claude')
+  if (isAnthropicProvider) return 'anthropic'
+  const isOpenAIProvider = p.includes('openai') || p.includes('gpt')
+  if (isOpenAIProvider) return 'openai'
+  const isGeminiProvider = p.includes('gemini') || p.includes('google')
+  if (isGeminiProvider) return 'gemini'
   return 'other'
 }
 
@@ -82,5 +85,6 @@ export interface LoadSkillResult {
   resources: Array<string>
   /** `[]` or `executable:false` entries in phase 1. */
   scripts: Array<SkillScriptRef>
+  /** ≤500 chars, free text. */
   compatibility?: string
 }

@@ -1,15 +1,6 @@
 import type { ProviderPreferences } from '@openrouter/sdk/models'
 
 /**
- * OpenRouter rerank model metadata and provider options.
- *
- * OpenRouter exposes rerank models through its unified `/v1/rerank` endpoint.
- * The endpoint is model-agnostic — any rerank model OpenRouter offers works by
- * passing its slug as the model, so the model type is open (a known-model
- * union for autocomplete, widened with `string`).
- */
-
-/**
  * A non-exhaustive list of known OpenRouter rerank model slugs, surfaced for
  * editor autocomplete. Any other rerank model OpenRouter offers also works —
  * see {@link OpenRouterRerankModel}.

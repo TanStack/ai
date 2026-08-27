@@ -60,10 +60,12 @@ export function ChatInput(props: ChatInputProps) {
   const { sendMessage, isLoading } = useChatContext()
   const [value, setValue] = createSignal('')
 
+  /** Is input disabled */
   const disabled = () => props.disabled || isLoading()
 
   const handleSubmit = () => {
-    if (!value().trim() || disabled()) return
+    if (!value().trim()) return
+    if (disabled()) return
     void sendMessage(value())
     setValue('')
   }
@@ -100,7 +102,9 @@ export function ChatInput(props: ChatInputProps) {
         value={value()}
         onInput={(e) => setValue(e.currentTarget.value)}
         onKeyDown={(e) => {
-          if ((props.submitOnEnter ?? true) && e.key === 'Enter') {
+          const submitOnEnterKey =
+            (props.submitOnEnter ?? true) && e.key === 'Enter'
+          if (submitOnEnterKey) {
             e.preventDefault()
             handleSubmit()
           }
@@ -148,12 +152,14 @@ export function ChatInput(props: ChatInputProps) {
           'white-space': 'nowrap',
         }}
         onMouseEnter={(e) => {
-          if (!disabled() && value().trim()) {
+          const canHover = !disabled() && Boolean(value().trim())
+          if (canHover) {
             e.currentTarget.style.backgroundColor = 'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
-          if (!disabled() && value().trim()) {
+          const canHover = !disabled() && Boolean(value().trim())
+          if (canHover) {
             e.currentTarget.style.backgroundColor = 'rgb(249, 115, 22)'
           }
         }}

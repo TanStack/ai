@@ -1,24 +1,3 @@
-/**
- * BytePlus ModelArk model metadata.
- *
- * Every Ark model id in this file — chat, video and image — was verified live
- * against `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. The
- * two Seed Speech ids are the exception: they live on the voice host, which
- * needs a separate key that was not available, so they are docs-derived.
- * Capability metadata is a mix of probed and docs-derived facts; anything not
- * confirmed against the live API is annotated as such at its declaration.
- * BytePlus
- * deactivates model ids aggressively (the whole `seedance-1-0-lite-*` family,
- * `seed-1-6-lite-*`, `seedream-3-0-*`, and the `doubao-`/`skylark-` names are
- * all 404s internationally), so only dated, probe-confirmed ids are shipped.
- *
- * Prefix rules, also probe-confirmed:
- * - `dola-seed-2-1-turbo-260628` and `dola-seedream-5-0-pro-260628` are the
- *   canonical ids; the bare forms resolve as aliases but the API echoes the
- *   prefixed id back.
- * - The Seedance 2.0 family *requires* the `dreamina-` prefix.
- * - Older models reject the `dola-` prefix outright.
- */
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
 
@@ -47,10 +26,6 @@ interface ModelMeta {
   max_input_tokens?: number
   max_output_tokens?: number
 }
-
-// ============================================================================
-// Chat models (Seed / GLM / DeepSeek / gpt-oss on Ark)
-// ============================================================================
 
 const DOLA_SEED_2_1_TURBO = {
   name: 'dola-seed-2-1-turbo-260628',
@@ -235,10 +210,6 @@ const GLM_4_7_251222 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    // Adherence-probed 2026-07-31: ACCEPTS a json_schema with 200 but ignores
-    // it and answers in prose, so it is not a structured-output model. A
-    // status-code-only probe reads this as support — see the note on
-    // BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS.
     capabilities: ['reasoning', 'tool_calling'],
     tools: [] as const,
   },
@@ -468,10 +439,6 @@ export type BytePlusChatModelProviderOptionsByName = {
   [K in BytePlusChatModel]: BytePlusTextProviderOptions
 }
 
-// ============================================================================
-// Video models (Seedance, async task API)
-// ============================================================================
-
 /**
  * Output aspect ratios accepted by the Seedance task API. `adaptive` is only
  * meaningful for image-to-video, where the ratio follows the input frame.
@@ -509,10 +476,6 @@ export type BytePlusVideoSize<
   TResolution extends BytePlusVideoResolution = BytePlusVideoResolution,
 > = BytePlusVideoRatio | `${BytePlusVideoRatio}_${TResolution}`
 
-// Multimodal reference-media capabilities (reference images / video / audio)
-// are docs-derived from the ModelArk create-task page. Model ids and the
-// resolution / duration tables for 2.0 were also live-probed on 2026-07-31;
-// 2.5 lands from the public docs once the model was fully opened (2026-08-07).
 const DREAMINA_SEEDANCE_2_5 = {
   name: 'dreamina-seedance-2-5-260628',
   supports: {
@@ -795,10 +758,6 @@ export function getBytePlusVideoDurationOptions(
     : BYTEPLUS_VIDEO_FALLBACK_DURATIONS
 }
 
-// ============================================================================
-// Image models (Seedream)
-// ============================================================================
-
 /**
  * Shorthand size tokens accepted by `/images/generations`. A request uses
  * either a token or an explicit `WxH` string — never both.
@@ -893,10 +852,6 @@ export const BYTEPLUS_IMAGE_MAX_REFERENCE_IMAGES: {
   'seedream-4-0-250828': 14,
 }
 
-// ============================================================================
-// Seed Speech models (voice host — separate product and API key)
-// ============================================================================
-
 const SEED_AUDIO_1_0 = {
   name: 'seed-audio-1.0',
   supports: {
@@ -905,11 +860,6 @@ const SEED_AUDIO_1_0 = {
   },
 } as const satisfies ModelMeta
 
-// Seed Speech ASR is endpoint-addressed: `POST /api/v3/auc/bigmodel/recognize/
-// flash` selects the model through the `X-Api-Resource-Id` header
-// (`volc.seedasr.auc_turbo`) and takes no `model` field in the body. This
-// synthetic identifier satisfies the SDK's `TranscriptionOptions.model`
-// contract and gives logging and fixture matching a stable value.
 const SEED_ASR = {
   name: 'seed-asr',
   supports: {
@@ -941,10 +891,6 @@ export type BytePlusTTSModel = (typeof BYTEPLUS_TTS_MODELS)[number]
  */
 export type BytePlusTranscriptionModel =
   (typeof BYTEPLUS_TRANSCRIPTION_MODELS)[number]
-
-// ============================================================================
-// Type resolution helpers
-// ============================================================================
 
 /**
  * Resolve provider options for a specific model. Models listed in the chat

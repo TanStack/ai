@@ -102,17 +102,15 @@ export class OpenRouterImageAdapter<
   ): Promise<ImageGenerationResult> {
     const resolved = resolveMediaPrompt(options.prompt)
 
-    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+    const hasUnsupportedPromptMedia =
+      resolved.videos.length > 0 || resolved.audios.length > 0
+    if (hasUnsupportedPromptMedia) {
       throw new Error(
         `openrouter.generateImages does not support video / audio prompt parts on model ${this.model}.`,
       )
     }
 
     const { model, numberOfImages, size, modelOptions, logger } = options
-    // OpenRouter's chat-completions image pathway returns exactly one image
-    // per request and ignores any count key in image_config (verified
-    // against the live API), so reject multi-image requests instead of
-    // silently under-delivering.
     if (numberOfImages !== undefined && numberOfImages > 1) {
       throw new Error(
         `openrouter: the chat-completions image pathway generates one image per request (numberOfImages: ${numberOfImages}). Make multiple requests instead.`,
@@ -120,11 +118,6 @@ export class OpenRouterImageAdapter<
     }
     const aspectRatio = sizeToAspectRatio(size)
 
-    // Image-conditioned generation: map the prompt parts 1:1 onto
-    // chat-completions content parts, preserving the interleaved order —
-    // OpenRouter forwards them to the underlying image model (e.g. Gemini
-    // image models), where position is meaningful. Role hints carry no
-    // per-field semantics on this pathway.
     type ContentItem =
       | { type: 'text'; text: string }
       | { type: 'image_url'; imageUrl: { url: string } }
@@ -163,10 +156,6 @@ export class OpenRouterImageAdapter<
         ],
         modalities: ['image'],
         stream: false,
-        // The SDK serializes this record verbatim as `image_config`, so keys
-        // must match the HTTP API's documented snake_case fields — miskeyed
-        // entries are silently ignored by the gateway (verified live:
-        // `aspect_ratio` changes output dimensions, `aspectRatio` does not).
         imageConfig: {
           ...(aspectRatio
             ? {
@@ -236,9 +225,6 @@ export class OpenRouterImageAdapter<
       throw new Error('Image generation failed: response contained no images')
     }
 
-    // OpenRouter routes image generation through the chat surface, so the
-    // response carries the same `usage` shape as text. Surface it (with any
-    // detail breakdowns and provider-reported cost) when present.
     const baseUsage = buildOpenRouterUsage(response.usage)
     const usage = baseUsage && {
       ...baseUsage,

@@ -5,13 +5,6 @@ import type {
 } from '../../types'
 
 /**
- * Resolve the size type for a model from the model-size map.
- * If the map has an index signature (i.e. no explicit keys), falls back to string.
- * If the model is an explicit key, uses its mapped size type.
- * Otherwise falls back to string.
- */
-
-/**
  * Configuration for image adapter instances
  */
 export interface ImageAdapterConfig {
@@ -101,8 +94,11 @@ export abstract class BaseImageAdapter<
   TModelSizeByName,
   TModelInputModalitiesByName
 > {
+  /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind = 'image' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime

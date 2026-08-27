@@ -85,13 +85,16 @@ function assertAGUIMessage(
         requireArray(value.toolCalls, `${at}.toolCalls`)
       }
       break
-    case 'user':
-      if (typeof value.content !== 'string' && !Array.isArray(value.content)) {
+    case 'user': {
+      const isBadUserContent =
+        typeof value.content !== 'string' && !Array.isArray(value.content)
+      if (isBadUserContent) {
         invalidBody(
           `${at}.content must be a string or an array of content parts`,
         )
       }
       break
+    }
     case 'tool':
       requireString(value.content, `${at}.content`)
       requireString(value.toolCallId, `${at}.toolCallId`)
@@ -121,9 +124,6 @@ function validateMessage(value: unknown, index: number): AGUIMessage {
     }
   }
 
-  // Hard cut: inbound `parts` from old clients are dropped. Content,
-  // toolCalls, and metadata stay on the record. Copy so we do not mutate
-  // the caller's message object.
   return dropInboundParts(value)
 }
 
@@ -167,7 +167,8 @@ function validateResumeEntry(
   const at = `resume[${index}]`
   if (!isRecord(value)) invalidBody(`${at} must be an object`)
   const status = value.status
-  if (status !== 'resolved' && status !== 'cancelled') {
+  const isUnknownResumeStatus = status !== 'resolved' && status !== 'cancelled'
+  if (isUnknownResumeStatus) {
     invalidBody(`${at}.status must be "resolved" or "cancelled"`)
   }
   const entry: RunAgentResumeItem = {
@@ -234,7 +235,9 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
       ? undefined
       : requireArray(body.resume, 'resume').map(validateResumeEntry)
 
-  if (body.forwardedProps !== undefined && !isRecord(body.forwardedProps)) {
+  const isBadForwardedProps =
+    body.forwardedProps !== undefined && !isRecord(body.forwardedProps)
+  if (isBadForwardedProps) {
     invalidBody('forwardedProps must be an object')
   }
 
@@ -298,10 +301,6 @@ export async function chatParamsFromRequest(
   try {
     return await chatParamsFromRequestBody(body)
   } catch (cause) {
-    // Generic public message — avoid echoing Zod paths (which can contain
-    // user payload fragments) or internal validator strings to the client.
-    // The original AGUIError is attached as `cause` so server logs can
-    // surface it without exposing it to remote callers.
     const res = new Response(
       'Invalid AG-UI request body. See docs/migration/ag-ui-compliance.md.',
       { status: 400 },

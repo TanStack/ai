@@ -33,10 +33,10 @@ export function resolveAcpTransportMode(
   }
 
   if (sandbox.capabilities.writableStdin === true) return 'stdio'
-  if (
+  const canUseWebsocket =
     sandbox.capabilities.ports === true &&
     sandbox.capabilities.backgroundProcesses === true
-  ) {
+  if (canUseWebsocket) {
     return 'websocket'
   }
 

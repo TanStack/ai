@@ -52,7 +52,8 @@ export function untilFinishReason(
     if (iterationCount === 0) return true
 
     // Stop if we hit a stop reason
-    if (finishReason && stopReasons.includes(finishReason)) {
+    const hasFinishReason = finishReason && stopReasons.includes(finishReason)
+    if (hasFinishReason) {
       return false
     }
 

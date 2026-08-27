@@ -23,9 +23,6 @@ export function convertToolsToProviderFormat(
 ): Array<OpenRouterTool> {
   assertUniqueToolNames(tools)
   return tools.map((tool) => {
-    // Dispatch on the stable `__kind` brand set by webSearchTool() /
-    // webFetchTool() — not on `tool.name`, which a user can reuse with
-    // toolDefinition().
     if (isWebSearchTool(tool)) {
       return convertWebSearchToolToAdapterFormat(tool)
     }

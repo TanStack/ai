@@ -162,9 +162,6 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * }
  * ```
  */
-// `TTransformed` infers from the `onResult` return position so the callback
-// parameter is typed as `VideoGenerateResult` and `result` narrows to the
-// transform's return. See issue #848.
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
@@ -190,11 +187,6 @@ export function useGenerateVideo<TTransformed = void>(
   const [runId, setRunId] = createSignal<string | null>(null)
   let disposed = false
 
-  // Built once. `untrack` keeps the option reads below from subscribing
-  // construction to `options.persistence` / `options.devtools` /
-  // `options.body`: a re-run would build a second client
-  // and orphan the first (only the live one is disposed on cleanup). Later
-  // `options.body` changes are pushed through `updateOptions` instead.
   const client = untrack((): VideoGenerationClient<TOutput> => {
     // Conditional spread on `body`: VideoGenerationClientOptions.body
     // is a strict optional; EOPT forbids passing `T | undefined`.
@@ -223,9 +215,6 @@ export function useGenerateVideo<TTransformed = void>(
         hookName: 'useGenerateVideo',
         outputKind: 'video' as const,
       },
-      // The transform's raw return type (`TTransformed`) and the stored output
-      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
-      // the cast bridges the relationship that the conditional type hides.
       onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
         result: VideoGenerateResult,
       ) => TOutput | null | void,
@@ -306,14 +295,17 @@ export function useGenerateVideo<TTransformed = void>(
     client.dispose()
   })
 
+  /** Trigger video generation */
   const generate = async (input: VideoGenerateInput) => {
     await client.generate(input)
   }
 
+  /** Abort the current generation/polling */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear all state and return to idle */
   const reset = () => {
     client.reset()
   }

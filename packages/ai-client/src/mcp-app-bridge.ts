@@ -42,9 +42,6 @@ function isToolCallResponse(value: unknown): value is ToolCallResponse {
   )
 }
 
-// Links arrive from an untrusted sandboxed widget. Only hand http(s)/mailto
-// URLs to the host's onLink; reject javascript:/data:/file:/etc. so a widget
-// can't smuggle a script-executing or local-resource URL through the bridge.
 const SAFE_LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
 function isSafeLink(url: string): boolean {
   try {

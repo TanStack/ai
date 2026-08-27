@@ -25,7 +25,16 @@ export interface OpenRouterVideoModelMeta {
   aspectRatios: ReadonlyArray<string> | null
   frameImages: ReadonlyArray<string> | null
   sizes: ReadonlyArray<string> | null
+  /**
+   * Whether to generate audio alongside the video. Defaults to the
+   * endpoint's `generate_audio` capability flag.
+   */
   generateAudio: boolean | null
+  /**
+   * Deterministic sampling seed. Repeated requests with the same seed and
+   * parameters should return the same result (not guaranteed by all
+   * providers).
+   */
   seed: boolean | null
 }
 
@@ -68,16 +77,7 @@ export interface OpenRouterVideoProviderOptions extends OpenRouterVideoCommonOpt
   resolution?: string
   /** Aspect ratio of the generated video (e.g. '16:9', '9:16'). */
   aspectRatio?: string
-  /**
-   * Deterministic sampling seed. Repeated requests with the same seed and
-   * parameters should return the same result (not guaranteed by all
-   * providers).
-   */
   seed?: number
-  /**
-   * Whether to generate audio alongside the video. Defaults to the
-   * endpoint's `generate_audio` capability flag.
-   */
   generateAudio?: boolean
 }
 
@@ -92,7 +92,9 @@ export type OpenRouterVideoProviderOptionsFor<TModel extends string> =
   OpenRouterVideoCommonOptions &
     (TModel extends keyof VideoMeta
       ? {
+          /** Resolution of the generated video (e.g. '720p', '1080p'). */
           resolution?: ElementOf<VideoMeta[TModel]['resolutions'], string>
+          /** Aspect ratio of the generated video (e.g. '16:9', '9:16'). */
           aspectRatio?: ElementOf<VideoMeta[TModel]['aspectRatios'], string>
         } & (VideoMeta[TModel]['seed'] extends false
           ? unknown
@@ -149,7 +151,8 @@ export function getVideoDurationOptions(
   model: string,
 ): DurationOptions<number> {
   const durations = VIDEO_MODEL_META[model]?.durations
-  if (!durations || durations.length === 0) return { kind: 'none' }
+  if (!durations) return { kind: 'none' }
+  if (durations.length === 0) return { kind: 'none' }
   return { kind: 'discrete', values: durations }
 }
 
@@ -164,7 +167,8 @@ export function validateVideoSize(
 ): void {
   if (!size) return
   const sizes = VIDEO_MODEL_META[model]?.sizes
-  if (!sizes || sizes.includes(size)) return
+  if (!sizes) return
+  if (sizes.includes(size)) return
   throw new Error(
     `openrouter: model ${model} does not support size '${size}'. Supported sizes: ${sizes.join(', ')}.`,
   )
@@ -180,7 +184,8 @@ export function validateVideoDuration(
 ): void {
   if (duration === undefined) return
   const durations = VIDEO_MODEL_META[model]?.durations
-  if (!durations || durations.includes(duration)) return
+  if (!durations) return
+  if (durations.includes(duration)) return
   throw new Error(
     `openrouter: model ${model} does not support duration ${duration}s. Supported durations: ${durations.join(', ')}s.`,
   )

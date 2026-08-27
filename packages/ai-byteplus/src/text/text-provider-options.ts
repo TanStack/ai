@@ -1,23 +1,4 @@
 /**
- * BytePlus ModelArk chat provider options.
- *
- * Ark's `/chat/completions` is OpenAI-compatible, so most of this is the
- * familiar sampling surface; `thinking`, `reasoning_effort`,
- * `repetition_penalty` and `service_tier` are the Ark-only additions.
- *
- * Every field below was accepted by a live request against
- * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. Two probe
- * results are encoded as TSDoc warnings rather than types because they are
- * cross-field constraints TypeScript can't express: `max_tokens` and
- * `max_completion_tokens` are mutually exclusive, and `reasoning_effort`
- * combined with `thinking: {type: 'disabled'}` is a 400.
- *
- * `response_format` is deliberately absent — the chat activity owns it via
- * `outputSchema` / structured output, and Ark rejects `json_object` outright
- * on every model.
- */
-
-/**
  * Reasoning ("deep thinking") switch.
  *
  * - `enabled` — the model reasons before answering (default on every model
@@ -73,10 +54,6 @@ export type BytePlusToolChoice =
  * Provider options for BytePlus chat models.
  */
 export interface BytePlusTextProviderOptions {
-  // --------------------------------------------------------------------
-  // Ark-only
-  // --------------------------------------------------------------------
-
   /** Reasoning switch — see {@link BytePlusThinkingOption}. */
   thinking?: BytePlusThinkingOption
 
@@ -90,10 +67,6 @@ export interface BytePlusTextProviderOptions {
 
   /** Request routing tier — see {@link BytePlusServiceTier}. */
   service_tier?: BytePlusServiceTier
-
-  // --------------------------------------------------------------------
-  // OpenAI-compatible sampling surface
-  // --------------------------------------------------------------------
 
   /** Sampling temperature. Higher values produce more varied output. */
   temperature?: number

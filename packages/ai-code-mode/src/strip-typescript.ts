@@ -4,6 +4,7 @@ import { transform } from 'sucrase'
 const WRAPPER_START = '___TANSTACK_WRAPPER_START___'
 const WRAPPER_END = '___TANSTACK_WRAPPER_END___'
 
+// eslint-disable-next-line @typescript-eslint/require-await
 /**
  * Strip TypeScript syntax from code, converting it to plain JavaScript.
  *
@@ -47,10 +48,6 @@ const WRAPPER_END = '___TANSTACK_WRAPPER_END___'
  * @returns Plain JavaScript code with all type syntax removed
  * @throws Error if sucrase fails (e.g., syntax error) or wrapper extraction fails
  */
-// sucrase's transform is synchronous, but we keep the published Promise-returning
-// signature so existing `await stripTypeScript(...)` callers (and a custom async
-// `transpile` hook) stay source-compatible across this swap.
-// eslint-disable-next-line @typescript-eslint/require-await
 export async function stripTypeScript(code: string): Promise<string> {
   // Wrap the code in an async function to allow top-level return/await.
   // This is necessary because top-level `return` is invalid outside a function.

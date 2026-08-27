@@ -210,6 +210,7 @@ export async function reconstructGeneration(
   options?: ReconstructGenerationOptions,
 ): Promise<Response> {
   const params = new URL(request.url).searchParams
+  /** Query parameter carrying the run id. Defaults to `runId`. */
   const runParam = options?.runParam ?? 'runId'
   const threadParam = options?.param ?? 'threadId'
   const runId = params.get(runParam) ?? ''

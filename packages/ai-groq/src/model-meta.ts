@@ -426,10 +426,6 @@ export const GROQ_TRANSCRIPTION_MODELS = [
  */
 export type GroqTranscriptionModel = (typeof GROQ_TRANSCRIPTION_MODELS)[number]
 
-// ============================================================================
-// TTS Models
-// ============================================================================
-
 const ORPHEUS_V1_ENGLISH = {
   name: 'canopylabs/orpheus-v1-english',
   pricing: {

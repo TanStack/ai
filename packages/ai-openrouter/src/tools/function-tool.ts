@@ -34,14 +34,6 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
     required: [],
   }) as JSONSchema
 
-  // Forward an optional cache-control marker so OpenRouter can cache the tool
-  // definition (Anthropic prompt caching). Mirrors
-  // `convertCustomToolToAdapterFormat` in `@tanstack/ai-anthropic`. The SDK
-  // remaps `cacheControl` -> `cache_control` on the wire; a snake_case key is
-  // silently stripped by its outbound schema.
-  //
-  // `Tool.metadata` is `Record<string, any>`, so the field is already
-  // assignable here — the annotation narrows it without a cast.
   const cacheControl: ChatContentCacheControl | null | undefined =
     tool.metadata?.cacheControl
 

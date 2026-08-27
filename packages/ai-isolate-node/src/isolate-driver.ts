@@ -190,8 +190,8 @@ export function createNodeIsolateDriver(
         };
       `)
 
-      // Inject each tool binding
-      for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
+      const toolBindings = Object.entries(isolateConfig.bindings)
+      for (const [name, binding] of toolBindings) {
         // Create an async Reference that executes the tool
         // Uses applySyncPromise which properly handles async functions
         const toolRef = new ivm.Reference(

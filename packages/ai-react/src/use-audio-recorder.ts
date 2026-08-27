@@ -48,12 +48,6 @@ export interface UseAudioRecorderReturn<TOutput> {
  * sendMessage({ content: [rec.part] })
  * ```
  */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`useAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -93,17 +87,18 @@ export function useAudioRecorder(
     }
   }, [recorder])
 
+  /** Acquire the mic and begin recording. */
   const start = useCallback(() => recorder.start(), [recorder])
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   const stop = useCallback(async () => {
+    /** Latest recording (transformed if `onComplete` provided), or null. */
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
-    // Only `undefined` (returning nothing) falls back to the raw recording, so
-    // a transform that returns null is preserved — matching the inferred type,
-    // which excludes only undefined/void/null from the transform's return.
     const output = transformed === undefined ? recording : transformed
     setRecording(() => output)
     return output
   }, [recorder])
+  /** Discard the in-progress recording and release the mic. */
   const cancel = useCallback(() => recorder.cancel(), [recorder])
 
   return {

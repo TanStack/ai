@@ -12,10 +12,9 @@ export type GeminiClientConfig = GoogleGenAIOptions
  */
 export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
   const vertexMode = config.vertexai === true || config.enterprise === true
-  if (
-    !vertexMode &&
-    (config.apiKey === undefined || config.apiKey.length === 0)
-  ) {
+  const needsApiKey =
+    !vertexMode && (config.apiKey === undefined || config.apiKey.length === 0)
+  if (needsApiKey) {
     throw new Error(
       'A Gemini API key is required when vertexai and enterprise are not set. Pass apiKey, or set GOOGLE_API_KEY or GEMINI_API_KEY.',
     )

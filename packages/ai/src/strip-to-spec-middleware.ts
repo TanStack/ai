@@ -18,8 +18,10 @@ export function stripToSpec(
   chunk: StreamChunk | AdapterYieldChunk,
 ): StreamChunk {
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(chunk)) {
-    if (isSpecTopLevelKey(chunk.type, key) && value !== undefined) {
+  const entries = Object.entries(chunk)
+  for (const [key, value] of entries) {
+    const isSpecKey = isSpecTopLevelKey(chunk.type, key) && value !== undefined
+    if (isSpecKey) {
       out[key] = value
     }
   }

@@ -26,22 +26,13 @@ export type CohereEmbeddingModelInputModalitiesByName = {
   'embed-v4.0': readonly ['text', 'image']
 }
 
-/**
- * Cohere rerank model metadata.
- *
- * Provider options are resolved per model at the `cohereRerank('model')` call
- * site via {@link CohereRerankModelProviderOptionsByName}. Cohere's rerank
- * models currently share the same options, but the per-model map keeps the
- * surface symmetric with the other adapters and lets divergent options be
- * expressed later without changing the adapter contract.
- */
-
 /** Available Cohere rerank models. */
-export const COHERE_RERANK_MODELS = [
-  'rerank-v3.5',
-  'rerank-english-v3.0',
-  'rerank-multilingual-v3.0',
-] as const
+export const /** Available Cohere rerank models. */
+  COHERE_RERANK_MODELS = [
+    'rerank-v3.5',
+    'rerank-english-v3.0',
+    'rerank-multilingual-v3.0',
+  ] as const
 
 /** Union of supported Cohere rerank model names. */
 export type CohereRerankModel = (typeof COHERE_RERANK_MODELS)[number]

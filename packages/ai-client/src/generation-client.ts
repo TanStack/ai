@@ -43,9 +43,6 @@ import type {
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.
  */
-// All optional fields explicitly allow `| undefined` so callers can spread
-// option bags (where each callback may be `undefined`) into the callbacks
-// ref under `exactOptionalPropertyTypes`.
 interface GenerationCallbacks<TResult, TOutput> {
   onResult?: ((result: TResult) => TOutput | null | void) | undefined
   onError?: ((error: Error) => void) | undefined
@@ -108,9 +105,6 @@ export class GenerationClient<
 > {
   private readonly connection: ConnectConnectionAdapter | undefined
   private readonly fetcher: GenerationFetcher<TInput, TResult> | undefined
-  // Persistence handlers supplied as options (e.g. alongside a `fetcher`), used
-  // when the connection doesn't carry its own — the connection's handlers take
-  // precedence when both exist.
   private readonly hydrateGenerationHandler:
     | ConnectConnectionAdapter['hydrateGeneration']
     | undefined
@@ -155,9 +149,6 @@ export class GenerationClient<
     // construct: hooks build this client during render.
     this.threadId = options.threadId ?? ''
     this.uniqueId = this.threadId
-    // The persistence scope is the explicit `threadId` and nothing else.
-    // The types require it whenever `persistence` is set. This field keeps a
-    // generated wire id from becoming a storage key for JS callers.
     this.persistenceScope = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
@@ -169,11 +160,8 @@ export class GenerationClient<
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
-    // The types require `threadId` alongside `persistence`, so this only fires
-    // for JS callers. Warn rather than fall back silently: keying on the
-    // generated wire id would write a different slot every reload, restoring
-    // nothing while accumulating orphaned records.
-    if (options.persistence && !this.persistenceScope) {
+    const needsThreadId = options.persistence && !this.persistenceScope
+    if (needsThreadId) {
       console.warn(
         '[TanStack AI] `persistence` needs a stable `threadId` to key on. Without one nothing will be restored after a reload. Pass a `threadId` derived from your own domain (e.g. `product-123-hero`).',
       )
@@ -196,13 +184,6 @@ export class GenerationClient<
     this.devtoolsBridge = (
       options.devtoolsBridgeFactory ?? createNoOpGenerationDevtoolsBridge
     )<TOutput>(this.buildDevtoolsBridgeOptions())
-
-    // Mount hydration (`maybeHydrateFromServer`) is deliberately NOT run here. The framework
-    // hooks build this client inside `useMemo`, so the constructor executes in
-    // React's render phase; hydrating here would re-fire the hydrate GET on
-    // every discarded/speculative render, flooding the connection pool when
-    // several clients mount together. It is kicked off once from
-    // `mountDevtools`, which the hooks call from a commit-phase mount effect.
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
@@ -231,18 +212,8 @@ export class GenerationClient<
 
   mountDevtools(): void {
     this.ensureThreadId()
-    // Mounting revives a disposed client. Framework hooks call this from
-    // their mount effect, so a dispose → remount cycle (e.g. React
-    // StrictMode's mount → cleanup → mount replay against the same memoized
-    // client) leaves the client usable again.
     this.disposed = false
     this.maybeHydrateFromServer()
-    // Re-attach to an in-flight run whose snapshot is already loaded — the
-    // remount case. On the FIRST mount the snapshot loads asynchronously and
-    // `repaintRestoredSnapshot` starts the rejoin; on a StrictMode remount the
-    // snapshot is already present but the prior rejoin was aborted by
-    // `dispose()`, so retrigger it here. Guarded by `rejoinInFlight`'s own
-    // dedupe/in-flight checks, so this never double-joins.
     this.maybeResumeInFlight()
     if (this.devtoolsMounted) {
       return
@@ -275,87 +246,105 @@ export class GenerationClient<
     const { signal } = abortController
 
     try {
-      let headers: Record<string, string> | undefined
-      if (this.byok) {
-        const provider = resolveByokProviderId(
-          this.byokProvider,
-          this.body.provider,
-        )
-        headers = await prepareResolvedByokHeaders(this.byok, provider)
-      }
-
-      if (this.fetcher) {
-        // Direct fetch path
-        const result = await this.fetcher(
-          input,
-          headers === undefined ? { signal } : { signal, headers },
-        )
-        if (signal.aborted) return
-        if (result instanceof Response) {
-          // Server function returned SSE Response — parse stream
-          await this.processStream(
-            parseSSEResponse(result, signal),
-            runId,
-            signal,
-          )
-        } else {
-          this.devtoolsBridge.ensureRunStarted(runId)
-          this.setResult(result)
-          this.setStatus('success')
-          this.completePlainFetcherResumeSnapshot(result)
-        }
-      } else if (this.connection) {
-        // Streaming adapter path
-        const mergedData = { ...this.body, ...input }
-        const stream = this.connection.connect(
-          [],
-          mergedData,
-          signal,
-          this.createRunContext(runId, headers),
-        )
-        await this.processStream(stream, runId, signal)
-      } else {
-        throw new Error(
-          'GenerationClient requires either a connection or fetcher option',
-        )
-      }
-      if (!signal.aborted && this.status === 'success') {
-        // Bump progress to 100 on successful completion so devtools
-        // snapshots reflect the final state. The bridge mirrors this in
-        // the run's recorded progress, but the snapshot reads `progress`
-        // from the client's core state.
-        this.progress = completeProgressValue(this.progress)
-        this.devtoolsBridge.finishRun(
-          this.devtoolsBridge.getActiveRunId() ?? runId,
-          'run:completed',
-          'completed',
-        )
-      }
+      await this.executeGenerate(input, runId, signal)
     } catch (err: unknown) {
-      if (signal.aborted) return
-      const error = err instanceof Error ? err : new Error(String(err))
-      if (error instanceof ByokMissingError) {
-        this.byok?.request(error.provider, 'missing')
-      }
-      if (error instanceof ByokBlockedError && error.reason === 'locked') {
-        this.byok?.request(error.provider, 'locked')
-      }
-      this.setError(error)
-      this.setStatus('error')
-      this.recordResumeSnapshotError(error)
-      this.devtoolsBridge.finishRun(
-        this.devtoolsBridge.getActiveRunId() ?? runId,
-        'run:errored',
-        'errored',
-        error.message,
-      )
-      this.callbacksRef.onError?.(error)
+      this.handleGenerateFailure(err, signal, runId)
     } finally {
       if (this.abortController === abortController) {
         this.abortController = null
         this.setIsLoading(false)
       }
     }
+  }
+
+  private async executeGenerate(
+    input: TInput,
+    runId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let headers: Record<string, string> | undefined
+    if (this.byok) {
+      const provider = resolveByokProviderId(
+        this.byokProvider,
+        this.body.provider,
+      )
+      headers = await prepareResolvedByokHeaders(this.byok, provider)
+    }
+
+    if (this.fetcher) {
+      await this.generateWithFetcher(input, signal, runId, headers)
+    } else if (this.connection) {
+      const mergedData = { ...this.body, ...input }
+      const stream = this.connection.connect(
+        [],
+        mergedData,
+        signal,
+        this.createRunContext(runId, headers),
+      )
+      await this.processStream(stream, runId, signal)
+    } else {
+      throw new Error(
+        'GenerationClient requires either a connection or fetcher option',
+      )
+    }
+    const isSuccessfulRun = !signal.aborted && this.status === 'success'
+    if (isSuccessfulRun) {
+      this.progress = completeProgressValue(this.progress)
+      this.devtoolsBridge.finishRun(
+        this.devtoolsBridge.getActiveRunId() ?? runId,
+        'run:completed',
+        'completed',
+      )
+    }
+  }
+
+  private async generateWithFetcher(
+    input: TInput,
+    signal: AbortSignal,
+    runId: string,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    if (!this.fetcher) return
+    const result = await this.fetcher(
+      input,
+      headers === undefined ? { signal } : { signal, headers },
+    )
+    if (signal.aborted) return
+    if (result instanceof Response) {
+      await this.processStream(parseSSEResponse(result, signal), runId, signal)
+      return
+    }
+    this.devtoolsBridge.ensureRunStarted(runId)
+    this.setResult(result)
+    this.setStatus('success')
+    this.completePlainFetcherResumeSnapshot(result)
+  }
+
+  private handleGenerateFailure(
+    err: unknown,
+    signal: AbortSignal,
+    runId: string,
+  ): void {
+    if (signal.aborted) return
+    const error = err instanceof Error ? err : new Error(String(err))
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    const isByokLocked =
+      error instanceof ByokBlockedError && error.reason === 'locked'
+    if (isByokLocked) {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.setError(error)
+    this.setStatus('error')
+    this.recordResumeSnapshotError(error)
+    this.devtoolsBridge.finishRun(
+      this.devtoolsBridge.getActiveRunId() ?? runId,
+      'run:errored',
+      'errored',
+      error.message,
+    )
+    this.callbacksRef.onError?.(error)
   }
 
   /**
@@ -431,7 +420,8 @@ export class GenerationClient<
     }
 
     // An aborted read is a deliberate stop/dispose, not a truncation.
-    if (!sawTerminalChunk && !signal.aborted) {
+    const isTruncatedStream = !sawTerminalChunk && !signal.aborted
+    if (isTruncatedStream) {
       throw new Error(GENERATION_STREAM_TRUNCATED_MESSAGE)
     }
   }
@@ -452,10 +442,9 @@ export class GenerationClient<
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
-    // A stopped run is no longer resumable. Without this the in-memory
-    // snapshot stays `running`, and a remount's `maybeResumeInFlight` would
-    // rejoin a run the user just cancelled.
-    if (this.resumeSnapshot && this.resumeSnapshot.status === 'running') {
+    const hasRunningSnapshot =
+      this.resumeSnapshot && this.resumeSnapshot.status === 'running'
+    if (hasRunningSnapshot) {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
         resumeState: null,
@@ -525,14 +514,6 @@ export class GenerationClient<
 
   dispose(): void {
     this.disposed = true
-    // Teardown, NOT a user cancel: abort in-flight DELIVERY (this reader) but
-    // do NOT call `stop()` — `stop()` marks the run non-resumable and wipes the
-    // `running` snapshot, which is correct for a Stop button but wrong for an
-    // unmount / React StrictMode dispose. Clearing it here would destroy the
-    // in-memory resume state, so a remount of this same client instance could
-    // never rejoin. (A real page revisit re-hydrates from the server instead.)
-    // The run itself survives server-side (durable delivery), so the snapshot
-    // must stay `running` for the remount to resume it.
     if (this.abortController) {
       this.abortController.abort()
       this.abortController = null
@@ -540,16 +521,9 @@ export class GenerationClient<
     this.setIsLoading(false)
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
-    // Re-arm mount hydration + rejoin so a remount resumes from the (preserved)
-    // snapshot. `mountDevtools` re-runs the hydration entry point and
-    // `maybeResumeInFlight`, both individually guarded.
     this.serverHydrationStarted = false
     this.rejoinedRunId = undefined
   }
-
-  // ===========================
-  // Getters
-  // ===========================
 
   getResult(): TOutput | null {
     return this.result
@@ -594,10 +568,6 @@ export class GenerationClient<
       : undefined
   }
 
-  // ===========================
-  // Private state setters
-  // ===========================
-
   private setResult(rawResult: TResult | null): void {
     if (rawResult === null) {
       this.result = null
@@ -622,9 +592,6 @@ export class GenerationClient<
       }
     }
 
-    // No onResult callback, or callback returned void → use raw value as
-    // TOutput. When the caller did not supply an onResult transform,
-    // `TOutput` defaults to `TResult`, so the runtime cast is sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
     this.callbacksRef.onResultChange?.(this.result)
@@ -772,11 +739,12 @@ export class GenerationClient<
     const restored = this.reconstructRestoredResult(snapshot)
     if (restored !== null) {
       this.setResult(restored)
-    } else if (
-      this.callbacksRef.reconstructResult &&
-      snapshot.status === 'complete'
-    ) {
-      this.reportUnrestorableResult()
+    } else {
+      const needsUnrestorableError =
+        this.callbacksRef.reconstructResult && snapshot.status === 'complete'
+      if (needsUnrestorableError) {
+        this.reportUnrestorableResult()
+      }
     }
   }
 
@@ -896,16 +864,11 @@ export class GenerationClient<
    * run is still in flight.
    */
   private recordResumeSnapshotError(error: Error): void {
-    // Surface the failure on the OBSERVABLE fields FIRST: a rejoin (or live
-    // stream) that emits RUN_ERROR has already flipped the snapshot to `error`
-    // via `observeResumeSnapshot`, so the early-return below would otherwise
-    // skip this and leave `status` stuck on `generating` — the run would look
-    // like it is still going forever. The guard avoids a duplicate `error`
-    // emission on the live `generate()` path, which sets the status itself.
     if (this.status !== 'error') this.setStatus('error')
     this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
-    if (!this.resumeSnapshot && !this.serverDriven) return
+    const hasNoResumeTarget = !this.resumeSnapshot && !this.serverDriven
+    if (hasNoResumeTarget) return
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -938,9 +901,12 @@ export class GenerationClient<
    * re-fire the hydrate GET.
    */
   private maybeHydrateFromServer(): void {
-    if (!this.serverDriven || this.serverHydrationStarted) return
+    const shouldHydrate = this.serverDriven && !this.serverHydrationStarted
+    if (!shouldHydrate) return
     this.serverHydrationStarted = true
-    if (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler) {
+    const hydrateHandler =
+      this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
+    if (hydrateHandler) {
       this.hydrateFromServer()
     } else {
       // `persistence: true` without any hydrate source can never restore
@@ -969,7 +935,9 @@ export class GenerationClient<
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
     if (!hydrate) return
     // A send that already started owns the client; don't stomp it.
-    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
+    const isClientBusy =
+      this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+    if (isClientBusy) return
     void (async () => {
       let res: GenerationHydrationResult
       try {
@@ -995,8 +963,9 @@ export class GenerationClient<
         return
       }
       // Re-check: a send may have started while the fetch was in flight.
-      if (this.resumeSnapshot || this.isLoading || this.status !== 'idle')
-        return
+      const isClientBusy =
+        this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+      if (isClientBusy) return
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
@@ -1008,7 +977,9 @@ export class GenerationClient<
    * run's state must win over a stale mount-time failure.
    */
   private failHydration(error: Error): void {
-    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
+    const isClientBusy =
+      this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+    if (isClientBusy) return
     this.setStatus('error')
     this.setError(error)
     this.callbacksRef.onError?.(error)
@@ -1038,7 +1009,8 @@ export class GenerationClient<
     if (!joinRun) return
     if (this.rejoinedRunId === runId) return
     // A fresh send (or an in-progress rejoin) owns the client.
-    if (this.isLoading || this.abortController) return
+    const hasActiveStream = this.isLoading || this.abortController
+    if (hasActiveStream) return
     this.rejoinedRunId = runId
     const controller = new AbortController()
     this.abortController = controller
@@ -1055,16 +1027,10 @@ export class GenerationClient<
         if (!controller.signal.aborted) {
           const failure =
             error instanceof Error ? error : new Error(String(error))
-          // Settles `status`/`error` AND rewrites the snapshot to a terminal
-          // `error` with a null `resumeState`, so the next mount does not
-          // rejoin this run again.
           this.recordResumeSnapshotError(failure)
           this.callbacksRef.onError?.(failure)
         }
       } finally {
-        // Only reset if this rejoin still owns the client: a `stop()` +
-        // fresh `generate()` may have replaced the controller while the tail
-        // was settling, and that live run owns `isLoading` now.
         if (this.abortController === controller) {
           this.abortController = null
           this.setIsLoading(false)

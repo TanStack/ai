@@ -174,9 +174,6 @@ class MemoryInterruptStore implements InterruptStore {
   create(
     record: Omit<InterruptRecord, 'status' | 'resolvedAt'>,
   ): Promise<void> {
-    // Insert-if-absent (canonical semantics, matching the SQL backends'
-    // ON CONFLICT DO NOTHING): a duplicate id must never clobber an existing —
-    // possibly already resolved — interrupt back to pending.
     if (!this.interrupts.has(record.interruptId)) {
       this.interrupts.set(record.interruptId, { ...record, status: 'pending' })
     }
@@ -288,14 +285,11 @@ class MemoryInterruptStore implements InterruptStore {
 }
 
 class MemoryMetadataStore implements MetadataStore {
-  // Nested maps so composite identity is `(namespace, key)` without the
-  // `${namespace}:${key}` collision where `('a:b','c')` aliases `('a','b:c')`.
-  // (This parameter is an app-defined metadata namespace string — not the
-  // shared `Scope` identity type from `@tanstack/ai`.)
   private readonly values = new Map<string, Map<string, unknown>>()
   get(namespace: string, key: string): Promise<unknown | null> {
     const bucket = this.values.get(namespace)
-    if (!bucket || !bucket.has(key)) return Promise.resolve(null)
+    if (!bucket) return Promise.resolve(null)
+    if (!bucket.has(key)) return Promise.resolve(null)
     return Promise.resolve(bucket.get(key))
   }
   set(namespace: string, key: string, value: unknown): Promise<void> {
@@ -352,7 +346,8 @@ class MemoryArtifactStore implements ArtifactStore {
     return Promise.resolve()
   }
   deleteForRun(runId: string): Promise<void> {
-    for (const artifact of this.artifacts.values()) {
+    const artifacts = this.artifacts.values()
+    for (const artifact of artifacts) {
       if (artifact.runId === runId) this.artifacts.delete(artifact.artifactId)
     }
     return Promise.resolve()

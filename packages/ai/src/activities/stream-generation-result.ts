@@ -1,9 +1,3 @@
-/**
- * Internal helper for wrapping one-shot generation results as StreamChunk
- * async iterables. NOT exported from the package — used only by activity
- * implementations to support `stream: true`.
- */
-
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from './error-payload'
 import type { StreamChunk } from '../types'

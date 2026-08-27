@@ -27,7 +27,8 @@ export function generateTypeStubs(
 
   const declarations: Array<string> = []
 
-  for (const [name, binding] of Object.entries(bindings)) {
+  const toolBindings = Object.entries(bindings)
+  for (const [name, binding] of toolBindings) {
     const inputTypeName = `${capitalize(name)}Input`
     const outputTypeName = `${capitalize(name)}Output`
 
@@ -81,11 +82,11 @@ export function jsonSchemaToTypeScript(
   const type = schemaToType(schema)
 
   // For object schemas with properties, create a named interface
-  if (
+  const hasObjectProperties =
     schema.type === 'object' &&
-    schema.properties &&
-    Object.keys(schema.properties).length > 0
-  ) {
+    Boolean(schema.properties) &&
+    Object.keys(schema.properties as object).length > 0
+  if (hasObjectProperties) {
     return {
       name: typeName,
       declaration: `interface ${typeName} ${type}`,
@@ -111,7 +112,8 @@ function schemaToType(schema: Record<string, unknown>): string {
 
   // Handle basic types
   if (schemaType === 'string') return 'string'
-  if (schemaType === 'number' || schemaType === 'integer') return 'number'
+  if (schemaType === 'number') return 'number'
+  if (schemaType === 'integer') return 'number'
   if (schemaType === 'boolean') return 'boolean'
   if (schemaType === 'null') return 'null'
 
@@ -166,7 +168,8 @@ function schemaToType(schema: Record<string, unknown>): string {
     return schemaType
       .map((t) => {
         if (t === 'string') return 'string'
-        if (t === 'number' || t === 'integer') return 'number'
+        if (t === 'number') return 'number'
+        if (t === 'integer') return 'number'
         if (t === 'boolean') return 'boolean'
         if (t === 'null') return 'null'
         if (t === 'array') return 'Array<unknown>'

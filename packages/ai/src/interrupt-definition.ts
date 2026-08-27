@@ -344,7 +344,8 @@ function schemaJson(schema: unknown, name: string): CanonicalSchemaJson {
       throw new TypeError('The exported schema must be a plain JSON object.')
     }
     const converted: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(exported)) {
+    const entries = Object.entries(exported)
+    for (const [key, value] of entries) {
       if (key !== '$schema') converted[key] = value
     }
     const canonicalJson = canonicalInterruptJson(converted)
@@ -521,7 +522,8 @@ export function defineInterrupt<
     return parseInterruptPayload(payloadSchema, payload)
   }
   const createRequest: InterruptRequestFactory = (input, payloadIsParsed) => {
-    for (const key of Object.keys(input)) {
+    const keys = Object.keys(input)
+    for (const key of keys) {
       if (!['key', 'payload', 'reason', 'message', 'expiresAt'].includes(key)) {
         throw new TypeError(`Interrupt input field ${key} is not allowed.`)
       }

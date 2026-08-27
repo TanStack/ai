@@ -31,7 +31,8 @@ const billableUnitsByRequestId = new Map<string, number>()
  * usage rather than surfacing `NaN`.
  */
 export function parseBillableUnits(value: string | null): number | undefined {
-  if (value == null || value === '') return undefined
+  if (value == null) return undefined
+  if (value === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
 }
@@ -48,10 +49,10 @@ export function recordBillableUnitsFromResponse(response: Response): void {
   if (units == null) return
   const requestId = response.headers.get(FAL_REQUEST_ID_HEADER)
   if (!requestId) return
-  if (
+  const evictOldest =
     billableUnitsByRequestId.size >= MAX_PENDING_ENTRIES &&
     !billableUnitsByRequestId.has(requestId)
-  ) {
+  if (evictOldest) {
     const oldest = billableUnitsByRequestId.keys().next().value
     if (oldest !== undefined) billableUnitsByRequestId.delete(oldest)
   }

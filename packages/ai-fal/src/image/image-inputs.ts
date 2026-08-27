@@ -111,8 +111,8 @@ function bucketByRole(
     const role = part.metadata?.role
     if (role === 'mask') buckets.masks.push(url)
     else if (role === 'control') buckets.controls.push(url)
-    else if (role === 'reference' || role === 'character')
-      buckets.references.push(url)
+    else if (role === 'reference') buckets.references.push(url)
+    else if (role === 'character') buckets.references.push(url)
     else if (role === 'start_frame') buckets.starts.push(url)
     else if (role === 'end_frame') buckets.ends.push(url)
     else buckets.sources.push(url)
@@ -146,7 +146,8 @@ export function mapImageInputsToFalFields<TModel extends FalModel>(
   model: TModel,
   imageInputs?: ReadonlyArray<ImagePart<MediaInputMetadata>>,
 ): FalImageInputFields<TModel> {
-  if (!imageInputs || imageInputs.length === 0) return {}
+  if (!imageInputs) return {}
+  if (imageInputs.length === 0) return {}
 
   const spec = fieldSpecFor(model)
   const { sources, masks, controls, references, starts, ends } =
@@ -196,14 +197,14 @@ export function mapImageInputsToFalVideoFields<TModel extends FalModel>(
   model: TModel,
   imageInputs?: ReadonlyArray<ImagePart<MediaInputMetadata>>,
 ): FalImageInputFields<TModel> {
-  if (!imageInputs || imageInputs.length === 0) return {}
+  if (!imageInputs) return {}
+  if (imageInputs.length === 0) return {}
 
   const spec = fieldSpecFor(model)
   const { sources, masks, controls, references, starts, ends } =
     bucketByRole(imageInputs)
-  // Mask / control roles have no video-specific routing; silently repurposing
-  // them as source frames would hide the problem, so reject them instead.
-  if (masks.length > 0 || controls.length > 0) {
+  const hasUnsupportedVideoRoles = masks.length > 0 || controls.length > 0
+  if (hasUnsupportedVideoRoles) {
     const role = masks.length > 0 ? 'mask' : 'control'
     throw new Error(
       `fal: metadata.role === '${role}' is not supported for video generation on model ${model}. ` +
@@ -226,9 +227,6 @@ export function mapImageInputsToFalVideoFields<TModel extends FalModel>(
   const sourceField = sources.length > 1 ? spec.multi : spec.single
   assignField(fields, sourceField, sources, model, 'source')
   assignField(fields, spec.reference, references, model, 'reference')
-  // Frame roles assign last: when an endpoint routes the start frame to its
-  // generic source field (e.g. Kling image-to-video) and an unroled source
-  // was also provided, assignField rejects the ambiguous combination.
   assignField(fields, spec.start, starts, model, 'start frame')
   assignField(fields, spec.end, ends, model, 'end frame')
 

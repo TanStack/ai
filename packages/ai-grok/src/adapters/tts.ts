@@ -36,6 +36,7 @@ export class GrokSpeechAdapter<
 
   private readonly apiKey: string
   private readonly baseURL: string
+  /** Additional headers to merge into every request (e.g., test IDs). */
   private readonly defaultHeaders: Record<string, string>
 
   constructor(config: GrokSpeechConfig, model: TModel) {
@@ -67,9 +68,6 @@ export class GrokSpeechAdapter<
       const response = await fetch(`${this.baseURL}/tts`, {
         method: 'POST',
         headers: {
-          // `defaultHeaders` first so the adapter's Authorization / Content-Type
-          // always win — otherwise a caller-supplied `Authorization` header
-          // could silently clobber the bearer token.
           ...this.defaultHeaders,
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
@@ -125,15 +123,7 @@ export function buildTTSRequestBody(options: {
 
   const codec = pickCodec(modelOptions?.codec, format)
 
-  // Only forward `sample_rate` when either:
-  //   - the caller explicitly set `modelOptions.sample_rate`, or
-  //   - the codec's Content-Type carries the rate (pcm → audio/L16;rate=…).
-  // For mp3/wav/opus/aac/flac we leave sample_rate unset so xAI's server
-  // default applies.
   const callerSampleRate = modelOptions?.sample_rate
-  // Default sample rate documented in GrokTTSProviderOptions is 24000 Hz —
-  // used only when we MUST attach a rate to the contentType (pcm) and the
-  // caller didn't pick one.
   const pcmDefault = 24000
   const needsRateInContentType = codec === 'pcm'
 
@@ -147,9 +137,6 @@ export function buildTTSRequestBody(options: {
     outputFormat.bit_rate = modelOptions.bit_rate
   }
 
-  // pcm embeds the rate in `audio/L16;rate=…`; mulaw/alaw embed it in
-  // `audio/PCMU;rate=…` / `audio/PCMA;rate=…` when non-default. mp3/wav
-  // don't carry a rate parameter so the value is unused for those.
   const sampleRateForContentType = callerSampleRate ?? pcmDefault
 
   const body: Record<string, unknown> = {
@@ -207,12 +194,6 @@ export function getContentType(
       // `audio/L16` requires a `rate` parameter per RFC 3551/3555.
       return `audio/L16;rate=${sampleRate}`
     case 'mulaw':
-      // `audio/basic` is 8 kHz mono by RFC 2046 registration. For non-8kHz
-      // streams xAI still produces mulaw-encoded bytes at the requested
-      // rate, but the registered MIME can't carry that rate — so we use
-      // the non-standard but commonly-supported `audio/PCMU;rate=…` (RFC 3551
-      // RTP payload name) whenever the caller asked for a rate other than
-      // 8000, and keep `audio/basic` for the standard 8kHz case.
       return sampleRate === 8000
         ? 'audio/basic'
         : `audio/PCMU;rate=${sampleRate}`

@@ -1,9 +1,5 @@
 import type { AnyClientTool } from '../activities/chat/tools/tool-definition'
 
-// ============================================================================
-// Token Types
-// ============================================================================
-
 import type { UsageInfo } from '../activities/chat/middleware/types'
 
 /**
@@ -89,10 +85,6 @@ export interface RealtimeTokenOptions {
   adapter: RealtimeTokenAdapter
 }
 
-// ============================================================================
-// Message Types
-// ============================================================================
-
 /**
  * Text content part in a realtime message
  */
@@ -119,6 +111,7 @@ export interface RealtimeAudioPart {
  */
 export interface RealtimeToolCallPart {
   type: 'tool-call'
+  /** Unique message identifier */
   id: string
   name: string
   arguments: string
@@ -176,10 +169,6 @@ export interface RealtimeMessage {
   durationMs?: number
 }
 
-// ============================================================================
-// Status Types
-// ============================================================================
-
 /**
  * Connection status of the realtime client
  */
@@ -194,10 +183,6 @@ export type RealtimeStatus =
  * Current mode of the realtime session
  */
 export type RealtimeMode = 'idle' | 'listening' | 'thinking' | 'speaking'
-
-// ============================================================================
-// Audio Visualization Types
-// ============================================================================
 
 /**
  * Interface for accessing audio visualization data
@@ -233,10 +218,6 @@ export interface AudioVisualization {
   ) => () => void
 }
 
-// ============================================================================
-// Event Types
-// ============================================================================
-
 /**
  * Events emitted by the realtime connection
  */
@@ -258,14 +239,21 @@ export type RealtimeEvent =
 export interface RealtimeEventPayloads {
   status_change: { status: RealtimeStatus }
   mode_change: { mode: RealtimeMode }
+  /** Transcription of the audio */
   transcript: {
+    /** Message role */
     role: 'user' | 'assistant'
     transcript: string
     isFinal: boolean
   }
-  audio_chunk: { data: ArrayBuffer; sampleRate: number }
+  audio_chunk: {
+    /** Base64-encoded image data or a URL */
+    data: ArrayBuffer
+    sampleRate: number
+  }
   tool_call: { toolCallId: string; toolName: string; input: unknown }
   message_complete: { message: RealtimeMessage }
+  /** Whether this message was interrupted */
   interrupted: { messageId?: string }
   error: { error: Error }
   go_away: { timeLeft?: string }
@@ -278,10 +266,6 @@ export interface RealtimeEventPayloads {
 export type RealtimeEventHandler<TEvent extends RealtimeEvent> = (
   payload: RealtimeEventPayloads[TEvent],
 ) => void
-
-// ============================================================================
-// Error Types
-// ============================================================================
 
 /**
  * Error codes for realtime errors
@@ -298,13 +282,10 @@ export type RealtimeErrorCode =
  */
 export interface RealtimeError extends Error {
   code: RealtimeErrorCode
+  /** Provider identifier */
   provider?: string
   details?: unknown
 }
-
-// ============================================================================
-// Adapter Contract
-// ============================================================================
 
 /**
  * Adapter interface for connecting to realtime providers.

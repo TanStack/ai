@@ -1,26 +1,3 @@
-/**
- * Cloudflare Worker for Code Mode execution
- *
- * Executes JavaScript code in a fresh V8 isolate on Cloudflare's edge network
- * using the `worker_loader` (Dynamic Workers) binding. Tool calls round-trip
- * to the driver via the same request/response protocol as before.
- *
- * Flow:
- * 1. Receive code + tool schemas
- * 2. Wrap user code in an ES module exporting a `fetch` handler that returns
- *    the IIFE result as JSON
- * 3. Load the module into a child Worker via `env.LOADER.load(...)` and
- *    invoke its entrypoint
- * 4. If tool calls are needed, return them to the driver
- * 5. Driver executes tools locally, sends results back
- * 6. Re-execute with tool results injected
- * 7. Return final result
- *
- * `worker_loader` replaces the previous `unsafe_eval` binding, which is gated
- * by Cloudflare for all customer accounts and unusable in production. See
- * https://developers.cloudflare.com/dynamic-workers/ for the supported API.
- */
-
 import { wrapCode } from './wrap-code'
 import type { ExecuteRequest, ExecuteResponse, ToolCallRequest } from '../types'
 
@@ -108,10 +85,6 @@ async function executeCode(
     const wrappedCode = wrapCode(code, tools, toolResults)
     const moduleSource = wrapAsSandboxModule(wrappedCode)
 
-    // AbortController propagates into the loaded Worker via Request.signal so
-    // a timeout actually cancels the in-flight fetch instead of leaking the
-    // child isolate. The Promise.race remains as a belt-and-suspenders guard
-    // for runtimes that ignore the signal.
     const controller = new AbortController()
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     const TIMEOUT_SENTINEL = '__SANDBOX_TIMEOUT__'
@@ -166,10 +139,9 @@ async function executeCode(
       if (timeoutId) clearTimeout(timeoutId)
       const error = evalError as Error
 
-      // Either branch of the Promise.race may win on timeout: timeoutPromise
-      // rejects with TIMEOUT_SENTINEL, while the AbortController.abort() call
-      // can race-reject the in-flight fetch first. Treat both as a timeout.
-      if (error.message === TIMEOUT_SENTINEL || controller.signal.aborted) {
+      const timedOut =
+        error.message === TIMEOUT_SENTINEL || controller.signal.aborted
+      if (timedOut) {
         return {
           status: 'error',
           error: {
@@ -202,9 +174,6 @@ async function executeCode(
   }
 }
 
-/**
- * Main Worker fetch handler
- */
 export default {
   async fetch(
     request: Request,
@@ -237,7 +206,16 @@ export default {
       const body: ExecuteRequest = await request.json()
 
       // Validate request
-      if (!body.code || typeof body.code !== 'string') {
+      if (!body.code) {
+        return new Response(JSON.stringify({ error: 'Code is required' }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        })
+      }
+      if (typeof body.code !== 'string') {
         return new Response(JSON.stringify({ error: 'Code is required' }), {
           status: 400,
           headers: {

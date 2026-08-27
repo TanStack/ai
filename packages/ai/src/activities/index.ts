@@ -1,16 +1,3 @@
-/**
- * Activities Index
- *
- * Central hub for all AI activities. This module exports:
- * - All activity implementations and their types
- * - All adapter interfaces and base classes
- * - Unified type definitions
- *
- * To add a new activity:
- * 1. Create a new directory under activities/ with index.ts and adapter.ts
- * 2. Export the activity and adapter from this file
- */
-
 // Import the activity functions
 
 // Import adapter types for type definitions
@@ -23,10 +10,6 @@ import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
-
-// ===========================
-// Chat Activity
-// ===========================
 
 export {
   kind as textKind,
@@ -43,10 +26,6 @@ export {
   type StructuredOutputOptions,
   type StructuredOutputResult,
 } from './chat/adapter'
-
-// ===========================
-// Summarize Activity
-// ===========================
 
 export {
   kind as summarizeKind,
@@ -68,10 +47,6 @@ export {
   type InferTextProviderOptions,
 } from './summarize/chat-stream-summarize'
 
-// ===========================
-// Rerank Activity
-// ===========================
-
 export {
   kind as rerankKind,
   rerank,
@@ -86,10 +61,6 @@ export {
   type RerankAdapterConfig,
   type AnyRerankAdapter,
 } from './rerank/adapter'
-
-// ===========================
-// Image Activity
-// ===========================
 
 export {
   kind as imageKind,
@@ -107,10 +78,6 @@ export {
   type AnyImageAdapter,
 } from './generateImage/adapter'
 
-// ===========================
-// Audio Activity
-// ===========================
-
 export {
   kind as audioKind,
   generateAudio,
@@ -125,10 +92,6 @@ export {
   type AudioAdapterConfig,
   type AnyAudioAdapter,
 } from './generateAudio/adapter'
-
-// ===========================
-// Video Activity (Experimental)
-// ===========================
 
 export {
   kind as videoKind,
@@ -153,10 +116,6 @@ export {
 
 export { snapToDurationOption } from './generateVideo/snap'
 
-// ===========================
-// TTS Activity
-// ===========================
-
 export {
   kind as ttsKind,
   generateSpeech,
@@ -171,10 +130,6 @@ export {
   type TTSAdapterConfig,
   type AnyTTSAdapter,
 } from './generateSpeech/adapter'
-
-// ===========================
-// Transcription Activity
-// ===========================
 
 export {
   kind as transcriptionKind,
@@ -191,10 +146,6 @@ export {
   type AnyTranscriptionAdapter,
 } from './generateTranscription/adapter'
 
-// ===========================
-// Embed Activity
-// ===========================
-
 export {
   kind as embeddingKind,
   embed,
@@ -209,10 +160,6 @@ export {
   type EmbeddingAdapterConfig,
   type AnyEmbeddingAdapter,
 } from './embed/adapter'
-
-// ===========================
-// Adapter Union Types
-// ===========================
 
 /** Union of all adapter types that can be passed to chat() */
 export type AIAdapter =

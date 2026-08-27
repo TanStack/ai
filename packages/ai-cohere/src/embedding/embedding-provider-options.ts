@@ -1,12 +1,4 @@
 /**
- * Provider options for Cohere embedding models.
- *
- * `dimensions` is deliberately absent: it's a first-class top-level option on
- * `embed()` and is mapped to Cohere's `output_dimension` request field by the
- * adapter.
- */
-
-/**
  * Provider options for `embed-v4.0`.
  *
  * `inputType` is required by Cohere's v2 embed API, which makes

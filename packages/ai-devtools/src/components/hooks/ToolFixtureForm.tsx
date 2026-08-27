@@ -214,7 +214,9 @@ const FieldInput: Component<{
     )
   }
 
-  if (props.field.type === 'object' || props.field.type === 'array') {
+  const isJsonField =
+    props.field.type === 'object' || props.field.type === 'array'
+  if (isJsonField) {
     return (
       <textarea
         class={styles().hookDetails.fixtureTextarea}
@@ -264,9 +266,10 @@ function fieldsFromSchema(schema: unknown): Array<SchemaField> {
 function defaultValues(fields: Array<SchemaField>): Record<string, string> {
   const values: Record<string, string> = {}
   for (const field of fields) {
+    const isNumericType = field.type === 'number' || field.type === 'integer'
     if (field.type === 'boolean') {
       values[field.name] = 'false'
-    } else if (field.type === 'number' || field.type === 'integer') {
+    } else if (isNumericType) {
       values[field.name] = '0'
     } else if (field.type === 'array') {
       values[field.name] = '[]'
@@ -286,7 +289,8 @@ function parseObjectInput(
   const input: Record<string, unknown> = {}
   for (const field of fields) {
     const rawValue = values[field.name] ?? ''
-    if (!field.required && rawValue.length === 0) {
+    const isEmptyOptional = !field.required && rawValue.length === 0
+    if (isEmptyOptional) {
       continue
     }
     input[field.name] = parseFieldValue(field, rawValue)
@@ -310,7 +314,8 @@ function parseFieldValue(field: SchemaField, rawValue: string): unknown {
     }
     return value
   }
-  if (field.type === 'object' || field.type === 'array') {
+  const isJsonField = field.type === 'object' || field.type === 'array'
+  if (isJsonField) {
     return parseJson(rawValue, field.name)
   }
   return rawValue

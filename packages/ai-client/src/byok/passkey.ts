@@ -15,7 +15,6 @@ import type { KeyPreview, Keyring, KeyringStorage } from './storage'
  * an attacker running JS in the origin after the user unlocks can read the
  * decrypted keys from memory.
  */
-
 const STORE_NAME = 'keyring'
 const RECORD_ID = 'default'
 const HKDF_INFO = 'byok:keyring:v1'
@@ -42,7 +41,8 @@ interface StoredRecord {
 function sanitizeKeyring(value: unknown): Keyring {
   if (typeof value !== 'object' || value === null) return {}
   const keys: Keyring = {}
-  for (const [provider, key] of Object.entries(value)) {
+  const objectEntries = Object.entries(value)
+  for (const [provider, key] of objectEntries) {
     if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
       keys[provider] = key
     }
@@ -53,8 +53,10 @@ function sanitizeKeyring(value: unknown): Keyring {
 /** Build the non-sensitive `provider → last 4` preview from a keyring. */
 function previewOf(keys: Keyring): KeyPreview {
   const preview: KeyPreview = {}
-  for (const [provider, key] of Object.entries(keys)) {
-    if (!key || !isProviderId(provider)) continue
+  const objectEntries = Object.entries(keys)
+  for (const [provider, key] of objectEntries) {
+    if (!key) continue
+    if (!isProviderId(provider)) continue
     // Keys of length ≤ 4 would make last-4 the whole secret — store presence only.
     preview[provider] = key.length > 4 ? key.slice(-4) : ''
   }
@@ -74,10 +76,6 @@ export function isPasskeyStorageSupported(): boolean {
     typeof globalThis.navigator.credentials.create === 'function'
   )
 }
-
-// ---------------------------------------------------------------------------
-// Crypto (exported for testing; the WebAuthn ceremony below feeds `deriveAesKey`)
-// ---------------------------------------------------------------------------
 
 /** Derive a non-extractable AES-256-GCM key from a 32-byte PRF output. */
 export async function deriveAesKey(
@@ -103,7 +101,11 @@ export async function deriveAesKey(
 export async function encryptKeyring(
   key: CryptoKey,
   keys: Keyring,
-): Promise<{ iv: ArrayBuffer; ciphertext: ArrayBuffer }> {
+): Promise<{
+  /** AES-GCM initialization vector for this ciphertext. */
+  iv: ArrayBuffer /** Encrypted keyring JSON. */
+  ciphertext: ArrayBuffer
+}> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const plaintext = new TextEncoder().encode(JSON.stringify(keys))
   const ciphertext = await crypto.subtle.encrypt(
@@ -127,10 +129,6 @@ export async function decryptKeyring(
   const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext))
   return sanitizeKeyring(parsed)
 }
-
-// ---------------------------------------------------------------------------
-// IndexedDB
-// ---------------------------------------------------------------------------
 
 function openDb(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -181,10 +179,6 @@ function idbClear(dbName: string): Promise<void> {
   )
 }
 
-// ---------------------------------------------------------------------------
-// WebAuthn ceremonies
-// ---------------------------------------------------------------------------
-
 function requirePublicKeyCredential(
   credential: Credential | null,
   action: string,
@@ -201,7 +195,9 @@ async function registerPasskey(
   userName: string,
   rpId?: string,
 ): Promise<{
+  /** The passkey's raw credential id, replayed in the unlock ceremony. */
   credentialId: ArrayBuffer
+  /** Fixed per-install PRF evaluation input (not secret). */
   salt: Uint8Array<ArrayBuffer>
   prf?: BufferSource
 }> {
@@ -263,10 +259,6 @@ async function evaluatePrf(
   return result
 }
 
-// ---------------------------------------------------------------------------
-// Storage strategy
-// ---------------------------------------------------------------------------
-
 export interface PasskeyStorageOptions {
   /** Relying-party name shown in the passkey prompt. */
   rpName?: string
@@ -293,9 +285,12 @@ export interface PasskeyStorageOptions {
 export function passkeyStorage(
   options: PasskeyStorageOptions = {},
 ): KeyringStorage {
+  /** Relying-party name shown in the passkey prompt. */
   const rpName = options.rpName ?? 'BYOK'
+  /** Username label attached to the created passkey. */
   const userName = options.userName ?? 'byok-keyring'
   const { rpId } = options
+  /** IndexedDB database name. Defaults to `byok`. */
   const dbName = options.dbName ?? DEFAULT_DB
 
   let cachedKey: CryptoKey | null = null
@@ -356,7 +351,8 @@ export function passkeyStorage(
       const hasKeys = Object.values(keys).some(Boolean)
       // First save with an empty keyring is a no-op — avoids a passkey ceremony
       // when another storage tier writes an empty ring.
-      if (!hasKeys && !existing) return
+      const isEmptyFirstSave = !hasKeys && !existing
+      if (isEmptyFirstSave) return
 
       const { key, credentialId, salt } = await ensureKey()
       const { iv, ciphertext } = await encryptKeyring(key, keys)
@@ -388,7 +384,8 @@ export function defaultByokStorage(
   const secure =
     typeof globalThis.isSecureContext !== 'boolean' ||
     globalThis.isSecureContext
-  if (!isPasskeyStorageSupported() || !secure) {
+  const canUsePasskeys = isPasskeyStorageSupported() && secure
+  if (!canUsePasskeys) {
     return {
       ...memoryStorage(),
       warning:

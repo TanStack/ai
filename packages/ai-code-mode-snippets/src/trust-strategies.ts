@@ -32,19 +32,17 @@ export function createDefaultTrustStrategy(): TrustStrategy {
     calculateTrustLevel: (currentLevel, stats) => {
       const { executions, successRate } = stats
 
-      if (
-        currentLevel === 'untrusted' &&
-        executions >= 10 &&
-        successRate >= 0.9
-      ) {
+      const earnedProvisional =
+        currentLevel === 'untrusted' && executions >= 10 && successRate >= 0.9
+      if (earnedProvisional) {
         return 'provisional'
       }
 
-      if (
+      const earnedTrusted =
         currentLevel === 'provisional' &&
         executions >= 100 &&
         successRate >= 0.95
-      ) {
+      if (earnedTrusted) {
         return 'trusted'
       }
 
@@ -79,19 +77,15 @@ export function createRelaxedTrustStrategy(): TrustStrategy {
     calculateTrustLevel: (currentLevel, stats) => {
       const { executions, successRate } = stats
 
-      if (
-        currentLevel === 'untrusted' &&
-        executions >= 3 &&
-        successRate >= 0.8
-      ) {
+      const earnedProvisional =
+        currentLevel === 'untrusted' && executions >= 3 && successRate >= 0.8
+      if (earnedProvisional) {
         return 'provisional'
       }
 
-      if (
-        currentLevel === 'provisional' &&
-        executions >= 10 &&
-        successRate >= 0.9
-      ) {
+      const earnedTrusted =
+        currentLevel === 'provisional' && executions >= 10 && successRate >= 0.9
+      if (earnedTrusted) {
         return 'trusted'
       }
 
@@ -120,19 +114,19 @@ export function createCustomTrustStrategy(config: {
     calculateTrustLevel: (currentLevel, stats) => {
       const { executions, successRate } = stats
 
-      if (
+      const earnedProvisional =
         currentLevel === 'untrusted' &&
         executions >= provisionalThreshold.executions &&
         successRate >= provisionalThreshold.successRate
-      ) {
+      if (earnedProvisional) {
         return 'provisional'
       }
 
-      if (
+      const earnedTrusted =
         currentLevel === 'provisional' &&
         executions >= trustedThreshold.executions &&
         successRate >= trustedThreshold.successRate
-      ) {
+      if (earnedTrusted) {
         return 'trusted'
       }
 

@@ -153,12 +153,12 @@ export const HookDetails: Component = () => {
   createEffect(() => {
     // Tools and Memory are chat-only tabs; if a generation hook becomes active
     // while one of them is selected, fall back to the conversation view.
-    if (
-      isGenerationHook() &&
-      (activeTab() === 'tools' ||
-        activeTab() === 'memory' ||
-        activeTab() === 'skills')
-    ) {
+    const isChatOnlyTab =
+      activeTab() === 'tools' ||
+      activeTab() === 'memory' ||
+      activeTab() === 'skills'
+    const shouldResetTab = isGenerationHook() && isChatOnlyTab
+    if (shouldResetTab) {
       setActiveTab('conversation')
     }
   })
@@ -178,14 +178,12 @@ export const HookDetails: Component = () => {
     return []
   })
   const showSecondaryPane = createMemo(() => {
-    // Tools tab owns its own form/saved-fixtures layout that fills the
-    // primary pane; the secondary "User View" preview squeezes the tool
-    // detail column to zero width on narrower hookDetails widths.
-    if (
+    // Tools/skills own the primary pane; the User View preview would
+    // squeeze the detail column to zero width on narrower layouts.
+    const hideSecondaryPane =
       (activeTab() === 'tools' || activeTab() === 'skills') &&
       !isGenerationHook()
-    )
-      return false
+    if (hideSecondaryPane) return false
     return isGenerationHook() || !hasStructuredOutputPreview(previewMessages())
   })
 
@@ -1186,7 +1184,8 @@ function findClosestHoverTargetElement(
     '[data-ai-devtools-hover-message-ids], [data-ai-devtools-hover-part-ids]',
   )
 
-  if (!element || !container.contains(element)) return undefined
+  if (!element) return undefined
+  if (!container.contains(element)) return undefined
   return element
 }
 
@@ -1356,10 +1355,9 @@ function findConversationForHook(
 function messageFromConversation(message: Message): PreviewMessage {
   const sourceMessage = toolFixtureMessageFromConversation(message)
 
-  if (
-    message.role === 'tool' &&
-    (!message.parts || message.parts.length === 0)
-  ) {
+  const hasNoParts = !message.parts || message.parts.length === 0
+  const isBareToolMessage = message.role === 'tool' && hasNoParts
+  if (isBareToolMessage) {
     return {
       id: message.id,
       role: message.role,
@@ -1384,7 +1382,8 @@ function messageFromUnknown(value: unknown): PreviewMessage | undefined {
   if (!isRecord(value)) return undefined
   const id = typeof value.id === 'string' ? value.id : undefined
   const role = typeof value.role === 'string' ? value.role : undefined
-  if (!id || !role) return undefined
+  if (!id) return undefined
+  if (!role) return undefined
   const sourceMessage = toolFixtureMessageFromUnknown(value)
 
   const content =
@@ -1425,6 +1424,112 @@ function partsFromUnknown(
     .filter(isPreviewPart)
 }
 
+function stringFieldOr(
+  value: unknown,
+  fallback: unknown,
+  defaultValue: string,
+): string {
+  if (typeof value === 'string') return value
+  if (typeof fallback === 'string') return fallback
+  return defaultValue
+}
+
+function previewToolCallPart(
+  part: PreviewPartSource,
+  index: number,
+  messageId?: string,
+): PreviewPart {
+  const name = stringFieldOr(part.name, part.toolName, 'tool')
+  const rawId = stringFieldOr(part.toolCallId, part.id, `${index}:${name}`)
+  const input = part.input ?? part.arguments
+  const output = part.output
+  const parsedInput = input === undefined ? {} : parseJsonishValue(input)
+  const parsedOutput =
+    output === undefined ? undefined : parseJsonishValue(output)
+  const approvalStatus = approvalStatusFromRecord(part.approval, part.state)
+  const jsonItems: Array<PreviewJsonItem> = []
+  if (input !== undefined) {
+    jsonItems.push({
+      label: 'Input',
+      value: parsedInput,
+    })
+  }
+  if (part.approval !== undefined) {
+    jsonItems.push({
+      label: 'Approval',
+      value: parseJsonishValue(part.approval),
+    })
+  }
+  if (output !== undefined) {
+    jsonItems.push({
+      label: 'Output',
+      value: parsedOutput,
+    })
+  }
+  return {
+    id: toolCallPartId(rawId),
+    label: approvalStatus
+      ? `tool call ${name} - ${approvalStatus}`
+      : `tool call ${name}`,
+    content: formatUnknown(input ?? output),
+    jsonItems,
+    kind: 'tool-call',
+    fixture: {
+      toolName: name,
+      input: parsedInput,
+      ...(parsedOutput !== undefined ? { output: parsedOutput } : {}),
+      toolCallId: rawId,
+      ...(messageId ? { messageId } : {}),
+    },
+  }
+}
+
+function previewToolResultPart(
+  part: PreviewPartSource,
+  index: number,
+): PreviewPart {
+  const name =
+    typeof part.name === 'string'
+      ? part.name
+      : typeof part.toolName === 'string'
+        ? part.toolName
+        : undefined
+  const rawId = stringFieldOr(part.toolCallId, part.id, `${index}`)
+  const output = part.output ?? part.content ?? part.error
+  return {
+    id: toolResultPartId(rawId),
+    label: name ? `tool result ${name}` : 'tool result',
+    content: formatUnknown(output),
+    jsonItems:
+      output === undefined
+        ? []
+        : [
+            {
+              label: part.error ? 'Error' : 'Output',
+              value: parseJsonishValue(output),
+            },
+          ],
+    kind: 'tool-result',
+  }
+}
+
+function previewStructuredOutputPart(
+  part: PreviewPartSource,
+  index: number,
+  messageId?: string,
+): PreviewPart {
+  const status = typeof part.status === 'string' ? part.status : undefined
+  const raw = typeof part.raw === 'string' ? part.raw : undefined
+
+  return {
+    id: structuredOutputPartId(messageId ?? `${index}`),
+    label: status ? `structured output - ${status}` : 'structured output',
+    content: raw ?? formatUnknown(part.data ?? part.partial),
+    jsonItems: structuredOutputJsonItems(part),
+    kind: 'structured-output',
+  }
+}
+
 function previewPartFromRecord(
   part: PreviewPartSource,
   index: number,
@@ -1432,101 +1537,13 @@ function previewPartFromRecord(
 ): PreviewPart {
   const type = typeof part.type === 'string' ? part.type : 'part'
   if (type === 'tool-call') {
-    const name =
-      typeof part.name === 'string'
-        ? part.name
-        : typeof part.toolName === 'string'
-          ? part.toolName
-          : 'tool'
-    const rawId =
-      typeof part.toolCallId === 'string'
-        ? part.toolCallId
-        : typeof part.id === 'string'
-          ? part.id
-          : `${index}:${name}`
-    const input = part.input ?? part.arguments
-    const output = part.output
-    const parsedInput = input === undefined ? {} : parseJsonishValue(input)
-    const parsedOutput =
-      output === undefined ? undefined : parseJsonishValue(output)
-    const approvalStatus = approvalStatusFromRecord(part.approval, part.state)
-    const jsonItems: Array<PreviewJsonItem> = []
-    if (input !== undefined) {
-      jsonItems.push({
-        label: 'Input',
-        value: parsedInput,
-      })
-    }
-    if (part.approval !== undefined) {
-      jsonItems.push({
-        label: 'Approval',
-        value: parseJsonishValue(part.approval),
-      })
-    }
-    if (output !== undefined) {
-      jsonItems.push({
-        label: 'Output',
-        value: parsedOutput,
-      })
-    }
-    return {
-      id: toolCallPartId(rawId),
-      label: approvalStatus
-        ? `tool call ${name} - ${approvalStatus}`
-        : `tool call ${name}`,
-      content: formatUnknown(input ?? output),
-      jsonItems,
-      kind: 'tool-call',
-      fixture: {
-        toolName: name,
-        input: parsedInput,
-        ...(parsedOutput !== undefined ? { output: parsedOutput } : {}),
-        toolCallId: rawId,
-        ...(messageId ? { messageId } : {}),
-      },
-    }
+    return previewToolCallPart(part, index, messageId)
   }
   if (type === 'tool-result') {
-    const name =
-      typeof part.name === 'string'
-        ? part.name
-        : typeof part.toolName === 'string'
-          ? part.toolName
-          : undefined
-    const rawId =
-      typeof part.toolCallId === 'string'
-        ? part.toolCallId
-        : typeof part.id === 'string'
-          ? part.id
-          : `${index}`
-    const output = part.output ?? part.content ?? part.error
-    return {
-      id: toolResultPartId(rawId),
-      label: name ? `tool result ${name}` : 'tool result',
-      content: formatUnknown(output),
-      jsonItems:
-        output === undefined
-          ? []
-          : [
-              {
-                label: part.error ? 'Error' : 'Output',
-                value: parseJsonishValue(output),
-              },
-            ],
-      kind: 'tool-result',
-    }
+    return previewToolResultPart(part, index)
   }
   if (type === 'structured-output') {
-    const status = typeof part.status === 'string' ? part.status : undefined
-    const raw = typeof part.raw === 'string' ? part.raw : undefined
-
-    return {
-      id: structuredOutputPartId(messageId ?? `${index}`),
-      label: status ? `structured output - ${status}` : 'structured output',
-      content: raw ?? formatUnknown(part.data ?? part.partial),
-      jsonItems: structuredOutputJsonItems(part),
-      kind: 'structured-output',
-    }
+    return previewStructuredOutputPart(part, index, messageId)
   }
   if (type === 'thinking') {
     return {
@@ -1536,7 +1553,8 @@ function previewPartFromRecord(
       kind: 'thinking',
     }
   }
-  if (type === 'image' || type === 'audio' || type === 'video') {
+  const isMediaType = type === 'image' || type === 'audio' || type === 'video'
+  if (isMediaType) {
     return {
       id: `${index}:${type}`,
       label: type,
@@ -1634,7 +1652,8 @@ function toolFixtureMessageFromUnknown(
 ): ToolFixtureMessage | undefined {
   const id = typeof value.id === 'string' ? value.id : undefined
   const role = typeof value.role === 'string' ? value.role : undefined
-  if (!id || !isToolFixtureMessageRole(role)) return undefined
+  if (!id) return undefined
+  if (!isToolFixtureMessageRole(role)) return undefined
 
   const parts = Array.isArray(value.parts)
     ? value.parts
@@ -1651,17 +1670,19 @@ function toolFixtureMessageFromUnknown(
 }
 
 function approvalStatusFromToolCall(tool: ToolCall): string | undefined {
-  if (tool.approvalApproved === true || tool.state === 'approved') {
+  const isApproved = tool.approvalApproved === true || tool.state === 'approved'
+  if (isApproved) {
     return 'approved'
   }
-  if (tool.approvalApproved === false || tool.state === 'denied') {
+  const isDenied = tool.approvalApproved === false || tool.state === 'denied'
+  if (isDenied) {
     return 'denied'
   }
-  if (
-    tool.approvalRequired ||
-    tool.approvalId ||
+  const isApprovalRequested =
+    Boolean(tool.approvalRequired) ||
+    Boolean(tool.approvalId) ||
     tool.state === 'approval-requested'
-  ) {
+  if (isApprovalRequested) {
     return 'approval requested'
   }
   if (tool.state === 'approval-responded') {
@@ -1749,7 +1770,8 @@ function toolResultPartFromContent(
 }
 
 function formatUnknown(value: unknown): string {
-  if (value === undefined || value === null) return ''
+  const isEmptyValue = value === undefined || value === null
+  if (isEmptyValue) return ''
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)

@@ -128,6 +128,7 @@ export async function startOpencodeSession(
       ...(directory !== undefined && { directory }),
     })
   } else {
+    /** Extra OpenCode config merged with the adapter's mcp/permission config. */
     const config = buildConfig(options)
     const result = await createOpencode({
       ...(options.hostname !== undefined && { hostname: options.hostname }),
@@ -138,9 +139,6 @@ export async function startOpencodeSession(
     ownedServer = result.server
   }
 
-  // Mutated from several closures (the subscription loop, dispose, teardown);
-  // a holder object keeps reads typed as `boolean` rather than being
-  // flow-narrowed to a literal across those boundaries.
   const lifecycle = { disposed: false }
 
   const teardown = async (): Promise<void> => {
@@ -153,6 +151,7 @@ export async function startOpencodeSession(
   try {
     // Resolve the session before subscribing so the event filter has an id.
     let sessionId: string | undefined
+    /** Whether an existing session was actually resumed. */
     let resumed = false
     if (options.resumeSessionId !== undefined) {
       const existing = await client.session.get({
@@ -204,14 +203,13 @@ export async function startOpencodeSession(
         for await (const event of stream) {
           if (lifecycle.disposed) break
           const sid = sessionIdOf(event)
-          if (sid !== undefined && sid !== resolvedSessionId) continue
+          const fromOtherSession =
+            sid !== undefined && sid !== resolvedSessionId
+          if (fromOtherSession) continue
           if (event.type === 'permission.updated') {
             void handlePermission(event.properties)
             continue
           }
-          // The SDK event union is a structural superset of the subset the
-          // translator consumes; unknown event types match no translator
-          // branch and are ignored.
           options.onEvent(event as OpencodeEvent)
         }
       } catch (error) {

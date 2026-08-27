@@ -1,13 +1,4 @@
 /**
- * Grok-specific metadata types for multimodal content parts.
- * These types extend the base ContentPart metadata with Grok-specific options.
- *
- * Grok uses an OpenAI-compatible API, so metadata types are similar to OpenAI.
- *
- * @see https://docs.x.ai
- */
-
-/**
  * Metadata for Grok image content parts.
  * Controls how the model processes and analyzes images.
  */

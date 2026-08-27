@@ -1,23 +1,3 @@
-/**
- * Out-of-band run cancellation.
- *
- * `ChatClient.stop()` only aborts a local `AbortController`; it sends nothing to
- * the server. A user pressing Stop and a user refreshing the page produce the
- * IDENTICAL TCP close, so intent is **not inferable** from a disconnect. It has
- * to arrive out of band, and there are exactly two bands:
- *
- * 1. **Durable** — {@link requestRunCancel} records the intent on the run's
- *    `RunRecord`. This is the only channel that works when the run is being
- *    driven by a DIFFERENT host than the one the cancel request reached, which
- *    is the normal case for a detached run.
- * 2. **In-process** — abort the run's signal with {@link RUN_CANCEL_REASON}.
- *    Core reads the reason back when it builds `AbortInfo`, so
- *    `AbortInfo.cancelRequested` is `true` for that abort and `false` for a
- *    disconnect. This is the fast path when the cancel reaches the driving host.
- *
- * A cancel endpoint SHOULD do both: record it (so a remote driver observes it)
- * and abort locally (so a co-located driver stops immediately).
- */
 import type { RunStore } from './middleware/run-store'
 
 /**

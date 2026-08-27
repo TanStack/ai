@@ -1,12 +1,3 @@
-/**
- * @module @tanstack/ai-llmgateway
- *
- * LLM Gateway provider adapter for TanStack AI.
- * Provides tree-shakeable adapters for LLM Gateway's OpenAI-compatible Chat
- * Completions API, which routes one endpoint to hundreds of models across
- * many providers.
- */
-
 // Text (Chat) adapter
 export {
   LLMGatewayTextAdapter,

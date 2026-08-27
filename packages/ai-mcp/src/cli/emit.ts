@@ -32,7 +32,8 @@ async function schemaToType(
   schema: unknown,
   typeName: string,
 ): Promise<string> {
-  if (!schema || typeof schema !== 'object') return 'unknown'
+  if (!schema) return 'unknown'
+  if (typeof schema !== 'object') return 'unknown'
   const compiled = await compile(schema, typeName, {
     bannerComment: '',
     additionalProperties: false,
@@ -53,11 +54,9 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   ]
   // Track config-key -> interface-name so we can emit the combined pool map.
   const mapEntries: Array<[string, string]> = []
-  // Distinct server keys can pascal-case to the same identifier
-  // (`foo-bar` vs `foo_bar`) — fail loudly rather than emit duplicate
-  // interface declarations.
   const seenIfaces = new Set<string>()
-  for (const [serverName, { prefix, surface }] of Object.entries(input)) {
+  const servers = Object.entries(input)
+  for (const [serverName, { prefix, surface }] of servers) {
     const iface = `${pascal(serverName)}Server`
     if (seenIfaces.has(iface)) {
       throw new Error(
@@ -94,9 +93,6 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
       '',
     )
   }
-  // Combined map for createMCPClients<MCPServers>(...). Keys = config keys
-  // verbatim (NOT pascal-cased) so they match the runtime config object and
-  // pool.clients access.
   blocks.push(
     'export interface MCPServers extends Record<string, ServerDescriptor> {',
     ...mapEntries.map(([key, iface]) => `  ${tsString(key)}: ${iface}`),

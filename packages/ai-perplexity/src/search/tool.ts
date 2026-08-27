@@ -79,12 +79,12 @@ export function perplexitySearchTool(
   } = {},
 ) {
   const { name, description, defaultMaxResults, ...clientConfig } = config
-  if (
+  const invalidDefaultMaxResults =
     defaultMaxResults !== undefined &&
     (!Number.isInteger(defaultMaxResults) ||
       defaultMaxResults < 1 ||
       defaultMaxResults > 20)
-  ) {
+  if (invalidDefaultMaxResults) {
     throw new Error('defaultMaxResults must be an integer between 1 and 20.')
   }
 

@@ -1,22 +1,3 @@
-/**
- * Helpers for extracting OpenRouter's provider-reported per-request cost from the
- * SDK usage object and shaping it for `RUN_FINISHED.usage`.
- *
- * OpenRouter returns an authoritative per-request `cost` plus an optional
- * `cost_details` breakdown. We forward `cost` verbatim and normalize the
- * breakdown onto `@tanstack/ai`'s canonical `UsageCostBreakdown` shape — so
- * consumer code reads the same three fields regardless of which adapter (or
- * which OpenRouter endpoint) produced them. OpenRouter exposes the breakdown
- * under two naming families (Chat Completions: `prompt`/`completions`,
- * Responses: `input`/`output`); both map onto the same canonical input/output
- * split, because they bill against the same tokens.
- *
- * Input is intentionally typed `unknown`: callers pass usage objects whose static
- * types are narrowed to token-only fields (notably the Responses adapter), and the
- * Responses usage normalizer can leave `cost_details` in snake_case. Reading both
- * `costDetails` and `cost_details` and narrowing here keeps every call site simple.
- */
-
 import type { UsageCostBreakdown } from '@tanstack/ai'
 
 export interface ExtractedCost {
@@ -60,7 +41,8 @@ function extractCostDetails(details: unknown): UsageCostBreakdown | undefined {
   if (!record) return undefined
 
   const out: UsageCostBreakdown = {}
-  for (const [rawKey, value] of Object.entries(record)) {
+  const costEntries = Object.entries(record)
+  for (const [rawKey, value] of costEntries) {
     const key = KNOWN_DETAIL_KEYS[rawKey]
     if (!key) continue
     if (typeof value === 'number' && Number.isFinite(value)) {

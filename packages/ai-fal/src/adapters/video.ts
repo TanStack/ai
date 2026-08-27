@@ -40,15 +40,15 @@ import type { FalClientConfig } from '../utils/client'
 function mapVideoInputsToFalFields(
   videoInputs?: ReadonlyArray<VideoPart<MediaInputMetadata>>,
 ): Record<string, unknown> {
-  if (!videoInputs || videoInputs.length === 0) return {}
+  if (!videoInputs) return {}
+  if (videoInputs.length === 0) return {}
   const references: Array<string> = []
   const sources: Array<string> = []
   for (const part of videoInputs) {
     const url = videoPartToUrl(part)
-    if (
-      part.metadata?.role === 'reference' ||
-      part.metadata?.role === 'character'
-    ) {
+    const isReference =
+      part.metadata?.role === 'reference' || part.metadata?.role === 'character'
+    if (isReference) {
       references.push(url)
     } else {
       sources.push(url)
@@ -67,9 +67,15 @@ function mapVideoInputsToFalFields(
 function mapAudioInputsToFalFields(
   audioInputs?: ReadonlyArray<AudioPart<MediaInputMetadata>>,
 ): Record<string, unknown> {
-  if (!audioInputs || audioInputs.length === 0) return {}
+  if (!audioInputs) return {}
+  if (audioInputs.length === 0) return {}
   const [part, ...rest] = audioInputs
-  if (!part || rest.length > 0) {
+  if (!part) {
+    throw new Error(
+      `fal: exactly one audio prompt part is supported (received ${audioInputs.length}).`,
+    )
+  }
+  if (rest.length > 0) {
     throw new Error(
       `fal: exactly one audio prompt part is supported (received ${audioInputs.length}).`,
     )

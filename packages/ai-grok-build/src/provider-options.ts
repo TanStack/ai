@@ -1,7 +1,3 @@
-/**
- * Per-call provider options for the Grok Build adapter, passed via
- * `modelOptions` on `chat()`.
- */
 import type {
   AcpPermissionMode,
   AcpTransportPreference,

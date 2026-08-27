@@ -62,8 +62,9 @@ export function mcpContentToTanstack(
   // against undefined/non-array before reading length/map.
   if (!Array.isArray(content)) return ''
   // Single text block → plain string (most common, best for the model).
-  if (content.length === 1 && content[0]?.type === 'text')
-    return content[0].text
+  if (content.length === 1) {
+    if (content[0]?.type === 'text') return content[0].text
+  }
   const parts = content
     .map((c): ContentPart => {
       switch (c.type) {
@@ -76,7 +77,9 @@ export function mcpContentToTanstack(
           }
         case 'resource': {
           const uri = c.resource?.uri
-          if (typeof uri === 'string' && uri.startsWith('ui://')) {
+          const isUiResource =
+            typeof uri === 'string' && uri.startsWith('ui://')
+          if (isUiResource) {
             // ui:// resources are surfaced via readResource (MCP Apps); omit from model text.
             return { type: 'text', content: '' }
           }

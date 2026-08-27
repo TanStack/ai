@@ -1,22 +1,3 @@
-/**
- * ngrok-backed tool-bridge provisioner — make the host tool bridge reachable
- * from REMOTE sandboxes (Daytona, Vercel, …) while developing locally.
- *
- * The default bridge ({@link nodeHttpBridgeProvisioner}) binds `localhost`, so
- * only same-machine providers (local-process, Docker) can reach it. A cloud
- * sandbox is a remote VM and can't dial your machine's loopback. This
- * provisioner stands up the normal loopback bridge, opens an ngrok tunnel to its
- * port, and advertises the public `https://…/mcp` URL (with the same per-run
- * bearer token) to the sandbox — so bridged tools / code mode work there too.
- *
- * In PRODUCTION you don't need this: a deployed orchestrator already has a public
- * URL, so a provisioner can advertise that directly (derived from the request).
- * ngrok is the local-dev stand-in for "the orchestrator is reachable".
- *
- * `@ngrok/ngrok` is an OPTIONAL peer dependency — it's loaded lazily, so this
- * subpath imports cleanly without it; only {@link withNgrokBridge} /
- * {@link ngrokBridgeProvisioner} require it at run time. Set `NGROK_AUTHTOKEN`.
- */
 import { defineChatMiddleware } from '@tanstack/ai'
 import { provideToolBridgeProvisioner } from './capabilities'
 import { startHostToolBridge } from './tool-bridge'

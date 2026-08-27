@@ -137,9 +137,6 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-   * Emit tool result state change event
-   */
-  /**
    * Emit thinking update event
    */
   thinkingUpdated(
@@ -323,9 +320,6 @@ export abstract class ChatClientEventEmitter {
  * Default implementation of ChatClientEventEmitter
  */
 export class DefaultChatClientEventEmitter extends ChatClientEventEmitter {
-  /**
-   * Emit an event with automatic clientId and timestamp for client/tool events
-   */
   protected emitEvent(eventName: string, data?: Record<string, any>): void {
     const timestamp = Date.now()
     const isUserVisibleEvent =

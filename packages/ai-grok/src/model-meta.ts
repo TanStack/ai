@@ -1,6 +1,3 @@
-/**
- * Model metadata interface for documentation and type inference
- */
 import type {
   GrokBuildProviderOptions,
   GrokTextProviderOptions,
@@ -149,16 +146,6 @@ const GROK_IMAGINE_IMAGE_2_0 = {
   },
 } as const satisfies ModelMeta
 
-// Imagine API video models. Pricing is per second of generated video
-// (output only); generated videos carry an audio track.
-//
-// Both models support text-to-video and image-to-video (a starting-frame
-// image is optional). grok-imagine-video-1.5 is the documented default: it
-// adds native 1080p for text-to-video / image-to-video plus
-// reference-to-video (`reference_images` / `reference_audios`; reference
-// output is capped at 720p). Source-video edit (`/v1/videos/edits`) and
-// extend (`/v1/videos/extensions`) are grok-imagine-video only — xAI's
-// 1.5 model page lists text+image input, not video.
 const GROK_IMAGINE_VIDEO = {
   name: 'grok-imagine-video',
   supports: {
@@ -321,9 +308,6 @@ export const GROK_VIDEO_MODELS = [
   GROK_IMAGINE_VIDEO_1_5.name,
 ] as const
 
-// xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
-// parameter. This synthetic identifier satisfies the SDK's `TTSOptions.model`
-// contract and provides a stable value for logging and fixture matching.
 const GROK_TTS = {
   name: 'grok-tts',
   supports: {
@@ -332,9 +316,6 @@ const GROK_TTS = {
   },
 } as const satisfies ModelMeta
 
-// xAI's `/v1/stt` endpoint is endpoint-addressed and does not take a `model`
-// parameter. This synthetic identifier satisfies the SDK's
-// `TranscriptionOptions.model` contract.
 const GROK_STT = {
   name: 'grok-stt',
   supports: {
@@ -354,15 +335,16 @@ const GROK_VOICE_FAST_1 = {
 } as const satisfies ModelMeta
 
 /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
-const GROK_VOICE_THINK_FAST_1 = {
-  name: 'grok-voice-think-fast-1.0',
-  supports: {
-    input: ['audio', 'text'],
-    output: ['audio', 'text'],
-    capabilities: ['reasoning', 'tool_calling'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta
+const /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
+  GROK_VOICE_THINK_FAST_1 = {
+    name: 'grok-voice-think-fast-1.0',
+    supports: {
+      input: ['audio', 'text'],
+      output: ['audio', 'text'],
+      capabilities: ['reasoning', 'tool_calling'],
+      tools: [] as const,
+    },
+  } as const satisfies ModelMeta
 
 // xAI's current recommended speech-to-speech model.
 const GROK_VOICE_THINK_FAST_2 = {
@@ -457,10 +439,6 @@ export type GrokChatModelProviderOptionsByName = {
   [GROK_4_1_FAST_REASONING.name]: GrokProviderOptions
   [GROK_4_1_FAST_NON_REASONING.name]: GrokProviderOptions
 }
-
-// ===========================
-// Type Resolution Helpers
-// ===========================
 
 /**
  * Resolve provider options for a specific model.

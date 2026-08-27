@@ -1,15 +1,4 @@
 /**
- * Gemini-specific metadata types for multimodal content parts.
- * These types extend the base ContentPart metadata with Gemini-specific options.
- *
- * Gemini uses a unified approach where all media types share similar metadata structure.
- *
- * @see https://ai.google.dev/gemini-api/docs/vision
- * @see https://ai.google.dev/gemini-api/docs/audio
- * @see https://ai.google.dev/gemini-api/docs/document-processing
- */
-
-/**
  * Supported image MIME types for Gemini.
  */
 export type GeminiImageMimeType =
@@ -78,12 +67,6 @@ export interface GeminiImageMetadata {
  * Metadata for Gemini audio content parts.
  */
 export interface GeminiAudioMetadata {
-  /**
-   * The MIME type of the audio.
-   * Required for proper content processing.
-   *
-   * @see https://ai.google.dev/gemini-api/docs/audio#supported-formats
-   */
   mimeType?: GeminiAudioMimeType
 }
 
@@ -91,12 +74,6 @@ export interface GeminiAudioMetadata {
  * Metadata for Gemini video content parts.
  */
 export interface GeminiVideoMetadata {
-  /**
-   * The MIME type of the video.
-   * Required for proper content processing.
-   *
-   * @see https://ai.google.dev/gemini-api/docs/vision#video-requirements
-   */
   mimeType?: GeminiVideoMimeType
 }
 
@@ -104,12 +81,6 @@ export interface GeminiVideoMetadata {
  * Metadata for Gemini document content parts.
  */
 export interface GeminiDocumentMetadata {
-  /**
-   * The MIME type of the document.
-   * Required for proper content processing.
-   *
-   * @see https://ai.google.dev/gemini-api/docs/document-processing
-   */
   mimeType?: GeminiDocumentMimeType
 }
 

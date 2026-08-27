@@ -2,10 +2,6 @@ import type { AnyTextAdapter, ModelMessage, ToolRegistry } from '@tanstack/ai'
 import type { CodeModeToolConfig } from '@tanstack/ai-code-mode'
 import type { TrustStrategy } from './trust-strategies'
 
-// ============================================================================
-// Trust Levels
-// ============================================================================
-
 /**
  * Trust level for a snippet
  * - untrusted: Newly created, not yet proven
@@ -13,10 +9,6 @@ import type { TrustStrategy } from './trust-strategies'
  * - trusted: Has been successfully executed 100+ times with 95%+ success
  */
 export type TrustLevel = 'untrusted' | 'provisional' | 'trusted'
-
-// ============================================================================
-// Snippet Statistics
-// ============================================================================
 
 /**
  * Execution statistics for a snippet
@@ -32,10 +24,6 @@ export interface SnippetStats {
    */
   successRate: number
 }
-
-// ============================================================================
-// Snippet Types
-// ============================================================================
 
 /**
  * A reusable snippet that can be executed in the Code Mode sandbox
@@ -108,10 +96,6 @@ export interface Snippet {
   updatedAt: string
 }
 
-// ============================================================================
-// Snippet Index Types
-// ============================================================================
-
 /**
  * Lightweight snippet entry for the index (metadata only, no code)
  * Used for fast loading and snippet selection
@@ -120,10 +104,6 @@ export type SnippetIndexEntry = Pick<
   Snippet,
   'id' | 'name' | 'description' | 'usageHints' | 'trustLevel'
 >
-
-// ============================================================================
-// Storage Interface
-// ============================================================================
 
 /**
  * Options for searching snippets
@@ -184,10 +164,6 @@ export interface SnippetStorage {
   trustStrategy?: TrustStrategy
 }
 
-// ============================================================================
-// Configuration Types
-// ============================================================================
-
 /**
  * Configuration for the snippets system
  */
@@ -203,10 +179,6 @@ export interface SnippetsConfig {
    */
   maxSnippetsInContext?: number
 
-  /**
-   * Trust strategy for determining snippet trust levels
-   * @default createDefaultTrustStrategy()
-   */
   trustStrategy?: TrustStrategy
 }
 
@@ -264,17 +236,10 @@ export interface CodeModeWithSnippetsResult {
   selectedSnippets: Array<Snippet>
 }
 
-// ============================================================================
-// Snippet Binding Types (internal)
-// ============================================================================
-
 /**
  * A snippet transformed into a format suitable for sandbox injection
  */
 export interface SnippetBinding {
-  /**
-   * Function name with snippet_ prefix
-   */
   name: string
 
   /**

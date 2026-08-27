@@ -76,8 +76,11 @@ export abstract class BaseSummarizeAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
 > implements SummarizeAdapter<TModel, TProviderOptions> {
+  /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind = 'summarize' as const
+  /** Adapter name identifier */
   abstract readonly name: string
+  /** The model this adapter is configured for */
   readonly model: TModel
 
   // Type-only property - never assigned at runtime
@@ -96,11 +99,6 @@ export abstract class BaseSummarizeAdapter<
     options: SummarizationOptions<TProviderOptions>,
   ): Promise<SummarizationResult>
 
-  /**
-   * Stream summarization of the given text.
-   * Override this method in concrete implementations to enable streaming.
-   * If not overridden, the activity layer will fall back to non-streaming.
-   */
   summarizeStream?(
     options: SummarizationOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk>

@@ -83,15 +83,20 @@ function isNetworkResourceType(resourceType: string | undefined): boolean {
  */
 function ruleIsOpenNetwork(rule: Record<string, unknown>): boolean {
   const resourceType = resourceTypeOf(rule)
-  if (resourceType !== undefined && !isNetworkResourceType(resourceType)) {
+  const isNonNetworkRule =
+    resourceType !== undefined && !isNetworkResourceType(resourceType)
+  if (isNonNetworkRule) {
     return false
   }
 
   const name = rule.name ?? rule.preset ?? rule.id
-  if (typeof name === 'string' && isOpenPresetName(name)) return true
+  const isOpenPreset = typeof name === 'string' && isOpenPresetName(name)
+  if (isOpenPreset) return true
 
   const decision = String(rule.decision ?? rule.action ?? 'allow').toLowerCase()
-  if (decision === 'deny' || decision === 'ask' || decision === 'prompt') {
+  const isRestrictiveRule =
+    decision === 'deny' || decision === 'ask' || decision === 'prompt'
+  if (isRestrictiveRule) {
     return false
   }
 
@@ -126,16 +131,15 @@ function isOpenMachinePreset(stdout: string): boolean {
     return rules.some(ruleIsOpenNetwork)
   } catch {
     const lower = text.toLowerCase()
-    // Text fallback: only treat as Open when network wording is present.
-    // Bare `**` is not enough — deny-all uses `**` for filesystem allow and
-    // for network deny.
-    if (lower.includes('allow-all') || lower.includes('allowall')) return true
-    if (
+    const isAllowAllText =
+      lower.includes('allow-all') || lower.includes('allowall')
+    if (isAllowAllText) return true
+    const isOpenNetworkStar =
       /network[^\\n]{0,80}\*\*/i.test(text) &&
       !/network[^\\n]{0,80}("decision"\s*:\s*"deny"|decision\s*[:=]\s*deny)/i.test(
         text,
       )
-    ) {
+    if (isOpenNetworkStar) {
       return true
     }
     return /(^|[\s:"'{,])open($|[\s,"'}])/i.test(text)
@@ -207,7 +211,9 @@ class SbxProvider implements SandboxProvider {
 
   private async ensureGlobalPreset(plan: SbxPolicyPlan): Promise<void> {
     const listed = await this.run(['policy', 'ls', '--json'])
-    if (isOpenMachinePreset(listed.stdout) && isDenyAskAllowlist(plan)) {
+    const isOpenPresetBlockingAllowlist =
+      isOpenMachinePreset(listed.stdout) && isDenyAskAllowlist(plan)
+    if (isOpenPresetBlockingAllowlist) {
       throw new Error(
         'sbxSandbox: the machine policy is Open (allow-all / **). A deny/ask allowlist cannot be enforced on that preset. Run `sbx policy reset` then `sbx policy init deny-all`, or drop the allowlist.',
       )
@@ -288,7 +294,8 @@ class SbxProvider implements SandboxProvider {
       }
       await this.run(createArgs, input.signal)
       if (plan.kind === 'per-sandbox') {
-        for (const args of policyArgs(plan, id)) {
+        const commands = policyArgs(plan, id)
+        for (const args of commands) {
           await this.run(args, input.signal)
         }
       }

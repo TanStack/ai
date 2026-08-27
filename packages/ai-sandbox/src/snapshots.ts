@@ -70,7 +70,8 @@ const DEFAULT_ROOT = '/workspace'
 const PROJECTED_SKILL_ROOTS = new Set(['.claude', '.codex', '.grok'])
 
 function isFrameworkGeneratedSymlinkPath(path: string): boolean {
-  if (path === 'CLAUDE.md' || path === 'GEMINI.md') return true
+  const isHarnessDoc = path === 'CLAUDE.md' || path === 'GEMINI.md'
+  if (isHarnessDoc) return true
   const segments = path.split('/')
   return (
     segments.length === 3 &&
@@ -147,22 +148,22 @@ function normalize(path: string): string {
       `Unsafe snapshot path '${path}'`,
     )
   const value = path
-  if (
+  const isInvalidRelativePath =
     !value ||
     value.includes('\0') ||
     value.startsWith('/') ||
     /^[A-Za-z]:/.test(value) ||
     value.endsWith('/')
-  )
+  if (isInvalidRelativePath)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_PATH',
       `Unsafe snapshot path '${path}'`,
     )
   const parts = value.split('/')
-  if (
+  const isUnsafePathParts =
     parts.some((part) => !part || part === '.' || part === '..') ||
     parts.join('/') !== value
-  )
+  if (isUnsafePathParts)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_PATH',
       `Unsafe snapshot path '${path}'`,
@@ -174,14 +175,14 @@ function childPath(
   parent: string,
   child: { name: string; path: string },
 ): { absolute: string; relative: string } {
-  if (
+  const isInvalidChildName =
     !child.name ||
     child.name.includes('/') ||
     child.name.includes('\\') ||
     child.name.includes('\0') ||
     child.name === '.' ||
     child.name === '..'
-  )
+  if (isInvalidChildName)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
       `Invalid workspace entry '${child.name}'`,
@@ -208,11 +209,11 @@ function lstat(
 }
 
 function assertSupported(stat: SandboxFsStat, path: string): void {
-  if (
+  const isSpecialFile =
     stat.type === 'symlink' ||
     stat.type === 'other' ||
     (stat.type === 'file' && (stat.mode & 0o111) !== 0)
-  )
+  if (isSpecialFile)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
       `Unsupported entry '${path}'`,
@@ -260,7 +261,8 @@ async function redactBytes(
     .map((secret) => new TextEncoder().encode(secret))
     .sort((a, b) => b.length - a.length || compareBytes(a, b))
   for (const needle of secrets) {
-    if (!needle.length || needle.length > bytes.length) continue
+    const isNeedleTooLong = !needle.length || needle.length > bytes.length
+    if (isNeedleTooLong) continue
     for (let start = 0; start <= bytes.length - needle.length; start++) {
       let match = true
       for (let index = 0; index < needle.length; index++)
@@ -275,6 +277,105 @@ async function redactBytes(
   for (let index = 0; index < output.length; index++)
     if (redacted[index]) output[index] = 0
   return output
+}
+
+interface CaptureWalkContext {
+  handle: SandboxHandle
+  bundle: SandboxSnapshotBundle
+  policy: SandboxSnapshotPolicy
+  resolvedSecrets: Readonly<Record<string, string>>
+  files: Array<SandboxSnapshotEntry>
+  destinationKeys: Map<string, string>
+}
+
+function isSkippedCapturePath(
+  relative: string,
+  kind: 'file' | 'dir',
+  policy: SandboxSnapshotPolicy,
+): boolean {
+  return Boolean(
+    isProtectedPath(relative, policy.workspaceHash) ||
+    policy.exclude?.(relative, kind),
+  )
+}
+
+function childRelativePath(relative: string, childName: string): string {
+  return relative ? `${relative}/${childName}` : childName
+}
+
+function shouldKeepEmptyDir(
+  relative: string,
+  policy: SandboxSnapshotPolicy,
+): boolean {
+  return relative !== '' && (!policy.include || policy.include(relative, 'dir'))
+}
+
+async function captureWalkFile(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const path = normalize(relative)
+  const isExcludedFile = ctx.policy.include && !ctx.policy.include(path, 'file')
+  if (isExcludedFile) return false
+  let bytes = await ctx.handle.fs.readBytes(absolute)
+  if (ctx.policy.redact)
+    bytes = ctx.policy.redact({
+      path,
+      bytes,
+      resolvedSecrets: ctx.resolvedSecrets,
+    })
+  bytes = await redactBytes(bytes, ctx.resolvedSecrets)
+  const blob = await putIfAbsent(ctx.bundle.blobs, bytes, ctx.destinationKeys)
+  ctx.files.push({ path, kind: 'file', blobKey: blob.key, size: blob.size })
+  return true
+}
+
+async function captureWalkDir(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const children = await ctx.handle.fs.list(absolute)
+  let hasCapturedChild = false
+  for (const child of children) {
+    const childEntry = childPath(absolute, child)
+    const childRelative = childRelativePath(relative, childEntry.relative)
+    if (isSkippedCapturePath(childRelative, child.type, ctx.policy)) continue
+    hasCapturedChild =
+      (await captureWalk(ctx, childEntry.absolute, childRelative)) ||
+      hasCapturedChild
+  }
+  const isEmptyDirToKeep =
+    !hasCapturedChild && shouldKeepEmptyDir(relative, ctx.policy)
+  if (isEmptyDirToKeep)
+    ctx.files.push({ path: normalize(relative), kind: 'dir' })
+  return hasCapturedChild || shouldKeepEmptyDir(relative, ctx.policy)
+}
+
+async function captureWalk(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const stat = await lstat(ctx.handle, absolute)
+  if (!stat)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
+      `Snapshot entry disappeared '${relative}'`,
+    )
+  assertSupported(stat, relative)
+  const isUnsupportedEntry = stat.type !== 'file' && stat.type !== 'dir'
+  if (isUnsupportedEntry)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
+      `Unsupported entry '${relative}'`,
+    )
+  const shouldSkipCapture =
+    relative && isSkippedCapturePath(relative, stat.type, ctx.policy)
+  if (shouldSkipCapture) return false
+  if (stat.type === 'file') return captureWalkFile(ctx, absolute, relative)
+  return captureWalkDir(ctx, absolute, relative)
 }
 
 export async function captureSandboxFiles(
@@ -294,7 +395,7 @@ export async function captureSandboxFiles(
     )
   const rootPath = bundle.workspaceRoot ?? DEFAULT_ROOT
   const root = await lstat(handle, rootPath)
-  if (!root || root.type !== 'dir')
+  if (root === undefined || root.type !== 'dir')
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
       'Snapshot workspace is missing or is not a directory',
@@ -302,62 +403,18 @@ export async function captureSandboxFiles(
   assertSupported(root, rootPath)
   const files: Array<SandboxSnapshotEntry> = []
   const destinationKeys = new Map<string, string>()
-  const walk = async (absolute: string, relative: string): Promise<boolean> => {
-    const stat = await lstat(handle, absolute)
-    if (!stat)
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
-        `Snapshot entry disappeared '${relative}'`,
-      )
-    assertSupported(stat, relative)
-    if (stat.type !== 'file' && stat.type !== 'dir')
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
-        `Unsupported entry '${relative}'`,
-      )
-    if (
-      relative &&
-      (isProtectedPath(relative, policy.workspaceHash) ||
-        policy.exclude?.(relative, stat.type))
-    )
-      return false
-    if (stat.type === 'file') {
-      const path = normalize(relative)
-      if (policy.include && !policy.include(path, 'file')) return false
-      let bytes = await handle.fs.readBytes(absolute)
-      if (policy.redact) bytes = policy.redact({ path, bytes, resolvedSecrets })
-      bytes = await redactBytes(bytes, resolvedSecrets)
-      const blob = await putIfAbsent(bundle.blobs, bytes, destinationKeys)
-      files.push({ path, kind: 'file', blobKey: blob.key, size: blob.size })
-      return true
-    }
-    const children = await handle.fs.list(absolute)
-    let hasCapturedChild = false
-    for (const child of children) {
-      const childEntry = childPath(absolute, child)
-      const childRelative = relative
-        ? `${relative}/${childEntry.relative}`
-        : childEntry.relative
-      if (
-        isProtectedPath(childRelative, policy.workspaceHash) ||
-        policy.exclude?.(childRelative, child.type)
-      )
-        continue
-      hasCapturedChild =
-        (await walk(childEntry.absolute, childRelative)) || hasCapturedChild
-    }
-    if (
-      relative &&
-      !hasCapturedChild &&
-      (!policy.include || policy.include(relative, 'dir'))
-    )
-      files.push({ path: normalize(relative), kind: 'dir' })
-    return (
-      hasCapturedChild ||
-      (relative !== '' && (!policy.include || policy.include(relative, 'dir')))
-    )
-  }
-  await walk(rootPath, '')
+  await captureWalk(
+    {
+      handle,
+      bundle,
+      policy,
+      resolvedSecrets,
+      files,
+      destinationKeys,
+    },
+    rootPath,
+    '',
+  )
   files.sort((a, b) => comparePath(a.path, b.path))
   return { files }
 }
@@ -365,64 +422,58 @@ export async function captureSandboxFiles(
 type PlannedEntry = SandboxSnapshotEntry & { path: string }
 type PlannedFile = Extract<PlannedEntry, { kind: 'file' }>
 
-function validateManifest(
-  snapshot: {
-    files: ReadonlyArray<SandboxSnapshotEntry>
-  },
+function assertManifestAncestorsAllowed(
+  path: string,
   policy: SandboxSnapshotPolicy,
-): Array<PlannedEntry> {
-  const paths = new Map<string, PlannedEntry>()
-  for (const entry of snapshot.files) {
-    const path = normalize(entry.path)
-    for (const ancestor of parents(path)) {
-      if (
-        isProtectedPath(ancestor, policy.workspaceHash) ||
-        policy.exclude?.(ancestor, 'dir')
-      )
-        throw new SandboxSnapshotError(
-          'SANDBOX_SNAPSHOT_INVALID_PATH',
-          `Excluded snapshot ancestor '${ancestor}'`,
-        )
-    }
-    if (isProtectedPath(path, policy.workspaceHash))
+): void {
+  const pathAncestors = parents(path)
+  for (const ancestor of pathAncestors) {
+    const isBlockedAncestor =
+      isProtectedPath(ancestor, policy.workspaceHash) ||
+      policy.exclude?.(ancestor, 'dir')
+    if (isBlockedAncestor)
       throw new SandboxSnapshotError(
         'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Protected snapshot path '${path}'`,
-      )
-    if (
-      !included(path, entry.kind, policy) ||
-      (entry.kind === 'dir' && policy.include?.(path, 'dir') === false)
-    )
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Excluded snapshot path '${path}'`,
-      )
-    if (paths.has(path))
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Duplicate path '${path}'`,
-      )
-    if (entry.kind === 'file') {
-      const { blobKey, size } = entry
-      if (
-        typeof blobKey !== 'string' ||
-        !FILE_BLOB_KEY.test(blobKey) ||
-        typeof size !== 'number' ||
-        !Number.isSafeInteger(size) ||
-        size < 0
-      )
-        throw new SandboxSnapshotError(
-          'SANDBOX_SNAPSHOT_INVALID_PATH',
-          `Invalid file entry '${path}'`,
-        )
-      paths.set(path, { path, kind: 'file', blobKey, size })
-    } else if (entry.kind === 'dir') paths.set(path, { path, kind: 'dir' })
-    else
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Unknown snapshot entry '${path}'`,
+        `Excluded snapshot ancestor '${ancestor}'`,
       )
   }
+}
+
+function assertManifestPathIncluded(
+  path: string,
+  kind: SandboxSnapshotEntry['kind'],
+  policy: SandboxSnapshotPolicy,
+): void {
+  const isExcludedPath =
+    !included(path, kind, policy) ||
+    (kind === 'dir' && policy.include?.(path, 'dir') === false)
+  if (isExcludedPath)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_PATH',
+      `Excluded snapshot path '${path}'`,
+    )
+}
+
+function plannedFileEntry(
+  path: string,
+  entry: Extract<SandboxSnapshotEntry, { kind: 'file' }>,
+): PlannedFile {
+  const { blobKey, size } = entry
+  const isInvalidFileEntry =
+    typeof blobKey !== 'string' ||
+    !FILE_BLOB_KEY.test(blobKey) ||
+    typeof size !== 'number' ||
+    !Number.isSafeInteger(size) ||
+    size < 0
+  if (isInvalidFileEntry)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_PATH',
+      `Invalid file entry '${path}'`,
+    )
+  return { path, kind: 'file', blobKey, size }
+}
+
+function assertNoFileParent(paths: Map<string, PlannedEntry>): void {
   for (const [path] of paths)
     for (
       let index = path.indexOf('/');
@@ -436,6 +487,39 @@ function validateManifest(
           `File ancestor '${parent.path}'`,
         )
     }
+}
+
+function validateManifest(
+  snapshot: {
+    files: ReadonlyArray<SandboxSnapshotEntry>
+  },
+  policy: SandboxSnapshotPolicy,
+): Array<PlannedEntry> {
+  const paths = new Map<string, PlannedEntry>()
+  for (const entry of snapshot.files) {
+    const path = normalize(entry.path)
+    assertManifestAncestorsAllowed(path, policy)
+    if (isProtectedPath(path, policy.workspaceHash))
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Protected snapshot path '${path}'`,
+      )
+    assertManifestPathIncluded(path, entry.kind, policy)
+    if (paths.has(path))
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Duplicate path '${path}'`,
+      )
+    if (entry.kind === 'file') {
+      paths.set(path, plannedFileEntry(path, entry))
+    } else if (entry.kind === 'dir') paths.set(path, { path, kind: 'dir' })
+    else
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Unknown snapshot entry '${path}'`,
+      )
+  }
+  assertNoFileParent(paths)
   return [...paths.values()]
 }
 
@@ -444,8 +528,9 @@ async function loadBlobs(
   bundle: SandboxSnapshotBundle,
 ): Promise<Map<string, Uint8Array>> {
   const blobs = new Map<string, Uint8Array>()
-  for (const entry of entries)
-    if (entry.kind === 'file' && !blobs.has(entry.blobKey)) {
+  for (const entry of entries) {
+    const needsBlobLoad = entry.kind === 'file' && !blobs.has(entry.blobKey)
+    if (needsBlobLoad) {
       const object = await bundle.blobs.get(entry.blobKey)
       if (!object)
         throw new SandboxSnapshotError(
@@ -461,10 +546,12 @@ async function loadBlobs(
         )
       blobs.set(entry.blobKey, bytes)
     }
+  }
   for (const entry of entries)
     if (entry.kind === 'file') {
       const bytes = blobs.get(entry.blobKey)
-      if (!bytes || bytes.byteLength !== entry.size)
+      const isBlobSizeMismatch = !bytes || bytes.byteLength !== entry.size
+      if (isBlobSizeMismatch)
         throw new SandboxSnapshotError(
           'SANDBOX_SNAPSHOT_INVALID_BLOB',
           `Wrong size for snapshot blob '${entry.blobKey}'`,
@@ -492,9 +579,6 @@ async function scanCurrent(
       ? `${relative}/${childEntry.relative}`
       : childEntry.relative
     if (isProtectedPath(childRelative, policy.workspaceHash)) {
-      // Preserve the marker and its parent directories without inspecting the
-      // protected tree. The restore planner uses this marker to avoid removing
-      // an ancestor directory that contains it.
       paths.push({ path: childRelative, kind: 'dir', protected: true })
       continue
     }
@@ -522,7 +606,7 @@ async function scanDestination(
   rootPath: string,
 ): Promise<Array<CurrentEntry>> {
   const root = await lstat(handle, rootPath)
-  if (!root || root.type !== 'dir')
+  if (root === undefined || root.type !== 'dir')
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
       'Snapshot workspace is missing or is not a directory',
@@ -581,7 +665,8 @@ function buildRestorePlan(
   const desired = new Map<string, 'file' | 'dir'>()
   for (const entry of entries) {
     desired.set(entry.path, entry.kind)
-    for (const parent of parents(entry.path)) desired.set(parent, 'dir')
+    const entryAncestors = parents(entry.path)
+    for (const parent of entryAncestors) desired.set(parent, 'dir')
   }
   const currentKinds = new Map(current.map((entry) => [entry.path, entry.kind]))
   const candidates = current
@@ -630,14 +715,14 @@ export async function restoreSandboxFiles(
   const rootPath = bundle.workspaceRoot ?? DEFAULT_ROOT
   const current = await scanDestination(handle, policy, rootPath)
   for (const entry of entries) {
-    if (
+    const hasProtectedDescendant =
       entry.kind === 'file' &&
       current.some(
         (currentEntry) =>
           currentEntry.protected &&
           currentEntry.path.startsWith(`${entry.path}/`),
       )
-    )
+    if (hasProtectedDescendant)
       throw new SandboxSnapshotError(
         'SANDBOX_SNAPSHOT_INVALID_PATH',
         `Protected current descendant conflicts with '${entry.path}'`,

@@ -9,7 +9,6 @@ import type { PluggableList as UnifiedPluggableList } from '@crazydos/vue-markdo
  * itself — instead, `<TextPart>` toggles the renderer's `sanitize` prop based
  * on `disableDefaultPlugins`.
  */
-
 export type PluggableList = UnifiedPluggableList
 
 export const DEFAULT_REMARK_PLUGINS: PluggableList = [remarkGfm]

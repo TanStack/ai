@@ -42,9 +42,11 @@ import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
-  chunk as unknown as AdapterYieldChunk
+const /** Cast an event object to StreamChunk. Adapters construct events with string
+   *  literal types which are structurally compatible with the EventType enum. */
+  asChunk = (chunk: Record<string, unknown>) =>
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
+    chunk as unknown as AdapterYieldChunk
 
 /**
  * Parse the accumulated streaming arguments for a tool call. Throws a clear
@@ -82,10 +84,6 @@ export type MistralTextConfig = MistralClientConfig
  */
 export type MistralTextProviderOptions = ExternalTextProviderOptions
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MistralChatModelProviderOptionsByName
     ? MistralChatModelProviderOptionsByName[TModel]
@@ -95,10 +93,6 @@ type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
     ? MistralModelInputModalitiesByName[TModel]
     : readonly ['text']
-
-// ===========================
-// Wire-format chunk types
-// ===========================
 
 /**
  * Snake-case shape of a Mistral chat completion stream chunk as returned on the
@@ -125,18 +119,9 @@ interface MistralRawChoice {
       | Array<{
           type: string
           text?: string
-          // Mistral magistral models stream reasoning as content parts of
-          // type 'thinking' whose `thinking` field is itself an array of
-          // text/reference chunks. See Mistral SDK ThinkChunk type.
           thinking?: Array<{ type: string; text?: string }>
         }>
       | null
-    // Some OpenAI-compatible deployments (DeepSeek, Groq for reasoning
-    // models, and aimock-based test environments) emit reasoning via a
-    // separate `reasoning_content` delta field rather than as a content
-    // part. Accept both shapes — they cannot collide because real Mistral
-    // never sets the OpenAI-compat field, and aimock never sets the
-    // thinking content part.
     reasoning_content?: string | null
     tool_calls?: Array<MistralRawToolCall>
   }
@@ -154,9 +139,84 @@ interface MistralRawChunk {
   }
 }
 
-// ===========================
-// Adapter Implementation
-// ===========================
+function throwIfMistralStreamError(parsed: unknown): void {
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    'error' in parsed &&
+    !('choices' in parsed)
+  ) {
+    const errPayload = parsed.error
+    const message =
+      typeof errPayload === 'string'
+        ? errPayload
+        : errPayload &&
+            typeof errPayload === 'object' &&
+            'message' in errPayload
+          ? String(errPayload.message)
+          : JSON.stringify(errPayload)
+    throw new Error(`Mistral stream error: ${message}`)
+  }
+}
+
+function parseMistralSseLine(line: string): MistralRawChunk | 'done' | 'skip' {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('data:')) return 'skip'
+  const data = trimmed.slice(5).trimStart()
+  if (data === '[DONE]') return 'done'
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      console.warn(
+        `[mistral] skipped unparseable SSE chunk: ${data.slice(0, 200)}`,
+      )
+      return 'skip'
+    }
+    throw e
+  }
+
+  // Mistral signals mid-stream errors via an `error` field. Surface
+  // them as RUN_ERROR rather than swallowing them as empty chunks.
+  throwIfMistralStreamError(parsed)
+  return parsed as MistralRawChunk
+}
+
+function applyMistralModelOptions(
+  modelOptions: Omit<InternalTextProviderOptions, 'tools'> | undefined,
+): Partial<ChatCompletionStreamRequest> {
+  if (!modelOptions) return {}
+  return {
+    ...(modelOptions.stop != null && { stop: modelOptions.stop }),
+    ...(modelOptions.random_seed != null && {
+      randomSeed: modelOptions.random_seed,
+    }),
+    ...(modelOptions.response_format != null && {
+      responseFormat: modelOptions.response_format,
+    }),
+    ...(modelOptions.tool_choice != null && {
+      toolChoice: modelOptions.tool_choice,
+    }),
+    ...(modelOptions.parallel_tool_calls != null && {
+      parallelToolCalls: modelOptions.parallel_tool_calls,
+    }),
+    ...(modelOptions.frequency_penalty != null && {
+      frequencyPenalty: modelOptions.frequency_penalty,
+    }),
+    ...(modelOptions.presence_penalty != null && {
+      presencePenalty: modelOptions.presence_penalty,
+    }),
+    ...(modelOptions.n != null && { n: modelOptions.n }),
+    ...(modelOptions.prediction != null && {
+      prediction: modelOptions.prediction,
+    }),
+    ...(modelOptions.safe_prompt != null && {
+      safePrompt: modelOptions.safe_prompt,
+    }),
+  }
+}
 
 /**
  * Mistral Text (Chat) Adapter.
@@ -181,9 +241,6 @@ export class MistralTextAdapter<
 
   constructor(config: MistralTextConfig, model: TModel) {
     super(config, model)
-    // The SDK client is retained for `structuredOutput` (non-streaming). The
-    // streaming path bypasses the SDK and uses `fetchRawMistralStream` because
-    // the SDK's Zod schemas reject partial tool-call argument deltas.
     this.client = createMistralClient(config)
     this.rawConfig = config
   }
@@ -315,11 +372,8 @@ export class MistralTextAdapter<
     let hasEmittedRunFinished = false
     let lastChunkModel = options.model
     const normalizeToolInput = createToolInputNormalizer(options.tools)
+    const adapterName = this.name
 
-    // Reasoning lifecycle (magistral-* models stream `thinking` content
-    // parts before any text). Mirrors the anthropic adapter's pattern:
-    // open REASONING_* events on the first thinking delta, close them when
-    // text/tool content begins or the run finishes.
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
 
@@ -333,6 +387,296 @@ export class MistralTextAdapter<
         ended: boolean
       }
     >()
+
+    function* closeReasoning(chunkModel: string): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId !== null && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield asChunk({
+          type: 'REASONING_MESSAGE_END',
+          messageId: reasoningMessageId,
+          model: chunkModel,
+          timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_END',
+          messageId: reasoningMessageId,
+          model: chunkModel,
+          timestamp,
+        })
+      }
+    }
+
+    function* emitReasoning(
+      chunkModel: string,
+      deltaThinking: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!deltaThinking) return
+      if (reasoningMessageId === null) {
+        reasoningMessageId = generateId(adapterName)
+        yield asChunk({
+          type: 'REASONING_START',
+          messageId: reasoningMessageId,
+          model: chunkModel,
+          timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_MESSAGE_START',
+          messageId: reasoningMessageId,
+          role: 'reasoning',
+          model: chunkModel,
+          timestamp,
+        })
+      }
+      yield asChunk({
+        type: 'REASONING_MESSAGE_CONTENT',
+        messageId: reasoningMessageId,
+        model: chunkModel,
+        timestamp,
+        delta: deltaThinking,
+      })
+    }
+
+    function* emitText(
+      chunkModel: string,
+      deltaContent: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!deltaContent) return
+      if (!hasEmittedTextMessageStart) {
+        hasEmittedTextMessageStart = true
+        yield asChunk({
+          type: 'TEXT_MESSAGE_START',
+          messageId: aguiState.messageId,
+          model: chunkModel,
+          timestamp,
+          role: 'assistant',
+        })
+      }
+
+      accumulatedContent += deltaContent
+
+      yield asChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: aguiState.messageId,
+        model: chunkModel,
+        timestamp,
+        delta: deltaContent,
+        content: accumulatedContent,
+      })
+    }
+
+    function* emitToolCallDeltas(
+      chunkModel: string,
+      deltaToolCalls: NonNullable<
+        NonNullable<MistralRawChoice['delta']>['tool_calls']
+      >,
+    ): Generator<AdapterYieldChunk> {
+      const toolCallDeltas = deltaToolCalls.entries()
+      for (const [i, toolCallDelta] of toolCallDeltas) {
+        const index = toolCallDelta.index ?? i
+
+        let toolCall = toolCallsInProgress.get(index)
+        if (!toolCall) {
+          toolCall = {
+            id: toolCallDelta.id || '',
+            name: toolCallDelta.function?.name || '',
+            arguments: '',
+            started: false,
+            ended: false,
+          }
+          toolCallsInProgress.set(index, toolCall)
+        }
+
+        if (toolCallDelta.id) toolCall.id = toolCallDelta.id
+        if (toolCallDelta.function?.name) {
+          toolCall.name = toolCallDelta.function.name
+        }
+
+        const rawArgs = toolCallDelta.function?.arguments
+        const argsDelta =
+          rawArgs === undefined
+            ? undefined
+            : typeof rawArgs === 'string'
+              ? rawArgs
+              : JSON.stringify(rawArgs)
+
+        if (argsDelta !== undefined) {
+          toolCall.arguments += argsDelta
+        }
+
+        const justStarted =
+          !!toolCall.id && !!toolCall.name && !toolCall.started
+        if (justStarted) {
+          toolCall.started = true
+          yield asChunk({
+            type: 'TOOL_CALL_START',
+            toolCallId: toolCall.id,
+            toolCallName: toolCall.name,
+            toolName: toolCall.name,
+            model: chunkModel,
+            timestamp,
+            index,
+          })
+          // Replay any args buffered before id+name arrived (including
+          // this chunk's argsDelta, if any).
+          if (toolCall.arguments.length > 0) {
+            yield asChunk({
+              type: 'TOOL_CALL_ARGS',
+              toolCallId: toolCall.id,
+              model: chunkModel,
+              timestamp,
+              delta: toolCall.arguments,
+            })
+          }
+        } else if (argsDelta !== undefined && toolCall.started) {
+          yield asChunk({
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: toolCall.id,
+            model: chunkModel,
+            timestamp,
+            delta: argsDelta,
+          })
+        }
+      }
+    }
+
+    function* endOpenToolCalls(
+      chunkModel: string,
+    ): Generator<AdapterYieldChunk> {
+      for (const [, toolCall] of toolCallsInProgress) {
+        const isIncompleteToolCall =
+          !toolCall.started || !toolCall.id || !toolCall.name || toolCall.ended
+        if (isIncompleteToolCall) {
+          continue
+        }
+
+        const parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
+
+        toolCall.ended = true
+        hasEmittedToolCall = true
+        yield asChunk({
+          type: 'TOOL_CALL_END',
+          toolCallId: toolCall.id,
+          toolCallName: toolCall.name,
+          toolName: toolCall.name,
+          model: chunkModel,
+          timestamp,
+          input: parsedInput,
+        })
+      }
+    }
+
+    function* closeText(chunkModel: string): Generator<AdapterYieldChunk> {
+      const isTextAlreadyClosed =
+        !hasEmittedTextMessageStart || hasEmittedTextMessageEnd
+      if (isTextAlreadyClosed) return
+      hasEmittedTextMessageEnd = true
+      yield asChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: aguiState.messageId,
+        model: chunkModel,
+        timestamp,
+      })
+    }
+
+    function* emitFinishReason(
+      chunk: MistralRawChunk,
+      chunkModel: string,
+      finishReason: string,
+    ): Generator<AdapterYieldChunk> {
+      const hasToolCalls =
+        finishReason === 'tool_calls' || toolCallsInProgress.size > 0
+      if (hasToolCalls) {
+        yield* endOpenToolCalls(chunkModel)
+      }
+
+      const computedFinishReason =
+        finishReason === 'tool_calls' || hasEmittedToolCall
+          ? 'tool_calls'
+          : finishReason === 'length'
+            ? 'length'
+            : 'stop'
+
+      yield* closeReasoning(chunkModel)
+      yield* closeText(chunkModel)
+
+      const usage = chunk.usage
+      hasEmittedRunFinished = true
+      yield asChunk({
+        type: 'RUN_FINISHED',
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model: chunkModel,
+        timestamp,
+        usage: usage
+          ? {
+              promptTokens: usage.prompt_tokens || 0,
+              completionTokens: usage.completion_tokens || 0,
+              totalTokens: usage.total_tokens || 0,
+            }
+          : undefined,
+        finishReason: computedFinishReason,
+      })
+    }
+
+    function* flushCleanEnd(): Generator<AdapterYieldChunk> {
+      if (hasEmittedRunFinished) return
+      yield* closeReasoning(lastChunkModel)
+      for (const [, toolCall] of toolCallsInProgress) {
+        if (toolCall.started && !toolCall.ended) {
+          toolCall.ended = true
+          hasEmittedToolCall = true
+          yield asChunk({
+            type: 'TOOL_CALL_END',
+            toolCallId: toolCall.id,
+            toolCallName: toolCall.name,
+            toolName: toolCall.name,
+            model: lastChunkModel,
+            timestamp,
+            input: parseToolCallInput(toolCall, normalizeToolInput),
+          })
+        }
+      }
+      yield* closeText(lastChunkModel)
+      hasEmittedRunFinished = true
+      yield asChunk({
+        type: 'RUN_FINISHED',
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model: lastChunkModel,
+        timestamp,
+        usage: undefined,
+        finishReason: hasEmittedToolCall ? 'tool_calls' : 'stop',
+      })
+    }
+
+    function* cleanupOnError(): Generator<AdapterYieldChunk> {
+      yield* closeReasoning(lastChunkModel)
+      yield* closeText(lastChunkModel)
+      for (const [, toolCall] of toolCallsInProgress) {
+        const isClosedToolCall = !toolCall.started || toolCall.ended
+        if (isClosedToolCall) continue
+        toolCall.ended = true
+        // Best-effort parse for the partial args; if invalid, surface
+        // empty input rather than throwing inside the cleanup path.
+        let partialInput: unknown = {}
+        try {
+          partialInput = toolCall.arguments
+            ? normalizeToolInput(toolCall.name, JSON.parse(toolCall.arguments))
+            : {}
+        } catch {
+          partialInput = {}
+        }
+        yield asChunk({
+          type: 'TOOL_CALL_END',
+          toolCallId: toolCall.id,
+          toolCallName: toolCall.name,
+          toolName: toolCall.name,
+          model: lastChunkModel,
+          timestamp,
+          input: partialInput,
+        })
+      }
+    }
 
     try {
       for await (const chunk of stream) {
@@ -367,346 +711,29 @@ export class MistralTextAdapter<
 
         // Emit reasoning events FIRST so they always precede the matching
         // text or tool deltas in the same chunk.
-        if (deltaThinking) {
-          if (reasoningMessageId === null) {
-            reasoningMessageId = generateId(this.name)
-            yield asChunk({
-              type: 'REASONING_START',
-              messageId: reasoningMessageId,
-              model: chunkModel,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_MESSAGE_START',
-              messageId: reasoningMessageId,
-              role: 'reasoning',
-              model: chunkModel,
-              timestamp,
-            })
-          }
-          yield asChunk({
-            type: 'REASONING_MESSAGE_CONTENT',
-            messageId: reasoningMessageId,
-            model: chunkModel,
-            timestamp,
-            delta: deltaThinking,
-          })
-        }
+        yield* emitReasoning(chunkModel, deltaThinking)
 
         // Close reasoning before any text/tool output starts in this chunk.
         const aboutToEmitOutput =
           !!deltaContent || (!!deltaToolCalls && deltaToolCalls.length > 0)
-        if (
-          reasoningMessageId !== null &&
-          !hasClosedReasoning &&
-          aboutToEmitOutput
-        ) {
-          hasClosedReasoning = true
-          yield asChunk({
-            type: 'REASONING_MESSAGE_END',
-            messageId: reasoningMessageId,
-            model: chunkModel,
-            timestamp,
-          })
-          yield asChunk({
-            type: 'REASONING_END',
-            messageId: reasoningMessageId,
-            model: chunkModel,
-            timestamp,
-          })
+        if (aboutToEmitOutput) {
+          yield* closeReasoning(chunkModel)
         }
 
-        if (deltaContent) {
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_START',
-              messageId: aguiState.messageId,
-              model: chunkModel,
-              timestamp,
-              role: 'assistant',
-            })
-          }
-
-          accumulatedContent += deltaContent
-
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
-            messageId: aguiState.messageId,
-            model: chunkModel,
-            timestamp,
-            delta: deltaContent,
-            content: accumulatedContent,
-          })
-        }
-
+        yield* emitText(chunkModel, deltaContent)
         if (deltaToolCalls) {
-          for (const [i, toolCallDelta] of deltaToolCalls.entries()) {
-            const index = toolCallDelta.index ?? i
-
-            let toolCall = toolCallsInProgress.get(index)
-            if (!toolCall) {
-              toolCall = {
-                id: toolCallDelta.id || '',
-                name: toolCallDelta.function?.name || '',
-                arguments: '',
-                started: false,
-                ended: false,
-              }
-              toolCallsInProgress.set(index, toolCall)
-            }
-
-            if (toolCallDelta.id) toolCall.id = toolCallDelta.id
-            if (toolCallDelta.function?.name) {
-              toolCall.name = toolCallDelta.function.name
-            }
-
-            const rawArgs = toolCallDelta.function?.arguments
-            const argsDelta =
-              rawArgs === undefined
-                ? undefined
-                : typeof rawArgs === 'string'
-                  ? rawArgs
-                  : JSON.stringify(rawArgs)
-
-            if (argsDelta !== undefined) {
-              toolCall.arguments += argsDelta
-            }
-
-            const justStarted =
-              !!toolCall.id && !!toolCall.name && !toolCall.started
-            if (justStarted) {
-              toolCall.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunkModel,
-                timestamp,
-                index,
-              })
-              // Replay any args buffered before id+name arrived (including
-              // this chunk's argsDelta, if any).
-              if (toolCall.arguments.length > 0) {
-                yield asChunk({
-                  type: 'TOOL_CALL_ARGS',
-                  toolCallId: toolCall.id,
-                  model: chunkModel,
-                  timestamp,
-                  delta: toolCall.arguments,
-                })
-              }
-            } else if (argsDelta !== undefined && toolCall.started) {
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
-                toolCallId: toolCall.id,
-                model: chunkModel,
-                timestamp,
-                delta: argsDelta,
-              })
-            }
-          }
+          yield* emitToolCallDeltas(chunkModel, deltaToolCalls)
         }
 
         const finishReason = choice.finish_reason
         if (finishReason) {
-          if (finishReason === 'tool_calls' || toolCallsInProgress.size > 0) {
-            for (const [, toolCall] of toolCallsInProgress) {
-              if (
-                !toolCall.started ||
-                !toolCall.id ||
-                !toolCall.name ||
-                toolCall.ended
-              ) {
-                continue
-              }
-
-              const parsedInput = parseToolCallInput(
-                toolCall,
-                normalizeToolInput,
-              )
-
-              toolCall.ended = true
-              hasEmittedToolCall = true
-              yield asChunk({
-                type: 'TOOL_CALL_END',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunkModel,
-                timestamp,
-                input: parsedInput,
-              })
-            }
-          }
-
-          const computedFinishReason =
-            finishReason === 'tool_calls' || hasEmittedToolCall
-              ? 'tool_calls'
-              : finishReason === 'length'
-                ? 'length'
-                : 'stop'
-
-          // If the run finished while reasoning was still open (no text or
-          // tool output ever followed), close reasoning before TEXT/RUN
-          // finalization events.
-          if (reasoningMessageId !== null && !hasClosedReasoning) {
-            hasClosedReasoning = true
-            yield asChunk({
-              type: 'REASONING_MESSAGE_END',
-              messageId: reasoningMessageId,
-              model: chunkModel,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_END',
-              messageId: reasoningMessageId,
-              model: chunkModel,
-              timestamp,
-            })
-          }
-
-          if (hasEmittedTextMessageStart && !hasEmittedTextMessageEnd) {
-            hasEmittedTextMessageEnd = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_END',
-              messageId: aguiState.messageId,
-              model: chunkModel,
-              timestamp,
-            })
-          }
-
-          const usage = chunk.usage
-          hasEmittedRunFinished = true
-          yield asChunk({
-            type: 'RUN_FINISHED',
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunkModel,
-            timestamp,
-            usage: usage
-              ? {
-                  promptTokens: usage.prompt_tokens || 0,
-                  completionTokens: usage.completion_tokens || 0,
-                  totalTokens: usage.total_tokens || 0,
-                }
-              : undefined,
-            finishReason: computedFinishReason,
-          })
+          yield* emitFinishReason(chunk, chunkModel, finishReason)
         }
       }
 
-      // Stream ended cleanly without finish_reason — flush any open
-      // lifecycle events so consumers don't see orphaned starts. This
-      // happens for abrupt `[DONE]` or upstream cuts.
-      if (!hasEmittedRunFinished) {
-        if (reasoningMessageId !== null && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield asChunk({
-            type: 'REASONING_MESSAGE_END',
-            messageId: reasoningMessageId,
-            model: lastChunkModel,
-            timestamp,
-          })
-          yield asChunk({
-            type: 'REASONING_END',
-            messageId: reasoningMessageId,
-            model: lastChunkModel,
-            timestamp,
-          })
-        }
-        for (const [, toolCall] of toolCallsInProgress) {
-          if (toolCall.started && !toolCall.ended) {
-            toolCall.ended = true
-            hasEmittedToolCall = true
-            yield asChunk({
-              type: 'TOOL_CALL_END',
-              toolCallId: toolCall.id,
-              toolCallName: toolCall.name,
-              toolName: toolCall.name,
-              model: lastChunkModel,
-              timestamp,
-              input: parseToolCallInput(toolCall, normalizeToolInput),
-            })
-          }
-        }
-        if (hasEmittedTextMessageStart && !hasEmittedTextMessageEnd) {
-          hasEmittedTextMessageEnd = true
-          yield asChunk({
-            type: 'TEXT_MESSAGE_END',
-            messageId: aguiState.messageId,
-            model: lastChunkModel,
-            timestamp,
-          })
-        }
-        hasEmittedRunFinished = true
-        yield asChunk({
-          type: 'RUN_FINISHED',
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: lastChunkModel,
-          timestamp,
-          usage: undefined,
-          finishReason: hasEmittedToolCall ? 'tool_calls' : 'stop',
-        })
-      }
+      yield* flushCleanEnd()
     } catch (error: unknown) {
-      // Lifecycle cleanup (TEXT_MESSAGE_END / TOOL_CALL_END / REASONING_END)
-      // on error path so consumers don't see orphaned starts. RUN_ERROR is
-      // emitted by the outer chatStream catch — emitting it here would
-      // duplicate the event.
-      if (reasoningMessageId !== null && !hasClosedReasoning) {
-        hasClosedReasoning = true
-        yield asChunk({
-          type: 'REASONING_MESSAGE_END',
-          messageId: reasoningMessageId,
-          model: lastChunkModel,
-          timestamp,
-        })
-        yield asChunk({
-          type: 'REASONING_END',
-          messageId: reasoningMessageId,
-          model: lastChunkModel,
-          timestamp,
-        })
-      }
-      if (hasEmittedTextMessageStart && !hasEmittedTextMessageEnd) {
-        hasEmittedTextMessageEnd = true
-        yield asChunk({
-          type: 'TEXT_MESSAGE_END',
-          messageId: aguiState.messageId,
-          model: lastChunkModel,
-          timestamp,
-        })
-      }
-      for (const [, toolCall] of toolCallsInProgress) {
-        if (toolCall.started && !toolCall.ended) {
-          toolCall.ended = true
-          // Best-effort parse for the partial args; if invalid, surface
-          // empty input rather than throwing inside the cleanup path.
-          let partialInput: unknown = {}
-          try {
-            partialInput = toolCall.arguments
-              ? normalizeToolInput(
-                  toolCall.name,
-                  JSON.parse(toolCall.arguments),
-                )
-              : {}
-          } catch {
-            partialInput = {}
-          }
-          yield asChunk({
-            type: 'TOOL_CALL_END',
-            toolCallId: toolCall.id,
-            toolCallName: toolCall.name,
-            toolName: toolCall.name,
-            model: lastChunkModel,
-            timestamp,
-            input: partialInput,
-          })
-        }
-      }
+      yield* cleanupOnError()
       throw error
     }
   }
@@ -771,45 +798,10 @@ export class MistralTextAdapter<
         buffer = lines.pop() ?? ''
 
         for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed.startsWith('data:')) continue
-          const data = trimmed.slice(5).trimStart()
-          if (data === '[DONE]') return
-
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(data)
-          } catch (e) {
-            if (e instanceof SyntaxError) {
-              console.warn(
-                `[mistral] skipped unparseable SSE chunk: ${data.slice(0, 200)}`,
-              )
-              continue
-            }
-            throw e
-          }
-
-          // Mistral signals mid-stream errors via an `error` field. Surface
-          // them as RUN_ERROR rather than swallowing them as empty chunks.
-          if (
-            parsed &&
-            typeof parsed === 'object' &&
-            'error' in parsed &&
-            !('choices' in parsed)
-          ) {
-            const errPayload = parsed.error
-            const message =
-              typeof errPayload === 'string'
-                ? errPayload
-                : errPayload &&
-                    typeof errPayload === 'object' &&
-                    'message' in errPayload
-                  ? String(errPayload.message)
-                  : JSON.stringify(errPayload)
-            throw new Error(`Mistral stream error: ${message}`)
-          }
-
-          yield parsed as MistralRawChunk
+          const parsed = parseMistralSseLine(line)
+          if (parsed === 'skip') continue
+          if (parsed === 'done') return
+          yield parsed
         }
       }
     } finally {
@@ -933,34 +925,7 @@ export class MistralTextAdapter<
       topP: modelOptions?.top_p ?? undefined,
       tools: tools as ChatCompletionStreamRequest['tools'],
       stream: true,
-      ...(modelOptions && {
-        ...(modelOptions.stop != null && { stop: modelOptions.stop }),
-        ...(modelOptions.random_seed != null && {
-          randomSeed: modelOptions.random_seed,
-        }),
-        ...(modelOptions.response_format != null && {
-          responseFormat: modelOptions.response_format,
-        }),
-        ...(modelOptions.tool_choice != null && {
-          toolChoice: modelOptions.tool_choice,
-        }),
-        ...(modelOptions.parallel_tool_calls != null && {
-          parallelToolCalls: modelOptions.parallel_tool_calls,
-        }),
-        ...(modelOptions.frequency_penalty != null && {
-          frequencyPenalty: modelOptions.frequency_penalty,
-        }),
-        ...(modelOptions.presence_penalty != null && {
-          presencePenalty: modelOptions.presence_penalty,
-        }),
-        ...(modelOptions.n != null && { n: modelOptions.n }),
-        ...(modelOptions.prediction != null && {
-          prediction: modelOptions.prediction,
-        }),
-        ...(modelOptions.safe_prompt != null && {
-          safePrompt: modelOptions.safe_prompt,
-        }),
-      }),
+      ...applyMistralModelOptions(modelOptions),
     }
   }
 
@@ -1006,10 +971,11 @@ export class MistralTextAdapter<
 
     const contentParts = this.normalizeContent(message.content)
 
-    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
+    const textPart = contentParts.length === 1 ? contentParts[0] : undefined
+    if (textPart?.type === 'text') {
       return {
         role: 'user',
-        content: contentParts[0].content,
+        content: textPart.content,
       }
     }
 
@@ -1069,9 +1035,11 @@ export class MistralTextAdapter<
   private normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null || content === undefined) return []
-    if (typeof content === 'string') return [{ type: 'text', content }]
-    return content
+    if (content !== null && content !== undefined) {
+      if (typeof content === 'string') return [{ type: 'text', content }]
+      return content
+    }
+    return []
   }
 
   /**
@@ -1080,12 +1048,14 @@ export class MistralTextAdapter<
   private extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null || content === undefined) return ''
-    if (typeof content === 'string') return content
-    return content
-      .filter((p) => p.type === 'text')
-      .map((p) => p.content)
-      .join('')
+    if (content !== null && content !== undefined) {
+      if (typeof content === 'string') return content
+      return content
+        .filter((p) => p.type === 'text')
+        .map((p) => p.content)
+        .join('')
+    }
+    return ''
   }
 }
 

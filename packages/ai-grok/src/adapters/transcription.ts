@@ -49,7 +49,9 @@ interface GrokSTTWord {
   text: string
   start: number
   end: number
+  /** Model confidence for the word, when xAI returns one. */
   confidence?: number
+  /** Speaker index, populated when `modelOptions.diarize === true`. */
   speaker?: number
 }
 
@@ -74,6 +76,7 @@ export class GrokTranscriptionAdapter<
 
   private readonly apiKey: string
   private readonly baseURL: string
+  /** Additional headers to merge into every request (e.g., test IDs). */
   private readonly defaultHeaders: Record<string, string>
 
   constructor(config: GrokTranscriptionConfig, model: TModel) {
@@ -119,11 +122,6 @@ export class GrokTranscriptionAdapter<
 
       const words: Array<TranscriptionWord> | undefined = data.words?.map(
         (w) => {
-          // Construct a GrokTranscriptionWord so that `confidence` and
-          // `speaker` (when xAI returns them under `diarize` / confidence
-          // mode) are preserved on the result. The returned array is typed
-          // as `Array<TranscriptionWord>` per the cross-provider contract;
-          // callers who want the extras narrow via `as Array<GrokTranscriptionWord>`.
           const tw: GrokTranscriptionWord = {
             word: w.text,
             start: w.start,
@@ -136,9 +134,6 @@ export class GrokTranscriptionAdapter<
       )
 
       const resolvedLanguage = data.language ?? language
-      // xAI's /v1/stt response carries no token counts — STT is duration-billed —
-      // so surface the audio duration as the billed quantity, mirroring the
-      // whisper-1 path in the OpenAI transcription adapter.
       const usage: TokenUsage | undefined =
         data.duration !== undefined && data.duration > 0
           ? {

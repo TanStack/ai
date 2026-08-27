@@ -1,21 +1,3 @@
-/**
- * Map a portable {@link SandboxPolicy} onto Claude Code CLI permission flags.
- *
- * This is a best-effort, coarse mapping (the CLI's permission model is
- * tool-level + a permission mode, not arbitrary command globs):
- *
- * - `default` decision → `--permission-mode`:
- *     `'allow'` → `bypassPermissions`, `'acceptEdits'`-ish `'ask'` → `acceptEdits`,
- *     `'deny'` → `default` (in `-p` mode, prompts are auto-denied).
- * - `capabilities.fileWrite === 'deny'` → disallow `Write`,`Edit`,`MultiEdit`.
- * - `capabilities.network === 'deny'` → disallow `WebFetch`,`WebSearch`.
- * - `commands.deny` that name a bare built-in tool (e.g. `Bash`) are added to
- *   `--disallowedTools`; fine-grained command-glob enforcement is left to the
- *   MCP permission-prompt tool (interactive approvals).
- *
- * Returns the permission mode plus tool allow/deny additions; the adapter
- * merges these with its own config.
- */
 import type { PolicyDecision, SandboxPolicy } from '@tanstack/ai-sandbox'
 import type { ClaudeCodePermissionMode } from './text'
 

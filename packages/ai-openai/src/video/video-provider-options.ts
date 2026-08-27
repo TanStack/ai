@@ -1,22 +1,14 @@
 /**
- * OpenAI Video Generation Provider Options
- *
- * Based on https://platform.openai.com/docs/api-reference/videos/create
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-
-/**
  * Supported video sizes for OpenAI Sora video generation.
  * Based on the official API documentation.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoSize =
-  | '1280x720' // 720p landscape (16:9)
-  | '720x1280' // 720p portrait (9:16)
-  | '1792x1024' // Landscape wide
-  | '1024x1792' // Portrait tall
+  | '1280x720'
+  | '720x1280'
+  | '1792x1024'
+  | '1024x1792'
 
 /**
  * Supported video durations (in seconds) for OpenAI Sora video generation.

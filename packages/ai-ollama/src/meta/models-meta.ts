@@ -45,19 +45,6 @@ interface OllamaOptions {
   stop: Array<string>
 }
 
-// interface ChatRequest {
-//   model: string
-//   messages?: Message[]
-//   stream?: boolean
-//   format?: string | object
-//   keep_alive?: string | number
-//   tools?: Tool[]
-//   think?: boolean | 'high' | 'medium' | 'low'
-//   logprobs?: boolean
-//   top_logprobs?: number
-//   options?: Partial<Options>
-// }
-
 export interface OllamaChatRequest {
   // model: string
   //   messages?: Message[]
@@ -83,15 +70,6 @@ export interface OllamaChatRequestTools {
   tools?: Array<Tool>
 }
 
-// interface Message {
-//   role: string
-//   content: string
-//   thinking?: string
-//   images?: Uint8Array[] | string[]
-//   tool_calls?: ToolCall[]
-//   tool_name?: string
-// }
-
 export interface OllamaChatRequestMessages<
   TMessageExtension extends OllamaMessageExtension = {},
 > {
@@ -99,10 +77,6 @@ export interface OllamaChatRequestMessages<
     {
       role: string
       content: string
-      //   thinking?: string
-      //   images?: Uint8Array[] | string[]
-      //   tool_calls?: ToolCall[]
-      //   tool_name?: string
     } & TMessageExtension
   >
 }

@@ -54,8 +54,11 @@ export function resolveMediaPrompt(prompt: MediaPrompt): ResolvedMediaPrompt {
     }
   }
 
+  /** Image parts in prompt order. */
   const images: Array<ImagePart<MediaInputMetadata>> = []
+  /** Video parts in prompt order. */
   const videos: Array<VideoPart<MediaInputMetadata>> = []
+  /** Audio parts in prompt order. */
   const audios: Array<AudioPart<MediaInputMetadata>> = []
   const textSegments: Array<string> = []
 

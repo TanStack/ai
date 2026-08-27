@@ -111,6 +111,7 @@ export function useGenerateSpeech<TTransformed = void>(
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'solid',

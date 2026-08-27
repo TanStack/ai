@@ -8,10 +8,9 @@ import type { Tool } from '@tanstack/ai'
 export type { FileSearchToolConfig }
 
 const validateMaxNumResults = (maxNumResults: number | undefined) => {
-  if (
-    maxNumResults !== undefined &&
-    (maxNumResults < 1 || maxNumResults > 50)
-  ) {
+  const isMaxNumResultsOutOfRange =
+    maxNumResults !== undefined && (maxNumResults < 1 || maxNumResults > 50)
+  if (isMaxNumResultsOutOfRange) {
     throw new Error('max_num_results must be between 1 and 50.')
   }
 }
@@ -26,9 +25,6 @@ export function convertFileSearchToolToAdapterFormat(
   tool: Tool,
 ): FileSearchToolConfig {
   const metadata = getOpenAIProviderToolMetadata(tool) as FileSearchToolConfig
-  // Conditional spread: SDK's `FileSearchToolConfig` declares the
-  // optional fields without `| undefined`, so we omit absent values
-  // rather than passing them through as explicit `undefined`.
   return {
     type: 'file_search',
     vector_store_ids: metadata.vector_store_ids,

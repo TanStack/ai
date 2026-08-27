@@ -11,11 +11,11 @@ import { tanstackMetadata } from './merge-metadata'
  * in place so WeakMap run-id stamps stay attached.
  */
 export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
-  if (
+  const needsUsageRebuild =
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
     (Array.isArray(chunk.usage) || isTanstackUsage(chunk.usage))
-  ) {
+  if (needsUsageRebuild) {
     const rebuilt = rebuildTokenUsage(
       chunk.usage,
       tanstackMetadata(chunk)?.usage,
@@ -25,15 +25,17 @@ export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
     }
   }
 
-  if (
+  const needsToolNameFromCall =
     chunk.type === EventType.TOOL_CALL_START &&
     chunk.toolName === undefined &&
     chunk.toolCallName
-  ) {
+  if (needsToolNameFromCall) {
     chunk.toolName = chunk.toolCallName
   }
 
-  if (chunk.type === EventType.TOOL_CALL_END && chunk.input === undefined) {
+  const needsToolInputFromMetadata =
+    chunk.type === EventType.TOOL_CALL_END && chunk.input === undefined
+  if (needsToolInputFromMetadata) {
     const input = tanstackMetadata(chunk)?.input
     if (input !== undefined) {
       chunk.input = input
@@ -57,9 +59,12 @@ export function restoreInboundChunk(chunk: StreamChunk): AdapterYieldChunk {
     return next
   }
 
-  for (const [key, value] of Object.entries(tanstack)) {
-    if (key === 'usage' || key === 'interruptErrors') continue
-    if (next[key] === undefined && value !== undefined) {
+  const entries = Object.entries(tanstack)
+  for (const [key, value] of entries) {
+    const isReservedKey = key === 'usage' || key === 'interruptErrors'
+    if (isReservedKey) continue
+    const canCopyField = next[key] === undefined && value !== undefined
+    if (canCopyField) {
       next[key] = value
     }
   }

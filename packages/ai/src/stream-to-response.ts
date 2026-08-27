@@ -130,11 +130,6 @@ function toEncodedStream(
   encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array,
   encodeError: (error: unknown) => Uint8Array,
   detachOnCancel = false,
-  /**
-   * Called once when the response body is cancelled on the detach path, BEFORE
-   * returning. The durability branch uses it to tell the run its viewer is gone
-   * (see `./delivery-disconnect`) without aborting it.
-   */
   onDetachedCancel?: () => void,
 ): ReadableStream<Uint8Array> {
   const cancellation = abortController ?? new AbortController()
@@ -175,9 +170,6 @@ function toEncodedStream(
               break
             }
             if (isAborted(cancellation.signal)) break
-            // After a detached cancel the reader is gone but we keep pulling to
-            // drain the producer into the durable log; skip enqueuing to the
-            // closed controller.
             if (!cancelled) controller.enqueue(encodeChunk(result.value, index))
             index += 1
           }
@@ -207,21 +199,6 @@ function toEncodedStream(
     },
     async cancel(reason) {
       cancelled = true
-      // Detached durable delivery: the client is gone (e.g. a page reload), but
-      // the run must finish into the durable log so a rejoining client can tail
-      // it to the real terminal. Do NOT abort the producer (that would kill the
-      // run and seal the log with RUN_ERROR) and do NOT await the pump — it
-      // keeps draining `stream` → the log in the background and terminates
-      // normally on its own. A genuine caller-driven stop aborts the producer's
-      // own AbortController instead, which this path never touches.
-      //
-      // Notify the run FIRST, and synchronously. This is the only moment the
-      // socket-closed fact exists anywhere, and the run cannot observe it on its
-      // own: it holds no handle on this response. That notification is what lets a
-      // durable run record itself as detached while it KEEPS RUNNING — the
-      // alternative applications were driven to (mirroring `request.signal` into
-      // `chat()`'s abortController) reaches the middleware only by killing the run,
-      // which for a sandboxed run means the agent is never even launched.
       if (detachOnCancel) {
         onDetachedCancel?.()
         return
@@ -299,7 +276,8 @@ function sseEncoders(
 }
 
 /** Default number of chunks buffered before a durability `append`. */
-const DEFAULT_DURABILITY_BATCH = 32
+const /** Default number of chunks buffered before a durability `append`. */
+  DEFAULT_DURABILITY_BATCH = 32
 
 /**
  * Resolve and validate the durability batch size. A non-positive-integer (0,
@@ -309,7 +287,8 @@ const DEFAULT_DURABILITY_BATCH = 32
  */
 function resolveBatchSize(batch: number | undefined): number {
   if (batch === undefined) return DEFAULT_DURABILITY_BATCH
-  if (!Number.isInteger(batch) || batch <= 0) {
+  const isBadBatchSize = !Number.isInteger(batch) || batch <= 0
+  if (isBadBatchSize) {
     throw new Error(
       `Invalid durability batch size: ${batch}. Must be a positive integer.`,
     )
@@ -396,19 +375,13 @@ export function durableStreamSource<TOffset extends string>(
   const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
 
   const validateOffset = (offset: TOffset): void => {
-    // Reject NUL/CR/LF (would corrupt the SSE `id:` line) and any offset that
-    // is not invariant under the wire round-trip. The SSE client reads the id
-    // with `.trim()`, so an offset with leading/trailing whitespace would come
-    // back changed and no longer match on reconnect — fail loud here rather
-    // than silently mis-resuming. (NDJSON carries the offset inside the JSON
-    // envelope and is unaffected, but the contract must hold for both wires.)
-    if (
+    const isBadOffset =
       offset.length === 0 ||
       offset.includes('\0') ||
       offset.includes('\r') ||
       offset.includes('\n') ||
       offset !== offset.trim()
-    ) {
+    if (isBadOffset) {
       throw new Error(
         `Invalid durability offset for SSE id: ${JSON.stringify(offset)}`,
       )
@@ -424,12 +397,6 @@ export function durableStreamSource<TOffset extends string>(
   async function* produce(): AsyncIterable<StreamChunk> {
     let batch: Array<StreamChunk> = []
     let terminalPersisted = false
-    // Whether a terminal event was actually delivered LIVE to the consumer (as
-    // opposed to only appended to the log). Distinguishes "the run already ended
-    // on the wire" from "the log has a terminal but the consumer never saw one",
-    // which governs whether a late durability-cleanup failure may be rethrown.
-    // Only ever assigned inside the nested flush() closure, which TS's
-    // control-flow analysis can't observe (see the disable at the read site).
     let terminalForwarded = false
     let failure: RecordedFailure | undefined
     let terminalCause: unknown
@@ -473,18 +440,17 @@ export function durableStreamSource<TOffset extends string>(
         terminalPersisted = true
       }
       for (const chunk of toForward) {
-        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        const isTerminalChunk =
+          chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+        if (isTerminalChunk) {
           terminalForwarded = true
         }
         yield chunk
       }
     }
 
-    try {
+    async function* runProduceLoop(): AsyncIterable<StreamChunk> {
       if (isAborted(abortController.signal)) return
-      // Make the run joinable BEFORE the producer is first pulled — the pull
-      // is what runs the middleware chain, and middleware may take minutes to
-      // yield a first chunk. See {@link RUN_ACCEPTED_EVENT}.
       batch.push({
         type: 'CUSTOM',
         name: RUN_ACCEPTED_EVENT,
@@ -495,21 +461,21 @@ export function durableStreamSource<TOffset extends string>(
       for await (const chunk of stream) {
         if (isAborted(abortController.signal)) break
         batch.push(chunk)
-        if (batch.length >= batchSize || isDurabilityFlushBoundary(chunk)) {
+        const shouldFlush =
+          batch.length >= batchSize || isDurabilityFlushBoundary(chunk)
+        if (shouldFlush) {
           yield* flush()
         }
       }
       if (!isAborted(abortController.signal)) yield* flush()
+    }
+
+    try {
+      yield* runProduceLoop()
     } catch (error) {
       terminalCause = error
       hasTerminalCause = true
       recordFailure(error, 'producer failed')
-      // The provider stream threw. Persist a terminal RUN_ERROR to the
-      // durability log so a resumer / joiner learns the run failed (otherwise
-      // the log ends with no terminal and they wait forever). Flush any
-      // buffered chunks first, then append the terminal WITHOUT forwarding it
-      // live — the transport layer synthesizes the live RUN_ERROR on rethrow,
-      // so forwarding here too would double-emit.
       if (!isAborted(abortController.signal)) {
         try {
           yield* flush()
@@ -518,148 +484,88 @@ export function durableStreamSource<TOffset extends string>(
         }
       }
     } finally {
-      // The PRODUCER was stopped, which is deliberately not the same question as
-      // "did the delivery socket go away". A disconnect alone must leave this
-      // false: the run survives it and terminalizes this log itself on its way
-      // out, and treating the disconnect as a cancel here would make `detached`
-      // true for a run that had already finished — skipping `close()` and parking
-      // every later tailer forever on a log nobody will ever continue.
-      const cancelled = isAborted(abortController.signal)
+      await finalizeProduce()
+    }
 
-      // Persist any buffered-but-unflushed chunks before terminalizing, so a
-      // joiner replaying the log sees everything produced up to a disconnect
-      // rather than a truncated prefix. On the abort path the streaming loop
-      // broke before its trailing flush; drain flush() here for its persistence
-      // side effect only (the delivery socket is gone, so the yielded chunks are
-      // discarded). The normal and provider-throw paths already flushed, so
-      // `batch` is empty for them and this is a no-op.
-      if (batch.length > 0) {
-        try {
-          for await (const _chunk of flush()) {
-            // persist-only: nothing consumes these
-          }
-        } catch (flushError) {
-          recordFailure(flushError, 'flushing buffered chunks on exit failed')
+    async function persistBufferedBatch(): Promise<void> {
+      if (batch.length === 0) return
+      try {
+        const flushed = flush()
+        for await (const _chunk of flushed) {
+          // persist-only: nothing consumes these
         }
+      } catch (flushError) {
+        recordFailure(flushError, 'flushing buffered chunks on exit failed')
       }
+    }
 
-      // Was this abort a DETACH? Only the run's own middleware can say — it is
-      // the only actor that has resolved both out-of-band cancel bands and
-      // `detachOnDisconnect` — and it says so on the stream itself (see
-      // `./delivery-detach`). Read only AFTER the try block above has exited,
-      // which is what awaits the chat generator's `return()` and therefore the
-      // whole `onAbort` chain that publishes the verdict.
-      //
-      // Every conjunct is load bearing. `cancelled` keeps a normal finish on
-      // today's path. `!isExplicitCancel` is core's own belt-and-braces refusal to
-      // spare a run the user deliberately stopped, whatever a middleware claims.
-      // `!hasTerminalCause` keeps a GENUINE provider failure
-      // terminal even if the socket died too, so a real error is never mistaken
-      // for a detach. And `wasRunDetached` is false for an
-      // explicit cancel (either band), for a non-detachable disconnect, and for
-      // every app that has not wired durability — all of which keep terminalizing
-      // and closing exactly as before.
-      //
-      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
-      // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
-      // `finishReason: 'tool_calls'` terminal is flushed at its boundary
-      // mid-run — so `terminalPersisted` means "some terminal is in the log",
-      // never "the run ended". Gating on it terminalized the log of a healthy,
-      // still-running agent for every tool-calling run. Nor can the sink
-      // distinguish a final terminal from an intermediate one by its
-      // `finishReason`: only the run's middleware knows, and that is exactly
-      // what the verdict reports. So a published detach verdict WINS — it
-      // already means "the agent is alive and a successor will terminalize this
-      // log".
+    async function persistTerminalIfNeeded(detached: boolean): Promise<void> {
+      const cancelled = isAborted(abortController.signal)
+      const skipTerminalPersist =
+        detached ||
+        !needsTerminalPersistence(
+          terminalPersisted,
+          cancelled,
+          hasTerminalCause,
+        )
+      if (skipTerminalPersist) {
+        return
+      }
+      const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
+      try {
+        await durability.append([runErrorChunk(cause)])
+        terminalPersisted = true
+      } catch (terminalError) {
+        logger?.errors('persisting terminal RUN_ERROR failed', {
+          error: terminalError,
+        })
+        recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
+      }
+    }
+
+    async function closeDurabilityIfNeeded(detached: boolean): Promise<void> {
+      if (detached) return
+      try {
+        await durability.close()
+      } catch (closeError) {
+        logger?.errors('closing durability stream failed', {
+          error: closeError,
+        })
+        recordFailure(closeError, 'closing durability stream failed')
+      }
+    }
+
+    function rethrowDurabilityFailure(): void {
+      if (failure === undefined) return
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
+      if (!terminalForwarded) {
+        throw failure.error
+      }
+      logger?.errors(
+        'durability failure after a terminal event was forwarded',
+        {
+          error: failure.error,
+        },
+      )
+    }
+
+    async function finalizeProduce(): Promise<void> {
+      const cancelled = isAborted(abortController.signal)
+      await persistBufferedBatch()
       const detached =
         cancelled &&
         !isExplicitCancel(abortController.signal) &&
         !hasTerminalCause &&
         wasRunDetached(stream)
-
-      if (
-        !detached &&
-        needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
-      ) {
-        // Prefer the real provider error even when the delivery socket was also
-        // aborted: if the run genuinely failed, a joiner should see that cause,
-        // not a generic AbortError that masks it. AbortError is only used for a
-        // pure cancellation with no underlying failure.
-        const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
-        try {
-          await durability.append([runErrorChunk(cause)])
-          terminalPersisted = true
-        } catch (terminalError) {
-          // Rethrown to the live consumer below, but a joiner replaying the log
-          // only ever sees a generic incomplete error — so record the real
-          // cause server-side where an operator can act on it.
-          logger?.errors('persisting terminal RUN_ERROR failed', {
-            error: terminalError,
-          })
-          recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
-        }
-      }
-
-      // A detached run's log is deliberately left OPEN: the run is still going,
-      // and `close()` would terminalize the log the takeover has to continue —
-      // a tailing attach would stop at the prefix, and a stored synthetic
-      // `RUN_ERROR` would additionally diverge the takeover's journal replay and
-      // record a healthy run as failed.
-      //
-      // This is NOT the general "fence the close" that `ai-sandbox`'s claim.ts
-      // rules out. That fence would suppress `close()` for a run nobody will ever
-      // drive again, wedging the record at `'running'` with every tailer parked
-      // forever. The skip here is conditional on a verdict that means the exact
-      // opposite: the agent is alive and a successor WILL terminalize this log
-      // (its own producer exit runs this same `finally`). Keep that distinction —
-      // widening this condition to "any abort" re-introduces the wedge.
-      if (!detached) {
-        try {
-          await durability.close()
-        } catch (closeError) {
-          // A failed close leaves the durable log unterminated for joiners; the
-          // live consumer gets the rethrow, but log it for the joiner's sake.
-          logger?.errors('closing durability stream failed', {
-            error: closeError,
-          })
-          recordFailure(closeError, 'closing durability stream failed')
-        }
-      }
-
-      // Rethrow a terminalization/close failure to the live consumer ONLY when
-      // no terminal reached it yet — the transport then synthesizes a live
-      // RUN_ERROR so the consumer isn't left without a terminal. If a terminal
-      // was already forwarded (the run ended on the wire), a late failure is a
-      // server-side cleanup issue; rethrowing it would append a contradictory
-      // second terminal (RUN_ERROR after RUN_FINISHED) on the wire. Suppress the
-      // rethrow, but never let the cause vanish — record it server-side, the
-      // same as the close / terminal-append failures above. (This also covers a
-      // provider that throws AFTER emitting its own terminal, whose error is
-      // otherwise neither delivered nor logged.)
-      if (failure !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
-        if (!terminalForwarded) {
-          // eslint-disable-next-line no-unsafe-finally
-          throw failure.error
-        }
-        logger?.errors(
-          'durability failure after a terminal event was forwarded',
-          {
-            error: failure.error,
-          },
-        )
-      }
+      await persistTerminalIfNeeded(detached)
+      await closeDurabilityIfNeeded(detached)
+      rethrowDurabilityFailure()
     }
   }
 
   async function* replay(offset: TOffset): AsyncIterable<StreamChunk> {
-    // Thread the consumer's abort signal into the read so a live-tailing join
-    // (a mid-stream reconnect) that is aborted — or that hit a runId with no
-    // in-process producer — stops parking and ends instead of hanging forever.
-    for await (const { offset: eventOffset, chunk } of durability.read(
-      offset,
-      abortController.signal,
-    )) {
+    const records = durability.read(offset, abortController.signal)
+    for await (const { offset: eventOffset, chunk } of records) {
       if (isAborted(abortController.signal)) break
       validateOffset(eventOffset)
       idByChunk.set(chunk, eventOffset)
@@ -736,13 +642,6 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
-    // A fresh run (not a resume/replay) drains into the durable log under its
-    // OWN producer controller, decoupled from the HTTP response: a response
-    // cancel (page reload) detaches and keeps draining in the background so a
-    // rejoining client tails the log to the real terminal, rather than killing
-    // the run and sealing the log with RUN_ERROR. The producer is aborted only
-    // by a caller-supplied `abortController` (a genuine stop()). On the resume
-    // path the response IS a reader, so a cancel should stop the read normally.
     const isFresh = durability.adapter.resumeFrom() === null
     const producerAbortController = abortController ?? new AbortController()
     const deliveryAbortController = isFresh
@@ -751,9 +650,6 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     const { source, getId } = durableStreamSource(stream, durability.adapter, {
       abortController: producerAbortController,
       batch: durability.batch,
-      // `errors` category is on by default even when `debug` is undefined, so
-      // durability terminal-append / close failures always surface server-side —
-      // including on the client-disconnect path where there is no live consumer.
       logger: resolveDebugOption(debug),
     })
     const { encodeChunk, encodeError } = sseEncoders(getId)
@@ -882,13 +778,6 @@ function startRunDriver(driver: RunDriverOptions): void {
       })
       return
     }
-    // Validated, not trusted: `record.status` is typed `RunStatus` but comes off
-    // a user-implemented `RunStore`, so the type is a claim about a storage
-    // column and nothing checked it. An unrecognized value means the run cannot
-    // be reasoned about at all — the record says nothing trustworthy about
-    // whether an agent is already driving it — so refuse the drive the same way
-    // a terminal record does, and still serve the log so a corrupt row does not
-    // also blank the transcript.
     if (record !== null && !isRunStatus(record.status)) {
       logger?.errors(
         'resume driver: the run record has an unrecognized status',
@@ -900,44 +789,13 @@ function startRunDriver(driver: RunDriverOptions): void {
       return
     }
     if (record === null || isTerminalRunStatus(record.status)) return
-    // A recorded cancel is NOT a status. `requestRunCancel` deliberately writes
-    // only `cancelRequested`, so a run cancelled out of band while its driving
-    // host had already died stays `'running'` — and the status gate above waves
-    // it straight through. Driving it resurrects a run the user explicitly
-    // stopped and burns tokens until the TTL expires. The log is still served, so
-    // an attaching tab sees the transcript; only the drive is refused.
-    //
-    // This is the "don't START one" half. Aborting a drive that is ALREADY live
-    // when a cancel lands afterwards is a separate, still-open concern.
     if (record.cancelRequested === true) return
-    // Captured after narrowing so the closure below sees a definite record
-    // rather than the re-widened `let`.
     const active = record
 
     try {
       await driver.claim(
         { runs: driver.runs, locks: driver.locks, runId },
         async (claim) => {
-          // A viewer is attached again, so the detached clock stops. Cleared
-          // under the claim so it cannot race the reaper's read.
-          //
-          // THE REAPER: do NOT reuse `startRunDriver` for reclaiming detached
-          // runs. `@tanstack/ai-sandbox`'s `reapDetachedRuns` deliberately does
-          // the opposite of this line — it ACTS ON `detachedSince` and must
-          // leave the marker intact for its own TTL accounting — so borrowing
-          // this path would erase the very evidence the reaper selected the run
-          // on, resetting the TTL on every sweep so a detached run could never
-          // expire. That is why the reaper has its own drive path.
-          //
-          // LOG AND CONTINUE. This write is BOOKKEEPING for the reaper's TTL
-          // accounting; the claim is already held and the takeover is the
-          // valuable part. Letting a rejection propagate would land in the catch
-          // below — the channel reserved for the normal "someone else won the
-          // lease" case — so one transient store error would silently cost the
-          // whole drive, logged only on the `provider` debug channel and
-          // therefore invisible at default log levels. The worst case of
-          // continuing is a stale `detachedSince` the reaper may act on later;
-          // the worst case of vetoing is a run nobody drives at all.
           try {
             await driver.runs.update(runId, { detachedSince: undefined })
           } catch (error) {
@@ -1005,9 +863,6 @@ const NO_RESUME_OFFSET =
 export function resumeServerSentEventsResponse<TOffset extends string = string>(
   options: ResumeResponseOptions<TOffset>,
 ): Response {
-  // `driver` MUST be destructured out: `responseInit` is spread into
-  // `new Response(body, init)`, so leaving it in would leak the driver object
-  // (and its Request) into the response init.
   const { adapter, batch, debug, driver, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })
@@ -1120,23 +975,12 @@ export function toHttpResponse<TOffset extends string = string>(
   init?: ResponseInit & {
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
-    /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
-     * `errors` category is on even without `debug`, via a `ConsoleLogger`);
-     * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
-     */
     debug?: DebugOption
   },
 ): Response {
   const { abortController, durability, debug, headers, ...responseInit } =
     init ?? {}
 
-  // Default to a streaming NDJSON content type (with no-cache), overridable by
-  // user headers. Without an explicit streaming type some intermediaries buffer
-  // the response, defeating incremental delivery. Mirrors the SSE helper.
   const mergedHeaders = new Headers({
     'Content-Type': 'application/x-ndjson',
     'Cache-Control': 'no-cache',
@@ -1150,10 +994,6 @@ export function toHttpResponse<TOffset extends string = string>(
 
   let body: ReadableStream<Uint8Array>
   if (durability) {
-    // See toServerSentEventsResponse: a fresh run drains into the durable log
-    // under its own producer controller, so a response cancel (reload) detaches
-    // and keeps draining in the background instead of killing the run; a resume
-    // response is a reader whose cancel stops the read normally.
     const isFresh = durability.adapter.resumeFrom() === null
     const producerAbortController = abortController ?? new AbortController()
     const deliveryAbortController = isFresh

@@ -10,7 +10,6 @@
  *
  * @see https://console.groq.com/docs/api-reference#chat
  */
-
 export type FunctionParameters = { [key: string]: unknown }
 
 export interface ChatCompletionNamedToolChoice {
@@ -23,10 +22,7 @@ export interface ChatCompletionNamedToolChoice {
 }
 
 export interface FunctionDefinition {
-  /**
-   * The name of the function to be called. Must be a-z, A-Z, 0-9, or contain
-   * underscores and dashes, with a maximum length of 64.
-   */
+  /** The name of the function to call. */
   name: string
 
   /**
@@ -64,10 +60,7 @@ export type ChatCompletionToolChoiceOption =
   | ChatCompletionNamedToolChoice
 
 export interface ChatCompletionTool {
-  /**
-   * The type of the tool. `function`, `browser_search`, and `code_interpreter` are
-   * supported.
-   */
+  /** Always `function` for a named tool choice. */
   type: 'function' | 'browser_search' | 'code_interpreter' | (string & {})
 
   function?: FunctionDefinition
@@ -131,16 +124,8 @@ export interface ResponseFormatText {
 }
 
 export interface ResponseFormatJsonSchemaJsonSchema {
-  /**
-   * The name of the response format. Must be a-z, A-Z, 0-9, or contain underscores
-   * and dashes, with a maximum length of 64.
-   */
   name: string
 
-  /**
-   * A description of what the response format is for, used by the model to determine
-   * how to respond in the format.
-   */
   description?: string
 
   /**
@@ -149,11 +134,6 @@ export interface ResponseFormatJsonSchemaJsonSchema {
    */
   schema?: { [key: string]: unknown }
 
-  /**
-   * Whether to enable strict schema adherence when generating the output. If set to
-   * true, the model will always follow the exact schema defined in the `schema`
-   * field. Only a subset of JSON Schema is supported when `strict` is `true`.
-   */
   strict?: boolean | null
 }
 
@@ -231,6 +211,7 @@ export interface GroqVideoMetadata {}
  * Used for type inference when constructing multimodal messages.
  */
 export interface GroqMessageMetadataByModality {
+  /** The document contents. */
   text: GroqTextMetadata
   image: GroqImageMetadata
   audio: GroqAudioMetadata

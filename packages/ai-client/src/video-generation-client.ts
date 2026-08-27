@@ -45,9 +45,6 @@ import type {
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.
  */
-// All optional fields explicitly allow `| undefined` so callers can spread
-// option bags (where each callback may be `undefined`) into the callbacks
-// ref under `exactOptionalPropertyTypes`.
 interface VideoCallbacks<TOutput> {
   onResult?:
     | ((result: VideoGenerateResult) => TOutput | null | void)
@@ -108,9 +105,6 @@ interface VideoCallbacks<TOutput> {
  */
 export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly connection: ConnectConnectionAdapter | undefined
-  // Persistence handlers supplied as options (e.g. alongside a `fetcher`), used
-  // when the connection doesn't carry its own — the connection's handlers take
-  // precedence when both exist.
   private readonly hydrateGenerationHandler:
     | ConnectConnectionAdapter['hydrateGeneration']
     | undefined
@@ -190,13 +184,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     this.devtoolsBridge = (
       options.devtoolsBridgeFactory ?? createNoOpVideoDevtoolsBridge
     )<TOutput>(this.buildDevtoolsBridgeOptions())
-
-    // Mount hydration (`maybeHydrateFromServer`) is deliberately NOT run here. The framework
-    // hooks build this client inside `useMemo`, so the constructor executes in
-    // React's render phase; hydrating here would re-fire the hydrate GET on
-    // every discarded/speculative render, flooding the connection pool when
-    // several clients mount together. It is kicked off once from
-    // `mountDevtools`, which the hooks call from a commit-phase mount effect.
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {
@@ -227,10 +214,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
 
   mountDevtools(): void {
     this.ensureThreadId()
-    // Mounting revives a disposed client. Framework hooks call this from
-    // their mount effect, so a dispose → remount cycle (e.g. React
-    // StrictMode's mount → cleanup → mount replay against the same memoized
-    // client) leaves the client usable again.
     this.disposed = false
     this.maybeHydrateFromServer()
     // Re-attach to an already-loaded `running` snapshot (remount case); see the
@@ -293,7 +276,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           'VideoGenerationClient requires either a connection or fetcher option',
         )
       }
-      if (!signal.aborted && this.status === 'success') {
+      const isSuccessfulRun = !signal.aborted && this.status === 'success'
+      if (isSuccessfulRun) {
         this.devtoolsBridge.finishRun(
           this.devtoolsBridge.getActiveRunId() ?? runId,
           'run:completed',
@@ -306,7 +290,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
       }
-      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      const isByokLocked =
+        error instanceof ByokBlockedError && error.reason === 'locked'
+      if (isByokLocked) {
         this.byok?.request(error.provider, 'locked')
       }
       this.setError(error)
@@ -370,8 +356,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     fallbackRunId: string,
     signal: AbortSignal,
   ): Promise<void> {
-    let streamRunId: string | undefined
-    let sawTerminalChunk = false
+    const state = {
+      streamRunId: undefined as string | undefined,
+      sawTerminalChunk: false,
+    }
 
     for await (const raw of source) {
       if (signal.aborted) break
@@ -379,66 +367,80 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
       this.observeResumeSnapshot(chunk)
-      const chunkRunId =
-        'runId' in chunk && typeof chunk.runId === 'string'
-          ? chunk.runId
-          : undefined
-
-      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType has ~22 variants; this consumer only handles the subset relevant to video generation lifecycle.
-      switch (chunk.type) {
-        case 'RUN_STARTED': {
-          streamRunId = chunk.runId
-          this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          break
-        }
-        case 'CUSTOM': {
-          this.devtoolsBridge.ensureRunStarted(streamRunId ?? fallbackRunId)
-          if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
-            const { jobId } = chunk.value as { jobId: string }
-            this.setJobId(jobId)
-            this.callbacksRef.onJobCreated?.(jobId)
-          } else if (chunk.name === GENERATION_EVENTS.VIDEO_STATUS) {
-            const statusInfo = chunk.value as VideoStatusInfo
-            this.setVideoStatus(statusInfo)
-            this.callbacksRef.onStatusUpdate?.(statusInfo)
-            if (statusInfo.progress !== undefined) {
-              this.setProgress(statusInfo.progress)
-            }
-          } else if (chunk.name === GENERATION_EVENTS.RESULT) {
-            this.setResult(chunk.value as VideoGenerateResult)
-          } else if (chunk.name === GENERATION_EVENTS.PROGRESS) {
-            const { progress, message } = chunk.value as {
-              progress: number
-              message?: string
-            }
-            this.setProgress(progress, message)
-          }
-          break
-        }
-        case 'RUN_FINISHED': {
-          streamRunId = chunk.runId
-          sawTerminalChunk = true
-          this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          this.setStatus('success')
-          break
-        }
-        case 'RUN_ERROR': {
-          this.devtoolsBridge.ensureRunStarted(
-            chunkRunId ?? streamRunId ?? fallbackRunId,
-          )
-          // Spec RUN_ERROR message. Missing message uses this fallback.
-          const msg =
-            (chunk.message as string | undefined) || 'An error occurred'
-          throw new Error(msg)
-        }
-        default:
-          break
-      }
+      this.applyVideoStreamChunk(chunk, fallbackRunId, state)
     }
 
     // An aborted read is a deliberate stop/dispose, not a truncation.
-    if (!sawTerminalChunk && !signal.aborted) {
+    const isTruncatedStream = !state.sawTerminalChunk && !signal.aborted
+    if (isTruncatedStream) {
       throw new Error(GENERATION_STREAM_TRUNCATED_MESSAGE)
+    }
+  }
+
+  private applyVideoStreamChunk(
+    chunk: StreamChunk,
+    fallbackRunId: string,
+    state: { streamRunId: string | undefined; sawTerminalChunk: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      state.streamRunId = chunk.runId
+      this.devtoolsBridge.ensureRunStarted(chunk.runId)
+      return
+    }
+    if (chunk.type === 'CUSTOM') {
+      this.applyVideoCustomChunk(chunk, state.streamRunId ?? fallbackRunId)
+      return
+    }
+    if (chunk.type === 'RUN_FINISHED') {
+      state.streamRunId = chunk.runId
+      state.sawTerminalChunk = true
+      this.devtoolsBridge.ensureRunStarted(chunk.runId)
+      this.setStatus('success')
+      return
+    }
+    if (chunk.type !== 'RUN_ERROR') return
+    const chunkRunId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
+    this.devtoolsBridge.ensureRunStarted(
+      chunkRunId ?? state.streamRunId ?? fallbackRunId,
+    )
+    // Spec RUN_ERROR message. Missing message uses this fallback.
+    const msg = (chunk.message as string | undefined) || 'An error occurred'
+    throw new Error(msg)
+  }
+
+  private applyVideoCustomChunk(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    runId: string,
+  ): void {
+    this.devtoolsBridge.ensureRunStarted(runId)
+    if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
+      const { jobId } = chunk.value as { jobId: string }
+      this.setJobId(jobId)
+      this.callbacksRef.onJobCreated?.(jobId)
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.VIDEO_STATUS) {
+      const statusInfo = chunk.value as VideoStatusInfo
+      this.setVideoStatus(statusInfo)
+      this.callbacksRef.onStatusUpdate?.(statusInfo)
+      if (statusInfo.progress !== undefined) {
+        this.setProgress(statusInfo.progress)
+      }
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.RESULT) {
+      this.setResult(chunk.value as VideoGenerateResult)
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.PROGRESS) {
+      const { progress, message } = chunk.value as {
+        progress: number
+        message?: string
+      }
+      this.setProgress(progress, message)
     }
   }
 
@@ -458,10 +460,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
-    // A stopped run is no longer resumable. Without this the in-memory
-    // snapshot stays `running`, and a remount's `maybeResumeInFlight` would
-    // rejoin a run the user just cancelled.
-    if (this.resumeSnapshot && this.resumeSnapshot.status === 'running') {
+    const hasRunningSnapshot =
+      this.resumeSnapshot && this.resumeSnapshot.status === 'running'
+    if (hasRunningSnapshot) {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
         resumeState: null,
@@ -554,10 +555,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     this.rejoinedRunId = undefined
   }
 
-  // ===========================
-  // Getters
-  // ===========================
-
   getResult(): TOutput | null {
     return this.result
   }
@@ -609,10 +606,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       : undefined
   }
 
-  // ===========================
-  // Private state setters
-  // ===========================
-
   private setResult(rawResult: VideoGenerateResult | null): void {
     if (rawResult === null) {
       this.result = null
@@ -644,10 +637,6 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       }
     }
 
-    // No onResult callback, or callback returned void → use raw value as
-    // TOutput. When the caller did not supply an onResult transform,
-    // `TOutput` defaults to `VideoGenerateResult`, so the runtime cast is
-    // sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to VideoGenerateResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
     this.callbacksRef.onResultChange?.(this.result)
@@ -908,15 +897,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * run is still in flight.
    */
   private recordResumeSnapshotError(error: Error): void {
-    // Surface the failure on the observable fields FIRST, unconditionally (see
-    // the note in GenerationClient.recordResumeSnapshotError): a RUN_ERROR
-    // already flipped the snapshot to `error`, so the early-return would else
-    // skip this and leave `status` stuck on `generating`. The guard avoids a
-    // duplicate `error` emission on the live `generate()` path.
     if (this.status !== 'error') this.setStatus('error')
     this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
-    if (!this.resumeSnapshot && !this.serverDriven) return
+    const hasNoResumeTarget = !this.resumeSnapshot && !this.serverDriven
+    if (hasNoResumeTarget) return
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -948,9 +933,12 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * re-fire the hydrate GET.
    */
   private maybeHydrateFromServer(): void {
-    if (!this.serverDriven || this.serverHydrationStarted) return
+    const shouldHydrate = this.serverDriven && !this.serverHydrationStarted
+    if (!shouldHydrate) return
     this.serverHydrationStarted = true
-    if (this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler) {
+    const hydrateHandler =
+      this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
+    if (hydrateHandler) {
       this.hydrateFromServer()
     } else {
       // `persistence: true` without any hydrate source can never restore
@@ -978,7 +966,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
     if (!hydrate) return
     // A send that already started owns the client; don't stomp it.
-    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
+    const isClientBusy =
+      this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+    if (isClientBusy) return
     void (async () => {
       let res: GenerationHydrationResult
       try {
@@ -1004,8 +994,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         return
       }
       // Re-check: a send may have started while the fetch was in flight.
-      if (this.resumeSnapshot || this.isLoading || this.status !== 'idle')
-        return
+      const isClientBusy =
+        this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+      if (isClientBusy) return
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
@@ -1016,7 +1007,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
    * `generate()` took ownership while the hydrate GET was in flight.
    */
   private failHydration(error: Error): void {
-    if (this.resumeSnapshot || this.isLoading || this.status !== 'idle') return
+    const isClientBusy =
+      this.resumeSnapshot || this.isLoading || this.status !== 'idle'
+    if (isClientBusy) return
     this.setStatus('error')
     this.setError(error)
     this.callbacksRef.onError?.(error)
@@ -1042,7 +1035,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const joinRun = this.connection?.joinRun ?? this.joinRunHandler
     if (!joinRun) return
     if (this.rejoinedRunId === runId) return
-    if (this.isLoading || this.abortController) return
+    const hasActiveStream = this.isLoading || this.abortController
+    if (hasActiveStream) return
     this.rejoinedRunId = runId
     const controller = new AbortController()
     this.abortController = controller
@@ -1059,16 +1053,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         if (!controller.signal.aborted) {
           const failure =
             error instanceof Error ? error : new Error(String(error))
-          // Settles `status`/`error` AND rewrites the snapshot to a terminal
-          // `error` with a null `resumeState`, so the next mount does not
-          // rejoin this run again.
           this.recordResumeSnapshotError(failure)
           this.callbacksRef.onError?.(failure)
         }
       } finally {
-        // Only reset if this rejoin still owns the client: a `stop()` +
-        // fresh `generate()` may have replaced the controller while the tail
-        // was settling, and that live run owns `isLoading` now.
         if (this.abortController === controller) {
           this.abortController = null
           this.setIsLoading(false)

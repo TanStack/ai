@@ -96,11 +96,14 @@ function findSecretParams(
   path: Array<string>,
   found: Array<{ path: Array<string>; name: string }>,
 ): void {
-  if (!schema || typeof schema !== 'object' || seen.has(schema)) return
+  if (!schema) return
+  if (typeof schema !== 'object') return
+  if (seen.has(schema)) return
   seen.add(schema)
 
   if (schema.properties && typeof schema.properties === 'object') {
-    for (const [paramName, sub] of Object.entries(schema.properties)) {
+    const properties = Object.entries(schema.properties)
+    for (const [paramName, sub] of properties) {
       if (looksLikeSecret(paramName)) {
         found.push({ path: [...path, paramName], name: paramName })
       }

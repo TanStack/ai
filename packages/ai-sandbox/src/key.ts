@@ -1,9 +1,3 @@
-/**
- * Compound sandbox identity. We never key a resumable sandbox on `threadId`
- * alone — that would resume the WRONG environment when the provider,
- * workspace, image, or tenant changes. The key folds all of those in, so any
- * change busts the sandbox and forces a fresh create+bootstrap (safe default).
- */
 import type { WorkspaceDefinition } from './workspace'
 
 /** Inputs that, together, identify one resumable sandbox instance. */

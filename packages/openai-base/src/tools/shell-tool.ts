@@ -39,7 +39,8 @@ function validateShellEnvironment(
   for (const skill of skills) {
     if ('skill_id' in skill) {
       const id = skill.skill_id
-      if (id.length < 1 || id.length > 64) {
+      const isInvalidSkillId = id.length < 1 || id.length > 64
+      if (isInvalidSkillId) {
         throw new Error('skill_id must be between 1 and 64 characters.')
       }
     }

@@ -39,6 +39,36 @@ import type { CodexModel } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
+function chatRunErrorChunk(error: unknown, model: string): AdapterYieldChunk {
+  const err = error as Error & { code?: string }
+  const rawEvent = toRunErrorRawEvent(error)
+  const message = err.message || 'Unknown error occurred'
+  return {
+    type: EventType.RUN_ERROR,
+    model,
+    timestamp: Date.now(),
+    message,
+    ...(err.code !== undefined && { code: err.code }),
+    ...(rawEvent !== undefined && { rawEvent }),
+    error: {
+      message,
+      ...(err.code !== undefined && { code: err.code }),
+    },
+  }
+}
+
+function abortSignalFields(
+  options: TextOptions<CodexTextProviderOptions>,
+): { signal: AbortSignal } | Record<string, never> {
+  if (options.abortController?.signal) {
+    return { signal: options.abortController.signal }
+  }
+  if (options.request?.signal) {
+    return { signal: options.request.signal }
+  }
+  return {}
+}
+
 export type CodexSandboxMode =
   | 'read-only'
   | 'workspace-write'
@@ -163,6 +193,7 @@ export class CodexTextAdapter<
     provider: string,
     outputSchemaPath: string | undefined,
   ): string {
+    /** Extra raw `--config key=value` overrides (values passed verbatim as TOML). */
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
@@ -175,58 +206,33 @@ export class CodexTextAdapter<
       config.sandboxMode ??
       policyFlags.sandboxMode ??
       defaultSandboxMode(provider)
+    /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
     const approvalPolicy =
       modelOptions?.approvalPolicy ??
       config.approvalPolicy ??
       policyFlags.approvalPolicy ??
       'never'
+    /** Allow network in `workspace-write` (`--config sandbox_workspace_write.network_access=`). */
     const networkAccessEnabled =
       config.networkAccessEnabled ?? policyFlags.networkAccessEnabled
     const reasoning =
       modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
+    /** Skip Codex's git-repo safety check (`--skip-git-repo-check`). Defaults to true. */
     const skipGitRepoCheck =
       modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
 
     args.push('--model', q(this.model))
     args.push('--sandbox', q(sandboxMode))
-    // NOTE: do NOT pass `--cd <cwd>`. `cwd` is the VIRTUAL `/workspace` root; the
-    // provider handle already maps it to the sandbox's real workdir and runs the
-    // process there (e.g. Daytona's `/home/daytona/workspace`). Passing it as a
-    // literal `--cd` makes codex chdir to a path that doesn't exist on the real
-    // filesystem → "No such file or directory (os error 2)". Codex inherits the
-    // handle-set process cwd instead.
-    if (skipGitRepoCheck !== false) args.push('--skip-git-repo-check')
-    for (const dir of config.additionalDirectories ?? []) {
-      args.push('--add-dir', q(dir))
-    }
+    this.pushCodexDirFlags(args, skipGitRepoCheck, config.additionalDirectories)
 
-    const cfg: Record<string, string> = {
-      approval_policy: `"${approvalPolicy}"`,
-      ...(reasoning ? { model_reasoning_effort: `"${reasoning}"` } : {}),
-      ...(networkAccessEnabled !== undefined
-        ? {
-            'sandbox_workspace_write.network_access':
-              String(networkAccessEnabled),
-          }
-        : {}),
-      ...(config.webSearchMode
-        ? { web_search: `"${config.webSearchMode}"` }
-        : {}),
-      // Bridge chat()-provided tools via a streamable-HTTP MCP server. A `url`
-      // makes codex use its streamable-HTTP transport, which authenticates via an
-      // `Authorization` header — codex REJECTS inline `bearer_token` for this
-      // transport ("bearer_token is not supported for streamable_http"; that field
-      // is only for the stdio transport). Pass the per-run bearer as an HTTP header
-      // instead; the host tool-bridge checks `Authorization: Bearer <token>`.
-      ...(bridge
-        ? {
-            [`mcp_servers.${bridge.name}.url`]: `"${bridge.url}"`,
-            [`mcp_servers.${bridge.name}.http_headers`]: `{ "Authorization" = "Bearer ${bridge.token}" }`,
-          }
-        : {}),
-      ...config.config,
-    }
-    for (const [key, value] of Object.entries(cfg)) {
+    const cfg = this.codexConfigFlags(
+      approvalPolicy,
+      reasoning,
+      networkAccessEnabled,
+      bridge,
+    )
+    const configFlags = Object.entries(cfg)
+    for (const [key, value] of configFlags) {
       args.push('--config', q(`${key}=${value}`))
     }
 
@@ -240,6 +246,97 @@ export class CodexTextAdapter<
     return `${exe} ${args.join(' ')}`
   }
 
+  private pushCodexDirFlags(
+    args: Array<string>,
+    skipGitRepoCheck: boolean | undefined,
+    additionalDirectories: Array<string> | undefined,
+  ): void {
+    if (skipGitRepoCheck !== false) args.push('--skip-git-repo-check')
+    for (const dir of additionalDirectories ?? []) {
+      args.push('--add-dir', q(dir))
+    }
+  }
+
+  private codexConfigFlags(
+    approvalPolicy: string,
+    reasoning: string | undefined,
+    networkAccessEnabled: boolean | undefined,
+    bridge: HostToolBridge | undefined,
+  ): Record<string, string> {
+    const config = this.adapterConfig
+    return {
+      approval_policy: `"${approvalPolicy}"`,
+      ...(reasoning ? { model_reasoning_effort: `"${reasoning}"` } : {}),
+      ...(networkAccessEnabled !== undefined
+        ? {
+            'sandbox_workspace_write.network_access':
+              String(networkAccessEnabled),
+          }
+        : {}),
+      ...(config.webSearchMode
+        ? { web_search: `"${config.webSearchMode}"` }
+        : {}),
+      ...(bridge
+        ? {
+            [`mcp_servers.${bridge.name}.url`]: `"${bridge.url}"`,
+            [`mcp_servers.${bridge.name}.http_headers`]: `{ "Authorization" = "Bearer ${bridge.token}" }`,
+          }
+        : {}),
+      ...config.config,
+    }
+  }
+
+  private async maybeProvisionCodexBridge(
+    options: TextOptions<CodexTextProviderOptions>,
+    sandbox: SandboxHandle,
+    channel: ReturnType<typeof createBridgeEventChannel>,
+  ): Promise<HostToolBridge | undefined> {
+    if (!options.tools) return undefined
+    if (options.tools.length === 0) return undefined
+    const provisioner =
+      (options.capabilities
+        ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+        : undefined) ?? nodeHttpBridgeProvisioner
+    return await provisioner.provision(options.tools, {
+      provider: sandbox.provider,
+      context: options.context,
+      emitCustomEvent: channel.emitCustomEvent,
+      ...(options.abortController?.signal
+        ? { signal: options.abortController.signal }
+        : {}),
+    })
+  }
+
+  private codexPrompt(
+    options: TextOptions<CodexTextProviderOptions>,
+    prompt: string,
+  ): string {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+      .map((p) => p.content)
+      .filter((c) => c.trim() !== '')
+    if (systemPrompts.length === 0) return prompt
+    return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private async prepareCodexStdin(
+    sandbox: SandboxHandle,
+    command: string,
+    fullPrompt: string,
+    runId: string,
+    tempFiles: Array<string>,
+  ): Promise<{ runCommand: string; stdinInput: string | undefined }> {
+    if (sandbox.capabilities.writableStdin !== false) {
+      return { runCommand: command, stdinInput: fullPrompt }
+    }
+    const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
+    await sandbox.fs.write(promptPath, fullPrompt)
+    tempFiles.push(promptPath)
+    return {
+      runCommand: `${command} < ${q(promptPath)}`,
+      stdinInput: undefined,
+    }
+  }
+
   async *chatStream(
     options: TextOptions<CodexTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -247,14 +344,6 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
-    // Durability caveat: the journaled path below derives its journal file
-    // path from `runId` alone (see `journalPaths` in `@tanstack/ai-sandbox`),
-    // and a successor host must recompute that same path to resume this run.
-    // That is only possible when the caller supplies a stable `runId`.
-    // `resolveDurableRunId` enforces that when durability is wired (both
-    // `runs` and `durability.adapter` given to `withSandbox`) and preserves
-    // the generated fallback — `this.generateId()`, a fresh random id every
-    // call — when it is not, so a non-durable run's behavior is unchanged.
     const durability = options.capabilities
       ? getSandboxDurability(options.capabilities, { optional: true })
       : undefined
@@ -263,11 +352,6 @@ export class CodexTextAdapter<
       adapter: 'codex',
       fallback: () => this.generateId(),
     })
-    // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
-    // ATTACHING run that mints a fresh one replays a stream the stored log
-    // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-    // instead of letting alignment discover it mid-stream; a durable FRESH run
-    // and a non-durable run both keep the generated fallback untouched.
     const threadId = resolveDurableThreadId(options.threadId, {
       durable: durability !== undefined,
       attaching: durability?.attach === true,
@@ -284,42 +368,21 @@ export class CodexTextAdapter<
     try {
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
+      /** Working directory inside the sandbox. Defaults to `/workspace`. */
       const cwd = this.workdir(options)
 
-      // Project declarative workspace inputs (MCP/skills) into codex's native
-      // format. Re-runs each call so rotated secrets re-apply; idempotent ops
-      // are marker-gated inside the projector.
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
         : undefined
       if (projection) await projectCodexWorkspace(sandbox, projection)
 
-      if (options.tools && options.tools.length > 0) {
-        const provisioner =
-          (options.capabilities
-            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
-            : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
-          provider: sandbox.provider,
-          context: options.context,
-          emitCustomEvent: channel.emitCustomEvent,
-          ...(options.abortController?.signal
-            ? { signal: options.abortController.signal }
-            : {}),
-        })
-      }
+      bridge = await this.maybeProvisionCodexBridge(options, sandbox, channel)
 
       const { prompt, resume } = buildPrompt(
         options.messages,
         options.modelOptions?.sessionId,
       )
-      const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
-        .map((p) => p.content)
-        .filter((c) => c.trim() !== '')
-      const fullPrompt =
-        systemPrompts.length > 0
-          ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
-          : prompt
+      const fullPrompt = this.codexPrompt(options, prompt)
 
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
@@ -346,52 +409,23 @@ export class CodexTextAdapter<
         { provider: 'codex', model: this.model },
       )
 
-      // Deliver the prompt. Default: over stdin. Providers without a writable
-      // host→process stdin can't accept that — Docker's hijacked exec severs
-      // stdout when stdin EOF is signalled (losing the agent's output), and
-      // Cloudflare can't write stdin at all — so feed the prompt from a file
-      // (`codex exec … < file`) instead.
-      let runCommand = command
-      let stdinInput: string | undefined = fullPrompt
-      if (sandbox.capabilities.writableStdin === false) {
-        // Reuse the ALREADY-RESOLVED `runId`, not a fresh `options.runId ?? this.generateId()`
-        // re-derivation: the latter mints a SECOND random id whenever
-        // `options.runId` is absent, so the prompt file's suffix would not
-        // even match the journal path derived from the run's own `runId`
-        // above (see `resolveDurableRunId`). That mismatch is invisible
-        // (the prompt still gets read), but it defeats the whole point of a
-        // stable, caller-supplied `runId` for anything keyed off it.
-        // `encodeRunId`, because durability makes `runId` CALLER-chosen and this
-        // interpolates it into a filesystem path. Raw, a `/` would silently turn
-        // the basename into a nested path (writing outside `/tmp` or failing on a
-        // missing dir), `..` would climb out of it, and a long id would fail the
-        // spawn with `ENAMETOOLONG`. The encoder collapses every id to one
-        // bounded, injective path segment — the same one `journalPaths` uses, so
-        // the prompt file and the journal agree on how this id spells.
-        const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
-        await sandbox.fs.write(promptPath, fullPrompt)
-        tempFiles.push(promptPath)
-        runCommand = `${command} < ${q(promptPath)}`
-        stdinInput = undefined
-      }
+      const prepared = await this.prepareCodexStdin(
+        sandbox,
+        command,
+        fullPrompt,
+        runId,
+        tempFiles,
+      )
 
-      // `undefined` whenever the run is not durable, so `spawnNdjson` takes its
-      // original, unjournaled path and behavior stays byte-identical to a
-      // pre-durability run. When durable, this also carries `attach`, which is
-      // how `spawnNdjson` decides to tail an EXISTING journal instead of
-      // starting a new agent — set by the attach route's `drive()` callback,
-      // never by an application's POST handler (see `SandboxDurabilityOptions.attach`).
       const journalOptions = journalOptionsFor(durability, runId)
 
-      const rawEvents = spawnNdjson(sandbox, runCommand, {
+      const rawEvents = spawnNdjson(sandbox, prepared.runCommand, {
         cwd,
-        ...(stdinInput !== undefined ? { input: stdinInput } : {}),
+        ...(prepared.stdinInput !== undefined
+          ? { input: prepared.stdinInput }
+          : {}),
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
-        ...(options.abortController?.signal
-          ? { signal: options.abortController.signal }
-          : options.request?.signal
-            ? { signal: options.request.signal }
-            : {}),
+        ...abortSignalFields(options),
         onNonJsonLine: (line) =>
           logger.provider(`provider=codex non-json line: ${line}`, {
             chunk: line,
@@ -405,29 +439,8 @@ export class CodexTextAdapter<
         for await (const event of rawEvents) yield event as CodexThreadEvent
       }
 
-      // Deterministic, run-scoped ids: journal replay re-translates the same
-      // journal bytes, and `this.generateId()` (Date.now() + Math.random())
-      // would mint different message ids on every replay. See
-      // chunk-identity.ts in `@tanstack/ai-sandbox` for why this is required.
       const genId = createRunScopedIdGen(runId)
 
-      // `mergeChunkStreams` below interleaves `translateThreadEvents`'s
-      // deterministic output with `channel.stream` (host-tool-bridge CUSTOM
-      // events from LIVE tool execution — see `createBridgeEventChannel`
-      // above). Those events do not occur on a replay, so a takeover's replay
-      // is NOT chunk-for-chunk identical to what the log holds.
-      // `alignedIfAttaching` handles it: alignment skips stored out-of-band
-      // CUSTOM entries within a bounded window (see `align.ts`), so a
-      // bridged-tool run can be taken over without a spurious
-      // `JournalReplayDivergedError`, while a genuine determinism regression
-      // still throws. It is a no-op (passes the stream through untouched)
-      // whenever the run is not durable or is not attaching, so a
-      // non-durable run's output is unaffected byte for byte.
-      //
-      // The wrap goes OUTSIDE `mergeChunkStreams`, never around the pre-merge
-      // translator alone: the stored log holds the previous host's MERGED
-      // output, so comparing against anything else would compare against a
-      // stream the log never contained.
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateThreadEvents(asEvents(), {
@@ -450,24 +463,11 @@ export class CodexTextAdapter<
         logger,
       )
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('codex.chatStream fatal', {
         error,
         source: 'codex.chatStream',
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        ...(err.code !== undefined && { code: err.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          ...(err.code !== undefined && { code: err.code }),
-        },
-      }
+      yield chatRunErrorChunk(error, options.model)
     } finally {
       channel.close()
       await bridge?.close()

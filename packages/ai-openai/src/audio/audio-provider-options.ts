@@ -55,7 +55,8 @@ export const validateStreamFormat = (options: AudioProviderOptions) => {
 
 export const validateSpeed = (options: AudioProviderOptions) => {
   if (options.speed) {
-    if (options.speed < 0.25 || options.speed > 4.0) {
+    const isSpeedOutOfRange = options.speed < 0.25 || options.speed > 4.0
+    if (isSpeedOutOfRange) {
       throw new Error('Speed must be between 0.25 and 4.0.')
     }
   }

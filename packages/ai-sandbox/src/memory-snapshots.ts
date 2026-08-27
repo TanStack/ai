@@ -38,11 +38,9 @@ function resolveBlobRange(
   size: number,
   range: { offset: number; length?: number },
 ): { offset: number; length: number } {
-  if (
-    !Number.isInteger(range.offset) ||
-    range.offset < 0 ||
-    range.offset >= size
-  ) {
+  const isInvalidBlobOffset =
+    !Number.isInteger(range.offset) || range.offset < 0 || range.offset >= size
+  if (isInvalidBlobOffset) {
     throw new RangeError(
       `Blob range offset ${range.offset} is outside the object (size ${size}).`,
     )
@@ -51,7 +49,9 @@ function resolveBlobRange(
   if (range.length === undefined) {
     return { offset: range.offset, length: remaining }
   }
-  if (!Number.isInteger(range.length) || range.length < 0) {
+  const isInvalidBlobLength =
+    !Number.isInteger(range.length) || range.length < 0
+  if (isInvalidBlobLength) {
     throw new RangeError(`Blob range length ${range.length} is not valid.`)
   }
   return {
@@ -107,12 +107,18 @@ interface MemorySnapshotState extends MemoryCheckpointState {
 function hasUnpairedSurrogate(value: string): boolean {
   for (let index = 0; index < value.length; index++) {
     const code = value.charCodeAt(index)
-    if (code >= 0xd800 && code <= 0xdbff) {
+    const isHighSurrogate = code >= 0xd800 && code <= 0xdbff
+    if (isHighSurrogate) {
       const next = value.charCodeAt(index + 1)
-      if (Number.isNaN(next) || next < 0xdc00 || next > 0xdfff) return true
+      const isInvalidLowSurrogate =
+        Number.isNaN(next) || next < 0xdc00 || next > 0xdfff
+      if (isInvalidLowSurrogate) return true
       index++
-    } else if (code >= 0xdc00 && code <= 0xdfff) {
-      return true
+    } else {
+      const isLowSurrogate = code >= 0xdc00 && code <= 0xdfff
+      if (isLowSurrogate) {
+        return true
+      }
     }
   }
   return false
@@ -122,11 +128,11 @@ function assertValidIdentifier(
   value: unknown,
   label: string,
 ): asserts value is string {
-  if (
+  const isInvalidId =
     typeof value !== 'string' ||
     value.length === 0 ||
     hasUnpairedSurrogate(value)
-  ) {
+  if (isInvalidId) {
     throw new SandboxCheckpointInvalidIdError(
       `${label} must be a non-empty well-formed Unicode string`,
     )
@@ -135,6 +141,87 @@ function assertValidIdentifier(
 
 function hasOwn(value: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key)
+}
+
+function assertNormalizedEntryPath(path: unknown): asserts path is string {
+  const isInvalidRelPath =
+    typeof path !== 'string' ||
+    path.length === 0 ||
+    path.includes('\0') ||
+    path.startsWith('/') ||
+    path.startsWith('\\') ||
+    /^[A-Za-z]:([\\/]|$)/.test(path) ||
+    path.includes('\\') ||
+    path
+      .split('/')
+      .some((part) => part.length === 0 || part === '.' || part === '..')
+  if (isInvalidRelPath) {
+    throw new SandboxCheckpointInvalidEntryError(
+      'Checkpoint entry path must be a normalized workspace-relative path',
+    )
+  }
+}
+
+function assertEntryNotBeneathFile(
+  path: string,
+  kinds: Map<string, 'file' | 'dir'>,
+): void {
+  for (
+    let separator = path.indexOf('/');
+    separator !== -1;
+    separator = path.indexOf('/', separator + 1)
+  ) {
+    const ancestor = path.slice(0, separator)
+    if (kinds.get(ancestor) === 'file') {
+      throw new SandboxCheckpointInvalidEntryError(
+        `Checkpoint entry '${path}' is beneath file '${ancestor}'`,
+      )
+    }
+  }
+}
+
+function assertFileNotAncestorOfExisting(
+  path: string,
+  kinds: Map<string, 'file' | 'dir'>,
+): void {
+  if (Array.from(kinds.keys()).some((other) => other.startsWith(`${path}/`))) {
+    throw new SandboxCheckpointInvalidEntryError(
+      `Checkpoint file '${path}' is an ancestor of another entry`,
+    )
+  }
+}
+
+function assertFileEntryFields(candidate: Record<string, unknown>): void {
+  const isInvalidFileBlobKey =
+    typeof candidate.blobKey !== 'string' ||
+    candidate.blobKey.length === 0 ||
+    hasUnpairedSurrogate(candidate.blobKey) ||
+    !/^sandbox-files\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey)
+  if (isInvalidFileBlobKey) {
+    throw new SandboxCheckpointInvalidEntryError(
+      'File entries require a valid content-addressed blobKey',
+    )
+  }
+  const isInvalidFileSize =
+    !hasOwn(candidate, 'size') ||
+    typeof candidate.size !== 'number' ||
+    !Number.isSafeInteger(candidate.size) ||
+    candidate.size < 0
+  if (isInvalidFileSize) {
+    throw new SandboxCheckpointInvalidEntryError(
+      'File entry size must be a non-negative safe integer',
+    )
+  }
+}
+
+function assertDirEntryFields(candidate: Record<string, unknown>): void {
+  const isFileEntryShape =
+    hasOwn(candidate, 'blobKey') || hasOwn(candidate, 'size')
+  if (isFileEntryShape) {
+    throw new SandboxCheckpointInvalidEntryError(
+      'Directory entries cannot contain file fields',
+    )
+  }
 }
 
 function validateEntries(checkpoint: SandboxCheckpoint): void {
@@ -152,82 +239,53 @@ function validateEntries(checkpoint: SandboxCheckpoint): void {
       )
     }
     const candidate = entry as Record<string, unknown>
-    if (
-      typeof candidate.path !== 'string' ||
-      candidate.path.length === 0 ||
-      candidate.path.includes('\0') ||
-      candidate.path.startsWith('/') ||
-      candidate.path.startsWith('\\') ||
-      /^[A-Za-z]:([\\/]|$)/.test(candidate.path) ||
-      candidate.path.includes('\\') ||
-      candidate.path
-        .split('/')
-        .some((part) => part.length === 0 || part === '.' || part === '..')
-    ) {
-      throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint entry path must be a normalized workspace-relative path',
-      )
-    }
+    assertNormalizedEntryPath(candidate.path)
     const path = candidate.path
     if (paths.has(path)) {
       throw new SandboxCheckpointInvalidEntryError(
         `Checkpoint contains duplicate entry path '${path}'`,
       )
     }
-    for (
-      let separator = path.indexOf('/');
-      separator !== -1;
-      separator = path.indexOf('/', separator + 1)
-    ) {
-      const ancestor = path.slice(0, separator)
-      if (kinds.get(ancestor) === 'file') {
-        throw new SandboxCheckpointInvalidEntryError(
-          `Checkpoint entry '${path}' is beneath file '${ancestor}'`,
-        )
-      }
-    }
-    if (
-      candidate.kind === 'file' &&
-      Array.from(kinds.keys()).some((other) => other.startsWith(`${path}/`))
-    ) {
-      throw new SandboxCheckpointInvalidEntryError(
-        `Checkpoint file '${path}' is an ancestor of another entry`,
-      )
+    assertEntryNotBeneathFile(path, kinds)
+    if (candidate.kind === 'file') {
+      assertFileNotAncestorOfExisting(path, kinds)
     }
     paths.add(path)
     if (candidate.kind === 'file') {
-      if (
-        typeof candidate.blobKey !== 'string' ||
-        candidate.blobKey.length === 0 ||
-        hasUnpairedSurrogate(candidate.blobKey) ||
-        !/^sandbox-files\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey)
-      ) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'File entries require a valid content-addressed blobKey',
-        )
-      }
-      if (
-        !hasOwn(candidate, 'size') ||
-        typeof candidate.size !== 'number' ||
-        !Number.isSafeInteger(candidate.size) ||
-        candidate.size < 0
-      ) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'File entry size must be a non-negative safe integer',
-        )
-      }
+      assertFileEntryFields(candidate)
     } else if (candidate.kind === 'dir') {
-      if (hasOwn(candidate, 'blobKey') || hasOwn(candidate, 'size')) {
-        throw new SandboxCheckpointInvalidEntryError(
-          'Directory entries cannot contain file fields',
-        )
-      }
+      assertDirEntryFields(candidate)
     } else {
       throw new SandboxCheckpointInvalidEntryError(
         'Checkpoint entry kind must be file or dir',
       )
     }
     kinds.set(path, candidate.kind)
+  }
+}
+
+function assertValidArtifactFields(candidate: Record<string, unknown>): void {
+  const isInvalidArtifact =
+    typeof candidate.artifactId !== 'string' ||
+    candidate.artifactId.length === 0 ||
+    hasUnpairedSurrogate(candidate.artifactId) ||
+    typeof candidate.name !== 'string' ||
+    candidate.name.length === 0 ||
+    typeof candidate.mimeType !== 'string' ||
+    candidate.mimeType.length === 0 ||
+    typeof candidate.blobKey !== 'string' ||
+    candidate.blobKey.length === 0 ||
+    hasUnpairedSurrogate(candidate.blobKey) ||
+    !/^sandbox-artifacts\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey) ||
+    typeof candidate.size !== 'number' ||
+    !Number.isSafeInteger(candidate.size) ||
+    candidate.size < 0 ||
+    typeof candidate.createdAt !== 'number' ||
+    !Number.isFinite(candidate.createdAt)
+  if (isInvalidArtifact) {
+    throw new SandboxCheckpointInvalidEntryError(
+      'Checkpoint artifact has invalid fields',
+    )
   }
 }
 
@@ -244,28 +302,7 @@ function validateArtifacts(checkpoint: SandboxCheckpoint): void {
       )
     }
     const candidate = artifact as Record<string, unknown>
-    if (
-      typeof candidate.artifactId !== 'string' ||
-      candidate.artifactId.length === 0 ||
-      hasUnpairedSurrogate(candidate.artifactId) ||
-      typeof candidate.name !== 'string' ||
-      candidate.name.length === 0 ||
-      typeof candidate.mimeType !== 'string' ||
-      candidate.mimeType.length === 0 ||
-      typeof candidate.blobKey !== 'string' ||
-      candidate.blobKey.length === 0 ||
-      hasUnpairedSurrogate(candidate.blobKey) ||
-      !/^sandbox-artifacts\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey) ||
-      typeof candidate.size !== 'number' ||
-      !Number.isSafeInteger(candidate.size) ||
-      candidate.size < 0 ||
-      typeof candidate.createdAt !== 'number' ||
-      !Number.isFinite(candidate.createdAt)
-    ) {
-      throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint artifact has invalid fields',
-      )
-    }
+    assertValidArtifactFields(candidate)
   }
 }
 
@@ -407,7 +444,8 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
     } else {
       this.state.heads.delete(threadId)
     }
-    for (const key of blobKeys(checkpoint)) {
+    const checkpointBlobKeys = blobKeys(checkpoint)
+    for (const key of checkpointBlobKeys) {
       const references = (this.state.references.get(key) ?? 0) - 1
       if (references > 0) this.state.references.set(key, references)
       else this.state.references.delete(key)
@@ -417,7 +455,8 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
   async acquireWriter(threadId: string): Promise<SandboxCheckpointWriterLease> {
     assertValidIdentifier(threadId, 'Thread id')
     const current = this.state.writers.get(threadId)
-    if (current && current.expiresAt > this.now()) {
+    const hasActiveWriterLease = current && current.expiresAt > this.now()
+    if (hasActiveWriterLease) {
       throw new SandboxCheckpointWriterConflictError(
         `Thread '${threadId}' already has an active checkpoint writer`,
       )
@@ -445,10 +484,10 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
       },
       release: async () => {
         const currentLease = this.state.writers.get(threadId)
-        if (
+        const isMatchingLease =
           currentLease?.ownerToken === ownerToken &&
           currentLease.fence === fence
-        ) {
+        if (isMatchingLease) {
           this.state.writers.delete(threadId)
         }
       },
@@ -551,7 +590,7 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
     destinationThreadId: string,
     destinationCheckpointId: string,
   ): void {
-    if (
+    const isDestinationOccupied =
       this.state.messages.has(destinationThreadId) ||
       [...this.state.runs.values()].some(
         (value) => value.threadId === destinationThreadId,
@@ -570,7 +609,7 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
       ) ||
       this.state.heads.has(destinationThreadId) ||
       this.state.checkpoints.has(destinationCheckpointId)
-    ) {
+    if (isDestinationOccupied) {
       throw new SandboxCheckpointError(
         'SANDBOX_SNAPSHOT_FORK_DESTINATION_NOT_EMPTY',
         'Destination thread is not empty',
@@ -583,12 +622,12 @@ class MemorySnapshotCheckpointStore implements ForkCapableSandboxCheckpointStore
     threadId: string,
   ): void {
     const current = this.state.writers.get(threadId)
-    if (
+    const isWriterLeaseLost =
       !current ||
       current.ownerToken !== writer.ownerToken ||
       current.fence !== writer.fence ||
       current.expiresAt <= this.now()
-    ) {
+    if (isWriterLeaseLost) {
       throw new SandboxCheckpointWriterLostError(
         `Checkpoint writer lease for thread '${threadId}' is no longer current`,
       )
@@ -603,9 +642,11 @@ async function bodyBytes(body: BlobBody): Promise<Uint8Array> {
     return new Uint8Array(
       body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
     )
-  if (typeof Blob !== 'undefined' && body instanceof Blob)
-    return new Uint8Array(await body.arrayBuffer())
-  if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
+  const isBlobBody = typeof Blob !== 'undefined' && body instanceof Blob
+  if (isBlobBody) return new Uint8Array(await body.arrayBuffer())
+  const isReadableStreamBody =
+    typeof ReadableStream !== 'undefined' && body instanceof ReadableStream
+  if (isReadableStreamBody) {
     const reader = body.getReader()
     const parts: Array<Uint8Array> = []
     try {

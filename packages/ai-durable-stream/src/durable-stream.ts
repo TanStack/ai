@@ -68,7 +68,8 @@ export interface DurableStreamOptions {
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0 || signal?.aborted) return Promise.resolve()
+  const skipDelay = ms <= 0 || Boolean(signal?.aborted)
+  if (skipDelay) return Promise.resolve()
   return new Promise((resolve) => {
     const onAbort = () => {
       clearTimeout(timer)
@@ -135,7 +136,8 @@ class ResponseBodyReadFailure extends Error {
 }
 
 function assertTransportField(value: string, name: string): string {
-  if (value.trim().length === 0 || /[\r\n]/.test(value)) {
+  const invalidField = value.trim().length === 0 || /[\r\n]/.test(value)
+  if (invalidField) {
     throw new DurableStreamError(
       `${name} must be non-empty and contain no CR/LF`,
     )
@@ -254,7 +256,8 @@ async function* readLines(
   } finally {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- readFailed is set in the catch before its throw; CFA can't see that from finally
-      if (!completed && !cancelled && !readFailed) await reader.cancel()
+      const stillOpen = !completed && !cancelled && !readFailed
+      if (stillOpen) await reader.cancel()
     } finally {
       reader.releaseLock()
     }
@@ -294,7 +297,8 @@ async function* parseSseEvents(
   let current: SseEvent = {}
   let hasField = false
 
-  for await (const line of readLines(body, signal)) {
+  const lines = readLines(body, signal)
+  for await (const line of lines) {
     if (line === '') {
       if (hasField) yield current
       current = {}
@@ -317,6 +321,198 @@ async function* parseSseEvents(
     }
   }
   if (hasField) yield current
+}
+
+async function* consumeSseWindow(args: {
+  body: ReadableStream<Uint8Array>
+  signal: AbortSignal | undefined
+  dataStartOffset: string
+  backendOffset: string
+  streamCursor: string | undefined
+  deliveredThroughSeq: number
+  previousResponseSeq: number
+  stopWhenUpToDate: boolean
+  /**
+   * Raise the append counter past a sequence already present in the log.
+   *
+   * Called for every record any read observes — including records the reader
+   * then dedups away — so both `snapshot` (the alignment path a takeover
+   * already runs) and a plain `read` teach this instance the log's tail.
+   */
+  observeSeq: (seq: number) => void
+}): AsyncGenerator<
+  { offset: DurableStreamOffset; chunk: StreamChunk },
+  {
+    dataAwaitingControl: boolean
+    sawControl: boolean
+    yieldedData: boolean
+    backendOffset: string
+    streamCursor: string | undefined
+    deliveredThroughSeq: number
+    done: boolean
+  }
+> {
+  let dataAwaitingControl = false
+  let sawControl = false
+  let yieldedData = false
+  let {
+    dataStartOffset,
+    backendOffset,
+    streamCursor,
+    deliveredThroughSeq,
+    previousResponseSeq,
+  } = args
+  const sseEvents = parseSseEvents(args.body, args.signal)
+  for await (const event of sseEvents) {
+    if (args.signal?.aborted) {
+      return {
+        dataAwaitingControl,
+        sawControl,
+        yieldedData,
+        backendOffset,
+        streamCursor,
+        deliveredThroughSeq,
+        done: true,
+      }
+    }
+    if (event.event === 'data') {
+      dataAwaitingControl = true
+      const dataRecords = parseDataRecords(event.data)
+      for (const record of dataRecords) {
+        if (record.seq <= previousResponseSeq) {
+          throw new DurableStreamError(
+            'data records must have strictly increasing sequences',
+          )
+        }
+        previousResponseSeq = record.seq
+        args.observeSeq(record.seq)
+        if (record.seq <= deliveredThroughSeq) continue
+        deliveredThroughSeq = record.seq
+        yieldedData = true
+        yield {
+          offset: encodeCursor({
+            v: 1,
+            backendOffset: dataStartOffset,
+            seq: record.seq,
+          }),
+          chunk: record.chunk,
+        }
+      }
+      continue
+    }
+    if (event.event === 'control') {
+      const control = parseControlFrame(event.data)
+      backendOffset = control.streamNextOffset
+      streamCursor = control.streamCursor
+      dataStartOffset = backendOffset
+      sawControl = true
+      dataAwaitingControl = false
+      const endWindow =
+        control.streamClosed === true ||
+        (args.stopWhenUpToDate && control.upToDate === true)
+      if (endWindow) {
+        return {
+          dataAwaitingControl,
+          sawControl,
+          yieldedData,
+          backendOffset,
+          streamCursor,
+          deliveredThroughSeq,
+          done: true,
+        }
+      }
+      continue
+    }
+    throw new DurableStreamError(
+      `unexpected SSE event type: ${JSON.stringify(event.event)}`,
+    )
+  }
+  return {
+    dataAwaitingControl,
+    sawControl,
+    yieldedData,
+    backendOffset,
+    streamCursor,
+    deliveredThroughSeq,
+    done: false,
+  }
+}
+
+async function fetchReadWindow(args: {
+  streamUrl: string
+  backendOffset: string
+  streamCursor: string | undefined
+  fetchFn: typeof fetch
+  resolveHeaders: () => Promise<Headers>
+  signal: AbortSignal | undefined
+}): Promise<Response | undefined> {
+  const url = new URL(args.streamUrl)
+  url.searchParams.set('offset', args.backendOffset)
+  url.searchParams.set('live', 'sse')
+  if (args.streamCursor !== undefined) {
+    url.searchParams.set('cursor', args.streamCursor)
+  }
+  try {
+    return await args.fetchFn(url, {
+      method: 'GET',
+      headers: await args.resolveHeaders(),
+      signal: args.signal,
+    })
+  } catch (error) {
+    if (args.signal?.aborted) return undefined
+    throw error
+  }
+}
+
+function assertWindowAdvanced(state: {
+  dataAwaitingControl: boolean
+  sawControl: boolean
+  backendOffset: string
+  requestOffset: string
+  streamCursor: string | undefined
+  requestCursor: string | undefined
+}): void {
+  const missingControl = state.dataAwaitingControl || !state.sawControl
+  if (missingControl) {
+    throw new DurableStreamError(
+      'read SSE window ended without a matching control event',
+    )
+  }
+  const didNotAdvance =
+    state.backendOffset === state.requestOffset &&
+    state.streamCursor === state.requestCursor
+  if (didNotAdvance) {
+    throw new DurableStreamError(
+      'read SSE window ended without advancing offset or cursor',
+    )
+  }
+}
+
+function unwrapReadError(error: unknown): unknown {
+  if (error instanceof ResponseBodyReadFailure) return error.readError
+  return error
+}
+
+function shouldRetryReadFailure(
+  error: unknown,
+  state: {
+    signal: AbortSignal | undefined
+    yieldedData: boolean
+    sawControl: boolean
+    backendOffset: string
+    requestOffset: string
+    streamCursor: string | undefined
+    requestCursor: string | undefined
+  },
+): 'abort' | 'retry' | 'throw' {
+  if (state.signal?.aborted) return 'abort'
+  if (!(error instanceof ResponseBodyReadFailure)) return 'throw'
+  const progressed =
+    state.yieldedData ||
+    (state.sawControl &&
+      (state.backendOffset !== state.requestOffset ||
+        state.streamCursor !== state.requestCursor))
+  return progressed ? 'retry' : 'throw'
 }
 
 function isStreamChunk(value: unknown): value is StreamChunk {
@@ -395,13 +591,18 @@ function parseControlFrame(data: string | undefined): ControlFrame {
   } catch {
     throw new DurableStreamError('control event contained invalid JSON')
   }
-  if (typeof parsed !== 'object' || parsed === null) {
+  if (typeof parsed !== 'object') {
     throw new DurableStreamError('control event payload must be an object')
   }
-  if (
-    !('streamNextOffset' in parsed) ||
-    typeof parsed.streamNextOffset !== 'string'
-  ) {
+  if (parsed === null) {
+    throw new DurableStreamError('control event payload must be an object')
+  }
+  if (!('streamNextOffset' in parsed)) {
+    throw new DurableStreamError(
+      'control event requires string streamNextOffset',
+    )
+  }
+  if (typeof parsed.streamNextOffset !== 'string') {
     throw new DurableStreamError(
       'control event requires string streamNextOffset',
     )
@@ -422,7 +623,8 @@ function parseControlFrame(data: string | undefined): ControlFrame {
   }
   const upToDate = optionalBoolean(parsed, 'upToDate')
   const streamClosed = optionalBoolean(parsed, 'streamClosed')
-  if (streamClosed !== true && streamCursor === undefined) {
+  const missingCursor = streamClosed !== true && streamCursor === undefined
+  if (missingCursor) {
     throw new DurableStreamError(
       'open control event requires string streamCursor',
     )
@@ -437,7 +639,12 @@ function parseControlFrame(data: string | undefined): ControlFrame {
 
 function requireNextOffset(response: Response, operation: string): string {
   const offset = response.headers.get('Stream-Next-Offset')
-  if (offset === null || offset.trim().length === 0) {
+  if (offset === null) {
+    throw new DurableStreamError(
+      `${operation} response missing non-empty Stream-Next-Offset`,
+    )
+  }
+  if (offset.trim().length === 0) {
     throw new DurableStreamError(
       `${operation} response missing non-empty Stream-Next-Offset`,
     )
@@ -474,7 +681,9 @@ export function durableStream(
   options: DurableStreamOptions,
 ): StreamDurability<DurableStreamOffset> {
   const fetchFn = options.fetch ?? globalThis.fetch
-  if (options.server === undefined && options.fetch === undefined) {
+  const missingServer =
+    options.server === undefined && options.fetch === undefined
+  if (missingServer) {
     throw new DurableStreamError(
       'server is required unless a fetch implementation is provided',
     )
@@ -495,9 +704,6 @@ export function durableStream(
   const readRetryDelayMs = options.reconnect?.delayMs ?? 250
   const operationTimeoutMs = options.operationTimeoutMs ?? 30_000
 
-  // create / append / close go through this so a stalled backend can't hang the
-  // operation forever. Each call gets a fresh timeout; long-poll `read` calls
-  // deliberately do NOT use it (they may wait for the producer to advance).
   const fetchWithTimeout = async (
     url: string | URL,
     init: RequestInit,
@@ -523,20 +729,8 @@ export function durableStream(
   const rawResumeOffset =
     request.headers.get('Last-Event-ID') ?? safeSearchParam(request, 'offset')
   const resumeOffset = parseResumeOffset(rawResumeOffset)
-  // Resolved through core's `resolveResumeRunId` — `X-Run-Id` header first,
-  // then `?runId` — the same single implementation `memoryStream` and the
-  // resume response helpers use, so no two durability adapters can disagree
-  // about which run a request names. It has to be the header first: a
-  // `@tanstack/ai-client` POST keeps its URL byte-identical to a plain chat
-  // request and carries the run id in `X-Run-Id`, so a query-only adapter
-  // would name a different stream than the GET attach route addresses.
   const requestedRunId = resolveResumeRunId(request)
   if (requestedRunId === null) {
-    // Never mint a random id here. The backend stream name is derived from the
-    // run id, so a generated one addresses a stream no attach request could
-    // ever name: the producer would appear to work while writing where nobody
-    // can read. Refuse up front instead, matching `DurableRunIdRequiredError`
-    // in `@tanstack/ai-sandbox`.
     throw new DurableStreamError(
       resumeOffset === null
         ? 'a runId is required: send it as an X-Run-Id header or a ?runId query param'
@@ -547,20 +741,8 @@ export function durableStream(
 
   const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
   let createPromise: Promise<string> | undefined
-  // Set only when the create PUT answered `201 Created`, which RFC 9110 §9.3.4
-  // reserves for a PUT that brought the resource into existence: an existing
-  // stream is a replace/no-op and answers 200 or 204. A stream this instance
-  // created cannot already hold records, which is what makes the tail read below
-  // skippable. Defaulting to `false` keeps the conservative side: anything other
-  // than a proven creation still pays for the seeding read.
   let createdHere = false
   let appendTailOffset: string | undefined
-  // `seq` is a single per-run counter, not a per-instance one: the read side
-  // dedups and orders by it across every window and every producer. A takeover
-  // host therefore MUST continue the log's existing sequence instead of
-  // restarting at 1, or its records collide with the prefix an earlier host
-  // stored and get silently dropped by the reader's dedup. `seqSeeded` tracks
-  // whether this instance has learned where the log ends.
   let nextSeq = 1
   let seqSeeded = false
   let seedPromise: Promise<void> | undefined
@@ -574,13 +756,6 @@ export function durableStream(
   let producerSeq = 0
   let closePromise: Promise<void> | undefined
 
-  /**
-   * Raise the append counter past a sequence already present in the log.
-   *
-   * Called for every record any read observes — including records the reader
-   * then dedups away — so both `snapshot` (the alignment path a takeover
-   * already runs) and a plain `read` teach this instance the log's tail.
-   */
   const observeSeq = (seq: number): void => {
     if (seq >= nextSeq) nextSeq = seq + 1
   }
@@ -632,7 +807,8 @@ export function durableStream(
   ): AsyncGenerator<{ offset: DurableStreamOffset; chunk: StreamChunk }> {
     let backendOffset: string
     let deliveredThroughSeq = 0
-    if (offset === '-1' || offset === 'now') {
+    const isLiveOffset = offset === '-1' || offset === 'now'
+    if (isLiveOffset) {
       backendOffset = offset
     } else {
       const cursor = decodeCursor(offset)
@@ -646,112 +822,68 @@ export function durableStream(
     for (;;) {
       if (signal?.aborted) return
       windowsPulled += 1
-      if (stopWhenUpToDate && windowsPulled > SNAPSHOT_MAX_WINDOWS) {
+      const snapshotStuck =
+        stopWhenUpToDate && windowsPulled > SNAPSHOT_MAX_WINDOWS
+      if (snapshotStuck) {
         throw new DurableStreamError(
           `snapshot read ${SNAPSHOT_MAX_WINDOWS} windows without the backend reporting upToDate`,
         )
       }
       const requestOffset = backendOffset
       const requestCursor = streamCursor
-      const url = new URL(streamUrl)
-      url.searchParams.set('offset', backendOffset)
-      url.searchParams.set('live', 'sse')
-      if (streamCursor !== undefined) {
-        url.searchParams.set('cursor', streamCursor)
-      }
-
-      let response: Response
-      try {
-        response = await fetchFn(url, {
-          method: 'GET',
-          headers: await resolveHeaders(),
-          signal,
-        })
-      } catch (error) {
-        if (signal?.aborted) return
-        throw error
-      }
+      const response = await fetchReadWindow({
+        streamUrl,
+        backendOffset,
+        streamCursor,
+        fetchFn,
+        resolveHeaders,
+        signal,
+      })
+      if (!response) return
       if (!response.ok) throw httpFailure('read', response)
       if (!response.body) {
         throw new DurableStreamError('read response had no body')
       }
 
-      let dataStartOffset = backendOffset
       let sawControl = false
       let dataAwaitingControl = false
       let yieldedData = false
-      // Guards intra-response ordering: seqs must strictly increase across the
-      // whole response (including across data frames and control frames — seq
-      // is per-run, not per-window). Starts at 0 so a legitimate replay of
-      // already-delivered records still passes, then the dedup below drops
-      // them; the throw catches a genuinely malformed [seq 2, seq 1] or a
-      // duplicate seq that would otherwise be silently discarded.
-      let previousResponseSeq = 0
       try {
-        for await (const event of parseSseEvents(response.body, signal)) {
-          if (signal?.aborted) return
-          if (event.event === 'data') {
-            dataAwaitingControl = true
-            for (const record of parseDataRecords(event.data)) {
-              if (record.seq <= previousResponseSeq) {
-                throw new DurableStreamError(
-                  'data records must have strictly increasing sequences',
-                )
-              }
-              previousResponseSeq = record.seq
-              observeSeq(record.seq)
-              if (record.seq <= deliveredThroughSeq) continue
-              deliveredThroughSeq = record.seq
-              yieldedData = true
-              yield {
-                offset: encodeCursor({
-                  v: 1,
-                  backendOffset: dataStartOffset,
-                  seq: record.seq,
-                }),
-                chunk: record.chunk,
-              }
-            }
-            continue
-          }
-          if (event.event === 'control') {
-            const control = parseControlFrame(event.data)
-            backendOffset = control.streamNextOffset
-            streamCursor = control.streamCursor
-            dataStartOffset = backendOffset
-            sawControl = true
-            dataAwaitingControl = false
-            if (control.streamClosed === true) return
-            // A snapshot has now been handed everything the backend holds.
-            // Returning here abandons the rest of the SSE body, which the
-            // reader's `finally` cancels.
-            if (stopWhenUpToDate && control.upToDate === true) return
-            continue
-          }
-          throw new DurableStreamError(
-            `unexpected SSE event type: ${JSON.stringify(event.event)}`,
-          )
-        }
+        const consumed = yield* consumeSseWindow({
+          body: response.body,
+          signal,
+          dataStartOffset: backendOffset,
+          backendOffset,
+          streamCursor,
+          deliveredThroughSeq,
+          previousResponseSeq: 0,
+          stopWhenUpToDate,
+          observeSeq,
+        })
+        dataAwaitingControl = consumed.dataAwaitingControl
+        sawControl = consumed.sawControl
+        yieldedData = consumed.yieldedData
+        backendOffset = consumed.backendOffset
+        streamCursor = consumed.streamCursor
+        deliveredThroughSeq = consumed.deliveredThroughSeq
+        if (consumed.done) return
       } catch (error) {
-        if (signal?.aborted) return
-        if (error instanceof ResponseBodyReadFailure) {
-          if (
-            yieldedData ||
-            (sawControl &&
-              (backendOffset !== requestOffset ||
-                streamCursor !== requestCursor))
-          ) {
-            // Made progress before the body failed — retry from the last valid
-            // position, but cap consecutive failures and throttle so a
-            // persistently failing backend surfaces the error, not a hot loop.
-            consecutiveReadFailures += 1
-            if (consecutiveReadFailures > maxReadFailures) throw error.readError
-            await abortableDelay(readRetryDelayMs, signal)
-            continue
-          }
-          throw error.readError
-        }
-        throw error
+        const retry = shouldRetryReadFailure(error, {
+          signal,
+          yieldedData,
+          sawControl,
+          backendOffset,
+          requestOffset,
+          streamCursor,
+          requestCursor,
+        })
+        if (retry === 'abort') return
+        if (retry === 'throw') throw unwrapReadError(error)
+        consecutiveReadFailures += 1
+        if (consecutiveReadFailures > maxReadFailures)
+          throw unwrapReadError(error)
+        await abortableDelay(readRetryDelayMs, signal)
+        continue
       }
 
       // A window read to completion (no body failure) clears the streak; only
@@ -759,16 +891,14 @@ export function durableStream(
       consecutiveReadFailures = 0
 
       if (signal?.aborted) return
-      if (dataAwaitingControl || !sawControl) {
-        throw new DurableStreamError(
-          'read SSE window ended without a matching control event',
-        )
-      }
-      if (backendOffset === requestOffset && streamCursor === requestCursor) {
-        throw new DurableStreamError(
-          'read SSE window ended without advancing offset or cursor',
-        )
-      }
+      assertWindowAdvanced({
+        dataAwaitingControl,
+        sawControl,
+        backendOffset,
+        requestOffset,
+        streamCursor,
+        requestCursor,
+      })
     }
   }
 
@@ -818,7 +948,8 @@ export function durableStream(
         offset: DurableStreamOffset
         chunk: StreamChunk
       }> = []
-      for await (const entry of readWindows('-1', controller.signal, true)) {
+      const snapshotWindows = readWindows('-1', controller.signal, true)
+      for await (const entry of snapshotWindows) {
         entries.push(entry)
       }
       if (timedOut) {

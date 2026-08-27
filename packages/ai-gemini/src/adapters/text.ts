@@ -53,10 +53,6 @@ export interface GeminiTextConfig extends GeminiClientConfig {}
  */
 export type GeminiTextProviderOptions = ExternalTextProviderOptions
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
 /**
  * Resolve provider options for a specific model.
  * If the model has explicit options in the map, use those; otherwise use base options.
@@ -83,10 +79,6 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
     : readonly []
-
-// ===========================
-// Adapter Implementation
-// ===========================
 
 /**
  * Gemini Text (Chat) Adapter
@@ -245,6 +237,7 @@ export class GeminiTextAdapter<
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
+    const adapterName = this.name
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const toolCallMap = new Map<
@@ -259,10 +252,9 @@ export class GeminiTextAdapter<
     >()
     let nextToolIndex = 0
 
-    // AG-UI lifecycle tracking
-    const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
-    const messageId = generateId(this.name)
+    const runId = options.runId ?? generateId(adapterName)
+    const threadId = options.threadId ?? generateId(adapterName)
+    const messageId = generateId(adapterName)
     let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
@@ -270,320 +262,302 @@ export class GeminiTextAdapter<
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
 
-    for await (const chunk of result) {
-      logger.provider(`provider=gemini`, { chunk })
-      // Emit RUN_STARTED on first chunk
-      if (!hasEmittedRunStarted) {
-        hasEmittedRunStarted = true
+    const now = () => Date.now()
+
+    function* emitRunStartedIfNeeded(): Generator<AdapterYieldChunk> {
+      if (hasEmittedRunStarted) return
+      hasEmittedRunStarted = true
+      yield {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        model,
+        timestamp: now(),
+        parentRunId: options.parentRunId,
+      }
+    }
+
+    function* closeReasoningIfNeeded(): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId) return
+      if (hasClosedReasoning) return
+      hasClosedReasoning = true
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: now(),
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: now(),
+      }
+    }
+
+    function* processThoughtPart(part: Part): Generator<AdapterYieldChunk> {
+      if (!part.text) return
+      if (!hasEmittedStepStarted) {
+        hasEmittedStepStarted = true
+        stepId = generateId(adapterName)
+        reasoningMessageId = generateId(adapterName)
         yield {
-          type: EventType.RUN_STARTED,
-          runId,
-          threadId,
+          type: EventType.REASONING_START,
+          messageId: reasoningMessageId,
           model,
-          timestamp: Date.now(),
-          parentRunId: options.parentRunId,
+          timestamp: now(),
+        }
+        yield {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: reasoningMessageId,
+          role: 'reasoning' as const,
+          model,
+          timestamp: now(),
+        }
+        yield {
+          type: EventType.STEP_STARTED,
+          stepName: stepId,
+          stepId,
+          model,
+          timestamp: now(),
+          stepType: 'thinking',
         }
       }
 
-      if (chunk.candidates?.[0]?.content?.parts) {
-        const parts = chunk.candidates[0].content.parts
+      accumulatedThinking += part.text
+      if (!reasoningMessageId) return
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: part.text,
+        model,
+        timestamp: now(),
+      }
+      yield {
+        type: EventType.STEP_FINISHED,
+        stepName: stepId || generateId(adapterName),
+        stepId: stepId || generateId(adapterName),
+        model,
+        timestamp: now(),
+        delta: part.text,
+        content: accumulatedThinking,
+      }
+    }
 
-        for (const part of parts) {
-          if (part.text) {
-            if (part.thought) {
-              // Emit STEP_STARTED and REASONING events on first thinking content
-              if (!hasEmittedStepStarted) {
-                hasEmittedStepStarted = true
-                stepId = generateId(this.name)
-                reasoningMessageId = generateId(this.name)
-
-                // Spec REASONING events
-                yield {
-                  type: EventType.REASONING_START,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-                yield {
-                  type: EventType.REASONING_MESSAGE_START,
-                  messageId: reasoningMessageId,
-                  role: 'reasoning' as const,
-                  model,
-                  timestamp: Date.now(),
-                }
-
-                // Legacy STEP events (kept during transition)
-                yield {
-                  type: EventType.STEP_STARTED,
-                  stepName: stepId,
-                  stepId,
-                  model,
-                  timestamp: Date.now(),
-                  stepType: 'thinking',
-                }
-              }
-
-              accumulatedThinking += part.text
-
-              // Spec REASONING content event — reasoningMessageId is set in the
-              // hasEmittedStepStarted block above (entered on the same `part.thought` path)
-              if (!reasoningMessageId) continue
-              yield {
-                type: EventType.REASONING_MESSAGE_CONTENT,
-                messageId: reasoningMessageId,
-                delta: part.text,
-                model,
-                timestamp: Date.now(),
-              }
-
-              // Legacy STEP event
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId || generateId(this.name),
-                stepId: stepId || generateId(this.name),
-                model,
-                timestamp: Date.now(),
-                delta: part.text,
-                content: accumulatedThinking,
-              }
-            } else if (part.text.trim()) {
-              // Close reasoning before text starts
-              if (reasoningMessageId && !hasClosedReasoning) {
-                hasClosedReasoning = true
-                yield {
-                  type: EventType.REASONING_MESSAGE_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-                yield {
-                  type: EventType.REASONING_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-              }
-
-              // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
-              // Emit TEXT_MESSAGE_START on first text content
-              if (!hasEmittedTextMessageStart) {
-                hasEmittedTextMessageStart = true
-                yield {
-                  type: EventType.TEXT_MESSAGE_START,
-                  messageId,
-                  model,
-                  timestamp: Date.now(),
-                  role: 'assistant',
-                }
-              }
-
-              accumulatedContent += part.text
-              yield {
-                type: EventType.TEXT_MESSAGE_CONTENT,
-                messageId,
-                model,
-                timestamp: Date.now(),
-                delta: part.text,
-                content: accumulatedContent,
-              }
-            }
-          }
-
-          const functionCall = part.functionCall
-          if (functionCall) {
-            const toolCallId =
-              functionCall.id ||
-              `${functionCall.name}_${Date.now()}_${nextToolIndex}`
-            const functionArgs = functionCall.args || {}
-
-            // Gemini emits thoughtSignature as a Part-level sibling of
-            // functionCall (per @google/genai Part type), not nested inside
-            // functionCall itself.
-            const partThoughtSignature = part.thoughtSignature || undefined
-
-            let toolCallData = toolCallMap.get(toolCallId)
-            if (!toolCallData) {
-              toolCallData = {
-                name: functionCall.name || '',
-                args:
-                  typeof functionArgs === 'string'
-                    ? functionArgs
-                    : JSON.stringify(functionArgs),
-                index: nextToolIndex++,
-                started: false,
-                // Only set thoughtSignature when present — under EOPT, the
-                // optional field cannot accept an explicit `undefined`.
-                ...(partThoughtSignature !== undefined && {
-                  thoughtSignature: partThoughtSignature,
-                }),
-              }
-              toolCallMap.set(toolCallId, toolCallData)
-            } else {
-              if (!toolCallData.thoughtSignature && partThoughtSignature) {
-                toolCallData.thoughtSignature = partThoughtSignature
-              }
-              try {
-                const existingArgs = JSON.parse(toolCallData.args)
-                const newArgs =
-                  typeof functionArgs === 'string'
-                    ? JSON.parse(functionArgs)
-                    : functionArgs
-                const mergedArgs = { ...existingArgs, ...newArgs }
-                toolCallData.args = JSON.stringify(mergedArgs)
-              } catch {
-                toolCallData.args =
-                  typeof functionArgs === 'string'
-                    ? functionArgs
-                    : JSON.stringify(functionArgs)
-              }
-            }
-
-            // Emit TOOL_CALL_START if not already started
-            if (!toolCallData.started) {
-              toolCallData.started = true
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId,
-                toolCallName: toolCallData.name,
-                toolName: toolCallData.name,
-                parentMessageId: messageId,
-                model,
-                timestamp: Date.now(),
-                index: toolCallData.index,
-                ...(toolCallData.thoughtSignature && {
-                  metadata: {
-                    thoughtSignature: toolCallData.thoughtSignature,
-                  } satisfies GeminiToolCallMetadata,
-                }),
-              }
-            }
-
-            // Emit TOOL_CALL_ARGS
-            yield {
-              type: EventType.TOOL_CALL_ARGS,
-              toolCallId,
-              model,
-              timestamp: Date.now(),
-              delta: toolCallData.args,
-              args: toolCallData.args,
-            }
-          }
-        }
-      } else if (chunk.data && chunk.data.trim()) {
-        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
-        // Emit TEXT_MESSAGE_START on first text content
-        if (!hasEmittedTextMessageStart) {
-          hasEmittedTextMessageStart = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId,
-            model,
-            timestamp: Date.now(),
-            role: 'assistant',
-          }
-        }
-
-        accumulatedContent += chunk.data
+    function* processTextPart(text: string): Generator<AdapterYieldChunk> {
+      yield* closeReasoningIfNeeded()
+      if (!hasEmittedTextMessageStart) {
+        hasEmittedTextMessageStart = true
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_START,
           messageId,
           model,
-          timestamp: Date.now(),
-          delta: chunk.data,
-          content: accumulatedContent,
+          timestamp: now(),
+          role: 'assistant',
         }
       }
+      accumulatedContent += text
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model,
+        timestamp: now(),
+        delta: text,
+        content: accumulatedContent,
+      }
+    }
 
-      if (chunk.candidates?.[0]?.finishReason) {
-        const finishReason = chunk.candidates[0].finishReason
+    function stringifyFunctionArgs(functionArgs: unknown): string {
+      return typeof functionArgs === 'string'
+        ? functionArgs
+        : JSON.stringify(functionArgs)
+    }
 
-        // Emit TOOL_CALL_END for all tracked tool calls. functionCall parts on
-        // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
-        // registered and started by the per-part loop above.
-        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          let parsedInput: unknown = {}
-          try {
-            const parsed = JSON.parse(toolCallData.args)
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
-          }
+    function mergeFunctionArgs(
+      existing: string,
+      functionArgs: unknown,
+    ): string {
+      try {
+        const existingArgs = JSON.parse(existing)
+        const newArgs =
+          typeof functionArgs === 'string'
+            ? JSON.parse(functionArgs)
+            : functionArgs
+        return JSON.stringify({ ...existingArgs, ...newArgs })
+      } catch {
+        return stringifyFunctionArgs(functionArgs)
+      }
+    }
 
-          yield {
-            type: EventType.TOOL_CALL_END,
-            toolCallId,
-            toolCallName: toolCallData.name,
-            toolName: toolCallData.name,
-            model,
-            timestamp: Date.now(),
-            input: parsedInput,
-          }
+    function* processFunctionCallPart(
+      part: Part,
+    ): Generator<AdapterYieldChunk> {
+      const functionCall = part.functionCall
+      if (!functionCall) return
+      const toolCallId =
+        functionCall.id || `${functionCall.name}_${Date.now()}_${nextToolIndex}`
+      const functionArgs = functionCall.args || {}
+      const partThoughtSignature = part.thoughtSignature || undefined
+
+      let toolCallData = toolCallMap.get(toolCallId)
+      if (!toolCallData) {
+        toolCallData = {
+          name: functionCall.name || '',
+          args: stringifyFunctionArgs(functionArgs),
+          index: nextToolIndex++,
+          started: false,
+          ...(partThoughtSignature !== undefined && {
+            thoughtSignature: partThoughtSignature,
+          }),
         }
-
-        // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
-        if (toolCallMap.size > 0) {
-          hasEmittedTextMessageStart = false
+        toolCallMap.set(toolCallId, toolCallData)
+      } else {
+        if (!toolCallData.thoughtSignature && partThoughtSignature) {
+          toolCallData.thoughtSignature = partThoughtSignature
         }
+        toolCallData.args = mergeFunctionArgs(toolCallData.args, functionArgs)
+      }
 
-        if (finishReason === FinishReason.MAX_TOKENS) {
-          yield {
-            type: EventType.RUN_ERROR,
-            runId,
-            model,
-            timestamp: Date.now(),
-            message:
-              'The response was cut off because the maximum token limit was reached.',
-            code: 'max_tokens',
-            error: {
-              message:
-                'The response was cut off because the maximum token limit was reached.',
-              code: 'max_tokens',
-            },
-          }
-        }
-
-        // Close reasoning events if still open
-        if (reasoningMessageId && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield {
-            type: EventType.REASONING_MESSAGE_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Emit TEXT_MESSAGE_END if we had text content
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
-
+      if (!toolCallData.started) {
+        toolCallData.started = true
         yield {
-          type: EventType.RUN_FINISHED,
-          runId,
-          threadId,
+          type: EventType.TOOL_CALL_START,
+          toolCallId,
+          toolCallName: toolCallData.name,
+          toolName: toolCallData.name,
+          parentMessageId: messageId,
           model,
-          timestamp: Date.now(),
-          finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          // RunFinishedEvent.usage is `usage?: {...}` (no `| undefined`) under
-          // exactOptionalPropertyTypes; only include it when usageMetadata is
-          // present rather than assigning an explicit `undefined`.
-          ...(chunk.usageMetadata && {
-            usage: buildGeminiUsage(chunk.usageMetadata),
+          timestamp: now(),
+          index: toolCallData.index,
+          ...(toolCallData.thoughtSignature && {
+            metadata: {
+              thoughtSignature: toolCallData.thoughtSignature,
+            } satisfies GeminiToolCallMetadata,
           }),
         }
       }
+
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        model,
+        timestamp: now(),
+        delta: toolCallData.args,
+        args: toolCallData.args,
+      }
+    }
+
+    function* processCandidateParts(
+      parts: Array<Part>,
+    ): Generator<AdapterYieldChunk> {
+      for (const part of parts) {
+        if (part.text) {
+          if (part.thought) {
+            yield* processThoughtPart(part)
+          } else if (part.text.trim()) {
+            yield* processTextPart(part.text)
+          }
+        }
+        if (part.functionCall) {
+          yield* processFunctionCallPart(part)
+        }
+      }
+    }
+
+    function* processDataFallback(data: string): Generator<AdapterYieldChunk> {
+      yield* processTextPart(data)
+    }
+
+    function* processFinish(
+      chunk: GenerateContentResponse,
+    ): Generator<AdapterYieldChunk> {
+      const finishReason = chunk.candidates?.[0]?.finishReason
+      if (!finishReason) return
+
+      const toolCalls = toolCallMap.entries()
+      for (const [toolCallId, toolCallData] of toolCalls) {
+        let parsedInput: unknown = {}
+        try {
+          const parsed = JSON.parse(toolCallData.args)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+          parsedInput = {}
+        }
+
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId,
+          toolCallName: toolCallData.name,
+          toolName: toolCallData.name,
+          model,
+          timestamp: now(),
+          input: parsedInput,
+        }
+      }
+
+      if (toolCallMap.size > 0) {
+        hasEmittedTextMessageStart = false
+      }
+
+      if (finishReason === FinishReason.MAX_TOKENS) {
+        yield {
+          type: EventType.RUN_ERROR,
+          runId,
+          model,
+          timestamp: now(),
+          message:
+            'The response was cut off because the maximum token limit was reached.',
+          code: 'max_tokens',
+          error: {
+            message:
+              'The response was cut off because the maximum token limit was reached.',
+            code: 'max_tokens',
+          },
+        }
+      }
+
+      yield* closeReasoningIfNeeded()
+
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: now(),
+        }
+      }
+
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        timestamp: now(),
+        finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
+        ...(chunk.usageMetadata && {
+          usage: buildGeminiUsage(chunk.usageMetadata),
+        }),
+      }
+    }
+
+    function* processChunkContent(
+      chunk: GenerateContentResponse,
+    ): Generator<AdapterYieldChunk> {
+      const parts = chunk.candidates?.[0]?.content?.parts
+      if (parts) {
+        yield* processCandidateParts(parts)
+        return
+      }
+      if (chunk.data && chunk.data.trim()) {
+        yield* processDataFallback(chunk.data)
+      }
+    }
+
+    for await (const chunk of result) {
+      logger.provider(`provider=gemini`, { chunk })
+      yield* emitRunStartedIfNeeded()
+      yield* processChunkContent(chunk)
+      yield* processFinish(chunk)
     }
   }
 
@@ -628,11 +602,124 @@ export class GeminiTextAdapter<
     }
   }
 
+  private appendAssistantToolCallParts(
+    toolCalls: NonNullable<ModelMessage['toolCalls']>,
+    parts: Array<Part>,
+  ): void {
+    for (const toolCall of toolCalls) {
+      let parsedArgs: Record<string, unknown> = {}
+      try {
+        parsedArgs = toolCall.function.arguments
+          ? (JSON.parse(toolCall.function.arguments) as Record<string, unknown>)
+          : {}
+      } catch {
+        parsedArgs = {}
+      }
+
+      const thoughtSignature = (
+        toolCall.metadata as GeminiToolCallMetadata | undefined
+      )?.thoughtSignature
+      const part: Part = {
+        functionCall: {
+          id: toolCall.id,
+          name: toolCall.function.name,
+          args: parsedArgs,
+        },
+      }
+      if (thoughtSignature) {
+        part.thoughtSignature = thoughtSignature
+      }
+      parts.push(part)
+    }
+  }
+
+  private appendToolResultParts(
+    msg: ModelMessage,
+    parts: Array<Part>,
+    toolCallIdToName: Map<string, string>,
+  ): void {
+    if (!msg.toolCallId) return
+    const functionName = toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
+    const toolContent = msg.content
+    if (Array.isArray(toolContent)) {
+      const textChunks: Array<string> = []
+      const mediaParts: Array<Part> = []
+      for (const part of toolContent) {
+        if (part.type === 'text') {
+          textChunks.push(part.content)
+        } else if (part.source.type === 'data') {
+          mediaParts.push({
+            inlineData: {
+              data: part.source.value,
+              mimeType: part.source.mimeType,
+            },
+          })
+        } else {
+          const defaultMimeType = {
+            image: 'image/jpeg',
+            audio: 'audio/mp3',
+            video: 'video/mp4',
+            document: 'application/pdf',
+          }[part.type]
+          mediaParts.push({
+            fileData: {
+              fileUri: part.source.value,
+              mimeType: part.source.mimeType ?? defaultMimeType,
+            },
+          })
+        }
+      }
+      parts.push({
+        functionResponse: {
+          id: msg.toolCallId,
+          name: functionName,
+          response: { content: textChunks.join('\n') },
+          ...(mediaParts.length > 0 && { parts: mediaParts }),
+        },
+      })
+      return
+    }
+    parts.push({
+      functionResponse: {
+        id: msg.toolCallId,
+        name: functionName,
+        response: { content: toolContent || '' },
+      },
+    })
+  }
+
+  private formatOneMessage(
+    msg: ModelMessage,
+    toolCallIdToName: Map<string, string>,
+  ): Content {
+    const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
+    const parts: Array<Part> = []
+
+    if (Array.isArray(msg.content)) {
+      for (const contentPart of msg.content) {
+        parts.push(this.convertContentPartToGemini(contentPart))
+      }
+    } else if (msg.content && msg.role !== 'tool') {
+      parts.push({ text: msg.content })
+    }
+
+    if (msg.role === 'assistant' && msg.toolCalls?.length) {
+      this.appendAssistantToolCallParts(msg.toolCalls, parts)
+    }
+
+    if (msg.role === 'tool' && msg.toolCallId) {
+      this.appendToolResultParts(msg, parts, toolCallIdToName)
+    }
+
+    return {
+      role,
+      parts: parts.length > 0 ? parts : [{ text: '' }],
+    }
+  }
+
   private formatMessages(
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
-    // Build a lookup from toolCallId → function name so functionResponse uses the
-    // correct name instead of the raw call ID.
     const toolCallIdToName = new Map<string, string>()
     for (const msg of messages) {
       if (msg.role === 'assistant' && msg.toolCalls) {
@@ -642,113 +729,10 @@ export class GeminiTextAdapter<
       }
     }
 
-    const formatted = messages.map((msg) => {
-      const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
-      const parts: Array<Part> = []
+    const formatted = messages.map((msg) =>
+      this.formatOneMessage(msg, toolCallIdToName),
+    )
 
-      if (Array.isArray(msg.content)) {
-        for (const contentPart of msg.content) {
-          parts.push(this.convertContentPartToGemini(contentPart))
-        }
-      } else if (msg.content && msg.role !== 'tool') {
-        parts.push({ text: msg.content })
-      }
-
-      if (msg.role === 'assistant' && msg.toolCalls?.length) {
-        for (const toolCall of msg.toolCalls) {
-          let parsedArgs: Record<string, unknown> = {}
-          try {
-            parsedArgs = toolCall.function.arguments
-              ? (JSON.parse(toolCall.function.arguments) as Record<
-                  string,
-                  unknown
-                >)
-              : {}
-          } catch {
-            parsedArgs = {}
-          }
-
-          const thoughtSignature = (
-            toolCall.metadata as GeminiToolCallMetadata | undefined
-          )?.thoughtSignature
-          // Gemini requires thoughtSignature at the Part level (sibling of
-          // functionCall), not nested inside functionCall. Nesting it causes
-          // the API to reject the next turn with
-          // "Function call is missing a thought_signature".
-          const part: Part = {
-            functionCall: {
-              id: toolCall.id,
-              name: toolCall.function.name,
-              args: parsedArgs,
-            },
-          }
-          if (thoughtSignature) {
-            part.thoughtSignature = thoughtSignature
-          }
-          parts.push(part)
-        }
-      }
-
-      if (msg.role === 'tool' && msg.toolCallId) {
-        const functionName =
-          toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
-        const toolContent = msg.content
-        if (Array.isArray(toolContent)) {
-          const textChunks: Array<string> = []
-          const mediaParts: Array<Part> = []
-          for (const part of toolContent) {
-            if (part.type === 'text') {
-              textChunks.push(part.content)
-            } else if (part.source.type === 'data') {
-              mediaParts.push({
-                inlineData: {
-                  data: part.source.value,
-                  mimeType: part.source.mimeType,
-                },
-              })
-            } else {
-              const defaultMimeType = {
-                image: 'image/jpeg',
-                audio: 'audio/mp3',
-                video: 'video/mp4',
-                document: 'application/pdf',
-              }[part.type]
-              mediaParts.push({
-                fileData: {
-                  fileUri: part.source.value,
-                  mimeType: part.source.mimeType ?? defaultMimeType,
-                },
-              })
-            }
-          }
-          parts.push({
-            functionResponse: {
-              id: msg.toolCallId,
-              name: functionName,
-              response: { content: textChunks.join('\n') },
-              ...(mediaParts.length > 0 && { parts: mediaParts }),
-            },
-          })
-        } else {
-          parts.push({
-            functionResponse: {
-              id: msg.toolCallId,
-              name: functionName,
-              response: { content: toolContent || '' },
-            },
-          })
-        }
-      }
-
-      return {
-        role,
-        parts: parts.length > 0 ? parts : [{ text: '' }],
-      }
-    })
-
-    // Post-process: Gemini requires strictly alternating user/model roles.
-    // Tool results are mapped to role:'user', which can create consecutive
-    // user messages when followed by a new user message. Merge them.
     return this.mergeConsecutiveSameRoleMessages(formatted)
   }
 
@@ -811,16 +795,7 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    // Separate `thinkingConfig` from the other model options so the loose
-    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
-    // into the SDK config object via the `...modelOpts` spread — we re-add a
-    // properly-typed `ThinkingConfig` below.
     const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
-    // Build the thinkingConfig payload only when the caller actually supplied
-    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
-    // (string union) so users can pass plain strings; the SDK target is the
-    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
-    // re-emit fields via conditional spreads.
     const mappedThinkingConfig = thinkingConfig
       ? {
           ...(thinkingConfig.includeThoughts !== undefined && {
@@ -843,15 +818,6 @@ export class GeminiTextAdapter<
         ? normalizedPrompts.map((p) => p.content).join('\n')
         : undefined
 
-    // Native combined mode (issue #605): when the engine threads
-    // `outputSchema` through TextOptions, the adapter declared
-    // `supportsCombinedToolsAndSchema` (Gemini 3.x only). The schema is
-    // already JSON Schema (pre-converted at the activity boundary). Wire
-    // it into `config.responseSchema` + `responseMimeType: 'application/json'`
-    // alongside any `tools` — the model emits function calls during the
-    // agent loop and the schema-constrained JSON on its natural final
-    // turn, so the engine can harvest it without the separate
-    // `structuredOutput` finalization round-trip.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -862,9 +828,6 @@ export class GeminiTextAdapter<
         }
       : undefined
 
-    // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
-    // under EOPT, so spread each common option only when present rather than
-    // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),

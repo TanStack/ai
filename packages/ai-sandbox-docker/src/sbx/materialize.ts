@@ -58,16 +58,21 @@ function invalidSandboxId(id: string): Error {
  * Does not rewrite a bad id into a safe name.
  */
 export function sandboxNameFromId(id: string): string {
-  if (typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..') {
+  const isInvalidSandboxName =
+    typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..'
+  if (isInvalidSandboxName) {
     throw invalidSandboxId(typeof id === 'string' ? id : String(id))
   }
-  if (id.includes('/') || id.includes('\\') || id.includes('\0')) {
+  const hasPathSeparator =
+    id.includes('/') || id.includes('\\') || id.includes('\0')
+  if (hasPathSeparator) {
     throw invalidSandboxId(id)
   }
   const root = path.resolve(ownedHostRepoRoot())
   const dest = path.resolve(path.join(root, id))
   const prefix = root.endsWith(path.sep) ? root : root + path.sep
-  if (dest === root || !dest.startsWith(prefix)) {
+  const isOutsideRepoRoot = dest === root || !dest.startsWith(prefix)
+  if (isOutsideRepoRoot) {
     throw invalidSandboxId(id)
   }
   return id
@@ -102,10 +107,10 @@ function normalizeGitUrl(url: string): string {
 function isUnexpectedGitProbeError(error: unknown): boolean {
   // git exits with a number when the dest/remote/ref does not match.
   // Spawn/syscall failures use a string code (ENOENT, EACCES, ...).
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return true
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return typeof error.code !== 'number'
   }
-  return typeof error.code !== 'number'
+  return true
 }
 
 const GIT_SHA_RE = /^[0-9a-f]{7,40}$/i
@@ -171,11 +176,47 @@ async function ownedGitDestMatchesSource(
   }
 }
 
-// Credential helper that prints creds read from the child ENV. The helper
-// string references ${GIT_ASKPASS_*} only — the raw token never lands in
-// GIT_CONFIG_VALUE_0 (process listings / git config dumps).
 const CREDENTIAL_HELPER =
   '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
+
+function gitCloneEnv(auth: { username?: string; token: string } | undefined) {
+  const env = { ...process.env }
+  if (!auth?.token) return env
+  env.GIT_TERMINAL_PROMPT = '0'
+  env.GIT_ASKPASS_USER = auth.username ?? 'x-access-token'
+  env.GIT_ASKPASS_TOKEN = auth.token
+  env.GIT_CONFIG_COUNT = '1'
+  env.GIT_CONFIG_KEY_0 = 'credential.helper'
+  env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
+  return env
+}
+
+async function checkoutGitSha(
+  dest: string,
+  ref: string,
+  resolvedDepth: number | 'full',
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  const fetchArgs = ['fetch']
+  if (resolvedDepth !== 'full') {
+    fetchArgs.push('--depth', String(resolvedDepth))
+  }
+  fetchArgs.push('--', 'origin', ref)
+  await runGit(fetchArgs, { cwd: dest, env })
+  await runGit(['checkout', '--detach', ref], { cwd: dest, env })
+}
+
+function rethrowMissingGitBin(error: unknown): never {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'ENOENT'
+  ) {
+    throw new Error(MISSING_GIT_BIN)
+  }
+  throw error
+}
 
 async function cloneGitSource(
   id: string,
@@ -188,19 +229,18 @@ async function cloneGitSource(
 ): Promise<string> {
   const dest = ownedHostRepoDir(id)
   const resolvedDepth = source.depth ?? 1
-  if (
+  const isInvalidCloneDepth =
     resolvedDepth !== 'full' &&
     (!Number.isInteger(resolvedDepth) || resolvedDepth <= 0)
-  ) {
+  if (isInvalidCloneDepth) {
     throw new Error(
       'sbxSandbox: git clone depth must be a positive integer or "full".',
     )
   }
   await mkdir(path.dirname(dest), { recursive: true })
-  if (
-    (await hasGitDir(dest)) &&
-    (await ownedGitDestMatchesSource(dest, source))
-  ) {
+  const canReuseClone =
+    (await hasGitDir(dest)) && (await ownedGitDestMatchesSource(dest, source))
+  if (canReuseClone) {
     return dest
   }
   await rm(dest, { recursive: true, force: true })
@@ -212,37 +252,15 @@ async function cloneGitSource(
     args.push('--branch', source.ref)
   }
   args.push('--', source.url, dest)
-  const env = { ...process.env }
-  if (source.auth?.token) {
-    env.GIT_TERMINAL_PROMPT = '0'
-    env.GIT_ASKPASS_USER = source.auth.username ?? 'x-access-token'
-    env.GIT_ASKPASS_TOKEN = source.auth.token
-    env.GIT_CONFIG_COUNT = '1'
-    env.GIT_CONFIG_KEY_0 = 'credential.helper'
-    env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
-  }
+  const env = gitCloneEnv(source.auth)
   try {
     await runGit(args, { env })
     if (source.ref && isGitSha(source.ref)) {
-      const fetchArgs = ['fetch']
-      if (resolvedDepth !== 'full') {
-        fetchArgs.push('--depth', String(resolvedDepth))
-      }
-      fetchArgs.push('--', 'origin', source.ref)
-      await runGit(fetchArgs, { cwd: dest, env })
-      await runGit(['checkout', '--detach', source.ref], { cwd: dest, env })
+      await checkoutGitSha(dest, source.ref, resolvedDepth, env)
     }
   } catch (error) {
     await rm(dest, { recursive: true, force: true }).catch(() => {})
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ENOENT'
-    ) {
-      throw new Error(MISSING_GIT_BIN)
-    }
-    throw error
+    rethrowMissingGitBin(error)
   }
   return dest
 }

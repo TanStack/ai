@@ -77,6 +77,51 @@ interface VideoImageFields {
   inputReferences?: Array<ContentPartImage>
 }
 
+function appendVideoImageByRole(
+  model: string,
+  part: ImagePart<MediaInputMetadata>,
+  starts: Array<string>,
+  ends: Array<string>,
+  references: Array<string>,
+): void {
+  const role = part.metadata?.role
+  const isUnsupportedImageRole = role === 'mask' || role === 'control'
+  if (isUnsupportedImageRole) {
+    throw new Error(
+      `openrouter: metadata.role === '${role}' is not supported for video generation on model ${model}. Remove the role or use 'start_frame' / 'end_frame' / 'reference'.`,
+    )
+  }
+  const url = imagePartToUrl(part)
+  const isReferenceRole = role === 'reference' || role === 'character'
+  if (role === 'end_frame') ends.push(url)
+  else if (isReferenceRole) references.push(url)
+  // Unroled parts default to the start frame (image-to-video).
+  else starts.push(url)
+}
+
+function assertSupportedVideoFrames(
+  model: string,
+  starts: Array<string>,
+  ends: Array<string>,
+): void {
+  const supportedFrames = getVideoModelMeta(model)?.frameImages
+  if (!supportedFrames) return
+  const isStartFrameUnsupported =
+    starts.length > 0 && !supportedFrames.includes('first_frame')
+  if (isStartFrameUnsupported) {
+    throw new Error(
+      `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+    )
+  }
+  const isEndFrameUnsupported =
+    ends.length > 0 && !supportedFrames.includes('last_frame')
+  if (isEndFrameUnsupported) {
+    throw new Error(
+      `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+    )
+  }
+}
+
 /**
  * Map the prompt's image parts onto OpenRouter's video request fields:
  *
@@ -101,17 +146,7 @@ function mapImagePartsToVideoFields(
   const ends: Array<string> = []
   const references: Array<string> = []
   for (const part of images) {
-    const role = part.metadata?.role
-    if (role === 'mask' || role === 'control') {
-      throw new Error(
-        `openrouter: metadata.role === '${role}' is not supported for video generation on model ${model}. Remove the role or use 'start_frame' / 'end_frame' / 'reference'.`,
-      )
-    }
-    const url = imagePartToUrl(part)
-    if (role === 'end_frame') ends.push(url)
-    else if (role === 'reference' || role === 'character') references.push(url)
-    // Unroled parts default to the start frame (image-to-video).
-    else starts.push(url)
+    appendVideoImageByRole(model, part, starts, ends, references)
   }
 
   if (starts.length > 1) {
@@ -125,19 +160,7 @@ function mapImagePartsToVideoFields(
     )
   }
 
-  const supportedFrames = getVideoModelMeta(model)?.frameImages
-  if (supportedFrames) {
-    if (starts.length > 0 && !supportedFrames.includes('first_frame')) {
-      throw new Error(
-        `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
-      )
-    }
-    if (ends.length > 0 && !supportedFrames.includes('last_frame')) {
-      throw new Error(
-        `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
-      )
-    }
-  }
+  assertSupportedVideoFrames(model, starts, ends)
 
   const frameImages: Array<FrameImage> = [
     ...starts.map(
@@ -289,10 +312,6 @@ export class OpenRouterVideoAdapter<
         : {}),
       ...(modelOptions?.provider ? { provider: modelOptions.provider } : {}),
     }
-    // The SDK types these as branded open enums; the per-model literal
-    // unions derived from OPENROUTER_VIDEO_MODEL_META can be broader than
-    // the SDK's enum members (e.g. grok-imagine-video's '3:2'), so narrow at
-    // the boundary — the wire format is a plain string either way.
     if (modelOptions?.resolution) {
       request.resolution =
         modelOptions.resolution as VideoGenerationRequestResolution
@@ -350,17 +369,13 @@ export class OpenRouterVideoAdapter<
       )
     }
     const contentUrl = response.unsignedUrls?.[0]
-    if (status !== 'completed' || !contentUrl) {
+    const hasNoDownloadableContent = status !== 'completed' || !contentUrl
+    if (hasNoDownloadableContent) {
       throw new Error(
         `openrouter: video job ${jobId} has no downloadable content yet (status: ${response.status}). Poll until the job is completed before requesting the URL.`,
       )
     }
 
-    // `unsigned_urls` require the OpenRouter `Authorization` header
-    // (verified live: a plain GET returns 401), so they cannot go straight
-    // into a browser `<video>` tag. Download through the SDK and return a
-    // data URL instead. `@openrouter/sdk` 0.13.20's `getVideoContent`
-    // accepts `video/mp4` and streams the bytes.
     let stream: ReadableStream<Uint8Array>
     try {
       stream = await this.client.videoGeneration.getVideoContent({ jobId })

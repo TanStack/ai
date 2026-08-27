@@ -75,10 +75,6 @@ export class RealtimeClient {
     }
   }
 
-  // ============================================================================
-  // Connection Lifecycle
-  // ============================================================================
-
   /**
    * Connect to the realtime session.
    * Fetches a token and establishes the connection.
@@ -121,7 +117,10 @@ export class RealtimeClient {
 
       this.updateState({ status: 'connected', mode: 'listening' })
       this.options.onConnect?.()
-    } catch (error) {
+    } catch (
+      /** Get current error, if any */
+      error
+    ) {
       const err = error instanceof Error ? error : new Error(String(error))
       this.updateState({ status: 'error', error: err })
       this.options.onError?.(err)
@@ -159,18 +158,13 @@ export class RealtimeClient {
     this.options.onDisconnect?.()
   }
 
-  // ============================================================================
-  // Voice Control
-  // ============================================================================
-
   /**
    * Start listening for voice input.
    * Only needed when vadMode is 'manual'.
    */
   startListening(): void {
-    if (!this.connection || this.state.status !== 'connected') {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
     void this.connection.startAudioCapture()
     this.updateState({ mode: 'listening' })
   }
@@ -197,17 +191,12 @@ export class RealtimeClient {
     this.connection.interrupt()
   }
 
-  // ============================================================================
-  // Text Input
-  // ============================================================================
-
   /**
    * Send a text message instead of voice.
    */
   sendText(text: string): void {
-    if (!this.connection || this.state.status !== 'connected') {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
 
     // Add user message
     const userMessage: RealtimeMessage = {
@@ -228,9 +217,8 @@ export class RealtimeClient {
    * @param mimeType - MIME type of the image (e.g., 'image/png', 'image/jpeg')
    */
   sendImage(imageData: string, mimeType: string): void {
-    if (!this.connection || this.state.status !== 'connected') {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
 
     // Add user message with image part
     const userMessage: RealtimeMessage = {
@@ -244,10 +232,6 @@ export class RealtimeClient {
     // Send to provider
     this.connection.sendImage(imageData, mimeType)
   }
-
-  // ============================================================================
-  // State Access
-  // ============================================================================
 
   /** Get current connection status */
   get status(): RealtimeStatus {
@@ -289,10 +273,6 @@ export class RealtimeClient {
    * This applies changes to the active connection and persists them for future reconnections.
    */
   updateSession(config: Partial<RealtimeSessionConfig>): void {
-    // Persist type-compatible fields so future (re)connections use the updated
-    // config. `tools` is intentionally excluded: a session's tool configs are
-    // serialized descriptors, whereas `options.tools` holds executable client
-    // tools tracked separately via `clientTools`.
     const o = this.options
     if (config.instructions !== undefined) o.instructions = config.instructions
     if (config.voice !== undefined) o.voice = config.voice
@@ -316,10 +296,6 @@ export class RealtimeClient {
     }
   }
 
-  // ============================================================================
-  // State Subscription
-  // ============================================================================
-
   /**
    * Subscribe to state changes.
    * @returns Unsubscribe function
@@ -331,10 +307,6 @@ export class RealtimeClient {
     }
   }
 
-  // ============================================================================
-  // Cleanup
-  // ============================================================================
-
   /**
    * Clean up resources.
    * Call this when disposing of the client.
@@ -343,10 +315,6 @@ export class RealtimeClient {
     void this.disconnect()
     this.stateChangeCallbacks.clear()
   }
-
-  // ============================================================================
-  // Private Methods
-  // ============================================================================
 
   private updateState(updates: Partial<RealtimeClientState>): void {
     this.state = { ...this.state, ...updates }
@@ -414,9 +382,6 @@ export class RealtimeClient {
       }),
     )
 
-    // Transcripts (streaming)
-    // User transcripts are added as messages when final (no separate message_complete for user input)
-    // Assistant transcripts are streamed, final message comes via message_complete
     this.unsubscribers.push(
       this.connection.on('transcript', ({ role, transcript, isFinal }) => {
         if (role === 'user') {
@@ -560,9 +525,6 @@ export class RealtimeClient {
       semanticEagerness
     if (!hasConfig) return
 
-    // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
-    // (no `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
-    // each so we don't pass `undefined` when the tool has no such schema.
     const toolsConfig = tools
       ? Array.from(this.clientTools.values()).map((t) => {
           const inputSchema = t.inputSchema
@@ -580,9 +542,6 @@ export class RealtimeClient {
         })
       : undefined
 
-    // `RealtimeSessionConfig` declares each field as `field?: T` (no
-    // `undefined`). Spread each one conditionally so we don't violate
-    // `exactOptionalPropertyTypes` when the source is `T | undefined`.
     this.connection.updateSession({
       ...(instructions !== undefined ? { instructions } : {}),
       ...(voice !== undefined ? { voice } : {}),

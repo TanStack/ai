@@ -35,7 +35,8 @@ export function inMemory(options: InMemoryOptions = {}): MemoryAdapter {
   function sweep(): Array<MemoryRecord> {
     const now = Date.now()
     const live: Array<MemoryRecord> = []
-    for (const r of records.values()) {
+    const storedRecords = records.values()
+    for (const r of storedRecords) {
       if (isExpired(r, now)) records.delete(r.id)
       else live.push(r)
     }

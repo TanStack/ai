@@ -1,26 +1,3 @@
-/**
- * The "run driver" for the inverted/serverless sandbox model: pump a `chat()`
- * stream into core's two durable seams — a {@link RunStore} for the run's
- * lifecycle record and a {@link StreamDurability} for its event log — so a
- * trigger can return immediately while a durable orchestrator drives the run
- * and clients tail from an opaque offset.
- *
- * The key inversion vs. a classic request/response handler: there is no caller
- * holding the stream open, so nothing to throw an error *back to*. The event log
- * is the only channel — every chunk (including a terminal
- * {@link EventType.RUN_ERROR}) is appended and assigned a resumable offset, and
- * a thrown stream error is recorded as a synthesized `RUN_ERROR` event plus the
- * record's `error` field. Tailing clients therefore always observe failures;
- * {@link pipeToRunLog} never rejects.
- *
- * "Never rejects" is load-bearing rather than aspirational: {@link RunController}
- * consumes the returned promise fire-and-forget, so a rejection would be an
- * unhandled rejection (process-fatal on modern Node, instance-fatal inside a
- * Durable Object) with nobody to report it to. Every store/log call is therefore
- * individually guarded, and because absorbing a failure silently in the one
- * module whose premise is that nobody is listening would make the failure
- * invisible, each guard reports through the optional {@link RunDeps.logger}.
- */
 import { EventType } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -138,13 +115,8 @@ export interface PipeToRunLogOptions<
 
 /** Everything {@link finish} needs, including the fields it rebuilds a record from. */
 interface FinishContext {
+  /** Run lifecycle record (status, thread, timings). */
   runs: RunStore
-  /**
-   * `close()` only — see {@link finish}. Narrowed to that one member rather than
-   * threading `TOffset` through here, because `close` is the sole method this
-   * context touches and it is offset-free, so a `Pick` accepts a log at ANY
-   * offset instantiation without making `finish` generic for nothing.
-   */
   durability: Pick<StreamDurability, 'close'>
   runId: string
   threadId: string
@@ -203,12 +175,6 @@ async function finish(
   status: TerminalRunStatus,
   error?: RunError,
 ): Promise<RunRecord> {
-  // NOTE: every logger call below goes through `safeLog`. The logger is
-  // consumer-supplied and is handed arbitrary thrown values, so a sink that
-  // cannot serialize one (a circular payload, say) would otherwise throw from
-  // inside a `catch` body and escape, skipping `durability.close()` and leaving
-  // the run wedged at `'running'` with live tailers parked. The reporting
-  // channel must never be able to break the guarantee it exists to report on.
   const { runs, durability, runId, logger } = ctx
   const finishedAt = Date.now()
   const patch = {
@@ -284,10 +250,6 @@ export async function pipeToRunLog<TOffset extends string = string>(
   opts: PipeToRunLogOptions<TOffset>,
 ): Promise<RunRecord> {
   const { runs, runId, threadId, signal, logger } = opts
-  // Resolved ONCE, from the runId being driven. Everything below — including
-  // `finish`'s `close()` — uses this one instance, so a factory that mints a
-  // fresh log per call cannot split one run across two logs, and the log can
-  // never belong to a run other than the one whose record is being written.
   const durability = opts.durability(runId)
   const ctx: FinishContext = {
     runs,
@@ -319,9 +281,6 @@ export async function pipeToRunLog<TOffset extends string = string>(
     // Detached run: no caller to throw to. Record the failure in the log so
     // tailing clients observe it, then return — do NOT rethrow.
     let recorded = toRunError(streamError)
-    // Deliberately not "the stream failed": `runs.createOrResume` above is
-    // inside this `try`, so an operator reading a wedged run must not be told
-    // the provider stream broke when the store never let the run start.
     safeLog(logger, 'run: the run failed before completing', {
       runId,
       error: streamError,
@@ -329,12 +288,6 @@ export async function pipeToRunLog<TOffset extends string = string>(
     try {
       await durability.append([syntheticRunError(recorded)])
     } catch (appendError) {
-      // The recovery append is itself a failure path. It must not destroy the
-      // cause it was recording, so the provider's error stays primary and this
-      // secondary failure is merged in and logged separately. When the cause IS
-      // a lost claim, this append is refused too and the `finish` below writes
-      // nothing either — a fenced store suppresses the terminal record for the
-      // same reason the fenced log refused the chunk (see `finish`).
       const phase = 'appending the synthesized RUN_ERROR failed'
       safeLog(logger, `run: ${phase}`, { runId, error: appendError })
       recorded = withSecondaryFailure(recorded, appendError, phase)
@@ -342,27 +295,6 @@ export async function pipeToRunLog<TOffset extends string = string>(
     return finish(ctx, 'failed', recorded)
   }
 
-  // RE-CHECKED after the loop, and this is the common shape rather than the
-  // exotic one. The in-loop check only fires if the producer yields at least
-  // once MORE after the abort; two ways past it are routine:
-  //
-  // - The producer is signal-aware and reacts by ENDING its stream. `chat()`
-  //   does exactly this, so the loop exits NORMALLY.
-  // - The abort lands BETWEEN two chunks, while the loop is suspended on a
-  //   producer that then finishes on its own.
-  //
-  // Falling through to `'completed'` in either case is a false transcript, not
-  // a cosmetic mislabel: it was measured on the reaper's TTL-expiry path, where
-  // a run the reaper had force-expired — and whose sandbox it had already
-  // destroyed — was recorded as having completed successfully. Any caller whose
-  // producer ends its stream on abort reaches the same gap, a takeover that
-  // loses its claim mid-drive included, which is why the check belongs here and
-  // not in one caller.
-  //
-  // A producer that THREW on the abort is deliberately untouched: it returned
-  // from inside the `catch` above as `'failed'`, because a thrown value is a
-  // reported failure a tailing client must be shown, and this driver's log is
-  // that client's only channel.
   if (signal?.aborted) return finish(ctx, 'aborted')
   return finish(ctx, 'completed')
 }
@@ -405,6 +337,7 @@ export class RunController<TOffset extends string = string> {
    * immediately plus a `done` promise the orchestrator may await or detach.
    */
   start(input: RunControllerStartInput): RunHandle {
+    /** Resolves with the final record once the run reaches a terminal status. */
     const done = pipeToRunLog(input.stream, {
       ...this.deps,
       runId: input.runId,
@@ -412,12 +345,6 @@ export class RunController<TOffset extends string = string> {
       ...(input.signal !== undefined ? { signal: input.signal } : {}),
     })
     this.inFlight.add(done)
-    // Two-argument `then`, deliberately NOT `.finally`: `.finally` returns a new
-    // promise that adopts any rejection, and discarding that promise would make
-    // the rejection unhandled (fatal on modern Node defaults, and it kills the
-    // instance inside a Durable Object). Handling both outcomes here means the
-    // derived promise always settles fulfilled, so nothing is left unhandled
-    // even if `pipeToRunLog`'s "never rejects" contract is ever broken.
     const forget = (): void => void this.inFlight.delete(done)
     void done.then(forget, forget)
     return { runId: input.runId, done }

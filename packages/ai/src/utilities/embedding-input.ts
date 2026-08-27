@@ -75,7 +75,8 @@ export function countEmbeddingInputModalities(
 ): { textInputCount: number; imageInputCount: number } {
   let textInputCount = 0
   let imageInputCount = 0
-  for (const item of resolveEmbeddingInput(input)) {
+  const items = resolveEmbeddingInput(input)
+  for (const item of items) {
     if (item.images.length > 0) imageInputCount++
     else textInputCount++
   }

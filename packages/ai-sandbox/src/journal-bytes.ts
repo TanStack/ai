@@ -19,7 +19,6 @@
  * flag is on. `atob` is a Web/DOM API available in every host runtime this
  * package targets, so it is the portable choice here.
  */
-
 const NEWLINE = 0x0a
 
 /** Decode one complete base64 quantum group to bytes. */
@@ -54,9 +53,6 @@ export async function* decodeBase64Stream(
     yield decodeQuantumGroup(group)
   }
   if (pending.length > 0) {
-    // Fail loud. A remainder means the frame was cut off mid-quantum, i.e. the
-    // reader died partway through. Rounding it away would silently drop journal
-    // bytes and desync every position derived from this stream.
     throw new Error(
       `journal: base64 frame ended mid-quantum with ${pending.length} character(s) pending`,
     )

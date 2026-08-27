@@ -24,9 +24,6 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export interface LLMGatewayTextConfig extends LLMGatewayClientConfig {}
 
-/**
- * Re-export of the public provider options type
- */
 export type { ExternalTextProviderOptions as LLMGatewayTextProviderOptions } from '../text/text-provider-options'
 
 /**

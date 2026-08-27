@@ -185,11 +185,6 @@ class CloudflareIsolateContext implements IsolateContext {
         // Collect logs from this round
         allLogs = [...allLogs, ...result.logs]
 
-        // Execute tool calls locally. Accumulate across rounds so prior-round
-        // results stay cached when the Worker re-executes user code.
-        // wrap-code uses sequential `tc_<idx>` ids re-derived every round; if
-        // we wipe the cache, multi-tool programs ping-pong between missing
-        // ids and exhaust `maxToolRounds` (MaxRoundsExceeded).
         toolResults = { ...(toolResults ?? {}) }
 
         for (const toolCall of result.toolCalls) {

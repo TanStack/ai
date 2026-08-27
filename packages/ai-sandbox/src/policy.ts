@@ -7,7 +7,6 @@
  * Precedence is deny > ask > allow; unmatched commands fall to `default`.
  * `'ask'` surfaces the existing resume-based `approval-requested` flow.
  */
-
 export type PolicyDecision = 'allow' | 'ask' | 'deny'
 
 export interface CommandRules {
@@ -63,7 +62,8 @@ export function commandAliases(
   const expanded = scripts[trimmed]
   if (expanded !== undefined) aliases.add(expanded)
 
-  for (const [name, value] of Object.entries(scripts)) {
+  const scriptEntries = Object.entries(scripts)
+  for (const [name, value] of scriptEntries) {
     if (value === trimmed) aliases.add(name)
   }
   return [...aliases]
@@ -75,7 +75,8 @@ function patternMatchesCommand(
   scripts: Record<string, string> | undefined,
 ): boolean {
   const commandForms = commandAliases(command, scripts)
-  for (const patternForm of commandAliases(pattern, scripts)) {
+  const patternForms = commandAliases(pattern, scripts)
+  for (const patternForm of patternForms) {
     const re = patternToRegExp(patternForm)
     if (commandForms.some((form) => re.test(form))) return true
   }

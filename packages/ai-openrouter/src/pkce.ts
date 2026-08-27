@@ -192,16 +192,16 @@ export async function exchangeOpenRouterCode(
     throw new Error(`OpenRouter PKCE exchange failed: ${detail}`)
   }
   const data: unknown = await response.json()
-  if (
+  const hasNoKey =
     typeof data !== 'object' ||
     data === null ||
     !('key' in data) ||
-    typeof data.key !== 'string' ||
-    data.key.length === 0
-  ) {
+    typeof (data as { key: unknown }).key !== 'string' ||
+    (data as { key: string }).key.length === 0
+  if (hasNoKey) {
     throw new Error('OpenRouter PKCE exchange returned no key')
   }
-  return data.key
+  return (data as { key: string }).key
 }
 
 export function stripOpenRouterCodeFromUrl(href?: string): void {

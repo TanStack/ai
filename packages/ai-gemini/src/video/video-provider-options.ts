@@ -1,14 +1,3 @@
-/**
- * Gemini Video Generation Provider Options
- *
- * Covers two request paths behind the one video adapter:
- * - Veo models — long-running operations via `:predictLongRunning`
- *   (https://ai.google.dev/gemini-api/docs/video)
- * - Gemini Omni Flash — background jobs via the Interactions API
- *   (https://ai.google.dev/gemini-api/docs/omni)
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 import { GEMINI_INTERACTIONS_VIDEO_MODELS } from '../model-meta'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { GenerateVideosConfig, Interactions } from '@google/genai'
