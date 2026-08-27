@@ -23,7 +23,7 @@ import type {
 /** CUSTOM stream event that carries compaction stats to client DevTools. */
 export const COMPACTION_STATE_EVENT = 'compaction:state'
 
-const PREVIEW_CHARS = 160
+const PREVIEW_CHARS = 4000
 const MAX_PREVIEWS = 24
 
 /** One message in a `compaction:state` preview list. */
