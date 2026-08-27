@@ -2322,6 +2322,113 @@ describe('ChatClient', () => {
       expect(messages[0]?.id).toBeTruthy()
       expect(messages[0]?.createdAt).toBeInstanceOf(Date)
     })
+
+    it('keeps append pending through an intermediate tool_calls RUN_FINISHED until the interrupt', async () => {
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, ctx) {
+          const runId = ctx?.runId ?? 'run-1'
+          const threadId = ctx?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            },
+          }
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'thread-1',
+      })
+
+      await client.append({
+        role: 'user',
+        content: 'Notify me',
+      })
+
+      expect(client.getPendingInterrupts()).toEqual([
+        expect.objectContaining({ id: 'interrupt-1' }),
+      ])
+      expect(client.getResumeState()?.runId).toBeTruthy()
+    })
+
+    it('keeps append pending when intermediate tool_calls is a direct finishReason', async () => {
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, ctx) {
+          const runId = ctx?.runId ?? 'run-1'
+          const threadId = ctx?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          }
+          await Promise.resolve()
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                { id: 'interrupt-direct', reason: 'client_tool_input' },
+              ],
+            },
+          }
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'thread-1',
+      })
+
+      await client.append({
+        role: 'user',
+        content: 'Notify me',
+      })
+
+      expect(client.getPendingInterrupts()).toEqual([
+        expect.objectContaining({ id: 'interrupt-direct' }),
+      ])
+      expect(client.getResumeState()?.runId).toBeTruthy()
+    })
   })
 
   describe('reload', () => {

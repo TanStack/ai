@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
@@ -35,6 +36,7 @@ import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
+import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
@@ -81,8 +83,8 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
-import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -103,6 +105,11 @@ const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
+  id: '/tool-first-text',
+  path: '/tool-first-text',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
@@ -226,6 +233,11 @@ const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
 const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   id: '/api/tools-test',
   path: '/api/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolFirstTextWireRoute = ApiToolFirstTextWireRouteImport.update({
+  id: '/api/tool-first-text-wire',
+  path: '/api/tool-first-text-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiToolCallLifecycleWireRoute =
@@ -473,17 +485,17 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiByokChatRoute = ApiByokChatRouteImport.update({
-  id: '/api/byok-chat',
-  path: '/api/byok-chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiByteplusSeedance1080pWireRoute =
   ApiByteplusSeedance1080pWireRouteImport.update({
     id: '/api/byteplus-seedance-1080p-wire',
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -561,6 +573,7 @@ export interface FileRoutesByFullPath {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -617,6 +630,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -648,6 +662,7 @@ export interface FileRoutesByTo {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -704,6 +719,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -736,6 +752,7 @@ export interface FileRoutesById {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -792,6 +809,7 @@ export interface FileRoutesById {
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -825,6 +843,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -881,6 +900,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -912,6 +932,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -968,6 +989,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -999,6 +1021,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -1055,6 +1078,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -1087,6 +1111,7 @@ export interface RootRouteChildren {
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
@@ -1143,6 +1168,7 @@ export interface RootRouteChildren {
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
+  ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -1164,6 +1190,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tool-first-text': {
+      id: '/tool-first-text'
+      path: '/tool-first-text'
+      fullPath: '/tool-first-text'
+      preLoaderRoute: typeof ToolFirstTextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistence-durability': {
@@ -1332,6 +1365,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tools-test'
       fullPath: '/api/tools-test'
       preLoaderRoute: typeof ApiToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tool-first-text-wire': {
+      id: '/api/tool-first-text-wire'
+      path: '/api/tool-first-text-wire'
+      fullPath: '/api/tool-first-text-wire'
+      preLoaderRoute: typeof ApiToolFirstTextWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tool-call-lifecycle-wire': {
@@ -1656,18 +1696,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/byok-chat': {
-      id: '/api/byok-chat'
-      path: '/api/byok-chat'
-      fullPath: '/api/byok-chat'
-      preLoaderRoute: typeof ApiByokChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/byteplus-seedance-1080p-wire': {
       id: '/api/byteplus-seedance-1080p-wire'
       path: '/api/byteplus-seedance-1080p-wire'
       fullPath: '/api/byteplus-seedance-1080p-wire'
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -1828,6 +1868,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
@@ -1884,6 +1925,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
+  ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,

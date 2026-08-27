@@ -104,6 +104,8 @@ export function makeStructuredOutputCompatibleWithMap(
  * emit these.
  *
  * - `oneOf` / `allOf` / `not` — combinator keywords strict mode rejects
+ * - `prefixItems` — 2020-12 tuple keyword. openai-node's strict transform
+ *   rejects it, so we send those tools with `strict: false` instead
  * - `$ref` / `$defs` / `definitions` — references and definition pools whose
  *   object subschemas escape the `additionalProperties: false` normalization
  *   strict mode requires
@@ -112,6 +114,7 @@ const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
   'oneOf',
   'allOf',
   'not',
+  'prefixItems',
   '$ref',
   '$defs',
   'definitions',
@@ -141,7 +144,7 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  * sent with `strict: false`. Two ways that happens:
  *
  * 1. It uses a JSON-Schema keyword outside OpenAI's strict subset anywhere in
- *    the tree (`oneOf`/`allOf`/`not`/`$ref`/`$defs`).
+ *    the tree (`oneOf`/`allOf`/`not`/`prefixItems`/`$ref`/`$defs`).
  * 2. It contains a *typeless* schema node — a property/items/anyOf entry with
  *    no `type` (nor `enum`/`const`/combinator), e.g. the `{}` that `z.any()`
  *    produces. Strict mode rejects typeless schemas.
@@ -331,15 +334,10 @@ function coerceStrictSchema(
         prop = nested.schema
         childMap = nested.nullWideningMap
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (isSchemaObject(prop) && prop.type === 'array' && prop.items) {
-        const nested = coerceStrictSchema(prop.items, prop.items.required || [])
-        prop = {
-          ...prop,
-          items: nested.schema,
-        }
+      } else if (isSchemaObject(prop) && prop.type === 'array') {
+        const nested = coerceStrictSchema(prop, [])
+        prop = nested.schema
         childMap = nested.nullWideningMap
-          ? { items: nested.nullWideningMap }
-          : undefined
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
       } else if (isSchemaObject(prop) && prop.anyOf) {
         const nested = coerceStrictSchema(prop, prop.required || [])
@@ -411,12 +409,32 @@ function coerceStrictSchema(
   }
 
   if (result.type === 'array' && result.items) {
-    const nested = coerceStrictSchema(result.items, result.items.required || [])
-    result.items = nested.schema
-    if (nested.nullWideningMap) {
-      nullWideningMap.items = nested.nullWideningMap
+    if (Array.isArray(result.items)) {
+      const itemMaps: Array<NullWideningMap> = []
+      result.items = result.items.map((item) => {
+        if (!isSchemaObject(item)) {
+          itemMaps.push({})
+          return item
+        }
+        const nested = coerceStrictSchema(item, item.required || [])
+        itemMaps.push(nested.nullWideningMap ?? {})
+        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
+        return nested.schema
+      })
+      if (itemMaps.some((map) => Object.keys(map).length > 0)) {
+        nullWideningMap.items = itemMaps
+      }
+    } else {
+      const nested = coerceStrictSchema(
+        result.items,
+        result.items.required || [],
+      )
+      result.items = nested.schema
+      if (nested.nullWideningMap) {
+        nullWideningMap.items = nested.nullWideningMap
+      }
+      hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
     }
-    hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
   }
 
   if (result.anyOf && Array.isArray(result.anyOf)) {
