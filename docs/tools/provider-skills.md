@@ -35,6 +35,29 @@ the rest.
 
 ---
 
+## Portable vs hosted skills
+
+There are two ways to give a model skills in TanStack AI, and they solve
+different problems:
+
+- **Portable skills** ([`withSkills`](../skills/agent-skills)) render a catalog
+  and let the model call `load_skill`. They run on any tool-calling model, need
+  no server sandbox, and read `SKILL.md` from a folder, a bundle, or your own
+  store. Reach for these first.
+- **Hosted (provider) skills**, this page, run inside the provider's server-side
+  sandbox and are referenced by ID. They are non-portable and require an
+  execution tool, but the provider does the running.
+
+Use hosted skills when you need the provider's sandbox (running code, producing
+files). Use portable skills for everything else.
+
+The two do not mix in one `chat()` call. If you attach hosted skills to a
+`code_execution` or `shell` tool and also add `withSkills`, the middleware
+throws: the model would see two catalogs and two protocols. Pick one delivery
+mode per call.
+
+---
+
 ## Anthropic: skills via `codeExecutionTool`
 
 ### 1. Install the package
@@ -172,6 +195,8 @@ handled by `codeExecutionTool` or `shellTool`.
 
 ## Related pages
 
+- [Portable Agent Skills](../skills/agent-skills) — the provider-agnostic
+  alternative: a catalog plus `load_skill`, on any tool-calling model.
 - [Provider Tools](./provider-tools.md) — all native provider tools and the
   type-level guard that prevents pairing a tool with an unsupported model.
 - [Anthropic adapter → `codeExecutionTool`](../adapters/anthropic.md#codeexecutiontool)

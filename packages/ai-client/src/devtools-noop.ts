@@ -87,6 +87,7 @@ export class NoOpChatDevtoolsBridge {
   }
   observeChunk(_chunk: StreamChunk): void {}
   recordMemoryState(_value: unknown): void {}
+  recordSkillsState(_value: unknown): void {}
   beginRun(_runId: string, _threadId: string): void {}
   getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
     return undefined

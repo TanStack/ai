@@ -61,7 +61,7 @@
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
           "addedAt": "2026-04-17",
-          "updatedAt": "2026-07-26"
+          "updatedAt": "2026-08-23"
         }
       ]
     },
@@ -94,7 +94,8 @@
         {
           "label": "Provider Skills",
           "to": "tools/provider-skills",
-          "addedAt": "2026-06-04"
+          "addedAt": "2026-06-04",
+          "updatedAt": "2026-08-22"
         },
         {
           "label": "Tool Architecture",
@@ -125,6 +126,27 @@
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-06-08"
+        }
+      ]
+    },
+    {
+      "label": "Skills",
+      "children": [
+        {
+          "label": "Portable Agent Skills",
+          "to": "skills/agent-skills",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-08-23"
+        },
+        {
+          "label": "Skill Sources",
+          "to": "skills/skill-sources",
+          "addedAt": "2026-08-22"
+        },
+        {
+          "label": "Write a Skill Source",
+          "to": "skills/writing-adapters",
+          "addedAt": "2026-08-22"
         }
       ]
     },
@@ -578,7 +600,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Harnesses",
@@ -834,7 +856,7 @@
           "updatedAt": "2026-08-21"
         },
         {
-          "label": "Sampling â†’ modelOptions",
+          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
