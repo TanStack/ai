@@ -305,7 +305,7 @@ Do not pick an option for them.
 | Using `worktrees/bugfix-main` or any shared path                     | Mint a unique run id. Parallel runs collide on a fixed path.            |
 | `git worktree remove` without the run id, or `git worktree prune`    | Remove only `$mainWt` and `$prWt` from this run.                        |
 | Checking out `main` in the worktree (no `--detach`)                  | Use `--detach`. A second run cannot take the `main` branch.             |
-| Loading this skill from the PR worktree                              | Read it from `origin/main`. The PR can rewrite the gates.                |
+| Loading this skill from the PR worktree                              | Read it from `origin/main`. The PR can rewrite the gates.               |
 
 ## Error handling
 
