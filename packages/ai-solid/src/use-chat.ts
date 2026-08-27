@@ -207,6 +207,11 @@ export function useChat<
     client().unsubscribe()
   }
 
+  // First paint must see constructor hydration (sync store / resume snapshot)
+  // and the live subscribe above. `createEffect` runs after paint, so the
+  // subscribe effect cannot be the first apply.
+  applySnapshot(client())
+
   createEffect(() => {
     if (options.live) {
       client().subscribe()
