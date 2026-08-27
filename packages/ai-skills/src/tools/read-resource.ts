@@ -37,6 +37,18 @@ export function createResourceTool(source: SkillSource): Tool {
     }),
   }).server(async ({ skill, path }) => {
     assertSafeResourcePath(path)
+    const listed = await source.list()
+    if (!listed.some((s) => s.name === skill)) {
+      throw new Error(`no skill named "${skill}"`)
+    }
+    if (source.listResources) {
+      const allowed = await source.listResources(skill)
+      if (!allowed.includes(path)) {
+        throw new Error(
+          `skill "${skill}" has no resource "${path}"`,
+        )
+      }
+    }
     if (!source.readResource) {
       throw new Error('this skill source does not support resources')
     }

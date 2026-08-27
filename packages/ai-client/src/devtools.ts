@@ -33,6 +33,11 @@ export interface AIDevtoolsDisplayOptions {
  * payload of the `memory:state` CUSTOM chunk. Kept local so `ai-client` doesn't
  * depend on `ai-memory`; the memory middleware is the producer.
  */
+interface SkillsStateEventValue {
+  catalog?: Array<{ name: string; description: string }>
+  activated?: Array<string>
+}
+
 interface MemoryStateEventValue {
   scope: MemoryScopeLite
   adapter: string
@@ -712,6 +717,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'memory:retrieve:started'
       | 'memory:retrieve:completed'
       | 'memory:snapshot'
+      | 'skills:snapshot'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -770,6 +776,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
+  /** Last transported `skills:state` value, replayed when a panel opens. */
+  private lastSkillsStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
@@ -874,6 +882,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     this.emitMemoryState(rawValue)
   }
 
+  recordSkillsState(rawValue: unknown): void {
+    this.lastSkillsStateValue = rawValue
+    this.emitSkillsState(rawValue)
+  }
+
   /**
    * Re-emit the browser-side `memory:*` events from a transported
    * `memory:state` value. The devtools store consumes these to render the
@@ -926,9 +939,25 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
+  private emitSkillsState(rawValue: unknown): void {
+    if (!rawValue || typeof rawValue !== 'object') return
+    const value = rawValue as SkillsStateEventValue
+    const catalog = Array.isArray(value.catalog) ? value.catalog : []
+    const activated = Array.isArray(value.activated) ? value.activated : []
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    emitAIDevtoolsEvent('skills:snapshot', {
+      ...this.createEnvelope('skills:snapshot', 'client-state', runContext),
+      catalog,
+      activated,
+    })
+  }
+
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
+    }
+    if (this.lastSkillsStateValue != null) {
+      this.emitSkillsState(this.lastSkillsStateValue)
     }
   }
 

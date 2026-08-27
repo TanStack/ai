@@ -19,6 +19,14 @@ describe('renderCatalog', () => {
     expect(out).toContain('first &amp; &lt;special&gt;')
   })
 
+  it('escapes quotes in Anthropic XML attributes', () => {
+    const out = renderCatalog(
+      [{ name: 'alpha', description: 'say "hi" & go' }],
+      'anthropic',
+    )
+    expect(out).toContain('say &quot;hi&quot; &amp; go')
+  })
+
   it('renders markdown for non-Anthropic families', () => {
     const out = renderCatalog(skills, 'openai')
     expect(out).toContain('## Available skills')

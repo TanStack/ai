@@ -14,7 +14,6 @@
  * corresponding methods — those cases are skipped, not failed.
  */
 import { describe, expect, it } from 'vitest'
-import { assertSafeResourcePath } from '../util'
 import type { SkillSource } from '../types'
 
 const dec = (v: string | Uint8Array) =>
@@ -75,12 +74,8 @@ export function runSkillSourceConformance(
       const value = await readResource('alpha', 'references/note.md')
       // trimEnd: a file-backed source keeps the fixture's trailing newline (formatters add one); the payload is what matters.
       expect(dec(value).trimEnd()).toBe('hello')
-      // Path traversal must be rejected — by the source or the shared guard.
       await expect(
-        (async () => {
-          assertSafeResourcePath('../../etc/passwd')
-          await readResource('alpha', '../../etc/passwd')
-        })(),
+        readResource('alpha', '../../etc/passwd'),
       ).rejects.toThrow()
     })
 

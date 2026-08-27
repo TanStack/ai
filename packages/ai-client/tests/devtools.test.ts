@@ -1423,6 +1423,68 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('re-emits skills:snapshot from a transported skills:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'skills:state',
+        value: {
+          catalog: [{ name: 'pirate-speak', description: 'talk like a pirate' }],
+          activated: [],
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-skills',
+        delta: 'Ahoy',
+        content: 'Ahoy',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('talk like a pirate')
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+          activated: [],
+        }),
+      ],
+    ])
+
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+        }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('batches structured output update events while preserving final state', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const finalObject = { title: 'Pasta', servings: 2 }

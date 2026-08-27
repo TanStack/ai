@@ -3,8 +3,8 @@
  * `/node` subpath because it imports `node:fs`; the root export stays edge-safe
  * (Workers, browsers), mirroring `@tanstack/ai-code-mode-snippets/storage`.
  */
-import { readFile, readdir, stat } from 'node:fs/promises'
-import { basename, join, relative } from 'node:path'
+import { readFile, readdir, realpath, stat } from 'node:fs/promises'
+import { basename, join, relative, sep } from 'node:path'
 import { walkSkillDirs } from '../walk'
 import { parseSkill, stripFrontmatter } from '../parse'
 import { assertSafeResourcePath, stableHash } from '../util'
@@ -43,9 +43,29 @@ async function collectFiles(dir: string, root: string): Promise<Array<string>> {
   for (const e of ents) {
     const full = join(dir, e.name)
     if (e.isDirectory()) out.push(...(await collectFiles(full, root)))
-    else out.push(relative(root, full))
+    else out.push(relative(root, full).replace(/\\/g, '/'))
   }
   return out
+}
+
+function posixRel(path: string): string {
+  return path.replace(/\\/g, '/')
+}
+
+function hasPrefix(rel: string, prefixes: Array<string>): boolean {
+  const n = posixRel(rel)
+  return prefixes.some((p) => n === p || n.startsWith(`${p}/`))
+}
+
+async function resolveInside(dir: string, rel: string): Promise<string> {
+  const full = join(dir, rel)
+  const rootReal = await realpath(dir)
+  const fullReal = await realpath(full)
+  const prefix = rootReal.endsWith(sep) ? rootReal : rootReal + sep
+  if (fullReal !== rootReal && !fullReal.startsWith(prefix)) {
+    throw new Error(`unsafe resource path: "${rel}"`)
+  }
+  return fullReal
 }
 
 export function skillDirectory(
@@ -55,12 +75,28 @@ export function skillDirectory(
   const roots = Array.isArray(root) ? root : [root]
   const { maxDepth, strict = true } = options
 
-  /** Fresh scan of every root → name → skill directory. */
+  /** Fresh scan of every root → parsed skill name → skill directory. First wins. */
   const scan = async (): Promise<Map<string, string>> => {
     const map = new Map<string, string>()
     for (const r of roots) {
       const dirs = await walkSkillDirs(nodeLister, r, { maxDepth })
-      for (const d of dirs) map.set(d.name, d.dir)
+      for (const d of dirs) {
+        const raw = await readFile(join(d.dir, 'SKILL.md'), 'utf8').catch(
+          () => undefined,
+        )
+        if (raw === undefined) continue
+        try {
+          const parsed = parseSkill(raw, {
+            dirName: basename(d.dir),
+            strict,
+          })
+          if (!map.has(parsed.metadata.name)) {
+            map.set(parsed.metadata.name, d.dir)
+          }
+        } catch {
+          // Skip unparseable skills (same policy as list()).
+        }
+      }
     }
     return map
   }
@@ -111,8 +147,17 @@ export function skillDirectory(
     },
     readResource: async (name, path) => {
       assertSafeResourcePath(path)
+      if (!hasPrefix(path, RESOURCE_DIRS)) {
+        throw new Error(
+          `resource path must be under references/ or assets/: "${path}"`,
+        )
+      }
       const dir = await dirOf(name)
-      return readFile(join(dir, path))
+      const fullReal = await resolveInside(dir, path)
+      if (hasPrefix(path, ['references'])) {
+        return readFile(fullReal, 'utf8')
+      }
+      return readFile(fullReal)
     },
     listScripts: async (name) => {
       const dir = await dirOf(name)
@@ -127,8 +172,13 @@ export function skillDirectory(
     },
     readScript: async (name, path) => {
       assertSafeResourcePath(path)
+      if (!hasPrefix(path, [SCRIPT_DIR])) {
+        throw new Error(`script path must be under scripts/: "${path}"`)
+      }
       const dir = await dirOf(name)
-      return readFile(join(dir, path))
+      const fullReal = await resolveInside(dir, path)
+      const bytes = await readFile(fullReal)
+      return new Uint8Array(bytes)
     },
   }
 }
@@ -144,6 +194,7 @@ export async function generateCatalog(
 ): Promise<GeneratedCatalog> {
   const roots = Array.isArray(root) ? root : [root]
   const skills: Array<GeneratedSkill> = []
+  const seen = new Set<string>()
   for (const r of roots) {
     for (const { dir } of await walkSkillDirs(nodeLister, r, {
       maxDepth: options.maxDepth,
@@ -161,6 +212,8 @@ export async function generateCatalog(
       } catch {
         continue
       }
+      if (seen.has(meta.name)) continue
+      seen.add(meta.name)
       const resources: Record<string, string> = {}
       for (const sub of RESOURCE_DIRS) {
         for (const rel of await collectFiles(join(dir, sub), dir)) {
@@ -189,7 +242,10 @@ export async function generateCatalog(
 export interface SkillsCatalogPlugin {
   name: string
   resolveId: (id: string) => string | undefined
-  load: (id: string) => Promise<string | undefined>
+  load: (
+    this: { addWatchFile?: (id: string) => void },
+    id: string,
+  ) => Promise<string | undefined>
 }
 
 /**
@@ -207,9 +263,18 @@ export function skillsCatalogPlugin(
   return {
     name: 'tanstack-skills-catalog',
     resolveId: (id) => (id === virtualId ? resolved : undefined),
-    load: async (id) => {
+    async load(this: { addWatchFile?: (id: string) => void }, id: string) {
       if (id !== resolved) return undefined
       const catalog = await generateCatalog(dir, { maxDepth: options.maxDepth })
+      if (typeof this.addWatchFile === 'function') {
+        for (const r of Array.isArray(dir) ? dir : [dir]) {
+          for (const d of await walkSkillDirs(nodeLister, r, {
+            maxDepth: options.maxDepth,
+          })) {
+            this.addWatchFile(join(d.dir, 'SKILL.md'))
+          }
+        }
+      }
       return `export const catalog = ${JSON.stringify(catalog)} as const\n`
     },
   }

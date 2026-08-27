@@ -49,6 +49,19 @@ describe('walkSkillDirs', () => {
     expect(await walkSkillDirs(memLister({ '/root': [] }), '/root')).toEqual([])
   })
 
+  it('parses Windows-style paths for the skill name', async () => {
+    const tree = {
+      'C:\\proj': [dir('skills', 'C:\\proj\\skills')],
+      'C:\\proj\\skills': [dir('alpha', 'C:\\proj\\skills\\alpha')],
+      'C:\\proj\\skills\\alpha': [
+        file('SKILL.md', 'C:\\proj\\skills\\alpha\\SKILL.md'),
+      ],
+    }
+    expect(await walkSkillDirs(memLister(tree), 'C:\\proj')).toEqual([
+      { name: 'alpha', dir: 'C:\\proj\\skills\\alpha' },
+    ])
+  })
+
   it('respects maxDepth', async () => {
     const tree = {
       '/r': [dir('a', '/r/a')],

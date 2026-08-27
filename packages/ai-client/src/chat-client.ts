@@ -820,6 +820,9 @@ export class ChatClient<
           if (eventType === 'memory:state') {
             this.devtoolsBridge.recordMemoryState(data)
           }
+          if (eventType === 'skills:state') {
+            this.devtoolsBridge.recordSkillsState(data)
+          }
           this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
       },

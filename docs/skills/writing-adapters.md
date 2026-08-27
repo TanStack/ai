@@ -49,8 +49,9 @@ frontmatter from what `load` returns, so return the raw `SKILL.md`.
 Two optional methods make the source better:
 
 - `revision()` returns a stable string that changes only when content changes.
-  `withSkills` uses it to cache the catalog and keep prompt caching stable, so
-  add it whenever you can compute one cheaply (a bucket ETag, a content hash).
+  `withSkills` lists once per `chat()` call and does not cache on `revision()`.
+  Add it so combinators, your own cache, or a later catalog memo can key on it
+  (a bucket ETag, a content hash).
 - `listResources` and `readResource` expose a skill's bundled files so
   `read_skill_resource` can read them.
 

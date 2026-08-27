@@ -6,14 +6,26 @@
  * S3-backed source would hit the network per loop turn and catalog reordering
  * would break Anthropic's cache prefix mid-run.
  */
-import { createCapability, defineChatMiddleware } from '@tanstack/ai'
+import {
+  createCapability,
+  defineChatMiddleware,
+  SkillLimitError,
+} from '@tanstack/ai'
 import { combineSources } from './combinators'
 import { renderCatalog } from './catalog'
 import { modelFamilyOf } from './types'
 import { createLoadSkillTool } from './tools/load-skill'
 import { READ_RESOURCE_TOOL_NAME } from './tools/read-resource'
-import type { DefinedChatMiddleware, Tool } from '@tanstack/ai'
+import type { DefinedChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
 import type { ModelFamily, SkillMetadata, SkillSource } from './types'
+
+/** CUSTOM stream-event name carrying the catalog to the browser DevTools. */
+export const SKILLS_STATE_EVENT = 'skills:state'
+
+export interface SkillsStateEventValue {
+  catalog: Array<{ name: string; description: string }>
+  activated: Array<string>
+}
 
 export interface SkillsOptions {
   /** Override catalog rendering. Receives resolved metadata + the model family. */
@@ -41,6 +53,7 @@ interface SkillsRuntime {
   options: SkillsOptions
   /** Built on first onConfig (needs config.tools to detect the resource tool). */
   memo?: { prompt: { content: string } | undefined; tools: Array<Tool> }
+  stateChunkEmitted?: boolean
 }
 
 const SkillsCapability = createCapability<SkillsRuntime>()('skills')
@@ -128,15 +141,22 @@ export function withSkills(
 
       // Catalog token cap (spec §4.2).
       const limit = options.maxCatalogTokens ?? 4000
-      let catalog = (options.renderCatalog ?? renderCatalog)(skills, family)
+      const render = options.renderCatalog ?? renderCatalog
+      let catalog = render(skills, family)
       if (estimateTokens(catalog) > limit) {
         if (options.onLimitExceeded && options.onLimitExceeded !== 'error') {
           skills = options.onLimitExceeded(skills, limit)
-          catalog = (options.renderCatalog ?? renderCatalog)(skills, family)
-        } else {
-          throw new Error(
-            `skills catalog (~${estimateTokens(catalog)} tokens) exceeds maxCatalogTokens (${limit})`,
-          )
+          catalog = render(skills, family)
+        }
+        if (estimateTokens(catalog) > limit) {
+          throw new SkillLimitError({
+            provider: family,
+            path: 'portable',
+            limit: `maxCatalogTokens (${limit})`,
+            allowed: limit,
+            actual: estimateTokens(catalog),
+            offending: skills.map((s) => s.name),
+          })
         }
       }
 
@@ -212,6 +232,25 @@ export function withSkills(
             ? [...config.tools, ...toolsToAdd]
             : config.tools,
       }
+    },
+
+    onChunk(ctx, chunk) {
+      const rt = ctx.getOptional(SkillsCapability)
+      if (!rt || rt.stateChunkEmitted) return
+      rt.stateChunkEmitted = true
+      const custom: StreamChunk = {
+        type: 'CUSTOM',
+        name: SKILLS_STATE_EVENT,
+        value: {
+          catalog: rt.skills.map((s) => ({
+            name: s.name,
+            description: s.description,
+          })),
+          activated: [...rt.activated],
+        } satisfies SkillsStateEventValue,
+        timestamp: Date.now(),
+      }
+      return [chunk, custom]
     },
   })
 }

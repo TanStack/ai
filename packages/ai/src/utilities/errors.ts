@@ -11,7 +11,7 @@ import type { StreamChunk } from '../types'
  * cap that only applies to hosted skills.
  */
 export interface SkillLimitErrorInit {
-  provider: 'anthropic' | 'openai'
+  provider: 'anthropic' | 'openai' | 'gemini' | 'other'
   path: 'native' | 'portable'
   limit: string
   allowed: number
@@ -20,7 +20,7 @@ export interface SkillLimitErrorInit {
 }
 
 export class SkillLimitError extends Error {
-  readonly provider: 'anthropic' | 'openai'
+  readonly provider: 'anthropic' | 'openai' | 'gemini' | 'other'
   readonly path: 'native' | 'portable'
   readonly limit: string
   readonly allowed: number

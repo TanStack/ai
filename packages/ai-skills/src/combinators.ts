@@ -112,10 +112,54 @@ export function filter(
   predicate: FilterPredicate,
   ctx?: FilterContext,
 ): SkillSource {
+  const list = async () =>
+    (await source.list()).filter((s) => predicate(s, ctx))
+  const assertVisible = async (name: string) => {
+    const skills = await list()
+    if (!skills.some((s) => s.name === name)) {
+      throw new Error(`no skill named "${name}"`)
+    }
+  }
   return {
     ...source,
     revision: forwardRevision(source),
-    list: async () => (await source.list()).filter((s) => predicate(s, ctx)),
+    list,
+    load: async (name) => {
+      await assertVisible(name)
+      return source.load(name)
+    },
+    listResources: source.listResources
+      ? async (name) => {
+          await assertVisible(name)
+          return source.listResources?.(name) ?? []
+        }
+      : undefined,
+    readResource: source.readResource
+      ? async (name, path) => {
+          await assertVisible(name)
+          const read = source.readResource
+          if (!read) {
+            throw new Error(`skill "${name}" does not support resources`)
+          }
+          return read(name, path)
+        }
+      : undefined,
+    listScripts: source.listScripts
+      ? async (name) => {
+          await assertVisible(name)
+          return (source.listScripts?.(name) ?? []) as Array<SkillScriptRef>
+        }
+      : undefined,
+    readScript: source.readScript
+      ? async (name, path) => {
+          await assertVisible(name)
+          const read = source.readScript
+          if (!read) {
+            throw new Error(`skill "${name}" does not support scripts`)
+          }
+          return read(name, path)
+        }
+      : undefined,
   }
 }
 
@@ -144,6 +188,7 @@ export function cache(
     list: () => {
       if (!listPromise || !fresh()) {
         listAt = now()
+        loads.clear()
         listPromise = source.list().catch((err) => {
           listPromise = undefined // don't cache failures
           throw err

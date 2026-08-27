@@ -38,6 +38,14 @@ describe('filter', () => {
     const s = filter(aggregate([alpha, beta]), (m) => m.name !== 'beta')
     expect((await s.list()).map((x) => x.name)).toEqual(['alpha'])
   })
+
+  it('rejects load and readResource of a hidden skill', async () => {
+    const s = filter(aggregate([alpha, beta]), (m) => m.name !== 'beta')
+    await expect(s.load('beta')).rejects.toThrow('no skill named "beta"')
+    await expect(s.readResource?.('beta', 'references/x.md')).rejects.toThrow(
+      'no skill named "beta"',
+    )
+  })
 })
 
 describe('cache', () => {
@@ -54,5 +62,20 @@ describe('cache', () => {
     const s = cache(underlying)
     await Promise.all([s.list(), s.list(), s.list()])
     expect(calls).toBe(1)
+  })
+
+  it('clears cached load() when list() refreshes', async () => {
+    let body = 'A'
+    const underlying: SkillSource = {
+      list: () => Promise.resolve([{ name: 'alpha', description: 'a' }]),
+      load: () => Promise.resolve(body),
+    }
+    const s = cache(underlying, { refreshInterval: 1 })
+    await s.list()
+    expect(await s.load('alpha')).toBe('A')
+    body = 'B'
+    await new Promise((r) => setTimeout(r, 5))
+    await s.list()
+    expect(await s.load('alpha')).toBe('B')
   })
 })

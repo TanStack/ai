@@ -20,6 +20,11 @@ import {
   clearMemoryRegistry,
   createMemoryRegistryState,
 } from './memory-registry'
+import {
+  applySkillsSnapshot,
+  clearSkillsRegistry,
+  createSkillsRegistryState,
+} from './skills-registry'
 import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   DevtoolsToolFixtureApplyEvent,
@@ -27,6 +32,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type { HookRegistryState, ToolFixtureRecord } from './hook-registry'
 import type { MemoryRegistryState } from './memory-registry'
+import type { SkillsRegistryState } from './skills-registry'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
@@ -235,6 +241,7 @@ interface AIStoreState {
   activeConversationId: string | null
   hooks: HookRegistryState
   memory: MemoryRegistryState
+  skills: SkillsRegistryState
 }
 
 interface AIContextValue {
@@ -243,6 +250,7 @@ interface AIContextValue {
   selectConversation: (id: string) => void
   clearHooks: () => void
   clearMemory: () => void
+  clearSkills: () => void
   selectHook: (id: string | null) => void
   saveToolFixture: (fixture: ToolFixtureRecord) => void
   deleteToolFixture: (fixtureId: string) => void
@@ -265,6 +273,7 @@ export const AIProvider: ParentComponent = (props) => {
     activeConversationId: null,
     hooks: createHookRegistryState(),
     memory: createMemoryRegistryState(),
+    skills: createSkillsRegistryState(),
   })
 
   const streamToConversation = new Map<string, string>()
@@ -656,6 +665,15 @@ export const AIProvider: ParentComponent = (props) => {
       'memory',
       produce((memory: MemoryRegistryState) => {
         clearMemoryRegistry(memory)
+      }),
+    )
+  }
+
+  function clearSkills() {
+    setState(
+      'skills',
+      produce((skills: SkillsRegistryState) => {
+        clearSkillsRegistry(skills)
       }),
     )
   }
@@ -1244,6 +1262,14 @@ export const AIProvider: ParentComponent = (props) => {
           'memory',
           produce((memory: MemoryRegistryState) => {
             applyMemorySnapshot(memory, e.payload)
+          }),
+        )
+      }),
+      aiEventClient.on('skills:snapshot', (e) => {
+        setState(
+          'skills',
+          produce((skills: SkillsRegistryState) => {
+            applySkillsSnapshot(skills, e.payload)
           }),
         )
       }),
@@ -3464,6 +3490,7 @@ export const AIProvider: ParentComponent = (props) => {
     selectConversation,
     clearHooks,
     clearMemory,
+    clearSkills,
     selectHook,
     saveToolFixture,
     deleteToolFixture,

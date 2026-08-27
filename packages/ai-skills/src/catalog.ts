@@ -14,7 +14,12 @@ export function sortSkills(skills: Array<SkillMetadata>): Array<SkillMetadata> {
 }
 
 function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
 
 /** Render the skill catalog for a model family. Skills are sorted by name. */

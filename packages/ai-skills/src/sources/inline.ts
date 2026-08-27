@@ -4,6 +4,7 @@
  * be thunks, evaluated at read time.
  */
 import { stableHash } from '../util'
+import { validateSkill } from '../validate'
 import type { SkillMetadata, SkillSource } from '../types'
 
 export interface InlineSkillConfig {
@@ -19,6 +20,12 @@ export function inlineSkill(config: InlineSkillConfig): SkillSource {
     name: config.name,
     description: config.description,
     ...(config.compatibility && { compatibility: config.compatibility }),
+  }
+  const lint = validateSkill(metadata)
+  if (!lint.ok) {
+    throw new Error(
+      `inlineSkill "${config.name}": ${lint.issues.map((i) => i.message).join('; ')}`,
+    )
   }
   const resourcePaths = Object.keys(config.resources ?? {})
   const revision = stableHash(

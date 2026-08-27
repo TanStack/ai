@@ -27,7 +27,8 @@ export const MAX_SKILL_WALK_DEPTH = 6
 const SKIP_DIR_NAMES = new Set(['.git', 'node_modules'])
 
 function basenameOf(path: string): string {
-  const segments = path.split('/').filter((segment) => segment !== '')
+  const normalized = path.replace(/\\/g, '/')
+  const segments = normalized.split('/').filter((segment) => segment !== '')
   return segments[segments.length - 1] ?? path
 }
 

@@ -1080,6 +1080,12 @@ export interface MemorySnapshotEvent extends BaseEventContext {
   facts: Array<MemoryFactLite>
 }
 
+/** Emitted when portable `withSkills` sends its catalog over the chat stream. */
+export interface SkillsSnapshotEvent extends BaseEventContext {
+  catalog: Array<{ name: string; description: string }>
+  activated: Array<string>
+}
+
 // ===========================
 // Client Events
 // ===========================
@@ -1329,6 +1335,7 @@ export interface AIDevtoolsEventMap {
   'memory:persist:completed': MemoryPersistCompletedEvent
   'memory:error': MemoryErrorEvent
   'memory:snapshot': MemorySnapshotEvent
+  'skills:snapshot': SkillsSnapshotEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

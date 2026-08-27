@@ -27,8 +27,8 @@ export type { FilterContext, FilterPredicate } from './combinators'
 
 export { renderCatalog, sortSkills } from './catalog'
 
-export { withSkills } from './middleware'
-export type { SkillsOptions } from './middleware'
+export { withSkills, SKILLS_STATE_EVENT } from './middleware'
+export type { SkillsOptions, SkillsStateEventValue } from './middleware'
 
 export { createLoadSkillTool, ALREADY_LOADED } from './tools/load-skill'
 export {

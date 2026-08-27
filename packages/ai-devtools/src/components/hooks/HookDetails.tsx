@@ -39,6 +39,7 @@ import {
 } from './preview-messages'
 import { GenerationPanel, GenerationPreview } from './GenerationPanel'
 import { MemoryPanel } from './MemoryPanel'
+import { SkillsPanel } from './SkillsPanel'
 import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
   HookRecord,
@@ -49,7 +50,7 @@ import type {
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'
 
-type DetailTab = 'conversation' | 'tools' | 'state' | 'memory'
+type DetailTab = 'conversation' | 'tools' | 'state' | 'memory' | 'skills'
 type MessagePart = NonNullable<Message['parts']>[number]
 const scrollAnimations = new WeakMap<HTMLElement, number>()
 
@@ -151,7 +152,9 @@ export const HookDetails: Component = () => {
     // while one of them is selected, fall back to the conversation view.
     if (
       isGenerationHook() &&
-      (activeTab() === 'tools' || activeTab() === 'memory')
+      (activeTab() === 'tools' ||
+        activeTab() === 'memory' ||
+        activeTab() === 'skills')
     ) {
       setActiveTab('conversation')
     }
@@ -175,7 +178,11 @@ export const HookDetails: Component = () => {
     // Tools tab owns its own form/saved-fixtures layout that fills the
     // primary pane; the secondary "User View" preview squeezes the tool
     // detail column to zero width on narrower hookDetails widths.
-    if (activeTab() === 'tools' && !isGenerationHook()) return false
+    if (
+      (activeTab() === 'tools' || activeTab() === 'skills') &&
+      !isGenerationHook()
+    )
+      return false
     return isGenerationHook() || !hasStructuredOutputPreview(previewMessages())
   })
 
@@ -255,6 +262,12 @@ export const HookDetails: Component = () => {
                 activeTab={activeTab()}
                 onSelect={setActiveTab}
               />
+              <TabButton
+                label="Skills"
+                tab="skills"
+                activeTab={activeTab()}
+                onSelect={setActiveTab}
+              />
             </Show>
           </nav>
 
@@ -301,6 +314,9 @@ export const HookDetails: Component = () => {
               </Show>
               <Show when={activeTab() === 'memory'}>
                 <MemoryPanel />
+              </Show>
+              <Show when={activeTab() === 'skills'}>
+                <SkillsPanel />
               </Show>
             </main>
 

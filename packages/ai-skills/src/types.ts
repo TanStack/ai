@@ -35,10 +35,14 @@ export interface SkillScriptRef {
 
 /** A source of skills. Bytes only — no filesystem assumption. */
 export interface SkillSource {
-  /** Stable identity for the current content. Used as a catalog cache key. */
+  /**
+   * Stable identity for the current content. `cache()` does not read this
+   * (it is time-based, and opt-in). Callers and custom combinators can use it
+   * as a catalog cache key. `withSkills` lists once per `chat()` call.
+   */
   revision?: () => Promise<string>
 
-  /** Tier 1. Called once per request; core memoizes on `revision()`. */
+  /** Tier 1. Called once per `chat()` by `withSkills` setup. */
   list: () => Promise<Array<SkillMetadata>>
 
   /** Tier 2. Raw SKILL.md including frontmatter. Core strips it. */
