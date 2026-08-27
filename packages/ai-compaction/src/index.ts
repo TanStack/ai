@@ -160,6 +160,13 @@ function splitAtRecent(
   // Always keep at least the last message.
   if (cut >= messages.length) cut = messages.length - 1
   while (cut < messages.length && messages[cut]?.role === 'tool') cut++
+  // Trailing tool results: skipping orphans would drop the whole tail (the
+  // normal agent-loop state). Keep those results and the message that owns them.
+  if (cut >= messages.length) {
+    cut = messages.length
+    while (cut > 0 && messages[cut - 1]?.role === 'tool') cut--
+    if (cut > 0) cut--
+  }
   return cut
 }
 
@@ -178,8 +185,8 @@ export function evictOldest(
   const strategy: CompactionStrategy = (messages, ctx) => {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
-    // ponytail: can't shrink past the recent window; raise keepRecentTokens or
-    // lower maxTokens if compaction never fires.
+    // Can't shrink past the recent window; raise keepRecentTokens or lower
+    // maxTokens if compaction never fires.
     if (cut <= 0) return null
     const marker =
       options.marker?.(cut) ??
@@ -203,22 +210,26 @@ export function summarizeOldest(options: {
   summarize: (messages: Array<ModelMessage>) => Promise<string>
   /** Tokens of recent messages to keep verbatim. Default `floor(maxTokens/2)`. */
   keepRecentTokens?: number
-  /** Role of the injected summary message. Default `'user'`. */
+  /** Role of the injected summary message. Default `'assistant'`. */
   summaryRole?: 'user' | 'assistant'
 }): CompactionStrategy {
-  return async (messages, ctx) => {
+  const strategy: CompactionStrategy = async (messages, ctx) => {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     if (cut <= 0) return null
     const summary = await options.summarize(messages.slice(0, cut))
     return [
       {
-        role: options.summaryRole ?? 'user',
-        content: `Summary of earlier conversation:\n${summary}`,
+        role: options.summaryRole ?? 'assistant',
+        content: `<untrusted-conversation-summary>\n${summary}\n</untrusted-conversation-summary>`,
       },
       ...messages.slice(cut),
     ]
   }
+  return identifyStrategy(
+    strategy,
+    `summarize-oldest:${options.keepRecentTokens ?? 'half'}:${options.summaryRole ?? 'assistant'}`,
+  )
 }
 
 /**
@@ -321,6 +332,10 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
     name: 'compaction',
     optionalRequires: [MetadataCapability],
     async onConfig(ctx, config) {
+      // init is discarded by the engine rebuild and can run before persistence
+      // hydrates the thread. Compact only on model-bound phases.
+      if (ctx.phase === 'init') return
+
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
       const metadata = getMetadata(ctx, { optional: true })

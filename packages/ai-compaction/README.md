@@ -116,11 +116,11 @@ withCompaction({
 
 ### Strategy options
 
-| Strategy           | Options                                                   |
-| ------------------ | --------------------------------------------------------- |
-| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`    |
-| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` |
-| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`             |
+| Strategy           | Options                                                                         |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`                          |
+| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` (default `assistant`) |
+| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`                                   |
 
 The token estimate is a rough `chars / 4` heuristic, good enough to trigger on,
 not exact. Pass `estimateTokens` if you need provider-accurate counts.

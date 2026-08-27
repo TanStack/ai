@@ -34,16 +34,37 @@ function runOnConfig(
 
 function checkpointContext(
   store: MetadataStore,
-  options: { aborted?: boolean } = {},
+  options: { aborted?: boolean; phase?: ChatMiddlewareContext['phase'] } = {},
 ): ChatMiddlewareContext {
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; only capability identity, threadId, and signal are read
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; only capability identity, threadId, signal, and phase are read
   const ctx = {
     threadId: 'thread-1',
+    phase: options.phase,
     signal: options.aborted ? AbortSignal.abort() : undefined,
     capabilities: { markProvided: () => undefined },
   } as unknown as ChatMiddlewareContext
   provideMetadata(ctx, store)
   return ctx
+}
+
+function memoryStore(): MetadataStore {
+  const values = new Map<string, unknown>()
+  return {
+    get: async (namespace, key) => values.get(`${namespace}:${key}`) ?? null,
+    set: async (namespace, key, value) => {
+      values.set(`${namespace}:${key}`, value)
+    },
+    delete: async (namespace, key) => {
+      values.delete(`${namespace}:${key}`)
+    },
+  }
+}
+
+function phaseContext(
+  phase: ChatMiddlewareContext['phase'],
+): ChatMiddlewareContext {
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; onConfig only reads phase here
+  return { phase } as unknown as ChatMiddlewareContext
 }
 
 const text = (role: ModelMessage['role'], content: string): ModelMessage => ({
@@ -93,17 +114,20 @@ describe('withCompaction', () => {
     expect(info.messagesAfter).toBeLessThan(info.messagesBefore)
   })
 
+  it('does not compact during init', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({ maxTokens: 100, onCompact })
+    const result = await runOnConfig(
+      mw,
+      [big('user'), big('assistant'), big('user'), big('assistant')],
+      phaseContext('init'),
+    )
+    expect(result).toBeUndefined()
+    expect(onCompact).not.toHaveBeenCalled()
+  })
+
   it('reuses a persisted checkpoint for an unchanged canonical prefix', async () => {
-    const values = new Map<string, unknown>()
-    const store: MetadataStore = {
-      get: async (namespace, key) => values.get(`${namespace}:${key}`) ?? null,
-      set: async (namespace, key, value) => {
-        values.set(`${namespace}:${key}`, value)
-      },
-      delete: async (namespace, key) => {
-        values.delete(`${namespace}:${key}`)
-      },
-    }
+    const store = memoryStore()
     const summarize = vi.fn(async () => 'the gist')
     const messages = [
       big('user'),
@@ -137,14 +161,7 @@ describe('withCompaction', () => {
   })
 
   it('rejects a checkpoint when the canonical prefix changes', async () => {
-    const values = new Map<string, unknown>()
-    const store: MetadataStore = {
-      get: async (namespace, key) => values.get(`${namespace}:${key}`) ?? null,
-      set: async (namespace, key, value) => {
-        values.set(`${namespace}:${key}`, value)
-      },
-      delete: async () => undefined,
-    }
+    const store = memoryStore()
     const summarize = vi.fn(async () => 'the gist')
     const options = {
       maxTokens: 100,
@@ -221,6 +238,60 @@ describe('evictOldest', () => {
     const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     expect(out.slice(1).some((m) => m.role === 'tool')).toBe(false)
   })
+
+  it('keeps the trailing assistant plus tool result when the transcript ends in a tool', async () => {
+    const assistantCall: ModelMessage = {
+      role: 'assistant',
+      content: 'x'.repeat(160),
+      toolCalls: [call],
+    }
+    const toolResult: ModelMessage = {
+      role: 'tool',
+      content: 'x'.repeat(160),
+      toolCallId: 't1',
+    }
+    const msgs = [big('user'), assistantCall, toolResult]
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: evictOldest({ keepRecentTokens: 45 }),
+    })
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
+    expect(out.at(-2)).toBe(assistantCall)
+    expect(out.at(-1)).toBe(toolResult)
+    expect(out.some((m) => m.role === 'tool')).toBe(true)
+  })
+
+  it('keeps a trailing parallel tool-result group with its assistant', async () => {
+    const assistantCall: ModelMessage = {
+      role: 'assistant',
+      content: 'x'.repeat(160),
+      toolCalls: [
+        call,
+        {
+          id: 't2',
+          type: 'function',
+          function: { name: 'g', arguments: '{}' },
+        },
+      ],
+    }
+    const toolA: ModelMessage = {
+      role: 'tool',
+      content: 'x'.repeat(160),
+      toolCallId: 't1',
+    }
+    const toolB: ModelMessage = {
+      role: 'tool',
+      content: 'x'.repeat(160),
+      toolCallId: 't2',
+    }
+    const msgs = [big('user'), assistantCall, toolA, toolB]
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: evictOldest({ keepRecentTokens: 45 }),
+    })
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
+    expect(out.slice(-3)).toEqual([assistantCall, toolA, toolB])
+  })
 })
 
 describe('summarizeOldest', () => {
@@ -237,9 +308,39 @@ describe('summarizeOldest', () => {
       big('assistant'),
     ])
     expect(summarize).toHaveBeenCalledOnce()
+    expect(result?.providerMessages?.[0]?.role).toBe('assistant')
     expect(result?.providerMessages?.[0]?.content).toBe(
-      'Summary of earlier conversation:\nthe gist',
+      '<untrusted-conversation-summary>\nthe gist\n</untrusted-conversation-summary>',
     )
+  })
+
+  it('reuses a checkpoint without an explicit strategyKey', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const messages = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+    const options = {
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    }
+
+    await runOnConfig(
+      withCompaction(options),
+      messages,
+      checkpointContext(store),
+    )
+    const second = await runOnConfig(
+      withCompaction(options),
+      [...messages, text('user', 'new')],
+      checkpointContext(store),
+    )
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(second?.providerMessages?.at(-1)?.content).toBe('new')
   })
 })
 

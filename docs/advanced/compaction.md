@@ -173,7 +173,7 @@ withCompaction({
 | `maxTokens` | `number` | - | **Required.** Compact when the estimated tokens across `messages` pass this. |
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
-| `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, `summarizeOldest`, or a custom eviction marker. |
+| `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, or a custom eviction marker. Change it when your `summarize` function can change. |
 | `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter }` (token and message counts). |
 
 ### Strategy options
@@ -181,7 +181,7 @@ withCompaction({
 | Strategy | Options |
 |----------|---------|
 | `evictOldest` | `keepRecentTokens` (default `maxTokens / 2`), `marker` |
-| `summarizeOldest` | `summarize` (**required**), `keepRecentTokens`, `summaryRole` |
+| `summarizeOldest` | `summarize` (**required**), `keepRecentTokens`, `summaryRole` (default `assistant`) |
 | `clearToolResults` | `keepRecentToolResults` (default `3`), `stub` |
 
 The token count is a rough `characters / 4` estimate. It is good enough to trigger on, not exact. Pass `estimateTokens` for provider-accurate counts.
@@ -190,7 +190,7 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 
 - **The system prompt is never dropped.** `chat()` keeps it separate from `messages`, so compaction only touches the conversation.
 - **Tool calls stay paired with their results.** The built-in strategies never leave an orphaned tool result, so the request stays valid.
-- **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again, and a later `summarizeOldest` pass folds an earlier summary into the new one.
+- **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again.
 - **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
 ## Compaction and persistence
@@ -209,10 +209,15 @@ checkpoint. The next request validates the canonical prefix, restores the last
 compacted result, and adds only new messages. A changed prefix or strategy key
 invalidates the checkpoint.
 
-The default strategy, standard `evictOldest`, `clearToolResults`, and safe
-compositions get a strategy key automatically. Set `strategyKey` for
-`summarizeOldest`, custom strategies, custom estimators, or custom marker
-functions. Without a metadata store or safe key, compaction stays stateless.
+When a checkpoint is reused, a later `summarizeOldest` pass sees the previous
+summary plus new messages. Then it folds the old summary into the new one.
+Folding needs a metadata store and a strategy key.
+
+The default strategy, standard `evictOldest`, `summarizeOldest`,
+`clearToolResults`, and safe compositions get a strategy key automatically.
+Set `strategyKey` for custom strategies, custom estimators, or custom marker
+functions. Change `strategyKey` when your `summarize` function can change.
+Without a metadata store or safe key, compaction stays stateless.
 
 ## Next steps
 
