@@ -11,57 +11,15 @@ import {
   summarizeOldest,
   withCompaction,
 } from '@tanstack/ai-compaction'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
-import { anthropicByok } from '@tanstack/ai-anthropic/byok'
-import { createGeminiChat } from '@tanstack/ai-gemini'
-import { geminiByok } from '@tanstack/ai-gemini/byok'
-import { createGrokText } from '@tanstack/ai-grok'
-import { grokByok } from '@tanstack/ai-grok/byok'
-import { createGroqText } from '@tanstack/ai-groq'
-import { groqByok } from '@tanstack/ai-groq/byok'
-import { createOpenaiChat } from '@tanstack/ai-openai'
-import { openaiByok } from '@tanstack/ai-openai/byok'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { geminiText } from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
+import { groqText } from '@tanstack/ai-groq'
+import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { openRouterText } from '@tanstack/ai-openrouter'
 import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
-import type { ByokProvider } from '@tanstack/ai/byok'
 import type { Provider } from '@/lib/model-selection'
-
-const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
-  openai: openaiByok,
-  anthropic: anthropicByok,
-  gemini: geminiByok,
-  openrouter: openrouterByok,
-  groq: groqByok,
-  grok: grokByok,
-}
-
-function chatByokProvider(provider: Provider): ByokProvider | undefined {
-  if (provider === 'gemini-interactions') return geminiByok
-  return BYOK_PROVIDERS[provider]
-}
-
-function resolveByokApiKey(
-  request: Request,
-  provider: Provider,
-):
-  | { missing: false; apiKey: string | null }
-  | { missing: true; provider: ByokProvider } {
-  const byokProvider = chatByokProvider(provider)
-  if (!byokProvider) return { missing: false, apiKey: null }
-  const apiKey = getByokKey(request, byokProvider)
-  if (!apiKey) return { missing: true, provider: byokProvider }
-  return { missing: false, apiKey }
-}
-
-function requireApiKey(apiKey: string | null): string {
-  if (!apiKey) {
-    throw new Error('API key is required')
-  }
-  return apiKey
-}
 
 async function summarizeWith(
   adapter: AnyTextAdapter,
@@ -87,9 +45,33 @@ async function summarizeWith(
 const SYSTEM_PROMPT = `You are a helpful assistant. Keep answers reasonably long
 (a paragraph or two) so this demo's context fills up quickly.`
 
+function adapterFor(provider: Provider, model: string): AnyTextAdapter {
+  switch (provider) {
+    case 'anthropic':
+      return anthropicText(
+        (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
+      )
+    case 'gemini':
+      return geminiText(
+        (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+      )
+    case 'grok':
+      return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
+    case 'groq':
+      return groqText((model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b')
+    case 'ollama':
+      return ollamaText((model || 'mistral:7b') as 'mistral:7b')
+    case 'openrouter':
+      return openRouterText((model || 'openai/gpt-5.1') as 'openai/gpt-5.1')
+    case 'openai':
+    default:
+      return openaiText((model || 'gpt-5.5') as 'gpt-5.5')
+  }
+}
+
 /**
  * Chat endpoint for `/compaction`. Uses a small `maxTokens` so compaction
- * fires after a few turns. Keys come from BYOK headers, same as `/api/tanchat`.
+ * fires after a few turns. Keys come from `examples/ts-react-chat/.env`.
  */
 export const Route = createFileRoute('/api/compaction')({
   server: {
@@ -128,79 +110,21 @@ export const Route = createFileRoute('/api/compaction')({
         const strategyName: 'evict' | 'summarize' =
           params.forwardedProps.strategy === 'summarize' ? 'summarize' : 'evict'
 
-        const adapterConfig: Partial<
-          Record<
-            Provider,
-            (apiKey: string | null) => { adapter: AnyTextAdapter }
-          >
-        > = {
-          anthropic: (apiKey) =>
-            createChatOptions({
-              adapter: createAnthropicChat(
-                (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
-                requireApiKey(apiKey),
-              ),
-            }),
-          gemini: (apiKey) =>
-            createChatOptions({
-              adapter: createGeminiChat(
-                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
-                requireApiKey(apiKey),
-              ),
-            }),
-          grok: (apiKey) =>
-            createChatOptions({
-              adapter: createGrokText(
-                (model || 'grok-build-0.1') as 'grok-build-0.1',
-                requireApiKey(apiKey),
-              ),
-            }),
-          groq: (apiKey) =>
-            createChatOptions({
-              adapter: createGroqText(
-                (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
-                requireApiKey(apiKey),
-              ),
-            }),
-          ollama: () =>
-            createChatOptions({
-              adapter: ollamaText((model || 'mistral:7b') as 'mistral:7b'),
-            }),
-          openai: (apiKey) =>
-            createChatOptions({
-              adapter: createOpenaiChat(
-                (model || 'gpt-5.5') as 'gpt-5.5',
-                requireApiKey(apiKey),
-              ),
-            }),
-          openrouter: (apiKey) =>
-            createChatOptions({
-              adapter: createOpenRouterText(
-                (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
-                requireApiKey(apiKey),
-              ),
-            }),
-        }
-
         try {
-          const provider: Provider =
-            requestedProvider in adapterConfig
-              ? (requestedProvider as Provider)
-              : 'openai'
-          const resolvedKey = resolveByokApiKey(request, provider)
-          if (resolvedKey.missing) {
-            return byokMissing(resolvedKey.provider)
-          }
+          const provider: Provider = [
+            'anthropic',
+            'gemini',
+            'grok',
+            'groq',
+            'ollama',
+            'openai',
+            'openrouter',
+          ].includes(requestedProvider)
+            ? (requestedProvider as Provider)
+            : 'openai'
 
-          const makeOptions = adapterConfig[provider]
-          if (!makeOptions) {
-            return new Response(JSON.stringify({ error: 'Unknown provider' }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            })
-          }
-          const options = makeOptions(resolvedKey.apiKey)
-          const { adapter } = options
+          const adapter = adapterFor(provider, model)
+          const options = createChatOptions({ adapter })
 
           const strategy =
             strategyName === 'summarize'
