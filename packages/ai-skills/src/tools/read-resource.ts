@@ -44,9 +44,7 @@ export function createResourceTool(source: SkillSource): Tool {
     if (source.listResources) {
       const allowed = await source.listResources(skill)
       if (!allowed.includes(path)) {
-        throw new Error(
-          `skill "${skill}" has no resource "${path}"`,
-        )
+        throw new Error(`skill "${skill}" has no resource "${path}"`)
       }
     }
     if (!source.readResource) {

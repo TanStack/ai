@@ -74,9 +74,7 @@ export function runSkillSourceConformance(
       const value = await readResource('alpha', 'references/note.md')
       // trimEnd: a file-backed source keeps the fixture's trailing newline (formatters add one); the payload is what matters.
       expect(dec(value).trimEnd()).toBe('hello')
-      await expect(
-        readResource('alpha', '../../etc/passwd'),
-      ).rejects.toThrow()
+      await expect(readResource('alpha', '../../etc/passwd')).rejects.toThrow()
     })
 
     it('returns script bytes correctly', async () => {

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SkillLimitError } from '@tanstack/ai'
 import { inlineSkill } from '../src/sources/inline'
-import {
-  SKILLS_STATE_EVENT,
-  withSkills,
-} from '../src/middleware'
+import { SKILLS_STATE_EVENT, withSkills } from '../src/middleware'
 import { createResourceTool } from '../src/tools/read-resource'
 import type {
   ChatMiddlewareConfig,
@@ -70,7 +67,9 @@ describe('withSkills', () => {
       systemPrompts: first?.systemPrompts ?? [],
       tools: first?.tools ?? [],
     })
-    expect(second?.tools?.filter((t) => t.name === 'load_skill')).toHaveLength(1)
+    expect(second?.tools?.filter((t) => t.name === 'load_skill')).toHaveLength(
+      1,
+    )
   })
 
   it('refuses native hosted skills on the same call', async () => {
@@ -95,9 +94,7 @@ describe('withSkills', () => {
   it('throws SkillLimitError when the catalog exceeds maxCatalogTokens', async () => {
     const huge: SkillSource = {
       list: () =>
-        Promise.resolve([
-          { name: 'alpha', description: 'x'.repeat(20000) },
-        ]),
+        Promise.resolve([{ name: 'alpha', description: 'x'.repeat(20000) }]),
       load: () => Promise.resolve('body'),
     }
     const mw = withSkills(huge, { maxCatalogTokens: 10 })
@@ -107,9 +104,7 @@ describe('withSkills', () => {
   it('re-checks the cap after onLimitExceeded', async () => {
     const huge: SkillSource = {
       list: () =>
-        Promise.resolve([
-          { name: 'alpha', description: 'x'.repeat(20000) },
-        ]),
+        Promise.resolve([{ name: 'alpha', description: 'x'.repeat(20000) }]),
       load: () => Promise.resolve('body'),
     }
     const mw = withSkills(huge, {

@@ -10,7 +10,9 @@ const fixtures = fileURLToPath(new URL('./fixtures/skills', import.meta.url))
 const tempDirs: Array<string> = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true })))
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true })),
+  )
 })
 
 describe('skillDirectory', () => {

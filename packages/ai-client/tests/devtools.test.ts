@@ -1433,7 +1433,9 @@ describe('ChatClient devtools bridge', () => {
         timestamp: Date.now(),
         name: 'skills:state',
         value: {
-          catalog: [{ name: 'pirate-speak', description: 'talk like a pirate' }],
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
           activated: [],
         },
       },

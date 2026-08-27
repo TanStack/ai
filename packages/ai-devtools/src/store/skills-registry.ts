@@ -38,7 +38,8 @@ export function applySkillsSnapshot(
     timestamp?: number
   },
 ): void {
-  const key = payload.hookId && payload.hookId.length > 0 ? payload.hookId : '_default'
+  const key =
+    payload.hookId && payload.hookId.length > 0 ? payload.hookId : '_default'
   const catalog = Array.isArray(payload.catalog) ? payload.catalog : []
   const activated = Array.isArray(payload.activated) ? payload.activated : []
   state.snapshots[key] = {
