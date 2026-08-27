@@ -2,9 +2,29 @@ import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Send, Scissors } from 'lucide-react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { COMPACTION_STATE_EVENT } from '@tanstack/ai-compaction'
+import type { CompactionStateEventValue } from '@tanstack/ai-compaction'
 import type { UIMessage } from '@tanstack/ai-react'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
 import type { ModelOption } from '@/lib/model-selection'
+
+function isCompactionState(data: unknown): data is CompactionStateEventValue {
+  if (!data || typeof data !== 'object') return false
+  if (
+    !('before' in data) ||
+    !('after' in data) ||
+    !('messagesBefore' in data) ||
+    !('messagesAfter' in data)
+  ) {
+    return false
+  }
+  return (
+    typeof data.before === 'number' &&
+    typeof data.after === 'number' &&
+    typeof data.messagesBefore === 'number' &&
+    typeof data.messagesAfter === 'number'
+  )
+}
 
 function getMessageText(parts: UIMessage['parts']): string {
   return parts
@@ -22,6 +42,8 @@ function CompactionPage() {
   const [maxTokens, setMaxTokens] = useState(400)
   const [strategy, setStrategy] = useState<'evict' | 'summarize'>('evict')
   const [input, setInput] = useState('')
+  const [lastCompact, setLastCompact] =
+    useState<CompactionStateEventValue | null>(null)
 
   const forwardedProps = useMemo(
     () => ({
@@ -38,6 +60,11 @@ function CompactionPage() {
     threadId: 'compaction-demo',
     forwardedProps,
     devtools: { name: 'Compaction' },
+    onCustomEvent: (eventType, data) => {
+      if (eventType !== COMPACTION_STATE_EVENT) return
+      if (!isCompactionState(data)) return
+      setLastCompact(data)
+    },
   })
 
   const submit = () => {
@@ -56,10 +83,9 @@ function CompactionPage() {
         </div>
         <p className="text-sm text-gray-400">
           Chat until the transcript passes maxTokens. Then open TanStack
-          DevTools (bottom-right), pick the AI plugin, and click the compaction
-          step to see before and after token counts. API keys come from{' '}
-          <code className="text-gray-300">.env</code>. You do not paste a key
-          here.
+          DevTools (bottom-right), pick the AI plugin, and open the Compaction
+          tab. API keys come from <code className="text-gray-300">.env</code>.
+          You do not paste a key here.
         </p>
         <div>
           <label className="mb-2 block text-sm text-gray-400">
@@ -116,6 +142,13 @@ function CompactionPage() {
             </option>
           </select>
         </div>
+        {lastCompact && (
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+            Compacted {lastCompact.messagesBefore} → {lastCompact.messagesAfter}{' '}
+            messages ({lastCompact.before} → {lastCompact.after} tokens)
+            {lastCompact.strategyKey ? ` · ${lastCompact.strategyKey}` : ''}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">

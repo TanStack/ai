@@ -20,6 +20,11 @@ import {
   clearMemoryRegistry,
   createMemoryRegistryState,
 } from './memory-registry'
+import {
+  applyCompactionEvent,
+  clearCompactionRegistry,
+  createCompactionRegistryState,
+} from './compaction-registry'
 import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   DevtoolsToolFixtureApplyEvent,
@@ -27,6 +32,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type { HookRegistryState, ToolFixtureRecord } from './hook-registry'
 import type { MemoryRegistryState } from './memory-registry'
+import type { CompactionRegistryState } from './compaction-registry'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
@@ -235,6 +241,7 @@ interface AIStoreState {
   activeConversationId: string | null
   hooks: HookRegistryState
   memory: MemoryRegistryState
+  compaction: CompactionRegistryState
 }
 
 interface AIContextValue {
@@ -243,6 +250,7 @@ interface AIContextValue {
   selectConversation: (id: string) => void
   clearHooks: () => void
   clearMemory: () => void
+  clearCompaction: () => void
   selectHook: (id: string | null) => void
   saveToolFixture: (fixture: ToolFixtureRecord) => void
   deleteToolFixture: (fixtureId: string) => void
@@ -265,6 +273,7 @@ export const AIProvider: ParentComponent = (props) => {
     activeConversationId: null,
     hooks: createHookRegistryState(),
     memory: createMemoryRegistryState(),
+    compaction: createCompactionRegistryState(),
   })
 
   const streamToConversation = new Map<string, string>()
@@ -656,6 +665,15 @@ export const AIProvider: ParentComponent = (props) => {
       'memory',
       produce((memory: MemoryRegistryState) => {
         clearMemoryRegistry(memory)
+      }),
+    )
+  }
+
+  function clearCompaction() {
+    setState(
+      'compaction',
+      produce((compaction: CompactionRegistryState) => {
+        clearCompactionRegistry(compaction)
       }),
     )
   }
@@ -2962,12 +2980,18 @@ export const AIProvider: ParentComponent = (props) => {
 
     cleanupFns.push(
       aiEventClient.on('compaction:applied', (e) => {
-        const { requestId, streamId, clientId } = e.payload
+        setState(
+          'compaction',
+          produce((compaction: CompactionRegistryState) => {
+            applyCompactionEvent(compaction, e.payload)
+          }),
+        )
 
+        const { requestId, streamId, clientId } = e.payload
         const conversationId =
-          clientId ||
+          (clientId && state.conversations[clientId] ? clientId : undefined) ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
-          requestToConversation.get(requestId)
+          (requestId ? requestToConversation.get(requestId) : undefined)
         if (!conversationId || !state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
@@ -2986,6 +3010,8 @@ export const AIProvider: ParentComponent = (props) => {
             messagesBefore: e.payload.messagesBefore,
             messagesAfter: e.payload.messagesAfter,
             reusedCheckpoint: e.payload.reusedCheckpoint,
+            maxTokens: e.payload.maxTokens,
+            strategyKey: e.payload.strategyKey,
           },
         }
 
@@ -3509,6 +3535,7 @@ export const AIProvider: ParentComponent = (props) => {
     selectConversation,
     clearHooks,
     clearMemory,
+    clearCompaction,
     selectHook,
     saveToolFixture,
     deleteToolFixture,

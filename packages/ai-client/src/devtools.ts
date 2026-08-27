@@ -8,6 +8,7 @@ import { DefaultChatClientEventEmitter } from './events'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
 import type {
   AIDevtoolsEventVisibility,
+  CompactionMessagePreview,
   MemoryScopeLite,
 } from '@tanstack/ai-event-client'
 import type {
@@ -52,6 +53,85 @@ interface MemoryStateEventValue {
       source?: string
       createdAt?: string
     }>
+  }
+}
+
+function readPreviewList(
+  value: unknown,
+): Array<CompactionMessagePreview> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const previews: Array<CompactionMessagePreview> = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    if (!('role' in item) || !('tokens' in item) || !('text' in item)) continue
+    if (
+      typeof item.role !== 'string' ||
+      typeof item.tokens !== 'number' ||
+      typeof item.text !== 'string'
+    ) {
+      continue
+    }
+    previews.push({
+      role: item.role,
+      tokens: item.tokens,
+      text: item.text,
+    })
+  }
+  return previews
+}
+
+function readCompactionStateValue(rawValue: unknown): {
+  before: number
+  after: number
+  messagesBefore: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+  maxTokens?: number
+  strategyKey?: string
+  dropped?: Array<CompactionMessagePreview>
+  result?: Array<CompactionMessagePreview>
+} | null {
+  if (!rawValue || typeof rawValue !== 'object') return null
+  if (
+    !('before' in rawValue) ||
+    !('after' in rawValue) ||
+    !('messagesBefore' in rawValue) ||
+    !('messagesAfter' in rawValue)
+  ) {
+    return null
+  }
+  if (
+    typeof rawValue.before !== 'number' ||
+    typeof rawValue.after !== 'number' ||
+    typeof rawValue.messagesBefore !== 'number' ||
+    typeof rawValue.messagesAfter !== 'number'
+  ) {
+    return null
+  }
+  const reusedCheckpoint =
+    'reusedCheckpoint' in rawValue && rawValue.reusedCheckpoint === true
+  const maxTokens =
+    'maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? rawValue.maxTokens
+      : undefined
+  const strategyKey =
+    'strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? rawValue.strategyKey
+      : undefined
+  const dropped =
+    'dropped' in rawValue ? readPreviewList(rawValue.dropped) : undefined
+  const result =
+    'result' in rawValue ? readPreviewList(rawValue.result) : undefined
+  return {
+    before: rawValue.before,
+    after: rawValue.after,
+    messagesBefore: rawValue.messagesBefore,
+    messagesAfter: rawValue.messagesAfter,
+    reusedCheckpoint,
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+    ...(strategyKey ? { strategyKey } : {}),
+    ...(dropped ? { dropped } : {}),
+    ...(result ? { result } : {}),
   }
 }
 
@@ -771,8 +851,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
-  /** Last transported `compaction:state` value, replayed when a panel opens. */
-  private lastCompactionStateValue: unknown = null
+  /** Transported `compaction:state` values, replayed when a panel opens. */
+  private lastCompactionStateValues: Array<unknown> = []
 
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
@@ -935,35 +1015,23 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
    * browser DevTools panel.
    */
   recordCompactionState(rawValue: unknown): void {
-    this.lastCompactionStateValue = rawValue
+    this.lastCompactionStateValues.push(rawValue)
+    if (this.lastCompactionStateValues.length > 20) {
+      this.lastCompactionStateValues.splice(
+        0,
+        this.lastCompactionStateValues.length - 20,
+      )
+    }
     this.emitCompactionState(rawValue)
   }
 
   private emitCompactionState(rawValue: unknown): void {
-    if (!rawValue || typeof rawValue !== 'object') return
-    const value = rawValue as {
-      before?: unknown
-      after?: unknown
-      messagesBefore?: unknown
-      messagesAfter?: unknown
-      reusedCheckpoint?: unknown
-    }
-    if (
-      typeof value.before !== 'number' ||
-      typeof value.after !== 'number' ||
-      typeof value.messagesBefore !== 'number' ||
-      typeof value.messagesAfter !== 'number'
-    ) {
-      return
-    }
+    const value = readCompactionStateValue(rawValue)
+    if (!value) return
     const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
     emitAIDevtoolsEvent('compaction:applied', {
       ...this.createEnvelope('compaction:applied', 'client-state', runContext),
-      before: value.before,
-      after: value.after,
-      messagesBefore: value.messagesBefore,
-      messagesAfter: value.messagesAfter,
-      reusedCheckpoint: value.reusedCheckpoint === true,
+      ...value,
     })
   }
 
@@ -971,8 +1039,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
     }
-    if (this.lastCompactionStateValue != null) {
-      this.emitCompactionState(this.lastCompactionStateValue)
+    for (const value of this.lastCompactionStateValues) {
+      this.emitCompactionState(value)
     }
   }
 

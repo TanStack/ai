@@ -196,12 +196,18 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 ## DevTools
 
 After a compaction, the chat stream includes a `compaction:state` CUSTOM event.
-TanStack AI DevTools shows a `compaction` / `onCompact` step on that iteration.
-The step lists before and after token and message counts.
+TanStack AI DevTools has a Compaction tab on the hook. Each compact shows:
 
-Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Then inspect the iteration that ran the model call.
+- when it ran
+- token and message counts before and after
+- the `maxTokens` budget
+- dropped messages and the transcript sent to the model
 
-The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns.
+The conversation timeline also keeps a `compaction` / `onCompact` step.
+
+Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Select the Compaction hook, then open the Compaction tab.
+
+The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns. That page also shows a compact banner in the chat. The canonical transcript stays complete. The banner is example UI, not part of `useChat`.
 
 ## Compaction and persistence
 

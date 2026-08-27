@@ -39,6 +39,7 @@ import {
 } from './preview-messages'
 import { GenerationPanel, GenerationPreview } from './GenerationPanel'
 import { MemoryPanel } from './MemoryPanel'
+import { CompactionPanel } from './CompactionPanel'
 import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
   HookRecord,
@@ -49,7 +50,7 @@ import type {
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'
 
-type DetailTab = 'conversation' | 'tools' | 'state' | 'memory'
+type DetailTab = 'conversation' | 'tools' | 'state' | 'memory' | 'compaction'
 type MessagePart = NonNullable<Message['parts']>[number]
 const scrollAnimations = new WeakMap<HTMLElement, number>()
 
@@ -152,7 +153,9 @@ export const HookDetails: Component = () => {
     // while one of them is selected, fall back to the conversation view.
     if (
       isGenerationHook() &&
-      (activeTab() === 'tools' || activeTab() === 'memory')
+      (activeTab() === 'tools' ||
+        activeTab() === 'memory' ||
+        activeTab() === 'compaction')
     ) {
       setActiveTab('conversation')
     }
@@ -258,6 +261,12 @@ export const HookDetails: Component = () => {
                 activeTab={activeTab()}
                 onSelect={setActiveTab}
               />
+              <TabButton
+                label="Compaction"
+                tab="compaction"
+                activeTab={activeTab()}
+                onSelect={setActiveTab}
+              />
             </Show>
           </nav>
 
@@ -304,6 +313,9 @@ export const HookDetails: Component = () => {
               </Show>
               <Show when={activeTab() === 'memory'}>
                 <MemoryPanel />
+              </Show>
+              <Show when={activeTab() === 'compaction'}>
+                <CompactionPanel hook={activeHook()} />
               </Show>
             </main>
 

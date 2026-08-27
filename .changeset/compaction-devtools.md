@@ -6,6 +6,7 @@
 ---
 
 Show compaction in TanStack AI DevTools. `withCompaction` injects a
-`compaction:state` CUSTOM stream event with before/after token and message
-counts. The chat client re-emits `compaction:applied` so the AI panel can
-render an `onCompact` step.
+`compaction:state` CUSTOM stream event with before/after counts, the token
+budget, and dropped vs sent message previews. The chat client re-emits
+`compaction:applied`. The AI panel has a Compaction tab and an `onCompact`
+step on the iteration.

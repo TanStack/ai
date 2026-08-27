@@ -983,6 +983,13 @@ export interface VideoUsageEvent extends BaseEventContext {
 // Compaction events
 // ---------------------------------------------------------------------------
 
+/** One message in a compaction preview list. */
+export interface CompactionMessagePreview {
+  role: string
+  tokens: number
+  text: string
+}
+
 /** Emitted when `withCompaction` rewrites provider context for a model call. */
 export interface CompactionAppliedEvent extends BaseEventContext {
   /** Estimated tokens before compaction. */
@@ -995,6 +1002,14 @@ export interface CompactionAppliedEvent extends BaseEventContext {
   messagesAfter: number
   /** True when a persisted checkpoint supplied the compacted prefix. */
   reusedCheckpoint: boolean
+  /** Token budget that triggered compaction. */
+  maxTokens?: number
+  /** Strategy identity from `withCompaction`. */
+  strategyKey?: string
+  /** Messages removed or rewritten. */
+  dropped?: Array<CompactionMessagePreview>
+  /** Messages the model will see after compaction. */
+  result?: Array<CompactionMessagePreview>
 }
 
 // ---------------------------------------------------------------------------

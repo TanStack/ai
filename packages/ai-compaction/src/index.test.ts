@@ -137,7 +137,21 @@ describe('withCompaction', () => {
     if (custom && custom.type === 'CUSTOM') {
       expect(custom.value).toMatchObject({
         reusedCheckpoint: false,
+        maxTokens: 100,
       })
+      if (
+        custom.value &&
+        typeof custom.value === 'object' &&
+        'dropped' in custom.value &&
+        'result' in custom.value &&
+        Array.isArray(custom.value.dropped) &&
+        Array.isArray(custom.value.result)
+      ) {
+        expect(custom.value.dropped.length).toBeGreaterThan(0)
+        expect(custom.value.result.length).toBeGreaterThan(0)
+      } else {
+        expect.fail('compaction:state is missing dropped/result previews')
+      }
     }
   })
 

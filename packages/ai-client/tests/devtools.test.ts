@@ -1438,6 +1438,10 @@ describe('ChatClient devtools bridge', () => {
           messagesBefore: 8,
           messagesAfter: 3,
           reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+          dropped: [{ role: 'user', tokens: 40, text: 'old turn' }],
+          result: [{ role: 'user', tokens: 10, text: 'omitted' }],
         },
       },
       textContentChunk({
@@ -1466,6 +1470,10 @@ describe('ChatClient devtools bridge', () => {
           messagesBefore: 8,
           messagesAfter: 3,
           reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+          dropped: [{ role: 'user', tokens: 40, text: 'old turn' }],
+          result: [{ role: 'user', tokens: 10, text: 'omitted' }],
         }),
       ],
     ])

@@ -23,13 +23,29 @@ import type {
 /** CUSTOM stream event that carries compaction stats to client DevTools. */
 export const COMPACTION_STATE_EVENT = 'compaction:state'
 
-/** Payload of {@link COMPACTION_STATE_EVENT}. Token and message counts only. */
+const PREVIEW_CHARS = 160
+const MAX_PREVIEWS = 24
+
+/** One message in a `compaction:state` preview list. */
+export interface CompactionMessagePreview {
+  role: string
+  tokens: number
+  text: string
+}
+
+/** Payload of {@link COMPACTION_STATE_EVENT}. */
 export interface CompactionStateEventValue {
   before: number
   after: number
   messagesBefore: number
   messagesAfter: number
   reusedCheckpoint: boolean
+  maxTokens: number
+  strategyKey?: string
+  /** Messages removed or rewritten. */
+  dropped?: Array<CompactionMessagePreview>
+  /** Messages the model will see after compaction. */
+  result?: Array<CompactionMessagePreview>
 }
 
 interface CompactionRequestState {
@@ -111,12 +127,77 @@ function isCompactionCheckpoint(value: unknown): value is CompactionCheckpoint {
   )
 }
 
+function messagePreviewText(message: ModelMessage): string {
+  if (typeof message.content === 'string') return message.content
+  return JSON.stringify(message.content ?? '')
+}
+
+function toMessagePreview(
+  message: ModelMessage,
+  estimate: (message: ModelMessage) => number,
+): CompactionMessagePreview {
+  const text = messagePreviewText(message)
+  return {
+    role: message.role,
+    tokens: estimate(message),
+    text:
+      text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS)}…` : text,
+  }
+}
+
+function previewList(
+  messages: ReadonlyArray<ModelMessage>,
+  estimate: (message: ModelMessage) => number,
+): Array<CompactionMessagePreview> {
+  const mapped = messages.map((message) => toMessagePreview(message, estimate))
+  if (mapped.length <= MAX_PREVIEWS) return mapped
+  return mapped.slice(0, MAX_PREVIEWS)
+}
+
+function droppedMessages(
+  before: ReadonlyArray<ModelMessage>,
+  after: ReadonlyArray<ModelMessage>,
+): Array<ModelMessage> {
+  const afterKeys = new Set(after.map((message) => JSON.stringify(message)))
+  return before.filter((message) => !afterKeys.has(JSON.stringify(message)))
+}
+
+function compactionStateValue(args: {
+  before: number
+  after: number
+  messagesBefore: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+  maxTokens: number
+  strategyKey?: string
+  beforeMessages?: ReadonlyArray<ModelMessage>
+  afterMessages?: ReadonlyArray<ModelMessage>
+  estimate: (message: ModelMessage) => number
+}): CompactionStateEventValue {
+  const value: CompactionStateEventValue = {
+    before: args.before,
+    after: args.after,
+    messagesBefore: args.messagesBefore,
+    messagesAfter: args.messagesAfter,
+    reusedCheckpoint: args.reusedCheckpoint,
+    maxTokens: args.maxTokens,
+    ...(args.strategyKey ? { strategyKey: args.strategyKey } : {}),
+  }
+  if (args.afterMessages) {
+    value.result = previewList(args.afterMessages, args.estimate)
+  }
+  if (args.beforeMessages && args.afterMessages) {
+    value.dropped = previewList(
+      droppedMessages(args.beforeMessages, args.afterMessages),
+      args.estimate,
+    )
+  }
+  return value
+}
+
 /** Rough token estimate for one message. Default: characters / 4. */
 export function estimateMessageTokens(message: ModelMessage): number {
-  let text =
-    typeof message.content === 'string'
-      ? message.content
-      : JSON.stringify(message.content ?? '')
+  let text = messagePreviewText(message)
   if (message.toolCalls?.length) text += JSON.stringify(message.toolCalls)
   return Math.ceil(text.length / 4)
 }
@@ -397,13 +478,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       const before = sum(workingMessages, estimate)
       if (before <= options.maxTokens) {
         if (reusedCheckpoint) {
-          stageCompactionState(ctx, {
-            before,
-            after: before,
-            messagesBefore: workingMessages.length,
-            messagesAfter: workingMessages.length,
-            reusedCheckpoint: true,
-          })
+          stageCompactionState(
+            ctx,
+            compactionStateValue({
+              before,
+              after: before,
+              messagesBefore: workingMessages.length,
+              messagesAfter: workingMessages.length,
+              reusedCheckpoint: true,
+              maxTokens: options.maxTokens,
+              strategyKey: checkpointStrategyKey,
+              afterMessages: workingMessages,
+              estimate,
+            }),
+          )
           return { providerMessages: workingMessages }
         }
         return
@@ -415,13 +503,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       })
       if (!next || next === workingMessages) {
         if (reusedCheckpoint) {
-          stageCompactionState(ctx, {
-            before,
-            after: before,
-            messagesBefore: workingMessages.length,
-            messagesAfter: workingMessages.length,
-            reusedCheckpoint: true,
-          })
+          stageCompactionState(
+            ctx,
+            compactionStateValue({
+              before,
+              after: before,
+              messagesBefore: workingMessages.length,
+              messagesAfter: workingMessages.length,
+              reusedCheckpoint: true,
+              maxTokens: options.maxTokens,
+              strategyKey: checkpointStrategyKey,
+              afterMessages: workingMessages,
+              estimate,
+            }),
+          )
           return { providerMessages: workingMessages }
         }
         return
@@ -434,10 +529,18 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         messagesAfter: next.length,
       }
       options.onCompact?.(info)
-      stageCompactionState(ctx, {
-        ...info,
-        reusedCheckpoint,
-      })
+      stageCompactionState(
+        ctx,
+        compactionStateValue({
+          ...info,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          strategyKey: checkpointStrategyKey,
+          beforeMessages: workingMessages,
+          afterMessages: next,
+          estimate,
+        }),
+      )
 
       if (metadata && checkpointStrategyKey && inputMessages === messages) {
         const checkpoint: CompactionCheckpoint = {
