@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { getUIContext, type UIDescriptor } from './create-ui'
+  import {
+    getChatContext,
+    readInterrupts,
+    type UIDescriptor,
+  } from './create-ui'
   import { selectMessageUI } from '@tanstack/ai-client/ui'
   import SelectedPart from './selected-part.svelte'
   import type { MessagePart } from '@tanstack/ai-client'
@@ -12,15 +16,15 @@
     part: MessagePart
   } = $props()
 
-  const ctx = $derived(getUIContext(ui))
+  const chat = $derived(getChatContext(ui))
   const selected = $derived(
     selectMessageUI(
       { id: 'part', role: 'assistant', parts: [part] },
-      { interrupts: ctx.chat.interrupts ?? [], inlineToolNames: [] },
+      { interrupts: readInterrupts(chat), inlineToolNames: [] },
     ).parts[0],
   )
 </script>
 
 {#if selected}
-  <SelectedPart {ui} {selected} inline={false} />
+  <SelectedPart {ui} {selected} />
 {/if}

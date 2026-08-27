@@ -12,9 +12,11 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react-ui`, then call `createUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders.
+Install `@tanstack/ai-react-ui`, then call `createUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
 
 You supply every visible component. There is no default markup, style, or copy.
+
+`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
 ## Server
 
@@ -76,11 +78,11 @@ const UI = createUI(chatOptions)
 
 const components = UI.defineComponents({
   layout: function Layout({
-    chat,
     renderMessages,
     renderInterrupts,
     renderInput,
   }) {
+    const chat = UI.useChat()
     if (chat.error) return <p>{chat.error.message}</p>
     if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
     if (chat.messages.length === 0) return <p>Empty</p>
@@ -95,7 +97,8 @@ const components = UI.defineComponents({
   message: function Message({ message, renderParts }) {
     return <article data-role={message.role}>{renderParts()}</article>
   },
-  input: function Input({ chat }) {
+  input: function Input() {
+    const chat = UI.useChat()
     return (
       <form
         onSubmit={(event) => {
@@ -103,7 +106,7 @@ const components = UI.defineComponents({
           const form = event.currentTarget
           const field = form.elements.namedItem('message')
           if (!(field instanceof HTMLInputElement)) return
-          void chat.sendMessage?.(field.value)
+          void chat.sendMessage(field.value)
           field.value = ''
         }}
       >
@@ -113,13 +116,9 @@ const components = UI.defineComponents({
     )
   },
   parts: {
-    text: ({ part }) => (part.type === 'text' ? <p>{part.content}</p> : null),
-    structuredOutput: ({ part }) =>
-      part.type === 'structured-output' ? (
-        <pre>{part.raw}</pre>
-      ) : null,
-    toolResult: ({ part }) =>
-      part.type === 'tool-result' ? <em>{String(part.content)}</em> : null,
+    text: ({ part }) => <p>{part.content}</p>,
+    structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
+    toolResult: ({ part }) => <em>{String(part.content)}</em>,
     fallback: ({ part }) => <span>{part.type}</span>,
   },
   tools: {
@@ -136,29 +135,18 @@ const components = UI.defineComponents({
         </p>
       )
     },
-    purchaseItem: ({ part, renderInterrupt }) => (
+    purchaseItem: ({ part, interrupt }) => (
       <div>
         {part.input?.item}
-        {renderInterrupt()}
+        {interrupt?.status === 'pending' ? (
+          <button onClick={() => interrupt.resolveInterrupt(true)}>
+            Approve
+          </button>
+        ) : null}
       </div>
     ),
   },
   interrupts: {
-    tools: {
-      purchaseItem: {
-        component: ({ interrupt }) =>
-          interrupt.kind === 'tool-approval' ? (
-            interrupt.status === 'pending' ? (
-              <button onClick={() => interrupt.resolveInterrupt(true)}>
-                Approve
-              </button>
-            ) : (
-              <span>{interrupt.status}</span>
-            )
-          ) : null,
-        placement: 'inline',
-      },
-    },
     generic: {
       choosePlan: ({ interrupt }) => (
         <button onClick={() => interrupt.resolveInterrupt('approved')}>
@@ -182,9 +170,11 @@ A tool map grows fast. Move a tool into its own file and type the props with `To
 
 `ToolProps` takes your `chatOptions` type and the tool name. Then `part.input` and `part.output` stay exact.
 
+Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `parts` map. `fallback` still sees every part type.
+
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createUI, type ToolProps } from '@tanstack/ai-react-ui'
+import { createUI, type PartProps, type ToolProps } from '@tanstack/ai-react-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -214,26 +204,33 @@ export function WeatherTool({
   )
 }
 
+export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
+  return <p>{part.content}</p>
+}
+
 const UI = createUI(chatOptions)
 
 export const components = UI.defineComponents({
   layout: ({ renderMessages }) => renderMessages(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
-  parts: { fallback: () => null },
+  parts: { text: TextPart, fallback: () => null },
   tools: { getWeather: WeatherTool },
 })
 ```
 
 1. Put `chatOptions` in a shared module.
-2. Import `ToolProps` from `@tanstack/ai-react-ui`.
-3. Type the component with `ToolProps<typeof chatOptions, 'getWeather'>`.
-4. Pass that component into `tools.getWeather`.
+2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react-ui`.
+3. Type the component with `ToolProps<typeof chatOptions, 'getWeather'>` or `PartProps<typeof chatOptions, 'text'>`.
+4. Pass that component into `tools.getWeather` or `parts.text`.
 
-For a registered generic interrupt, use `RegisteredInterruptProps`. Then `interrupt.payload` and `interrupt.resolveInterrupt` match the definition.
+For an interrupt, use `InterruptProps`. Pass a tool name or a registered interrupt id as the second type argument. Then you do not check `interrupt.kind`.
+
+- A tool approval: `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Then `interrupt.toolName` is `'purchaseItem'`.
+- A registered generic interrupt: `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` and `interrupt.resolveInterrupt` match the definition.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createUI, type RegisteredInterruptProps } from '@tanstack/ai-react-ui'
+import { createUI, type InterruptProps } from '@tanstack/ai-react-ui'
 import { defineInterrupt } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -250,7 +247,7 @@ const chatOptions = {
 
 export function ChoosePlan({
   interrupt,
-}: RegisteredInterruptProps<typeof chatOptions, 'choosePlan'>) {
+}: InterruptProps<typeof chatOptions, 'choosePlan'>) {
   return (
     <button onClick={() => interrupt.resolveInterrupt('approved')}>
       {interrupt.payload?.title ?? 'Choose plan'}
@@ -277,12 +274,12 @@ Other prop types from the same package:
 - `LayoutProps`
 - `MessageProps`
 - `InputProps`
-- `PartProps`
-- `InterruptProps` for tool approvals and `generic.fallback`
+- `PartProps` with a part key such as `'text'`
+- `InterruptProps` for tool approvals, registered generic interrupts, and `generic.fallback`. Pass a tool name or interrupt id as the second type argument.
 
 ## Read chat from `UI.useChat()`
 
-Every mapped component already gets `chat` as a prop. Nested children that you write yourself can call `UI.useChat()` instead of threading that prop.
+Mapped components do not receive `chat` as a prop. Call `UI.useChat()` inside a component when it needs live chat. That call opts the component into chat re-renders. Nested children can call it too.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -329,11 +326,13 @@ A tool with `needsApproval: true` can render its approval in two places.
 
 ### Inline, next to the tool
 
-Set `placement: 'inline'`. Call `renderInterrupt()` inside the tool component. The approval appears in the tool slot. It does not appear in the interrupt list.
+Read `interrupt` on the tool. Render the approval in that same component. Do not register `interrupts.tools` for that name. A mapped tool keeps its approval off the list.
+
+`interrupt` is already the approval for that tool name. You do not check `interrupt.kind`.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createUI } from '@tanstack/ai-react-ui'
+import { createUI, type ToolProps } from '@tanstack/ai-react-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -352,6 +351,22 @@ const chatOptions = {
 
 const UI = createUI(chatOptions)
 
+function PurchaseItem({
+  part,
+  interrupt,
+}: ToolProps<typeof chatOptions, 'purchaseItem'>) {
+  return (
+    <div>
+      {part.input?.item}
+      {interrupt?.status === 'pending' ? (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 const components = UI.defineComponents({
   layout: ({ renderMessages, renderInterrupts }) => (
     <main>
@@ -362,25 +377,7 @@ const components = UI.defineComponents({
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   parts: { fallback: () => null },
   tools: {
-    purchaseItem: ({ part, renderInterrupt }) => (
-      <div>
-        {part.input?.item}
-        {renderInterrupt()}
-      </div>
-    ),
-  },
-  interrupts: {
-    tools: {
-      purchaseItem: {
-        component: ({ interrupt }) =>
-          interrupt.kind === 'tool-approval' ? (
-            <button onClick={() => interrupt.resolveInterrupt(true)}>
-              Approve
-            </button>
-          ) : null,
-        placement: 'inline',
-      },
-    },
+    purchaseItem: PurchaseItem,
   },
 })
 
@@ -390,9 +387,11 @@ export function InlineApprovalChat() {
 }
 ```
 
+To split the approval into its own file, type it with `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Render that component from the tool.
+
 ### List, in `renderInterrupts()`
 
-Pass the approval component directly. Do not set `placement: 'inline'`. The tool can skip `renderInterrupt()`. The approval appears in the interrupt list.
+Register the approval under `interrupts.tools`. That component appears in the interrupt list. Do not also render `interrupt` on the tool unless you want it in both places.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -429,12 +428,11 @@ const components = UI.defineComponents({
   },
   interrupts: {
     tools: {
-      purchaseItem: ({ interrupt }) =>
-        interrupt.kind === 'tool-approval' ? (
-          <button onClick={() => interrupt.resolveInterrupt(true)}>
-            Approve
-          </button>
-        ) : null,
+      purchaseItem: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ),
     },
   },
 })
@@ -444,8 +442,6 @@ export function ListApprovalChat() {
   return <UI.Chat chat={chat} components={components} />
 }
 ```
-
-`placement: 'list'` is the same as a direct component.
 
 ## Generic interrupts
 

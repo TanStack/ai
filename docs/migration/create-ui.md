@@ -74,7 +74,9 @@ const components = UI.defineComponents({
     </main>
   ),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: ({ chat }) => (
+  input: () => {
+    const chat = UI.useChat()
+    return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
@@ -83,12 +85,13 @@ const components = UI.defineComponents({
         const text = field.value.trim()
         if (!text) return
         field.value = ''
-        void chat.sendMessage?.(text)
+        void chat.sendMessage(text)
       }}
     >
       <input name="message" />
     </form>
-  ),
+    )
+  },
   parts: { fallback: () => null },
 })
 
@@ -109,8 +112,9 @@ export function NewChat() {
 ## Gotchas
 
 - A shared `chatOptions` variable does not need `as const`.
-- `{ component, placement: 'inline' }` puts a tool approval in the tool slot. A direct tool interrupt component uses the list.
+- A mapped tool can read `interrupt` and render the approval itself. That approval stays off the list. A component on `interrupts.tools` uses the list.
 - Generic interrupts live under `interrupts.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
+- TypeScript requires a `tools` component for every tool name and an `interrupts.generic` component for every interrupt id. `generic.fallback` is optional.
 - Matched `tool-result` parts are hidden in automatic traversal. Unmatched results stay visible.
 - Nested providers use the nearest chat instance.
 

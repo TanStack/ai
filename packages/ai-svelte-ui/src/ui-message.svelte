@@ -1,30 +1,44 @@
 <script lang="ts">
-  import { getUIContext, messageParts, type UIDescriptor } from './create-ui'
+  import {
+    getChatContext,
+    getComponentsContext,
+    messageParts,
+    readInterrupts,
+    type UIDescriptor,
+  } from './create-ui'
   import SelectedPart from './selected-part.svelte'
+  import type { ChatUIInterrupt } from '@tanstack/ai-client/ui'
   import type { UIMessage } from '@tanstack/ai-client'
 
   let {
     ui,
     message,
+    interrupts,
     children,
   }: {
     ui: UIDescriptor
     message: UIMessage
+    interrupts?: ReadonlyArray<ChatUIInterrupt>
     children?: import('svelte').Snippet<[unknown]>
   } = $props()
 
-  const ctx = $derived(getUIContext(ui))
-  const selectedParts = $derived(messageParts(ctx, message))
-  const Message = $derived(ctx.components.message as any)
+  const comps = $derived(getComponentsContext(ui))
+  const resolvedInterrupts = $derived(
+    interrupts ?? readInterrupts(getChatContext(ui)),
+  )
+  const selectedParts = $derived(
+    messageParts(message, resolvedInterrupts, comps.inlineToolNames),
+  )
+  const Message = $derived(comps.components.message as any)
 </script>
 
 {#if children}
   {@render children(selectedParts)}
 {:else}
-  <Message chat={ctx.chat} {message}>
+  <Message {message}>
     {#snippet parts()}
       {#each selectedParts as part, index (`${message.id}-${index}`)}
-        <SelectedPart {ui} selected={part} inline />
+        <SelectedPart {ui} selected={part} />
       {/each}
     {/snippet}
   </Message>

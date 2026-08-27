@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { getUIContext, listInterrupts, type UIDescriptor } from './create-ui'
+  import {
+    getChatContext,
+    getComponentsContext,
+    listInterrupts,
+    type UIDescriptor,
+  } from './create-ui'
   import UIInterrupt from './ui-interrupt.svelte'
   import type { ChatUIInterrupt } from '@tanstack/ai-client/ui'
 
@@ -11,8 +16,9 @@
     children?: import('svelte').Snippet<[Array<ChatUIInterrupt>]>
   } = $props()
 
-  const ctx = $derived(getUIContext(ui))
-  const interrupts = $derived(listInterrupts(ctx))
+  const chat = $derived(getChatContext(ui))
+  const comps = $derived(getComponentsContext(ui))
+  const interrupts = $derived(listInterrupts(chat, comps.inlineToolNames))
 </script>
 
 {#if children}

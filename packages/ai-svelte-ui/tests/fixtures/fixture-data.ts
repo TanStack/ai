@@ -21,5 +21,5 @@ export const components = ui.defineComponents({
     getWeather: Weather,
     purchaseItem: Empty,
   },
-  interrupts: { generic: { fallback: Empty } },
+  interrupts: { generic: { choosePlan: Empty, fallback: Empty } },
 })
