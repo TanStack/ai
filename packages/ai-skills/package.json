@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-skills",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Portable Agent Skills (SKILL.md) as a first-class chat() middleware for TanStack AI.",
   "author": "Tanner Linsley",
   "license": "MIT",

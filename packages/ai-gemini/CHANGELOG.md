@@ -1,5 +1,12 @@
 # @tanstack/ai-gemini
 
+## 0.26.3
+
+### Patch Changes
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+
 ## 0.26.2
 
 ### Patch Changes
