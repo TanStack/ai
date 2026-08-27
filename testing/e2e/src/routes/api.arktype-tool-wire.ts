@@ -3,6 +3,7 @@ import { chat, createChatOptions, toolDefinition } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import { HTTPClient } from '@openrouter/sdk'
 import { type } from 'arktype'
+import { createTextAdapter } from '@/lib/providers'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -15,16 +16,16 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
  * function fell through and, once serialized to the wire, the tool's
  * `parameters` collapsed to `{}` (functions don't survive `JSON.stringify`).
  *
- * This route drives the OpenRouter chat adapter with an ArkType-schema
- * function tool against aimock so the companion spec can inspect aimock's
- * journal (`GET /v1/_requests`) and assert the converted JSON Schema actually
- * crossed the wire. The model response is irrelevant to the assertion.
+ * This route drives OpenRouter and Gemini with an ArkType-schema function
+ * tool. The companion spec checks that the converted JSON Schema crosses each
+ * provider wire.
  */
 const arktypeWeatherTool = toolDefinition({
   name: 'get_arktype_weather',
   description: 'Get weather for a city (ArkType-schema tool, #276 wire test)',
   inputSchema: type({
     city: 'string',
+    unit: "'celsius'",
     'units?': "'celsius' | 'fahrenheit'",
   }),
 }).server(async () => JSON.stringify({ ok: true }))
@@ -35,6 +36,7 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
       POST: async ({ request }) => {
         const url = new URL(request.url)
         const testId = url.searchParams.get('testId') ?? undefined
+        const isGemini = url.searchParams.get('provider') === 'gemini'
 
         // Same X-Test-Id injection pattern as the other wire specs so this
         // route gets its own aimock test bucket.
@@ -54,7 +56,14 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
 
         try {
           for await (const _ of chat({
-            ...createChatOptions({ adapter }),
+            ...(isGemini
+              ? createTextAdapter(
+                  'gemini',
+                  'gemini-2.5-flash-lite',
+                  undefined,
+                  testId,
+                )
+              : createChatOptions({ adapter })),
             messages: [
               {
                 role: 'user',

@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 
 /**
- * Wire-format regression for #276 — ArkType schemas.
+ * Wire-format regressions for ArkType schemas.
  *
  * ArkType's `type()` returns a callable function (with `~standard` attached),
  * not a plain object. `@tanstack/ai`'s schema-detection guards previously
@@ -11,9 +11,8 @@ import { test, expect } from './fixtures'
  * tool's `parameters` collapsed to `{}` (functions don't survive
  * `JSON.stringify`).
  *
- * This spec drives `/api/arktype-tool-wire` (OpenRouter chat adapter, ArkType
- * function tool) and inspects aimock's journal (`GET /v1/_requests`) to assert
- * the converted JSON Schema actually reached the provider.
+ * The OpenRouter case inspects aimock's journal. The Gemini case uses a raw
+ * mock mount because aimock normalizes Gemini function declarations.
  */
 test.describe('arktype — tool schema wire format', () => {
   test.beforeEach(async ({ request, aimockPort }) => {
@@ -62,5 +61,17 @@ test.describe('arktype — tool schema wire format', () => {
     expect(
       (captured?.function?.parameters?.['required'] as Array<string>) ?? [],
     ).toContain('city')
+  })
+
+  test('Gemini preserves ArkType JSON Schema keywords on the wire', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post(
+      `/api/arktype-tool-wire?provider=gemini&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(res.ok()).toBe(true)
+    const result = (await res.json()) as { ok: boolean; error?: string }
+    expect(result, result.error).toMatchObject({ ok: true })
   })
 })
