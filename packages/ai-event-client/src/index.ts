@@ -990,8 +990,17 @@ export interface CompactionMessagePreview {
   text: string
 }
 
-/** Emitted when `withCompaction` rewrites provider context for a model call. */
-export interface CompactionAppliedEvent extends BaseEventContext {
+/** Emitted when `withCompaction` starts rewriting provider context. */
+export interface CompactionStartedEvent extends BaseEventContext {
+  before?: number
+  messagesBefore?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+}
+
+/** Emitted when `withCompaction` has a compacted transcript to inspect. */
+export interface CompactionStateEvent extends BaseEventContext {
   /** Estimated tokens before compaction. */
   before: number
   /** Estimated tokens after compaction. */
@@ -1011,6 +1020,19 @@ export interface CompactionAppliedEvent extends BaseEventContext {
   /** Messages the model will see after compaction. */
   result?: Array<CompactionMessagePreview>
 }
+
+/** Emitted when `withCompaction` finishes rewriting provider context. */
+export interface CompactionEndedEvent extends BaseEventContext {
+  after?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+}
+
+/** @deprecated Use {@link CompactionStateEvent}. */
+export type CompactionAppliedEvent = CompactionStateEvent
 
 // ---------------------------------------------------------------------------
 // Memory events
@@ -1356,6 +1378,9 @@ export interface AIDevtoolsEventMap {
   'client:stopped': ClientStoppedEvent
 
   // Compaction events
+  'compaction:started': CompactionStartedEvent
+  'compaction:state': CompactionStateEvent
+  'compaction:ended': CompactionEndedEvent
   'compaction:applied': CompactionAppliedEvent
 
   // Memory events

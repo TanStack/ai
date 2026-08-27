@@ -129,6 +129,7 @@ When `withPersistence` provides a metadata store, compaction saves a validated
 checkpoint automatically. The next request reuses the compacted prefix and adds
 new canonical messages. Without metadata, compaction remains stateless.
 
-TanStack AI DevTools has a Compaction tab with when it ran, before/after counts,
-and dropped vs sent message previews. The stats ride the chat stream as a
-`compaction:state` CUSTOM event.
+TanStack AI DevTools has a Compaction tab with started, state, and ended
+events, before/after counts, and dropped vs sent message previews. Those
+stats ride the chat stream as `compaction:started`, `compaction:state`, and
+`compaction:ended` CUSTOM events.

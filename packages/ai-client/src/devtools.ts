@@ -56,6 +56,48 @@ interface MemoryStateEventValue {
   }
 }
 
+function readCompactionBoundaryValue(rawValue: unknown): {
+  before?: number
+  after?: number
+  messagesBefore?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+} {
+  if (!rawValue || typeof rawValue !== 'object') return {}
+  return {
+    ...('before' in rawValue && typeof rawValue.before === 'number'
+      ? { before: rawValue.before }
+      : {}),
+    ...('after' in rawValue && typeof rawValue.after === 'number'
+      ? { after: rawValue.after }
+      : {}),
+    ...('messagesBefore' in rawValue &&
+    typeof rawValue.messagesBefore === 'number'
+      ? { messagesBefore: rawValue.messagesBefore }
+      : {}),
+    ...('messagesAfter' in rawValue &&
+    typeof rawValue.messagesAfter === 'number'
+      ? { messagesAfter: rawValue.messagesAfter }
+      : {}),
+    ...('reusedCheckpoint' in rawValue &&
+    typeof rawValue.reusedCheckpoint === 'boolean'
+      ? { reusedCheckpoint: rawValue.reusedCheckpoint }
+      : {}),
+    ...('maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? { maxTokens: rawValue.maxTokens }
+      : {}),
+    ...('strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? { strategyKey: rawValue.strategyKey }
+      : {}),
+    ...('durationMs' in rawValue && typeof rawValue.durationMs === 'number'
+      ? { durationMs: rawValue.durationMs }
+      : {}),
+  }
+}
+
 function readPreviewList(
   value: unknown,
 ): Array<CompactionMessagePreview> | undefined {
@@ -792,7 +834,9 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'memory:retrieve:started'
       | 'memory:retrieve:completed'
       | 'memory:snapshot'
-      | 'compaction:applied'
+      | 'compaction:started'
+      | 'compaction:state'
+      | 'compaction:ended'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -851,8 +895,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
-  /** Transported `compaction:state` values, replayed when a panel opens. */
-  private lastCompactionStateValues: Array<unknown> = []
+  /** Transported compaction CUSTOM events, replayed when a panel opens. */
+  private lastCompactionEvents: Array<{ eventType: string; value: unknown }> =
+    []
 
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
@@ -1010,37 +1055,60 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   }
 
   /**
-   * Record a transported `compaction:state` value. Called from the chat
+   * Record a transported compaction CUSTOM event. Called from the chat
    * client's `onCustomEvent` handler so server-side compaction reaches the
    * browser DevTools panel.
    */
-  recordCompactionState(rawValue: unknown): void {
-    this.lastCompactionStateValues.push(rawValue)
-    if (this.lastCompactionStateValues.length > 20) {
-      this.lastCompactionStateValues.splice(
-        0,
-        this.lastCompactionStateValues.length - 20,
-      )
+  recordCompactionEvent(eventType: string, rawValue: unknown): void {
+    this.lastCompactionEvents.push({ eventType, value: rawValue })
+    if (this.lastCompactionEvents.length > 60) {
+      this.lastCompactionEvents.splice(0, this.lastCompactionEvents.length - 60)
     }
-    this.emitCompactionState(rawValue)
+    this.emitCompactionEvent(eventType, rawValue)
   }
 
-  private emitCompactionState(rawValue: unknown): void {
-    const value = readCompactionStateValue(rawValue)
-    if (!value) return
+  recordCompactionState(rawValue: unknown): void {
+    this.recordCompactionEvent('compaction:state', rawValue)
+  }
+
+  private emitCompactionEvent(eventType: string, rawValue: unknown): void {
     const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
-    emitAIDevtoolsEvent('compaction:applied', {
-      ...this.createEnvelope('compaction:applied', 'client-state', runContext),
-      ...value,
-    })
+    if (eventType === 'compaction:started') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:started', {
+        ...this.createEnvelope(
+          'compaction:started',
+          'client-state',
+          runContext,
+        ),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:ended') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:ended', {
+        ...this.createEnvelope('compaction:ended', 'client-state', runContext),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:state') {
+      const value = readCompactionStateValue(rawValue)
+      if (!value) return
+      emitAIDevtoolsEvent('compaction:state', {
+        ...this.createEnvelope('compaction:state', 'client-state', runContext),
+        ...value,
+      })
+    }
   }
 
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
     }
-    for (const value of this.lastCompactionStateValues) {
-      this.emitCompactionState(value)
+    for (const event of this.lastCompactionEvents) {
+      this.emitCompactionEvent(event.eventType, event.value)
     }
   }
 

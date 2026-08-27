@@ -2978,53 +2978,87 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
+    const recordCompactionLifecycle = (
+      kind: 'started' | 'state' | 'ended',
+      hookName: 'onCompactStart' | 'onCompact' | 'onCompactEnd',
+      payload: {
+        timestamp: number
+        requestId?: string
+        streamId?: string
+        clientId?: string
+        hookId?: string
+        threadId?: string
+        runId?: string
+        eventId?: string
+        before?: number
+        after?: number
+        messagesBefore?: number
+        messagesAfter?: number
+        reusedCheckpoint?: boolean
+        maxTokens?: number
+        strategyKey?: string
+        durationMs?: number
+        dropped?: CompactionRegistryState['events'][number]['dropped']
+        result?: CompactionRegistryState['events'][number]['result']
+      },
+    ) => {
+      setState(
+        'compaction',
+        produce((compaction: CompactionRegistryState) => {
+          applyCompactionEvent(compaction, kind, payload)
+        }),
+      )
+
+      const { requestId, streamId, clientId } = payload
+      const conversationId =
+        (clientId && state.conversations[clientId] ? clientId : undefined) ||
+        (streamId ? streamToConversation.get(streamId) : undefined) ||
+        (requestId ? requestToConversation.get(requestId) : undefined)
+      if (!conversationId || !state.conversations[conversationId]) return
+
+      const conv = state.conversations[conversationId]
+      const iterIndex = findLatestIterationIndex(conv, requestId)
+      if (iterIndex < 0) return
+
+      const mwEvent: MiddlewareEvent = {
+        id: `mw-cmp-${kind}-${Date.now()}-${Math.random()}`,
+        middlewareName: 'compaction',
+        hookName,
+        timestamp: payload.timestamp,
+        hasTransform: kind === 'state',
+        configChanges: {
+          before: payload.before,
+          after: payload.after,
+          messagesBefore: payload.messagesBefore,
+          messagesAfter: payload.messagesAfter,
+          reusedCheckpoint: payload.reusedCheckpoint,
+          maxTokens: payload.maxTokens,
+          strategyKey: payload.strategyKey,
+          durationMs: payload.durationMs,
+        },
+      }
+
+      setState(
+        'conversations',
+        conversationId,
+        'iterations',
+        iterIndex,
+        'middlewareEvents',
+        produce((arr: Array<MiddlewareEvent>) => {
+          arr.push(mwEvent)
+        }),
+      )
+    }
+
     cleanupFns.push(
-      aiEventClient.on('compaction:applied', (e) => {
-        setState(
-          'compaction',
-          produce((compaction: CompactionRegistryState) => {
-            applyCompactionEvent(compaction, e.payload)
-          }),
-        )
-
-        const { requestId, streamId, clientId } = e.payload
-        const conversationId =
-          (clientId && state.conversations[clientId] ? clientId : undefined) ||
-          (streamId ? streamToConversation.get(streamId) : undefined) ||
-          (requestId ? requestToConversation.get(requestId) : undefined)
-        if (!conversationId || !state.conversations[conversationId]) return
-
-        const conv = state.conversations[conversationId]
-        const iterIndex = findLatestIterationIndex(conv, requestId)
-        if (iterIndex < 0) return
-
-        const mwEvent: MiddlewareEvent = {
-          id: `mw-cmp-${Date.now()}-${Math.random()}`,
-          middlewareName: 'compaction',
-          hookName: 'onCompact',
-          timestamp: e.payload.timestamp,
-          hasTransform: true,
-          configChanges: {
-            before: e.payload.before,
-            after: e.payload.after,
-            messagesBefore: e.payload.messagesBefore,
-            messagesAfter: e.payload.messagesAfter,
-            reusedCheckpoint: e.payload.reusedCheckpoint,
-            maxTokens: e.payload.maxTokens,
-            strategyKey: e.payload.strategyKey,
-          },
-        }
-
-        setState(
-          'conversations',
-          conversationId,
-          'iterations',
-          iterIndex,
-          'middlewareEvents',
-          produce((arr: Array<MiddlewareEvent>) => {
-            arr.push(mwEvent)
-          }),
-        )
+      aiEventClient.on('compaction:started', (e) => {
+        recordCompactionLifecycle('started', 'onCompactStart', e.payload)
+      }),
+      aiEventClient.on('compaction:state', (e) => {
+        recordCompactionLifecycle('state', 'onCompact', e.payload)
+      }),
+      aiEventClient.on('compaction:ended', (e) => {
+        recordCompactionLifecycle('ended', 'onCompactEnd', e.payload)
       }),
     )
 

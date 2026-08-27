@@ -195,15 +195,18 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 
 ## DevTools
 
-After a compaction, the chat stream includes a `compaction:state` CUSTOM event.
+After a compaction, the chat stream includes three CUSTOM events in order:
+`compaction:started`, `compaction:state`, then `compaction:ended`.
 TanStack AI DevTools has a Compaction tab on the hook. Each compact shows:
 
-- when it ran
-- token and message counts before and after
+- started, state, and ended rows
+- when it ran, with token and message counts
 - the `maxTokens` budget
-- dropped messages and the transcript sent to the model
+- dropped messages
+- the transcript sent to the model
 
-The conversation timeline also keeps a `compaction` / `onCompact` step.
+The conversation timeline also keeps `onCompactStart`, `onCompact`, and
+`onCompactEnd` steps.
 
 Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Select the Compaction hook, then open the Compaction tab.
 

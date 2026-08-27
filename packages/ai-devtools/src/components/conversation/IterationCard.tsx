@@ -169,7 +169,9 @@ const MiddlewareStep: Component<{
     if (ev().wasDropped) return 'DROP'
     if (ev().hookName === 'onChunk' && ev().hasTransform) return 'TRANSFORM'
     if (ev().hookName === 'onConfig' && ev().hasTransform) return 'TRANSFORM'
+    if (ev().hookName === 'onCompactStart') return 'START'
     if (ev().hookName === 'onCompact') return 'COMPACT'
+    if (ev().hookName === 'onCompactEnd') return 'END'
     if (ev().hookName === 'onBeforeToolCall' && ev().hasTransform)
       return 'DECISION'
     return null

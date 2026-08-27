@@ -20,8 +20,17 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 
-/** CUSTOM stream event that carries compaction stats to client DevTools. */
+/** CUSTOM stream event: compaction is about to run. */
+export const COMPACTION_STARTED_EVENT = 'compaction:started'
+/** CUSTOM stream event: compaction result (counts and previews). */
 export const COMPACTION_STATE_EVENT = 'compaction:state'
+/** CUSTOM stream event: compaction finished. */
+export const COMPACTION_ENDED_EVENT = 'compaction:ended'
+
+export type CompactionStreamEventName =
+  | typeof COMPACTION_STARTED_EVENT
+  | typeof COMPACTION_STATE_EVENT
+  | typeof COMPACTION_ENDED_EVENT
 
 const PREVIEW_CHARS = 4000
 const MAX_PREVIEWS = 24
@@ -31,6 +40,15 @@ export interface CompactionMessagePreview {
   role: string
   tokens: number
   text: string
+}
+
+/** Payload of {@link COMPACTION_STARTED_EVENT}. */
+export interface CompactionStartedEventValue {
+  before: number
+  messagesBefore: number
+  reusedCheckpoint: boolean
+  maxTokens: number
+  strategyKey?: string
 }
 
 /** Payload of {@link COMPACTION_STATE_EVENT}. */
@@ -48,22 +66,61 @@ export interface CompactionStateEventValue {
   result?: Array<CompactionMessagePreview>
 }
 
+/** Payload of {@link COMPACTION_ENDED_EVENT}. */
+export interface CompactionEndedEventValue {
+  after: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+  maxTokens: number
+  durationMs: number
+  strategyKey?: string
+}
+
+interface PendingCompactionCustom {
+  name: CompactionStreamEventName
+  value: unknown
+}
+
 interface CompactionRequestState {
-  pending: Array<CompactionStateEventValue>
+  pending: Array<PendingCompactionCustom>
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, CompactionRequestState>()
 
-function stageCompactionState(
+function stageCompactionCustom(
   ctx: ChatMiddlewareContext,
-  value: CompactionStateEventValue,
+  name: CompactionStreamEventName,
+  value: unknown,
 ) {
   let state = stateByCtx.get(ctx)
   if (!state) {
     state = { pending: [] }
     stateByCtx.set(ctx, state)
   }
-  state.pending.push(value)
+  state.pending.push({ name, value })
+}
+
+function stageCompactionCycle(
+  ctx: ChatMiddlewareContext,
+  stateValue: CompactionStateEventValue,
+  durationMs: number,
+) {
+  stageCompactionCustom(ctx, COMPACTION_STARTED_EVENT, {
+    before: stateValue.before,
+    messagesBefore: stateValue.messagesBefore,
+    reusedCheckpoint: stateValue.reusedCheckpoint,
+    maxTokens: stateValue.maxTokens,
+    ...(stateValue.strategyKey ? { strategyKey: stateValue.strategyKey } : {}),
+  } satisfies CompactionStartedEventValue)
+  stageCompactionCustom(ctx, COMPACTION_STATE_EVENT, stateValue)
+  stageCompactionCustom(ctx, COMPACTION_ENDED_EVENT, {
+    after: stateValue.after,
+    messagesAfter: stateValue.messagesAfter,
+    reusedCheckpoint: stateValue.reusedCheckpoint,
+    maxTokens: stateValue.maxTokens,
+    durationMs,
+    ...(stateValue.strategyKey ? { strategyKey: stateValue.strategyKey } : {}),
+  } satisfies CompactionEndedEventValue)
 }
 
 const strategyKeys = new WeakMap<CompactionStrategy, string>()
@@ -452,6 +509,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return
 
+      const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
       const metadata = getMetadata(ctx, { optional: true })
@@ -478,7 +536,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       const before = sum(workingMessages, estimate)
       if (before <= options.maxTokens) {
         if (reusedCheckpoint) {
-          stageCompactionState(
+          stageCompactionCycle(
             ctx,
             compactionStateValue({
               before,
@@ -491,6 +549,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
               afterMessages: workingMessages,
               estimate,
             }),
+            Date.now() - startedAt,
           )
           return { providerMessages: workingMessages }
         }
@@ -503,7 +562,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       })
       if (!next || next === workingMessages) {
         if (reusedCheckpoint) {
-          stageCompactionState(
+          stageCompactionCycle(
             ctx,
             compactionStateValue({
               before,
@@ -516,6 +575,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
               afterMessages: workingMessages,
               estimate,
             }),
+            Date.now() - startedAt,
           )
           return { providerMessages: workingMessages }
         }
@@ -529,7 +589,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         messagesAfter: next.length,
       }
       options.onCompact?.(info)
-      stageCompactionState(
+      stageCompactionCycle(
         ctx,
         compactionStateValue({
           ...info,
@@ -540,6 +600,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           afterMessages: next,
           estimate,
         }),
+        Date.now() - startedAt,
       )
 
       if (metadata && checkpointStrategyKey && inputMessages === messages) {
@@ -561,10 +622,10 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       const state = stateByCtx.get(ctx)
       if (!state?.pending.length) return
       const pending = state.pending.splice(0)
-      const customs: Array<StreamChunk> = pending.map((value) => ({
+      const customs: Array<StreamChunk> = pending.map((event) => ({
         type: 'CUSTOM',
-        name: COMPACTION_STATE_EVENT,
-        value,
+        name: event.name,
+        value: event.value,
         timestamp: Date.now(),
       }))
       return [chunk, ...customs]

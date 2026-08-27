@@ -9,6 +9,8 @@ import type {
 } from '@tanstack/ai'
 import { EventType, provideMetadata } from '@tanstack/ai'
 import {
+  COMPACTION_ENDED_EVENT,
+  COMPACTION_STARTED_EVENT,
   COMPACTION_STATE_EVENT,
   clearToolResults,
   composeStrategies,
@@ -116,7 +118,7 @@ describe('withCompaction', () => {
     expect(info.messagesAfter).toBeLessThan(info.messagesBefore)
   })
 
-  it('injects a compaction:state CUSTOM chunk after compacting', async () => {
+  it('injects started, state, and ended CUSTOM chunks after compacting', async () => {
     const mw = withCompaction({ maxTokens: 100 })
     const ctx = phaseContext('beforeModel')
     const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
@@ -129,28 +131,54 @@ describe('withCompaction', () => {
     }
     const out = await mw.onChunk?.(ctx, chunk)
     expect(Array.isArray(out)).toBe(true)
-    const custom = Array.isArray(out) ? out[1] : undefined
-    expect(custom).toMatchObject({
+    if (!Array.isArray(out)) return
+    expect(out[0]).toBe(chunk)
+    expect(out[1]).toMatchObject({
+      type: 'CUSTOM',
+      name: COMPACTION_STARTED_EVENT,
+    })
+    expect(out[2]).toMatchObject({
       type: 'CUSTOM',
       name: COMPACTION_STATE_EVENT,
     })
-    if (custom && custom.type === 'CUSTOM') {
-      expect(custom.value).toMatchObject({
+    expect(out[3]).toMatchObject({
+      type: 'CUSTOM',
+      name: COMPACTION_ENDED_EVENT,
+    })
+    const stateChunk = out[2]
+    if (stateChunk && stateChunk.type === 'CUSTOM') {
+      expect(stateChunk.value).toMatchObject({
         reusedCheckpoint: false,
         maxTokens: 100,
       })
       if (
-        custom.value &&
-        typeof custom.value === 'object' &&
-        'dropped' in custom.value &&
-        'result' in custom.value &&
-        Array.isArray(custom.value.dropped) &&
-        Array.isArray(custom.value.result)
+        stateChunk.value &&
+        typeof stateChunk.value === 'object' &&
+        'dropped' in stateChunk.value &&
+        'result' in stateChunk.value &&
+        Array.isArray(stateChunk.value.dropped) &&
+        Array.isArray(stateChunk.value.result)
       ) {
-        expect(custom.value.dropped.length).toBeGreaterThan(0)
-        expect(custom.value.result.length).toBeGreaterThan(0)
+        expect(stateChunk.value.dropped.length).toBeGreaterThan(0)
+        expect(stateChunk.value.result.length).toBeGreaterThan(0)
       } else {
         expect.fail('compaction:state is missing dropped/result previews')
+      }
+    }
+    const endedChunk = out[3]
+    if (endedChunk && endedChunk.type === 'CUSTOM') {
+      expect(endedChunk.value).toMatchObject({
+        maxTokens: 100,
+        reusedCheckpoint: false,
+      })
+      if (
+        endedChunk.value &&
+        typeof endedChunk.value === 'object' &&
+        'durationMs' in endedChunk.value
+      ) {
+        expect(typeof endedChunk.value.durationMs).toBe('number')
+      } else {
+        expect.fail('compaction:ended is missing durationMs')
       }
     }
   })

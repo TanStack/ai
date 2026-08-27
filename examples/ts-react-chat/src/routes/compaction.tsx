@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Send, Scissors } from 'lucide-react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { COMPACTION_STATE_EVENT } from '@tanstack/ai-compaction'
+import {
+  COMPACTION_ENDED_EVENT,
+  COMPACTION_STARTED_EVENT,
+  COMPACTION_STATE_EVENT,
+} from '@tanstack/ai-compaction'
 import type { CompactionStateEventValue } from '@tanstack/ai-compaction'
 import type { UIMessage } from '@tanstack/ai-react'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
@@ -44,6 +48,10 @@ function CompactionPage() {
   const [input, setInput] = useState('')
   const [lastCompact, setLastCompact] =
     useState<CompactionStateEventValue | null>(null)
+  const [compactPhase, setCompactPhase] = useState<
+    'idle' | 'started' | 'ended'
+  >('idle')
+  const [compactEvents, setCompactEvents] = useState<Array<string>>([])
 
   const forwardedProps = useMemo(
     () => ({
@@ -61,9 +69,22 @@ function CompactionPage() {
     forwardedProps,
     devtools: { name: 'Compaction' },
     onCustomEvent: (eventType, data) => {
-      if (eventType !== COMPACTION_STATE_EVENT) return
-      if (!isCompactionState(data)) return
-      setLastCompact(data)
+      if (eventType === COMPACTION_STARTED_EVENT) {
+        setCompactPhase('started')
+        setLastCompact(null)
+        setCompactEvents((events) => [...events.slice(-8), 'started'])
+        return
+      }
+      if (eventType === COMPACTION_STATE_EVENT) {
+        if (!isCompactionState(data)) return
+        setLastCompact(data)
+        setCompactEvents((events) => [...events.slice(-8), 'state'])
+        return
+      }
+      if (eventType === COMPACTION_ENDED_EVENT) {
+        setCompactPhase('ended')
+        setCompactEvents((events) => [...events.slice(-8), 'ended'])
+      }
     },
   })
 
@@ -142,11 +163,18 @@ function CompactionPage() {
             </option>
           </select>
         </div>
+        {compactPhase === 'started' && !lastCompact && (
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+            Compacting…
+          </div>
+        )}
         {lastCompact && (
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
-            Compacted {lastCompact.messagesBefore} → {lastCompact.messagesAfter}{' '}
-            messages ({lastCompact.before} → {lastCompact.after} tokens)
+            {compactPhase === 'started' ? 'Compacting… ' : 'Compacted '}
+            {lastCompact.messagesBefore} → {lastCompact.messagesAfter} messages
+            ({lastCompact.before} → {lastCompact.after} tokens)
             {lastCompact.strategyKey ? ` · ${lastCompact.strategyKey}` : ''}
+            {compactEvents.length > 0 ? ` · ${compactEvents.join(' → ')}` : ''}
           </div>
         )}
       </div>

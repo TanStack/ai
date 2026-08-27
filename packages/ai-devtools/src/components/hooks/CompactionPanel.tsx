@@ -70,13 +70,24 @@ const PreviewColumn: Component<{
   )
 }
 
-const CompactEvent: Component<{ event: CompactionEventRecord }> = (props) => {
+function kindLabel(kind: CompactionEventRecord['kind']): string {
+  if (kind === 'started') return 'Started'
+  if (kind === 'ended') return 'Ended'
+  return 'State'
+}
+
+const CompactEvent: Component<{
+  event: CompactionEventRecord
+  defaultOpen?: boolean
+}> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
-  const [expanded, setExpanded] = createSignal(false)
+  const [expanded, setExpanded] = createSignal(props.defaultOpen === true)
   const event = () => props.event
+  const isState = () => event().kind === 'state'
 
   const stats = () => ({
+    kind: event().kind,
     before: event().before,
     after: event().after,
     messagesBefore: event().messagesBefore,
@@ -84,28 +95,43 @@ const CompactEvent: Component<{ event: CompactionEventRecord }> = (props) => {
     maxTokens: event().maxTokens,
     strategyKey: event().strategyKey,
     reusedCheckpoint: event().reusedCheckpoint,
+    durationMs: event().durationMs,
   })
+
+  const countLabel = () => {
+    if (event().kind === 'started') {
+      return `${event().messagesBefore ?? 0} msgs · ${event().before ?? 0} tok`
+    }
+    if (event().kind === 'ended') {
+      return `${event().messagesAfter ?? 0} msgs · ${event().after ?? 0} tok`
+    }
+    return `${event().messagesBefore ?? 0} → ${event().messagesAfter ?? 0} msgs`
+  }
 
   return (
     <>
       <div
         class={s().step}
         data-testid="ai-devtools-compaction-event"
+        data-kind={event().kind}
         style={{ cursor: 'pointer' }}
         onClick={() => setExpanded(!expanded())}
       >
         <span class={`${s().stepPrefix} ${s().stepPrefixMiddleware}`}>
-          Compact
+          {kindLabel(event().kind)}
         </span>
         <span class={`${s().mwBadge} ${s().mwBadgeTransform}`}>
           {shortStrategy(event())}
         </span>
-        <span class={s().mwHook}>
-          {event().messagesBefore} → {event().messagesAfter} msgs
-        </span>
-        <span class={s().stepDuration}>
-          {event().before} → {event().after} tok
-        </span>
+        <span class={s().mwHook}>{countLabel()}</span>
+        <Show when={event().kind === 'state'}>
+          <span class={s().stepDuration}>
+            {event().before} → {event().after} tok
+          </span>
+        </Show>
+        <Show when={event().durationMs !== undefined}>
+          <span class={s().stepDuration}>{event().durationMs}ms</span>
+        </Show>
         <Show when={event().reusedCheckpoint}>
           <span class={s().mwSuffix}>checkpoint</span>
         </Show>
@@ -118,18 +144,20 @@ const CompactEvent: Component<{ event: CompactionEventRecord }> = (props) => {
         <div class={s().mwChangesContainer}>
           <JsonTree value={stats()} defaultExpansionDepth={1} copyable />
         </div>
-        <div class={s().stepJsonItemsCompare}>
-          <PreviewColumn
-            title="Dropped"
-            previews={event().dropped ?? []}
-            empty="Nothing was dropped."
-          />
-          <PreviewColumn
-            title="Sent to model"
-            previews={event().result ?? []}
-            empty="No compacted transcript on this event."
-          />
-        </div>
+        <Show when={isState()}>
+          <div class={s().stepJsonItemsCompare}>
+            <PreviewColumn
+              title="Dropped"
+              previews={event().dropped ?? []}
+              empty="Nothing was dropped."
+            />
+            <PreviewColumn
+              title="Sent to model"
+              previews={event().result ?? []}
+              empty="No compacted transcript on this event."
+            />
+          </div>
+        </Show>
       </Show>
     </>
   )
@@ -141,10 +169,15 @@ export const CompactionPanel: Component<{ hook: HookRecord }> = (props) => {
   const s = () => styles().iterationTimeline
 
   const events = createMemo(() =>
-    compactionEventsForHook(state.compaction, props.hook)
-      .slice()
-      .sort((a, b) => b.timestamp - a.timestamp),
+    compactionEventsForHook(state.compaction, props.hook),
   )
+  const lastStateIndex = createMemo(() => {
+    const list = events()
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]?.kind === 'state') return i
+    }
+    return -1
+  })
 
   return (
     <div
@@ -162,7 +195,7 @@ export const CompactionPanel: Component<{ hook: HookRecord }> = (props) => {
       >
         <div class={styles().memoryPanel.toolbar}>
           <span class={styles().memoryPanel.badge}>
-            {events().length} compact{events().length === 1 ? '' : 's'}
+            {events().length} event{events().length === 1 ? '' : 's'}
           </span>
           <button
             type="button"
@@ -173,7 +206,16 @@ export const CompactionPanel: Component<{ hook: HookRecord }> = (props) => {
           </button>
         </div>
         <div class={s().iterCard}>
-          <For each={events()}>{(event) => <CompactEvent event={event} />}</For>
+          <For each={events()}>
+            {(event, index) => (
+              <CompactEvent
+                event={event}
+                defaultOpen={
+                  event.kind === 'state' && index() === lastStateIndex()
+                }
+              />
+            )}
+          </For>
         </div>
       </Show>
     </div>

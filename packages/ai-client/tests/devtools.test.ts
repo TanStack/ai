@@ -1423,10 +1423,23 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
-  it('re-emits compaction:applied from a transported compaction:state CUSTOM chunk', async () => {
+  it('re-emits compaction started, state, and ended from transported CUSTOM chunks', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const chunks: Array<StreamChunk> = [
       runStartedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:started',
+        value: {
+          before: 400,
+          messagesBefore: 8,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+        },
+      },
       {
         type: EventType.CUSTOM,
         metadata: { tanstack: { model: 'test' } },
@@ -1444,6 +1457,20 @@ describe('ChatClient devtools bridge', () => {
           result: [{ role: 'user', tokens: 10, text: 'omitted' }],
         },
       },
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:ended',
+        value: {
+          after: 180,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          durationMs: 12,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+        },
+      },
       textContentChunk({
         messageId: 'msg-cmp',
         delta: 'ok',
@@ -1458,12 +1485,23 @@ describe('ChatClient devtools bridge', () => {
 
     await client.sendMessage('keep going')
     await waitForCondition(
-      () => eventClientMock.emitted('compaction:applied').length > 0,
+      () => eventClientMock.emitted('compaction:ended').length > 0,
     )
 
-    expect(eventClientMock.emitted('compaction:applied')).toEqual([
+    expect(eventClientMock.emitted('compaction:started')).toEqual([
       [
-        'compaction:applied',
+        'compaction:started',
+        expect.objectContaining({
+          before: 400,
+          messagesBefore: 8,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('compaction:state')).toEqual([
+      [
+        'compaction:state',
         expect.objectContaining({
           before: 400,
           after: 180,
@@ -1477,14 +1515,30 @@ describe('ChatClient devtools bridge', () => {
         }),
       ],
     ])
+    expect(eventClientMock.emitted('compaction:ended')).toEqual([
+      [
+        'compaction:ended',
+        expect.objectContaining({
+          after: 180,
+          messagesAfter: 3,
+          durationMs: 12,
+        }),
+      ],
+    ])
 
     vi.clearAllMocks()
     eventClientMock.dispatch('devtools:request-state', {})
     await waitForCondition(
-      () => eventClientMock.emitted('compaction:applied').length > 0,
+      () => eventClientMock.emitted('compaction:ended').length > 0,
     )
-    expect(eventClientMock.emitted('compaction:applied')).toEqual([
-      ['compaction:applied', expect.objectContaining({ after: 180 })],
+    expect(eventClientMock.emitted('compaction:started')).toEqual([
+      ['compaction:started', expect.objectContaining({ before: 400 })],
+    ])
+    expect(eventClientMock.emitted('compaction:state')).toEqual([
+      ['compaction:state', expect.objectContaining({ after: 180 })],
+    ])
+    expect(eventClientMock.emitted('compaction:ended')).toEqual([
+      ['compaction:ended', expect.objectContaining({ durationMs: 12 })],
     ])
 
     client.dispose()

@@ -820,8 +820,12 @@ export class ChatClient<
           if (eventType === 'memory:state') {
             this.devtoolsBridge.recordMemoryState(data)
           }
-          if (eventType === 'compaction:state') {
-            this.devtoolsBridge.recordCompactionState(data)
+          if (
+            eventType === 'compaction:started' ||
+            eventType === 'compaction:state' ||
+            eventType === 'compaction:ended'
+          ) {
+            this.devtoolsBridge.recordCompactionEvent(eventType, data)
           }
           this.callbacksRef.current.onCustomEvent(eventType, data, context)
         },
