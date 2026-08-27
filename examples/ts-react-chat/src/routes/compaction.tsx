@@ -56,6 +56,7 @@ function CompactionPage() {
 
   const { messages, sendMessage, isLoading, error } = useChat({
     connection: fetchServerSentEvents('/api/compaction'),
+    threadId: 'compaction-demo',
     byok,
     byokProvider: () => toByokProvider(selectedProviderRef.current),
     forwardedProps,

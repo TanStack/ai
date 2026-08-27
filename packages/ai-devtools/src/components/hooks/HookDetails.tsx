@@ -119,7 +119,8 @@ export const HookDetails: Component = () => {
 
   const hook = createMemo((): HookRecord | undefined => {
     const id = state.hooks.activeHookId
-    return id ? state.hooks.hooks[id] : undefined
+    if (id == null) return undefined
+    return state.hooks.hooks[id]
   })
 
   const conversation = createMemo(() => {
@@ -204,8 +205,10 @@ export const HookDetails: Component = () => {
         <HookOverview
           onSelectHook={(selectedHook) => {
             selectHook(selectedHook.id)
-            if (state.conversations[selectedHook.id]) {
-              selectConversation(selectedHook.id)
+            const conversationId =
+              selectedHook.id || selectedHook.clientId || selectedHook.threadId
+            if (conversationId && state.conversations[conversationId]) {
+              selectConversation(conversationId)
             }
           }}
         />

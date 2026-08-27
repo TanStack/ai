@@ -6,9 +6,9 @@ import {
   applyHookEvent,
   clearHookRegistry,
   createHookRegistryState,
+  markHookViewed,
   removeSavedFixture,
   replaceSavedFixtures,
-  setActiveHook,
 } from './hook-registry'
 import {
   createClientToolCallMessage,
@@ -661,12 +661,15 @@ export const AIProvider: ParentComponent = (props) => {
   }
 
   function selectHook(id: string | null) {
-    setState(
-      'hooks',
-      produce((hooks: HookRegistryState) => {
-        setActiveHook(hooks, id)
-      }),
-    )
+    setState('hooks', 'activeHookId', id)
+    if (id) {
+      setState(
+        'hooks',
+        produce((hooks: HookRegistryState) => {
+          markHookViewed(hooks, id)
+        }),
+      )
+    }
   }
 
   function saveToolFixture(fixture: ToolFixtureRecord) {
