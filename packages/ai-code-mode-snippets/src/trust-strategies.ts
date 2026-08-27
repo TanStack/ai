@@ -5,13 +5,13 @@ import type { SnippetStats, TrustLevel } from './types'
  */
 export interface TrustStrategy {
   /**
-     * Get the initial trust level for a newly created snippet
-     */
+   * Get the initial trust level for a newly created snippet
+   */
   getInitialTrustLevel: () => TrustLevel
 
   /**
-     * Calculate the new trust level based on execution stats
-     */
+   * Calculate the new trust level based on execution stats
+   */
   calculateTrustLevel: (
     currentLevel: TrustLevel,
     stats: SnippetStats,

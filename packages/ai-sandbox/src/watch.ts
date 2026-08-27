@@ -16,17 +16,17 @@ export interface WatchOptions {
   /** Poll interval for the exec-poll fallback, in ms. Defaults to 700. */
   intervalMs?: number
   /**
-     * Directory-name fragments to ignore (a path containing `/<entry>/` is
-     * skipped). Defaults to `['.git', 'node_modules']`.
-     */
+   * Directory-name fragments to ignore (a path containing `/<entry>/` is
+   * skipped). Defaults to `['.git', 'node_modules']`.
+   */
   ignore?: Array<string>
   /** Stop watching when this signal aborts. */
   signal?: AbortSignal
   /**
-     * Optional logger. When present, a failed `find` poll (non-zero exit or a
-     * thrown exec) is logged instead of silently degrading the snapshot — the
-     * failure mode a plain exec-poll watcher hides.
-     */
+   * Optional logger. When present, a failed `find` poll (non-zero exit or a
+   * thrown exec) is logged instead of silently degrading the snapshot — the
+   * failure mode a plain exec-poll watcher hides.
+   */
   logger?: InternalLogger
 }
 

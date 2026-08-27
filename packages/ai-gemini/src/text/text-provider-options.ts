@@ -8,8 +8,8 @@ import type {
 
 export interface GeminiToolConfigOptions {
   /**
-     * Tool configuration for any Tool specified in the request.
-     */
+   * Tool configuration for any Tool specified in the request.
+   */
   toolConfig?: ToolConfig
 }
 
@@ -24,8 +24,8 @@ export interface GeminiSafetyOptions {
 
 export interface GeminiCommonConfigOptions {
   /**
-     * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
-     */
+   * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
+   */
   stopSequences?: Array<string>
   /**
        * The requested modalities of the response. Represents the set of modalities that the model can return, and should be expected in the response. This is an exact match to the modalities of the response.
@@ -36,8 +36,8 @@ export interface GeminiCommonConfigOptions {
     'MODALITY_UNSPECIFIED' | 'TEXT' | 'IMAGE' | 'AUDIO'
   >
   /**
-     *  Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
-     */
+   *  Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
+   */
   candidateCount?: number
   /**
        * The maximum number of tokens to consider when sampling.
@@ -54,8 +54,8 @@ export interface GeminiCommonConfigOptions {
   /** Maximum number of tokens to generate in the response. */
   maxOutputTokens?: number
   /**
-     * Seed used in decoding. If not set, the request uses a randomly generated seed.
-     */
+   * Seed used in decoding. If not set, the request uses a randomly generated seed.
+   */
   seed?: number
   /**
        * Presence penalty applied to the next token's logprobs if the token has already been seen in the response.
@@ -76,23 +76,23 @@ export interface GeminiCommonConfigOptions {
        */
   frequencyPenalty?: number
   /**
-     *  If true, export the logprobs results in response.
-     */
+   *  If true, export the logprobs results in response.
+   */
   responseLogprobs?: boolean
 
   /**
-     * Only valid if responseLogprobs=True. This sets the number of top logprobs to return at each decoding step in the Candidate.logprobs_result. The number must be in the range of [0, 20].
-     */
+   * Only valid if responseLogprobs=True. This sets the number of top logprobs to return at each decoding step in the Candidate.logprobs_result. The number must be in the range of [0, 20].
+   */
   logprobs?: number
 
   /**
-     *  Enables enhanced civic answers. It may not be available for all models.
-     */
+   *  Enables enhanced civic answers. It may not be available for all models.
+   */
   enableEnhancedCivicAnswers?: boolean
 
   /**
-     * The speech generation config.
-     */
+   * The speech generation config.
+   */
   speechConfig?: {
     voiceConfig: {
       prebuiltVoiceConfig: {
@@ -148,8 +148,8 @@ export interface GeminiCommonConfigOptions {
       | 'th-TH'
   }
   /**
-     * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
-     */
+   * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
+   */
   imageConfig?: {
     aspectRatio?:
       | '1:1'
@@ -162,22 +162,22 @@ export interface GeminiCommonConfigOptions {
       | '21:9'
   }
   /**
-     * If specified, the media resolution specified will be used.
-     */
+   * If specified, the media resolution specified will be used.
+   */
   mediaResolution?: MediaResolution
 }
 
 export interface GeminiCachedContentOptions {
   /**
-     * The name of the content cached to use as context to serve the prediction. Format: cachedContents/{cachedContent}
-     */
+   * The name of the content cached to use as context to serve the prediction. Format: cachedContents/{cachedContent}
+   */
   cachedContent?: `cachedContents/${string}`
 }
 
 export interface GeminiStructuredOutputOptions {
   /**
-     * MIME type of the generated candidate text. Supported MIME types are: text/plain: (default) Text output. application/json: JSON response in the response candidates. text/x.enum: ENUM as a string response in the response candidates.
-     */
+   * MIME type of the generated candidate text. Supported MIME types are: text/plain: (default) Text output. application/json: JSON response in the response candidates. text/x.enum: ENUM as a string response in the response candidates.
+   */
   responseMimeType?: string
   /**
      * Output schema of the generated candidate text. Schemas must be a subset of the OpenAPI schema and can be objects, primitives or arrays.
@@ -221,30 +221,30 @@ export interface GeminiStructuredOutputOptions {
 
 export interface GeminiThinkingOptions {
   /**
-     * Config for thinking features. An error will be returned if this field is
-     * set for models that don't support thinking.
-     *
-     * All fields are optional so the same shape can be used for both budget-based
-     * thinking (Gemini 2.x: `includeThoughts` + `thinkingBudget`) and the newer
-     * level-based thinking (Gemini 3.x: `thinkingLevel`). The adapter reads
-     * whichever fields are present at runtime.
-     */
+   * Config for thinking features. An error will be returned if this field is
+   * set for models that don't support thinking.
+   *
+   * All fields are optional so the same shape can be used for both budget-based
+   * thinking (Gemini 2.x: `includeThoughts` + `thinkingBudget`) and the newer
+   * level-based thinking (Gemini 3.x: `thinkingLevel`). The adapter reads
+   * whichever fields are present at runtime.
+   */
   thinkingConfig?: {
     /**
-         * Indicates whether to include thoughts in the response. If true, thoughts
-         * are returned only when available.
-         */
+     * Indicates whether to include thoughts in the response. If true, thoughts
+     * are returned only when available.
+     */
     includeThoughts?: boolean
 
     /**
-         * The number of thoughts tokens that the model should generate.
-         */
+     * The number of thoughts tokens that the model should generate.
+     */
     thinkingBudget?: number
 
     /**
-         * The level of thoughts tokens that the model should generate
-         * (Gemini 3.x and later).
-         */
+     * The level of thoughts tokens that the model should generate
+     * (Gemini 3.x and later).
+     */
     thinkingLevel?: keyof typeof ThinkingLevel
   }
 }

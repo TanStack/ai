@@ -96,9 +96,9 @@ export type InjectChatOptions<
   /** Whether to keep a live subscription open. Reactive. */
   live?: ReactiveOption<boolean>
   /**
-     * Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema).
-     * Used to infer the shape of `partial` and `final`.
-     */
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema).
+   * Used to infer the shape of `partial` and `final`.
+   */
   outputSchema?: TSchema
 } & ClientContextOptionFromTools<TTools, ReactiveOption<TContext>>
 
@@ -134,10 +134,10 @@ interface BaseInjectChatResult<
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
   /**
-     * Send a message (string or multimodal content).
-     * Pass `{ whenBusy }` to override the queue policy for a single send, or
-     * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
-     */
+   * Send a message (string or multimodal content).
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -162,16 +162,16 @@ interface BaseInjectChatResult<
     approved: boolean
   }) => Promise<void>
   /**
-     * The id of the run this client has in flight — one it started or rejoined —
-     * or `null` when there is none (including while a run sits paused on an
-     * interrupt, waiting on approval).
-     *
-     * A run is one turn of the conversation, so this changes from turn to turn. A
-     * whole tool loop stays inside one run, while resuming after an interrupt
-     * continues the turn under a new id — so one user message can produce several
-     * run ids. Use it to talk to your own server about that run (cancel it, poll
-     * it, correlate a log line).
-     */
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
   runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
   interrupts: Signal<BoundInterrupts<TTools, TInterrupts>>

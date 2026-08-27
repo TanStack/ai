@@ -26,19 +26,19 @@ export type { Scope }
  */
 export interface MessageStore {
   /**
-     * Return the full stored transcript for `threadId` ({@link Scope.threadId}),
-     * in insertion order.
-     *
-     * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
-     * that was never saved. Callers treat `[]` as "no history".
-     */
+   * Return the full stored transcript for `threadId` ({@link Scope.threadId}),
+   * in insertion order.
+   *
+   * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
+   * that was never saved. Callers treat `[]` as "no history".
+   */
   loadThread: (threadId: string) => Promise<Array<ModelMessage>>
   /**
-     * Overwrite the stored transcript for `threadId` with `messages`.
-     *
-     * INVARIANT: this is a full replace. `messages` is the complete authoritative
-     * history; the previous contents are discarded (not merged or appended).
-     */
+   * Overwrite the stored transcript for `threadId` with `messages`.
+   *
+   * INVARIANT: this is a full replace. `messages` is the complete authoritative
+   * history; the previous contents are discarded (not merged or appended).
+   */
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 
@@ -77,17 +77,17 @@ export type GenerationRunStatus = RunStatus
 export interface GenerationRunRecord {
   runId: string
   /**
-     * The scope this run belongs to: a stable, app-chosen name for the slot
-     * successive runs fill (`product-123-hero`, `video-9-start-frame`).
-     *
-     * REQUIRED, per the store-contract rule at the top of this file.
-     * {@link GenerationRunStore.findLatestForThread} is the only query that
-     * hydrates a run, and it keys on this — so a record without one can be
-     * written and then never found again. `withGenerationPersistence` already
-     * refuses to start a run without a scope, and a server-driven client
-     * discards a snapshot that arrives without one, so an optional field here
-     * only described a record no path could produce and no client would accept.
-     */
+   * The scope this run belongs to: a stable, app-chosen name for the slot
+   * successive runs fill (`product-123-hero`, `video-9-start-frame`).
+   *
+   * REQUIRED, per the store-contract rule at the top of this file.
+   * {@link GenerationRunStore.findLatestForThread} is the only query that
+   * hydrates a run, and it keys on this — so a record without one can be
+   * written and then never found again. `withGenerationPersistence` already
+   * refuses to start a run without a scope, and a server-driven client
+   * discards a snapshot that arrives without one, so an optional field here
+   * only described a record no path could produce and no client would accept.
+   */
   threadId: string
   /** `'image' | 'audio' | 'tts' | 'video' | 'transcription'`. */
   activity: string
@@ -111,13 +111,13 @@ export interface GenerationRunRecord {
  */
 export interface GenerationRunStore {
   /**
-     * Create a run record, or return the existing one if `runId` is already
-     * present (resume).
-     *
-     * INVARIANT (idempotency): a second call for a `runId` returns the existing
-     * record unchanged; `startedAt`/`activity`/`provider`/`model`/`threadId` are
-     * not mutated. `status` defaults to `'running'` on first creation.
-     */
+   * Create a run record, or return the existing one if `runId` is already
+   * present (resume).
+   *
+   * INVARIANT (idempotency): a second call for a `runId` returns the existing
+   * record unchanged; `startedAt`/`activity`/`provider`/`model`/`threadId` are
+   * not mutated. `status` defaults to `'running'` on first creation.
+   */
   createOrResume: (
     input: Pick<
       GenerationRunRecord,
@@ -125,11 +125,11 @@ export interface GenerationRunStore {
     > & { status?: GenerationRunStatus },
   ) => Promise<GenerationRunRecord>
   /**
-     * Patch a run record's mutable fields.
-     *
-     * INVARIANT: patching a `runId` that does not exist is a **no-op** — it must
-     * not throw and must not create a record.
-     */
+   * Patch a run record's mutable fields.
+   *
+   * INVARIANT: patching a `runId` that does not exist is a **no-op** — it must
+   * not throw and must not create a record.
+   */
   update: (
     runId: string,
     patch: Partial<
@@ -142,15 +142,15 @@ export interface GenerationRunStore {
   /** Return the run record for `runId`, or `null` if none exists. */
   get: (runId: string) => Promise<GenerationRunRecord | null>
   /**
-     * The most recent run linked to `threadId`, or `null`.
-     *
-     * REQUIRED, per the store-contract rule at the top of this file: a
-     * server-authoritative client hydrates by the stable thread id on every
-     * mount, so an adapter without this would be indistinguishable from one that
-     * legitimately has no run — `persistence: true` would silently restore
-     * nothing, forever. `null` is the correct answer only when the thread really
-     * has no runs. The chat parallel is {@link RunStore.findActiveRun}.
-     */
+   * The most recent run linked to `threadId`, or `null`.
+   *
+   * REQUIRED, per the store-contract rule at the top of this file: a
+   * server-authoritative client hydrates by the stable thread id on every
+   * mount, so an adapter without this would be indistinguishable from one that
+   * legitimately has no run — `persistence: true` would silently restore
+   * nothing, forever. `null` is the correct answer only when the thread really
+   * has no runs. The chat parallel is {@link RunStore.findActiveRun}.
+   */
   findLatestForThread: (threadId: string) => Promise<GenerationRunRecord | null>
 }
 
@@ -190,53 +190,53 @@ export type InterruptCommitEntry =
 /** Durable store for human-in-the-loop interrupts. */
 export interface InterruptStore {
   /**
-     * Persist a new interrupt in the `'pending'` state.
-     *
-     * The record is accepted without `status`/`resolvedAt` so a "born resolved"
-     * interrupt is unrepresentable — every interrupt begins pending and only
-     * `resolve`/`cancel` may move it to a terminal state.
-     *
-     * INVARIANT (insert-if-absent): if an interrupt with the same `interruptId`
-     * already exists, `create` is a **no-op** — it must NOT overwrite the
-     * existing record. This is the canonical behaviour (SQL backends implement it
-     * via `ON CONFLICT DO NOTHING` / upsert-with-empty-update), so a duplicate
-     * create can never clobber a resolved interrupt back to pending.
-     */
+   * Persist a new interrupt in the `'pending'` state.
+   *
+   * The record is accepted without `status`/`resolvedAt` so a "born resolved"
+   * interrupt is unrepresentable — every interrupt begins pending and only
+   * `resolve`/`cancel` may move it to a terminal state.
+   *
+   * INVARIANT (insert-if-absent): if an interrupt with the same `interruptId`
+   * already exists, `create` is a **no-op** — it must NOT overwrite the
+   * existing record. This is the canonical behaviour (SQL backends implement it
+   * via `ON CONFLICT DO NOTHING` / upsert-with-empty-update), so a duplicate
+   * create can never clobber a resolved interrupt back to pending.
+   */
   create: (
     record: Omit<InterruptRecord, 'status' | 'resolvedAt'>,
   ) => Promise<void>
   /**
-     * Move an interrupt to `'resolved'`, stamping `resolvedAt` and storing
-     * `response`. A no-op if `interruptId` does not exist.
-     */
+   * Move an interrupt to `'resolved'`, stamping `resolvedAt` and storing
+   * `response`. A no-op if `interruptId` does not exist.
+   */
   resolve: (interruptId: string, response?: unknown) => Promise<void>
   /**
-     * Move an interrupt to `'cancelled'`, stamping `resolvedAt`. A no-op if
-     * `interruptId` does not exist.
-     */
+   * Move an interrupt to `'cancelled'`, stamping `resolvedAt`. A no-op if
+   * `interruptId` does not exist.
+   */
   cancel: (interruptId: string) => Promise<void>
   /**
-     * Commit terminal writes for a validated resume batch.
-     *
-     * Optional. When present, `withPersistence` calls it once instead of
-     * calling `resolve` and `cancel` for each entry. Apply every entry or none.
-     *
-     * Reject the whole batch (throw, writing nothing) when any entry has a
-     * duplicate `interruptId`, references an `interruptId` that does not exist,
-     * or references an interrupt whose status is not `'pending'`. This is
-     * stricter than `resolve` / `cancel`, which are no-ops for a missing
-     * `interruptId`.
-     */
+   * Commit terminal writes for a validated resume batch.
+   *
+   * Optional. When present, `withPersistence` calls it once instead of
+   * calling `resolve` and `cancel` for each entry. Apply every entry or none.
+   *
+   * Reject the whole batch (throw, writing nothing) when any entry has a
+   * duplicate `interruptId`, references an `interruptId` that does not exist,
+   * or references an interrupt whose status is not `'pending'`. This is
+   * stricter than `resolve` / `cancel`, which are no-ops for a missing
+   * `interruptId`.
+   */
   commitBatch?: (entries: ReadonlyArray<InterruptCommitEntry>) => Promise<void>
   /** Return the interrupt for `interruptId`, or `null` if none exists. */
   get: (interruptId: string) => Promise<InterruptRecord | null>
   /**
-     * All interrupts for a thread.
-     *
-     * INVARIANT: ordered by insertion (equivalently `requestedAt` ascending). SQL
-     * backends MUST `ORDER BY requested_at` — the middleware and testkit rely on
-     * this stable ordering.
-     */
+   * All interrupts for a thread.
+   *
+   * INVARIANT: ordered by insertion (equivalently `requestedAt` ascending). SQL
+   * backends MUST `ORDER BY requested_at` — the middleware and testkit rely on
+   * this stable ordering.
+   */
   list: (threadId: string) => Promise<Array<InterruptRecord>>
   /** Pending interrupts for a thread, ordered by `requestedAt` ascending. */
   listPending: (threadId: string) => Promise<Array<InterruptRecord>>
@@ -264,9 +264,9 @@ export interface MetadataStore {
   /** Insert or overwrite the value for `(namespace, key)`. */
   set: (namespace: string, key: string, value: unknown) => Promise<void>
   /**
-     * Remove `(namespace, key)`. A no-op if absent. Does not affect other
-     * namespaces.
-     */
+   * Remove `(namespace, key)`. A no-op if absent. Does not affect other
+   * namespaces.
+   */
   delete: (namespace: string, key: string) => Promise<void>
 }
 
@@ -312,14 +312,14 @@ export interface ArtifactRecord {
   runId: string
   threadId: string
   /**
-     * The blob-store key these bytes actually live under.
-     *
-     * Optional for backwards compatibility: records written before this existed
-     * resolve via the default `artifacts/<runId>/<artifactId>` convention. New
-     * records always carry it, which is what lets `storageKey` put bytes anywhere
-     * — a reader can no longer recompute the path, so it has to be remembered.
-     * Use `resolveArtifactBlobKey(record)` rather than reading it directly.
-     */
+   * The blob-store key these bytes actually live under.
+   *
+   * Optional for backwards compatibility: records written before this existed
+   * resolve via the default `artifacts/<runId>/<artifactId>` convention. New
+   * records always carry it, which is what lets `storageKey` put bytes anywhere
+   * — a reader can no longer recompute the path, so it has to be remembered.
+   * Use `resolveArtifactBlobKey(record)` rather than reading it directly.
+   */
   blobKey?: string
   name: string
   mimeType: string
@@ -336,20 +336,20 @@ export interface ArtifactStore {
   get: (artifactId: string) => Promise<ArtifactRecord | null>
   list: (runId: string) => Promise<Array<ArtifactRecord>>
   /**
-     * All artifacts for a thread in deterministic snapshot order.
-     * Records are ordered by `createdAt` ascending, then by `artifactId` using
-     * the unsigned UTF-8 bytes of each string (compare bytes left-to-right; shorter
-     * equal prefixes first).
-     */
+   * All artifacts for a thread in deterministic snapshot order.
+   * Records are ordered by `createdAt` ascending, then by `artifactId` using
+   * the unsigned UTF-8 bytes of each string (compare bytes left-to-right; shorter
+   * equal prefixes first).
+   */
   listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
   delete: (artifactId: string) => Promise<void>
   /**
-     * Delete every artifact belonging to `runId`. A no-op when the run has none.
-     *
-     * Required rather than feature-detected: retention and erasure are the point
-     * of storing media durably, and an adapter silently lacking deletion is
-     * indistinguishable from one where there was nothing to delete.
-     */
+   * Delete every artifact belonging to `runId`. A no-op when the run has none.
+   *
+   * Required rather than feature-detected: retention and erasure are the point
+   * of storing media durably, and an adapter silently lacking deletion is
+   * indistinguishable from one where there was nothing to delete.
+   */
   deleteForRun: (runId: string) => Promise<void>
 }
 
@@ -399,11 +399,11 @@ export interface BlobRange {
 /** Options for {@link BlobStore.get}. */
 export interface BlobGetOptions {
   /**
-     * Read only this slice of the object. `body`, `arrayBuffer()` and `text()`
-     * then cover the slice, `size` still reports the WHOLE object, and `range`
-     * reports the slice actually served — the three numbers a `206` response
-     * needs (`Content-Range: bytes <offset>-<offset+length-1>/<size>`).
-     */
+   * Read only this slice of the object. `body`, `arrayBuffer()` and `text()`
+   * then cover the slice, `size` still reports the WHOLE object, and `range`
+   * reports the slice actually served — the three numbers a `206` response
+   * needs (`Content-Range: bytes <offset>-<offset+length-1>/<size>`).
+   */
   range?: BlobRange
 }
 
@@ -431,20 +431,20 @@ export interface BlobPutOptions {
   contentType?: string
   customMetadata?: Record<string, string>
   /**
-     * The exact byte length of `body`, when the producer knows it up front.
-     *
-     * Advisory, not a contract the store must honor: it exists so a store can
-     * pick an upload strategy knowingly instead of discovering the length by
-     * buffering. Most useful to an SDK that wants the length as a separate
-     * argument rather than reading it off the stream — S3's `PutObject`
-     * (`ContentLength`) is the archetype — and to a runtime that can re-attach
-     * one (workerd's `FixedLengthStream` ahead of `R2Bucket.put`).
-     *
-     * Only ever set when the length is exact — a wrong value is worse than none,
-     * since runtimes that enforce declared lengths fail the write. Absent means
-     * unknown, and a store must accept a length-less stream regardless:
-     * producers hand one over whenever the origin does not declare a length.
-     */
+   * The exact byte length of `body`, when the producer knows it up front.
+   *
+   * Advisory, not a contract the store must honor: it exists so a store can
+   * pick an upload strategy knowingly instead of discovering the length by
+   * buffering. Most useful to an SDK that wants the length as a separate
+   * argument rather than reading it off the stream — S3's `PutObject`
+   * (`ContentLength`) is the archetype — and to a runtime that can re-attach
+   * one (workerd's `FixedLengthStream` ahead of `R2Bucket.put`).
+   *
+   * Only ever set when the length is exact — a wrong value is worse than none,
+   * since runtimes that enforce declared lengths fail the write. Absent means
+   * unknown, and a store must accept a length-less stream regardless:
+   * producers hand one over whenever the origin does not declare a length.
+   */
   expectedLength?: number
 }
 

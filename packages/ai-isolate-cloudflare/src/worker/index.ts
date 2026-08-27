@@ -34,9 +34,9 @@ interface WorkerLoader {
 
 interface Env {
   /**
-     * worker_loader (Dynamic Workers) binding. Configured in wrangler.toml
-     * under `[[worker_loaders]] binding = "LOADER"`.
-     */
+   * worker_loader (Dynamic Workers) binding. Configured in wrangler.toml
+   * under `[[worker_loaders]] binding = "LOADER"`.
+   */
   LOADER?: WorkerLoader
 }
 

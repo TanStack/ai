@@ -3,24 +3,24 @@
  */
 export interface Logger {
   /**
-     * Called for chunk-level diagnostic output (raw provider chunks, per-chunk output, agent-loop iteration markers).
-     * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
-     */
+   * Called for chunk-level diagnostic output (raw provider chunks, per-chunk output, agent-loop iteration markers).
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
+   */
   debug: (message: string, meta?: Record<string, unknown>) => void
   /**
-     * Called for notable informational events (outgoing requests, tool invocations, middleware transitions).
-     * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
-     */
+   * Called for notable informational events (outgoing requests, tool invocations, middleware transitions).
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
+   */
   info: (message: string, meta?: Record<string, unknown>) => void
   /**
-     * Called for notable warnings that don't halt execution (deprecations, recoverable anomalies).
-     * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
-     */
+   * Called for notable warnings that don't halt execution (deprecations, recoverable anomalies).
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
+   */
   warn: (message: string, meta?: Record<string, unknown>) => void
   /**
-     * Called for caught exceptions throughout the pipeline.
-     * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
-     */
+   * Called for caught exceptions throughout the pipeline.
+   * @param meta Structured data forwarded to the underlying logger. Loggers like pino will preserve this as a structured record; the default `ConsoleLogger` renders it with a runtime-appropriate strategy (depth-unlimited `console.dir` on Node, JSON appended to the message on Cloudflare Workers, a second `console.<level>` argument elsewhere).
+   */
   error: (message: string, meta?: Record<string, unknown>) => void
 }
 
@@ -29,41 +29,41 @@ export interface Logger {
  */
 export interface DebugCategories {
   /**
-     * Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs, BytePlus). Emitted inside every streaming adapter's chunk loop.
-     */
+   * Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs, BytePlus). Emitted inside every streaming adapter's chunk loop.
+   */
   provider?: boolean
   /**
-     * Chunks/results yielded to the consumer after all middleware. For streaming activities this fires per chunk; for non-streaming activities it fires once per result.
-     */
+   * Chunks/results yielded to the consumer after all middleware. For streaming activities this fires per chunk; for non-streaming activities it fires once per result.
+   */
   output?: boolean
   /**
-     * Inputs and outputs around each middleware hook invocation. Chat-only.
-     */
+   * Inputs and outputs around each middleware hook invocation. Chat-only.
+   */
   middleware?: boolean
   /**
-     * Before/after tool-call execution in the chat agent loop. Chat-only.
-     */
+   * Before/after tool-call execution in the chat agent loop. Chat-only.
+   */
   tools?: boolean
   /**
-     * Iteration markers and phase transitions in the chat agent loop. Chat-only.
-     */
+   * Iteration markers and phase transitions in the chat agent loop. Chat-only.
+   */
   agentLoop?: boolean
   /**
-     * Config transforms returned by middleware `onConfig` hooks. Chat-only.
-     */
+   * Config transforms returned by middleware `onConfig` hooks. Chat-only.
+   */
   config?: boolean
   /**
-     * Caught errors throughout the pipeline. Unlike other categories, defaults to `true` even when `debug` is unspecified. Explicitly set `errors: false` or `debug: false` to silence.
-     */
+   * Caught errors throughout the pipeline. Unlike other categories, defaults to `true` even when `debug` is unspecified. Explicitly set `errors: false` or `debug: false` to silence.
+   */
   errors?: boolean
   /**
-     * Outgoing call metadata (provider, model, message/tool counts) emitted before each adapter SDK call.
-     */
+   * Outgoing call metadata (provider, model, message/tool counts) emitted before each adapter SDK call.
+   */
   request?: boolean
   /**
-     * Sandbox internals: watcher start/stop + mechanism, file events, sandbox
-     * hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
-     */
+   * Sandbox internals: watcher start/stop + mechanism, file events, sandbox
+   * hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
+   */
   sandbox?: boolean
 }
 
@@ -72,8 +72,8 @@ export interface DebugCategories {
  */
 export interface DebugConfig extends DebugCategories {
   /**
-     * Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes output to `console.debug`/`info`/`warn`/`error`.
-     */
+   * Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes output to `console.debug`/`info`/`warn`/`error`.
+   */
   logger?: Logger
 }
 

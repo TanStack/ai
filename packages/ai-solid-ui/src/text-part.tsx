@@ -17,16 +17,16 @@ export interface TextPartProps {
   /** Additional remark plugins, appended after the defaults. */
   remarkPlugins?: PluggableList
   /**
-     * Additional rehype plugins. Inserted before the trailing
-     * `rehypeSanitize` so sanitization always runs last.
-     */
+   * Additional rehype plugins. Inserted before the trailing
+   * `rehypeSanitize` so sanitization always runs last.
+   */
   rehypePlugins?: PluggableList
   /** solid-markdown `components` overrides. */
   components?: SolidMarkdownComponents
   /**
-     * Drop the built-in plugin defaults entirely. Disables the XSS
-     * sanitizer; the caller becomes responsible for sanitization.
-     */
+   * Drop the built-in plugin defaults entirely. Disables the XSS
+   * sanitizer; the caller becomes responsible for sanitization.
+   */
   disableDefaultPlugins?: boolean
 }
 

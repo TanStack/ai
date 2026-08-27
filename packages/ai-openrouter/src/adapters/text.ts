@@ -219,11 +219,11 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Generate structured output via OpenRouter's `responseFormat`. Uses
-     * `stream: false`. Default is strict `json_schema` from `outputSchema`.
-     * Callers can opt into JSON mode with
-     * `modelOptions.responseFormat: { type: 'json_object' }`.
-     */
+   * Generate structured output via OpenRouter's `responseFormat`. Uses
+   * `stream: false`. Default is strict `json_schema` from `outputSchema`.
+   * Callers can opt into JSON mode with
+   * `modelOptions.responseFormat: { type: 'json_object' }`.
+   */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -302,20 +302,20 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Streamed structured output: a single OpenRouter chat call with
-     * `stream: true` and the format from {@link resolveStructuredResponseFormat}.
-     * Emits AG-UI lifecycle events plus a terminal
-     * `CUSTOM { name: 'structured-output.complete' }` carrying the parsed
-     * object and raw JSON text.
-     *
-     * Mirrors the chat-completions structured-output stream from
-     * `@tanstack/openai-base`, adapted to OpenRouter's camelCase wire shape
-     * (`responseFormat` / `streamOptions: { includeUsage: true }`) and SDK
-     * call surface (`orClient.chat.send({ chatRequest })`). Reasoning flows
-     * through the existing `extractReasoningText` helper used by
-     * `processStreamChunks`; the final parsed JSON runs through
-     * {@link transformStructuredOutput} (null-preserving for OpenRouter).
-     */
+   * Streamed structured output: a single OpenRouter chat call with
+   * `stream: true` and the format from {@link resolveStructuredResponseFormat}.
+   * Emits AG-UI lifecycle events plus a terminal
+   * `CUSTOM { name: 'structured-output.complete' }` carrying the parsed
+   * object and raw JSON text.
+   *
+   * Mirrors the chat-completions structured-output stream from
+   * `@tanstack/openai-base`, adapted to OpenRouter's camelCase wire shape
+   * (`responseFormat` / `streamOptions: { includeUsage: true }`) and SDK
+   * call surface (`orClient.chat.send({ chatRequest })`). Reasoning flows
+   * through the existing `extractReasoningText` helper used by
+   * `processStreamChunks`; the final parsed JSON runs through
+   * {@link transformStructuredOutput} (null-preserving for OpenRouter).
+   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -393,12 +393,12 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Resolve the provider request format for a schema-bearing call.
-     *
-     * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
-     * forwarded. Every other value is replaced with strict `json_schema`
-     * generated from `outputSchema`.
-     */
+   * Resolve the provider request format for a schema-bearing call.
+   *
+   * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
+   * forwarded. Every other value is replaced with strict `json_schema`
+   * generated from `outputSchema`.
+   */
   protected resolveStructuredResponseFormat(
     requested: ChatRequest['responseFormat'],
     outputSchema: JSONSchema,
@@ -423,8 +423,8 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Applies provider-specific transformations for structured output compatibility.
-     */
+   * Applies provider-specific transformations for structured output compatibility.
+   */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -433,24 +433,24 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Final shaping pass applied to parsed structured-output JSON before it is
-     * returned to the caller. OpenRouter routes through a wide variety of
-     * upstream providers; some return `null` as a distinct sentinel ("the field
-     * exists, the value is null") rather than collapsing it to absent, so we
-     * passthrough and let the engine un-widen strict-mode nulls precisely. This
-     * now matches the base adapters' default — kept as an explicit override
-     * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
-     */
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. OpenRouter routes through a wide variety of
+   * upstream providers; some return `null` as a distinct sentinel ("the field
+   * exists, the value is null") rather than collapsing it to absent, so we
+   * passthrough and let the engine un-widen strict-mode nulls precisely. This
+   * now matches the base adapters' default — kept as an explicit override
+   * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
+   */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
   /**
-     * Processes streamed chunks from OpenRouter's chat-completions API and
-     * yields AG-UI events. Reads the SDK's camelCase chunk shape directly
-     * (`delta.toolCalls`, `delta.reasoningDetails`, `chunk.usage.promptTokens`,
-     * `choice.finishReason`, etc.).
-     */
+   * Processes streamed chunks from OpenRouter's chat-completions API and
+   * yields AG-UI events. Reads the SDK's camelCase chunk shape directly
+   * (`delta.toolCalls`, `delta.reasoningDetails`, `chunk.usage.promptTokens`,
+   * `choice.finishReason`, etc.).
+   */
   protected async *processStreamChunks(
     stream: AsyncIterable<ChatStreamChunk>,
     options: TextOptions<ResolveProviderOptions<TModel>>,
@@ -470,10 +470,10 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Build an OpenRouter `ChatRequest` (camelCase) from `TextOptions`. Applies
-     * `:variant` model suffixing and routes tools through OpenRouter's
-     * converter (function tools + branded web_search tool).
-     */
+   * Build an OpenRouter `ChatRequest` (camelCase) from `TextOptions`. Applies
+   * `:variant` model suffixing and routes tools through OpenRouter's
+   * converter (function tools + branded web_search tool).
+   */
   protected mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ChatRequest, 'stream'> {
@@ -552,10 +552,10 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Combined mode is safe only when this model and every `modelOptions.models`
-     * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
-     * `:variant` suffixes are routing directives and do not change the gate.
-     */
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+   * `:variant` suffixes are routing directives and do not change the gate.
+   */
   supportsCombinedToolsAndSchema(
     modelOptions?: ResolveProviderOptions<TModel>,
   ): boolean {
@@ -563,9 +563,9 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Convert a ModelMessage to OpenRouter's ChatMessages discriminated union
-     * (camelCase: `toolCallId`, `toolCalls`).
-     */
+   * Convert a ModelMessage to OpenRouter's ChatMessages discriminated union
+   * (camelCase: `toolCallId`, `toolCalls`).
+   */
   protected convertMessage(message: ModelMessage): ChatMessages {
     if (message.role === 'tool') {
       return {
@@ -692,9 +692,9 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Normalizes message content to an array of ContentPart.
-     * Handles backward compatibility with string content.
-     */
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -709,8 +709,8 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-     * Extracts text content from a content value that may be string, null, or ContentPart array.
-     */
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {

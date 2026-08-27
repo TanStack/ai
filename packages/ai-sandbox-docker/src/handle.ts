@@ -88,7 +88,7 @@ const KILL_FAILED_MARKER = 'tanstack-sandbox-kill-failed'
 
 /** Marker printed when the pid file never materialised (see the race note). */
 const /** Marker printed when the pid file never materialised (see the race note). */
-KILL_NO_PID_MARKER = 'tanstack-sandbox-kill-no-pid'
+  KILL_NO_PID_MARKER = 'tanstack-sandbox-kill-no-pid'
 
 /**
  * Wrap `command` so the container-side process records its own pid to
@@ -150,7 +150,7 @@ const PID_WAIT_INTERVAL_MS = 50
 
 /** Grace period between the requested signal and the unconditional `KILL`. */
 const /** Grace period between the requested signal and the unconditional `KILL`. */
-KILL_ESCALATION_DELAY_MS = 200
+  KILL_ESCALATION_DELAY_MS = 200
 
 /**
  * Shell that signals the pid recorded in `pidFile`, then removes the file.
@@ -238,25 +238,25 @@ function killRecordedPidCommand(
  */
 interface PidFileState {
   /**
-     * The wrapper exited on its own and WE removed its pid file, so the file's
-     * absence is not evidence about any live process. Makes a subsequent
-     * `killRecordedPid` a no-op.
-     */
+   * The wrapper exited on its own and WE removed its pid file, so the file's
+   * absence is not evidence about any live process. Makes a subsequent
+   * `killRecordedPid` a no-op.
+   */
   exited: boolean
   /**
-     * A kill was requested, so the kill shell owns the pid file (it reads, then
-     * `rm -f`s it) and the exit handlers must not remove it out from under the
-     * `cat`.
-     */
+   * A kill was requested, so the kill shell owns the pid file (it reads, then
+   * `rm -f`s it) and the exit handlers must not remove it out from under the
+   * `cat`.
+   */
   killRequested: boolean
   /**
-     * The in-flight kill, memoised so concurrent kills JOIN it rather than issue a
-     * second one. Both the abort listener and `followJournal`'s `finally` fire on
-     * the abort path; without this the second kill is a `container.exec()` round
-     * trip behind the first, arrives after that shell's `rm -f`, and pays the full
-     * wait before reporting the same false orphan. The first kill escalates to
-     * `SIGKILL` unconditionally, so a second one has nothing to add anyway.
-     */
+   * The in-flight kill, memoised so concurrent kills JOIN it rather than issue a
+   * second one. Both the abort listener and `followJournal`'s `finally` fire on
+   * the abort path; without this the second kill is a `container.exec()` round
+   * trip behind the first, arrives after that shell's `rm -f`, and pays the full
+   * wait before reporting the same false orphan. The first kill escalates to
+   * `SIGKILL` unconditionally, so a second one has nothing to add anyway.
+   */
   kill?: Promise<void>
 }
 
@@ -292,10 +292,10 @@ export interface DockerHandleDeps {
   /** Remove the container on destroy (vs. just stop). */
   removeOnDestroy: boolean
   /**
-     * Sink for non-fatal teardown diagnostics — a kill the container refused or
-     * could not confirm. Teardown never throws, so without a logger those are
-     * silent and `killableProcesses: true` becomes unfalsifiable.
-     */
+   * Sink for non-fatal teardown diagnostics — a kill the container refused or
+   * could not confirm. Teardown never throws, so without a logger those are
+   * silent and `killableProcesses: true` becomes unfalsifiable.
+   */
   logger?: DockerLogger
 }
 
@@ -425,36 +425,36 @@ export class DockerHandle implements SandboxHandle {
   }
 
   /**
-     * Signal the container-side process that recorded its pid to `pidFile`, and
-     * REPORT anything that says the process may still be alive.
-     *
-     * AWAITABLE, and callers on the `kill()` path must await it. It used to be
-     * fire-and-forget (`void this.exec(...)`), which meant `await proc.kill()`
-     * resolved before the container had been asked to do anything — so the
-     * documented ordering of `await proc.kill(); await handle.destroy()` did not
-     * hold, and a caller could not know whether the kill had even been attempted.
-     *
-     * NEVER THROWS. The container may already be stopping — itself a terminal kill
-     * of everything inside it — and this runs from teardown paths where a
-     * rejection would wedge the caller instead of freeing anything. But "does not
-     * throw" is not "cannot be observed to fail": a refusal reported by the shell
-     * (see {@link killRecordedPidCommand}) or a rejected exec both reach the
-     * logger, so an unkillable process is visible rather than silently assumed
-     * dead.
-     *
-     * A NO-OP ONCE THE OWNER HAS EXITED. `state.exited` says the pid file is gone
-     * because we removed it, not because the container-side shell has yet to write
-     * it — see {@link PidFileState}. Without that distinction every clean teardown
-     * (`followJournal` kills in a `finally` on all paths) spent
-     * {@link PID_WAIT_TIMEOUT_MS} waiting for a file nothing would ever write and
-     * then warned about an orphan that did not exist, which is exactly the
-     * cried-wolf channel `killableProcesses: true` cannot be evidenced by.
-     *
-     * ONE KILL PER WRAPPER. Concurrent callers join the first kill's promise
-     * instead of issuing a second `container.exec()` that would arrive after the
-     * first shell's `rm -f` and report the same phantom. The first escalates to
-     * `SIGKILL` unconditionally, so a second adds nothing.
-     */
+   * Signal the container-side process that recorded its pid to `pidFile`, and
+   * REPORT anything that says the process may still be alive.
+   *
+   * AWAITABLE, and callers on the `kill()` path must await it. It used to be
+   * fire-and-forget (`void this.exec(...)`), which meant `await proc.kill()`
+   * resolved before the container had been asked to do anything — so the
+   * documented ordering of `await proc.kill(); await handle.destroy()` did not
+   * hold, and a caller could not know whether the kill had even been attempted.
+   *
+   * NEVER THROWS. The container may already be stopping — itself a terminal kill
+   * of everything inside it — and this runs from teardown paths where a
+   * rejection would wedge the caller instead of freeing anything. But "does not
+   * throw" is not "cannot be observed to fail": a refusal reported by the shell
+   * (see {@link killRecordedPidCommand}) or a rejected exec both reach the
+   * logger, so an unkillable process is visible rather than silently assumed
+   * dead.
+   *
+   * A NO-OP ONCE THE OWNER HAS EXITED. `state.exited` says the pid file is gone
+   * because we removed it, not because the container-side shell has yet to write
+   * it — see {@link PidFileState}. Without that distinction every clean teardown
+   * (`followJournal` kills in a `finally` on all paths) spent
+   * {@link PID_WAIT_TIMEOUT_MS} waiting for a file nothing would ever write and
+   * then warned about an orphan that did not exist, which is exactly the
+   * cried-wolf channel `killableProcesses: true` cannot be evidenced by.
+   *
+   * ONE KILL PER WRAPPER. Concurrent callers join the first kill's promise
+   * instead of issuing a second `container.exec()` that would arrive after the
+   * first shell's `rm -f` and report the same phantom. The first escalates to
+   * `SIGKILL` unconditionally, so a second adds nothing.
+   */
   private killRecordedPid(
     pidFile: string,
     state: PidFileState,
@@ -496,18 +496,18 @@ export class DockerHandle implements SandboxHandle {
   }
 
   /**
-     * Remove a pid file whose owner has exited on its own.
-     *
-     * `killRecordedPidCommand` already removes it on the kill path, which covered
-     * only killed processes: every signal-bearing `exec` and every `spawn` wrote
-     * one, and a normally-exiting command left it in `/tmp` for the life of the
-     * container. Being dot-prefixed, `journalListCommand`'s `ls -1` never showed
-     * them, so the accumulation was silent.
-     *
-     * Fire-and-forget on purpose — it runs from stream-completion handlers, races
-     * a container that may already be gone, and a leftover file in a doomed
-     * container's `/tmp` is not worth failing or delaying anything for.
-     */
+   * Remove a pid file whose owner has exited on its own.
+   *
+   * `killRecordedPidCommand` already removes it on the kill path, which covered
+   * only killed processes: every signal-bearing `exec` and every `spawn` wrote
+   * one, and a normally-exiting command left it in `/tmp` for the life of the
+   * container. Being dot-prefixed, `journalListCommand`'s `ls -1` never showed
+   * them, so the accumulation was silent.
+   *
+   * Fire-and-forget on purpose — it runs from stream-completion handlers, races
+   * a container that may already be gone, and a leftover file in a doomed
+   * container's `/tmp` is not worth failing or delaying anything for.
+   */
   private removePidFile(pidFile: string): void {
     void this.exec(`rm -f ${q(pidFile)}`).catch(() => {
       // Container already stopped/removed — its whole `/tmp` went with it.

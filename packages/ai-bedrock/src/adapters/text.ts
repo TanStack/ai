@@ -49,10 +49,10 @@ export class BedrockTextAdapter<
   }
 
   /**
-     * Surface reasoning deltas (gpt-oss / Claude reasoning) the OpenAI-compatible
-     * way. Base types the chunk as `unknown`; narrow with runtime guards — no
-     * `as` casts, no `any`.
-     */
+   * Surface reasoning deltas (gpt-oss / Claude reasoning) the OpenAI-compatible
+   * way. Base types the chunk as `unknown`; narrow with runtime guards — no
+   * `as` casts, no `any`.
+   */
   protected override extractReasoning(
     chunk: unknown,
   ): { text: string } | undefined {

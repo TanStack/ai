@@ -46,120 +46,120 @@ export type BytePlusVideoOutputFormat = 'mp4' | 'mov'
  */
 export interface BytePlusVideoProviderOptions {
   /**
-     * Output aspect ratio. Overrides the ratio half of the generic `size`.
-     *
-     * `adaptive` (follow the input frame) is the default on Seedance 2.5, 2.0
-     * and 1.5-pro but is rejected by Seedance 1.0-pro / 1.0-pro-fast for
-     * text-to-video.
-     */
+   * Output aspect ratio. Overrides the ratio half of the generic `size`.
+   *
+   * `adaptive` (follow the input frame) is the default on Seedance 2.5, 2.0
+   * and 1.5-pro but is rejected by Seedance 1.0-pro / 1.0-pro-fast for
+   * text-to-video.
+   */
   ratio?: BytePlusVideoRatio
 
   /**
-     * Output resolution tier. Overrides the resolution half of the generic
-     * `size`. Matched case-insensitively by the API; this package uses
-     * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`,
-     * and there is no 2K tier on any model.
-     */
+   * Output resolution tier. Overrides the resolution half of the generic
+   * `size`. Matched case-insensitively by the API; this package uses
+   * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`,
+   * and there is no 2K tier on any model.
+   */
   resolution?: BytePlusVideoResolution
 
   /**
-     * Whole seconds of output. Overrides the generic `duration`, and unlike it
-     * is sent verbatim rather than snapped into the model's range.
-     *
-     * `-1` asks the model to choose its own length; accepted by Seedance 2.5,
-     * 2.0 and 1.5-pro only. On 2.5 video-editing tasks, `-1` is required.
-     */
+   * Whole seconds of output. Overrides the generic `duration`, and unlike it
+   * is sent verbatim rather than snapped into the model's range.
+   *
+   * `-1` asks the model to choose its own length; accepted by Seedance 2.5,
+   * 2.0 and 1.5-pro only. On 2.5 video-editing tasks, `-1` is required.
+   */
   duration?: number
 
   /**
-     * Frame count instead of `duration`, for fractional-second output. Takes
-     * precedence over `duration` server-side. Valid values are the integers of
-     * the form `25 + 4n` within `[29, 289]`, at 24 fps.
-     *
-     * Seedance 1.0-pro and 1.0-pro-fast only.
-     */
+   * Frame count instead of `duration`, for fractional-second output. Takes
+   * precedence over `duration` server-side. Valid values are the integers of
+   * the form `25 + 4n` within `[29, 289]`, at 24 fps.
+   *
+   * Seedance 1.0-pro and 1.0-pro-fast only.
+   */
   frames?: number
 
   /**
-     * Randomness seed, an integer in `[-1, 2^32-1]`. `-1` (the default) leaves
-     * generation unseeded. Accepted by every Seedance model.
-     */
+   * Randomness seed, an integer in `[-1, 2^32-1]`. `-1` (the default) leaves
+   * generation unseeded. Accepted by every Seedance model.
+   */
   seed?: number
 
   /**
-     * Appends a "fix the camera" instruction to the prompt. Best-effort — the
-     * model is not constrained to obey it.
-     *
-     * Seedance 1.5-pro, 1.0-pro and 1.0-pro-fast only; the 2.x family rejects
-     * it.
-     */
+   * Appends a "fix the camera" instruction to the prompt. Best-effort — the
+   * model is not constrained to obey it.
+   *
+   * Seedance 1.5-pro, 1.0-pro and 1.0-pro-fast only; the 2.x family rejects
+   * it.
+   */
   camera_fixed?: boolean
 
   /** Burn a watermark into the output. Defaults to `false`. */
   watermark?: boolean
 
   /**
-     * Generate an audio track synchronized with the visuals — dialogue, effects
-     * and score inferred from the prompt. Quote dialogue in the prompt for
-     * better results.
-     *
-     * Accepted by every model at the API's validation layer, but only Seedance
-     * 2.5, 2.0 and 1.5-pro actually produce audio.
-     */
+   * Generate an audio track synchronized with the visuals — dialogue, effects
+   * and score inferred from the prompt. Quote dialogue in the prompt for
+   * better results.
+   *
+   * Accepted by every model at the API's validation layer, but only Seedance
+   * 2.5, 2.0 and 1.5-pro actually produce audio.
+   */
   generate_audio?: boolean
 
   /**
-     * Inference queue. Seedance 1.x only — Seedance 2.5 and the 2.0 family have
-     * no offline tier.
-     */
+   * Inference queue. Seedance 1.x only — Seedance 2.5 and the 2.0 family have
+   * no offline tier.
+   */
   service_tier?: BytePlusVideoServiceTier
 
   /**
-     * Also return the video's final frame as a watermark-free PNG, readable from
-     * the finished task as `content.last_frame_url`. Chain it into the next
-     * task's first frame to extend a shot. Accepted by every model.
-     */
+   * Also return the video's final frame as a watermark-free PNG, readable from
+   * the finished task as `content.last_frame_url`. Chain it into the next
+   * task's first frame to extend a shot. Accepted by every model.
+   */
   return_last_frame?: boolean
 
   /**
-     * Render a cheap, low-fidelity preview to sanity-check staging and camera
-     * work before paying for the real thing.
-     *
-     * Seedance 1.5-pro only.
-     */
+   * Render a cheap, low-fidelity preview to sanity-check staging and camera
+   * work before paying for the real thing.
+   *
+   * Seedance 1.5-pro only.
+   */
   draft?: boolean
 
   /**
-     * Queue priority, `[0, 9]`. Seedance 2.5 and the 2.0 family — 1.5-pro
-     * rejects it, and the 1.0 models accept it without acting on it.
-     */
+   * Queue priority, `[0, 9]`. Seedance 2.5 and the 2.0 family — 1.5-pro
+   * rejects it, and the 1.0 models accept it without acting on it.
+   */
   priority?: number
 
   /**
-     * Container of the generated video. Seedance 2.5 documents `mp4` (default)
-     * and `mov`; other models historically ship `mp4` only.
-     */
+   * Container of the generated video. Seedance 2.5 documents `mp4` (default)
+   * and `mov`; other models historically ship `mp4` only.
+   */
   output_format?: BytePlusVideoOutputFormat
 
   /**
-     * Seconds after `created_at` at which an unfinished task is abandoned and
-     * marked `expired`. Documented range `[3600, 259200]`, default 172800
-     * (48 hours). The floor is enforced on Seedance 1.x but not on the 2.x
-     * family.
-     */
+   * Seconds after `created_at` at which an unfinished task is abandoned and
+   * marked `expired`. Documented range `[3600, 259200]`, default 172800
+   * (48 hours). The floor is enforced on Seedance 1.x but not on the 2.x
+   * family.
+   */
   execution_expires_after?: number
 
   /**
-     * URL that receives a POST with the full task payload on every status
-     * change. BytePlus retries a failed delivery three times.
-     */
+   * URL that receives a POST with the full task payload on every status
+   * change. BytePlus retries a failed delivery three times.
+   */
   callback_url?: string
 
   /**
-     * Stable opaque identifier for the end user driving the request, for abuse
-     * attribution. Max 64 characters — hash the real identifier rather than
-     * sending it.
-     */
+   * Stable opaque identifier for the end user driving the request, for abuse
+   * attribution. Max 64 characters — hash the real identifier rather than
+   * sending it.
+   */
   safety_identifier?: string
 }
 

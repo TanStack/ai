@@ -72,13 +72,15 @@ export function isGrokImagineImageModel(model: string): boolean {
  * e.g. "16:9_2k" → { aspectRatio: "16:9", resolution: "2k" }.
  * Returns undefined when the string doesn't match the template.
  */
-export function parseGrokImagineSize(
-  size: string,
-): { aspectRatio: string; /**
-   * Output resolution.
-   * @default '1k'
-   */
-resolution?: string } | undefined {
+export function parseGrokImagineSize(size: string):
+  | {
+      aspectRatio: string /**
+       * Output resolution.
+       * @default '1k'
+       */
+      resolution?: string
+    }
+  | undefined {
   const match = size.match(/^([\d.]+:[\d.]+|auto)(?:_(.+))?$/)
   const [, aspectRatio, resolution] = match ?? []
   if (aspectRatio === undefined) return undefined
@@ -90,9 +92,9 @@ resolution?: string } | undefined {
  */
 export interface GrokImageBaseProviderOptions {
   /**
-     * A unique identifier representing your end-user.
-     * Can help xAI to monitor and detect abuse.
-     */
+   * A unique identifier representing your end-user.
+   * Can help xAI to monitor and detect abuse.
+   */
   user?: string
 }
 
@@ -101,16 +103,16 @@ export interface GrokImageBaseProviderOptions {
  */
 export interface GrokImageProviderOptions extends GrokImageBaseProviderOptions {
   /**
-     * The quality of the image.
-     * @default 'standard'
-     */
+   * The quality of the image.
+   * @default 'standard'
+   */
   quality?: 'standard' | 'hd'
 
   /**
-     * The format in which generated images are returned.
-     * URLs are only valid for 60 minutes after generation.
-     * @default 'url'
-     */
+   * The format in which generated images are returned.
+   * URLs are only valid for 60 minutes after generation.
+   * @default 'url'
+   */
   response_format?: 'url' | 'b64_json'
 }
 
@@ -124,9 +126,9 @@ export interface GrokImagineImageProviderOptions extends GrokImageBaseProviderOp
   resolution?: '1k' | '2k'
 
   /**
-     * Processing tier for the request.
-     * @default 'default'
-     */
+   * Processing tier for the request.
+   * @default 'default'
+   */
   service_tier?: 'default' | 'priority'
 }
 

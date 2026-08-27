@@ -36,7 +36,7 @@ export const SPRITES_CAPS: SandboxCapabilities = {
 
 /** The single internal HTTP port a Sprite proxies to its public URL. */
 export const /** The single internal HTTP port a Sprite proxies to its public URL. */
-SPRITE_DEFAULT_HTTP_PORT = 8080
+  SPRITE_DEFAULT_HTTP_PORT = 8080
 
 async function collect(stream: AsyncIterable<string>): Promise<string> {
   let out = ''
@@ -55,10 +55,10 @@ export interface SpritesHandleDeps {
   /** Internal port proxied to the public URL. Defaults to 8080. */
   httpPort?: number
   /**
-     * The Sprite's URL auth mode. `ports.connect()` returns a token-authenticated
-     * channel when this is `'sprite'`, and a plain public URL when `'public'`;
-     * it never mutates the mode. Defaults to `'public'`.
-     */
+   * The Sprite's URL auth mode. `ports.connect()` returns a token-authenticated
+   * channel when this is `'sprite'`, and a plain public URL when `'public'`;
+   * it never mutates the mode. Defaults to `'public'`.
+   */
   urlAuth?: SpriteUrlAuth
 }
 
@@ -243,10 +243,10 @@ export class SpritesHandle implements SandboxHandle {
   }
 
   /**
-     * Create a checkpoint of the Sprite's writable filesystem overlay. Returns a
-     * {@link SnapshotRef} whose `id` is `<spriteName>#<version>` (e.g.
-     * `my-sprite#v3`) so it round-trips through {@link restoreCheckpoint}.
-     */
+   * Create a checkpoint of the Sprite's writable filesystem overlay. Returns a
+   * {@link SnapshotRef} whose `id` is `<spriteName>#<version>` (e.g.
+   * `my-sprite#v3`) so it round-trips through {@link restoreCheckpoint}.
+   */
   async snapshot(label?: string): Promise<SnapshotRef> {
     const version = await this.client.createCheckpoint(this.name, {
       ...(label !== undefined ? { comment: label } : {}),
@@ -263,12 +263,12 @@ export class SpritesHandle implements SandboxHandle {
   }
 
   /**
-     * Restore a checkpoint in place and wait for the Sprite to restart. Accepts a
-     * bare version (`v3`) or a {@link SnapshotRef} id (`<spriteName>#v3`).
-     *
-     * Restore is destructive: it replaces the current overlay. Take a
-     * {@link snapshot} first if you need to keep the present state.
-     */
+   * Restore a checkpoint in place and wait for the Sprite to restart. Accepts a
+   * bare version (`v3`) or a {@link SnapshotRef} id (`<spriteName>#v3`).
+   *
+   * Restore is destructive: it replaces the current overlay. Take a
+   * {@link snapshot} first if you need to keep the present state.
+   */
   restoreCheckpoint(
     idOrRef: string,
     options?: { readyTimeoutMs?: number },

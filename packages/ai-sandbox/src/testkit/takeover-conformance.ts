@@ -35,10 +35,10 @@ export interface TakeoverConformanceConfig {
     dispose: () => Promise<void>
   }>
   /**
-     * Declare that this provider cannot support takeover, with the reason.
-     * Registers a skipped case whose title carries the reason — a NAMED skip,
-     * visible in the reporter. Omit it and the suite runs.
-     */
+   * Declare that this provider cannot support takeover, with the reason.
+   * Registers a skipped case whose title carries the reason — a NAMED skip,
+   * visible in the reporter. Omit it and the suite runs.
+   */
   unsupported?: { reason: string }
 }
 
@@ -52,7 +52,7 @@ const CONFORMANCE_JOURNAL_DIR = '/tmp/tanstack-takeover-conformance'
 
 /** Poll interval handed to providers that cannot follow a growing file. */
 const /** Poll interval handed to providers that cannot follow a growing file. */
-POLL_INTERVAL_MS = 50
+  POLL_INTERVAL_MS = 50
 
 /**
  * Quiescence window for the successor's first append. Short because the

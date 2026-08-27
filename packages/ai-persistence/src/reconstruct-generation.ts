@@ -32,19 +32,19 @@ export interface ReconstructGenerationOptions {
   /** Query parameter carrying the run id. Defaults to `runId`. */
   runParam?: string
   /**
-     * Authorize access to the requested generation before loading it.
-     *
-     * ⚠️ Without this, any caller who knows or guesses `?threadId=` / `?runId=`
-     * receives the generation's status and result metadata. Multi-user /
-     * multi-tenant deployments **must** supply an authorization check (session →
-     * owned thread/run) or resolve a validated id in the route.
-     *
-     * Called with whichever id was supplied — the `runId` when present, else the
-     * `threadId`. Return:
-     * - `true` to allow the load
-     * - `false` for a default `403` response
-     * - a `Response` to return as-is (e.g. `401` with a body)
-     */
+   * Authorize access to the requested generation before loading it.
+   *
+   * ⚠️ Without this, any caller who knows or guesses `?threadId=` / `?runId=`
+   * receives the generation's status and result metadata. Multi-user /
+   * multi-tenant deployments **must** supply an authorization check (session →
+   * owned thread/run) or resolve a validated id in the route.
+   *
+   * Called with whichever id was supplied — the `runId` when present, else the
+   * `threadId`. Return:
+   * - `true` to allow the load
+   * - `false` for a default `403` response
+   * - a `Response` to return as-is (e.g. `401` with a body)
+   */
   authorize?: (
     id: string,
     request: Request,
@@ -101,11 +101,11 @@ function jsonResponse(body: ReconstructedGeneration): Response {
 
 export interface GetGenerationHydrationOptions {
   /**
-     * How to interpret `id`:
-     * - `'runId'` loads exactly that run via `stores.generationRuns.get`.
-     * - `'threadId'` (default) loads the latest run linked to the thread via
-     *   `stores.generationRuns.findLatestForThread`.
-     */
+   * How to interpret `id`:
+   * - `'runId'` loads exactly that run via `stores.generationRuns.get`.
+   * - `'threadId'` (default) loads the latest run linked to the thread via
+   *   `stores.generationRuns.findLatestForThread`.
+   */
   by?: 'threadId' | 'runId'
 }
 

@@ -93,13 +93,13 @@ export interface RunError {
 export interface RunRecord {
   runId: string
   /**
-     * Conversation this run belongs to — the `Scope.threadId`.
-     *
-     * Generation jobs (a one-shot `generate()` with no conversation) must not
-     * reuse this record by faking `threadId = requestId`; they need a separate
-     * job store. `withGenerationPersistence` currently does exactly that and
-     * labels itself a stopgap — do not copy it.
-     */
+   * Conversation this run belongs to — the `Scope.threadId`.
+   *
+   * Generation jobs (a one-shot `generate()` with no conversation) must not
+   * reuse this record by faking `threadId = requestId`; they need a separate
+   * job store. `withGenerationPersistence` currently does exactly that and
+   * labels itself a stopgap — do not copy it.
+   */
   threadId: string
   status: RunStatus
   startedAt: number
@@ -107,44 +107,44 @@ export interface RunRecord {
   error?: RunError
   usage?: TokenUsage
   /**
-     * Compound sandbox key this run was bound to, when it ran in a sandbox.
-     * Recorded so a future reclaimer can identify the sandbox to tear down
-     * without re-deriving the key. Written by `withSandbox`'s detach path
-     * (`onAbort` in `@tanstack/ai-sandbox`'s `middleware.ts`) at the same time as
-     * `detachedSince`, when a disconnect leaves the run detached rather than
-     * destroying the sandbox. A backend must round-trip this field — see
-     * `listReclaimable` below for who eventually reads it.
-     */
+   * Compound sandbox key this run was bound to, when it ran in a sandbox.
+   * Recorded so a future reclaimer can identify the sandbox to tear down
+   * without re-deriving the key. Written by `withSandbox`'s detach path
+   * (`onAbort` in `@tanstack/ai-sandbox`'s `middleware.ts`) at the same time as
+   * `detachedSince`, when a disconnect leaves the run detached rather than
+   * destroying the sandbox. A backend must round-trip this field — see
+   * `listReclaimable` below for who eventually reads it.
+   */
   sandboxKey?: string
   /**
-     * Epoch ms when the last viewer detached; absent while someone is attached.
-     * Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
-     * `middleware.ts`) alongside `sandboxKey`, when a disconnect leaves the
-     * agent running rather than tearing the sandbox down. A backend must
-     * round-trip this field: `listReclaimable` depends on it, and
-     * `@tanstack/ai-sandbox`'s `reapDetachedRuns` sweeps the candidates it
-     * surfaces (see that method's doc comment).
-     */
+   * Epoch ms when the last viewer detached; absent while someone is attached.
+   * Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
+   * `middleware.ts`) alongside `sandboxKey`, when a disconnect leaves the
+   * agent running rather than tearing the sandbox down. A backend must
+   * round-trip this field: `listReclaimable` depends on it, and
+   * `@tanstack/ai-sandbox`'s `reapDetachedRuns` sweeps the candidates it
+   * surfaces (see that method's doc comment).
+   */
   detachedSince?: number
   /**
-     * Set by an explicit out-of-band cancel, to be distinguished from a mere
-     * client disconnect (the two produce an identical TCP close, so intent is not
-     * inferable from the disconnect).
-     *
-     * Written by `requestRunCancel` and read by `wasCancelRequested` (both in
-     * `../cancel`). Deliberately NOT a status: recording intent is not the same as
-     * the run having stopped, and only the driver knows when it has.
-     */
+   * Set by an explicit out-of-band cancel, to be distinguished from a mere
+   * client disconnect (the two produce an identical TCP close, so intent is not
+   * inferable from the disconnect).
+   *
+   * Written by `requestRunCancel` and read by `wasCancelRequested` (both in
+   * `../cancel`). Deliberately NOT a status: recording intent is not the same as
+   * the run having stopped, and only the driver knows when it has.
+   */
   cancelRequested?: boolean
   /**
-     * Monotonic fencing token for the run's driver. Bumped by each host that
-     * successfully claims the run (see `withRunClaim` in `@tanstack/ai-sandbox`),
-     * so a superseded host can discover it lost by comparing the stored value
-     * against the one it holds.
-     *
-     * A lock alone cannot provide this: it tells the winner it won, but gives a
-     * loser nothing to read. Absent on a run that was never claimed.
-     */
+   * Monotonic fencing token for the run's driver. Bumped by each host that
+   * successfully claims the run (see `withRunClaim` in `@tanstack/ai-sandbox`),
+   * so a superseded host can discover it lost by comparing the stored value
+   * against the one it holds.
+   *
+   * A lock alone cannot provide this: it tells the winner it won, but gives a
+   * loser nothing to read. Absent on a run that was never claimed.
+   */
   driverEpoch?: number
 }
 
@@ -165,24 +165,24 @@ export interface RunRecord {
  */
 export interface RunStore {
   /**
-     * Create a run record, or return the existing one unchanged if `runId` is
-     * already present.
-     *
-     * INVARIANT (idempotency): an existing record is returned **unchanged** and
-     * the passed `threadId`/`startedAt`/`status` are ignored. This is what makes
-     * resuming a run safe. `status` defaults to `'running'` on first creation.
-     */
+   * Create a run record, or return the existing one unchanged if `runId` is
+   * already present.
+   *
+   * INVARIANT (idempotency): an existing record is returned **unchanged** and
+   * the passed `threadId`/`startedAt`/`status` are ignored. This is what makes
+   * resuming a run safe. `status` defaults to `'running'` on first creation.
+   */
   createOrResume: (
     input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
       status?: RunStatus
     },
   ) => Promise<RunRecord>
   /**
-     * Patch a record's mutable fields.
-     *
-     * INVARIANT: updating an unknown `runId` is a **no-op** — it must not throw
-     * and must not create a record.
-     */
+   * Patch a record's mutable fields.
+   *
+   * INVARIANT: updating an unknown `runId` is a **no-op** — it must not throw
+   * and must not create a record.
+   */
   update: (
     runId: string,
     patch: Partial<
@@ -202,43 +202,43 @@ export interface RunStore {
   /** Current record, or null when unknown. */
   get: (runId: string) => Promise<RunRecord | null>
   /**
-     * Every run in a conversation, ascending by `startedAt`. OPTIONAL: only
-     * needed to render a thread's past agent activity. Consumers feature-detect.
-     */
+   * Every run in a conversation, ascending by `startedAt`. OPTIONAL: only
+   * needed to render a thread's past agent activity. Consumers feature-detect.
+   */
   listByThread?: (threadId: string) => Promise<Array<RunRecord>>
   /**
-     * Runs that may be reclaimed: ALL THREE of `status === 'running'`,
-     * `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
-     * **inclusive** — a run detached at exactly `now - ttlMs` IS reclaimable.
-     *
-     * OPTIONAL: only needed by a reaper. Consumers feature-detect.
-     *
-     * `detachedSince` is populated by `withSandbox`'s detach path (see
-     * {@link RunRecord.detachedSince}). The sweep over the candidates this
-     * surfaces is `@tanstack/ai-sandbox`'s `reapDetachedRuns`: it finalizes a run
-     * whose agent already finished, expires one past its TTL, and reclaims the
-     * sandbox. That is a function, not a scheduler — the application invokes it
-     * (cron, queue, `alarm()`, `waitUntil`) — and a backend that omits this
-     * method cannot be reaped at all.
-     */
+   * Runs that may be reclaimed: ALL THREE of `status === 'running'`,
+   * `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
+   * **inclusive** — a run detached at exactly `now - ttlMs` IS reclaimable.
+   *
+   * OPTIONAL: only needed by a reaper. Consumers feature-detect.
+   *
+   * `detachedSince` is populated by `withSandbox`'s detach path (see
+   * {@link RunRecord.detachedSince}). The sweep over the candidates this
+   * surfaces is `@tanstack/ai-sandbox`'s `reapDetachedRuns`: it finalizes a run
+   * whose agent already finished, expires one past its TTL, and reclaims the
+   * sandbox. That is a function, not a scheduler — the application invokes it
+   * (cron, queue, `alarm()`, `waitUntil`) — and a backend that omits this
+   * method cannot be reaped at all.
+   */
   listReclaimable?: (opts: {
     now: number
     ttlMs: number
   }) => Promise<Array<RunRecord>>
   /**
-     * The most recent `'running'` run for `threadId`, or `null` if none is active.
-     *
-     * REQUIRED. This resolves "does this thread have a live run to attach to?"
-     * from the STABLE thread id, which is the durable basis for reconnecting a
-     * client (a reload, or the same thread opened on another device) — independent
-     * of the ephemeral run id, which a single turn may mint several of. When more
-     * than one run is `'running'`, the one with the greatest `startedAt` wins.
-     *
-     * A backend that stubs this to `null` turns reconnect off silently, because
-     * `null` is also the correct answer for an idle thread. A backend with no run
-     * lifecycle at all should omit the whole `runs` store instead — capability
-     * tiers belong at the store level, not the method level.
-     */
+   * The most recent `'running'` run for `threadId`, or `null` if none is active.
+   *
+   * REQUIRED. This resolves "does this thread have a live run to attach to?"
+   * from the STABLE thread id, which is the durable basis for reconnecting a
+   * client (a reload, or the same thread opened on another device) — independent
+   * of the ephemeral run id, which a single turn may mint several of. When more
+   * than one run is `'running'`, the one with the greatest `startedAt` wins.
+   *
+   * A backend that stubs this to `null` turns reconnect off silently, because
+   * `null` is also the correct answer for an idle thread. A backend with no run
+   * lifecycle at all should omit the whole `runs` store instead — capability
+   * tiers belong at the store level, not the method level.
+   */
   findActiveRun: (threadId: string) => Promise<RunRecord | null>
 }
 

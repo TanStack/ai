@@ -21,7 +21,7 @@ import type { ModelFamily, SkillMetadata, SkillSource } from './types'
 
 /** CUSTOM stream-event name carrying the catalog to the browser DevTools. */
 export const /** CUSTOM stream-event name carrying the catalog to the browser DevTools. */
-SKILLS_STATE_EVENT = 'skills:state'
+  SKILLS_STATE_EVENT = 'skills:state'
 
 export interface SkillsStateEventValue {
   catalog: Array<{ name: string; description: string }>
@@ -61,7 +61,7 @@ const SkillsCapability = createCapability<SkillsRuntime>()('skills')
 
 /** ~4 chars/token — good enough to guard a runaway catalog. */
 const /** ~4 chars/token — good enough to guard a runaway catalog. */
-estimateTokens = (s: string) => Math.ceil(s.length / 4)
+  estimateTokens = (s: string) => Math.ceil(s.length / 4)
 
 function fillTemplate(template: string, catalog: string): string {
   // Escape `{{`/`}}` to sentinels, substitute `{skills}`, then restore braces.

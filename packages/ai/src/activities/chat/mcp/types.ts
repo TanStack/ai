@@ -26,12 +26,12 @@ export interface MCPToolSource {
   tools: (options?: { lazy?: boolean }) => Promise<Array<AnyServerTool>>
   close: () => Promise<void>
   /**
-     * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
-     * `ui://` resource widgets (MCP Apps) after a tool result resolves.
-     *
-     * Optional — sources that do not serve `ui://` resources need not implement
-     * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
-     */
+   * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
+   * `ui://` resource widgets (MCP Apps) after a tool result resolves.
+   *
+   * Optional — sources that do not serve `ui://` resources need not implement
+   * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
+   */
   readResource?: (uri: string) => Promise<McpResourceReadResult>
 }
 
@@ -51,34 +51,34 @@ export type MCPConnectionPolicy = 'close' | 'keep-alive'
  */
 export interface ChatMCPOptions {
   /**
-     * The MCP clients or client pools to discover tools from and manage.
-     */
+   * The MCP clients or client pools to discover tools from and manage.
+   */
   clients: Array<MCPToolSource>
 
   /**
-     * Connection lifecycle policy applied to all clients when the run ends.
-     *
-     * Defaults to `'close'`.
-     */
+   * Connection lifecycle policy applied to all clients when the run ends.
+   *
+   * Defaults to `'close'`.
+   */
   connection?: MCPConnectionPolicy
 
   /**
-     * When `true`, tool schemas are fetched lazily (forwarded to
-     * `tools({ lazy: true })`).
-     *
-     * Defaults to `false`.
-     */
+   * When `true`, tool schemas are fetched lazily (forwarded to
+   * `tools({ lazy: true })`).
+   *
+   * Defaults to `false`.
+   */
   lazyTools?: boolean
 
   /**
-     * Called when tool discovery fails for a single source.
-     *
-     * - Throw (or re-throw) from this handler to fail the entire chat call fast.
-     * - Return normally to skip that source and continue with remaining clients.
-     * - Omit this handler entirely to rethrow the error (fail-fast by default).
-     *
-     * Async handlers are awaited, so a rejected promise also fails fast.
-     */
+   * Called when tool discovery fails for a single source.
+   *
+   * - Throw (or re-throw) from this handler to fail the entire chat call fast.
+   * - Return normally to skip that source and continue with remaining clients.
+   * - Omit this handler entirely to rethrow the error (fail-fast by default).
+   *
+   * Async handlers are awaited, so a rejected promise also fails fast.
+   */
   onDiscoveryError?: (
     error: unknown,
     source: MCPToolSource,

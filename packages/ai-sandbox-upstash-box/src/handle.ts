@@ -273,8 +273,7 @@ export class UpstashBoxHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    const isLstatAbsent =
-      r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    const isLstatAbsent = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
     if (isLstatAbsent) return undefined
     if (r.exitCode !== 0) {
       const output = `${r.stdout}\n${r.stderr}`

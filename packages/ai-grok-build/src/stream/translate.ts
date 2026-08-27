@@ -14,11 +14,11 @@ import type {
 
 /** Name of the CUSTOM event carrying the Grok Build session id. */
 export const /** Name of the CUSTOM event carrying the Grok Build session id. */
-SESSION_ID_EVENT = 'grok-build.session-id'
+  SESSION_ID_EVENT = 'grok-build.session-id'
 
 /** Server name used for bridged TanStack tools. */
 export const /** Server name used for bridged TanStack tools. */
-BRIDGED_MCP_SERVER_NAME = 'tanstack'
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string

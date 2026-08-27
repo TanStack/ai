@@ -42,7 +42,7 @@ export type GroqTTSSampleRate =
  */
 export interface GroqTTSProviderOptions {
   /**
-     * The sample rate of the generated audio in Hz.
-     */
+   * The sample rate of the generated audio in Hz.
+   */
   sample_rate?: GroqTTSSampleRate
 }

@@ -8,50 +8,50 @@ import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 /** `withSandbox(sandbox, { durability })`. */
 export interface SandboxDurabilityOptions<TOffset extends string = string> {
   /**
-     * Delivery-durable event log for the run. Same key and shape as the
-     * transport's `durability.adapter`, so one adapter instance can be handed to
-     * both `withSandbox` and `toServerSentEventsResponse`.
-     *
-     * Generic in the offset type, defaulted to `string`, for the same reason
-     * {@link SandboxRunDriverOptions} and {@link ReapOptions} are:
-     * `StreamDurability` is INVARIANT in `TOffset` (`read` takes an offset in),
-     * so a backend that brands its cursors — `@tanstack/ai-durable-stream`'s
-     * `durableStream`, the multi-host production backend the sandbox docs point
-     * at — is not assignable to `StreamDurability<string>`. Without the parameter
-     * the resume route could be wired with it and the route that STARTS the run
-     * could not.
-     */
+   * Delivery-durable event log for the run. Same key and shape as the
+   * transport's `durability.adapter`, so one adapter instance can be handed to
+   * both `withSandbox` and `toServerSentEventsResponse`.
+   *
+   * Generic in the offset type, defaulted to `string`, for the same reason
+   * {@link SandboxRunDriverOptions} and {@link ReapOptions} are:
+   * `StreamDurability` is INVARIANT in `TOffset` (`read` takes an offset in),
+   * so a backend that brands its cursors — `@tanstack/ai-durable-stream`'s
+   * `durableStream`, the multi-host production backend the sandbox docs point
+   * at — is not assignable to `StreamDurability<string>`. Without the parameter
+   * the resume route could be wired with it and the route that STARTS the run
+   * could not.
+   */
   adapter: StreamDurability<TOffset>
   /** Journal directory inside the sandbox. Defaults to `/tmp/tanstack-runs`. */
   journal?: string
   /**
-     * Whether a client disconnect DETACHES (leave the agent running) instead of
-     * destroying the sandbox. Defaults to `true` whenever durability is wired,
-     * because that is the whole point of wiring it.
-     *
-     * Set `false` to keep today's destroy-on-disconnect cost profile while still
-     * getting resumable DELIVERY (a reload replays the log). An explicit cancel
-     * destroys either way.
-     */
+   * Whether a client disconnect DETACHES (leave the agent running) instead of
+   * destroying the sandbox. Defaults to `true` whenever durability is wired,
+   * because that is the whole point of wiring it.
+   *
+   * Set `false` to keep today's destroy-on-disconnect cost profile while still
+   * getting resumable DELIVERY (a reload replays the log). An explicit cancel
+   * destroys either way.
+   */
   detachOnDisconnect?: boolean
   /**
-     * Read an EXISTING run's journal instead of starting a new agent. Set by the
-     * attach route's `drive()` callback, never by an application's POST handler.
-     *
-     * This is where `attach` lives, and deliberately NOT on `chat()`: `chat()` is
-     * core and must not gain sandbox vocabulary, and the provider options are
-     * per-model type state, not per-request lifecycle.
-     */
+   * Read an EXISTING run's journal instead of starting a new agent. Set by the
+   * attach route's `drive()` callback, never by an application's POST handler.
+   *
+   * This is where `attach` lives, and deliberately NOT on `chat()`: `chat()` is
+   * core and must not gain sandbox vocabulary, and the provider options are
+   * per-model type state, not per-request lifecycle.
+   */
   attach?: boolean
   /** Journal poll interval for providers that cannot follow. */
   pollIntervalMs?: number
   /**
-     * How long an ATTACH waits for a live run's journal to appear before failing
-     * with a `JournalAttachUnavailableError`. Defaults to
-     * `DEFAULT_ATTACH_JOURNAL_WAIT_MS` (10s). Only the wait is configurable: an
-     * unknown or terminal runId fails immediately regardless, since no amount of
-     * waiting changes either verdict.
-     */
+   * How long an ATTACH waits for a live run's journal to appear before failing
+   * with a `JournalAttachUnavailableError`. Defaults to
+   * `DEFAULT_ATTACH_JOURNAL_WAIT_MS` (10s). Only the wait is configurable: an
+   * unknown or terminal runId fails immediately regardless, since no amount of
+   * waiting changes either verdict.
+   */
   attachWaitMs?: number
 }
 
@@ -109,8 +109,7 @@ export const SandboxDurabilityCapability =
 
 /** Destructured accessors, matching `./capabilities`. */
 export const /** Destructured accessors, matching `./capabilities`. */
-[getSandboxDurability, provideSandboxDurability] =
-  SandboxDurabilityCapability
+  [getSandboxDurability, provideSandboxDurability] = SandboxDurabilityCapability
 
 /**
  * A durable run was started without a caller-supplied `runId`.

@@ -98,13 +98,13 @@ export class StreamReconnectLimitError extends Error {
  */
 export interface ReconnectOptions {
   /**
-     * Ceiling on the number of CONSECUTIVE reconnects that deliver no new events,
-     * before failing with {@link StreamReconnectLimitError}. The counter resets to
-     * zero whenever a reconnect makes forward progress, so a healthy long run —
-     * even one behind a proxy that rolls the socket after every event — never
-     * approaches it; the ceiling only fires when the run is genuinely stuck
-     * (reconnecting repeatedly without receiving anything new). Default 5.
-     */
+   * Ceiling on the number of CONSECUTIVE reconnects that deliver no new events,
+   * before failing with {@link StreamReconnectLimitError}. The counter resets to
+   * zero whenever a reconnect makes forward progress, so a healthy long run —
+   * even one behind a proxy that rolls the socket after every event — never
+   * approaches it; the ceiling only fires when the run is genuinely stuck
+   * (reconnecting repeatedly without receiving anything new). Default 5.
+   */
   maxAttempts?: number
   /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
   delayMs?: number
@@ -147,17 +147,17 @@ export interface ReconnectTracker {
   /** The most recently accepted (non-duplicate, non-empty) offset, if any. */
   readonly lastEventId: string | undefined
   /**
-     * Record an incoming offset. Returns `'reset'` for an empty id (SSE's
-     * resume-cursor reset — clears the de-dupe set and `lastEventId`),
-     * `'duplicate'` for an already-seen id, and `'new'` otherwise (including
-     * `undefined`, which is untracked — no offset to remember).
-     */
+   * Record an incoming offset. Returns `'reset'` for an empty id (SSE's
+   * resume-cursor reset — clears the de-dupe set and `lastEventId`),
+   * `'duplicate'` for an already-seen id, and `'new'` otherwise (including
+   * `undefined`, which is untracked — no offset to remember).
+   */
   note: (id: string | undefined) => 'new' | 'duplicate' | 'reset'
   /**
-     * Throttle before a reconnect attempt. Resets the no-progress counter when
-     * `madeProgress` is true; otherwise increments it and throws
-     * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
-     */
+   * Throttle before a reconnect attempt. Resets the no-progress counter when
+   * `madeProgress` is true; otherwise increments it and throws
+   * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
+   */
   waitBeforeReconnect: (
     madeProgress: boolean,
     signal?: AbortSignal,
@@ -552,10 +552,10 @@ async function fetchThreadHydration(
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
     /**
-       * Pending human-in-the-loop interrupts for the thread and the run they paused,
-       * so a reload (or another device) re-prompts the approval from the server. The
-       * client restores them exactly as a persisted resume snapshot would.
-       */
+     * Pending human-in-the-loop interrupts for the thread and the run they paused,
+     * so a reload (or another device) re-prompts the approval from the server. The
+     * client restores them exactly as a persisted resume snapshot would.
+     */
     interrupts?: {
       runId?: unknown
       pending?: unknown
@@ -800,8 +800,8 @@ export interface RunAgentInputContext {
 
 export interface ConnectConnectionAdapter {
   /**
-     * Connect and return an async iterable of StreamChunks.
-     */
+   * Connect and return an async iterable of StreamChunks.
+   */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
@@ -809,36 +809,36 @@ export interface ConnectConnectionAdapter {
     runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
   /**
-     * Fetch server-driven hydration for a generation `threadId`: the last
-     * generation's resume snapshot, plus a cursor to a run still generating if
-     * one exists. The generation client calls this itself on mount when
-     * `persistence: true` (no loader/prop) and repaints the snapshot — it never
-     * auto-starts a run. Read-only JSON GET (`?threadId`), so it is
-     * transport-agnostic. Optional and feature-detected exactly like the chat
-     * `hydrate` handler.
-     */
+   * Fetch server-driven hydration for a generation `threadId`: the last
+   * generation's resume snapshot, plus a cursor to a run still generating if
+   * one exists. The generation client calls this itself on mount when
+   * `persistence: true` (no loader/prop) and repaints the snapshot — it never
+   * auto-starts a run. Read-only JSON GET (`?threadId`), so it is
+   * transport-agnostic. Optional and feature-detected exactly like the chat
+   * `hydrate` handler.
+   */
   hydrateGeneration?: (threadId: string) => Promise<GenerationHydrationResult>
   /**
-     * Re-attach to a run that is still generating and replay it from the start
-     * (read-only `?offset=-1&runId` against the delivery-durability log). The
-     * generation client tails this on mount when hydration reports a run still in
-     * flight, so a dropped connection or a full reload finishes the generation in
-     * place — the same durability replay the chat client uses. Optional and
-     * feature-detected; present on `fetchServerSentEvents` / `fetchHttpStream`.
-     */
+   * Re-attach to a run that is still generating and replay it from the start
+   * (read-only `?offset=-1&runId` against the delivery-durability log). The
+   * generation client tails this on mount when hydration reports a run still in
+   * flight, so a dropped connection or a full reload finishes the generation in
+   * place — the same durability replay the chat client uses. Optional and
+   * feature-detected; present on `fetchServerSentEvents` / `fetchHttpStream`.
+   */
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>
   /**
-     * Fetch server-driven hydration for a chat `threadId`: the stored transcript
-     * plus a cursor to an in-flight run and any pending interrupts. The chat
-     * client calls this itself on mount when `persistence: true` (no loader/prop)
-     * and repaints it — it never auto-sends. Read-only JSON GET (`?threadId`), so
-     * it is transport-agnostic. Optional and feature-detected; present on
-     * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
-     * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
-     */
+   * Fetch server-driven hydration for a chat `threadId`: the stored transcript
+   * plus a cursor to an in-flight run and any pending interrupts. The chat
+   * client calls this itself on mount when `persistence: true` (no loader/prop)
+   * and repaints it — it never auto-sends. Read-only JSON GET (`?threadId`), so
+   * it is transport-agnostic. Optional and feature-detected; present on
+   * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
+   * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
+   */
   hydrate?: (threadId: string) => Promise<ChatHydrationResult>
 }
 
@@ -899,12 +899,12 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
 
 export interface SubscribeConnectionAdapter {
   /**
-     * Subscribe to stream chunks.
-     */
+   * Subscribe to stream chunks.
+   */
   subscribe: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
   /**
-     * Send a request; chunks arrive through subscribe().
-     */
+   * Send a request; chunks arrive through subscribe().
+   */
   send: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,

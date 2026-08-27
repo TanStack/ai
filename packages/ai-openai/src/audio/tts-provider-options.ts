@@ -24,8 +24,8 @@ export type OpenAITTSFormat = 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
  */
 export interface OpenAITTSProviderOptions {
   /**
-     * Control the voice of your generated audio with additional instructions.
-     * Does not work with tts-1 or tts-1-hd.
-     */
+   * Control the voice of your generated audio with additional instructions.
+   * Does not work with tts-1 or tts-1-hd.
+   */
   instructions?: string
 }

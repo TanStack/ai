@@ -55,11 +55,11 @@ export type GeminiDocumentMimeType =
  */
 export interface GeminiImageMetadata {
   /**
-     * The MIME type of the image.
-     * Required for proper content processing.
-     *
-     * @see https://ai.google.dev/gemini-api/docs/vision#supported-formats
-     */
+   * The MIME type of the image.
+   * Required for proper content processing.
+   *
+   * @see https://ai.google.dev/gemini-api/docs/vision#supported-formats
+   */
   mimeType?: GeminiImageMimeType
 }
 

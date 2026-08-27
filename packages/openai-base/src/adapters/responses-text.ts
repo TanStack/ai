@@ -276,17 +276,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Generate structured output using the provider's native JSON Schema response format.
-     * Uses stream: false to get the complete response in one call.
-     *
-     * OpenAI-compatible Responses APIs have strict requirements for structured output:
-     * - All properties must be in the `required` array
-     * - Optional fields should have null added to their type union
-     * - additionalProperties must be false for all objects
-     *
-     * The outputSchema is already JSON Schema (converted in the ai layer).
-     * We apply provider-specific transformations for structured output compatibility.
-     */
+   * Generate structured output using the provider's native JSON Schema response format.
+   * Uses stream: false to get the complete response in one call.
+   *
+   * OpenAI-compatible Responses APIs have strict requirements for structured output:
+   * - All properties must be in the `required` array
+   * - Optional fields should have null added to their type union
+   * - additionalProperties must be false for all objects
+   *
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   * We apply provider-specific transformations for structured output compatibility.
+   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -370,19 +370,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Stream structured output via the Responses API: single request with
-     * `text.format: json_schema` + `stream: true`. Consumes Responses-API
-     * events (`response.output_text.delta`, `response.reasoning_text.delta`,
-     * `response.reasoning_summary_text.delta`, the legacy
-     * `response.reasoning.delta`, `response.refusal.delta`,
-     * `response.completed`, `response.failed`) and re-emits the standard AG-UI
-     * lifecycle ending with `CUSTOM 'structured-output.complete'`.
-     *
-     * Tools are stripped (structured output is mutually exclusive with tool
-     * calls in this path). Reasoning text is accumulated and surfaced both as
-     * REASONING_* lifecycle events during the stream and on the terminal
-     * CUSTOM event's `value.reasoning`.
-     */
+   * Stream structured output via the Responses API: single request with
+   * `text.format: json_schema` + `stream: true`. Consumes Responses-API
+   * events (`response.output_text.delta`, `response.reasoning_text.delta`,
+   * `response.reasoning_summary_text.delta`, the legacy
+   * `response.reasoning.delta`, `response.refusal.delta`,
+   * `response.completed`, `response.failed`) and re-emits the standard AG-UI
+   * lifecycle ending with `CUSTOM 'structured-output.complete'`.
+   *
+   * Tools are stripped (structured output is mutually exclusive with tool
+   * calls in this path). Reasoning text is accumulated and surfaced both as
+   * REASONING_* lifecycle events during the stream and on the terminal
+   * CUSTOM event's `value.reasoning`.
+   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -774,9 +774,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Cross-SDK abort detection for `structuredOutputStream`. Mirrors the
-     * Chat Completions base; subclasses with proprietary error types override.
-     */
+   * Cross-SDK abort detection for `structuredOutputStream`. Mirrors the
+   * Chat Completions base; subclasses with proprietary error types override.
+   */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
     const e = error as { name?: unknown; code?: unknown }
@@ -788,10 +788,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Strict conversion plus the inverse null-widening map for this request.
-     * Override this when schema conversion changes, so tool-input undo matches
-     * the wire schema.
-     */
+   * Strict conversion plus the inverse null-widening map for this request.
+   * Override this when schema conversion changes, so tool-input undo matches
+   * the wire schema.
+   */
   protected makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -800,10 +800,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Applies provider-specific transformations for structured output compatibility.
-     * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
-     * to match the wire schema.
-     */
+   * Applies provider-specific transformations for structured output compatibility.
+   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
+   * to match the wire schema.
+   */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -813,24 +813,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Final shaping pass applied to parsed structured-output JSON before it is
-     * returned to the caller. Default is a passthrough.
-     *
-     * Provider `null`s are no longer stripped here: strict-mode null-widening is
-     * now undone precisely by the engine (`undoNullWidening`, driven by the
-     * schema's null-widening map) the moment the result is captured, so a blind
-     * `transformNullsToUndefined` at the adapter would only destroy genuine
-     * `.nullable()` nulls. Subclasses may still override to remap or reshape the
-     * provider's structured output.
-     */
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
+   */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
   /**
-     * Extract text content from a non-streaming Responses API response.
-     * Override this in subclasses for provider-specific response shapes.
-     */
+   * Extract text content from a non-streaming Responses API response.
+   * Override this in subclasses for provider-specific response shapes.
+   */
   protected extractTextFromResponse(response: Response): string {
     let textContent = ''
     let refusal: string | undefined
@@ -875,21 +875,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Processes streamed chunks from the Responses API and yields AG-UI events.
-     * Override this in subclasses to handle provider-specific stream behavior.
-     *
-     * Handles the following event types:
-     * - response.created / response.incomplete / response.failed
-     * - response.output_text.delta
-     * - response.reasoning_text.delta
-     * - response.reasoning.delta (the legacy type used before response.reasoning_text.delta)
-     * - response.reasoning_summary_text.delta
-     * - response.content_part.added / response.content_part.done
-     * - response.output_item.added
-     * - response.function_call_arguments.delta / response.function_call_arguments.done
-     * - response.completed
-     * - error
-     */
+   * Processes streamed chunks from the Responses API and yields AG-UI events.
+   * Override this in subclasses to handle provider-specific stream behavior.
+   *
+   * Handles the following event types:
+   * - response.created / response.incomplete / response.failed
+   * - response.output_text.delta
+   * - response.reasoning_text.delta
+   * - response.reasoning.delta (the legacy type used before response.reasoning_text.delta)
+   * - response.reasoning_summary_text.delta
+   * - response.content_part.added / response.content_part.done
+   * - response.output_item.added
+   * - response.function_call_arguments.delta / response.function_call_arguments.done
+   * - response.completed
+   * - error
+   */
   protected async *processStreamChunks(
     stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent>,
     toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
@@ -913,9 +913,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Maps common TextOptions to Responses API request format.
-     * Override this in subclasses to add provider-specific options.
-     */
+   * Maps common TextOptions to Responses API request format.
+   * Override this in subclasses to add provider-specific options.
+   */
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
@@ -969,24 +969,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * The OpenAI Responses API supports `tools` and `text.format: json_schema`
-     * together in a single streaming request (per issue #605). Subclasses
-     * that route to providers without this capability should override.
-     */
+   * The OpenAI Responses API supports `tools` and `text.format: json_schema`
+   * together in a single streaming request (per issue #605). Subclasses
+   * that route to providers without this capability should override.
+   */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
 
   /**
-     * Converts ModelMessage[] to Responses API ResponseInput format.
-     * Override this in subclasses for provider-specific message format quirks.
-     *
-     * Key differences from Chat Completions:
-     * - Tool results use `function_call_output` type (not `tool` role)
-     * - Assistant tool calls are `function_call` objects (not nested in `tool_calls`)
-     * - User content uses `input_text`, `input_image`, `input_file` types
-     * - System prompts go in `instructions`, not as messages
-     */
+   * Converts ModelMessage[] to Responses API ResponseInput format.
+   * Override this in subclasses for provider-specific message format quirks.
+   *
+   * Key differences from Chat Completions:
+   * - Tool results use `function_call_output` type (not `tool` role)
+   * - Assistant tool calls are `function_call` objects (not nested in `tool_calls`)
+   * - User content uses `input_text`, `input_image`, `input_file` types
+   * - System prompts go in `instructions`, not as messages
+   */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
   ): ResponseInput {
@@ -1077,10 +1077,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Converts a ContentPart to Responses API input content item.
-     * Handles text, image, audio, and document (PDF) content parts.
-     * Override this in subclasses for additional content types or provider-specific metadata.
-     */
+   * Converts a ContentPart to Responses API input content item.
+   * Handles text, image, audio, and document (PDF) content parts.
+   * Override this in subclasses for additional content types or provider-specific metadata.
+   */
   protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
     switch (part.type) {
       case 'text':
@@ -1101,9 +1101,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Normalizes message content to an array of ContentPart.
-     * Handles backward compatibility with string content.
-     */
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -1118,8 +1118,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
-     * Extracts text content from a content value that may be string, null, or ContentPart array.
-     */
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {

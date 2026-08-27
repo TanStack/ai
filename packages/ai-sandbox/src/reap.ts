@@ -51,7 +51,7 @@ export const DEFAULT_MAX_RUNS = 25
 
 /** Journal tail bytes {@link probeRunExit} reads. The sentinel is the last line. */
 export const /** Journal tail bytes {@link probeRunExit} reads. The sentinel is the last line. */
-DEFAULT_EXIT_PROBE_BYTES = 4096
+  DEFAULT_EXIT_PROBE_BYTES = 4096
 
 /**
  * What the out-of-band probe learned about a detached run's agent.
@@ -64,8 +64,10 @@ DEFAULT_EXIT_PROBE_BYTES = 4096
  */
 export type RunExitProbe =
   /** The `{"__exit":N}` sentinel is in the journal. The agent is over. */
-  | { state: 'finished'; /** The agent's exit code, when the probe read one. */
-exitCode: number }
+  | {
+      state: 'finished' /** The agent's exit code, when the probe read one. */
+      exitCode: number
+    }
   /** No sentinel. The agent is mid-flight (or never started). LEAVE IT ALONE. */
   | { state: 'producing' }
   /** The probe could not answer — no sandbox, `exec` rejected, frame undecodable. */
@@ -93,21 +95,21 @@ export interface ReapRunEntry {
   /** The agent's exit code, when the probe read one. */
   exitCode?: number
   /**
-     * THE BUDGET ANOMALY MARKER, and the only field whose mere PRESENCE carries a
-     * fact: it is set if and only if the drive outran
-     * {@link ReapOptions.runBudgetMs} on the finalization path — the condition
-     * `'budget-exceeded'` names. Its value is whether the record nonetheless
-     * reached a terminal status, practically always `true` since `pipeToRunLog` is
-     * total; it is reported rather than assumed so an operator does not have to
-     * infer it.
-     *
-     * SURVIVES A FAILED RECLAIM. `reclaim` runs after the outcome is classified
-     * and overwrites it with `'reclaim-failed'`, which is the more urgent fact (a
-     * leaked sandbox nothing will retry) and so wins the single `outcome` slot.
-     * This field is therefore what keeps the budget anomaly on the entry: an
-     * operator seeing `'reclaim-failed'` WITH `terminalizedAnyway` present is
-     * looking at a run that blew its budget and then leaked, and needs both halves.
-     */
+   * THE BUDGET ANOMALY MARKER, and the only field whose mere PRESENCE carries a
+   * fact: it is set if and only if the drive outran
+   * {@link ReapOptions.runBudgetMs} on the finalization path — the condition
+   * `'budget-exceeded'` names. Its value is whether the record nonetheless
+   * reached a terminal status, practically always `true` since `pipeToRunLog` is
+   * total; it is reported rather than assumed so an operator does not have to
+   * infer it.
+   *
+   * SURVIVES A FAILED RECLAIM. `reclaim` runs after the outcome is classified
+   * and overwrites it with `'reclaim-failed'`, which is the more urgent fact (a
+   * leaked sandbox nothing will retry) and so wins the single `outcome` slot.
+   * This field is therefore what keeps the budget anomaly on the entry: an
+   * operator seeing `'reclaim-failed'` WITH `terminalizedAnyway` present is
+   * looking at a run that blew its budget and then leaked, and needs both halves.
+   */
   terminalizedAnyway?: boolean
   error?: unknown
 }
@@ -125,19 +127,19 @@ export interface ReapOptions<TOffset extends string = string> {
   runs: RunStore
   locks: LockStore
   /**
-     * Per-run event log factory, same shape `RunDeps.durability` takes.
-     *
-     * Generic in the offset type, defaulted to `string` so an existing call site
-     * needs no change — see {@link SandboxRunDriverOptions.durability} for why
-     * hardcoding the default locked out branded-cursor backends.
-     */
+   * Per-run event log factory, same shape `RunDeps.durability` takes.
+   *
+   * Generic in the offset type, defaulted to `string` so an existing call site
+   * needs no change — see {@link SandboxRunDriverOptions.durability} for why
+   * hardcoding the default locked out branded-cursor backends.
+   */
   durability: (runId: string) => StreamDurability<TOffset>
   /**
-     * The out-of-band "did the agent reach its sentinel?" probe. INJECTED, because
-     * neither the delivery log nor this package can answer it — see the module doc.
-     * {@link probeRunExit} is the implementation an application wires in once it has
-     * resolved the run's `SandboxHandle`.
-     */
+   * The out-of-band "did the agent reach its sentinel?" probe. INJECTED, because
+   * neither the delivery log nor this package can answer it — see the module doc.
+   * {@link probeRunExit} is the implementation an application wires in once it has
+   * resolved the run's `SandboxHandle`.
+   */
   hasFinished: (record: RunRecord) => Promise<RunExitProbe>
   /** Produce the run's remaining events. Called only once the claim is held. */
   drive: (input: {
@@ -156,10 +158,10 @@ export interface ReapOptions<TOffset extends string = string> {
   /** Quiescence window; defaults to `DEFAULT_FENCE_QUIET_MS`. */
   fenceQuietMs?: number
   /**
-     * Tear the run's sandbox down. Called ONLY after the run reached a terminal
-     * status, and with the ORIGINALLY LISTED record — see {@link reapDetachedRuns}.
-     * `sandboxReclaimer` in `reclaim.ts` is the ready-made implementation.
-     */
+   * Tear the run's sandbox down. Called ONLY after the run reached a terminal
+   * status, and with the ORIGINALLY LISTED record — see {@link reapDetachedRuns}.
+   * `sandboxReclaimer` in `reclaim.ts` is the ready-made implementation.
+   */
   reclaim?: (record: RunRecord) => Promise<void>
   logger?: InternalLogger
 }
@@ -287,8 +289,10 @@ type ReapProbeDecision =
 async function classifyReapProbe<TOffset extends string>(
   record: RunRecord,
   ctx: ReapContext<TOffset>,
-  counters: { /** Runs {@link ReapOptions.hasFinished} was actually called for. */
-probed: number },
+  counters: {
+    /** Runs {@link ReapOptions.hasFinished} was actually called for. */
+    probed: number
+  },
 ): Promise<ReapProbeDecision> {
   const expired =
     record.detachedSince !== undefined && record.detachedSince <= ctx.cutoff

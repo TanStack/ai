@@ -64,18 +64,18 @@ export interface AwaitAttachableJournalOptions {
   /** Run id, for the store lookup and the error messages. */
   runId: string
   /**
-     * The authoritative run record store. Omitted only by a caller with no store
-     * wired, which loses the unknown/terminal classification but keeps the bound.
-     */
+   * The authoritative run record store. Omitted only by a caller with no store
+   * wired, which loses the unknown/terminal classification but keeps the bound.
+   */
   runs?: RunStore
   /** Bounded wait. Defaults to {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS}. */
   waitMs?: number
   /** Re-probe interval. Defaults to {@link DEFAULT_ATTACH_PROBE_INTERVAL_MS}. */
   probeIntervalMs?: number
   /**
-     * The consumer's abort. An aborted wait returns rather than throwing: the
-     * caller stopped caring, which is not a diagnosis about the run.
-     */
+   * The consumer's abort. An aborted wait returns rather than throwing: the
+   * caller stopped caring, which is not a diagnosis about the run.
+   */
   signal?: AbortSignal
   logger?: InternalLogger
 }

@@ -30,33 +30,33 @@ export interface ContentFilteredInfo {
  */
 export interface ContentGuardMiddlewareOptions {
   /**
-     * Rules to apply to text content. Each rule is either a regex pattern
-     * with a replacement string, or a custom transform function.
-     * Rules are applied in order. Each rule receives the output of the previous.
-     */
+   * Rules to apply to text content. Each rule is either a regex pattern
+   * with a replacement string, or a custom transform function.
+   * Rules are applied in order. Each rule receives the output of the previous.
+   */
   rules: Array<ContentGuardRule>
 
   /** Which strategy was used */
   strategy?: 'delta' | 'buffered'
 
   /**
-     * Number of characters to hold back before emitting (buffered strategy only).
-     * Should be at least as long as the longest pattern you expect to match.
-     * Buffer is flushed when the stream ends.
-     *
-     * @default 50
-     */
+   * Number of characters to hold back before emitting (buffered strategy only).
+   * Should be at least as long as the longest pattern you expect to match.
+   * Buffer is flushed when the stream ends.
+   *
+   * @default 50
+   */
   bufferSize?: number
 
   /**
-     * If true, drop the entire chunk when any rule changes the content.
-     * @default false
-     */
+   * If true, drop the entire chunk when any rule changes the content.
+   * @default false
+   */
   blockOnMatch?: boolean
 
   /**
-     * Callback when content is filtered by any rule.
-     */
+   * Callback when content is filtered by any rule.
+   */
   onFiltered?: (info: ContentFilteredInfo) => void
 }
 

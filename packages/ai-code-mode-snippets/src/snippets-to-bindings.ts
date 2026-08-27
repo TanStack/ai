@@ -4,24 +4,24 @@ import type { Snippet, SnippetStorage } from './types'
 
 interface SnippetsToBindingsOptions {
   /**
-     * Snippets to convert to bindings
-     */
+   * Snippets to convert to bindings
+   */
   snippets: Array<Snippet>
 
   /**
-     * Tool execution context for emitting custom events
-     */
+   * Tool execution context for emitting custom events
+   */
   context?: ToolExecutionContext
 
   /**
-     * Function to execute snippet code in the sandbox
-     * The snippet code receives `input` as a variable
-     */
+   * Function to execute snippet code in the sandbox
+   * The snippet code receives `input` as a variable
+   */
   executeInSandbox: (code: string, input: unknown) => Promise<unknown>
 
   /**
-     * Storage for updating execution stats
-     */
+   * Storage for updating execution stats
+   */
   storage: SnippetStorage
 }
 

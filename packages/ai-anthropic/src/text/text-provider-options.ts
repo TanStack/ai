@@ -33,11 +33,11 @@ import type {
  */
 export interface AnthropicSystemPromptMetadata {
   /**
-     * Anthropic prompt-caching control applied to this system prompt's
-     * `TextBlockParam`.
-     *
-     * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
-     */
+   * Anthropic prompt-caching control applied to this system prompt's
+   * `TextBlockParam`.
+   *
+   * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+   */
   cache_control?: CacheControlEphemeral
 }
 
@@ -59,19 +59,19 @@ export interface AnthropicCacheControlOptions {
 
 export interface AnthropicContainerOptions {
   /**
-     * Container identifier for reuse across requests.
-     * Container parameters with skills to be loaded.
-     */
+   * Container identifier for reuse across requests.
+   * Container parameters with skills to be loaded.
+   */
   container?: {
     id: string | null
     /**
-         * List of skills to load into the container.
-         *
-         * @deprecated Configure skills on the `code_execution` tool instead:
-         * `codeExecutionTool(config, { skills })`. The adapter lifts those into
-         * `container.skills` and attaches the required beta headers. Setting
-         * skills here bypasses the beta-header wiring and may stop working.
-         */
+     * List of skills to load into the container.
+     *
+     * @deprecated Configure skills on the `code_execution` tool instead:
+     * `codeExecutionTool(config, { skills })`. The adapter lifts those into
+     * `container.skills` and attaches the required beta headers. Setting
+     * skills here bypasses the beta-header wiring and may stop working.
+     */
     skills: Array<AnthropicContainerSkill> | null
   } | null
 }
@@ -87,16 +87,16 @@ export interface AnthropicContextManagementOptions {
 
 export interface AnthropicMCPOptions {
   /**
-     * MCP servers to be utilized in this request
-     * Maximum of 20 servers
-     */
+   * MCP servers to be utilized in this request
+   * Maximum of 20 servers
+   */
   mcp_servers?: Array<MCPServer>
 }
 
 export interface AnthropicServiceTierOptions {
   /**
-     * Determines whether to use priority capacity (if available) or standard capacity for this request.
-     */
+   * Determines whether to use priority capacity (if available) or standard capacity for this request.
+   */
   service_tier?: 'auto' | 'standard_only'
 }
 
@@ -138,17 +138,17 @@ export interface AnthropicAdaptiveThinkingOptions {
     | {
         type: 'adaptive'
         /**
-                 * Controls what (if any) thinking content is streamed back.
-                 *
-                 * - `'summarized'`: stream summarized thinking via `thinking_delta`
-                 *   events (the user-visible reasoning text).
-                 * - `'omitted'`: stream the thinking block's `signature_delta` only
-                 *   (no reasoning text reaches the client).
-                 *
-                 * On Claude Opus 4.6 the default is `'summarized'`. On
-                 * Claude Opus 4.7 the default flipped to `'omitted'` — callers
-                 * must set `'summarized'` explicitly to get the reasoning text.
-                 */
+         * Controls what (if any) thinking content is streamed back.
+         *
+         * - `'summarized'`: stream summarized thinking via `thinking_delta`
+         *   events (the user-visible reasoning text).
+         * - `'omitted'`: stream the thinking block's `signature_delta` only
+         *   (no reasoning text reaches the client).
+         *
+         * On Claude Opus 4.6 the default is `'summarized'`. On
+         * Claude Opus 4.7 the default flipped to `'omitted'` — callers
+         * must set `'summarized'` explicitly to get the reasoning text.
+         */
         display?: 'summarized' | 'omitted'
       }
     | {
@@ -205,39 +205,39 @@ export interface AnthropicAdaptiveOrDisabledThinkingOptions {
  */
 export interface AnthropicMaxTokensOptions {
   /**
-     * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
-     * Range x >= 1.
-     */
+   * The maximum number of tokens to generate before stopping. This parameter only specifies the absolute maximum number of tokens to generate. Required by the API; the adapter defaults to 1024 when omitted.
+   * Range x >= 1.
+   */
   max_tokens?: number
 }
 
 export interface AnthropicEffortOptions {
   /**
-     * Controls the thinking depth for adaptive thinking mode (Opus 4.6+).
-     *
-     * - `max`: Absolute highest capability
-     * - `high`: Default - Claude will almost always think
-     * - `medium`: Balanced cost-quality
-     * - `low`: May skip thinking for simpler problems
-     */
+   * Controls the thinking depth for adaptive thinking mode (Opus 4.6+).
+   *
+   * - `max`: Absolute highest capability
+   * - `high`: Default - Claude will almost always think
+   * - `medium`: Balanced cost-quality
+   * - `low`: May skip thinking for simpler problems
+   */
   effort?: 'max' | 'high' | 'medium' | 'low'
 }
 
 export interface AnthropicOutputConfigOptions {
   /**
-     * Output configuration for the model's response.
-     *
-     * On Claude 4.7+ the top-level `effort` field was relocated under
-     * `output_config.effort`, and `thinking: { type: 'enabled', budget_tokens }`
-     * was replaced by `thinking: { type: 'adaptive' }` paired with
-     * `output_config.effort`. Earlier models continue to accept the legacy
-     * top-level `effort` / `thinking.type: 'enabled'` shape.
-     *
-     * The engine also writes `output_config.format` here when the caller
-     * passes `outputSchema` to a Claude 4.5+ adapter (issue #605 native
-     * combined mode). Both fields coexist: user-supplied `effort` is
-     * preserved when the engine adds `format`.
-     */
+   * Output configuration for the model's response.
+   *
+   * On Claude 4.7+ the top-level `effort` field was relocated under
+   * `output_config.effort`, and `thinking: { type: 'enabled', budget_tokens }`
+   * was replaced by `thinking: { type: 'adaptive' }` paired with
+   * `output_config.effort`. Earlier models continue to accept the legacy
+   * top-level `effort` / `thinking.type: 'enabled'` shape.
+   *
+   * The engine also writes `output_config.format` here when the caller
+   * passes `outputSchema` to a Claude 4.5+ adapter (issue #605 native
+   * combined mode). Both fields coexist: user-supplied `effort` is
+   * preserved when the engine adds `format`.
+   */
   output_config?: {
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
   }
@@ -258,17 +258,17 @@ export interface AnthropicSamplingOptions {
      */
   top_k?: number
   /**
-     * Amount of randomness injected into the response.
-     * Either use this or top_p, but not both.
-     * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-     * @default 1.0
-     */
+   * Amount of randomness injected into the response.
+   * Either use this or top_p, but not both.
+   * Defaults to 1.0. Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+   * @default 1.0
+   */
   temperature?: number
   /**
-     * Use nucleus sampling.
-     *
-     * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
-     */
+   * Use nucleus sampling.
+   *
+   * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
+   */
   top_p?: number
   max_tokens?: number
 }
@@ -293,18 +293,18 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
 
   max_tokens: number
   /**
-     * Whether to incrementally stream the response using server-sent events.
-     */
+   * Whether to incrementally stream the response using server-sent events.
+   */
   stream?: boolean
   /**
-     * System prompt — built by the adapter from the user-facing
-     * `systemPrompts: Array<string>` on the chat call. This field is internal:
-     * users should pass system prompts via `systemPrompts`, not via
-     * `modelOptions`.
-     *
-     * A system prompt is a way of providing context and instructions to Claude,
-     * such as specifying a particular goal or role.
-     */
+   * System prompt — built by the adapter from the user-facing
+   * `systemPrompts: Array<string>` on the chat call. This field is internal:
+   * users should pass system prompts via `systemPrompts`, not via
+   * `modelOptions`.
+   *
+   * A system prompt is a way of providing context and instructions to Claude,
+   * such as specifying a particular goal or role.
+   */
   system?: string | Array<TextBlockParam>
 
   tools?: Array<AnthropicTool>

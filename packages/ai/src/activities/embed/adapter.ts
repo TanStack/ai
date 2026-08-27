@@ -43,8 +43,8 @@ export interface EmbeddingAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
@@ -52,8 +52,8 @@ export interface EmbeddingAdapter<
   }
 
   /**
-     * Generate embeddings for the input items (one vector per item)
-     */
+   * Generate embeddings for the input items (one vector per item)
+   */
   createEmbeddings: (
     options: EmbeddingOptions<TProviderOptions>,
   ) => Promise<EmbeddingResult>

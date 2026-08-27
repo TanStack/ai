@@ -22,9 +22,9 @@ export interface BytePlusSequentialImageGenerationOptions {
 /** Prompt-rewriting configuration. Seedream 5.0-lite / 4.5 / 4.0 only. */
 export interface BytePlusOptimizePromptOptions {
   /**
-     * `standard` produces higher-quality results but is slower; `fast` is
-     * quicker with average quality (unsupported on Seedream 5.0-lite and 4.5).
-     */
+   * `standard` produces higher-quality results but is slower; `fast` is
+   * quicker with average quality (unsupported on Seedream 5.0-lite and 4.5).
+   */
   mode: 'standard' | 'fast'
 }
 
@@ -38,43 +38,43 @@ export interface BytePlusImageGenerationRequest {
   model: string
 
   /**
-     * Instruction text. The BytePlus docs give the limit as 600 English words.
-     * That ceiling is documentation-derived, not probe-confirmed.
-     */
+   * Instruction text. The BytePlus docs give the limit as 600 English words.
+   * That ceiling is documentation-derived, not probe-confirmed.
+   */
   prompt: string
 
   /**
-     * Input images for image-conditioned generation (editing, reference-guided
-     * generation, multi-reference composition). Each entry is either a publicly
-     * reachable URL or a data URI of the form
-     * `data:image/<format>;base64,<data>` — BytePlus requires `<format>` to be
-     * **lowercase**. Typed as an array because that is the form the OpenAPI
-     * schema documents.
-     */
+   * Input images for image-conditioned generation (editing, reference-guided
+   * generation, multi-reference composition). Each entry is either a publicly
+   * reachable URL or a data URI of the form
+   * `data:image/<format>;base64,<data>` — BytePlus requires `<format>` to be
+   * **lowercase**. Typed as an array because that is the form the OpenAPI
+   * schema documents.
+   */
   image?: Array<string>
 
   /**
-     * Output size, as either a shorthand token (`1K`, `2K`, `4K`) or explicit
-     * pixel dimensions (`2048x2048`) — never a mix of the two. Defaults to
-     * `2048x2048` server-side.
-     */
+   * Output size, as either a shorthand token (`1K`, `2K`, `4K`) or explicit
+   * pixel dimensions (`2048x2048`) — never a mix of the two. Defaults to
+   * `2048x2048` server-side.
+   */
   size?: string
 
   /** Defaults to `url` server-side. */
   response_format?: BytePlusImageResponseFormat
 
   /**
-     * Generated file format. Only the Seedream 5.0 family accepts this; the
-     * live 4.0 response carried no `output_format` at all. Defaults to `jpeg`.
-     */
+   * Generated file format. Only the Seedream 5.0 family accepts this; the
+   * live 4.0 response carried no `output_format` at all. Defaults to `jpeg`.
+   */
   output_format?: BytePlusImageOutputFormat
 
   /**
-     * Whether to stamp an "AI generated" watermark in the bottom-right corner.
-     *
-     * **Defaults to `true`** — unlike most providers, BytePlus watermarks unless
-     * you explicitly opt out with `watermark: false`.
-     */
+   * Whether to stamp an "AI generated" watermark in the bottom-right corner.
+   *
+   * **Defaults to `true`** — unlike most providers, BytePlus watermarks unless
+   * you explicitly opt out with `watermark: false`.
+   */
   watermark?: boolean
 
   /** Defaults to `disabled` server-side. */
@@ -87,10 +87,10 @@ export interface BytePlusImageGenerationRequest {
   optimize_prompt_options?: BytePlusOptimizePromptOptions
 
   /**
-     * Server-sent-events mode, emitting each image as it finishes. Not used by
-     * this adapter — `generateImage()` resolves a complete result, and the core
-     * `stream: true` path chunks that result itself.
-     */
+   * Server-sent-events mode, emitting each image as it finishes. Not used by
+   * this adapter — `generateImage()` resolves a complete result, and the core
+   * `stream: true` path chunks that result itself.
+   */
   stream?: boolean
 }
 

@@ -37,7 +37,7 @@ export type PermissionHandler = (
 
 /** Permission categories treated as file mutations for `'acceptEdits'`. */
 const /** Permission categories treated as file mutations for `'acceptEdits'`. */
-EDIT_TYPES = new Set(['edit', 'write', 'patch'])
+  EDIT_TYPES = new Set(['edit', 'write', 'patch'])
 
 /**
  * Decide whether an OpenCode permission request targets one of the bridged

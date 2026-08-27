@@ -12,14 +12,14 @@ import type { TrustStrategy } from '../trust-strategies'
 
 export interface FileSnippetStorageOptions {
   /**
-     * Directory path for storing snippets
-     */
+   * Directory path for storing snippets
+   */
   directory: string
 
   /**
-     * Trust strategy for determining snippet trust levels
-     * @default createDefaultTrustStrategy()
-     */
+   * Trust strategy for determining snippet trust levels
+   * @default createDefaultTrustStrategy()
+   */
   trustStrategy?: TrustStrategy
 }
 

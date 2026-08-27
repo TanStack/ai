@@ -7,10 +7,10 @@ export interface MCPAppResourceProps {
   /** The ui-resource part from a UIMessage assistant part. */
   part: UIResourcePart
   /**
-     * Framework-agnostic bridge for tool calls, prompt sending, and link opening.
-     * Omit it to render the widget in display-only mode — iframe interactions
-     * that would trigger tool calls or prompts are ignored.
-     */
+   * Framework-agnostic bridge for tool calls, prompt sending, and link opening.
+   * Omit it to render the widget in display-only mode — iframe interactions
+   * that would trigger tool calls or prompts are ignored.
+   */
   bridge?: McpAppBridge
   /** Sandbox iframe configuration — must include the proxy page URL. */
   sandbox: { url: URL }

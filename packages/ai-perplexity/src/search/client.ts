@@ -18,12 +18,12 @@ export interface PerplexitySearchRequest {
   /** Maximum tokens of content to return per page. */
   max_tokens_per_page?: number
   /**
-     * Restrict (or exclude) results by domain (max 20 entries).
-     *
-     * Hostnames, optional paths, or TLDs. Use bare entries to allowlist
-     * (`["nytimes.com"]`) or `-` prefixed entries to denylist
-     * (`["-pinterest.com"]`). Allow and deny entries must NOT be mixed.
-     */
+   * Restrict (or exclude) results by domain (max 20 entries).
+   *
+   * Hostnames, optional paths, or TLDs. Use bare entries to allowlist
+   * (`["nytimes.com"]`) or `-` prefixed entries to denylist
+   * (`["-pinterest.com"]`). Allow and deny entries must NOT be mixed.
+   */
   search_domain_filter?: Array<string>
   /** Restrict results by recency: `hour | day | week | month | year`. */
   search_recency_filter?: 'hour' | 'day' | 'week' | 'month' | 'year'

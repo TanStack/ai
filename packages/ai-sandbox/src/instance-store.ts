@@ -13,8 +13,8 @@ export interface SandboxInstanceRecord {
   threadId: string
   latestRunId?: string
   /**
-     * Epoch ms of last write (for keepAlive / GC by the host app).
-     */
+   * Epoch ms of last write (for keepAlive / GC by the host app).
+   */
   updatedAt: number
 }
 
@@ -26,25 +26,25 @@ export interface SandboxInstanceRecord {
  */
 export interface SandboxInstanceStore {
   /**
-     * Return the record for `key`, or `null` if none exists.
-     *
-     * INVARIANT: missing keys return `null` (never throw).
-     */
+   * Return the record for `key`, or `null` if none exists.
+   *
+   * INVARIANT: missing keys return `null` (never throw).
+   */
   get: (key: string) => Promise<SandboxInstanceRecord | null>
   /**
-     * Insert or fully replace the record for `record.key`.
-     *
-     * INVARIANT (full replace): omitted optional fields (`latestSnapshotId`,
-     * `latestRunId`) MUST clear any previously stored values. Do not merge with
-     * the prior row — a create-without-snapshot path must not leave a stale
-     * snapshot id.
-     */
+   * Insert or fully replace the record for `record.key`.
+   *
+   * INVARIANT (full replace): omitted optional fields (`latestSnapshotId`,
+   * `latestRunId`) MUST clear any previously stored values. Do not merge with
+   * the prior row — a create-without-snapshot path must not leave a stale
+   * snapshot id.
+   */
   upsert: (record: SandboxInstanceRecord) => Promise<void>
   /**
-     * Remove the record for `key`.
-     *
-     * INVARIANT: deleting a missing key is a **no-op** (must not throw).
-     */
+   * Remove the record for `key`.
+   *
+   * INVARIANT: deleting a missing key is a **no-op** (must not throw).
+   */
   delete: (key: string) => Promise<void>
 }
 
@@ -72,8 +72,8 @@ export const SandboxInstanceStoreCapability =
 
 /** Destructured accessors: `getSandboxInstanceStore` / `provideSandboxInstanceStore`. */
 export const /** Destructured accessors: `getSandboxInstanceStore` / `provideSandboxInstanceStore`. */
-[getSandboxInstanceStore, provideSandboxInstanceStore] =
-  SandboxInstanceStoreCapability
+  [getSandboxInstanceStore, provideSandboxInstanceStore] =
+    SandboxInstanceStoreCapability
 
 /** In-memory {@link SandboxInstanceStore}. Resume works only within one process. */
 export class InMemorySandboxInstanceStore implements SandboxInstanceStore {

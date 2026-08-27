@@ -31,9 +31,9 @@ export interface StartAcpServerOptions {
     stdout: string
   }) => string
   /**
-     * Return true once {@link buildWsUrl} can be called. Receives accumulated
-     * stdout from the server process.
-     */
+   * Return true once {@link buildWsUrl} can be called. Receives accumulated
+   * stdout from the server process.
+   */
   isReady?: (stdout: string) => boolean
   /** Substring/regex marker used when {@link isReady} is omitted. */
   readyMarker?: string

@@ -34,9 +34,9 @@ export type GenerationActivity =
  */
 export interface GenerationMiddlewareContext<TContext = unknown> {
   /**
-     * Stable id correlating the `onStart` / `onFinish` / `onError` / `onAbort`
-     * hooks of a single activity call.
-     */
+   * Stable id correlating the `onStart` / `onFinish` / `onError` / `onAbort`
+   * hooks of a single activity call.
+   */
   requestId: string
   /** Which activity this call is. Discriminates media from chat. */
   activity: GenerationActivity
@@ -49,10 +49,10 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   /** Stable run id, when supplied by the caller. */
   runId?: string
   /**
-     * Provider-specific options passed to the activity, if any. Typed `unknown`
-     * because each activity's options are strongly typed per model; a supertype
-     * of `ChatMiddlewareContext`'s `modelOptions`.
-     */
+   * Provider-specific options passed to the activity, if any. Typed `unknown`
+   * because each activity's options are strongly typed per model; a supertype
+   * of `ChatMiddlewareContext`'s `modelOptions`.
+   */
   modelOptions?: unknown
   /** Where the call originates. Always `'server'` for media activities. */
   source: 'client' | 'server'
@@ -61,24 +61,24 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   /** Runtime context provided by the activity options, if any. */
   context: TContext
   /**
-     * Result transforms registered by middleware during this activity call.
-     * Transforms run after the raw adapter result exists and before the final
-     * result is returned or streamed. Push multiple transforms to run them in
-     * registration order.
-     *
-     * REQUIRED (always an array, empty when nothing registered): middleware
-     * registers by pushing onto it, so an optional array would let a host that
-     * builds its own context omit it and silently no-op every registration —
-     * generation persistence would then mark a run completed with neither its
-     * result nor its artifacts written, with nothing to observe but the missing
-     * data. Every context the library builds comes from
-     * `createGenerationContext`, which always sets `[]`.
-     */
+   * Result transforms registered by middleware during this activity call.
+   * Transforms run after the raw adapter result exists and before the final
+   * result is returned or streamed. Push multiple transforms to run them in
+   * registration order.
+   *
+   * REQUIRED (always an array, empty when nothing registered): middleware
+   * registers by pushing onto it, so an optional array would let a host that
+   * builds its own context omit it and silently no-op every registration —
+   * generation persistence would then mark a run completed with neither its
+   * result nor its artifacts written, with nothing to observe but the missing
+   * data. Every context the library builds comes from
+   * `createGenerationContext`, which always sets `[]`.
+   */
   resultTransforms: Array<GenerationResultTransform<any, TContext>>
   /**
-     * Activity inputs captured for middleware that needs to transform or persist
-     * the result together with reconstructable request metadata.
-     */
+   * Activity inputs captured for middleware that needs to transform or persist
+   * the result together with reconstructable request metadata.
+   */
   artifactInputs?: unknown
 }
 

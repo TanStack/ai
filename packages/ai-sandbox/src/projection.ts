@@ -13,16 +13,16 @@ export interface WorkspaceProjection {
   /** Harness plugin identifiers to install idempotently. */
   plugins: Array<string>
   /**
-     * Resolve a SecretRef to its plaintext value. Bound to the workspace's
-     * secrets registry; throws when the ref is unknown.
-     */
+   * Resolve a SecretRef to its plaintext value. Bound to the workspace's
+   * secrets registry; throws when the ref is unknown.
+   */
   resolveSecret: (ref: SecretRef) => string
   /**
-     * Absolute path to the idempotency marker file. Harness adapters write this
-     * file after a successful projection so subsequent runs skip re-projection.
-     * The file is NOT included in snapshots — absent on restore, triggering
-     * re-projection (which re-writes any secret-bearing config files).
-     */
+   * Absolute path to the idempotency marker file. Harness adapters write this
+   * file after a successful projection so subsequent runs skip re-projection.
+   * The file is NOT included in snapshots — absent on restore, triggering
+   * re-projection (which re-writes any secret-bearing config files).
+   */
   markerPath: string
   /** Workspace root inside the sandbox (e.g. `/workspace`). */
   root: string

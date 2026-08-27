@@ -15,10 +15,10 @@ export interface OpencodeSessionHandle {
   /** Whether an existing session was actually resumed. */
   resumed: boolean
   /**
-     * Run one prompt turn. Resolves with the final assistant message (finish
-     * reason, token usage, error) and its concatenated text once the harness
-     * goes idle. Streaming deltas arrive via `onEvent` while this is pending.
-     */
+   * Run one prompt turn. Resolves with the final assistant message (finish
+   * reason, token usage, error) and its concatenated text once the harness
+   * goes idle. Streaming deltas arrive via `onEvent` while this is pending.
+   */
   prompt: (
     text: string,
   ) => Promise<{ message: OpencodeAssistantMessage; text: string }>
@@ -32,23 +32,23 @@ export interface StartOpencodeSessionOptions {
   /** Connect to an already-running server instead of spawning one. */
   baseUrl?: string
   /**
-     * Headers attached to every request to the opencode server — used to
-     * authenticate a token-gated preview channel (e.g. Daytona). Without them a
-     * gated preview proxy rejects the requests (404 "Not found.").
-     */
+   * Headers attached to every request to the opencode server — used to
+   * authenticate a token-gated preview channel (e.g. Daytona). Without them a
+   * gated preview proxy rejects the requests (404 "Not found.").
+   */
   headers?: Record<string, string>
   /** Hostname for the spawned server. Defaults to the SDK default. */
   hostname?: string
   /** Port for the spawned server. Defaults to the SDK default. */
   port?: number
   /**
-     * Directory the opencode HTTP API scopes the session to. Omit to use the
-     * server's own launch cwd (the common case): the server is spawned with the
-     * correct working dir per-provider, so passing a directory here is only needed
-     * to override it. Passing a VIRTUAL sandbox path (e.g. `/workspace`) is wrong
-     * for host-running providers (local-process), where that path doesn't exist —
-     * the API then stalls on it. Leave undefined and rely on the server cwd.
-     */
+   * Directory the opencode HTTP API scopes the session to. Omit to use the
+   * server's own launch cwd (the common case): the server is spawned with the
+   * correct working dir per-provider, so passing a directory here is only needed
+   * to override it. Passing a VIRTUAL sandbox path (e.g. `/workspace`) is wrong
+   * for host-running providers (local-process), where that path doesn't exist —
+   * the API then stalls on it. Leave undefined and rely on the server cwd.
+   */
   directory?: string
   /** Provider id (the part before `/` in the model id). */
   providerID: string

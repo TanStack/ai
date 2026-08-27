@@ -337,9 +337,9 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * Reads the error message out of an Imagine API error body
-     * (`{"code": "...", "error": "..."}`), falling back to the raw text.
-     */
+   * Reads the error message out of an Imagine API error body
+   * (`{"code": "...", "error": "..."}`), falling back to the raw text.
+   */
   private async errorMessage(response: Response): Promise<string> {
     const body = await response.text()
     try {
@@ -457,13 +457,13 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * Build and post an edit / extension request. Both endpoints take only
-     * `model`, `prompt`, and the source `video` (plus `duration` — the length
-     * of the added tail — for extensions): output geometry is inherited from
-     * the source clip, capped at 720p, and edit outputs also inherit the
-     * source length. Rather than sending fields the API documents as ignored,
-     * the inapplicable options are rejected with actionable errors.
-     */
+   * Build and post an edit / extension request. Both endpoints take only
+   * `model`, `prompt`, and the source `video` (plus `duration` — the length
+   * of the added tail — for extensions): output geometry is inherited from
+   * the source clip, capped at 720p, and edit outputs also inherit the
+   * source length. Rather than sending fields the API documents as ignored,
+   * the inapplicable options are rejected with actionable errors.
+   */
   private async createSourceVideoJob(args: {
     model: string
     mode: 'edit' | 'extend'
@@ -539,10 +539,10 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * POST a create-job request body to one of the Imagine video endpoints
-     * (`/videos/generations`, `/videos/edits`, `/videos/extensions`) and read
-     * the `request_id` out of the shared response shape.
-     */
+   * POST a create-job request body to one of the Imagine video endpoints
+   * (`/videos/generations`, `/videos/edits`, `/videos/extensions`) and read
+   * the `request_id` out of the shared response shape.
+   */
   private async postVideoJob(
     endpoint: string,
     request: Record<string, unknown>,
@@ -644,10 +644,10 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * Maps Imagine API job statuses onto the generic video status set. The
-     * API reports 'pending' while queued/generating (with a numeric
-     * `progress`), then a terminal 'done' / 'failed' / 'expired'.
-     */
+   * Maps Imagine API job statuses onto the generic video status set. The
+   * API reports 'pending' while queued/generating (with a numeric
+   * `progress`), then a terminal 'done' / 'failed' / 'expired'.
+   */
   protected mapStatus(
     apiStatus: string | undefined,
   ): 'pending' | 'processing' | 'completed' | 'failed' {
@@ -671,9 +671,9 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * Both grok-imagine video models accept a continuous 1–15 integer-second
-     * range. Consumers can use this to render UI without provider knowledge.
-     */
+   * Both grok-imagine video models accept a continuous 1–15 integer-second
+   * range. Consumers can use this to render UI without provider knowledge.
+   */
   override availableDurations(): DurationOptions<
     GrokVideoModelDurationByName[TModel]
   > {
@@ -681,9 +681,9 @@ export class GrokVideoAdapter<
   }
 
   /**
-     * Coerce a raw seconds value to the closest valid duration (clamped to
-     * [1, 15] and rounded to whole seconds).
-     */
+   * Coerce a raw seconds value to the closest valid duration (clamped to
+   * [1, 15] and rounded to whole seconds).
+   */
   override snapDuration(
     seconds: number,
   ): GrokVideoModelDurationByName[TModel] | undefined {

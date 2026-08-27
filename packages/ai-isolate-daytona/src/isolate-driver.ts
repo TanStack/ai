@@ -22,21 +22,21 @@ const TOOL_CALL_ID = /^tc_(0|[1-9]\d*)$/
 
 export interface DaytonaIsolateDriverConfig {
   /**
-     * Caller-owned Daytona SDK sandbox or any object with a compatible
-     * `process.codeRun`. Context disposal prevents further use of this sandbox,
-     * but sandbox creation and cleanup stay with the caller.
-     */
+   * Caller-owned Daytona SDK sandbox or any object with a compatible
+   * `process.codeRun`. Context disposal prevents further use of this sandbox,
+   * but sandbox creation and cleanup stay with the caller.
+   */
   sandbox: DaytonaSandboxLike
 
   /**
-     * Default total execution timeout in milliseconds (default: 30000).
-     * Each Daytona `codeRun` receives the remaining budget as whole seconds.
-     */
+   * Default total execution timeout in milliseconds (default: 30000).
+   * Each Daytona `codeRun` receives the remaining budget as whole seconds.
+   */
   timeout?: number
 
   /**
-     * Maximum number of tool callback rounds (default: 10).
-     */
+   * Maximum number of tool callback rounds (default: 10).
+   */
   maxToolRounds?: number
 }
 

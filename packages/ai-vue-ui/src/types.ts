@@ -93,9 +93,9 @@ export interface TextPartProps {
   /** Additional rehype plugins, appended after the defaults. */
   rehypePlugins?: PluggableList
   /**
-     * Drop the built-in plugin defaults and disable the renderer's built-in
-     * sanitizer. The caller becomes responsible for sanitization.
-     */
+   * Drop the built-in plugin defaults and disable the renderer's built-in
+   * sanitizer. The caller becomes responsible for sanitization.
+   */
   disableDefaultPlugins?: boolean
 }
 

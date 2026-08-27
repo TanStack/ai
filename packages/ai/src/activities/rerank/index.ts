@@ -17,7 +17,7 @@ import type { RerankResult } from '../../types'
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'rerank' as const
+  kind = 'rerank' as const
 
 /** Extract provider options from a RerankAdapter via ~types */
 export type RerankProviderOptions<TAdapter> = TAdapter extends {
@@ -42,11 +42,11 @@ export interface RerankActivityOptions<
   /** The query documents are scored against. */
   query: string
   /**
-     * Documents to rerank. Either strings or JSON-serializable objects — object
-     * documents are serialized with `JSON.stringify` before being sent to the
-     * provider, and the original element (string or object) is returned in the
-     * result, preserving its type.
-     */
+   * Documents to rerank. Either strings or JSON-serializable objects — object
+   * documents are serialized with `JSON.stringify` before being sent to the
+   * provider, and the original element (string or object) is returned in the
+   * result, preserving its type.
+   */
   documents: Array<TDocument>
   /** Return only the top N results. */
   topN?: number
@@ -55,16 +55,16 @@ export interface RerankActivityOptions<
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
   /**
-     * Observe-only middleware notified on start, usage, success, abort, and
-     * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
-     * the `GenerationMiddleware` contract for a custom backend.
-     */
+   * Observe-only middleware notified on start, usage, success, abort, and
+   * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
+   * the `GenerationMiddleware` contract for a custom backend.
+   */
   middleware?: Array<GenerationMiddleware>
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
 }
 

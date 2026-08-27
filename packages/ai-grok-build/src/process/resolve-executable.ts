@@ -2,8 +2,8 @@ import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 /** Prefer the path the official installer writes; fall back to PATH. */
 const /** Prefer the path the official installer writes; fall back to PATH. */
-GROK_PROBE =
-  'sh -lc \'if test -x "$HOME/.grok/bin/grok"; then printf "%s" "$HOME/.grok/bin/grok"; elif command -v grok >/dev/null 2>&1; then command -v grok; fi\''
+  GROK_PROBE =
+    'sh -lc \'if test -x "$HOME/.grok/bin/grok"; then printf "%s" "$HOME/.grok/bin/grok"; elif command -v grok >/dev/null 2>&1; then command -v grok; fi\''
 
 /**
  * Resolve the `grok` executable path inside a sandbox.

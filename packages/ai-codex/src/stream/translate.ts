@@ -9,11 +9,11 @@ import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Codex thread (session) id. */
 export const /** Name of the CUSTOM event carrying the Codex thread (session) id. */
-SESSION_ID_EVENT = 'codex.session-id'
+  SESSION_ID_EVENT = 'codex.session-id'
 
 /** Server name used for bridged TanStack tools. */
 export const /** Server name used for bridged TanStack tools. */
-BRIDGED_MCP_SERVER_NAME = 'tanstack'
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -184,10 +184,10 @@ export async function* translateThreadEvents(
   let runStarted = false
   /** Tool calls started but with no result yet. */
   const /** Tool calls started but with no result yet. */
-unresolvedToolCalls = new Set<string>()
+    unresolvedToolCalls = new Set<string>()
   /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
   const /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
-openedToolItems = new Set<string>()
+    openedToolItems = new Set<string>()
 
   function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return

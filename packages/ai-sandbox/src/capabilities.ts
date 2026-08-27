@@ -24,7 +24,7 @@ export const ToolBridgeProvisionerCapability =
 
 /** Destructured accessors for adapters: `getSandbox(ctx)` reads the handle. */
 export const /** Destructured accessors for adapters: `getSandbox(ctx)` reads the handle. */
-[getSandbox, provideSandbox] = SandboxCapability
+  [getSandbox, provideSandbox] = SandboxCapability
 export const [getSandboxPolicy, provideSandboxPolicy] = SandboxPolicyCapability
 export const [getToolBridgeProvisioner, provideToolBridgeProvisioner] =
   ToolBridgeProvisionerCapability

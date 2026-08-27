@@ -31,10 +31,10 @@ export const MEMORY_STATE_EVENT = 'memory:state'
  *  turn's own save (deferred) surfaces in the next turn's snapshot. */
 export interface MemoryStateEventValue {
   /**
-     * Scope for every adapter call. The function form is the safer default for
-     * multi-tenant apps: derive scope per request from trusted, server-validated
-     * chat context — never from client input.
-     */
+   * Scope for every adapter call. The function form is the safer default for
+   * multi-tenant apps: derive scope per request from trusted, server-validated
+   * chat context — never from client input.
+   */
   scope: MemoryScope
   /** The memory backend to recall from / save to. */
   adapter: string

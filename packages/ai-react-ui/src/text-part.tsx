@@ -15,25 +15,25 @@ export interface TextPartProps {
   /** Additional className for assistant messages (also used for system messages) */
   assistantClassName?: string
   /**
-     * Additional remark plugins, appended after the defaults
-     * (or replacing them when `disableDefaultPlugins` is true).
-     */
+   * Additional remark plugins, appended after the defaults
+   * (or replacing them when `disableDefaultPlugins` is true).
+   */
   remarkPlugins?: PluggableList
   /**
-     * Additional rehype plugins. Inserted between the built-in
-     * `rehypeRaw`/`rehypeHighlight` and the trailing `rehypeSanitize`
-     * so sanitization always runs last. When `disableDefaultPlugins`
-     * is true, replaces the entire chain.
-     */
+   * Additional rehype plugins. Inserted between the built-in
+   * `rehypeRaw`/`rehypeHighlight` and the trailing `rehypeSanitize`
+   * so sanitization always runs last. When `disableDefaultPlugins`
+   * is true, replaces the entire chain.
+   */
   rehypePlugins?: PluggableList
   /** react-markdown `components` overrides (e.g. custom `a`, `code`). */
   components?: Components
   /**
-     * Drop the built-in plugin defaults entirely. The consumer becomes
-     * responsible for syntax highlighting, GFM, raw HTML handling, and
-     * sanitization. Use with care — disabling defaults removes the
-     * built-in XSS sanitizer.
-     */
+   * Drop the built-in plugin defaults entirely. The consumer becomes
+   * responsible for syntax highlighting, GFM, raw HTML handling, and
+   * sanitization. Use with care — disabling defaults removes the
+   * built-in XSS sanitizer.
+   */
   disableDefaultPlugins?: boolean
 }
 

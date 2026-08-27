@@ -70,10 +70,10 @@ export class LazyToolManager {
   }
 
   /**
-     * Returns the set of tools that should be sent to the LLM:
-     * eager tools + discovered lazy tools + discovery tool (if undiscovered tools remain).
-     * Resets the hasNewDiscoveries flag.
-     */
+   * Returns the set of tools that should be sent to the LLM:
+   * eager tools + discovered lazy tools + discovery tool (if undiscovered tools remain).
+   * Resets the hasNewDiscoveries flag.
+   */
   getActiveTools(): Array<Tool> {
     this.hasNewDiscoveries = false
 
@@ -98,20 +98,20 @@ export class LazyToolManager {
   }
 
   /**
-     * Returns the tools that should be available for *execution* this turn.
-     *
-     * This is the advertised set (`getActiveTools()`, passed in as `activeTools`)
-     * plus the discovery tool when a pending call references it but it is no
-     * longer advertised. Once every lazy tool has been discovered the discovery
-     * tool is dropped from the advertised set, but a model may still re-request
-     * discovery (long context / hallucination); keeping it executable lets that
-     * call return the schemas again instead of failing with "Unknown tool".
-     *
-     * The advertised set is intentionally left unchanged — only execution lookup
-     * is widened. Operates on the already-built `activeTools`: it must NOT call
-     * `getActiveTools()`, which would reset `hasNewDiscoveries` before the
-     * post-execution refresh check in the agent loop.
-     */
+   * Returns the tools that should be available for *execution* this turn.
+   *
+   * This is the advertised set (`getActiveTools()`, passed in as `activeTools`)
+   * plus the discovery tool when a pending call references it but it is no
+   * longer advertised. Once every lazy tool has been discovered the discovery
+   * tool is dropped from the advertised set, but a model may still re-request
+   * discovery (long context / hallucination); keeping it executable lets that
+   * call return the schemas again instead of failing with "Unknown tool".
+   *
+   * The advertised set is intentionally left unchanged — only execution lookup
+   * is widened. Operates on the already-built `activeTools`: it must NOT call
+   * `getActiveTools()`, which would reset `hasNewDiscoveries` before the
+   * post-execution refresh check in the agent loop.
+   */
   getExecutableTools(
     activeTools: ReadonlyArray<AnyTool>,
     pendingToolCallNames: ReadonlyArray<string>,
@@ -127,31 +127,31 @@ export class LazyToolManager {
   }
 
   /**
-     * Returns whether new tools have been discovered since the last getActiveTools() call.
-     */
+   * Returns whether new tools have been discovered since the last getActiveTools() call.
+   */
   hasNewlyDiscoveredTools(): boolean {
     return this.hasNewDiscoveries
   }
 
   /**
-     * Returns true if the given name is a lazy tool that has not yet been discovered.
-     */
+   * Returns true if the given name is a lazy tool that has not yet been discovered.
+   */
   isUndiscoveredLazyTool(name: string): boolean {
     return this.lazyToolMap.has(name) && !this.discoveredTools.has(name)
   }
 
   /**
-     * Returns a helpful error message for when an undiscovered lazy tool is called.
-     */
+   * Returns a helpful error message for when an undiscovered lazy tool is called.
+   */
   getUndiscoveredToolError(name: string): string {
     return `Error: Tool '${name}' must be discovered first. Call ${DISCOVERY_TOOL_NAME} with toolNames: ['${name}'] to discover it.`
   }
 
   /**
-     * Scans message history to find previously discovered lazy tools.
-     * Looks for assistant messages with discovery tool calls and their
-     * corresponding tool result messages.
-     */
+   * Scans message history to find previously discovered lazy tools.
+   * Looks for assistant messages with discovery tool calls and their
+   * corresponding tool result messages.
+   */
   private scanMessageHistory(
     messages: ReadonlyArray<{
       role: string
@@ -211,9 +211,9 @@ export class LazyToolManager {
   }
 
   /**
-     * Creates the synthetic discovery tool that the LLM can call
-     * to discover lazy tools' descriptions and schemas.
-     */
+   * Creates the synthetic discovery tool that the LLM can call
+   * to discover lazy tools' descriptions and schemas.
+   */
   private createDiscoveryTool(): Tool {
     const undiscoveredNames = (): Array<string> => {
       const names: Array<string> = []

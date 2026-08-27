@@ -14,35 +14,35 @@ import type {
  */
 export interface MistralTextProviderOptions {
   /**
-     * Sampling temperature. The default varies by model; lower values make output
-     * more deterministic. We recommend altering this OR `top_p`, not both.
-     */
+   * Sampling temperature. The default varies by model; lower values make output
+   * more deterministic. We recommend altering this OR `top_p`, not both.
+   */
   temperature?: number | null
 
   /**
-     * Nucleus sampling — consider the tokens with `top_p` probability mass.
-     */
+   * Nucleus sampling — consider the tokens with `top_p` probability mass.
+   */
   top_p?: number | null
 
   /**
-     * The maximum number of tokens to generate.
-     */
+   * The maximum number of tokens to generate.
+   */
   max_tokens?: number | null
 
   /**
-     * Stop sequences where the API will stop generating further tokens.
-     */
+   * Stop sequences where the API will stop generating further tokens.
+   */
   stop?: string | Array<string> | null
 
   /**
-     * A seed for deterministic sampling. Repeated requests with the same seed
-     * and parameters should return the same result (best-effort).
-     */
+   * A seed for deterministic sampling. Repeated requests with the same seed
+   * and parameters should return the same result (best-effort).
+   */
   random_seed?: number | null
 
   /**
-     * Specifies the format the model must output.
-     */
+   * Specifies the format the model must output.
+   */
   response_format?:
     | ResponseFormatText
     | ResponseFormatJsonSchema
@@ -50,40 +50,40 @@ export interface MistralTextProviderOptions {
     | null
 
   /**
-     * Controls which (if any) tool is called by the model.
-     */
+   * Controls which (if any) tool is called by the model.
+   */
   tool_choice?: ChatCompletionToolChoiceOption | null
 
   /**
-     * Whether parallel tool calls are allowed during tool use.
-     */
+   * Whether parallel tool calls are allowed during tool use.
+   */
   parallel_tool_calls?: boolean | null
 
   /**
-     * Number between -2.0 and 2.0. Positive values penalize tokens based on
-     * their frequency in the text so far.
-     */
+   * Number between -2.0 and 2.0. Positive values penalize tokens based on
+   * their frequency in the text so far.
+   */
   frequency_penalty?: number | null
 
   /**
-     * Number between -2.0 and 2.0. Positive values penalize tokens based on
-     * whether they appear in the text so far.
-     */
+   * Number between -2.0 and 2.0. Positive values penalize tokens based on
+   * whether they appear in the text so far.
+   */
   presence_penalty?: number | null
 
   /**
-     * How many chat completion choices to generate for each input message.
-     */
+   * How many chat completion choices to generate for each input message.
+   */
   n?: number | null
 
   /**
-     * Prediction — used to speed up generation with speculative decoding.
-     */
+   * Prediction — used to speed up generation with speculative decoding.
+   */
   prediction?: { type: 'content'; content: string } | null
 
   /**
-     * Safe prompt — enables safety guarding injected into the system prompt.
-     */
+   * Safe prompt — enables safety guarding injected into the system prompt.
+   */
   safe_prompt?: boolean | null
 }
 

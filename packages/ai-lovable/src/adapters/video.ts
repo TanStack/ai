@@ -55,11 +55,11 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
  */
 export interface LovableVideoConfig extends LovableClientConfig {
   /**
-     * Opt into fetching HTTP(S) image URL inputs for `input_reference`.
-     * The endpoint requires uploaded file bytes, so an HTTP(S) URL has to be
-     * downloaded and buffered in memory. When `false` (the default), HTTP(S)
-     * URL image inputs throw.
-     */
+   * Opt into fetching HTTP(S) image URL inputs for `input_reference`.
+   * The endpoint requires uploaded file bytes, so an HTTP(S) URL has to be
+   * downloaded and buffered in memory. When `false` (the default), HTTP(S)
+   * URL image inputs throw.
+   */
   allowUrlFetch?: boolean
 }
 

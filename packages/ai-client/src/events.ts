@@ -63,17 +63,17 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Protected abstract method for emitting events
-     * Implementations should handle adding clientId and timestamp
-     */
+   * Protected abstract method for emitting events
+   * Implementations should handle adding clientId and timestamp
+   */
   protected abstract emitEvent(
     eventName: string,
     data?: Record<string, unknown>,
   ): void
 
   /**
-     * Emit client created event
-     */
+   * Emit client created event
+   */
   clientCreated(initialMessageCount: number): void {
     this.emitEvent('client:created', {
       initialMessageCount,
@@ -81,15 +81,15 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit loading state changed event
-     */
+   * Emit loading state changed event
+   */
   loadingChanged(isLoading: boolean): void {
     this.emitEvent('client:loading:changed', { isLoading })
   }
 
   /**
-     * Emit error state changed event
-     */
+   * Emit error state changed event
+   */
   errorChanged(error: string | null): void {
     this.emitEvent('client:error:changed', {
       error,
@@ -97,8 +97,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit text update events (combines processor and client events)
-     */
+   * Emit text update events (combines processor and client events)
+   */
   textUpdated(
     streamId: string,
     messageId: string,
@@ -114,8 +114,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit tool call state change events (combines processor and client events)
-     */
+   * Emit tool call state change events (combines processor and client events)
+   */
   toolCallStateChanged(
     streamId: string,
     messageId: string,
@@ -137,8 +137,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit thinking update event
-     */
+   * Emit thinking update event
+   */
   thinkingUpdated(
     streamId: string,
     messageId: string,
@@ -171,8 +171,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit approval requested event
-     */
+   * Emit approval requested event
+   */
   approvalRequested(
     streamId: string,
     messageId: string,
@@ -194,8 +194,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit message appended event
-     */
+   * Emit message appended event
+   */
   messageAppended(
     uiMessage: UIMessage,
     streamId?: string,
@@ -217,12 +217,12 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit message sent event.
-     * Supports both simple string content and multimodal content arrays.
-     *
-     * @param messageId - The ID of the sent message
-     * @param content - The message content (string or array of ContentPart for multimodal)
-     */
+   * Emit message sent event.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param messageId - The ID of the sent message
+   * @param content - The message content (string or array of ContentPart for multimodal)
+   */
   messageSent(messageId: string, content: string | Array<ContentPart>): void {
     // For text content, extract it; for multimodal, provide the array
     const textContent =
@@ -251,30 +251,30 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit reloaded event
-     */
+   * Emit reloaded event
+   */
   reloaded(fromMessageIndex: number): void {
     this.emitEvent('client:reloaded', {
       fromMessageIndex,
     })
   }
   /**
-     * Emit stopped event
-     */
+   * Emit stopped event
+   */
   stopped(): void {
     this.emitEvent('client:stopped')
   }
 
   /**
-     * Emit messages cleared event
-     */
+   * Emit messages cleared event
+   */
   messagesCleared(): void {
     this.emitEvent('client:messages:cleared')
   }
 
   /**
-     * Emit tool result added event
-     */
+   * Emit tool result added event
+   */
   toolResultAdded(
     toolCallId: string,
     toolName: string,
@@ -292,8 +292,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit tool approval responded event
-     */
+   * Emit tool approval responded event
+   */
   toolApprovalResponded(
     approvalId: string,
     toolCallId: string,
@@ -309,8 +309,8 @@ export abstract class ChatClientEventEmitter {
   }
 
   /**
-     * Emit tool fixture applied event.
-     */
+   * Emit tool fixture applied event.
+   */
   toolFixtureApplied(fixture: ChatClientToolFixtureAppliedEvent): void {
     this.emitEvent('devtools:tool-fixture:applied', { ...fixture })
   }

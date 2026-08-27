@@ -11,9 +11,9 @@ export type MistralEmbedProviderOptions = Record<string, never>
  */
 export interface CodestralEmbedProviderOptions {
   /**
-     * The data type of the output embedding values. Mirrors the Mistral SDK's
-     * `EmbeddingDtype` enum. Defaults to `float`.
-     */
+   * The data type of the output embedding values. Mirrors the Mistral SDK's
+   * `EmbeddingDtype` enum. Defaults to `float`.
+   */
   outputDtype?: 'float' | 'int8' | 'uint8' | 'binary' | 'ubinary'
 }
 

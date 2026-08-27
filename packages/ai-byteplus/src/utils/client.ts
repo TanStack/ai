@@ -59,9 +59,9 @@ export interface BytePlusVoiceConfig {
   defaultHeaders?: Record<string, string>
 
   /**
-     * Override the underlying fetch. Defaults to the global `fetch`. Useful for
-     * proxying, instrumentation, or pointing requests at a mock in tests.
-     */
+   * Override the underlying fetch. Defaults to the global `fetch`. Useful for
+   * proxying, instrumentation, or pointing requests at a mock in tests.
+   */
   fetch?: typeof fetch
 }
 
@@ -114,8 +114,10 @@ export function getBytePlusVoiceApiKeyFromEnv(): string {
  */
 export function withBytePlusArkDefaults<TConfig extends BytePlusArkConfig>(
   config: TConfig,
-): Omit<TConfig, 'baseURL'> & { /** Overrides {@link BYTEPLUS_VOICE_BASE_URL}. */
-baseURL: string } {
+): Omit<TConfig, 'baseURL'> & {
+  /** Overrides {@link BYTEPLUS_VOICE_BASE_URL}. */
+  baseURL: string
+} {
   return {
     ...config,
     baseURL: (config.baseURL || BYTEPLUS_ARK_BASE_URL).replace(/\/+$/, ''),

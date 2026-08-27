@@ -4,28 +4,28 @@ import type { Snippet, SnippetIndexEntry, SnippetStorage } from './types'
 
 interface SelectRelevantSnippetsOptions {
   /**
-     * Text adapter for snippet selection (should be a cheap/fast model)
-     */
+   * Text adapter for snippet selection (should be a cheap/fast model)
+   */
   adapter: AnyTextAdapter
 
   /**
-     * Current conversation messages
-     */
+   * Current conversation messages
+   */
   messages: Array<ModelMessage>
 
   /**
-     * Snippet index (lightweight metadata)
-     */
+   * Snippet index (lightweight metadata)
+   */
   snippetIndex: Array<SnippetIndexEntry>
 
   /**
-     * Maximum number of snippets to select
-     */
+   * Maximum number of snippets to select
+   */
   maxSnippets: number
 
   /**
-     * Storage to load full snippet data
-     */
+   * Storage to load full snippet data
+   */
   storage: SnippetStorage
 }
 

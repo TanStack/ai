@@ -48,8 +48,8 @@ export interface ImageAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
@@ -58,8 +58,8 @@ export interface ImageAdapter<
   }
 
   /**
-     * Generate images from a prompt
-     */
+   * Generate images from a prompt
+   */
   generateImages: (
     options: ImageGenerationOptions<TProviderOptions, TModelSizeByName[TModel]>,
   ) => Promise<ImageGenerationResult>

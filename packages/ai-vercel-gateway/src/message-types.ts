@@ -13,13 +13,13 @@ export interface VercelGatewayTextMetadata {}
  */
 export interface VercelGatewayImageMetadata {
   /**
-     * Specifies the detail level of the image.
-     * - 'auto': Let the model decide based on image size and content
-     * - 'low': Use low resolution processing (faster, cheaper, less detail)
-     * - 'high': Use high resolution processing (slower, more expensive, more detail)
-     *
-     * @default 'auto'
-     */
+   * Specifies the detail level of the image.
+   * - 'auto': Let the model decide based on image size and content
+   * - 'low': Use low resolution processing (faster, cheaper, less detail)
+   * - 'high': Use high resolution processing (slower, more expensive, more detail)
+   *
+   * @default 'auto'
+   */
   detail?: 'auto' | 'low' | 'high'
 }
 

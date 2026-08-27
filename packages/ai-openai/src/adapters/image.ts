@@ -43,13 +43,13 @@ const EDIT_MAX_IMAGES: Record<OpenAIImageModel, number> = {
  */
 export interface OpenAIImageConfig extends OpenAIClientConfig {
   /**
-     * Opt into fetching HTTP(S) image URL inputs for image edits. OpenAI's
-     * `/images/edits` endpoint requires uploaded file bytes (no URL
-     * passthrough), so an HTTP(S) URL has to be downloaded and buffered in
-     * memory — which can OOM constrained runtimes (e.g. Cloudflare Workers).
-     * When `false` (the default), HTTP(S) URL image inputs throw; pass a `data:`
-     * URI, or set this to `true` to opt into buffering.
-     */
+   * Opt into fetching HTTP(S) image URL inputs for image edits. OpenAI's
+   * `/images/edits` endpoint requires uploaded file bytes (no URL
+   * passthrough), so an HTTP(S) URL has to be downloaded and buffered in
+   * memory — which can OOM constrained runtimes (e.g. Cloudflare Workers).
+   * When `false` (the default), HTTP(S) URL image inputs throw; pass a `data:`
+   * URI, or set this to `true` to opt into buffering.
+   */
   allowUrlFetch?: boolean
 }
 
@@ -185,12 +185,12 @@ export class OpenAIImageAdapter<
   }
 
   /**
-     * Image-conditioned generation via OpenAI's `images.edit()` endpoint.
-     * dall-e-2 accepts 1 input image; gpt-image-2 / gpt-image-1 /
-     * gpt-image-1-mini accept up to 16; dall-e-3 rejects entirely. A part with
-     * `metadata.role === 'mask'` is routed to the SDK's `mask` field (PNG with
-     * alpha channel).
-     */
+   * Image-conditioned generation via OpenAI's `images.edit()` endpoint.
+   * dall-e-2 accepts 1 input image; gpt-image-2 / gpt-image-1 /
+   * gpt-image-1-mini accept up to 16; dall-e-3 rejects entirely. A part with
+   * `metadata.role === 'mask'` is routed to the SDK's `mask` field (PNG with
+   * alpha channel).
+   */
   private async editImages(args: {
     model: OpenAIImageModel
     prompt: string

@@ -139,9 +139,9 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
   }
 
   /**
-     * Honcho peer id. When `tenantId` is set, prefix the durable user so peers
-     * cannot collide across tenants.
-     */
+   * Honcho peer id. When `tenantId` is set, prefix the durable user so peers
+   * cannot collide across tenants.
+   */
   function userIdFor(scope: MemoryScope): string {
     /** Durable user id. Falls back to `scope.userId`, then `'demo-user'`. */
     const user = options.user ?? scope.userId ?? 'demo-user'

@@ -88,10 +88,10 @@ export interface JournalLine {
   /** The line's text, newline excluded. */
   line: string
   /**
-     * Absolute byte offset immediately AFTER this line's newline — i.e. the count
-     * of journal bytes fully consumed once this line has been handled, and
-     * therefore the exact value to resume a `tail -c +N` from.
-     */
+   * Absolute byte offset immediately AFTER this line's newline — i.e. the count
+   * of journal bytes fully consumed once this line has been handled, and
+   * therefore the exact value to resume a `tail -c +N` from.
+   */
   endPosition: number
 }
 

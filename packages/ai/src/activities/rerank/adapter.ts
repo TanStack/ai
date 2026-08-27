@@ -32,17 +32,17 @@ export interface RerankAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
   }
 
   /**
-     * Rerank the given (pre-serialized) documents against the query, returning
-     * scored indices into `options.documents`. The activity layer maps these
-     * back to the caller's original documents.
-     */
+   * Rerank the given (pre-serialized) documents against the query, returning
+   * scored indices into `options.documents`. The activity layer maps these
+   * back to the caller's original documents.
+   */
   rerank: (
     options: RerankOptions<TProviderOptions>,
   ) => Promise<RerankAdapterResult>

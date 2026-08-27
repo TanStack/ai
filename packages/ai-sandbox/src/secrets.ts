@@ -11,7 +11,7 @@ export type Secrets<TKeys extends string = string> = {
 
 /** Internal symbol used to store the value registry on a Secrets object. */
 const /** Internal symbol used to store the value registry on a Secrets object. */
-REGISTRY = Symbol('secrets.registry')
+  REGISTRY = Symbol('secrets.registry')
 
 /** Create a typed secrets object from a plain record of name→value pairs. */
 export function createSecrets<T extends Record<string, string>>(

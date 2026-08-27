@@ -229,13 +229,13 @@ function makeStructuredOutputCompatible(
  */
 export interface ConvertSchemaOptions {
   /**
-     * When true, transforms the schema to be compatible with OpenAI's structured output requirements:
-     * - All properties are added to the `required` array
-     * - Optional fields get null added to their type union
-     * - additionalProperties is set to false for all objects
-     *
-     * @default false
-     */
+   * When true, transforms the schema to be compatible with OpenAI's structured output requirements:
+   * - All properties are added to the `required` array
+   * - Optional fields get null added to their type union
+   * - additionalProperties is set to false for all objects
+   *
+   * @default false
+   */
   forStructuredOutput?: boolean
 }
 

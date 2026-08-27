@@ -28,11 +28,11 @@ export type CohereEmbeddingModelInputModalitiesByName = {
 
 /** Available Cohere rerank models. */
 export const /** Available Cohere rerank models. */
-COHERE_RERANK_MODELS = [
-  'rerank-v3.5',
-  'rerank-english-v3.0',
-  'rerank-multilingual-v3.0',
-] as const
+  COHERE_RERANK_MODELS = [
+    'rerank-v3.5',
+    'rerank-english-v3.0',
+    'rerank-multilingual-v3.0',
+  ] as const
 
 /** Union of supported Cohere rerank model names. */
 export type CohereRerankModel = (typeof COHERE_RERANK_MODELS)[number]
@@ -43,9 +43,9 @@ export type CohereRerankModel = (typeof COHERE_RERANK_MODELS)[number]
  */
 export interface CohereRerankProviderOptions {
   /**
-     * Long documents are chunked to fit the model's context. This caps the
-     * number of tokens kept per document. Cohere defaults to 4096.
-     */
+   * Long documents are chunked to fit the model's context. This caps the
+   * number of tokens kept per document. Cohere defaults to 4096.
+   */
   maxTokensPerDoc?: number
 }
 

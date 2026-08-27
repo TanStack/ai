@@ -5,7 +5,7 @@ import type { StreamChunk } from '@tanstack/ai'
 
 /** CUSTOM event name emitted when a harness action needs client approval. */
 export const /** CUSTOM event name emitted when a harness action needs client approval. */
-APPROVAL_REQUESTED_EVENT = 'approval-requested'
+  APPROVAL_REQUESTED_EVENT = 'approval-requested'
 
 /** A stable, opaque approval id for a harness action. */
 export function approvalId(input: {

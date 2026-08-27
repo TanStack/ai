@@ -14,9 +14,9 @@ export type GrokReasoning = Omit<
  */
 export interface GrokBaseOptions {
   /**
-     * A unique identifier representing your end-user.
-     * Can help xAI to monitor and detect abuse.
-     */
+   * A unique identifier representing your end-user.
+   * Can help xAI to monitor and detect abuse.
+   */
   user?: string
 }
 
@@ -25,30 +25,30 @@ export interface GrokBaseOptions {
  */
 export interface GrokSamplingOptions {
   /**
-     * Temperature for response generation (0-2)
-     * Higher values make output more random, lower values more focused
-     */
+   * Temperature for response generation (0-2)
+   * Higher values make output more random, lower values more focused
+   */
   temperature?: number
   /**
-     * Top-p sampling parameter (0-1)
-     * Alternative to temperature, nucleus sampling
-     */
+   * Top-p sampling parameter (0-1)
+   * Alternative to temperature, nucleus sampling
+   */
   top_p?: number
   /**
-     * Maximum tokens in the response
-     */
+   * Maximum tokens in the response
+   */
   max_output_tokens?: number
   /**
-     * Whether xAI should store the response. Defaults to `false` in the adapter.
-     */
+   * Whether xAI should store the response. Defaults to `false` in the adapter.
+   */
   store?: boolean
   /**
-     * Additional response fields to include. Defaults to encrypted reasoning.
-     */
+   * Additional response fields to include. Defaults to encrypted reasoning.
+   */
   include?: ResponseCreateParams['include']
   /**
-     * xAI/OpenAI-compatible reasoning controls for reasoning-capable models.
-     */
+   * xAI/OpenAI-compatible reasoning controls for reasoning-capable models.
+   */
   reasoning?: GrokReasoning
 }
 

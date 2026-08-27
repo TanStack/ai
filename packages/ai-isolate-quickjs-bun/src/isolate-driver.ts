@@ -15,15 +15,15 @@ import type { QuickJSBunModule } from './isolate-context'
 
 /** Default execution timeout in ms (matches the other isolate drivers). */
 const /** Default execution timeout in ms (matches the other isolate drivers). */
-DEFAULT_TIMEOUT_MS = 30000
+  DEFAULT_TIMEOUT_MS = 30000
 
 /** Default memory limit in MB (matches the other isolate drivers). */
 const /** Default memory limit in MB (matches the other isolate drivers). */
-DEFAULT_MEMORY_LIMIT_MB = 128
+  DEFAULT_MEMORY_LIMIT_MB = 128
 
 /** Default max stack size in bytes (matches the QuickJS WASM driver). */
 const /** Default max stack size in bytes (matches the QuickJS WASM driver). */
-DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+  DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
 /**
  * quickjs-bun's exports map only declares a `bun` condition (no import/default).
@@ -131,28 +131,28 @@ async function loadQuickJSLibrary(): Promise<QuickJS> {
  */
 export interface QuickJSBunIsolateDriverConfig {
   /**
-     * Default execution timeout in ms (default: 30000)
-     */
+   * Default execution timeout in ms (default: 30000)
+   */
   timeout?: number
 
   /**
-     * Default memory limit in MB (default: 128).
-     * Applied via QuickJS `JS_SetMemoryLimit` on the per-context runtime.
-     */
+   * Default memory limit in MB (default: 128).
+   * Applied via QuickJS `JS_SetMemoryLimit` on the per-context runtime.
+   */
   memoryLimit?: number
 
   /**
-     * Default max stack size in bytes (default: 512 KiB).
-     * Applied via QuickJS `JS_SetMaxStackSize` on the per-context runtime.
-     */
+   * Default max stack size in bytes (default: 512 KiB).
+   * Applied via QuickJS `JS_SetMaxStackSize` on the per-context runtime.
+   */
   maxStackSize?: number
 
   /**
-     * Maximum number of host tool calls a single execution may make (default:
-     * 1000). Bounds output and memory growth from untrusted sandbox code (e.g. a
-     * `Promise.all` over a huge array); exceeding it throws a catchable error
-     * inside the sandbox. The execution timeout still bounds wall-clock time.
-     */
+   * Maximum number of host tool calls a single execution may make (default:
+   * 1000). Bounds output and memory growth from untrusted sandbox code (e.g. a
+   * `Promise.all` over a huge array); exceeding it throws a catchable error
+   * inside the sandbox. The execution timeout still bounds wall-clock time.
+   */
   maxToolCalls?: number
 }
 
@@ -211,11 +211,11 @@ export function createQuickJSBunIsolateDriver(
 
   return {
     /**
-         * Create a fresh isolate context backed by its own QuickJS runtime +
-         * context. Each context gets a dedicated runtime, so its memory/stack
-         * limits and job queue are independent of every other context. Throws on
-         * Node.js — this driver requires the Bun runtime.
-         */
+     * Create a fresh isolate context backed by its own QuickJS runtime +
+     * context. Each context gets a dedicated runtime, so its memory/stack
+     * limits and job queue are independent of every other context. Throws on
+     * Node.js — this driver requires the Bun runtime.
+     */
     async createContext(isolateConfig: IsolateConfig): Promise<IsolateContext> {
       if (typeof Bun === 'undefined') {
         throw new Error(

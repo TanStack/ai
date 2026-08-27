@@ -154,10 +154,10 @@ export class GeminiTextAdapter<
   }
 
   /**
-     * Generate structured output using Gemini's native JSON response format.
-     * Uses responseMimeType: 'application/json' and responseSchema for structured output.
-     * The outputSchema is already JSON Schema (converted in the ai layer).
-     */
+   * Generate structured output using Gemini's native JSON response format.
+   * Uses responseMimeType: 'application/json' and responseSchema for structured output.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   */
   async structuredOutput(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -215,8 +215,8 @@ export class GeminiTextAdapter<
   }
 
   /**
-     * Extract text content from a non-streaming response
-     */
+   * Extract text content from a non-streaming response
+   */
   private extractTextFromResponse(response: GenerateContentResponse): string {
     let textContent = ''
 
@@ -737,14 +737,14 @@ export class GeminiTextAdapter<
   }
 
   /**
-     * Merge consecutive messages of the same role into a single message.
-     * Gemini's API requires strictly alternating user/model roles.
-     * Tool results are mapped to role:'user', which can collide with actual
-     * user messages in multi-turn conversations.
-     *
-     * Also filters out empty model messages (e.g., from a previous failed request)
-     * and deduplicates functionResponse parts with the same name (tool call ID).
-     */
+   * Merge consecutive messages of the same role into a single message.
+   * Gemini's API requires strictly alternating user/model roles.
+   * Tool results are mapped to role:'user', which can collide with actual
+   * user messages in multi-turn conversations.
+   *
+   * Also filters out empty model messages (e.g., from a previous failed request)
+   * and deduplicates functionResponse parts with the same name (tool call ID).
+   */
   private mergeConsecutiveSameRoleMessages(
     messages: Array<Content>,
   ): Array<Content> {
@@ -846,11 +846,11 @@ export class GeminiTextAdapter<
   }
 
   /**
-     * Gemini 3.x natively combines `tools` + `responseSchema` in a single
-     * streaming `generateContentStream` call (issue #605). Gemini 2.x is
-     * documented as brittle for the combination and keeps the engine's
-     * legacy finalization path.
-     */
+   * Gemini 3.x natively combines `tools` + `responseSchema` in a single
+   * streaming `generateContentStream` call (issue #605). Gemini 2.x is
+   * documented as brittle for the combination and keeps the engine's
+   * legacy finalization path.
+   */
   supportsCombinedToolsAndSchema(): boolean {
     return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }

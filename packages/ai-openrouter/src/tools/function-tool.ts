@@ -9,15 +9,15 @@ export interface FunctionTool {
     parameters: Record<string, unknown>
   }
   /**
-     * Anthropic-style prompt-cache breakpoint for the tool definition.
-     *
-     * The SDK accepts this camelCase field as a top-level sibling of `function`
-     * and remaps it to `cache_control` on the wire (its outbound Zod schema
-     * strips an unrecognized snake_case `cache_control`, so the field must be
-     * `cacheControl`). Forwarding it lets callers cache tool definitions through
-     * OpenRouter exactly as `@tanstack/ai-anthropic` does directly. Uses the
-     * SDK's `ChatContentCacheControl` type, matching `OpenRouterSystemPromptMetadata`.
-     */
+   * Anthropic-style prompt-cache breakpoint for the tool definition.
+   *
+   * The SDK accepts this camelCase field as a top-level sibling of `function`
+   * and remaps it to `cache_control` on the wire (its outbound Zod schema
+   * strips an unrecognized snake_case `cache_control`, so the field must be
+   * `cacheControl`). Forwarding it lets callers cache tool definitions through
+   * OpenRouter exactly as `@tanstack/ai-anthropic` does directly. Uses the
+   * SDK's `ChatContentCacheControl` type, matching `OpenRouterSystemPromptMetadata`.
+   */
   cacheControl?: ChatContentCacheControl
 }
 

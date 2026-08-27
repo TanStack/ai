@@ -3,13 +3,13 @@ import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /** Harness-native tool names surfaced in Grok `thought` narration. */
 export const /** Harness-native tool names surfaced in Grok `thought` narration. */
-GROK_NATIVE_TOOL_NAMES = [
-  'run_terminal_command',
-  'get_command_or_subagent_output',
-  'tanstackStartRecipe',
-  'exposePreview',
-  'expose_preview',
-] as const
+  GROK_NATIVE_TOOL_NAMES = [
+    'run_terminal_command',
+    'get_command_or_subagent_output',
+    'tanstackStartRecipe',
+    'exposePreview',
+    'expose_preview',
+  ] as const
 
 type NativeToolName = (typeof GROK_NATIVE_TOOL_NAMES)[number]
 
@@ -53,24 +53,24 @@ const TOOL_ENTRY_PATTERNS: Array<{ re: RegExp; name: NativeToolName }> = [
 
 /** Distinct literals we must not split across token boundaries when flushing planning. */
 const /** Distinct literals we must not split across token boundaries when flushing planning. */
-HOLD_LITERALS = [
-  'run_terminal_command',
-  'get_command_or_subagent_output',
-  'tanstackStartRecipe',
-  'exposePreview',
-  'expose_preview',
-  'mcp__tanstack__',
-  'Use run_terminal_command',
-  'For tanstackStartRecipe',
-  'command ran',
-  'ran successfully',
-  'Still installing',
-  'running in background',
-  'npx --yes',
-  'pnpm dev',
-  'pnpm install',
-  'npm run dev',
-]
+  HOLD_LITERALS = [
+    'run_terminal_command',
+    'get_command_or_subagent_output',
+    'tanstackStartRecipe',
+    'exposePreview',
+    'expose_preview',
+    'mcp__tanstack__',
+    'Use run_terminal_command',
+    'For tanstackStartRecipe',
+    'command ran',
+    'ran successfully',
+    'Still installing',
+    'running in background',
+    'npx --yes',
+    'pnpm dev',
+    'pnpm install',
+    'npm run dev',
+  ]
 
 export function findEarliestToolEntry(
   buffer: string,

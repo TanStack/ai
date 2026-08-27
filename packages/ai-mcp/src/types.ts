@@ -28,20 +28,20 @@ export interface McpToolMetadata {
   /** Server-native (UNPREFIXED) tool name, even when the client sets a `prefix`. */
   serverToolName: string
   /**
-     * Human-readable display name, resolved with the MCP spec's precedence:
-     * `title` → `annotations.title` → `name`. Always set, so a UI can render it
-     * without re-implementing the fallback chain.
-     */
+   * Human-readable display name, resolved with the MCP spec's precedence:
+   * `title` → `annotations.title` → `name`. Always set, so a UI can render it
+   * without re-implementing the fallback chain.
+   */
   title: string
   /** The owning client's `prefix` (the value a widget sends as `serverId`). */
   serverId?: string
   /** MCP Apps widget link, from the tool def's `_meta.ui.resourceUri`. */
   uiResourceUri?: string
   /**
-     * The server's `annotations` for this tool, forwarded verbatim (absent when
-     * the server declares none). All fields are **hints** — useful for display
-     * and for shaping an approval UI, never a security boundary.
-     */
+   * The server's `annotations` for this tool, forwarded verbatim (absent when
+   * the server declares none). All fields are **hints** — useful for display
+   * and for shaping an approval UI, never a security boundary.
+   */
   annotations?: ToolAnnotations
 }
 
@@ -88,29 +88,29 @@ export interface MCPClientOptions {
   name?: string
   version?: string
   /**
-     * Options forwarded verbatim to the MCP SDK's `Client`.
-     *
-     * The one that matters in practice is `jsonSchemaValidator`. The SDK
-     * validates a tool's `structuredContent` against its declared `outputSchema`,
-     * and its default validator is AJV — which compiles each schema by building
-     * JavaScript source and passing it to `new Function`. Edge runtimes forbid
-     * that: on Cloudflare Workers every call to a tool with an `outputSchema`
-     * fails with `Code generation from strings disallowed for this context`,
-     * wrapped by AJV as `Error compiling schema`.
-     *
-     * The SDK ships the fix (`CfWorkerJsonSchemaValidator`, backed by the
-     * optional peer `@cfworker/json-schema`) but it can only be installed through
-     * `ClientOptions`, which this package did not expose.
-     *
-     * ```ts
-     * import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
-     *
-     * const mcp = await createMCPClient({
-     *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-     *   clientOptions: { jsonSchemaValidator: new CfWorkerJsonSchemaValidator() },
-     * })
-     * ```
-     */
+   * Options forwarded verbatim to the MCP SDK's `Client`.
+   *
+   * The one that matters in practice is `jsonSchemaValidator`. The SDK
+   * validates a tool's `structuredContent` against its declared `outputSchema`,
+   * and its default validator is AJV — which compiles each schema by building
+   * JavaScript source and passing it to `new Function`. Edge runtimes forbid
+   * that: on Cloudflare Workers every call to a tool with an `outputSchema`
+   * fails with `Code generation from strings disallowed for this context`,
+   * wrapped by AJV as `Error compiling schema`.
+   *
+   * The SDK ships the fix (`CfWorkerJsonSchemaValidator`, backed by the
+   * optional peer `@cfworker/json-schema`) but it can only be installed through
+   * `ClientOptions`, which this package did not expose.
+   *
+   * ```ts
+   * import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
+   *
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   clientOptions: { jsonSchemaValidator: new CfWorkerJsonSchemaValidator() },
+   * })
+   * ```
+   */
   clientOptions?: ClientOptions
 }
 

@@ -22,50 +22,50 @@ import type { Snippet, SnippetStorage } from './types'
  */
 export interface SnippetToToolOptions {
   /**
-     * The snippet to convert
-     */
+   * The snippet to convert
+   */
   snippet: Snippet
 
   /**
-     * Isolate driver for executing snippet code
-     */
+   * Isolate driver for executing snippet code
+   */
   driver: IsolateDriver
 
   /**
-     * Pre-computed bindings for external_* functions
-     */
+   * Pre-computed bindings for external_* functions
+   */
   bindings: Record<string, ToolBinding>
 
   /**
-     * Storage for updating execution stats
-     */
+   * Storage for updating execution stats
+   */
   storage: SnippetStorage
 
   /**
-     * Timeout for snippet execution in ms
-     * @default 30000
-     */
+   * Timeout for snippet execution in ms
+   * @default 30000
+   */
   timeout?: number
 
   /**
-     * Memory limit in bytes
-     * @default 128
-     */
+   * Memory limit in bytes
+   * @default 128
+   */
   memoryLimit?: number
 }
 
 interface SnippetsToToolsOptions {
   /**
-     * Snippets to convert to tools
-     */
+   * Snippets to convert to tools
+   */
   snippets: Array<Snippet>
 
   driver: IsolateDriver
 
   /**
-     * Original tools that become external_* bindings
-     * (so snippets can call external_* functions)
-     */
+   * Original tools that become external_* bindings
+   * (so snippets can call external_* functions)
+   */
   tools: Array<CodeModeTool>
 
   storage: SnippetStorage

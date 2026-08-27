@@ -29,12 +29,12 @@ export interface SandboxAgentEnv
   /** This coordinator DO's own namespace (so the Worker can address it). */
   RUN_COORDINATOR: DurableObjectNamespace<SandboxCoordinator<SandboxAgentEnv>>
   /**
-     * Custom domain (with a `*.<domain>` route) for browser-facing `exposePort`
-     * preview URLs. Optional: unset → request-derived (local dev → `localhost`).
-     * REQUIRED on a `*.workers.dev` deploy (no wildcard subdomains). Distinct from
-     * `PUBLIC_HOSTNAME`, which is the CONTAINER→Worker bridge host. See
-     * {@link resolvePreviewHost}.
-     */
+   * Custom domain (with a `*.<domain>` route) for browser-facing `exposePort`
+   * preview URLs. Optional: unset → request-derived (local dev → `localhost`).
+   * REQUIRED on a `*.workers.dev` deploy (no wildcard subdomains). Distinct from
+   * `PUBLIC_HOSTNAME`, which is the CONTAINER→Worker bridge host. See
+   * {@link resolvePreviewHost}.
+   */
   PREVIEW_HOSTNAME?: string
 }
 
@@ -52,26 +52,26 @@ export interface DoDrivesAgentConfig<
   /** The harness/text adapter `chat()` runs, resolved per run. */
   adapter: (input: StartRunInput, env: TEnv) => AnyTextAdapter
   /**
-     * Base system prompts prepended to every run's `chat()` (DO-drives only — the DO
-     * runs `chat()` itself). The natural home for transport-level guidance the agent
-     * needs regardless of what it builds — e.g. `systemPrompts: [PREVIEW_GUIDANCE]`
-     * so previews don't reload-loop. See {@link PREVIEW_GUIDANCE}.
-     */
+   * Base system prompts prepended to every run's `chat()` (DO-drives only — the DO
+   * runs `chat()` itself). The natural home for transport-level guidance the agent
+   * needs regardless of what it builds — e.g. `systemPrompts: [PREVIEW_GUIDANCE]`
+   * so previews don't reload-loop. See {@link PREVIEW_GUIDANCE}.
+   */
   systemPrompts?: Array<SystemPrompt>
   /**
-     * The sandbox the agent runs in, resolved per run. When omitted, a default
-     * Cloudflare sandbox (one per thread, no source clone, NO auth secrets) is built
-     * from the `Sandbox` binding and the resolved preview host, optionally
-     * bootstrapping `workspace`. Supply the harness's API key either here (a custom
-     * `sandbox` resolver whose workspace declares the secret) or via `workspace`
-     * below — the package binds no key of its own.
-     */
+   * The sandbox the agent runs in, resolved per run. When omitted, a default
+   * Cloudflare sandbox (one per thread, no source clone, NO auth secrets) is built
+   * from the `Sandbox` binding and the resolved preview host, optionally
+   * bootstrapping `workspace`. Supply the harness's API key either here (a custom
+   * `sandbox` resolver whose workspace declares the secret) or via `workspace`
+   * below — the package binds no key of its own.
+   */
   sandbox?: (input: StartRunInput, env: TEnv) => SandboxDefinition
   /**
-     * Workspace for the default sandbox (ignored when `sandbox` is provided). This is
-     * where a default-sandbox app declares its harness auth, e.g.
-     * `defineWorkspace({ source: { type: 'none' }, secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }) })`.
-     */
+   * Workspace for the default sandbox (ignored when `sandbox` is provided). This is
+   * where a default-sandbox app declares its harness auth, e.g.
+   * `defineWorkspace({ source: { type: 'none' }, secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }) })`.
+   */
   workspace?: WorkspaceDefinition
 }
 

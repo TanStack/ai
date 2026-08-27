@@ -10,15 +10,15 @@ import type {
 
 /** Name of the CUSTOM event carrying the OpenCode session id. */
 export const /** Name of the CUSTOM event carrying the OpenCode session id. */
-SESSION_ID_EVENT = 'opencode.session-id'
+  SESSION_ID_EVENT = 'opencode.session-id'
 
 /** Name of the CUSTOM event carrying the harness's todo list updates. */
 export const /** Name of the CUSTOM event carrying the harness's todo list updates. */
-TODO_EVENT = 'opencode.todo'
+  TODO_EVENT = 'opencode.todo'
 
 /** Server name used for bridged TanStack tools. */
 export const /** Server name used for bridged TanStack tools. */
-BRIDGED_MCP_SERVER_NAME = 'tanstack'
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -27,9 +27,9 @@ export interface TranslateContext {
   parentRunId?: string
   genId: () => string
   /**
-     * Names of bridged TanStack tools, used to surface the harness's MCP tool
-     * calls under the names the application registered.
-     */
+   * Names of bridged TanStack tools, used to surface the harness's MCP tool
+   * calls under the names the application registered.
+   */
   bridgedToolNames?: ReadonlySet<string>
   /** Called for each raw stream event, for logging. */
   onStreamEvent?: (event: OpencodeStreamEvent) => void
@@ -125,17 +125,17 @@ export async function* translateOpencodeStream(
   let runStarted = false
   /** Tool calls started but with no result yet, keyed by callID. */
   const /** Tool calls started but with no result yet, keyed by callID. */
-unresolvedToolCalls = new Set<string>()
+    unresolvedToolCalls = new Set<string>()
   /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
   const /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
-openedToolCalls = new Set<string>()
+    openedToolCalls = new Set<string>()
   /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
   const /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
-resolvedToolCalls = new Set<string>()
+    resolvedToolCalls = new Set<string>()
 
   /** Accumulated text per text-part id, for delta derivation. */
   const /** Accumulated text per text-part id, for delta derivation. */
-textAccumulators = new Map<string, string>()
+    textAccumulators = new Map<string, string>()
   let openTextId: string | null = null
   let openReasoningId: string | null = null
 

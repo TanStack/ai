@@ -44,16 +44,16 @@ export interface BytePlusImageUrlContentPart {
     /** Public audio URL. Mutually exclusive with `data`. */
     url: string
     /**
-       * Processing detail for the image. Ark adds `xhigh` to OpenAI's set.
-       *
-       * @default 'auto'
-       */
+     * Processing detail for the image. Ark adds `xhigh` to OpenAI's set.
+     *
+     * @default 'auto'
+     */
     detail?: 'auto' | 'low' | 'high' | 'xhigh'
     /**
-       * Bounds the pixel count the image is scaled to before tokenization —
-       * see {@link BytePlusImagePixelLimit}. Lower `max_pixels` trades detail for
-       * input tokens.
-       */
+     * Bounds the pixel count the image is scaled to before tokenization —
+     * see {@link BytePlusImagePixelLimit}. Lower `max_pixels` trades detail for
+     * input tokens.
+     */
     image_pixel_limit?: BytePlusImagePixelLimit
   }
 }
@@ -67,9 +67,9 @@ export interface BytePlusVideoUrlContentPart {
   video_url: {
     url: string
     /**
-         * Frame sampling rate in frames per second. Omitted by the adapter unless
-         * the caller sets it through content-part metadata.
-         */
+     * Frame sampling rate in frames per second. Omitted by the adapter unless
+     * the caller sets it through content-part metadata.
+     */
     fps?: number
   }
 }

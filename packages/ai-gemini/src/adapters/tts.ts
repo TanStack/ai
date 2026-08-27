@@ -26,9 +26,9 @@ export interface GeminiSpeakerVoiceConfig {
   voiceConfig: {
     prebuiltVoiceConfig: {
       /**
-             * The voice name to use for speech synthesis.
-             * @see https://ai.google.dev/gemini-api/docs/speech-generation#voices
-             */
+       * The voice name to use for speech synthesis.
+       * @see https://ai.google.dev/gemini-api/docs/speech-generation#voices
+       */
       voiceName: GeminiTTSVoice
     }
   }
@@ -50,45 +50,45 @@ export interface GeminiTTSProviderOptions {
   }
 
   /**
-     * Multi-speaker voice configuration (up to 2 speakers).
-     * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
-     *
-     * Each speaker's lines in the prompt are prefixed with the name defined
-     * here, e.g.:
-     *
-     * ```text
-     * Joe: Hey, how's it going?
-     * Jane: Not bad, you?
-     * ```
-     */
+   * Multi-speaker voice configuration (up to 2 speakers).
+   * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
+   *
+   * Each speaker's lines in the prompt are prefixed with the name defined
+   * here, e.g.:
+   *
+   * ```text
+   * Joe: Hey, how's it going?
+   * Jane: Not bad, you?
+   * ```
+   */
   multiSpeakerVoiceConfig?: {
     speakerVoiceConfigs: Array<GeminiSpeakerVoiceConfig>
   }
 
   /**
-     * System instruction for controlling speech style.
-     * Use natural language to describe the desired speaking style,
-     * pace, tone, accent, or other characteristics.
-     *
-     * With Gemini 3.1 Flash TTS, you can also use inline audio tags like
-     * `[whispering]`, `[laughs]`, `[excited]` directly in the input text
-     * to control delivery.
-     *
-     * @example "Speak slowly and calmly, as if telling a bedtime story"
-     * @example "Use an upbeat, enthusiastic tone with moderate pace"
-     * @example "Speak with a British accent"
-     */
+   * System instruction for controlling speech style.
+   * Use natural language to describe the desired speaking style,
+   * pace, tone, accent, or other characteristics.
+   *
+   * With Gemini 3.1 Flash TTS, you can also use inline audio tags like
+   * `[whispering]`, `[laughs]`, `[excited]` directly in the input text
+   * to control delivery.
+   *
+   * @example "Speak slowly and calmly, as if telling a bedtime story"
+   * @example "Use an upbeat, enthusiastic tone with moderate pace"
+   * @example "Speak with a British accent"
+   */
   systemInstruction?: string
 
   /**
-     * Language code hint for the speech synthesis.
-     * Gemini 3.1 Flash TTS supports 70+ languages with auto-detection;
-     * the 2.5 TTS models support 24 languages.
-     *
-     * @example "en-US" for American English
-     * @example "es-ES" for Spanish (Spain)
-     * @example "ja-JP" for Japanese
-     */
+   * Language code hint for the speech synthesis.
+   * Gemini 3.1 Flash TTS supports 70+ languages with auto-detection;
+   * the 2.5 TTS models support 24 languages.
+   *
+   * @example "en-US" for American English
+   * @example "es-ES" for Spanish (Spain)
+   * @example "ja-JP" for Japanese
+   */
   languageCode?: string
 }
 
@@ -129,11 +129,11 @@ export class GeminiTTSAdapter<
   }
 
   /**
-     * Generate speech from text using Gemini's TTS model.
-     *
-     * @experimental This implementation is experimental and may change.
-     * @see https://ai.google.dev/gemini-api/docs/speech-generation
-     */
+   * Generate speech from text using Gemini's TTS model.
+   *
+   * @experimental This implementation is experimental and may change.
+   * @see https://ai.google.dev/gemini-api/docs/speech-generation
+   */
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {

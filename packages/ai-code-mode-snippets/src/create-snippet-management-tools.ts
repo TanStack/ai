@@ -10,33 +10,33 @@ import type { TrustStrategy } from './trust-strategies'
 
 interface CreateSnippetManagementToolsOptions {
   /**
-     * Storage implementation for snippets
-     */
+   * Storage implementation for snippets
+   */
   storage: SnippetStorage
 
   /**
-     * Trust strategy for determining initial trust level.
-     * If not provided, uses the storage's trustStrategy or falls back to default.
-     */
+   * Trust strategy for determining initial trust level.
+   * If not provided, uses the storage's trustStrategy or falls back to default.
+   */
   trustStrategy?: TrustStrategy
 
   /**
-     * Tool registry for adding newly registered snippets immediately.
-     * When provided, register_snippet will add the new snippet to this registry
-     * so it's available as a direct tool in the current chat session.
-     */
+   * Tool registry for adding newly registered snippets immediately.
+   * When provided, register_snippet will add the new snippet to this registry
+   * so it's available as a direct tool in the current chat session.
+   */
   registry?: ToolRegistry
 
   /**
-     * Code mode config for creating snippet tools.
-     * Required when registry is provided.
-     */
+   * Code mode config for creating snippet tools.
+   * Required when registry is provided.
+   */
   config?: CodeModeToolConfig
 
   /**
-     * Pre-computed bindings for external_* functions.
-     * Required when registry is provided.
-     */
+   * Pre-computed bindings for external_* functions.
+   * Required when registry is provided.
+   */
   baseBindings?: Record<string, ToolBinding>
 }
 

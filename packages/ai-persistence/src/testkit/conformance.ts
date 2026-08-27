@@ -60,16 +60,16 @@ async function drainStream(
 
 export interface PersistenceConformanceOptions {
   /**
-     * Store keys this backend intentionally does not provide. Any store that is
-     * absent from the persistence and NOT listed here fails the suite, so a
-     * dropped/misconfigured store can never pass silently.
-     */
+   * Store keys this backend intentionally does not provide. Any store that is
+   * absent from the persistence and NOT listed here fails the suite, so a
+   * dropped/misconfigured store can never pass silently.
+   */
   skip?: Array<keyof AIPersistenceStores>
   /**
-     * OPTIONAL store methods this backend intentionally does not implement, as
-     * `'runs.listByThread'` and friends. A method that is absent and NOT listed
-     * here fails the suite; a listed one is reported as a skipped case.
-     */
+   * OPTIONAL store methods this backend intentionally does not implement, as
+   * `'runs.listByThread'` and friends. A method that is absent and NOT listed
+   * here fails the suite; a listed one is reported as a skipped case.
+   */
   skipMethods?: Array<PersistenceConformanceMethodKey>
 }
 
@@ -96,10 +96,10 @@ export function runPersistenceConformance(
     })
 
     /**
-         * Return the store for `key`, or `null` when the backend intentionally
-         * skips it. Throws (failing the test) when a store is missing but was not
-         * declared in `options.skip`.
-         */
+     * Return the store for `key`, or `null` when the backend intentionally
+     * skips it. Throws (failing the test) when a store is missing but was not
+     * declared in `options.skip`.
+     */
     function resolveStore<TKey extends keyof AIPersistenceStores>(
       key: TKey,
     ): NonNullable<AIPersistenceStores[TKey]> | null {
@@ -113,14 +113,14 @@ export function runPersistenceConformance(
     }
 
     /**
-         * Narrow `runs` to a store that definitely implements the optional method
-         * `methodName`, so the case can call it without a non-null assertion.
-         *
-         * Returns `false` only when the omission was declared in
-         * `options.skipMethods` (the caller then reports a skip). An undeclared
-         * omission throws, mirroring `resolveStore`: a case that cannot run must
-         * never be reported as a pass.
-         */
+     * Narrow `runs` to a store that definitely implements the optional method
+     * `methodName`, so the case can call it without a non-null assertion.
+     *
+     * Returns `false` only when the omission was declared in
+     * `options.skipMethods` (the caller then reports a skip). An undeclared
+     * omission throws, mirroring `resolveStore`: a case that cannot run must
+     * never be reported as a pass.
+     */
     function hasRunsMethod<TName extends OptionalRunStoreMethod>(
       runs: RunStore,
       methodName: TName,

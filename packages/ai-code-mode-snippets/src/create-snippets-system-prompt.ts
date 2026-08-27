@@ -3,19 +3,19 @@ import type { Snippet } from './types'
 
 interface CreateSnippetsSystemPromptOptions {
   /**
-     * Snippets that were selected for this request
-     */
+   * Snippets that were selected for this request
+   */
   selectedSnippets: Array<Snippet>
 
   /**
-     * Total number of snippets in the library
-     */
+   * Total number of snippets in the library
+   */
   totalSnippetCount: number
 
   /**
-     * Whether snippets are exposed as direct tools (not just sandbox bindings)
-     * @default true
-     */
+   * Whether snippets are exposed as direct tools (not just sandbox bindings)
+   * @default true
+   */
   snippetsAsTools?: boolean
 }
 

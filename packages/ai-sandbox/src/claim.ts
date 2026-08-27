@@ -5,7 +5,7 @@ import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 
 /** Quiescence window before a successor's first append. */
 export const /** Quiescence window before a successor's first append. */
-DEFAULT_FENCE_QUIET_MS = 5_000
+  DEFAULT_FENCE_QUIET_MS = 5_000
 
 /**
  * Appends a fenced log makes between `driverEpoch` re-reads.
@@ -22,7 +22,7 @@ export const DEFAULT_EPOCH_RECHECK_APPENDS = 32
 
 /** Probes {@link awaitLogQuiescence} makes before giving up. */
 const /** Probes {@link awaitLogQuiescence} makes before giving up. */
-MAX_QUIESCENCE_PROBES = 6
+  MAX_QUIESCENCE_PROBES = 6
 
 /** Lock key for a run's driver. Per-run, so two runs never serialize. */
 export function runDriverLockKey(runId: string): string {
@@ -68,19 +68,19 @@ export interface WithRunClaimOptions {
   locks: LockStore
   runId: string
   /**
-     * Quiescence window for {@link awaitLogQuiescence}. Defaults to
-     * {@link DEFAULT_FENCE_QUIET_MS}.
-     *
-     * `withRunClaim` itself does not read this: it has no durability handle. It
-     * lives here so a caller assembling a drive passes ONE options object to
-     * `withRunClaim`, `awaitLogQuiescence`, and {@link fenceDurability} instead of
-     * three that can drift apart.
-     */
+   * Quiescence window for {@link awaitLogQuiescence}. Defaults to
+   * {@link DEFAULT_FENCE_QUIET_MS}.
+   *
+   * `withRunClaim` itself does not read this: it has no durability handle. It
+   * lives here so a caller assembling a drive passes ONE options object to
+   * `withRunClaim`, `awaitLogQuiescence`, and {@link fenceDurability} instead of
+   * three that can drift apart.
+   */
   fenceQuietMs?: number
   /**
-     * Forwarded to {@link fenceDurability}. Defaults to
-     * {@link DEFAULT_EPOCH_RECHECK_APPENDS}. Same rationale as `fenceQuietMs`.
-     */
+   * Forwarded to {@link fenceDurability}. Defaults to
+   * {@link DEFAULT_EPOCH_RECHECK_APPENDS}. Same rationale as `fenceQuietMs`.
+   */
   epochRecheckAppends?: number
   logger?: InternalLogger
 }

@@ -8,9 +8,9 @@ import type Anthropic_SDK from '@anthropic-ai/sdk'
  */
 export type AnthropicProviderUsageDetails = {
   /**
-     * Server-side tool usage metrics.
-     * Available when using Anthropic's built-in tools like web search.
-     */
+   * Server-side tool usage metrics.
+   * Available when using Anthropic's built-in tools like web search.
+   */
   serverToolUse?: {
     /** Number of web search requests made during the response */
     webSearchRequests?: number

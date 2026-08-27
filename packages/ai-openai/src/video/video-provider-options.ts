@@ -26,15 +26,15 @@ export type OpenAIVideoSeconds = '4' | '8' | '12'
  */
 export interface OpenAIVideoProviderOptions {
   /**
-     * Video size in WIDTHxHEIGHT format.
-     * Supported: '1280x720', '720x1280', '1792x1024', '1024x1792'
-     */
+   * Video size in WIDTHxHEIGHT format.
+   * Supported: '1280x720', '720x1280', '1792x1024', '1024x1792'
+   */
   size?: OpenAIVideoSize
 
   /**
-     * Video duration in seconds.
-     * Supported values: 4, 8, or 12 seconds.
-     */
+   * Video duration in seconds.
+   * Supported values: 4, 8, or 12 seconds.
+   */
   seconds?: OpenAIVideoSeconds
 }
 

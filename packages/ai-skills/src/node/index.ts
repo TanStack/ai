@@ -62,8 +62,7 @@ async function resolveInside(dir: string, rel: string): Promise<string> {
   const rootReal = await realpath(dir)
   const fullReal = await realpath(full)
   const prefix = rootReal.endsWith(sep) ? rootReal : rootReal + sep
-  const isOutsideRoot =
-    fullReal !== rootReal && !fullReal.startsWith(prefix)
+  const isOutsideRoot = fullReal !== rootReal && !fullReal.startsWith(prefix)
   if (isOutsideRoot) {
     throw new Error(`unsafe resource path: "${rel}"`)
   }
@@ -79,30 +78,30 @@ export function skillDirectory(
 
   /** Fresh scan of every root → parsed skill name → skill directory. First wins. */
   const /** Fresh scan of every root → parsed skill name → skill directory. First wins. */
-scan = async (): Promise<Map<string, string>> => {
-    const map = new Map<string, string>()
-    for (const r of roots) {
-      const dirs = await walkSkillDirs(nodeLister, r, { maxDepth })
-      for (const d of dirs) {
-        const raw = await readFile(join(d.dir, 'SKILL.md'), 'utf8').catch(
-          () => undefined,
-        )
-        if (raw === undefined) continue
-        try {
-          const parsed = parseSkill(raw, {
-            dirName: basename(d.dir),
-            strict,
-          })
-          if (!map.has(parsed.metadata.name)) {
-            map.set(parsed.metadata.name, d.dir)
+    scan = async (): Promise<Map<string, string>> => {
+      const map = new Map<string, string>()
+      for (const r of roots) {
+        const dirs = await walkSkillDirs(nodeLister, r, { maxDepth })
+        for (const d of dirs) {
+          const raw = await readFile(join(d.dir, 'SKILL.md'), 'utf8').catch(
+            () => undefined,
+          )
+          if (raw === undefined) continue
+          try {
+            const parsed = parseSkill(raw, {
+              dirName: basename(d.dir),
+              strict,
+            })
+            if (!map.has(parsed.metadata.name)) {
+              map.set(parsed.metadata.name, d.dir)
+            }
+          } catch {
+            // Skip unparseable skills (same policy as list()).
           }
-        } catch {
-          // Skip unparseable skills (same policy as list()).
         }
       }
+      return map
     }
-    return map
-  }
 
   const dirOf = async (name: string): Promise<string> => {
     const dir = (await scan()).get(name)

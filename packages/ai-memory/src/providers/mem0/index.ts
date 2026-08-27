@@ -68,9 +68,9 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
   }
 
   /**
-     * mem0 `run_id` — conversation/run isolation. Maps 1:1 to `scope.threadId` so
-     * same-user memories do not leak across threads.
-     */
+   * mem0 `run_id` — conversation/run isolation. Maps 1:1 to `scope.threadId` so
+   * same-user memories do not leak across threads.
+   */
   function runId(scope: MemoryScope): string {
     return scope.threadId
   }

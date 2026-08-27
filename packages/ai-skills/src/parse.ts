@@ -41,8 +41,7 @@ const NAME_RE = /^[a-z0-9-]+$/
 /** Split leading `---` frontmatter from the body. Returns null if absent. */
 function splitFrontmatter(
   raw: string,
-): { frontmatter: string; /** frontmatter stripped. */
-body: string } | null {
+): { frontmatter: string /** frontmatter stripped. */; body: string } | null {
   // Tolerate a BOM and leading blank lines before the opening fence.
   const text = raw.replace(/^﻿/, '')
   const match = /^\s*---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n([\s\S]*))?$/.exec(
@@ -71,9 +70,7 @@ function parseBlockScalar(
   indicator: string,
 ): { value: string; next: number } | undefined {
   const isBlockScalar =
-    indicator === '>' ||
-    indicator === '|' ||
-    /^[>|][+-]?\d*$/.test(indicator)
+    indicator === '>' || indicator === '|' || /^[>|][+-]?\d*$/.test(indicator)
   if (!isBlockScalar) return undefined
 
   const folded = indicator.startsWith('>')

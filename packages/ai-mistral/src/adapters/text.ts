@@ -43,10 +43,10 @@ import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
 const /** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-asChunk = (chunk: Record<string, unknown>) =>
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
-  chunk as unknown as AdapterYieldChunk
+   *  literal types which are structurally compatible with the EventType enum. */
+  asChunk = (chunk: Record<string, unknown>) =>
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
+    chunk as unknown as AdapterYieldChunk
 
 /**
  * Parse the accumulated streaming arguments for a tool call. Throws a clear
@@ -294,8 +294,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Generate structured output using Mistral's JSON Schema response format.
-     */
+   * Generate structured output using Mistral's JSON Schema response format.
+   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -351,8 +351,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Processes streaming chunks from the Mistral API and yields AG-UI stream events.
-     */
+   * Processes streaming chunks from the Mistral API and yields AG-UI stream events.
+   */
   private async *processMistralStreamChunks(
     stream: AsyncIterable<MistralRawChunk>,
     options: TextOptions,
@@ -739,10 +739,10 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Makes a raw fetch request to the Mistral chat completions endpoint and
-     * parses the SSE stream manually, bypassing the SDK's Zod validation which
-     * rejects streaming tool call chunks that omit `name` in argument deltas.
-     */
+   * Makes a raw fetch request to the Mistral chat completions endpoint and
+   * parses the SSE stream manually, bypassing the SDK's Zod validation which
+   * rejects streaming tool call chunks that omit `name` in argument deltas.
+   */
   private async *fetchRawMistralStream(
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
@@ -811,9 +811,9 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Converts the SDK's camelCase `ChatCompletionStreamRequest` into the
-     * snake_case wire body, including converting messages.
-     */
+   * Converts the SDK's camelCase `ChatCompletionStreamRequest` into the
+   * snake_case wire body, including converting messages.
+   */
   private toWireBody(
     params: ChatCompletionStreamRequest,
   ): Record<string, unknown> {
@@ -853,13 +853,13 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Splits a Mistral delta content payload into text and reasoning deltas.
-     * Mistral reasoning models (magistral-*) stream reasoning content as
-     * `{ type: 'thinking', thinking: [{ type: 'text', text }, ...] }` content
-     * parts. A single delta may contain text only, thinking only, or — rarely —
-     * both (when a step transitions); both fields are returned so the caller
-     * can sequence REASONING and TEXT lifecycle events in order.
-     */
+   * Splits a Mistral delta content payload into text and reasoning deltas.
+   * Mistral reasoning models (magistral-*) stream reasoning content as
+   * `{ type: 'thinking', thinking: [{ type: 'text', text }, ...] }` content
+   * parts. A single delta may contain text only, thinking only, or — rarely —
+   * both (when a step transitions); both fields are returned so the caller
+   * can sequence REASONING and TEXT lifecycle events in order.
+   */
   private extractDeltaParts(
     content:
       | string
@@ -891,8 +891,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Maps common TextOptions to Mistral Chat Completions request parameters.
-     */
+   * Maps common TextOptions to Mistral Chat Completions request parameters.
+   */
   private mapTextOptionsToMistral(
     options: TextOptions<TProviderOptions>,
   ): ChatCompletionStreamRequest {
@@ -930,8 +930,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Converts a TanStack AI ModelMessage to a Mistral ChatCompletionMessageParam.
-     */
+   * Converts a TanStack AI ModelMessage to a Mistral ChatCompletionMessageParam.
+   */
   private convertMessageToMistral(
     message: ModelMessage,
   ): ChatCompletionMessageParam {
@@ -990,9 +990,9 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Converts a ContentPart to a Mistral content part. Returns undefined for
-     * unsupported part types.
-     */
+   * Converts a ContentPart to a Mistral content part. Returns undefined for
+   * unsupported part types.
+   */
   private convertContentPartToMistral(
     part: ContentPart,
   ): ChatCompletionContentPart {
@@ -1030,8 +1030,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Normalizes message content to an array of ContentPart.
-     */
+   * Normalizes message content to an array of ContentPart.
+   */
   private normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -1043,8 +1043,8 @@ export class MistralTextAdapter<
   }
 
   /**
-     * Extracts text content from a content value that may be string, null, or ContentPart array.
-     */
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
   private extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {

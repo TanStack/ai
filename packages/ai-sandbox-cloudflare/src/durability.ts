@@ -35,8 +35,11 @@ function encodeOffset(runId: string, seq: number): string {
   return `${RUN_LOG_OFFSET_PREFIX}${encodeURIComponent(runId)}:${seq}`
 }
 
-function decodeOffset(offset: string): { /** The run this durability adapter attaches to. */
-runId: string; seq: number } {
+function decodeOffset(offset: string): {
+  /** The run this durability adapter attaches to. */
+  runId: string
+  seq: number
+} {
   if (!offset.startsWith(RUN_LOG_OFFSET_PREFIX)) {
     throw new Error(`Invalid run-log stream offset: ${offset}`)
   }
@@ -59,9 +62,9 @@ export interface RunLogStreamInit {
   /** The run this durability adapter attaches to. */
   runId: string
   /**
-     * Resume offset captured by the consumer (`resumeFrom()` returns it).
-     * Defaults to `null` (a producer / from-start reader).
-     */
+   * Resume offset captured by the consumer (`resumeFrom()` returns it).
+   * Defaults to `null` (a producer / from-start reader).
+   */
   offset?: string | null
 }
 

@@ -81,17 +81,17 @@ export interface TextAdapter<
   readonly model: TModel
 
   /**
-     * Capabilities this adapter requires at runtime. `chat()` validates that the
-     * configured middleware provides each one. Model adapters omit this; harness
-     * adapters (e.g. a future `claudeCode()`) declare e.g. `[sandboxCapability]`.
-     * Runtime access to capabilities from inside the adapter is not yet wired —
-     * this is the declaration/validation surface only.
-     */
+   * Capabilities this adapter requires at runtime. `chat()` validates that the
+   * configured middleware provides each one. Model adapters omit this; harness
+   * adapters (e.g. a future `claudeCode()`) declare e.g. `[sandboxCapability]`.
+   * Runtime access to capabilities from inside the adapter is not yet wired —
+   * this is the declaration/validation surface only.
+   */
   readonly requires?: ReadonlyArray<CapabilityHandle>
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
@@ -102,75 +102,75 @@ export interface TextAdapter<
   }
 
   /**
-     * Stream text completions from the model
-     */
+   * Stream text completions from the model
+   */
   chatStream: (
     options: TextOptions<TProviderOptions>,
   ) => AsyncIterable<AdapterYieldChunk>
 
   /**
-     * Generate structured output using the provider's native structured output API.
-     * This method uses stream: false and sends the JSON schema to the provider
-     * to ensure the response conforms to the expected structure.
-     *
-     * @param options - Structured output options containing chat options and JSON schema
-     * @returns Promise with the raw data (validation is done in the chat function)
-     */
+   * Generate structured output using the provider's native structured output API.
+   * This method uses stream: false and sends the JSON schema to the provider
+   * to ensure the response conforms to the expected structure.
+   *
+   * @param options - Structured output options containing chat options and JSON schema
+   * @returns Promise with the raw data (validation is done in the chat function)
+   */
   structuredOutput: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => Promise<StructuredOutputResult<unknown>>
 
   /**
-     * Stream structured output using the provider's native streaming structured
-     * output API (stream + response_format json_schema in a single request).
-     *
-     * Optional — adapters without native streaming JSON omit this method and the
-     * activity layer synthesizes a stream around the non-streaming
-     * `structuredOutput` call.
-     *
-     * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
-     * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
-     * `CUSTOM` event named `structured-output.complete` whose `value` is
-     * `{ object, raw, reasoning? }`. Events must be timestamped when emitted so
-     * their timestamps follow stream order.
-     */
+   * Stream structured output using the provider's native streaming structured
+   * output API (stream + response_format json_schema in a single request).
+   *
+   * Optional — adapters without native streaming JSON omit this method and the
+   * activity layer synthesizes a stream around the non-streaming
+   * `structuredOutput` call.
+   *
+   * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
+   * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
+   * `CUSTOM` event named `structured-output.complete` whose `value` is
+   * `{ object, raw, reasoning? }`. Events must be timestamped when emitted so
+   * their timestamps follow stream order.
+   */
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => AsyncIterable<AdapterYieldChunk>
 
   /**
-     * Declares whether the adapter supports combining `tools` and a
-     * schema-constrained final answer in a single streaming request.
-     *
-     * When `true`, the engine wires `outputSchema` into the regular
-     * `chatStream()` call and skips the separate `runStructuredFinalization`
-     * round-trip. The model's natural final turn carries the
-     * schema-constrained JSON text and the engine harvests it from the agent
-     * loop's accumulated content.
-     *
-     * When `false`, `undefined`, or the method is omitted, the engine runs
-     * the agent loop without `outputSchema` and then issues a separate
-     * `structuredOutput` / `structuredOutputStream` call against the JSON
-     * schema for finalization (the legacy path).
-     *
-     * The method receives the per-call `modelOptions` so providers whose
-     * support depends on the resolved upstream model (e.g. OpenRouter) can
-     * answer per-request. Most adapters can return a constant.
-     */
+   * Declares whether the adapter supports combining `tools` and a
+   * schema-constrained final answer in a single streaming request.
+   *
+   * When `true`, the engine wires `outputSchema` into the regular
+   * `chatStream()` call and skips the separate `runStructuredFinalization`
+   * round-trip. The model's natural final turn carries the
+   * schema-constrained JSON text and the engine harvests it from the agent
+   * loop's accumulated content.
+   *
+   * When `false`, `undefined`, or the method is omitted, the engine runs
+   * the agent loop without `outputSchema` and then issues a separate
+   * `structuredOutput` / `structuredOutputStream` call against the JSON
+   * schema for finalization (the legacy path).
+   *
+   * The method receives the per-call `modelOptions` so providers whose
+   * support depends on the resolved upstream model (e.g. OpenRouter) can
+   * answer per-request. Most adapters can return a constant.
+   */
   supportsCombinedToolsAndSchema?: (
     modelOptions?: TProviderOptions | undefined,
   ) => boolean
 
   /**
-     * Where native-combined structured output is taken from.
-     *
-     * - `'text'` (default when omitted): the agent loop's accumulated
-     *   assistant text is schema JSON. The engine parses it after the loop.
-     *   HTTP adapters use this.
-     * - `'event'`: the adapter emits `structured-output.complete` during
-     *   `chatStream`. The engine must not parse accumulated prose. Harness
-     *   adapters use this.
-     */
+   * Where native-combined structured output is taken from.
+   *
+   * - `'text'` (default when omitted): the agent loop's accumulated
+   *   assistant text is schema JSON. The engine parses it after the loop.
+   *   HTTP adapters use this.
+   * - `'event'`: the adapter emits `structured-output.complete` during
+   *   `chatStream`. The engine must not parse accumulated prose. Harness
+   *   adapters use this.
+   */
   combinedStructuredOutputSource?: (
     modelOptions?: TProviderOptions | undefined,
   ) => 'text' | 'event'

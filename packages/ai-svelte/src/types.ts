@@ -100,9 +100,9 @@ export type CreateChatOptions<
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
-     * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
-     * Schema). Used to infer the shape of `partial` and `final`.
-     */
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
   outputSchema?: TSchema
 } & ClientContextOptionFromTools<TTools, TContext>
 
@@ -126,15 +126,15 @@ export type CreateChatReturn<
   (TSchema extends SchemaInput
     ? {
         /**
-                 * Live progressively-parsed structured output (reactive getter).
-                 * Derived from the latest assistant message's structured-output part.
-                 */
+         * Live progressively-parsed structured output (reactive getter).
+         * Derived from the latest assistant message's structured-output part.
+         */
         readonly partial: DeepPartial<InferSchemaType<TSchema>>
         /**
-                 * Final, schema-validated structured output (reactive getter). `null`
-                 * until the latest assistant turn's structured-output part transitions
-                 * to `complete`.
-                 */
+         * Final, schema-validated structured output (reactive getter). `null`
+         * until the latest assistant turn's structured-output part transitions
+         * to `complete`.
+         */
         readonly final: InferSchemaType<TSchema> | null
       }
     : Record<never, never>)
@@ -147,42 +147,42 @@ interface BaseCreateChatReturn<
     readonly [],
 > {
   /**
-     * Current messages in the conversation (reactive getter). When
-     * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
-     * 'structured-output')` is typed by the schema — `data: T`,
-     * `partial: DeepPartial<T>`.
-     */
+   * Current messages in the conversation (reactive getter). When
+   * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
+   * 'structured-output')` is typed by the schema — `data: T`,
+   * `partial: DeepPartial<T>`.
+   */
   readonly messages: Array<UIMessage<TTools, TData>>
 
   /**
-     * Send a message and get a response.
-     * Can be a simple string or multimodal content with images, audio, etc.
-     * Pass `{ whenBusy }` to override the queue policy for a single send, or
-     * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
-     */
+   * Send a message and get a response.
+   * Can be a simple string or multimodal content with images, audio, etc.
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
   ) => Promise<void>
 
   /**
-     * Pending messages queued while a stream is in flight.
-     */
+   * Pending messages queued while a stream is in flight.
+   */
   readonly queue: Array<QueuedMessage>
 
   /**
-     * Cancel a queued message before it drains. No-op if already sent.
-     */
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
   cancelQueued: (id: string) => void
 
   /**
-     * Append a message to the conversation
-     */
+   * Append a message to the conversation
+   */
   append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
-     * Add the result of a client-side tool execution
-     */
+   * Add the result of a client-side tool execution
+   */
   addToolResult: (result: {
     toolCallId: string
     tool: string
@@ -192,24 +192,24 @@ interface BaseCreateChatReturn<
   }) => Promise<void>
 
   /**
-     * Respond to a tool approval request
-     */
+   * Respond to a tool approval request
+   */
   addToolApprovalResponse: (response: {
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
 
   /**
-     * The id of the run this client has in flight — one it started or rejoined —
-     * or `null` when there is none (including while a run sits paused on an
-     * interrupt, waiting on approval).
-     *
-     * A run is one turn of the conversation, so this changes from turn to turn. A
-     * whole tool loop stays inside one run, while resuming after an interrupt
-     * continues the turn under a new id — so one user message can produce several
-     * run ids. Use it to talk to your own server about that run (cancel it, poll
-     * it, correlate a log line).
-     */
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
   readonly runId: string | null
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
@@ -240,73 +240,73 @@ interface BaseCreateChatReturn<
   ) => Promise<boolean>
 
   /**
-     * Reload the last assistant message
-     */
+   * Reload the last assistant message
+   */
   reload: () => Promise<void>
 
   /**
-     * Stop the current response generation
-     */
+   * Stop the current response generation
+   */
   stop: () => void
 
   /**
-     * Dispose the chat client and unregister it from devtools.
-     */
+   * Dispose the chat client and unregister it from devtools.
+   */
   dispose: () => void
 
   /**
-     * Whether a response is currently being generated (reactive getter)
-     */
+   * Whether a response is currently being generated (reactive getter)
+   */
   readonly isLoading: boolean
 
   /**
-     * Current error, if any (reactive getter)
-     */
+   * Current error, if any (reactive getter)
+   */
   readonly error: Error | undefined
 
   /**
-     * Set messages manually
-     */
+   * Set messages manually
+   */
   setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
-     * Clear all messages
-     */
+   * Clear all messages
+   */
   clear: () => void
 
   /**
-     * Current generation status (reactive getter)
-     */
+   * Current generation status (reactive getter)
+   */
   readonly status: ChatClientState
   /**
-     * Whether the subscription loop is currently active (reactive getter)
-     */
+   * Whether the subscription loop is currently active (reactive getter)
+   */
   readonly isSubscribed: boolean
   /**
-     * Current connection lifecycle status (reactive getter)
-     */
+   * Current connection lifecycle status (reactive getter)
+   */
   readonly connectionStatus: ConnectionStatus
   /**
-     * Whether the shared session is actively generating (reactive getter).
-     * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
-     * Unlike `isLoading` (request-local), this reflects shared generation
-     * activity visible to all subscribers (e.g. across tabs/devices).
-     */
+   * Whether the shared session is actively generating (reactive getter).
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
   readonly sessionGenerating: boolean
   /**
-     * @deprecated Use `updateForwardedProps` instead. Both populate the
-     * same wire payload; `updateBody` is retained for backward compatibility.
-     */
+   * @deprecated Use `updateForwardedProps` instead. Both populate the
+   * same wire payload; `updateBody` is retained for backward compatibility.
+   */
   updateBody: (body: Record<string, any>) => void
   /**
-     * Update the AG-UI `forwardedProps` sent with requests (e.g., for
-     * changing model selection or other client-driven options).
-     */
+   * Update the AG-UI `forwardedProps` sent with requests (e.g., for
+   * changing model selection or other client-driven options).
+   */
   updateForwardedProps: (forwardedProps: Record<string, any>) => void
   /**
-     * Update the client-local runtime context passed to client tool
-     * implementations. This value is not serialized to the server.
-     */
+   * Update the client-local runtime context passed to client tool
+   * implementations. This value is not serialized to the server.
+   */
   updateContext: (context: TContext) => void
 }
 

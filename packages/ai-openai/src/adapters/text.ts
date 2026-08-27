@@ -90,11 +90,11 @@ export class OpenAITextAdapter<
   }
 
   /**
-     * Maps common options to OpenAI-specific format.
-     * Overrides the base class to use OpenAI's full tool converter
-     * (supporting special tool types like file_search, web_search, etc.)
-     * and to apply OpenAI-specific provider option validation.
-     */
+   * Maps common options to OpenAI-specific format.
+   * Overrides the base class to use OpenAI's full tool converter
+   * (supporting special tool types like file_search, web_search, etc.)
+   * and to apply OpenAI-specific provider option validation.
+   */
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {

@@ -55,9 +55,9 @@ export interface BytePlusTTSAudioConfig {
   /** Output format. Defaults to `wav` server-side. */
   format?: BytePlusTTSAudioFormat
   /**
-     * Output sample rate in Hz. See {@link BYTEPLUS_TTS_SAMPLE_RATES} for the
-     * valid values and for why the adapter always sends one.
-     */
+   * Output sample rate in Hz. See {@link BYTEPLUS_TTS_SAMPLE_RATES} for the
+   * valid values and for why the adapter always sends one.
+   */
   sample_rate?: number
   /** Speaking rate, `-50`..`100`. `-50` = 0.5×, `0` = 1×, `100` = 2×. */
   speech_rate?: number
@@ -74,26 +74,26 @@ export interface BytePlusTTSCreateRequest {
   /** Seed Speech synthesis model, e.g. `seed-audio-1.0`. */
   model: string
   /**
-     * The text to speak (≤3000 chars). Dual-purpose: either literal text or a
-     * natural-language description of the delivery, and the place the
-     * `@Audio1`..`@Audio3` reference markers go.
-     *
-     * **`text_prompt` is correct — do not "fix" this to `text`.** This endpoint
-     * has no request-side `text` field. The `text` spelling belongs to the
-     * *other* endpoint, `/tts/unidirectional` (TTS 2.0), where it sits under
-     * `req_params.text`. Confirmed against
-     * docs.byteplus.com/en/docs/byteplusvoice/seedaudio-01, which lists this
-     * body as exactly `model`, `text_prompt`, `references`, `audio_config`,
-     * `watermark`.
-     */
+   * The text to speak (≤3000 chars). Dual-purpose: either literal text or a
+   * natural-language description of the delivery, and the place the
+   * `@Audio1`..`@Audio3` reference markers go.
+   *
+   * **`text_prompt` is correct — do not "fix" this to `text`.** This endpoint
+   * has no request-side `text` field. The `text` spelling belongs to the
+   * *other* endpoint, `/tts/unidirectional` (TTS 2.0), where it sits under
+   * `req_params.text`. Confirmed against
+   * docs.byteplus.com/en/docs/byteplusvoice/seedaudio-01, which lists this
+   * body as exactly `model`, `text_prompt`, `references`, `audio_config`,
+   * `watermark`.
+   */
   text_prompt: string
   /** Voice selection and cloning references. See {@link BytePlusTTSReference}. */
   references?: Array<BytePlusTTSReference>
   audio_config?: BytePlusTTSAudioConfig
   /**
-     * Watermark the generated audio. The field name is confirmed; the boolean
-     * type is assumed by analogy with Seedream's `watermark` and unprobed.
-     */
+   * Watermark the generated audio. The field name is confirmed; the boolean
+   * type is assumed by analogy with Seedream's `watermark` and unprobed.
+   */
   watermark?: boolean
 }
 
@@ -118,29 +118,29 @@ export interface BytePlusTTSSubtitle {
 /** Response body for `POST /api/v3/tts/create`. */
 export interface BytePlusTTSCreateResponse {
   /**
-     * Status code — `0` on success, a flat error code otherwise.
-     *
-     * Typed as `number | string` because only the *error* envelope was verified
-     * live (HTTP 401 `{"code":45000010,…}`); the success envelope's shape is
-     * docs-derived and no voice key was available to confirm it. Treating a
-     * string code as "not a failure" would return a failed 200 as success, so
-     * the adapter coerces before comparing — see `isZeroCode` in
-     * `adapters/tts.ts`.
-     */
+   * Status code — `0` on success, a flat error code otherwise.
+   *
+   * Typed as `number | string` because only the *error* envelope was verified
+   * live (HTTP 401 `{"code":45000010,…}`); the success envelope's shape is
+   * docs-derived and no voice key was available to confirm it. Treating a
+   * string code as "not a failure" would return a failed 200 as success, so
+   * the adapter coerces before comparing — see `isZeroCode` in
+   * `adapters/tts.ts`.
+   */
   code?: number | string
   message?: string
   /** Base64-encoded audio in the requested `audio_config.format`. */
   audio?: string
   /**
-     * Length of the delivered audio in **seconds** (float), after `speech_rate`
-     * is applied. This can legitimately exceed 120 when the clip is slowed
-     * down — the 120 s cap applies to {@link BytePlusTTSCreateResponse.original_duration}.
-     */
+   * Length of the delivered audio in **seconds** (float), after `speech_rate`
+   * is applied. This can legitimately exceed 120 when the clip is slowed
+   * down — the 120 s cap applies to {@link BytePlusTTSCreateResponse.original_duration}.
+   */
   duration?: number | string
   /**
-     * Length in **seconds** (float) before rate adjustment. This is the billing
-     * basis and is capped at 120.
-     */
+   * Length in **seconds** (float) before rate adjustment. This is the billing
+   * basis and is capped at 120.
+   */
   original_duration?: number | string
   /** Temporary download URL for the same audio. Expires after ~2 hours. */
   url?: string
@@ -157,7 +157,7 @@ export const BYTEPLUS_ASR_RESOURCE_ID = 'volc.seedasr.auc_turbo'
 
 /** Header name carrying {@link BYTEPLUS_ASR_RESOURCE_ID}. */
 export const /** Header name carrying {@link BYTEPLUS_ASR_RESOURCE_ID}. */
-BYTEPLUS_ASR_RESOURCE_HEADER = 'X-Api-Resource-Id'
+  BYTEPLUS_ASR_RESOURCE_HEADER = 'X-Api-Resource-Id'
 
 /**
  * Audio input. Exactly one of `url` or `data` is sent — the endpoint accepts
@@ -213,10 +213,10 @@ export interface BytePlusASRUtterance {
   end_time?: number
   words?: Array<BytePlusASRWord>
   /**
-     * Extra per-utterance annotations. Speaker labels arrive here when
-     * `enable_speaker_info` is set; the exact key is read defensively because it
-     * could not be confirmed against a live response.
-     */
+   * Extra per-utterance annotations. Speaker labels arrive here when
+   * `enable_speaker_info` is set; the exact key is read defensively because it
+   * could not be confirmed against a live response.
+   */
   additions?: Record<string, string>
 }
 

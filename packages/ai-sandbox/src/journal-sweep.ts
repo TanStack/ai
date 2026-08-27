@@ -80,9 +80,9 @@ export interface PruneJournalsResult {
   /** Everything left in place, with the reason. */
   kept: Array<KeptJournal>
   /**
-     * Whether the mtime age gate was usable this sweep. `'unavailable'` means no
-     * orphan could be expired, by design.
-     */
+   * Whether the mtime age gate was usable this sweep. `'unavailable'` means no
+   * orphan could be expired, by design.
+   */
   ageGate: 'listed' | 'unavailable'
   failures: Array<PruneJournalsFailure>
 }
@@ -91,10 +91,10 @@ export interface PruneJournalsOptions {
   /** Sandbox holding the journal directory. Touched only via `process.exec`. */
   handle: SandboxHandle
   /**
-     * Run lookup. Only `get` is used: the sweep asks about the runIds it found on
-     * disk and never enumerates the store, so no optional `RunStore` method is
-     * required of a backend.
-     */
+   * Run lookup. Only `get` is used: the sweep asks about the runIds it found on
+   * disk and never enumerates the store, so no optional `RunStore` method is
+   * required of a backend.
+   */
   runs: Pick<RunStore, 'get'>
   /** Journal directory. Defaults to {@link DEFAULT_JOURNAL_DIR}. */
   dir?: string

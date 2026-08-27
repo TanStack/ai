@@ -140,8 +140,10 @@ export function executeHostTool(
   tools: Array<AnyTool>,
   name: string,
   args: unknown,
-  options: { context?: unknown; /** Cancels the in-flight remote call when the in-container run aborts. */
-signal?: AbortSignal } = {},
+  options: {
+    context?: unknown /** Cancels the in-flight remote call when the in-container run aborts. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<unknown> {
   const tool = tools.find((candidate) => candidate.name === name)
   if (!tool?.execute) {

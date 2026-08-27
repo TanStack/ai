@@ -15,10 +15,10 @@ export interface CohereClientConfig {
   headers?: Record<string, string>
 
   /**
-     * Cohere's embed API does not fetch remote image URLs itself. When this is
-     * enabled the adapter downloads http(s) image URLs and inlines them as
-     * base64 `data:` URIs before sending the request. Disabled by default.
-     */
+   * Cohere's embed API does not fetch remote image URLs itself. When this is
+   * enabled the adapter downloads http(s) image URLs and inlines them as
+   * base64 `data:` URIs before sending the request. Disabled by default.
+   */
   allowUrlFetch?: boolean
 
   /** Request timeout in milliseconds for API and image URL fetches (default: 30_000). */

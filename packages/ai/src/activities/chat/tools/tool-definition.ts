@@ -233,8 +233,8 @@ export interface ToolDefinition<
   TApprovalSchema
 > {
   /**
-     * Create a server-side tool with execute function
-     */
+   * Create a server-side tool with execute function
+   */
   server: <TContext = unknown>(
     execute: ToolExecuteFunction<TInput, TOutput, TContext>,
   ) => ServerTool<
@@ -248,10 +248,10 @@ export interface ToolDefinition<
     BuiltToolSchemaFields<TInput, TOutput, TApprovalSchema>
 
   /**
-     * Create a client-side tool with optional execute function.
-     * Carries the definition's `needsApproval` literal through to the client
-     * tool so the tool-call part's `approval` field stays gated on it.
-     */
+   * Create a client-side tool with optional execute function.
+   * Carries the definition's `needsApproval` literal through to the client
+   * tool so the tool-call part's `approval` field stays gated on it.
+   */
   client: <TContext = unknown>(
     execute?: ToolExecuteFunction<TInput, TOutput, TContext>,
   ) => ClientTool<

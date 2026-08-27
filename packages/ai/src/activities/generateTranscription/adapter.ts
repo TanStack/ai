@@ -33,15 +33,15 @@ export interface TranscriptionAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
   }
 
   /**
-     * Transcribe audio to text
-     */
+   * Transcribe audio to text
+   */
   transcribe: (
     options: TranscriptionOptions<TProviderOptions>,
   ) => Promise<TranscriptionResult>

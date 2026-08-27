@@ -9,9 +9,9 @@ export type WorkspaceSource =
       ref?: string
       auth?: { username?: string; token: string }
       /**
-             * Clone depth. Defaults to `1` (shallow). Pass a number for a specific
-             * depth, or `'full'` to fetch the entire history.
-             */
+       * Clone depth. Defaults to `1` (shallow). Pass a number for a specific
+       * depth, or `'full'` to fetch the entire history.
+       */
       depth?: number | 'full'
     }
   | { type: 'local'; path: string }
@@ -121,20 +121,20 @@ export interface WorkspaceDefinition {
   /** Guidance/config projected into the harness. */
   skills?: Array<WorkspaceSkill>
   /**
-     * Natural-language instructions written to AGENTS.md (and symlinked as
-     * CLAUDE.md, GEMINI.md, etc.) inside the sandbox during bootstrap.
-     */
+   * Natural-language instructions written to AGENTS.md (and symlinked as
+   * CLAUDE.md, GEMINI.md, etc.) inside the sandbox during bootstrap.
+   */
   instructions?: string
   /**
-     * Harness plugin identifiers installed idempotently by each harness
-     * projector (e.g. `['@anthropic/plugin-foo']` for Claude Code).
-     */
+   * Harness plugin identifiers installed idempotently by each harness
+   * projector (e.g. `['@anthropic/plugin-foo']` for Claude Code).
+   */
   plugins?: Array<string>
   /**
-     * Typed secret references. The underlying values are injected into the
-     * sandbox env at create/resume — NEVER written to snapshots, the
-     * SandboxInstanceStore, or the event log.
-     */
+   * Typed secret references. The underlying values are injected into the
+   * sandbox env at create/resume — NEVER written to snapshots, the
+   * SandboxInstanceStore, or the event log.
+   */
   secrets?: Secrets
   /** Workspace root inside the sandbox. Defaults to `/workspace`. */
   root?: string

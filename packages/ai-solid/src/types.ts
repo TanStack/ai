@@ -101,9 +101,9 @@ export type UseChatOptions<
   devtools?: AIDevtoolsDisplayOptions
   live?: boolean
   /**
-     * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
-     * Schema). Used to infer the shape of `partial` and `final`.
-     */
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
   outputSchema?: TSchema
 } & ClientContextOptionFromTools<TTools, TContext>
 
@@ -124,14 +124,14 @@ export type UseChatReturn<
   (TSchema extends SchemaInput
     ? {
         /**
-                 * Live progressively-parsed structured output. Derived from the
-                 * latest assistant message's structured-output part.
-                 */
+         * Live progressively-parsed structured output. Derived from the
+         * latest assistant message's structured-output part.
+         */
         partial: Accessor<DeepPartial<InferSchemaType<TSchema>>>
         /**
-                 * Final, schema-validated structured output. `null` until the latest
-                 * assistant turn's structured-output part transitions to `complete`.
-                 */
+         * Final, schema-validated structured output. `null` until the latest
+         * assistant turn's structured-output part transitions to `complete`.
+         */
         final: Accessor<InferSchemaType<TSchema> | null>
       }
     : Record<never, never>)
@@ -143,44 +143,44 @@ interface BaseUseChatReturn<
     readonly [],
 > {
   /**
-     * Current messages in the conversation. When `outputSchema` is supplied,
-     * `messages()[i].parts.find(p => p.type === 'structured-output')` is typed
-     * by the schema — `data: T`, `partial: DeepPartial<T>`.
-     */
+   * Current messages in the conversation. When `outputSchema` is supplied,
+   * `messages()[i].parts.find(p => p.type === 'structured-output')` is typed
+   * by the schema — `data: T`, `partial: DeepPartial<T>`.
+   */
   messages: Accessor<Array<UIMessage<TTools, TData>>>
 
   /**
-     * Pending messages queued while the client is busy (streaming, claiming a
-     * send, or draining). Separate from `messages` until they drain.
-     */
+   * Pending messages queued while the client is busy (streaming, claiming a
+   * send, or draining). Separate from `messages` until they drain.
+   */
   queue: Accessor<Array<QueuedMessage>>
 
   /**
-     * Cancel a queued message before it drains. No-op if already sent.
-     */
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
   cancelQueued: (id: string) => void
 
   /**
-     * Send a message and get a response.
-     * Can be a simple string or multimodal content with images, audio, etc.
-     * By default, sends while busy are queued until the run settles successfully
-     * (`queue: 'drop'` restores the old drop-while-busy behavior).
-     * Pass `{ whenBusy }` to override the policy for a single send, or
-     * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
-     */
+   * Send a message and get a response.
+   * Can be a simple string or multimodal content with images, audio, etc.
+   * By default, sends while busy are queued until the run settles successfully
+   * (`queue: 'drop'` restores the old drop-while-busy behavior).
+   * Pass `{ whenBusy }` to override the policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
   ) => Promise<void>
 
   /**
-     * Append a message to the conversation
-     */
+   * Append a message to the conversation
+   */
   append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
-     * Add the result of a client-side tool execution
-     */
+   * Add the result of a client-side tool execution
+   */
   addToolResult: (result: {
     toolCallId: string
     tool: string
@@ -190,24 +190,24 @@ interface BaseUseChatReturn<
   }) => Promise<void>
 
   /**
-     * Respond to a tool approval request
-     */
+   * Respond to a tool approval request
+   */
   addToolApprovalResponse: (response: {
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
 
   /**
-     * The id of the run this client has in flight — one it started or rejoined —
-     * or `null` when there is none (including while a run sits paused on an
-     * interrupt, waiting on approval).
-     *
-     * A run is one turn of the conversation, so this changes from turn to turn. A
-     * whole tool loop stays inside one run, while resuming after an interrupt
-     * continues the turn under a new id — so one user message can produce several
-     * run ids. Use it to talk to your own server about that run (cancel it, poll
-     * it, correlate a log line).
-     */
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
   runId: Accessor<string | null>
   interrupts: Accessor<BoundInterrupts<TTools, TInterrupts>>
   /** @deprecated Use `interrupts`. */
@@ -237,56 +237,56 @@ interface BaseUseChatReturn<
   ) => Promise<boolean>
 
   /**
-     * Reload the last assistant message
-     */
+   * Reload the last assistant message
+   */
   reload: () => Promise<void>
 
   /**
-     * Stop the current response generation
-     */
+   * Stop the current response generation
+   */
   stop: () => void
 
   /**
-     * Whether a response is currently being generated
-     */
+   * Whether a response is currently being generated
+   */
   isLoading: Accessor<boolean>
 
   /**
-     * Current error, if any
-     */
+   * Current error, if any
+   */
   error: Accessor<Error | undefined>
 
   /**
-     * Set messages manually
-     */
+   * Set messages manually
+   */
   setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
-     * Clear all messages
-     */
+   * Clear all messages
+   */
   clear: () => void
 
   /**
-     * Current generation status
-     */
+   * Current generation status
+   */
   status: Accessor<ChatClientState>
 
   /**
-     * Whether the subscription loop is currently active
-     */
+   * Whether the subscription loop is currently active
+   */
   isSubscribed: Accessor<boolean>
 
   /**
-     * Current connection lifecycle status
-     */
+   * Current connection lifecycle status
+   */
   connectionStatus: Accessor<ConnectionStatus>
 
   /**
-     * Whether the shared session is actively generating.
-     * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
-     * Unlike `isLoading` (request-local), this reflects shared generation
-     * activity visible to all subscribers (e.g. across tabs/devices).
-     */
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
   sessionGenerating: Accessor<boolean>
 }
 

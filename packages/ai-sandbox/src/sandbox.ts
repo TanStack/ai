@@ -45,10 +45,10 @@ export interface SandboxLifecycle {
   /** Destroy the sandbox after the run completes. */
   destroyOnComplete?: boolean
   /**
-     * Maximum age of a sandbox record before it is discarded and re-created
-     * instead of resumed. Accepts `'<n>h'` (hours) or `'<n>m'` (minutes),
-     * e.g. `'2h'` or `'30m'`.
-     */
+   * Maximum age of a sandbox record before it is discarded and re-created
+   * instead of resumed. Accepts `'<n>h'` (hours) or `'<n>m'` (minutes),
+   * e.g. `'2h'` or `'30m'`.
+   */
   snapshotMaxAge?: string
 }
 

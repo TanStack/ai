@@ -21,9 +21,9 @@ export interface RunLogRecord extends RunRecord {
   /** Seq of the last appended event, or `-1` when no events yet. */
   lastSeq: number
   /**
-     * Epoch ms of the last append or status change — the activity clock a stall
-     * watchdog reads. Distinct from `finishedAt`, which is set once, at terminal.
-     */
+   * Epoch ms of the last append or status change — the activity clock a stall
+   * watchdog reads. Distinct from `finishedAt`, which is set once, at terminal.
+   */
   updatedAt: number
 }
 
@@ -35,9 +35,9 @@ export interface RunEvent {
 
 export interface RunEventLogReadOptions {
   /**
-     * Exclusive cursor: only events with `seq > fromSeq` are yielded. Pass the
-     * client's last-seen `seq` to resume; omit (or `-1`) to replay from the start.
-     */
+   * Exclusive cursor: only events with `seq > fromSeq` are yielded. Pass the
+   * client's last-seen `seq` to resume; omit (or `-1`) to replay from the start.
+   */
   fromSeq?: number
   /** Stop tailing when this fires (e.g. the client disconnected). */
   signal?: AbortSignal
@@ -54,11 +54,11 @@ export interface RunEventLogReadOptions {
  */
 export interface RunEventLog {
   /**
-     * Idempotently create (or return) the run record. An existing record is
-     * returned unchanged; `startedAt` (default `Date.now()`) applies only on
-     * first creation — matching core's `RunStore.createOrResume` invariant, which
-     * `runLogStore` maps directly onto this method.
-     */
+   * Idempotently create (or return) the run record. An existing record is
+   * returned unchanged; `startedAt` (default `Date.now()`) applies only on
+   * first creation — matching core's `RunStore.createOrResume` invariant, which
+   * `runLogStore` maps directly onto this method.
+   */
   open: (input: {
     runId: string
     threadId: string
@@ -73,15 +73,15 @@ export interface RunEventLog {
     error?: RunError,
   ) => Promise<void>
   /**
-     * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown `runId`
-     * is a NO-OP (never a throw, never a create) — core's `RunStore.update`
-     * invariant, which `runLogStore` maps onto this method.
-     *
-     * MUST wake blocked readers, exactly like `append`/`finish`: the record and
-     * the event log share one status field here, so a driver that terminalizes
-     * through its `RunStore` — core's `pipeToRunLog` writes its terminal status
-     * via `runs.update`, not `finish` — is ending the log with this call.
-     */
+   * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown `runId`
+   * is a NO-OP (never a throw, never a create) — core's `RunStore.update`
+   * invariant, which `runLogStore` maps onto this method.
+   *
+   * MUST wake blocked readers, exactly like `append`/`finish`: the record and
+   * the event log share one status field here, so a driver that terminalizes
+   * through its `RunStore` — core's `pipeToRunLog` writes its terminal status
+   * via `runs.update`, not `finish` — is ending the log with this call.
+   */
   update: (runId: string, patch: RunRecordPatch) => Promise<void>
   /** Current record, or null if the run is unknown. */
   get: (runId: string) => Promise<RunLogRecord | null>

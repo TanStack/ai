@@ -15,13 +15,13 @@ export type TrustLevel = 'untrusted' | 'provisional' | 'trusted'
  */
 export interface SnippetStats {
   /**
-     * Total number of times this snippet has been executed
-     */
+   * Total number of times this snippet has been executed
+   */
   executions: number
 
   /**
-     * Success rate (0-1) based on execution history
-     */
+   * Success rate (0-1) based on execution history
+   */
   successRate: number
 }
 
@@ -30,69 +30,69 @@ export interface SnippetStats {
  */
 export interface Snippet {
   /**
-     * Unique identifier for the snippet
-     */
+   * Unique identifier for the snippet
+   */
   id: string
 
   /**
-     * Unique name in snake_case (e.g., 'fetch_github_stats')
-     * This becomes the function name with snippet_ prefix in the sandbox
-     */
+   * Unique name in snake_case (e.g., 'fetch_github_stats')
+   * This becomes the function name with snippet_ prefix in the sandbox
+   */
   name: string
 
   /**
-     * Human-readable description of what the snippet does
-     */
+   * Human-readable description of what the snippet does
+   */
   description: string
 
   /**
-     * TypeScript code that implements the snippet
-     * The code receives `input` as a variable and can call:
-     * - external_* functions (tools)
-     * - other snippet_* functions (snippets)
-     * Should return a value
-     */
+   * TypeScript code that implements the snippet
+   * The code receives `input` as a variable and can call:
+   * - external_* functions (tools)
+   * - other snippet_* functions (snippets)
+   * Should return a value
+   */
   code: string
 
   /**
-     * JSON Schema describing the input parameter
-     */
+   * JSON Schema describing the input parameter
+   */
   inputSchema: Record<string, unknown>
 
   /**
-     * JSON Schema describing the return value
-     */
+   * JSON Schema describing the return value
+   */
   outputSchema: Record<string, unknown>
 
   /**
-     * Hints about when to use this snippet
-     * e.g., "Use when comparing NPM package popularity"
-     */
+   * Hints about when to use this snippet
+   * e.g., "Use when comparing NPM package popularity"
+   */
   usageHints: Array<string>
 
   /**
-     * Names of other snippets this snippet depends on/calls
-     */
+   * Names of other snippets this snippet depends on/calls
+   */
   dependsOn: Array<string>
 
   /**
-     * Trust level based on execution history
-     */
+   * Trust level based on execution history
+   */
   trustLevel: TrustLevel
 
   /**
-     * Execution statistics
-     */
+   * Execution statistics
+   */
   stats: SnippetStats
 
   /**
-     * ISO timestamp when the snippet was created
-     */
+   * ISO timestamp when the snippet was created
+   */
   createdAt: string
 
   /**
-     * ISO timestamp when the snippet was last updated
-     */
+   * ISO timestamp when the snippet was last updated
+   */
   updatedAt: string
 }
 
@@ -110,9 +110,9 @@ export type SnippetIndexEntry = Pick<
  */
 export interface SnippetSearchOptions {
   /**
-     * Maximum number of results to return
-     * @default 5
-     */
+   * Maximum number of results to return
+   * @default 5
+   */
   limit?: number
 }
 
@@ -121,46 +121,46 @@ export interface SnippetSearchOptions {
  */
 export interface SnippetStorage {
   /**
-     * Load the snippet index (lightweight metadata for all snippets)
-     */
+   * Load the snippet index (lightweight metadata for all snippets)
+   */
   loadIndex: () => Promise<Array<SnippetIndexEntry>>
 
   /**
-     * Load all snippets with full details (including code)
-     */
+   * Load all snippets with full details (including code)
+   */
   loadAll: () => Promise<Array<Snippet>>
 
   /**
-     * Get a snippet by name
-     */
+   * Get a snippet by name
+   */
   get: (name: string) => Promise<Snippet | null>
 
   /**
-     * Save a snippet (create or update)
-     */
+   * Save a snippet (create or update)
+   */
   save: (snippet: Omit<Snippet, 'createdAt' | 'updatedAt'>) => Promise<Snippet>
 
   /**
-     * Delete a snippet by name
-     */
+   * Delete a snippet by name
+   */
   delete: (name: string) => Promise<boolean>
 
   /**
-     * Search for snippets by query
-     */
+   * Search for snippets by query
+   */
   search: (
     query: string,
     options?: SnippetSearchOptions,
   ) => Promise<Array<SnippetIndexEntry>>
 
   /**
-     * Update execution statistics for a snippet
-     */
+   * Update execution statistics for a snippet
+   */
   updateStats: (name: string, success: boolean) => Promise<void>
 
   /**
-     * Trust strategy used by this storage (optional, for creating new snippets)
-     */
+   * Trust strategy used by this storage (optional, for creating new snippets)
+   */
   trustStrategy?: TrustStrategy
 }
 
@@ -169,14 +169,14 @@ export interface SnippetStorage {
  */
 export interface SnippetsConfig {
   /**
-     * Storage implementation for snippets
-     */
+   * Storage implementation for snippets
+   */
   storage: SnippetStorage
 
   /**
-     * Maximum number of snippets to load into context per request
-     * @default 5
-     */
+   * Maximum number of snippets to load into context per request
+   * @default 5
+   */
   maxSnippetsInContext?: number
 
   trustStrategy?: TrustStrategy
@@ -187,30 +187,30 @@ export interface SnippetsConfig {
  */
 export interface CodeModeWithSnippetsOptions {
   /**
-     * Code Mode tool configuration (driver, tools, timeout, memoryLimit)
-     */
+   * Code Mode tool configuration (driver, tools, timeout, memoryLimit)
+   */
   config: CodeModeToolConfig
 
   /**
-     * Text adapter for snippet selection (should be a cheap/fast model)
-     */
+   * Text adapter for snippet selection (should be a cheap/fast model)
+   */
   adapter: AnyTextAdapter
 
   /**
-     * Snippets configuration
-     */
+   * Snippets configuration
+   */
   snippets: SnippetsConfig
 
   /**
-     * Current conversation messages (used for context-aware snippet selection)
-     */
+   * Current conversation messages (used for context-aware snippet selection)
+   */
   messages: Array<ModelMessage>
 
   /**
-     * Whether to include snippets as direct tools (not just sandbox bindings).
-     * When true, snippets become first-class tools the LLM can call directly.
-     * @default true
-     */
+   * Whether to include snippets as direct tools (not just sandbox bindings).
+   * When true, snippets become first-class tools the LLM can call directly.
+   * @default true
+   */
   snippetsAsTools?: boolean
 }
 
@@ -219,20 +219,20 @@ export interface CodeModeWithSnippetsOptions {
  */
 export interface CodeModeWithSnippetsResult {
   /**
-     * Tool registry for dynamic tool management.
-     * Pass this to chat() via the toolRegistry option.
-     * Snippets registered mid-stream will be added to this registry.
-     */
+   * Tool registry for dynamic tool management.
+   * Pass this to chat() via the toolRegistry option.
+   * Snippets registered mid-stream will be added to this registry.
+   */
   toolsRegistry: ToolRegistry
 
   /**
-     * System prompt documenting available snippets and external functions
-     */
+   * System prompt documenting available snippets and external functions
+   */
   systemPrompt: string
 
   /**
-     * Snippets that were selected for this request
-     */
+   * Snippets that were selected for this request
+   */
   selectedSnippets: Array<Snippet>
 }
 
@@ -243,12 +243,12 @@ export interface SnippetBinding {
   name: string
 
   /**
-     * The snippet this binding wraps
-     */
+   * The snippet this binding wraps
+   */
   snippet: Snippet
 
   /**
-     * Execute function that runs the snippet code
-     */
+   * Execute function that runs the snippet code
+   */
   execute: (input: unknown) => Promise<unknown>
 }

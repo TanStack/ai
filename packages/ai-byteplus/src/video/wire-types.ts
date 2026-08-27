@@ -112,9 +112,9 @@ export interface BytePlusVideoCreateRequest {
   resolution?: string
 
   /**
-     * Whole seconds of output. `-1` lets the model choose (Seedance 2.5 / 2.0 /
-     * 1.5-pro).
-     */
+   * Whole seconds of output. `-1` lets the model choose (Seedance 2.5 / 2.0 /
+   * 1.5-pro).
+   */
   duration?: number
 
   /** Frame count, an alternative to `duration` that allows fractional seconds. */

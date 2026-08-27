@@ -29,14 +29,14 @@ export interface ToolHistoryRecorder {
   /** Feed every chunk. Observes only — never transforms or drops. */
   observe: (chunk: StreamChunk, target: TranscriptTarget) => void
   /**
-     * Re-append anything missing from the transcript.
-     *
-     * The engine reassigns `middlewareCtx.messages` from its own array whenever it
-     * syncs config (once per agent iteration), which discards writes made during the
-     * previous iteration's stream. Reconciling at each iteration boundary and again at
-     * finish makes the result independent of that, and independent of where this
-     * middleware sits relative to persistence in the middleware array.
-     */
+   * Re-append anything missing from the transcript.
+   *
+   * The engine reassigns `middlewareCtx.messages` from its own array whenever it
+   * syncs config (once per agent iteration), which discards writes made during the
+   * previous iteration's stream. Reconciling at each iteration boundary and again at
+   * finish makes the result independent of that, and independent of where this
+   * middleware sits relative to persistence in the middleware array.
+   */
   reconcile: (target: TranscriptTarget) => void
 }
 
@@ -109,8 +109,11 @@ export function createToolHistoryRecorder(): ToolHistoryRecorder {
   const open = new Map<string, OpenCall>()
   /** Completed calls in the order they ran — the order `reconcile` restores. */
   const /** Completed calls in the order they ran — the order `reconcile` restores. */
-recorded: Array<{ id: string; name: string; /** Accumulated `TOOL_CALL_ARGS` deltas. */
-args: string }> = []
+    recorded: Array<{
+      id: string
+      name: string /** Accumulated `TOOL_CALL_ARGS` deltas. */
+      args: string
+    }> = []
   const results = new Map<string, string>()
 
   function appendCall(

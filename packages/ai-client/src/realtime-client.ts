@@ -76,9 +76,9 @@ export class RealtimeClient {
   }
 
   /**
-     * Connect to the realtime session.
-     * Fetches a token and establishes the connection.
-     */
+   * Connect to the realtime session.
+   * Fetches a token and establishes the connection.
+   */
   async connect(): Promise<void> {
     if (this.state.status === 'connected') {
       return
@@ -117,8 +117,10 @@ export class RealtimeClient {
 
       this.updateState({ status: 'connected', mode: 'listening' })
       this.options.onConnect?.()
-    } catch (/** Get current error, if any */
-error) {
+    } catch (
+      /** Get current error, if any */
+      error
+    ) {
       const err = error instanceof Error ? error : new Error(String(error))
       this.updateState({ status: 'error', error: err })
       this.options.onError?.(err)
@@ -127,8 +129,8 @@ error) {
   }
 
   /**
-     * Disconnect from the realtime session.
-     */
+   * Disconnect from the realtime session.
+   */
   async disconnect(): Promise<void> {
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout)
@@ -157,9 +159,9 @@ error) {
   }
 
   /**
-     * Start listening for voice input.
-     * Only needed when vadMode is 'manual'.
-     */
+   * Start listening for voice input.
+   * Only needed when vadMode is 'manual'.
+   */
   startListening(): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -168,9 +170,9 @@ error) {
   }
 
   /**
-     * Stop listening for voice input.
-     * Only needed when vadMode is 'manual'.
-     */
+   * Stop listening for voice input.
+   * Only needed when vadMode is 'manual'.
+   */
   stopListening(): void {
     if (!this.connection) {
       return
@@ -180,8 +182,8 @@ error) {
   }
 
   /**
-     * Interrupt the current assistant response.
-     */
+   * Interrupt the current assistant response.
+   */
   interrupt(): void {
     if (!this.connection) {
       return
@@ -190,8 +192,8 @@ error) {
   }
 
   /**
-     * Send a text message instead of voice.
-     */
+   * Send a text message instead of voice.
+   */
   sendText(text: string): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -210,10 +212,10 @@ error) {
   }
 
   /**
-     * Send an image to the conversation.
-     * @param imageData - Base64-encoded image data or a URL
-     * @param mimeType - MIME type of the image (e.g., 'image/png', 'image/jpeg')
-     */
+   * Send an image to the conversation.
+   * @param imageData - Base64-encoded image data or a URL
+   * @param mimeType - MIME type of the image (e.g., 'image/png', 'image/jpeg')
+   */
   sendImage(imageData: string, mimeType: string): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -267,9 +269,9 @@ error) {
   }
 
   /**
-     * Update the session configuration.
-     * This applies changes to the active connection and persists them for future reconnections.
-     */
+   * Update the session configuration.
+   * This applies changes to the active connection and persists them for future reconnections.
+   */
   updateSession(config: Partial<RealtimeSessionConfig>): void {
     const o = this.options
     if (config.instructions !== undefined) o.instructions = config.instructions
@@ -295,9 +297,9 @@ error) {
   }
 
   /**
-     * Subscribe to state changes.
-     * @returns Unsubscribe function
-     */
+   * Subscribe to state changes.
+   * @returns Unsubscribe function
+   */
   onStateChange(callback: RealtimeStateChangeCallback): () => void {
     this.stateChangeCallbacks.add(callback)
     return () => {
@@ -306,9 +308,9 @@ error) {
   }
 
   /**
-     * Clean up resources.
-     * Call this when disposing of the client.
-     */
+   * Clean up resources.
+   * Call this when disposing of the client.
+   */
   destroy(): void {
     void this.disconnect()
     this.stateChangeCallbacks.clear()

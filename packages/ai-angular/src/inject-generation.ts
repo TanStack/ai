@@ -40,49 +40,49 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
-     * How this generation persists across reloads.
-     * - Omit / `false`: ephemeral, in-memory only.
-     * - `true`: server-driven — on mount the client hydrates the last generation
-     *   for its `threadId` from the server (needs a connection with a
-     *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
-     */
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
   persistence?: boolean
   /**
-     * The **scope** this generation belongs to: a stable, app-chosen name for the
-     * slot successive runs fill — not a link to a chat conversation.
-     *
-     * The hook starts empty and produces many runs over its life; each gets its
-     * own `runId`, but all belong to one scope. Persistence keys on this, so
-     * derive it from your own domain and keep it identical across reloads (e.g.
-     * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
-     * id on the wire, which the protocol requires.
-     *
-     * **Required whenever `persistence` is set** — an app that cannot name the
-     * scope has nothing to restore to. Optional for ephemeral generations. If
-     * omitted, the client mints a wire id after mount.
-     */
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
+   */
   threadId?: string
   /**
-     * Server-driven hydration handler for `persistence: true` when the
-     * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
-     * `rpcStream()` adapter built without handlers) — typically a one-line
-     * server-function call. The connection's own handler takes precedence.
-     */
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
   hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
   /**
-     * Re-attach handler that replays a run still generating to completion on
-     * mount, when the connection doesn't carry one. Without it, a restored
-     * `running` snapshot surfaces as an (interrupted) error. The connection's
-     * own handler takes precedence.
-     */
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
   joinRun?: ConnectConnectionAdapter['joinRun']
   /**
-     * Callback when a result is received. Can optionally return a transformed value.
-     *
-     * - Return a non-null value to transform and store it as the result
-     * - Return `null` to keep the previous result unchanged
-     * - Return nothing (`void`) to store the raw result as-is
-     */
+   * Callback when a result is received. Can optionally return a transformed value.
+   *
+   * - Return a non-null value to transform and store it as the result
+   * - Return `null` to keep the previous result unchanged
+   * - Return nothing (`void`) to store the raw result as-is
+   */
   onResult?: (result: TResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -91,10 +91,10 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
   /**
-     * @internal Rebuild a typed result from a restored snapshot, injected by each
-     * specialized injectable (image / speech / audio / transcription / summarize).
-     * Forwarded to the client so a server-hydrate restore repaints `result`.
-     */
+   * @internal Rebuild a typed result from a restored snapshot, injected by each
+   * specialized injectable (image / speech / audio / transcription / summarize).
+   * Forwarded to the client so a server-hydrate restore repaints `result`.
+   */
   reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
 
@@ -157,11 +157,11 @@ export function injectGeneration<
   /** Current state of the generation client */
   const status = signal<GenerationClientState>('idle')
   /**
-     * The id of the generation job currently running, or `null` when nothing is in
-     * flight. Each call to `generate` is one job with its own id. Pass it to your
-     * own endpoint to cancel or poll the provider job — `stop()` only aborts the
-     * local stream, it does not stop work already running on the provider.
-     */
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
   const runId = signal<string | null>(null)
   let disposed = false
 

@@ -58,9 +58,9 @@ export type DallE2Size = '256x256' | '512x512' | '1024x1024'
  */
 export interface OpenAIImageBaseProviderOptions {
   /**
-     * A unique identifier representing your end-user.
-     * Can help OpenAI to monitor and detect abuse.
-     */
+   * A unique identifier representing your end-user.
+   * Can help OpenAI to monitor and detect abuse.
+   */
   user?: string
 }
 
@@ -70,41 +70,41 @@ export interface OpenAIImageBaseProviderOptions {
  */
 export interface GptImage1ProviderOptions extends OpenAIImageBaseProviderOptions {
   /**
-     * The quality of the image.
-     * @default 'auto'
-     */
+   * The quality of the image.
+   * @default 'auto'
+   */
   quality?: GptImageQuality
 
   /**
-     * Background transparency setting.
-     * When 'transparent', output format must be 'png' or 'webp'.
-     * @default 'auto'
-     */
+   * Background transparency setting.
+   * When 'transparent', output format must be 'png' or 'webp'.
+   * @default 'auto'
+   */
   background?: GptImageBackground
 
   /**
-     * Output image format.
-     * @default 'png'
-     */
+   * Output image format.
+   * @default 'png'
+   */
   output_format?: GptImageOutputFormat
 
   /**
-     * Compression level (0-100%) for webp/jpeg formats.
-     * @default 100
-     */
+   * Compression level (0-100%) for webp/jpeg formats.
+   * @default 100
+   */
   output_compression?: number
 
   /**
-     * Content moderation level.
-     * @default 'auto'
-     */
+   * Content moderation level.
+   * @default 'auto'
+   */
   moderation?: GptImageModeration
 
   /**
-     * Number of partial images to generate during streaming (0-3).
-     * Only used when stream: true.
-     * @default 0
-     */
+   * Number of partial images to generate during streaming (0-3).
+   * Only used when stream: true.
+   * @default 0
+   */
   partial_images?: number
 }
 
@@ -122,18 +122,18 @@ export interface DallE3ProviderOptions extends OpenAIImageBaseProviderOptions {
   quality?: DallE3Quality
 
   /**
-     * The style of the generated images.
-     * 'vivid' causes the model to lean towards generating hyper-real and dramatic images.
-     * 'natural' causes the model to produce more natural, less hyper-real looking images.
-     * @default 'vivid'
-     */
+   * The style of the generated images.
+   * 'vivid' causes the model to lean towards generating hyper-real and dramatic images.
+   * 'natural' causes the model to produce more natural, less hyper-real looking images.
+   * @default 'vivid'
+   */
   style?: DallE3Style
 
   /**
-     * The format in which generated images are returned.
-     * URLs are only valid for 60 minutes after generation.
-     * @default 'url'
-     */
+   * The format in which generated images are returned.
+   * URLs are only valid for 60 minutes after generation.
+   * @default 'url'
+   */
   response_format?: DallEResponseFormat
 }
 

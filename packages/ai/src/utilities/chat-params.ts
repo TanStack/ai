@@ -212,9 +212,9 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
   state: unknown
   resume?: Array<RunAgentResumeItem>
   /**
-     * @deprecated Use `aguiContext` instead. This alias will be removed in a
-     * future release.
-     */
+   * @deprecated Use `aguiContext` instead. This alias will be removed in a
+   * future release.
+   */
   context: Array<AGUIContext>
   aguiContext: Array<AGUIContext>
 }> {

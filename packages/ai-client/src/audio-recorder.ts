@@ -8,10 +8,10 @@ export interface AudioRecorderOptions {
   /** Constraints forwarded to `getUserMedia({ audio })`. Defaults to `true`. */
   audio?: MediaTrackConstraints | boolean
   /**
-     * Preferred recorder mime type. Used only when
-     * `MediaRecorder.isTypeSupported` reports it; otherwise the browser default
-     * is used.
-     */
+   * Preferred recorder mime type. Used only when
+   * `MediaRecorder.isTypeSupported` reports it; otherwise the browser default
+   * is used.
+   */
   mimeType?: string
   /** Fired on `getUserMedia` rejection (permission denied) or recorder error. */
   onError?: (error: Error) => void
@@ -45,9 +45,9 @@ export interface AudioRecording {
   /** Recording length in milliseconds. */
   durationMs: number
   /**
-     * Ready-to-use audio content part for `sendMessage`/generation prompts:
-     * `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`.
-     */
+   * Ready-to-use audio content part for `sendMessage`/generation prompts:
+   * `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`.
+   */
   part: AudioPart
 }
 

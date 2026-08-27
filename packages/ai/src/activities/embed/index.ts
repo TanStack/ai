@@ -20,7 +20,7 @@ import type {
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'embedding' as const
+  kind = 'embedding' as const
 
 /**
  * Extract model-specific provider options from an EmbeddingAdapter via ~types.
@@ -74,31 +74,31 @@ export type EmbedOptions<
   /** The embedding adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /**
-     * What to embed: a single item or an array of items. Each item in the array
-     * produces exactly one vector. An item is a plain string, a text part, an
-     * image part, or — for models that embed text and image together — a fused
-     * item written as a nested array of parts (`[textPart, imagePart]`), the
-     * same `Array<ContentPart>` shape chat messages use. The accepted item types
-     * are narrowed per model via the adapter's input-modality map.
-     */
+   * What to embed: a single item or an array of items. Each item in the array
+   * produces exactly one vector. An item is a plain string, a text part, an
+   * image part, or — for models that embed text and image together — a fused
+   * item written as a nested array of parts (`[textPart, imagePart]`), the
+   * same `Array<ContentPart>` shape chat messages use. The accepted item types
+   * are narrowed per model via the adapter's input-modality map.
+   */
   input: EmbeddingInputForModel<TAdapter, TAdapter['model']>
   /**
-     * Requested output dimensionality. Supported by models with Matryoshka /
-     * configurable dimensions; adapters for fixed-dimension models throw a
-     * clear runtime error when this is set.
-     */
+   * Requested output dimensionality. Supported by models with Matryoshka /
+   * configurable dimensions; adapters for fixed-dimension models throw a
+   * clear runtime error when this is set.
+   */
   dimensions?: number
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
   /**
-     * Observe-only middleware notified on start, usage, success, and error. Pass
-     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
-     * `GenerationMiddleware` contract for a custom backend.
-     */
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
   middleware?: Array<GenerationMiddleware>
 } & ({} extends EmbedProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {

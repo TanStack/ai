@@ -31,10 +31,10 @@ interface StoredRecord {
   /** Encrypted keyring JSON. */
   ciphertext: ArrayBuffer
   /**
-     * Unencrypted presence metadata (`provider → last 4`). Non-sensitive, so it
-     * can be read via {@link KeyringStorage.peek} without an unlock ceremony to
-     * show saved keys as "locked" after a refresh.
-     */
+   * Unencrypted presence metadata (`provider → last 4`). Non-sensitive, so it
+   * can be read via {@link KeyringStorage.peek} without an unlock ceremony to
+   * show saved keys as "locked" after a refresh.
+   */
   preview: KeyPreview
 }
 
@@ -101,9 +101,11 @@ export async function deriveAesKey(
 export async function encryptKeyring(
   key: CryptoKey,
   keys: Keyring,
-): Promise<{ /** AES-GCM initialization vector for this ciphertext. */
-iv: ArrayBuffer; /** Encrypted keyring JSON. */
-ciphertext: ArrayBuffer }> {
+): Promise<{
+  /** AES-GCM initialization vector for this ciphertext. */
+  iv: ArrayBuffer /** Encrypted keyring JSON. */
+  ciphertext: ArrayBuffer
+}> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const plaintext = new TextEncoder().encode(JSON.stringify(keys))
   const ciphertext = await crypto.subtle.encrypt(
@@ -263,12 +265,12 @@ export interface PasskeyStorageOptions {
   /** Username label attached to the created passkey. */
   userName?: string
   /**
-     * WebAuthn Relying Party ID. Omit to bind the passkey to the current origin's
-     * effective domain (the default — no central/hardcoded domain). Set it to a
-     * registrable parent domain to share the credential across subdomains of your
-     * own deployment. The encrypted keyring is never portable across unrelated
-     * domains.
-     */
+   * WebAuthn Relying Party ID. Omit to bind the passkey to the current origin's
+   * effective domain (the default — no central/hardcoded domain). Set it to a
+   * registrable parent domain to share the credential across subdomains of your
+   * own deployment. The encrypted keyring is never portable across unrelated
+   * domains.
+   */
   rpId?: string
   /** IndexedDB database name. Defaults to `byok`. */
   dbName?: string

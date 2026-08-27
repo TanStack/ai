@@ -141,10 +141,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   }
 
   /**
-     * Generate structured output using Ollama's JSON format option.
-     * Uses format: 'json' with the schema to ensure structured output.
-     * The outputSchema is already JSON Schema (converted in the ai layer).
-     */
+   * Generate structured output using Ollama's JSON format option.
+   * Uses format: 'json' with the schema to ensure structured output.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {

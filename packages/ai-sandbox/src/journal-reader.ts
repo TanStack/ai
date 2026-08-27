@@ -22,10 +22,10 @@ export const DEFAULT_JOURNAL_POLL_MS = 250
 export interface ReadJournalOptions {
   paths: JournalPaths
   /**
-     * Count of journal bytes already consumed. The read starts at the next byte.
-     * Defaults to 0, which is also what a takeover uses: the alignment step, not
-     * the reader, decides what has already been delivered.
-     */
+   * Count of journal bytes already consumed. The read starts at the next byte.
+   * Defaults to 0, which is also what a takeover uses: the alignment step, not
+   * the reader, decides what has already been delivered.
+   */
   fromByte?: number
   /** Stop reading. On the follow strategy this also kills the `tail`. */
   signal?: AbortSignal
@@ -36,21 +36,21 @@ export interface ReadJournalOptions {
   /** Working directory for the read command. Paths are absolute, so rarely needed. */
   cwd?: string
   /**
-     * How long to wait for the FIRST byte of the journal before failing with
-     * `'journal-stalled'`. Defaults to {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS} — the
-     * same number that bounds the attach preflight, because it bounds the same
-     * question from the other side. `0` or a non-finite value disables the bound;
-     * do that only where some OTHER deadline already covers the read, since an
-     * unbounded read of an empty journal never returns.
-     *
-     * Only the first byte is bounded. An agent that streams slowly is never cut
-     * off.
-     */
+   * How long to wait for the FIRST byte of the journal before failing with
+   * `'journal-stalled'`. Defaults to {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS} — the
+   * same number that bounds the attach preflight, because it bounds the same
+   * question from the other side. `0` or a non-finite value disables the bound;
+   * do that only where some OTHER deadline already covers the read, since an
+   * unbounded read of an empty journal never returns.
+   *
+   * Only the first byte is bounded. An agent that streams slowly is never cut
+   * off.
+   */
   firstByteTimeoutMs?: number
   /**
-     * Run id, for the stall error's message only. Defaults to naming the journal
-     * path, which is always available and always identifies the run uniquely.
-     */
+   * Run id, for the stall error's message only. Defaults to naming the journal
+   * path, which is always available and always identifies the run uniquely.
+   */
   runId?: string
 }
 
@@ -75,7 +75,7 @@ function processOptions(options: ReadJournalOptions): ProcessOptions {
 
 /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
 const /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
-ABORTED = Symbol('journal-read-aborted')
+  ABORTED = Symbol('journal-read-aborted')
 
 /**
  * Iterate `source` but stop the moment `signal` fires, instead of waiting for
@@ -123,7 +123,7 @@ async function* untilAborted<T>(
 
 /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
 const /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
-STALLED = Symbol('journal-read-stalled')
+  STALLED = Symbol('journal-read-stalled')
 
 /** The bound in effect for a read; `undefined` when the caller disabled it. */
 function firstByteTimeout(options: ReadJournalOptions): number | undefined {

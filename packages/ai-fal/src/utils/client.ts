@@ -6,11 +6,11 @@ export interface FalClientConfig {
   apiKey: string
   proxyUrl?: string
   /**
-     * Override the underlying fetch used for fal requests. The adapter wraps it to
-     * read the `x-fal-billable-units` header (see ./billing.ts), so usage capture
-     * still works. Defaults to the global `fetch`. Useful for proxying,
-     * instrumentation, or pointing requests at a mock in tests.
-     */
+   * Override the underlying fetch used for fal requests. The adapter wraps it to
+   * read the `x-fal-billable-units` header (see ./billing.ts), so usage capture
+   * still works. Defaults to the global `fetch`. Useful for proxying,
+   * instrumentation, or pointing requests at a mock in tests.
+   */
   fetch?: typeof fetch
 }
 

@@ -26,22 +26,22 @@ export interface FunctionDefinition {
   name: string
 
   /**
-     * A description of what the function does, used by the model to choose when and
-     * how to call the function.
-     */
+   * A description of what the function does, used by the model to choose when and
+   * how to call the function.
+   */
   description?: string
 
   /**
-     * Function parameters defined as a JSON Schema object.
-     * @see https://json-schema.org/understanding-json-schema/
-     */
+   * Function parameters defined as a JSON Schema object.
+   * @see https://json-schema.org/understanding-json-schema/
+   */
   parameters?: FunctionParameters
 
   /**
-     * Whether to enable strict schema adherence when generating the output. If set to
-     * true, the model will always follow the exact schema defined in the `schema`
-     * field. Only a subset of JSON Schema is supported when `strict` is `true`.
-     */
+   * Whether to enable strict schema adherence when generating the output. If set to
+   * true, the model will always follow the exact schema defined in the `schema`
+   * field. Only a subset of JSON Schema is supported when `strict` is `true`.
+   */
   strict?: boolean
 }
 
@@ -129,9 +129,9 @@ export interface ResponseFormatJsonSchemaJsonSchema {
   description?: string
 
   /**
-     * The schema for the response format, described as a JSON Schema object.
-     * @see https://json-schema.org/
-     */
+   * The schema for the response format, described as a JSON Schema object.
+   * @see https://json-schema.org/
+   */
   schema?: { [key: string]: unknown }
 
   strict?: boolean | null
@@ -152,9 +152,9 @@ export interface ResponseFormatJsonObject {
 
 export interface SearchSettings {
   /**
-     * Name of country to prioritize search results from
-     * (e.g., "united states", "germany", "france").
-     */
+   * Name of country to prioritize search results from
+   * (e.g., "united states", "germany", "france").
+   */
   country?: string | null
 
   /** A list of domains to exclude from the search results. */
@@ -184,13 +184,13 @@ export interface GroqTextMetadata {}
  */
 export interface GroqImageMetadata {
   /**
-     * Specifies the detail level of the image.
-     * - 'auto': Let the model decide based on image size and content
-     * - 'low': Use low resolution processing (faster, cheaper, less detail)
-     * - 'high': Use high resolution processing (slower, more expensive, more detail)
-     *
-     * @default 'auto'
-     */
+   * Specifies the detail level of the image.
+   * - 'auto': Let the model decide based on image size and content
+   * - 'low': Use low resolution processing (faster, cheaper, less detail)
+   * - 'high': Use high resolution processing (slower, more expensive, more detail)
+   *
+   * @default 'auto'
+   */
   detail?: 'auto' | 'low' | 'high'
 }
 

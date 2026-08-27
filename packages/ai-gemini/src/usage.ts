@@ -91,27 +91,27 @@ export function hasModalityTokens(tokens: FlattenedModalityTokens): boolean {
  */
 export type GeminiProviderUsageDetails = {
   /**
-     * The traffic type for this request.
-     * Can indicate whether request was handled by different service tiers.
-     */
+   * The traffic type for this request.
+   * Can indicate whether request was handled by different service tiers.
+   */
   trafficType?: string
   /**
-     * Number of tokens in the results from tool executions,
-     * which are provided back to the model as input.
-     */
+   * Number of tokens in the results from tool executions,
+   * which are provided back to the model as input.
+   */
   toolUsePromptTokenCount?: number
   /**
-     * Detailed breakdown by modality of the token counts from
-     * the results of tool executions.
-     */
+   * Detailed breakdown by modality of the token counts from
+   * the results of tool executions.
+   */
   toolUsePromptTokensDetails?: Array<{
     modality: string
     tokenCount: number
   }>
   /**
-     * Detailed breakdown of cache tokens by modality.
-     * More granular than the normalized cachedTokens field.
-     */
+   * Detailed breakdown of cache tokens by modality.
+   * More granular than the normalized cachedTokens field.
+   */
   cacheTokensDetails?: Array<{
     modality: string
     tokenCount: number

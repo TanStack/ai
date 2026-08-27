@@ -54,10 +54,10 @@ export interface SpritesExecOptions {
   env?: Record<string, string>
   signal?: AbortSignal
   /**
-     * Max ms to wait for the control socket to open before failing. Bounds the
-     * `CONNECTING`-stall case (e.g. probing a Sprite that is still restarting) so
-     * `wait()` cannot hang forever when no `signal` is supplied. Defaults to 30s.
-     */
+   * Max ms to wait for the control socket to open before failing. Bounds the
+   * `CONNECTING`-stall case (e.g. probing a Sprite that is still restarting) so
+   * `wait()` cannot hang forever when no `signal` is supplied. Defaults to 30s.
+   */
   connectTimeoutMs?: number
 }
 
@@ -87,11 +87,11 @@ export interface SpritesClientLike {
   fsList: (name: string, path: string) => Promise<Array<SpriteFsEntry>>
   exec: (name: string, options: SpritesExecOptions) => SpritesExecStream
   /**
-     * Create a checkpoint and return its new version id (e.g. `v3`). The create
-     * endpoint streams NDJSON progress; we drain it to completion, then resolve
-     * the new id as the highest sequential `vN` checkpoint (autos and the live
-     * `Current` pointer are ignored).
-     */
+   * Create a checkpoint and return its new version id (e.g. `v3`). The create
+   * endpoint streams NDJSON progress; we drain it to completion, then resolve
+   * the new id as the highest sequential `vN` checkpoint (autos and the live
+   * `Current` pointer are ignored).
+   */
   createCheckpoint: (
     name: string,
     options?: { comment?: string; signal?: AbortSignal },
@@ -101,16 +101,16 @@ export interface SpritesClientLike {
     signal?: AbortSignal,
   ) => Promise<Array<SpriteCheckpoint>>
   /**
-     * Restore a checkpoint in place. The Sprite's writable overlay is replaced and
-     * the environment restarts, so the agent is briefly unreachable.
-     *
-     * The restore endpoint streams progress but holds the connection open across
-     * the restart (it does not close cleanly), so we must NOT drain it — we cancel
-     * the body once the restore is accepted, then poll the filesystem until the
-     * Sprite is ready again (or `readyTimeoutMs`, default 600s, elapses). Restart
-     * can take minutes; raise `readyTimeoutMs` for large overlays. The caller's
-     * `signal` cancels the wait, not just the initial request.
-     */
+   * Restore a checkpoint in place. The Sprite's writable overlay is replaced and
+   * the environment restarts, so the agent is briefly unreachable.
+   *
+   * The restore endpoint streams progress but holds the connection open across
+   * the restart (it does not close cleanly), so we must NOT drain it — we cancel
+   * the body once the restore is accepted, then poll the filesystem until the
+   * Sprite is ready again (or `readyTimeoutMs`, default 600s, elapses). Restart
+   * can take minutes; raise `readyTimeoutMs` for large overlays. The caller's
+   * `signal` cancels the wait, not just the initial request.
+   */
   restoreCheckpoint: (
     name: string,
     id: string,
@@ -423,17 +423,17 @@ export class SpritesClient implements SpritesClientLike {
   }
 
   /**
-     * Poll the filesystem until the restored overlay actually serves reads, or
-     * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
-     * bounded by its abort signal — during a restart the socket can stall in
-     * CONNECTING without opening or closing.
-     *
-     * Probes a write→read round-trip of a sentinel under `probePath` rather than a
-     * directory listing: right after a restore the overlay becomes *listable
-     * before file reads work* (a transient I/O error), so listing alone reports
-     * ready too early. Two consecutive round-trips are required before the sentinel
-     * is removed and the Sprite is declared ready.
-     */
+   * Poll the filesystem until the restored overlay actually serves reads, or
+   * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
+   * bounded by its abort signal — during a restart the socket can stall in
+   * CONNECTING without opening or closing.
+   *
+   * Probes a write→read round-trip of a sentinel under `probePath` rather than a
+   * directory listing: right after a restore the overlay becomes *listable
+   * before file reads work* (a transient I/O error), so listing alone reports
+   * ready too early. Two consecutive round-trips are required before the sentinel
+   * is removed and the Sprite is declared ready.
+   */
   private async waitUntilReady(
     name: string,
     timeoutMs: number,

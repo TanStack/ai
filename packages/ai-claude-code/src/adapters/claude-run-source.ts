@@ -1,6 +1,6 @@
 /** Placeholder swapped for the schema JSON after the runner reads the files. */
 export const /** Placeholder swapped for the schema JSON after the runner reads the files. */
-CLAUDE_JSON_SCHEMA_PLACEHOLDER = '__TANSTACK_SCHEMA__'
+  CLAUDE_JSON_SCHEMA_PLACEHOLDER = '__TANSTACK_SCHEMA__'
 
 /**
  * Written into the sandbox and run with `node`.

@@ -39,7 +39,7 @@ import type {
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'video' as const
+  kind = 'video' as const
 
 /**
  * Extract provider options from a VideoAdapter via ~types.
@@ -142,109 +142,109 @@ export type VideoCreateOptions<
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
   /**
-     * Description of the desired video. Either a plain string, or — for models
-     * that support image-conditioned generation — an ordered array of content
-     * parts interleaving text with image inputs. Image parts may carry
-     * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
-     * 'character'`) to disambiguate intent; positional fallback otherwise. The
-     * accepted part types are narrowed per model via the adapter's
-     * input-modality map.
-     */
+   * Description of the desired video. Either a plain string, or — for models
+   * that support image-conditioned generation — an ordered array of content
+   * parts interleaving text with image inputs. Image parts may carry
+   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+   * 'character'`) to disambiguate intent; positional fallback otherwise. The
+   * accepted part types are narrowed per model via the adapter's
+   * input-modality map.
+   */
   prompt: VideoPromptForAdapter<TAdapter>
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
   /**
-     * Video duration in seconds. Adapters that declare a per-model duration
-     * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
-     * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
-     * value.
-     */
+   * Video duration in seconds. Adapters that declare a per-model duration
+   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
+   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
+   * value.
+   */
   duration?: VideoDurationForAdapter<TAdapter>
   /**
-     * Whether to stream the video generation lifecycle.
-     * When true, returns an AsyncIterable<StreamChunk> that handles the full
-     * job lifecycle: create job, poll for status, yield updates, and yield final result.
-     * When false or not provided, returns a Promise<VideoJobResult>.
-     *
-     * @default false
-     */
+   * Whether to stream the video generation lifecycle.
+   * When true, returns an AsyncIterable<StreamChunk> that handles the full
+   * job lifecycle: create job, poll for status, yield updates, and yield final result.
+   * When false or not provided, returns a Promise<VideoJobResult>.
+   *
+   * @default false
+   */
   stream?: TStream
   /** Polling interval in milliseconds (stream mode only). @default 2000 */
   pollingInterval?: number
   /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
   maxDuration?: number
   /**
-     * Custom run id (stream mode only) — the id stamped on the emitted
-     * `RUN_STARTED` / `RUN_FINISHED` chunks.
-     *
-     * IGNORED by a non-streaming submit. That run spans two calls, and its id is
-     * derived from the provider's job instead, so {@link getVideoJobStatus} can
-     * recompute it from the `jobId` you already have to poll with. Honoring a
-     * custom id here would reintroduce the failure this avoids: a caller who set
-     * it on the submit and forgot it on the poll would silently open a second
-     * record while the first sat unfinished forever.
-     */
+   * Custom run id (stream mode only) — the id stamped on the emitted
+   * `RUN_STARTED` / `RUN_FINISHED` chunks.
+   *
+   * IGNORED by a non-streaming submit. That run spans two calls, and its id is
+   * derived from the provider's job instead, so {@link getVideoJobStatus} can
+   * recompute it from the `jobId` you already have to poll with. Honoring a
+   * custom id here would reintroduce the failure this avoids: a caller who set
+   * it on the submit and forgot it on the poll would silently open a second
+   * record while the first sat unfinished forever.
+   */
   runId?: string
   /**
-     * Stable conversation/thread id for correlating this run when persisted.
-     *
-     * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
-     * chunks; when omitted a throwaway id is minted for those chunks only, and
-     * the persisted run record carries NO thread link rather than a fabricated
-     * one. Pass it whenever persistence is on — it is the slot a reloading client
-     * hydrates by, so a run stored without it can only be fetched by run id.
-     */
+   * Stable conversation/thread id for correlating this run when persisted.
+   *
+   * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
+   * chunks; when omitted a throwaway id is minted for those chunks only, and
+   * the persisted run record carries NO thread link rather than a fabricated
+   * one. Pass it whenever persistence is on — it is the slot a reloading client
+   * hydrates by, so a run stored without it can only be fetched by run id.
+   */
   threadId?: string
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
   /**
-     * Observe-only middleware notified on start, usage, success, and error. Pass
-     * `otelMiddleware()` to emit OpenTelemetry spans, `withGenerationPersistence()`
-     * to persist the run, or implement the `GenerationMiddleware` contract for a
-     * custom backend.
-     *
-     * In streaming mode one run covers the full create→poll→complete lifecycle:
-     * `onStart` at submission, a terminal `onFinish`/`onError` when the job
-     * settles, and `onAbort` if the consumer abandons the stream.
-     *
-     * In NON-streaming mode the call only SUBMITS the job, so it only opens the
-     * run: no terminal hook fires here, because the video does not exist yet.
-     * Pass the same `middleware` and `threadId` to {@link getVideoJobStatus}; the
-     * poll that observes a terminal job state finishes the run and is where the
-     * result and its artifacts are recorded. Nothing else has to be threaded
-     * through — both calls derive the run id from the provider's `jobId`, the one
-     * id a poller cannot be missing.
-     *
-     * Because the job id only exists once the provider accepts the job, `onStart`
-     * fires AFTER the submit request rather than before it — an observer's span
-     * therefore covers the run from acceptance onward, not the submit round-trip.
-     * A submission that FAILS has no job to key on, so it opens and immediately
-     * fails a run under this call's `requestId`: the thread's latest run reports
-     * the failure (a client hydrating the slot sees it) even though there is no
-     * job to resume.
-     */
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, `withGenerationPersistence()`
+   * to persist the run, or implement the `GenerationMiddleware` contract for a
+   * custom backend.
+   *
+   * In streaming mode one run covers the full create→poll→complete lifecycle:
+   * `onStart` at submission, a terminal `onFinish`/`onError` when the job
+   * settles, and `onAbort` if the consumer abandons the stream.
+   *
+   * In NON-streaming mode the call only SUBMITS the job, so it only opens the
+   * run: no terminal hook fires here, because the video does not exist yet.
+   * Pass the same `middleware` and `threadId` to {@link getVideoJobStatus}; the
+   * poll that observes a terminal job state finishes the run and is where the
+   * result and its artifacts are recorded. Nothing else has to be threaded
+   * through — both calls derive the run id from the provider's `jobId`, the one
+   * id a poller cannot be missing.
+   *
+   * Because the job id only exists once the provider accepts the job, `onStart`
+   * fires AFTER the submit request rather than before it — an observer's span
+   * therefore covers the run from acceptance onward, not the submit round-trip.
+   * A submission that FAILS has no job to key on, so it opens and immediately
+   * fails a run under this call's `requestId`: the thread's latest run reports
+   * the failure (a client hydrating the slot sees it) even though there is no
+   * job to resume.
+   */
   middleware?: Array<GenerationMiddleware>
   /**
-     * Maximum duration of this activity invocation in milliseconds.
-     * No SDK-wide default — choose a value suitable for the provider and job.
-     * Composed with {@link abortSignal}; the first abort wins.
-     *
-     * In stream mode this bounds the full create→poll→complete lifecycle and
-     * complements {@link maxDuration} (which defaults to 10 minutes). When both
-     * are set, the shorter limit wins via signal composition against the
-     * polling deadline.
-     */
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   *
+   * In stream mode this bounds the full create→poll→complete lifecycle and
+   * complements {@link maxDuration} (which defaults to 10 minutes). When both
+   * are set, the shorter limit wins via signal composition against the
+   * polling deadline.
+   */
   timeout?: number
   /**
-     * Caller cancellation signal (request disconnects, job/runtime cancellation).
-     * Composed with {@link timeout} into an effective signal forwarded to the
-     * adapter on job submission. Request-specific — not stored on global
-     * provider client config.
-     */
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter on job submission. Request-specific — not stored on global
+   * provider client config.
+   */
   abortSignal?: AbortSignal
 } & ({} extends VideoProviderOptions<TAdapter>
     ? {

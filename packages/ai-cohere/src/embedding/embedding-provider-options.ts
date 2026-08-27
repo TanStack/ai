@@ -6,13 +6,13 @@
  */
 export interface CohereEmbeddingProviderOptions {
   /**
-     * The intended downstream use of the embeddings. Cohere requires this to
-     * pick the right embedding space:
-     * - `search_document` — corpus items stored for later retrieval
-     * - `search_query` — queries run against stored documents
-     * - `classification` — inputs embedded for classification tasks
-     * - `clustering` — inputs embedded for clustering tasks
-     */
+   * The intended downstream use of the embeddings. Cohere requires this to
+   * pick the right embedding space:
+   * - `search_document` — corpus items stored for later retrieval
+   * - `search_query` — queries run against stored documents
+   * - `classification` — inputs embedded for classification tasks
+   * - `clustering` — inputs embedded for clustering tasks
+   */
   inputType:
     | 'search_document'
     | 'search_query'
@@ -20,17 +20,17 @@ export interface CohereEmbeddingProviderOptions {
     | 'clustering'
 
   /**
-     * Requested embedding value encodings. The adapter always pins this to
-     * `['float']` so vectors are plain `number[]`; other encodings are not
-     * supported through TanStack AI.
-     */
+   * Requested embedding value encodings. The adapter always pins this to
+   * `['float']` so vectors are plain `number[]`; other encodings are not
+   * supported through TanStack AI.
+   */
   embeddingTypes?: ['float']
 
   /**
-     * How to handle inputs longer than the model's maximum token length.
-     * `NONE` returns an error for over-long inputs; `START`/`END` truncate
-     * from the respective side. Defaults to Cohere's server-side default
-     * (`END`) when omitted.
-     */
+   * How to handle inputs longer than the model's maximum token length.
+   * `NONE` returns an error for over-long inputs; `START`/`END` truncate
+   * from the respective side. Defaults to Cohere's server-side default
+   * (`END`) when omitted.
+   */
   truncate?: 'NONE' | 'START' | 'END'
 }

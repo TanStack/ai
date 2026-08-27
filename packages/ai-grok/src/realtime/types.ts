@@ -38,13 +38,13 @@ export interface GrokRealtimeTokenOptions {
   /** Model to use (default: 'grok-voice-think-fast-2.0'). */
   model?: GrokRealtimeModel
   /**
-     * Enable debug logging for token creation.
-     *
-     * - `true`: log all categories via the default `ConsoleLogger`
-     * - `false`: silence everything including errors
-     * - `DebugConfig`: per-category toggles plus an optional custom `logger`
-     * - omitted: only the `errors` category is active (default behaviour)
-     */
+   * Enable debug logging for token creation.
+   *
+   * - `true`: log all categories via the default `ConsoleLogger`
+   * - `false`: silence everything including errors
+   * - `DebugConfig`: per-category toggles plus an optional custom `logger`
+   * - omitted: only the `errors` category is active (default behaviour)
+   */
   debug?: DebugOption
 }
 

@@ -50,16 +50,16 @@ interface ModelMeta<
     }
   }
   /**
-     * Type-level description of which provider options this model supports.
-     */
+   * Type-level description of which provider options this model supports.
+   */
   providerOptions?: TProviderOptions
   /**
-     * Type-level description of which tool capabilities this model supports.
-     */
+   * Type-level description of which tool capabilities this model supports.
+   */
   toolCapabilities?: TToolCapabilities
   /**
-     * Type-level description of which message/input capabilities this model supports.
-     */
+   * Type-level description of which message/input capabilities this model supports.
+   */
   messageCapabilities?: TMessageCapabilities
 }
 

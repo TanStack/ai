@@ -271,10 +271,10 @@ export class CohereEmbeddingAdapter<
   }
 
   /**
-     * Resolves an image part to a URL Cohere accepts. Cohere does not fetch
-     * remote image URLs, so everything is normalized to a `data:` URI unless
-     * the caller already provided one.
-     */
+   * Resolves an image part to a URL Cohere accepts. Cohere does not fetch
+   * remote image URLs, so everything is normalized to a `data:` URI unless
+   * the caller already provided one.
+   */
   protected async resolveImageUrl(image: ImagePart): Promise<string> {
     const source = image.source
 

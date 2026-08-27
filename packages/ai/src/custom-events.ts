@@ -3,17 +3,17 @@ import type { CustomEvent, StreamChunk } from './types'
 
 /** Well-known CUSTOM event names. */
 export const /** Well-known CUSTOM event names. */
-CUSTOM_EVENT = {
-  FILE_CHANGED: 'file.changed',
-  PROCESS_STDOUT: 'process.stdout',
-  PROCESS_STDERR: 'process.stderr',
-  PORT_OPENED: 'port.opened',
-  APPROVAL_REQUESTED: 'approval.requested',
-  APPROVAL_RESOLVED: 'approval.resolved',
-  ARTIFACT_CREATED: 'artifact.created',
-  SANDBOX_CREATED: 'sandbox.created',
-  SANDBOX_RESUMED: 'sandbox.resumed',
-} as const
+  CUSTOM_EVENT = {
+    FILE_CHANGED: 'file.changed',
+    PROCESS_STDOUT: 'process.stdout',
+    PROCESS_STDERR: 'process.stderr',
+    PORT_OPENED: 'port.opened',
+    APPROVAL_REQUESTED: 'approval.requested',
+    APPROVAL_RESOLVED: 'approval.resolved',
+    ARTIFACT_CREATED: 'artifact.created',
+    SANDBOX_CREATED: 'sandbox.created',
+    SANDBOX_RESUMED: 'sandbox.resumed',
+  } as const
 
 /** Union of the well-known CUSTOM event name literals. */
 export type WellKnownCustomEventName =

@@ -13,12 +13,12 @@ import { createCapability } from './capabilities'
  */
 export interface RunDisconnect {
   /**
-     * Register `listener`, called at most once per run when the delivery socket
-     * closes. Registering after the socket has ALREADY closed calls `listener`
-     * immediately — otherwise a middleware whose `setup` was still running during
-     * the disconnect would silently never hear about it, which is the exact window
-     * the common disconnect lands in.
-     */
+   * Register `listener`, called at most once per run when the delivery socket
+   * closes. Registering after the socket has ALREADY closed calls `listener`
+   * immediately — otherwise a middleware whose `setup` was still running during
+   * the disconnect would silently never hear about it, which is the exact window
+   * the common disconnect lands in.
+   */
   subscribe: (listener: () => void | Promise<void>) => void
 }
 

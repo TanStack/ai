@@ -356,15 +356,15 @@ async function createWebRTCConnection(
   }
 
   /**
-     * Tear down every resource we may have allocated so the mic/pc/audio
-     * nodes/audio element don't leak on a failed connect. Safe to call from
-     * any point after `new RTCPeerConnection()`; each branch null-guards and
-     * swallows errors because cascading closes (e.g. `pc.close()` closing the
-     * data channel implicitly) are expected.
-     *
-     * Shared between the SDP-path catch, the post-SDP catch, and (implicitly
-     * via idempotency) the `disconnect()` entry point.
-     */
+   * Tear down every resource we may have allocated so the mic/pc/audio
+   * nodes/audio element don't leak on a failed connect. Safe to call from
+   * any point after `new RTCPeerConnection()`; each branch null-guards and
+   * swallows errors because cascading closes (e.g. `pc.close()` closing the
+   * data channel implicitly) are expected.
+   *
+   * Shared between the SDP-path catch, the post-SDP catch, and (implicitly
+   * via idempotency) the `disconnect()` entry point.
+   */
   async function teardownConnection() {
     isTornDown = true
 

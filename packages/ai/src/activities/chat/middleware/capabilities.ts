@@ -16,8 +16,13 @@ export interface CapabilityContext {
 /** Reads a capability value off a context. Overloaded so the flag narrows the return. */
 export interface CapabilityGetter<TValue> {
   (ctx: CapabilityContext): TValue
-  (ctx: CapabilityContext, opts: { /** When true, return undefined instead of throwing if the capability is absent. */
-optional: true }): TValue | undefined
+  (
+    ctx: CapabilityContext,
+    opts: {
+      /** When true, return undefined instead of throwing if the capability is absent. */
+      optional: true
+    },
+  ): TValue | undefined
 }
 
 /** Writes a capability value onto a context. */

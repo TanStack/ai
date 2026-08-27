@@ -3,14 +3,14 @@
  */
 export interface AudioProviderOptions {
   /**
-     * The text to generate audio for.
-     * Maximum length is 200 characters.
-     * Use [directions] for vocal control (English voices only).
-     */
+   * The text to generate audio for.
+   * Maximum length is 200 characters.
+   * Use [directions] for vocal control (English voices only).
+   */
   input: string
   /**
-     * The audio model to use for generation.
-     */
+   * The audio model to use for generation.
+   */
   model: string
 }
 

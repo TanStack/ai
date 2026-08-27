@@ -37,7 +37,7 @@ export interface GrokImageConfig extends GrokClientConfig {}
 
 /** Maximum source images accepted by xAI's image edit endpoint. */
 const /** Maximum source images accepted by xAI's image edit endpoint. */
-MAX_EDIT_IMAGES = 3
+  MAX_EDIT_IMAGES = 3
 
 /**
  * Maps the generic `size` option onto Imagine API parameters: the
@@ -205,15 +205,15 @@ export class GrokImageAdapter<
   }
 
   /**
-     * Image-conditioned generation via xAI's Imagine API.
-     *
-     * The `/v1/images/edits` endpoint takes `application/json` (the OpenAI
-     * SDK's `images.edit()` sends `multipart/form-data`, which xAI rejects),
-     * so this path issues the request directly. One input is sent as
-     * `image: { url }`; multiple inputs (up to 3) as `images: [{ url }, ...]`,
-     * addressed by xAI in the order they are sent. The prompt text is sent
-     * verbatim — no referencing markers are injected.
-     */
+   * Image-conditioned generation via xAI's Imagine API.
+   *
+   * The `/v1/images/edits` endpoint takes `application/json` (the OpenAI
+   * SDK's `images.edit()` sends `multipart/form-data`, which xAI rejects),
+   * so this path issues the request directly. One input is sent as
+   * `image: { url }`; multiple inputs (up to 3) as `images: [{ url }, ...]`,
+   * addressed by xAI in the order they are sent. The prompt text is sent
+   * verbatim — no referencing markers are injected.
+   */
   private async editImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
     resolved: ResolvedMediaPrompt,

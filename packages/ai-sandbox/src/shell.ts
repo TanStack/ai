@@ -31,11 +31,14 @@ export interface BootstrapShell {
   /** Run a shell command and capture its stdout + exit code. */
   run: (command: string) => Promise<{ exitCode: number; stdout: string }>
   /**
-     * Snapshot the shell's current working directory and exported environment.
-     * Used to fork parallel exec calls that inherit the serial shell's state.
-     */
-  forkState: () => Promise<{ /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
-cwd: string; env: Record<string, string> }>
+   * Snapshot the shell's current working directory and exported environment.
+   * Used to fork parallel exec calls that inherit the serial shell's state.
+   */
+  forkState: () => Promise<{
+    /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
+    cwd: string
+    env: Record<string, string>
+  }>
   /** End the shell session (closes stdin, kills the process). */
   dispose: () => Promise<void>
 }
@@ -45,24 +48,24 @@ export interface BootstrapShellOptions {
   /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
   cwd?: string
   /**
-     * Belt-and-braces deadline for a single `run()` to see its sentinel. The
-     * primary termination condition is the stdout stream ending (see
-     * {@link createBootstrapShell}); this only catches a shell that is alive,
-     * silent, and never going to answer. Generous by default because setup steps
-     * legitimately run for a long time (`npm install`, image pulls).
-     */
+   * Belt-and-braces deadline for a single `run()` to see its sentinel. The
+   * primary termination condition is the stdout stream ending (see
+   * {@link createBootstrapShell}); this only catches a shell that is alive,
+   * silent, and never going to answer. Generous by default because setup steps
+   * legitimately run for a long time (`npm install`, image pulls).
+   */
   commandTimeoutMs?: number
 }
 
 /** Default {@link BootstrapShellOptions.commandTimeoutMs} — 30 minutes. */
 const /** Default {@link BootstrapShellOptions.commandTimeoutMs} — 30 minutes. */
-DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
+  DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
 
 /** Race marker for the per-command deadline. A symbol cannot collide with a
  *  literal stdout line (a line of text `'timeout'` would). */
 const /** Race marker for the per-command deadline. A symbol cannot collide with a
- *  literal stdout line (a line of text `'timeout'` would). */
-TIMED_OUT = Symbol('bootstrap-shell-timeout')
+   *  literal stdout line (a line of text `'timeout'` would). */
+  TIMED_OUT = Symbol('bootstrap-shell-timeout')
 
 /**
  * Spawn one `sh` process and return a {@link BootstrapShell} that drives it

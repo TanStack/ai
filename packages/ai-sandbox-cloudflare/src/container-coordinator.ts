@@ -15,7 +15,7 @@ import type { Sandbox } from '@cloudflare/sandbox'
 
 /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
 const /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
-RUNNER_PORT = 8080
+  RUNNER_PORT = 8080
 
 /**
  * The Env bindings a {@link ContainerSandboxCoordinator} requires. The
@@ -34,20 +34,20 @@ export interface ContainerCoordinatorEnv {
   /** The `@cloudflare/sandbox` Sandbox DO namespace (the container hosts). */
   Sandbox: DurableObjectNamespace<Sandbox>
   /**
-     * Hostname the container uses to reach the DO's `/tool-exec` endpoint. Optional:
-     * unset → derived from the trigger request (deployed: request host; local dev:
-     * `host.docker.internal`). Set it only to override. See {@link resolveBridgeOrigin}.
-     */
+   * Hostname the container uses to reach the DO's `/tool-exec` endpoint. Optional:
+   * unset → derived from the trigger request (deployed: request host; local dev:
+   * `host.docker.internal`). Set it only to override. See {@link resolveBridgeOrigin}.
+   */
   PUBLIC_HOSTNAME?: string
 }
 
 /** What {@link ContainerSandboxCoordinator.config} returns for one run. */
 export interface ContainerRunConfig {
   /**
-     * The REAL host tools. Their `execute()` runs HERE, in the DO — the
-     * in-container agent only ever reaches them via `/tool-exec/:runId`. Only the
-     * serialized descriptors cross to the container.
-     */
+   * The REAL host tools. Their `execute()` runs HERE, in the DO — the
+   * in-container agent only ever reaches them via `/tool-exec/:runId`. Only the
+   * serialized descriptors cross to the container.
+   */
   hostTools: Array<AnyTool>
   /** Workspace the in-container runner bootstraps for the agent. */
   workspace: WorkspaceDefinition
@@ -136,35 +136,35 @@ export abstract class ContainerSandboxCoordinator<
   TEnv extends ContainerCoordinatorEnv = ContainerCoordinatorEnv,
 > extends SandboxCoordinator<TEnv> {
   /**
-     * Live per-run tool-exec tokens, keyed by runId. In-memory by design: a run's
-     * tool-exec endpoint is only reachable while the run is in flight, and
-     * `ctx.waitUntil(done)` keeps THIS instance alive for the run's lifetime, so
-     * the container's callbacks always hit the instance that minted the token.
-     */
+   * Live per-run tool-exec tokens, keyed by runId. In-memory by design: a run's
+   * tool-exec endpoint is only reachable while the run is in flight, and
+   * `ctx.waitUntil(done)` keeps THIS instance alive for the run's lifetime, so
+   * the container's callbacks always hit the instance that minted the token.
+   */
   private readonly toolExec = new Map<string, ToolExecState>()
 
   /**
-     * In-flight runner boot, memoized so two runs starting near-simultaneously on
-     * this instance don't both spawn `container-runner` (the second would hit
-     * EADDRINUSE on RUNNER_PORT). Cleared once boot settles.
-     */
+   * In-flight runner boot, memoized so two runs starting near-simultaneously on
+   * this instance don't both spawn `container-runner` (the second would hit
+   * EADDRINUSE on RUNNER_PORT). Cleared once boot settles.
+   */
   private runnerBoot?: Promise<void>
 
   /** Last `/health` probe error, surfaced if the runner never comes up. */
   private lastProbeError?: unknown
 
   /**
-     * Resolve the host tools, workspace, harness, and model for one run.
-     * Implemented by the app subclass (or supplied by
-     * {@link createCloudflareSandboxAgent}).
-     */
+   * Resolve the host tools, workspace, harness, and model for one run.
+   * Implemented by the app subclass (or supplied by
+   * {@link createCloudflareSandboxAgent}).
+   */
   protected abstract config(input: StartRunInput): ContainerRunConfig
 
   /**
-     * Mint the per-run tool-exec token, POST `/run` to the in-container runner, and
-     * yield its NDJSON chunks. The token is registered BEFORE the container is told
-     * to run, so a tool callback can never arrive before the token exists.
-     */
+   * Mint the per-run tool-exec token, POST `/run` to the in-container runner, and
+   * yield its NDJSON chunks. The token is registered BEFORE the container is told
+   * to run, so a tool callback can never arrive before the token exists.
+   */
   protected override buildRunStream(
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> {
@@ -184,9 +184,9 @@ export abstract class ContainerSandboxCoordinator<
   }
 
   /**
-     * Once the run is terminal, abort any host tool still running on its behalf
-     * (so a tool that outlived the run doesn't leak), then drop the per-run state.
-     */
+   * Once the run is terminal, abort any host tool still running on its behalf
+   * (so a tool that outlived the run doesn't leak), then drop the per-run state.
+   */
   protected override onRunSettled(runId: string): void {
     const state = this.toolExec.get(runId)
     if (state) state.abort.abort()
@@ -194,12 +194,12 @@ export abstract class ContainerSandboxCoordinator<
   }
 
   /**
-     * POST `/run` to the in-container runner and yield its NDJSON chunks. The DO
-     * reaches the runner DIRECTLY over the sandbox binding (`containerFetch` to
-     * RUNNER_PORT) — this internal channel needs no public hostname. The runner
-     * gets the host-tool descriptors plus the `/tool-exec` URL + token it calls
-     * back on.
-     */
+   * POST `/run` to the in-container runner and yield its NDJSON chunks. The DO
+   * reaches the runner DIRECTLY over the sandbox binding (`containerFetch` to
+   * RUNNER_PORT) — this internal channel needs no public hostname. The runner
+   * gets the host-tool descriptors plus the `/tool-exec` URL + token it calls
+   * back on.
+   */
   private async *driveContainer(
     input: StartRunInput,
     runConfig: ContainerRunConfig,
@@ -245,11 +245,11 @@ export abstract class ContainerSandboxCoordinator<
   }
 
   /**
-     * Ensure the in-container runner is listening on RUNNER_PORT. The base image's
-     * ENTRYPOINT is the sandbox CONTROL server, not our runner — so we start the
-     * bundled runner as a background process via that control server. Idempotent
-     * for a thread-reused container: if `/health` already answers, we skip spawn.
-     */
+   * Ensure the in-container runner is listening on RUNNER_PORT. The base image's
+   * ENTRYPOINT is the sandbox CONTROL server, not our runner — so we start the
+   * bundled runner as a background process via that control server. Idempotent
+   * for a thread-reused container: if `/health` already answers, we skip spawn.
+   */
   private ensureRunner(
     sandbox: Sandbox,
     workspace: WorkspaceDefinition,
@@ -264,14 +264,14 @@ export abstract class ContainerSandboxCoordinator<
   }
 
   /**
-     * Copy the run's DECLARED secret names out of the Worker `env` into a plain
-     * record for the container env. The workspace's `createSecrets` carries only the
-     * names across the `/run` boundary; the VALUES come from `env` by that name —
-     * which is how `ANTHROPIC_API_KEY` / `CODEX_API_KEY` / any harness key reach the
-     * CLI without the package hardcoding which one. A declared name missing from
-     * `env` is skipped here and fails loudly later in the runner's
-     * `reconstituteWorkspace` (never a silent keyless run).
-     */
+   * Copy the run's DECLARED secret names out of the Worker `env` into a plain
+   * record for the container env. The workspace's `createSecrets` carries only the
+   * names across the `/run` boundary; the VALUES come from `env` by that name —
+   * which is how `ANTHROPIC_API_KEY` / `CODEX_API_KEY` / any harness key reach the
+   * CLI without the package hardcoding which one. A declared name missing from
+   * `env` is skipped here and fails loudly later in the runner's
+   * `reconstituteWorkspace` (never a silent keyless run).
+   */
   private secretEnvFromWorkspace(
     workspace: WorkspaceDefinition,
   ): Record<string, string> {
@@ -342,11 +342,11 @@ export abstract class ContainerSandboxCoordinator<
   }
 
   /**
-     * Execute a host tool the in-container agent called back for. The token gates
-     * it (constant-time Web Crypto compare); the REAL tool's `execute()` runs here
-     * via {@link executeHostTool} and its raw result returns as `{ result }`. An
-     * unknown tool or a thrown `execute()` is surfaced as a 4xx/5xx, never masked.
-     */
+   * Execute a host tool the in-container agent called back for. The token gates
+   * it (constant-time Web Crypto compare); the REAL tool's `execute()` runs here
+   * via {@link executeHostTool} and its raw result returns as `{ result }`. An
+   * unknown tool or a thrown `execute()` is surfaced as a 4xx/5xx, never masked.
+   */
   private async serveToolExec(
     runId: string,
     request: Request,

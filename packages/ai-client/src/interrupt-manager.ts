@@ -96,8 +96,12 @@ interface ValidationFailure {
   path?: ReadonlyArray<string | number>
 }
 
-type ValidationResult = { valid: true; /** Validated display payload for a registered first-party generic item. */
-payload: unknown } | ValidationFailure
+type ValidationResult =
+  | {
+      valid: true /** Validated display payload for a registered first-party generic item. */
+      payload: unknown
+    }
+  | ValidationFailure
 
 interface TransactionToken {
   active: boolean

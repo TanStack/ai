@@ -60,9 +60,9 @@ export type InterruptItemStatus =
 
 export interface BoundInterruptBase {
   /**
-     * Optional custom ID for the message.
-     * If not provided, a unique ID will be generated.
-     */
+   * Optional custom ID for the message.
+   * If not provided, a unique ID will be generated.
+   */
   readonly id: string
   readonly interruptId: string
   readonly reason: string
@@ -70,16 +70,16 @@ export interface BoundInterruptBase {
   readonly responseSchema?: Readonly<Record<string, unknown>>
   readonly expiresAt?: string
   /**
-     * Optional AG-UI metadata bag copied onto the resulting UIMessage.
-     *
-     * @example
-     * ```ts
-     * await client.sendMessage({
-     *   content: 'Show me failed logins',
-     *   metadata: { author: { id: 'user-42', name: 'Dana' } },
-     * })
-     * ```
-     */
+   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
+   *
+   * @example
+   * ```ts
+   * await client.sendMessage({
+   *   content: 'Show me failed logins',
+   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
+   * })
+   * ```
+   */
   readonly metadata?: Readonly<Record<string, unknown>>
   readonly threadId: string
   readonly interruptedRunId: string
@@ -89,10 +89,10 @@ export interface BoundInterruptBase {
   /** @deprecated Use `errors[0]`. */
   readonly error?: ItemInterruptError
   /**
-     * Whether the binding/schema allows resolution at hydrate time.
-     * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
-     * `errors` for those lifecycle states.
-     */
+   * Whether the binding/schema allows resolution at hydrate time.
+   * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
+   * `errors` for those lifecycle states.
+   */
   readonly canResolve: boolean
   cancel: () => void
   clearResolution: () => void
@@ -393,9 +393,9 @@ export type ConnectionStatus =
  */
 export interface MultimodalContent {
   /**
-     * The content of the message.
-     * Can be a simple string or an array of content parts for multimodal messages.
-     */
+   * The content of the message.
+   * Can be a simple string or an array of content parts for multimodal messages.
+   */
   content: string | Array<ContentPart>
   id?: string
   metadata?: Record<string, any>
@@ -437,25 +437,25 @@ export interface QueuedMessage {
  */
 export interface QueueConfig {
   /**
-     * Action when the client is busy (streaming, claiming a send, or draining).
-     * Default `'queue'`.
-     */
+   * Action when the client is busy (streaming, claiming a send, or draining).
+   * Default `'queue'`.
+   */
   whenBusy?: WhenBusy
   /**
-     * How queued items leave the queue.
-     * - `'fifo'`: one at a time, in order (default).
-     * - `'batch'`: merge all queued items into one send when the run settles
-     *   successfully.
-     */
+   * How queued items leave the queue.
+   * - `'fifo'`: one at a time, in order (default).
+   * - `'batch'`: merge all queued items into one send when the run settles
+   *   successfully.
+   */
   drain?: 'fifo' | 'batch'
   /** Max queued items. Unlimited when omitted. `0` means never queue. */
   maxSize?: number
   /**
-     * Behavior when `maxSize` is reached. Default `'reject'`.
-     * `'reject'` silently discards the new send (does not throw);
-     * `'drop-oldest'` evicts the oldest queued item to make room.
-     * Only meaningful when `maxSize` is set.
-     */
+   * Behavior when `maxSize` is reached. Default `'reject'`.
+   * `'reject'` silently discards the new send (does not throw);
+   * `'drop-oldest'` evicts the oldest queued item to make room.
+   * Only meaningful when `maxSize` is set.
+   */
   onOverflow?: 'reject' | 'drop-oldest'
 }
 
@@ -482,14 +482,14 @@ export interface SendMessageOptions {
   /** Overrides the configured `whenBusy` for this one send. */
   whenBusy?: WhenBusy
   /**
-     * Extra JSON merged into this request's wire `forwardedProps`.
-     * Shallow merge: `{ ...chatBody, ...positionalBody, ...body }`.
-     * This field wins on key collisions.
-     *
-     * Framework hooks (`useChat`, `injectChat`, `createChat`) expose
-     * `sendMessage(content, options)` with no positional body, so this field
-     * is the per-call body channel on those surfaces.
-     */
+   * Extra JSON merged into this request's wire `forwardedProps`.
+   * Shallow merge: `{ ...chatBody, ...positionalBody, ...body }`.
+   * This field wins on key collisions.
+   *
+   * Framework hooks (`useChat`, `injectChat`, `createChat`) expose
+   * `sendMessage(content, options)` with no positional body, so this field
+   * is the per-call body channel on those surfaces.
+   */
   body?: Record<string, any>
 }
 
@@ -520,13 +520,13 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
     } & (NonNullable<T['needsApproval']> extends true
       ? {
           /**
-                     * Approval metadata — present only on tools defined with
-                     * `needsApproval: true`. Populated once the call reaches
-                     * `state: 'approval-requested'`. `needsApproval` is an optional
-                     * property on the tool, so we index into it (rather than
-                     * `T extends { needsApproval: true }`, which an optional property
-                     * never satisfies) and strip `undefined` before comparing to `true`.
-                     */
+           * Approval metadata — present only on tools defined with
+           * `needsApproval: true`. Populated once the call reaches
+           * `state: 'approval-requested'`. `needsApproval` is an optional
+           * property on the tool, so we index into it (rather than
+           * `T extends { needsApproval: true }`, which an optional property
+           * never satisfies) and strip `undefined` before comparing to `true`.
+           */
           approval?: {
             id: string
             needsApproval: boolean
@@ -772,13 +772,15 @@ type UnionToIntersection<T> = [T] extends [never]
 type DefinedContext<T> = Exclude<T, undefined>
 
 type ContextFromExecute<T> = T extends (...args: any) => any
-  ? NonNullable<Parameters<T>[1]> extends { /**
-   * Client-local runtime context passed to client tool implementations.
-   *
-   * This value is not serialized to the server. Use `forwardedProps` for
-   * explicit client-to-server handoff of serializable values.
-   */
-context: infer TContext }
+  ? NonNullable<Parameters<T>[1]> extends {
+      /**
+       * Client-local runtime context passed to client tool implementations.
+       *
+       * This value is not serialized to the server. Use `forwardedProps` for
+       * explicit client-to-server handoff of serializable values.
+       */
+      context: infer TContext
+    }
     ? KnownContext<TContext>
     : never
   : never
@@ -841,155 +843,155 @@ export interface ChatClientBaseOptions<
     readonly [],
 > {
   /**
-     * Initial messages to populate the chat
-     */
+   * Initial messages to populate the chat
+   */
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-     * Initial resumable run state, useful when rehydrating a persisted client
-     * after a full page reload. This restores the client-side interrupt
-     * descriptors needed to send AG-UI resume entries.
-     */
+   * Initial resumable run state, useful when rehydrating a persisted client
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
+   */
   initialResumeSnapshot?: ChatResumeSnapshot
 
   /**
-     * Arbitrary client-controlled JSON forwarded to the server in the
-     * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
-     * options like provider/model selection or feature flags that the
-     * server endpoint should read.
-     *
-     * Replaces the legacy `body` option. If both are provided,
-     * `forwardedProps` wins on key collision.
-     */
+   * Arbitrary client-controlled JSON forwarded to the server in the
+   * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
+   * options like provider/model selection or feature flags that the
+   * server endpoint should read.
+   *
+   * Replaces the legacy `body` option. If both are provided,
+   * `forwardedProps` wins on key collision.
+   */
   forwardedProps?: Record<string, any>
 
   body?: Record<string, any>
 
   /**
-     * Optional BYOK keyring. On each send the client prepares the resolved
-     * provider and stamps `x-byok-*` request headers. Keys never go in the body.
-     */
+   * Optional BYOK keyring. On each send the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
   byok?: ByokClient
 
   /**
-     * Optional provider id for this chat. If it returns a provider slug,
-     * only that key is prepared and sent. Otherwise the merged `provider`
-     * from `forwardedProps`, `body`, and per-call `sendMessage` `body` is
-     * used. Later sources win. If no slug resolves, the send throws
-     * instead of attaching every stored key.
-     */
+   * Optional provider id for this chat. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise the merged `provider`
+   * from `forwardedProps`, `body`, and per-call `sendMessage` `body` is
+   * used. Later sources win. If no slug resolves, the send throws
+   * instead of attaching every stored key.
+   */
   byokProvider?: () => string | undefined
 
   context?: TContext
 
   /**
-     * Callback when a response is received
-     */
+   * Callback when a response is received
+   */
   onResponse?: (response?: Response) => void | Promise<void>
 
   /**
-     * Callback when a stream chunk is received
-     */
+   * Callback when a stream chunk is received
+   */
   onChunk?: (chunk: StreamChunk) => void
 
   /**
-     * Callback when the response is finished
-     */
+   * Callback when the response is finished
+   */
   onFinish?: (message: UIMessage<TTools>) => void
 
   /**
-     * Callback when an error occurs
-     */
+   * Callback when an error occurs
+   */
   onError?: (error: Error) => void
 
   /**
-     * Callback when messages change
-     */
+   * Callback when messages change
+   */
   onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
 
   /**
-     * Callback when loading state changes
-     */
+   * Callback when loading state changes
+   */
   onLoadingChange?: (isLoading: boolean) => void
 
   /**
-     * Callback when error state changes
-     */
+   * Callback when error state changes
+   */
   onErrorChange?: (error: Error | undefined) => void
 
   /**
-     * Callback when chat status changes
-     */
+   * Callback when chat status changes
+   */
   onStatusChange?: (status: ChatClientState) => void
 
   /**
-     * Callback when subscription lifecycle changes.
-     * This is independent from request lifecycle (`isLoading`, `status`).
-     */
+   * Callback when subscription lifecycle changes.
+   * This is independent from request lifecycle (`isLoading`, `status`).
+   */
   onSubscriptionChange?: (isSubscribed: boolean) => void
 
   /**
-     * Callback when connection lifecycle changes.
-     */
+   * Callback when connection lifecycle changes.
+   */
   onConnectionStatusChange?: (status: ConnectionStatus) => void
 
   /**
-     * Callback when session generation activity changes.
-     * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
-     * Unlike `onLoadingChange` (request-local), this reflects shared generation
-     * activity visible to all subscribers (e.g. across tabs/devices).
-     */
+   * Callback when session generation activity changes.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `onLoadingChange` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
   onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
-     * Policy for messages sent while the client is busy (streaming, claiming
-     * a send, or draining the queue). Accepts a `WhenBusy` string, a
-     * `QueueConfig`, or a `QueueStrategy` function.
-     * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
-     * Queued items auto-send only after a **successful** settle; they are
-     * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
-     * `reload()`.
-     */
+   * Policy for messages sent while the client is busy (streaming, claiming
+   * a send, or draining the queue). Accepts a `WhenBusy` string, a
+   * `QueueConfig`, or a `QueueStrategy` function.
+   * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   * Queued items auto-send only after a **successful** settle; they are
+   * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
+   * `reload()`.
+   */
   queue?: QueueOption
 
   /**
-     * Callback when the pending send queue changes (enqueue, cancel, drain,
-     * or flush).
-     */
+   * Callback when the pending send queue changes (enqueue, cancel, drain,
+   * or flush).
+   */
   onQueueChange?: (queue: Array<QueuedMessage>) => void
 
   /**
-     * Callback when resumable run state or pending interrupts change.
-     */
+   * Callback when resumable run state or pending interrupts change.
+   */
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
     pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
 
   /**
-     * Callback when the id of the run this client has in flight changes: the new
-     * id when a run starts (a send, or a `joinRun` rejoin), `null` when it settles.
-     */
+   * Callback when the id of the run this client has in flight changes: the new
+   * id when a run starts (a send, or a `joinRun` rejoin), `null` when it settles.
+   */
   onRunIdChange?: (runId: string | null) => void
 
   /**
-     * Callback when the immutable interrupt state snapshot changes.
-     * Snapshot restoration passes `{ source: 'hydrate' }`; streamed and
-     * client-initiated updates pass `{ source: 'live' }`.
-     */
+   * Callback when the immutable interrupt state snapshot changes.
+   * Snapshot restoration passes `{ source: 'hydrate' }`; streamed and
+   * client-initiated updates pass `{ source: 'live' }`.
+   */
   onInterruptStateChange?: (
     state: ChatInterruptState<TTools, TInterrupts>,
     context: { source: 'hydrate' | 'live' },
   ) => void
 
   /**
-     * Callback when a custom event is received from a server-side tool.
-     * Custom events are emitted by tools using `context.emitCustomEvent()` during execution.
-     *
-     * @param eventType - The name of the custom event
-     * @param data - The event payload data
-     * @param context - Additional context including the toolCallId that emitted the event
-     */
+   * Callback when a custom event is received from a server-side tool.
+   * Custom events are emitted by tools using `context.emitCustomEvent()` during execution.
+   *
+   * @param eventType - The name of the custom event
+   * @param data - The event payload data
+   * @param context - Additional context including the toolCallId that emitted the event
+   */
   onCustomEvent?: (
     eventType: string,
     data: unknown,
@@ -997,37 +999,37 @@ export interface ChatClientBaseOptions<
   ) => void
 
   /**
-     * Client-side tools with execution logic
-     * When provided, tools with execute functions will be called automatically
-     */
+   * Client-side tools with execution logic
+   * When provided, tools with execute functions will be called automatically
+   */
   tools?: TTools
 
   /** First-party generic interrupts this client can type and resolve. */
   interrupts?: TInterrupts
 
   /**
-     * Devtools hook metadata for this client instance.
-     */
+   * Devtools hook metadata for this client instance.
+   */
   devtools?: Partial<AIDevtoolsClientMetadata>
 
   /**
-     * Factory that constructs the devtools bridge. Default is a no-op
-     * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
-     * bridge implementation) out of the main entry's bundle. Frameworks
-     * that need live devtools should pass the real factory from
-     * `@tanstack/ai-client/devtools`.
-     */
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
   devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
 
   /**
-     * Stream processing options (optional)
-     * Configure chunking strategy
-     */
+   * Stream processing options (optional)
+   * Configure chunking strategy
+   */
   streamProcessor?: {
     /**
-         * Strategy for when to emit text updates
-         * Defaults to ImmediateStrategy (every chunk)
-         */
+     * Strategy for when to emit text updates
+     * Defaults to ImmediateStrategy (every chunk)
+     */
     chunkStrategy?: ChunkStrategy
   }
 }

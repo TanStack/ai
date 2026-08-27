@@ -68,8 +68,7 @@ export type ModelFamily = 'anthropic' | 'openai' | 'gemini' | 'other'
 /** Map a provider name (`ctx.provider`) to its {@link ModelFamily}. */
 export function modelFamilyOf(provider: string): ModelFamily {
   const p = provider.toLowerCase()
-  const isAnthropicProvider =
-    p.includes('anthropic') || p.includes('claude')
+  const isAnthropicProvider = p.includes('anthropic') || p.includes('claude')
   if (isAnthropicProvider) return 'anthropic'
   const isOpenAIProvider = p.includes('openai') || p.includes('gpt')
   if (isOpenAIProvider) return 'openai'

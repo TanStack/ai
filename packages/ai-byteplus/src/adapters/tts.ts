@@ -26,7 +26,7 @@ import type {
 
 /** Path of the synchronous Seed Speech synthesis endpoint. */
 const /** Path of the synchronous Seed Speech synthesis endpoint. */
-TTS_CREATE_PATH = '/api/v3/tts/create'
+  TTS_CREATE_PATH = '/api/v3/tts/create'
 
 /**
  * Name of the request field carrying the text to speak.

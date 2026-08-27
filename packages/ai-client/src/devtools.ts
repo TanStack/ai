@@ -716,10 +716,10 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   /**
-     * Extension hook for subclasses to replay any additional cached state on a
-     * `devtools:request-state` (i.e. when a panel opens). Called only after the
-     * base guards (disposed/superseded/targetHookId) pass. No-op by default.
-     */
+   * Extension hook for subclasses to replay any additional cached state on a
+   * `devtools:request-state` (i.e. when a panel opens). Called only after the
+   * base guards (disposed/superseded/targetHookId) pass. No-op by default.
+   */
   protected onReplayState(): void {}
 
   private async handleToolFixtureApply(
@@ -847,10 +847,10 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   }
 
   /**
-     * Called by the auto-attaching emitter every time it sees a non-empty
-     * streamId pass through. Lets devtools track the latest stream id
-     * without the chat client wiring it up explicitly.
-     */
+   * Called by the auto-attaching emitter every time it sees a non-empty
+   * streamId pass through. Lets devtools track the latest stream id
+   * without the chat client wiring it up explicitly.
+   */
   recordStreamId(streamId: string): void {
     if (streamId) this.lastStreamId = streamId
   }
@@ -915,14 +915,14 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   }
 
   /**
-     * Record a transported `memory:state` value (the server memory middleware's
-     * per-turn recall metrics + store snapshot). Called from the chat client's
-     * `onCustomEvent` handler — the designated path for CUSTOM stream events —
-     * NOT from `observeChunk`. Re-emits the browser `memory:*` events the devtools
-     * store consumes, and caches the value so a panel opened later can replay it
-     * (see {@link onReplayState}). Symmetric with the generation bridge's
-     * `recordResultChange` / `recordProgressChange`.
-     */
+   * Record a transported `memory:state` value (the server memory middleware's
+   * per-turn recall metrics + store snapshot). Called from the chat client's
+   * `onCustomEvent` handler — the designated path for CUSTOM stream events —
+   * NOT from `observeChunk`. Re-emits the browser `memory:*` events the devtools
+   * store consumes, and caches the value so a panel opened later can replay it
+   * (see {@link onReplayState}). Symmetric with the generation bridge's
+   * `recordResultChange` / `recordProgressChange`.
+   */
   recordMemoryState(rawValue: unknown): void {
     this.lastMemoryStateValue = rawValue
     this.emitMemoryState(rawValue)
@@ -1038,10 +1038,10 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   // --- Fixture replay ------------------------------------------------------
 
   /**
-     * Entry point invoked when the devtools panel emits
-     * `devtools:tool-fixture:apply`. The chat client never calls this
-     * directly; it is wired through the base bridge's fixture subscription.
-     */
+   * Entry point invoked when the devtools panel emits
+   * `devtools:tool-fixture:apply`. The chat client never calls this
+   * directly; it is wired through the base bridge's fixture subscription.
+   */
   async applyFixture(fixture: AIDevtoolsToolFixture): Promise<void> {
     const messages = this.chatOptions.getMessages()
     const threadId = fixture.threadId ?? this.chatOptions.threadId ?? ''

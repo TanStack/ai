@@ -62,11 +62,11 @@ export interface OpenAIRealtimeOptions {
   /** Connection mode (default: 'webrtc' in browser) */
   connectionMode?: 'webrtc' | 'websocket'
   /**
-     * Enable debug logging for this adapter.
-     *
-     * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
-     * - A {@link DebugConfig} object selects categories and/or a custom sink.
-     */
+   * Enable debug logging for this adapter.
+   *
+   * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
+   * - A {@link DebugConfig} object selects categories and/or a custom sink.
+   */
   debug?: DebugOption
 }
 

@@ -17,10 +17,10 @@ export interface McpAppBridge {
     toolName: string
     args?: Record<string, unknown>
     /**
-         * Reserved — forwarded to the call handler for correlation purposes but
-         * not consumed by the handler. Accepted on the wire; the handler does not
-         * read it (mirrors the `meta` convention on `UIResourcePart`).
-         */
+     * Reserved — forwarded to the call handler for correlation purposes but
+     * not consumed by the handler. Accepted on the wire; the handler does not
+     * read it (mirrors the `meta` convention on `UIResourcePart`).
+     */
     messageId?: string
   }) => Promise<unknown>
   sendPrompt: (text: string) => Promise<void>

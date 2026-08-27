@@ -13,25 +13,25 @@ import type {
 
 export interface SpritesSandboxConfig {
   /**
-     * Sprites API token (`org/projectNumber/tokenId/secret`). Falls back to the
-     * `SPRITES_API_KEY` env var when omitted.
-     */
+   * Sprites API token (`org/projectNumber/tokenId/secret`). Falls back to the
+   * `SPRITES_API_KEY` env var when omitted.
+   */
   apiKey?: string
   /**
-     * Sprites control-plane base URL. Falls back to `SPRITES_API_URL`, then
-     * `https://api.sprites.dev`.
-     */
+   * Sprites control-plane base URL. Falls back to `SPRITES_API_URL`, then
+   * `https://api.sprites.dev`.
+   */
   apiUrl?: string
   /**
-     * Working directory inside the Sprite. The `/workspace` virtual root maps
-     * here. Defaults to `/home/sprite`.
-     */
+   * Working directory inside the Sprite. The `/workspace` virtual root maps
+   * here. Defaults to `/home/sprite`.
+   */
   workdir?: string
   /**
-     * URL auth mode for created Sprites. `'public'` (default) makes the Sprite's
-     * URL reachable without an org token — required to reach a service via
-     * `ports.connect()`. Use `'sprite'` to keep it org-token gated.
-     */
+   * URL auth mode for created Sprites. `'public'` (default) makes the Sprite's
+   * URL reachable without an org token — required to reach a service via
+   * `ports.connect()`. Use `'sprite'` to keep it org-token gated.
+   */
   urlAuth?: SpriteUrlAuth
   /** Internal port proxied to the public URL. Defaults to 8080. */
   httpPort?: number

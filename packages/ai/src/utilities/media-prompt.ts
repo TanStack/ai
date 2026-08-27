@@ -22,9 +22,9 @@ import type {
  */
 export interface ResolvedMediaPrompt {
   /**
-     * Text parts concatenated verbatim (paragraph-separated). Empty string
-     * for media-only prompts.
-     */
+   * Text parts concatenated verbatim (paragraph-separated). Empty string
+   * for media-only prompts.
+   */
   text: string
   /** The prompt as ordered parts; a string prompt becomes one text part. */
   parts: Array<MediaPromptPart>

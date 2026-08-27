@@ -207,24 +207,24 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-     * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is held
-     * in a variable (not a string literal) so bundler dep scanners (e.g. Vite/
-     * esbuild optimizeDeps) cannot statically discover the AWS SDK and try to
-     * pre-bundle it for the browser — it would fail on the SDK's Node-only
-     * `fromTokenFile` export chain. The SDK is Node/server-only and is only
-     * reached on a real request. `typeof import(...)` is a type-only reference
-     * (erased at emit) so the imported members keep full typing.
-     */
+   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is held
+   * in a variable (not a string literal) so bundler dep scanners (e.g. Vite/
+   * esbuild optimizeDeps) cannot statically discover the AWS SDK and try to
+   * pre-bundle it for the browser — it would fail on the SDK's Node-only
+   * `fromTokenFile` export chain. The SDK is Node/server-only and is only
+   * reached on a real request. `typeof import(...)` is a type-only reference
+   * (erased at emit) so the imported members keep full typing.
+   */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
     return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
   }
 
   /**
-     * Lazily construct the `BedrockRuntimeClient`. The dynamic import keeps
-     * `@aws-sdk/client-bedrock-runtime` out of the static/browser graph and
-     * defers `resolveBedrockAuth` until a real request is made.
-     */
+   * Lazily construct the `BedrockRuntimeClient`. The dynamic import keeps
+   * `@aws-sdk/client-bedrock-runtime` out of the static/browser graph and
+   * defers `resolveBedrockAuth` until a real request is made.
+   */
   protected async getClient(): Promise<BedrockRuntimeClient> {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
@@ -252,16 +252,16 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-     * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`.
-     *
-     * Recent `@aws-sdk/client-bedrock-runtime` exposes a first-class `token`
-     * config field for Bedrock API-key bearer auth. But the client's default
-     * auth-scheme order is SigV4 first, then bearer — so passing `token` alone is
-     * not enough: the SDK still resolves SigV4 and throws "Could not load
-     * credentials from any providers". Pinning `authSchemePreference` to the
-     * bearer scheme makes the API key actually get used. SigV4 uses the AWS
-     * credential provider chain and the default scheme order.
-     */
+   * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`.
+   *
+   * Recent `@aws-sdk/client-bedrock-runtime` exposes a first-class `token`
+   * config field for Bedrock API-key bearer auth. But the client's default
+   * auth-scheme order is SigV4 first, then bearer — so passing `token` alone is
+   * not enough: the SDK still resolves SigV4 and throws "Could not load
+   * credentials from any providers". Pinning `authSchemePreference` to the
+   * bearer scheme makes the API key actually get used. SigV4 uses the AWS
+   * credential provider chain and the default scheme order.
+   */
   protected buildClientConfig(
     resolved: ResolvedBedrockAuth,
     region: string,
@@ -343,11 +343,11 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-     * Structured output via the forced-tool strategy. Converse has no native
-     * json_schema response_format, so we force a single tool whose input schema
-     * is the requested output schema and read the model's `toolUse.input` back as
-     * the structured result.
-     */
+   * Structured output via the forced-tool strategy. Converse has no native
+   * json_schema response_format, so we force a single tool whose input schema
+   * is the requested output schema and read the model's `toolUse.input` back as
+   * the structured result.
+   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -390,12 +390,12 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-     * Streaming structured output. Same forced-tool strategy as
-     * `structuredOutput`, but streamed: the forced tool's `toolUse.input` JSON
-     * fragments are accumulated from the Converse stream and a terminal
-     * `CUSTOM 'structured-output.complete'` event carries `{ object, raw }`,
-     * mirroring openai-base's `structuredOutputStream` contract exactly.
-     */
+   * Streaming structured output. Same forced-tool strategy as
+   * `structuredOutput`, but streamed: the forced tool's `toolUse.input` JSON
+   * fragments are accumulated from the Converse stream and a terminal
+   * `CUSTOM 'structured-output.complete'` event carries `{ object, raw }`,
+   * mirroring openai-base's `structuredOutputStream` contract exactly.
+   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -523,20 +523,20 @@ export class BedrockConverseTextAdapter<
   }
 
   /**
-     * Converse sends `tools` and a forced structured-output tool via two separate
-     * mechanisms, never together. Declaring `false` makes the engine run the
-     * agent loop without `outputSchema` and finalize via `structuredOutput` /
-     * `structuredOutputStream`.
-     */
+   * Converse sends `tools` and a forced structured-output tool via two separate
+   * mechanisms, never together. Declaring `false` makes the engine run the
+   * agent loop without `outputSchema` and finalize via `structuredOutput` /
+   * `structuredOutputStream`.
+   */
   supportsCombinedToolsAndSchema(): boolean {
     return false
   }
 
   /**
-     * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
-     * structuredOutput, and structuredOutputStream (the latter two override
-     * `toolConfig` with the forced structured tool afterwards).
-     */
+   * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
+   * structuredOutput, and structuredOutputStream (the latter two override
+   * `toolConfig` with the forced structured tool afterwards).
+   */
   protected buildInput(
     options: TextOptions<TProviderOptions>,
   ): ConverseCommandInput {

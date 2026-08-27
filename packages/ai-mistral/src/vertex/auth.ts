@@ -41,9 +41,9 @@ export type MistralVertexConfig = {
   project?: string
   location?: string
   /**
-     * Override the chat completions URL. When set, the Vertex
-     * `:rawPredict` / `:streamRawPredict` rewrite is skipped. Used by e2e.
-     */
+   * Override the chat completions URL. When set, the Vertex
+   * `:rawPredict` / `:streamRawPredict` rewrite is skipped. Used by e2e.
+   */
   resolveRequestUrl?: (stream: boolean) => string
   getAccessToken?: () => Promise<string>
   authClient?: VertexAuthClient

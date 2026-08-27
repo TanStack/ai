@@ -4,14 +4,14 @@
  */
 export interface OpenAIImageMetadata {
   /**
-     * Controls how the model processes the image.
-     * - 'auto': Let the model decide based on image size and content
-     * - 'low': Use low resolution processing (faster, cheaper, less detail)
-     * - 'high': Use high resolution processing (slower, more expensive, more detail)
-     *
-     * @default 'auto'
-     * @see https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding
-     */
+   * Controls how the model processes the image.
+   * - 'auto': Let the model decide based on image size and content
+   * - 'low': Use low resolution processing (faster, cheaper, less detail)
+   * - 'high': Use high resolution processing (slower, more expensive, more detail)
+   *
+   * @default 'auto'
+   * @see https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding
+   */
   detail?: 'auto' | 'low' | 'high'
 }
 
@@ -21,10 +21,10 @@ export interface OpenAIImageMetadata {
  */
 export interface OpenAIAudioMetadata {
   /**
-     * The format of the audio.
-     * Supported formats: mp3, wav, flac, etc.
-     * @default 'mp3'
-     */
+   * The format of the audio.
+   * Supported formats: mp3, wav, flac, etc.
+   * @default 'mp3'
+   */
   format?: 'mp3' | 'wav' | 'flac' | 'ogg' | 'webm' | 'aac'
 }
 
@@ -49,9 +49,9 @@ export interface OpenAIVideoMetadata {}
  */
 export interface OpenAIDocumentMetadata {
   /**
-     * Filename sent alongside inline (base64) PDF data.
-     * @default 'document.pdf'
-     */
+   * Filename sent alongside inline (base64) PDF data.
+   * @default 'document.pdf'
+   */
   filename?: string
   detail?: 'auto' | 'low' | 'high'
 }

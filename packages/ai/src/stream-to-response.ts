@@ -277,7 +277,7 @@ function sseEncoders(
 
 /** Default number of chunks buffered before a durability `append`. */
 const /** Default number of chunks buffered before a durability `append`. */
-DEFAULT_DURABILITY_BATCH = 32
+  DEFAULT_DURABILITY_BATCH = 32
 
 /**
  * Resolve and validate the durability batch size. A non-positive-integer (0,
@@ -611,13 +611,13 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
     /**
-         * Customize logging for durability failure paths (terminal-append and
-         * close). These failures are always logged server-side by default (the
-         * `errors` category is on even without `debug`, via a `ConsoleLogger`);
-         * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-         * joiner replaying the log only ever sees a generic incomplete error, so
-         * server-side logging is where the real cause is recoverable.
-         */
+     * Customize logging for durability failure paths (terminal-append and
+     * close). These failures are always logged server-side by default (the
+     * `errors` category is on even without `debug`, via a `ConsoleLogger`);
+     * pass `debug` to route them to a custom `Logger` or raise verbosity. A
+     * joiner replaying the log only ever sees a generic incomplete error, so
+     * server-side logging is where the real cause is recoverable.
+     */
     debug?: DebugOption
   },
 ): Response {
@@ -732,9 +732,9 @@ type ResumeResponseOptions<TOffset extends string> = ResponseInit & {
   batch?: number
   debug?: DebugOption
   /**
-     * Take the run over while serving its log. Omit to serve the log only —
-     * the response is byte-identical either way.
-     */
+   * Take the run over while serving its log. Omit to serve the log only —
+   * the response is byte-identical either way.
+   */
   driver?: RunDriverOptions
 }
 

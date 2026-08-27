@@ -98,30 +98,30 @@ export interface OtelMiddlewareOptions {
   /** OTel `Tracer` used to start root, iteration, and tool spans. */
   tracer: Tracer
   /**
-     * Optional OTel `Meter`. When provided, the middleware records
-     * `gen_ai.client.operation.duration` and `gen_ai.client.token.usage`
-     * histograms. Omit to disable metrics without disabling tracing.
-     */
+   * Optional OTel `Meter`. When provided, the middleware records
+   * `gen_ai.client.operation.duration` and `gen_ai.client.token.usage`
+   * histograms. Omit to disable metrics without disabling tracing.
+   */
   meter?: Meter
   /**
-     * When `true`, prompt and completion content is attached to iteration spans
-     * as `gen_ai.*.message` / `gen_ai.choice` events. Defaults to `false` so
-     * that PII never lands on a span by accident.
-     */
+   * When `true`, prompt and completion content is attached to iteration spans
+   * as `gen_ai.*.message` / `gen_ai.choice` events. Defaults to `false` so
+   * that PII never lands on a span by accident.
+   */
   captureContent?: boolean
   /**
-     * Invoked on every captured content string before it lands on a span.
-     * Return a redacted version. If this function throws, the middleware emits
-     * the literal sentinel `"[redaction_failed]"` instead of the original text
-     * — it never falls back to raw content.
-     */
+   * Invoked on every captured content string before it lands on a span.
+   * Return a redacted version. If this function throws, the middleware emits
+   * the literal sentinel `"[redaction_failed]"` instead of the original text
+   * — it never falls back to raw content.
+   */
   redact?: (text: string) => string
   /**
-     * Maximum characters kept in the per-iteration assistant text buffer used
-     * to emit `gen_ai.choice` events. Extra characters are truncated with a
-     * trailing `"…"` marker. Defaults to 100 000. Set to `0` to disable the
-     * cap. Exporters typically truncate long attribute values anyway.
-     */
+   * Maximum characters kept in the per-iteration assistant text buffer used
+   * to emit `gen_ai.choice` events. Extra characters are truncated with a
+   * trailing `"…"` marker. Defaults to 100 000. Set to `0` to disable the
+   * cap. Exporters typically truncate long attribute values anyway.
+   */
   maxContentLength?: number
   /** Override the default span name for each `kind`. */
   spanNameFormatter?: (info: OtelSpanInfo) => string
@@ -142,10 +142,10 @@ interface RequestState {
   assistantTextBufferTruncated: boolean
   startTime: number
   /**
-     * Finish reason from the most recent `RUN_FINISHED` chunk. Captured in
-     * `onChunk` so `onFinish` can stamp it on the root span without reading it
-     * from the (base-shaped) finish info, which doesn't carry it.
-     */
+   * Finish reason from the most recent `RUN_FINISHED` chunk. Captured in
+   * `onChunk` so `onFinish` can stamp it on the root span without reading it
+   * from the (base-shaped) finish info, which doesn't carry it.
+   */
   lastFinishReason: string | null
   rootUsageAttributes: Record<string, number> | null
   rootUsageApplied: boolean

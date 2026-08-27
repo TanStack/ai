@@ -8,47 +8,47 @@ import type { AnyTool } from './types'
  */
 export interface ToolRegistry<TTool extends AnyTool = AnyTool> {
   /**
-     * Get all current tools in the registry.
-     * Called each agent loop iteration to get the latest tool list.
-     */
+   * Get all current tools in the registry.
+   * Called each agent loop iteration to get the latest tool list.
+   */
   getTools: () => Array<TTool>
 
   /**
-     * Add a tool to the registry dynamically.
-     * For frozen registries, this is a no-op.
-     *
-     * @param tool - The tool to add
-     */
+   * Add a tool to the registry dynamically.
+   * For frozen registries, this is a no-op.
+   *
+   * @param tool - The tool to add
+   */
   add: (tool: TTool) => void
 
   /**
-     * Remove a tool from the registry by name.
-     * For frozen registries, this always returns false.
-     *
-     * @param name - The name of the tool to remove
-     * @returns true if the tool was removed, false if not found or frozen
-     */
+   * Remove a tool from the registry by name.
+   * For frozen registries, this always returns false.
+   *
+   * @param name - The name of the tool to remove
+   * @returns true if the tool was removed, false if not found or frozen
+   */
   remove: (name: string) => boolean
 
   /**
-     * Check if a tool exists in the registry.
-     *
-     * @param name - The name of the tool to check
-     */
+   * Check if a tool exists in the registry.
+   *
+   * @param name - The name of the tool to check
+   */
   has: (name: string) => boolean
 
   /**
-     * Get a tool by name.
-     *
-     * @param name - The name of the tool to get
-     * @returns The tool if found, undefined otherwise
-     */
+   * Get a tool by name.
+   *
+   * @param name - The name of the tool to get
+   * @returns The tool if found, undefined otherwise
+   */
   get: (name: string) => TTool | undefined
 
   /**
-     * Whether this registry is frozen (immutable).
-     * Frozen registries don't allow add/remove operations.
-     */
+   * Whether this registry is frozen (immutable).
+   * Frozen registries don't allow add/remove operations.
+   */
   readonly isFrozen: boolean
 }
 

@@ -50,13 +50,13 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
  */
 export interface OpenAIVideoConfig extends OpenAIClientConfig {
   /**
-     * Opt into fetching HTTP(S) image URL inputs for Sora's `input_reference`.
-     * The endpoint requires uploaded file bytes (no URL passthrough), so an
-     * HTTP(S) URL has to be downloaded and buffered in memory — which can OOM
-     * constrained runtimes (e.g. Cloudflare Workers). When `false` (the
-     * default), HTTP(S) URL image inputs throw; pass a `data:` URI, or set this
-     * to `true` to opt into buffering.
-     */
+   * Opt into fetching HTTP(S) image URL inputs for Sora's `input_reference`.
+   * The endpoint requires uploaded file bytes (no URL passthrough), so an
+   * HTTP(S) URL has to be downloaded and buffered in memory — which can OOM
+   * constrained runtimes (e.g. Cloudflare Workers). When `false` (the
+   * default), HTTP(S) URL image inputs throw; pass a `data:` URI, or set this
+   * to `true` to opt into buffering.
+   */
   allowUrlFetch?: boolean
 }
 
@@ -183,10 +183,10 @@ export class OpenAIVideoAdapter<
   }
 
   /**
-     * The video API on the OpenAI SDK is still experimental and shipped on some
-     * SDK versions but not others; access through `videosClient` lets us treat
-     * the path uniformly even when the SDK lacks first-class typings here.
-     */
+   * The video API on the OpenAI SDK is still experimental and shipped on some
+   * SDK versions but not others; access through `videosClient` lets us treat
+   * the path uniformly even when the SDK lacks first-class typings here.
+   */
   private getVideosClient(): {
     create: (req: Record<string, any>) => Promise<{ id: string }>
     retrieve: (id: string) => Promise<{

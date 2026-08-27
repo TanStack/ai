@@ -5,9 +5,9 @@ import type { ToolBinding } from '../types'
  */
 export interface TypeGeneratorOptions {
   /**
-     * Include JSDoc comments with descriptions
-     * @default true
-     */
+   * Include JSDoc comments with descriptions
+   * @default true
+   */
   includeDescriptions?: boolean
 }
 

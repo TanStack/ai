@@ -225,10 +225,10 @@ export class GenerationClient<
   }
 
   /**
-     * Trigger a generation request.
-     * Only one generation can be in-flight at a time; calling generate()
-     * while already generating will be a no-op.
-     */
+   * Trigger a generation request.
+   * Only one generation can be in-flight at a time; calling generate()
+   * while already generating will be a no-op.
+   */
   async generate(input: TInput): Promise<void> {
     if (this.disposed) return
     if (this.isLoading) return
@@ -348,17 +348,17 @@ export class GenerationClient<
   }
 
   /**
-     * Process a stream of AG-UI events from the streaming connection adapter.
-     *
-     * Throws {@link GENERATION_STREAM_TRUNCATED_MESSAGE} when the iteration ends
-     * without a terminal chunk. A `for await` over a stream that simply stops —
-     * proxy idle timeout, server restart, a durable log missing its terminal
-     * append — returns normally and would otherwise leave the caller's `status`
-     * on `generating` forever, with the persisted snapshot still `running` so
-     * every reload rejoins the same dead run. Throwing routes it through the
-     * caller's error path instead, which settles the status and rewrites the
-     * snapshot so nothing chases it again.
-     */
+   * Process a stream of AG-UI events from the streaming connection adapter.
+   *
+   * Throws {@link GENERATION_STREAM_TRUNCATED_MESSAGE} when the iteration ends
+   * without a terminal chunk. A `for await` over a stream that simply stops —
+   * proxy idle timeout, server restart, a durable log missing its terminal
+   * append — returns normally and would otherwise leave the caller's `status`
+   * on `generating` forever, with the persisted snapshot still `running` so
+   * every reload rejoins the same dead run. Throwing routes it through the
+   * caller's error path instead, which settles the status and rewrites the
+   * snapshot so nothing chases it again.
+   */
   private async processStream(
     source: AsyncIterable<StreamChunk>,
     fallbackRunId: string,
@@ -427,8 +427,8 @@ export class GenerationClient<
   }
 
   /**
-     * Abort any in-flight generation request.
-     */
+   * Abort any in-flight generation request.
+   */
   stop(): void {
     const runId = this.devtoolsBridge.getActiveRunId()
     if (this.abortController) {
@@ -455,11 +455,11 @@ export class GenerationClient<
   }
 
   /**
-     * Clear the result, error, and return to idle state. Also drops the client's
-     * in-memory resume snapshot, so a remount restores nothing. The server-side
-     * record is untouched — this client no longer writes one — so a full page
-     * reload under `persistence: true` re-hydrates the last generation again.
-     */
+   * Clear the result, error, and return to idle state. Also drops the client's
+   * in-memory resume snapshot, so a remount restores nothing. The server-side
+   * record is untouched — this client no longer writes one — so a full page
+   * reload under `persistence: true` re-hydrates the last generation again.
+   */
   reset(): void {
     this.stop()
     this.setResult(null)
@@ -473,8 +473,8 @@ export class GenerationClient<
   }
 
   /**
-     * Update options without recreating the client.
-     */
+   * Update options without recreating the client.
+   */
   updateOptions(
     options: Partial<
       Pick<
@@ -672,26 +672,26 @@ export class GenerationClient<
   }
 
   /**
-     * Notify the (internal) snapshot listener AND emit the public resume state.
-     * The snapshot stays internal (persistence + devtools); the hook consumes
-     * `resumeState`, mirroring the chat client.
-     */
+   * Notify the (internal) snapshot listener AND emit the public resume state.
+   * The snapshot stays internal (persistence + devtools); the hook consumes
+   * `resumeState`, mirroring the chat client.
+   */
   private notifyResumeSnapshotChanged(): void {
     this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
     this.emitResumeState()
   }
 
   /**
-     * Derive the public `resumeState` from the internal snapshot: the in-flight
-     * run identity, with any in-flight artifact refs folded under it. `null` once
-     * no run is in flight.
-     *
-     * The snapshot is rebuilt for every chunk, so emitting unconditionally would
-     * hand each framework hook a fresh object per chunk and re-render the
-     * component on every stream event. `resumeState` only changes at run
-     * boundaries and when artifacts land, so skip the notification unless it
-     * materially changed — same gate the persistence writes use.
-     */
+   * Derive the public `resumeState` from the internal snapshot: the in-flight
+   * run identity, with any in-flight artifact refs folded under it. `null` once
+   * no run is in flight.
+   *
+   * The snapshot is rebuilt for every chunk, so emitting unconditionally would
+   * hand each framework hook a fresh object per chunk and re-render the
+   * component on every stream event. `resumeState` only changes at run
+   * boundaries and when artifacts land, so skip the notification unless it
+   * materially changed — same gate the persistence writes use.
+   */
   private emitResumeState(): void {
     const snapshot = this.resumeSnapshot
     const state = snapshot?.resumeState
@@ -712,18 +712,18 @@ export class GenerationClient<
   }
 
   /**
-     * Repaint the normal fields from a restored snapshot (client store or server
-     * hydrate), so a reload presents the run in `result` / `status` / `error`
-     * exactly as a just-finished run would, never a bolt-on snapshot object.
-     * `isLoading` stays false: the client never auto-tails a restored run. The
-     * snapshot is not re-persisted here (it came from storage / the server).
-     *
-     * When the activity's mapper DECLINES a `complete` snapshot the repaint
-     * settles as an error instead: `success` with a `null` result is a state no
-     * consumer can render, and it hides the real cause (an output artifact
-     * persisted without a serve URL). A decline on any other status is expected —
-     * a `running` snapshot has no result yet, the rejoin will deliver it.
-     */
+   * Repaint the normal fields from a restored snapshot (client store or server
+   * hydrate), so a reload presents the run in `result` / `status` / `error`
+   * exactly as a just-finished run would, never a bolt-on snapshot object.
+   * `isLoading` stays false: the client never auto-tails a restored run. The
+   * snapshot is not re-persisted here (it came from storage / the server).
+   *
+   * When the activity's mapper DECLINES a `complete` snapshot the repaint
+   * settles as an error instead: `success` with a `null` result is a state no
+   * consumer can render, and it hides the real cause (an output artifact
+   * persisted without a serve URL). A decline on any other status is expected —
+   * a `running` snapshot has no result yet, the rejoin will deliver it.
+   */
   private repaintFromSnapshot(snapshot: GenerationResumeSnapshot): void {
     this.resumeSnapshot = snapshot
     this.notifyResumeSnapshotChanged()
@@ -749,10 +749,10 @@ export class GenerationClient<
   }
 
   /**
-     * Report a `complete` snapshot the activity's mapper could not rebuild.
-     * Runs after the status/error repaint above, so it wins over the snapshot's
-     * own `complete` status.
-     */
+   * Report a `complete` snapshot the activity's mapper could not rebuild.
+   * Runs after the status/error repaint above, so it wins over the snapshot's
+   * own `complete` status.
+   */
   private reportUnrestorableResult(): void {
     const error = new Error(GENERATION_UNRESTORABLE_RESULT_MESSAGE)
     this.setStatus('error')
@@ -761,15 +761,15 @@ export class GenerationClient<
   }
 
   /**
-     * Repaint a restored snapshot (client store or server hydrate) and, when it
-     * reports a run still in flight, tail that run to completion via `joinRun`
-     * (from the connection, or the `joinRun` option when the transport can't
-     * carry one).
-     *
-     * A `running` snapshot that no `joinRun` handler can tail is repainted as an
-     * interrupted error instead of a `generating` status that would never
-     * settle: an interrupted generation cannot be resumed, only re-run.
-     */
+   * Repaint a restored snapshot (client store or server hydrate) and, when it
+   * reports a run still in flight, tail that run to completion via `joinRun`
+   * (from the connection, or the `joinRun` option when the transport can't
+   * carry one).
+   *
+   * A `running` snapshot that no `joinRun` handler can tail is repainted as an
+   * interrupted error instead of a `generating` status that would never
+   * settle: an interrupted generation cannot be resumed, only re-run.
+   */
   private repaintRestoredSnapshot(
     snapshot: GenerationResumeSnapshot,
     activeRunId?: string,
@@ -797,14 +797,14 @@ export class GenerationClient<
   }
 
   /**
-     * Build the restorable result shape from the snapshot and hand it to the
-     * per-activity `reconstructResult` mapper (injected by the specialized
-     * client/hook, which knows the concrete result type).
-     *
-     * Returns `null` both when no mapper is set (nothing to rebuild — `result`
-     * simply stays null) and when the mapper declines. The caller distinguishes
-     * the two: see {@link repaintFromSnapshot}.
-     */
+   * Build the restorable result shape from the snapshot and hand it to the
+   * per-activity `reconstructResult` mapper (injected by the specialized
+   * client/hook, which knows the concrete result type).
+   *
+   * Returns `null` both when no mapper is set (nothing to rebuild — `result`
+   * simply stays null) and when the mapper declines. The caller distinguishes
+   * the two: see {@link repaintFromSnapshot}.
+   */
   private reconstructRestoredResult(
     snapshot: GenerationResumeSnapshot,
   ): TResult | null {
@@ -832,11 +832,11 @@ export class GenerationClient<
   }
 
   /**
-     * The plain (non-Response) fetcher path never observes stream chunks, so
-     * the terminal snapshot is built here from the fetcher's own result. A
-     * stale `error` from a previous run is intentionally dropped — this run
-     * succeeded.
-     */
+   * The plain (non-Response) fetcher path never observes stream chunks, so
+   * the terminal snapshot is built here from the fetcher's own result. A
+   * stale `error` from a previous run is intentionally dropped — this run
+   * succeeded.
+   */
   private completePlainFetcherResumeSnapshot(rawResult: unknown): void {
     const previous = this.resumeSnapshot
     const result = createGenerationResultSnapshot(rawResult)
@@ -858,11 +858,11 @@ export class GenerationClient<
   }
 
   /**
-     * Records a transport-level failure (network drop, throwing callback) in
-     * the snapshot. Without this, only a server-emitted RUN_ERROR chunk would
-     * mark the snapshot `error`, leaving a persisted record that claims the
-     * run is still in flight.
-     */
+   * Records a transport-level failure (network drop, throwing callback) in
+   * the snapshot. Without this, only a server-emitted RUN_ERROR chunk would
+   * mark the snapshot `error`, leaving a persisted record that claims the
+   * run is still in flight.
+   */
   private recordResumeSnapshotError(error: Error): void {
     if (this.status !== 'error') this.setStatus('error')
     this.setError(error)
@@ -885,9 +885,9 @@ export class GenerationClient<
   }
 
   /**
-     * Drop the client's in-memory snapshot and re-emit. Purely local — this
-     * client writes no storage, so nothing persisted is removed.
-     */
+   * Drop the client's in-memory snapshot and re-emit. Purely local — this
+   * client writes no storage, so nothing persisted is removed.
+   */
   private clearResumeSnapshot(): void {
     this.resumeSnapshot = undefined
     this.lastEmittedResumeState = undefined
@@ -895,11 +895,11 @@ export class GenerationClient<
   }
 
   /**
-     * Server-driven mount hydration entry point (`persistence: true`). Runs at
-     * most once, from the commit-phase mount path (`mountDevtools`) — never the
-     * constructor / render phase — so remounts and speculative renders can't
-     * re-fire the hydrate GET.
-     */
+   * Server-driven mount hydration entry point (`persistence: true`). Runs at
+   * most once, from the commit-phase mount path (`mountDevtools`) — never the
+   * constructor / render phase — so remounts and speculative renders can't
+   * re-fire the hydrate GET.
+   */
   private maybeHydrateFromServer(): void {
     const shouldHydrate = this.serverDriven && !this.serverHydrationStarted
     if (!shouldHydrate) return
@@ -918,18 +918,18 @@ export class GenerationClient<
   }
 
   /**
-     * Server-driven mount hydration (`persistence: true`). The client holds no
-     * local snapshot; on mount it asks the server — keyed by the stable threadId —
-     * for the last generation's resume snapshot, validates it, and repaints it. It
-     * never auto-starts a run, and never blocks: a `generate()` that starts first
-     * owns the client and hydration backs off, mirroring the chat client.
-     *
-     * A genuine **miss** (the server reports no record for the thread) is silent —
-     * a fresh thread is not an error. A genuine **failure** (transport error, a
-     * 403 from the authorize gate, a malformed body, a record the client's own
-     * validator rejects) is surfaced through `status` / `error` / `onError`, so a
-     * broken server is distinguishable from an empty one and the app can retry.
-     */
+   * Server-driven mount hydration (`persistence: true`). The client holds no
+   * local snapshot; on mount it asks the server — keyed by the stable threadId —
+   * for the last generation's resume snapshot, validates it, and repaints it. It
+   * never auto-starts a run, and never blocks: a `generate()` that starts first
+   * owns the client and hydration backs off, mirroring the chat client.
+   *
+   * A genuine **miss** (the server reports no record for the thread) is silent —
+   * a fresh thread is not an error. A genuine **failure** (transport error, a
+   * 403 from the authorize gate, a malformed body, a record the client's own
+   * validator rejects) is surfaced through `status` / `error` / `onError`, so a
+   * broken server is distinguishable from an empty one and the app can retry.
+   */
   private hydrateFromServer(): void {
     const hydrate =
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
@@ -972,10 +972,10 @@ export class GenerationClient<
   }
 
   /**
-     * Surface a hydration failure on the observable fields. Skipped when a
-     * `generate()` took ownership while the hydrate GET was in flight — the live
-     * run's state must win over a stale mount-time failure.
-     */
+   * Surface a hydration failure on the observable fields. Skipped when a
+   * `generate()` took ownership while the hydrate GET was in flight — the live
+   * run's state must win over a stale mount-time failure.
+   */
   private failHydration(error: Error): void {
     const isClientBusy =
       this.resumeSnapshot || this.isLoading || this.status !== 'idle'
@@ -986,11 +986,11 @@ export class GenerationClient<
   }
 
   /**
-     * Re-attach to an already-loaded `running` snapshot (the remount case). Safe
-     * to call repeatedly: `rejoinInFlight` dedupes on `rejoinedRunId` and bails
-     * when a run is already in flight, so on the first mount (where the rejoin was
-     * already started from `repaintRestoredSnapshot`) this is a no-op.
-     */
+   * Re-attach to an already-loaded `running` snapshot (the remount case). Safe
+   * to call repeatedly: `rejoinInFlight` dedupes on `rejoinedRunId` and bails
+   * when a run is already in flight, so on the first mount (where the rejoin was
+   * already started from `repaintRestoredSnapshot`) this is a no-op.
+   */
   private maybeResumeInFlight(): void {
     if (this.resumeSnapshot?.status !== 'running') return
     const runId = this.resumeSnapshot.resumeState?.runId
@@ -998,12 +998,12 @@ export class GenerationClient<
   }
 
   /**
-     * Re-attach to a run that is still generating and stream it to completion,
-     * mirroring the chat client's mount-time rejoin. Reuses `processStream`, so
-     * `result` / `progress` / `status` repaint from the replayed chunks exactly as
-     * a live run does. Best-effort: a live `generate()` owns the client and is
-     * never stomped, and the same run is only rejoined once.
-     */
+   * Re-attach to a run that is still generating and stream it to completion,
+   * mirroring the chat client's mount-time rejoin. Reuses `processStream`, so
+   * `result` / `progress` / `status` repaint from the replayed chunks exactly as
+   * a live run does. Best-effort: a live `generate()` owns the client and is
+   * never stomped, and the same run is only rejoined once.
+   */
   private rejoinInFlight(runId: string): void {
     const joinRun = this.connection?.joinRun ?? this.joinRunHandler
     if (!joinRun) return

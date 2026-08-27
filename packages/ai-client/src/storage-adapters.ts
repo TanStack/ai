@@ -4,10 +4,10 @@ import { normalizeMessagesDates } from './message-date-normalizer'
 export interface WebStoragePersistenceOptions {
   keyPrefix?: string
   /**
-     * Defaults to `JSON.stringify`. Override only for values JSON can't
-     * round-trip losslessly (a `Map`, a `bigint`, a `Date` you need back as a
-     * `Date` rather than an ISO string).
-     */
+   * Defaults to `JSON.stringify`. Override only for values JSON can't
+   * round-trip losslessly (a `Map`, a `bigint`, a `Date` you need back as a
+   * `Date` rather than an ISO string).
+   */
   serialize?: (value: ChatPersistedState) => string
   /** Defaults to `JSON.parse`. */
   deserialize?: (value: string) => ChatPersistedState

@@ -24,7 +24,7 @@ import type { StreamChunk, SummarizationResult } from '../../types'
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'summarize' as const
+  kind = 'summarize' as const
 
 /** Extract provider options from a SummarizeAdapter via ~types */
 export type SummarizeProviderOptions<TAdapter> = TAdapter extends {
@@ -57,56 +57,56 @@ export interface SummarizeActivityOptions<
   /** Provider-specific options */
   modelOptions?: SummarizeProviderOptions<TAdapter>
   /**
-     * Optional run identity. When set on a streaming summarize, it is stamped
-     * onto the emitted `RUN_STARTED` so a delivery-durable route keys the run's
-     * log by the same id the client rejoins with — making a mid-run reload
-     * resumable. Filed under `threadId` when persistence is wired.
-     */
+   * Optional run identity. When set on a streaming summarize, it is stamped
+   * onto the emitted `RUN_STARTED` so a delivery-durable route keys the run's
+   * log by the same id the client rejoins with — making a mid-run reload
+   * resumable. Filed under `threadId` when persistence is wired.
+   */
   runId?: string
   /**
-     * Stable conversation/thread id for correlating this run when persisted — the
-     * slot a reloading client hydrates the last summary by. Pass it whenever
-     * persistence is on; `withGenerationPersistence` refuses a run without one.
-     */
+   * Stable conversation/thread id for correlating this run when persisted — the
+   * slot a reloading client hydrates the last summary by. Pass it whenever
+   * persistence is on; `withGenerationPersistence` refuses a run without one.
+   */
   threadId?: string
   /**
-     * Observe-only middleware notified on start, usage, success, and error. Pass
-     * `otelMiddleware()` for OpenTelemetry, `withGenerationPersistence()` to
-     * record the run (summaries are text, so the run record holds the result and
-     * there are no artifacts to store), or implement the `GenerationMiddleware`
-     * contract for a custom backend.
-     *
-     * Streaming and non-streaming behave the same way: one `onStart`, then a
-     * terminal `onFinish` / `onError`, with the result transforms applied to the
-     * `SummarizationResult` in between. A streaming consumer that disconnects
-     * mid-summary fires `onAbort`.
-     */
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` for OpenTelemetry, `withGenerationPersistence()` to
+   * record the run (summaries are text, so the run record holds the result and
+   * there are no artifacts to store), or implement the `GenerationMiddleware`
+   * contract for a custom backend.
+   *
+   * Streaming and non-streaming behave the same way: one `onStart`, then a
+   * terminal `onFinish` / `onError`, with the result transforms applied to the
+   * `SummarizationResult` in between. A streaming consumer that disconnects
+   * mid-summary fires `onAbort`.
+   */
   middleware?: Array<GenerationMiddleware>
   /**
-     * Maximum duration of this activity invocation in milliseconds.
-     * No SDK-wide default — choose a value suitable for the provider and job.
-     * Composed with {@link abortSignal}; the first abort wins.
-     */
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
   timeout?: number
   /**
-     * Caller cancellation signal (request disconnects, job/runtime cancellation).
-     * Composed with {@link timeout} into an effective signal forwarded to the
-     * adapter. Request-specific — not stored on global provider client config.
-     */
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
   abortSignal?: AbortSignal
   /**
-     * Whether to stream the summarization result.
-     * When true, returns an AsyncIterable<StreamChunk> for streaming output.
-     * When false or not provided, returns a Promise<SummarizationResult>.
-     *
-     * @default false
-     */
+   * Whether to stream the summarization result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming output.
+   * When false or not provided, returns a Promise<SummarizationResult>.
+   *
+   * @default false
+   */
   stream?: TStream
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
 }
 

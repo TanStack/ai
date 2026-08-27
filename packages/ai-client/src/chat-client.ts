@@ -127,9 +127,9 @@ type ChatClientUpdateOptionsWithoutContext<
     pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
   /**
-     * Fires whenever the id of the run in flight changes: the new id when a run
-     * starts (including a rejoin), `null` when it settles.
-     */
+   * Fires whenever the id of the run in flight changes: the new id when a run
+   * starts (including a rejoin), `null` when it settles.
+   */
   onRunIdChange?: (runId: string | null) => void
   onInterruptStateChange?: (
     state: ChatInterruptState<TTools, TInterrupts>,
@@ -167,10 +167,10 @@ function resolveTransport(transport: {
 }
 
 /**
-   * `connect()` adapters push the full HTTP body into the subscribe queue, then
-   * wait until that queue is idle. After `send()` returns, every chunk from this
-   * request has been processed. Subscribe/send sockets do not drain that way.
-   */
+ * `connect()` adapters push the full HTTP body into the subscribe queue, then
+ * wait until that queue is idle. After `send()` returns, every chunk from this
+ * request has been processed. Subscribe/send sockets do not drain that way.
+ */
 function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
   return 'connect' in connection
 }
@@ -420,27 +420,27 @@ export class ChatClient<
   private queueConfig: NormalizedQueueConfig
   private messageQueue: Array<InternalQueuedMessage> = []
   /**
-     * True from the moment `sendMessage` claims the client until its
-     * `streamResponse` settles. Closes the race where concurrent callers both
-     * see `isLoading === false`, both append a user message, and only one stream
-     * actually runs (leaving stranded user messages with no reply).
-     */
+   * True from the moment `sendMessage` claims the client until its
+   * `streamResponse` settles. Closes the race where concurrent callers both
+   * see `isLoading === false`, both append a user message, and only one stream
+   * actually runs (leaving stranded user messages with no reply).
+   */
   private sendInFlight = false
   /**
-     * True while `drainQueue` is delivering queued messages. Concurrent
-     * `sendMessage` calls during a drain are treated as busy and follow
-     * `whenBusy` (default: queue).
-     */
+   * True while `drainQueue` is delivering queued messages. Concurrent
+   * `sendMessage` calls during a drain are treated as busy and follow
+   * `whenBusy` (default: queue).
+   */
   private messageQueueDraining = false
   /**
-     * Set by `whenBusy: 'interrupt'` so an in-progress FIFO drain loop stops
-     * before starting the next queued item (the interrupting send owns the client).
-     */
+   * Set by `whenBusy: 'interrupt'` so an in-progress FIFO drain loop stops
+   * before starting the next queued item (the interrupting send owns the client).
+   */
   private stopMessageQueueDrain = false
   /**
-     * Sync claim held for the duration of `deliverMessage` so concurrent
-     * deliverers cannot both append a user message before only one stream runs.
-     */
+   * Sync claim held for the duration of `deliverMessage` so concurrent
+   * deliverers cannot both append a user message before only one stream runs.
+   */
   private deliverClaim = false
   private isLoading = false
   private isSubscribed = false
@@ -451,11 +451,11 @@ export class ChatClient<
   private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
   private readonly devtoolsBridge: ChatDevtoolsBridge
   /**
-     * Alias for `this.events`. The bridge installs an
-     * emitter that auto-attaches run/thread context and auto-emits a
-     * snapshot after every event, so chat-client only ever calls
-     * `this.events.X(...)` exactly like it did before devtools landed.
-     */
+   * Alias for `this.events`. The bridge installs an
+   * emitter that auto-attaches run/thread context and auto-emits a
+   * snapshot after every event, so chat-client only ever calls
+   * `this.events.X(...)` exactly like it did before devtools landed.
+   */
   private readonly events: ChatClientEventEmitter
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
@@ -840,20 +840,20 @@ export class ChatClient<
   }
 
   /**
-     * START TAILING: re-attach to an in-flight run so its chunks arrive here.
-     *
-     * Called by the constructor, and again by a UI wrapper every time its view
-     * mounts. Idempotent — attaching while already attached does nothing — so the
-     * constructor call and a wrapper's first mount cost one attach between them.
-     *
-     * Pairs with {@link detach}. The pair exists because tailing used to begin ONLY
-     * in the constructor, which meant a view could never stop tailing and then
-     * resume: unmount had to either keep the connection open or lose it for good.
-     * Keeping it open is what starved the page — a browser allows ~6 connections per
-     * origin, and one long-lived stream per view reaches that after a handful of
-     * views, after which every other request queues (measured: an in-page fetch took
-     * over two minutes while the same request from outside the browser took 17ms).
-     */
+   * START TAILING: re-attach to an in-flight run so its chunks arrive here.
+   *
+   * Called by the constructor, and again by a UI wrapper every time its view
+   * mounts. Idempotent — attaching while already attached does nothing — so the
+   * constructor call and a wrapper's first mount cost one attach between them.
+   *
+   * Pairs with {@link detach}. The pair exists because tailing used to begin ONLY
+   * in the constructor, which meant a view could never stop tailing and then
+   * resume: unmount had to either keep the connection open or lose it for good.
+   * Keeping it open is what starved the page — a browser allows ~6 connections per
+   * origin, and one long-lived stream per view reaches that after a handful of
+   * views, after which every other request queues (measured: an in-page fetch took
+   * over two minutes while the same request from outside the browser took 17ms).
+   */
   attach(): void {
     const cannotAttach = this.disposed || this.tailing
     if (cannotAttach) return
@@ -871,21 +871,21 @@ export class ChatClient<
   }
 
   /**
-     * STOP TAILING: drop the connection, keep everything else.
-     *
-     * Called by a UI wrapper when its view unmounts. The transcript, the resume
-     * pointer and the run id all stay, so a later {@link attach} repaints instantly
-     * and re-tails from the durable log — nothing is lost, because the run keeps
-     * going server-side and its log holds every chunk.
-     *
-     * Deliberately NOT `dispose()`: this client is expected back. And deliberately
-     * not `stop()`, which means "the user ended this run" — detaching says only that
-     * nobody is watching right now.
-     *
-     * `rejoinedRunId` is cleared so the next `attach` can re-join the same run;
-     * without that reset the guard in {@link maybeRejoinInFlight} would treat the
-     * run as already joined and the view would come back silent.
-     */
+   * STOP TAILING: drop the connection, keep everything else.
+   *
+   * Called by a UI wrapper when its view unmounts. The transcript, the resume
+   * pointer and the run id all stay, so a later {@link attach} repaints instantly
+   * and re-tails from the durable log — nothing is lost, because the run keeps
+   * going server-side and its log holds every chunk.
+   *
+   * Deliberately NOT `dispose()`: this client is expected back. And deliberately
+   * not `stop()`, which means "the user ended this run" — detaching says only that
+   * nobody is watching right now.
+   *
+   * `rejoinedRunId` is cleared so the next `attach` can re-join the same run;
+   * without that reset the guard in {@link maybeRejoinInFlight} would treat the
+   * run as already joined and the view would come back silent.
+   */
   detach(): void {
     if (!this.tailing) return
     this.tailing = false
@@ -920,12 +920,12 @@ export class ChatClient<
   }
 
   /**
-     * Apply a resume snapshot read from durable storage. Restores interrupt state,
-     * and for a bare in-flight run (no pending interrupts) also rejoins it. This is
-     * the async-store counterpart to the synchronous rejoin in the constructor:
-     * `applyResumeSnapshot` alone only handles interrupts, so an async store
-     * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
-     */
+   * Apply a resume snapshot read from durable storage. Restores interrupt state,
+   * and for a bare in-flight run (no pending interrupts) also rejoins it. This is
+   * the async-store counterpart to the synchronous rejoin in the constructor:
+   * `applyResumeSnapshot` alone only handles interrupts, so an async store
+   * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
+   */
   private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
     this.applyResumeSnapshot(snapshot)
     const hasInterrupts =
@@ -938,10 +938,10 @@ export class ChatClient<
   }
 
   /**
-     * Rejoin a persisted in-flight run, guarded so it fires at most once and never
-     * while another run is already active. Skipped when the connection is not
-     * resumable (`joinRun` absent), so a non-durable transport is a no-op.
-     */
+   * Rejoin a persisted in-flight run, guarded so it fires at most once and never
+   * while another run is already active. Skipped when the connection is not
+   * resumable (`joinRun` absent), so a non-durable transport is a no-op.
+   */
   private maybeRejoinInFlight(runId: string): void {
     if (!this.connection.joinRun) return
     const isDetached = this.disposed || !this.tailing
@@ -955,14 +955,14 @@ export class ChatClient<
   }
 
   /**
-     * Server-authoritative mount hydration (`persistence: true`). The client holds
-     * no transcript and no run pointer; on mount it asks the server — keyed by the
-     * stable threadId — for the stored transcript and whether a run is still
-     * generating. The transcript repaints immediately; an in-flight run is tailed
-     * through the same durability rejoin as a reload. Best-effort and
-     * non-blocking: a failure leaves the client empty rather than throwing, and a
-     * send that starts first owns the client (hydration then backs off).
-     */
+   * Server-authoritative mount hydration (`persistence: true`). The client holds
+   * no transcript and no run pointer; on mount it asks the server — keyed by the
+   * stable threadId — for the stored transcript and whether a run is still
+   * generating. The transcript repaints immediately; an in-flight run is tailed
+   * through the same durability rejoin as a reload. Best-effort and
+   * non-blocking: a failure leaves the client empty rather than throwing, and a
+   * send that starts first owns the client (hydration then backs off).
+   */
   private hydrateFromServer(): void {
     const hydrate = this.connection.hydrate
     if (!hydrate) return
@@ -1017,10 +1017,10 @@ export class ChatClient<
   }
 
   /**
-     * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
-     * still tracking. The persistor owns the cleared-run bookkeeping; the client
-     * owns the active-run / session / processing state.
-     */
+   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
+   * still tracking. The persistor owns the cleared-run bookkeeping; the client
+   * owns the active-run / session / processing state.
+   */
   private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
     if (chunk.type !== 'RUN_ERROR') return
     const runId = this.clearedStreamTracker.takeRunlessRunId()
@@ -1095,11 +1095,11 @@ export class ChatClient<
   }
 
   /**
-     * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
-     * an interrupt outcome records the pending interrupts + the run/thread to
-     * resume; any other terminal event for the tracked/current run clears that
-     * state. This is interrupt (state) resume — there is no delivery cursor.
-     */
+   * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
+   * an interrupt outcome records the pending interrupts + the run/thread to
+   * resume; any other terminal event for the tracked/current run clears that
+   * state. This is interrupt (state) resume — there is no delivery cursor.
+   */
   private observeInterruptState(chunk: StreamChunk): void {
     const isTerminalChunk =
       chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
@@ -1198,21 +1198,21 @@ export class ChatClient<
   }
 
   /**
-     * The interrupt-resume state for the active/interrupted run (its run/thread
-     * ids), or null when there is nothing to resume. Apps can persist this to
-     * resume interrupts across a full reload.
-     */
+   * The interrupt-resume state for the active/interrupted run (its run/thread
+   * ids), or null when there is nothing to resume. Apps can persist this to
+   * resume interrupts across a full reload.
+   */
   getResumeState(): ChatResumeState | null {
     return this.lastResume ? { ...this.lastResume } : null
   }
 
   /**
-     * The id of the run this client has in flight — one it started via a send or
-     * rejoined via `joinRun` — or null when there is none. Unlike
-     * {@link getResumeState}, this tracks ordinary runs too, not only one that is
-     * interrupted or being resumed. A run another client started and that arrives
-     * over a live subscription is not this client's run and is not reported here.
-     */
+   * The id of the run this client has in flight — one it started via a send or
+   * rejoined via `joinRun` — or null when there is none. Unlike
+   * {@link getResumeState}, this tracks ordinary runs too, not only one that is
+   * interrupted or being resumed. A run another client started and that arrives
+   * over a live subscription is not this client's run and is not reported here.
+   */
   getCurrentRunId(): string | null {
     return this.currentRunId
   }
@@ -1446,9 +1446,9 @@ export class ChatClient<
   }
 
   /**
-     * Build the durable resume snapshot from the current resume state + pending
-     * interrupt descriptors and hand it to the persistor (null clears it).
-     */
+   * Build the durable resume snapshot from the current resume state + pending
+   * interrupt descriptors and hand it to the persistor (null clears it).
+   */
   private persistResumeSnapshot(resumeState: ChatResumeState | null): void {
     if (!this.persistor) return
     if (!resumeState) {
@@ -1588,8 +1588,8 @@ export class ChatClient<
   }
 
   /**
-     * Start the background subscription loop.
-     */
+   * Start the background subscription loop.
+   */
   private startSubscription(): void {
     this.subscriptionAbortController = new AbortController()
     const signal = this.subscriptionAbortController.signal
@@ -1624,8 +1624,8 @@ export class ChatClient<
   }
 
   /**
-     * Consume chunks from the connection subscription.
-     */
+   * Consume chunks from the connection subscription.
+   */
   private async consumeSubscription(signal: AbortSignal): Promise<void> {
     const stream = this.connection.subscribe(signal)
     for await (const chunk of stream) {
@@ -1635,28 +1635,28 @@ export class ChatClient<
   }
 
   /**
-     * Re-attach to an in-flight run after a full page reload, replaying its stream
-     * from the server's delivery-durability log via `joinRun` (which returns the
-     * whole run so far, then tails live to completion).
-     *
-     * The log is the single source of truth for the run, so we rebuild the
-     * in-flight assistant bubble from it rather than trying to reconcile the
-     * server-hydrated partial with the replay: on the first chunk that actually
-     * (re)builds a message we drop the hydrated in-flight assistant, and the
-     * replay reconstructs one clean bubble. Dropping only on real content (not on
-     * `RUN_STARTED`) means a rejoin that connects but delivers nothing can never
-     * leave an empty bubble behind.
-     *
-     * Bounded connect: a durable backend keeps a from-start join open waiting for
-     * a producer, so a stale pointer to an unknown/evicted run would otherwise pin
-     * the UI in a loading state for the backend's full first-chunk deadline. We
-     * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
-     * clear the dead pointer so it does not retry on the next load.
-     *
-     * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
-     * so the buffered prefix snaps in and only the genuinely-live tail streams at
-     * network speed — a reload looks like the run continued, not like it re-typed.
-     */
+   * Re-attach to an in-flight run after a full page reload, replaying its stream
+   * from the server's delivery-durability log via `joinRun` (which returns the
+   * whole run so far, then tails live to completion).
+   *
+   * The log is the single source of truth for the run, so we rebuild the
+   * in-flight assistant bubble from it rather than trying to reconcile the
+   * server-hydrated partial with the replay: on the first chunk that actually
+   * (re)builds a message we drop the hydrated in-flight assistant, and the
+   * replay reconstructs one clean bubble. Dropping only on real content (not on
+   * `RUN_STARTED`) means a rejoin that connects but delivers nothing can never
+   * leave an empty bubble behind.
+   *
+   * Bounded connect: a durable backend keeps a from-start join open waiting for
+   * a producer, so a stale pointer to an unknown/evicted run would otherwise pin
+   * the UI in a loading state for the backend's full first-chunk deadline. We
+   * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
+   * clear the dead pointer so it does not retry on the next load.
+   *
+   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
+   * so the buffered prefix snaps in and only the genuinely-live tail streams at
+   * network speed — a reload looks like the run continued, not like it re-typed.
+   */
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
     if (!joinRun) return
@@ -1748,11 +1748,11 @@ export class ChatClient<
   }
 
   /**
-     * Drop a hydrated, still-in-flight assistant turn so a resume replay can
-     * rebuild it cleanly. Only touches a trailing assistant message (the shape a
-     * reload-mid-stream leaves); a thread whose last turn is a user message (run
-     * never produced, or already settled) is left untouched.
-     */
+   * Drop a hydrated, still-in-flight assistant turn so a resume replay can
+   * rebuild it cleanly. Only touches a trailing assistant message (the shape a
+   * reload-mid-stream leaves); a thread whose last turn is a user message (run
+   * never produced, or already settled) is left untouched.
+   */
   private dropTrailingInFlightAssistant(): void {
     const messages = this.processor.getMessages()
     const last = messages[messages.length - 1]
@@ -1862,8 +1862,8 @@ export class ChatClient<
   }
 
   /**
-     * Ensure subscription loop is running, starting it if needed.
-     */
+   * Ensure subscription loop is running, starting it if needed.
+   */
   private ensureSubscription(): void {
     if (!this.isSubscribed) {
       this.subscribe()
@@ -1878,9 +1878,9 @@ export class ChatClient<
   }
 
   /**
-     * Create a promise that resolves when onStreamEnd fires.
-     * Used by streamResponse to await processing completion.
-     */
+   * Create a promise that resolves when onStreamEnd fires.
+   * Used by streamResponse to await processing completion.
+   */
   private waitForProcessing(): Promise<void> {
     // Resolve any stale promise (e.g., from a previous aborted request)
     this.resolveProcessing()
@@ -1890,57 +1890,57 @@ export class ChatClient<
   }
 
   /**
-     * Send a message and stream the response.
-     * Supports both simple string content and multimodal content (images, audio, video, documents).
-     *
-     * @param content - The message content. Can be:
-     *   - A simple string for text-only messages
-     *   - A MultimodalContent object with content array and optional custom ID
-     * @param body - Optional body parameters to merge with the client's base body for this request.
-     *               Uses shallow merge with per-message body taking priority.
-     * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
-     *                      queue policy for this one send. `{ body }`
-     *                      shallow-merges with `body` and with the chat-level
-     *                      `body` / `forwardedProps`. `sendOptions.body` wins
-     *                      on key collisions. Framework hooks forward this
-     *                      object as their second argument.
-     *
-     * @example
-     * ```ts
-     * // Simple text message
-     * await client.sendMessage('Hello!')
-     *
-     * // Text message with custom body params
-     * await client.sendMessage('Hello!', { temperature: 0.7 })
-     *
-     * // Per-call whenBusy override
-     * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
-     *
-     * // Per-call body via options. Same effect as the positional arg.
-     * // This is the shape the framework hooks (`useChat`, `injectChat`) forward.
-     * await client.sendMessage('Hello!', undefined, { body: { temperature: 0.7 } })
-     *
-     * // Multimodal message with image
-     * await client.sendMessage({
-     *   content: [
-     *     { type: 'text', content: 'What is in this image?' },
-     *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
-     *   ]
-     * })
-     *
-     * // Multimodal message with custom ID and body params
-     * await client.sendMessage(
-     *   {
-     *     content: [
-     *       { type: 'text', content: 'Describe this audio' },
-     *       { type: 'audio', source: { type: 'data', value: 'base64...' } }
-     *     ],
-     *     id: 'custom-message-id'
-     *   },
-     *   { model: 'gpt-5.5' }
-     * )
-     * ```
-     */
+   * Send a message and stream the response.
+   * Supports both simple string content and multimodal content (images, audio, video, documents).
+   *
+   * @param content - The message content. Can be:
+   *   - A simple string for text-only messages
+   *   - A MultimodalContent object with content array and optional custom ID
+   * @param body - Optional body parameters to merge with the client's base body for this request.
+   *               Uses shallow merge with per-message body taking priority.
+   * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
+   *                      queue policy for this one send. `{ body }`
+   *                      shallow-merges with `body` and with the chat-level
+   *                      `body` / `forwardedProps`. `sendOptions.body` wins
+   *                      on key collisions. Framework hooks forward this
+   *                      object as their second argument.
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * await client.sendMessage('Hello!')
+   *
+   * // Text message with custom body params
+   * await client.sendMessage('Hello!', { temperature: 0.7 })
+   *
+   * // Per-call whenBusy override
+   * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
+   *
+   * // Per-call body via options. Same effect as the positional arg.
+   * // This is the shape the framework hooks (`useChat`, `injectChat`) forward.
+   * await client.sendMessage('Hello!', undefined, { body: { temperature: 0.7 } })
+   *
+   * // Multimodal message with image
+   * await client.sendMessage({
+   *   content: [
+   *     { type: 'text', content: 'What is in this image?' },
+   *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   *   ]
+   * })
+   *
+   * // Multimodal message with custom ID and body params
+   * await client.sendMessage(
+   *   {
+   *     content: [
+   *       { type: 'text', content: 'Describe this audio' },
+   *       { type: 'audio', source: { type: 'data', value: 'base64...' } }
+   *     ],
+   *     id: 'custom-message-id'
+   *   },
+   *   { model: 'gpt-5.5' }
+   * )
+   * ```
+   */
   async sendMessage(
     content: string | MultimodalContent,
     body?: Record<string, any>,
@@ -2008,12 +2008,12 @@ export class ChatClient<
   }
 
   /**
-     * Append a user message and run the stream. Used by both direct sends and
-     * queue drains — callers are responsible for busy/queue policy.
-     *
-     * Claims delivery synchronously before appending so concurrent callers
-     * cannot both add a user message when only one stream can run.
-     */
+   * Append a user message and run the stream. Used by both direct sends and
+   * queue drains — callers are responsible for busy/queue policy.
+   *
+   * Claims delivery synchronously before appending so concurrent callers
+   * cannot both add a user message when only one stream can run.
+   */
   private async deliverMessage(
     content: string | MultimodalContent,
     body?: Record<string, any>,
@@ -2039,9 +2039,9 @@ export class ChatClient<
   }
 
   /**
-     * Resolve the effective action for a send that arrives while busy.
-     * The returned `id` is the id that will be stored if the action is `queue`.
-     */
+   * Resolve the effective action for a send that arrives while busy.
+   * The returned `id` is the id that will be stored if the action is `queue`.
+   */
   private decideWhenBusy(
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
@@ -2092,9 +2092,9 @@ export class ChatClient<
   }
 
   /**
-     * Normalize the message input to extract content, optional id, and
-     * optional metadata. String form has no metadata. Trims string content.
-     */
+   * Normalize the message input to extract content, optional id, and
+   * optional metadata. String form has no metadata. Trims string content.
+   */
   private normalizeMessageInput(input: string | MultimodalContent): {
     content: string | Array<ContentPart>
     id?: string
@@ -2111,8 +2111,8 @@ export class ChatClient<
   }
 
   /**
-     * Append a message and stream the response
-     */
+   * Append a message and stream the response
+   */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
     if (this.hasBlockingInterrupts()) {
@@ -2151,9 +2151,9 @@ export class ChatClient<
   }
 
   /**
-     * Stream a response from the LLM.
-     * Returns true if the stream completed successfully, false on abort or error.
-     */
+   * Stream a response from the LLM.
+   * Returns true if the stream completed successfully, false on abort or error.
+   */
   private async streamResponse(): Promise<boolean> {
     // Guard against concurrent streams - if already loading, skip
     if (this.isLoading) {
@@ -2395,9 +2395,9 @@ export class ChatClient<
   }
 
   /**
-     * Start the client subscription loop.
-     * This controls the connection lifecycle independently from request lifecycle.
-     */
+   * Start the client subscription loop.
+   * This controls the connection lifecycle independently from request lifecycle.
+   */
   subscribe(options?: { restart?: boolean }): void {
     const restart = options?.restart === true
     const isAlreadySubscribed = this.isSubscribed && !restart
@@ -2416,9 +2416,9 @@ export class ChatClient<
   }
 
   /**
-     * Unsubscribe and fully tear down live behavior.
-     * This aborts an in-flight request and the subscription loop.
-     */
+   * Unsubscribe and fully tear down live behavior.
+   * This aborts an in-flight request and the subscription loop.
+   */
   unsubscribe(): void {
     this.cancelInFlightStream({
       setReadyStatus: true,
@@ -2431,8 +2431,8 @@ export class ChatClient<
   }
 
   /**
-     * Reload the last assistant message
-     */
+   * Reload the last assistant message
+   */
   async reload(): Promise<void> {
     const messages = this.processor.getMessages()
     if (messages.length === 0) return
@@ -2463,8 +2463,8 @@ export class ChatClient<
   }
 
   /**
-     * Stop the current stream
-     */
+   * Stop the current stream
+   */
   stop(): void {
     // Invalidate deferred work from the stopped continuation.
     this.continuationGeneration++
@@ -2481,8 +2481,8 @@ export class ChatClient<
   }
 
   /**
-     * Clear all messages
-     */
+   * Clear all messages
+   */
   clear(): void {
     const hadLocalStream = this.abortController !== null
     this.clearedStreamTracker.snapshotClear({
@@ -2514,8 +2514,8 @@ export class ChatClient<
   }
 
   /**
-     * Add the result of a client-side tool execution
-     */
+   * Add the result of a client-side tool execution
+   */
   async addToolResult(result: ClientToolResult): Promise<void> {
     const clientTool = this.clientToolsRef.current.get(result.tool)
     await this.addToolResultForClientTool(
@@ -2605,8 +2605,8 @@ export class ChatClient<
   }
 
   /**
-     * Respond to a tool approval request
-     */
+   * Respond to a tool approval request
+   */
   async addToolApprovalResponse(response: {
     id: string // approval.id, not toolCallId
     approved: boolean
@@ -2659,8 +2659,8 @@ export class ChatClient<
   }
 
   /**
-     * Queue an action to be executed after the current stream ends
-     */
+   * Queue an action to be executed after the current stream ends
+   */
   private queuePostStreamAction(action: () => Promise<void>): void {
     const continuationGeneration = this.continuationGeneration
     this.postStreamActions.push(async () => {
@@ -2670,8 +2670,8 @@ export class ChatClient<
   }
 
   /**
-     * Drain and execute all queued post-stream actions
-     */
+   * Drain and execute all queued post-stream actions
+   */
   private async drainPostStreamActions(): Promise<void> {
     if (this.draining) return
     this.draining = true
@@ -2686,8 +2686,8 @@ export class ChatClient<
   }
 
   /**
-     * Check if we should continue the flow and do so if needed
-     */
+   * Check if we should continue the flow and do so if needed
+   */
   private async checkForContinuation(): Promise<void> {
     // stop() bumps continuationGeneration without opening a new stream.
     if (this.streamContinuationGeneration !== this.continuationGeneration) {
@@ -2721,10 +2721,10 @@ export class ChatClient<
   }
 
   /**
-     * Check if all tool calls are complete and we should auto-send.
-     * Requires that there is at least one tool call in the last assistant message;
-     * a text-only response has nothing to auto-send.
-     */
+   * Check if all tool calls are complete and we should auto-send.
+   * Requires that there is at least one tool call in the last assistant message;
+   * a text-only response has nothing to auto-send.
+   */
   private shouldAutoSend(): boolean {
     // A pending interrupt owns the next send. Auto-continuing after a
     // completed server tool would start a sibling run and hide the card.
@@ -2748,31 +2748,31 @@ export class ChatClient<
   }
 
   /**
-     * Get current messages
-     */
+   * Get current messages
+   */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
   /**
-     * True when an interrupt (or another direct send) claimed the client during
-     * a drain. Read via a method so cross-await mutations are not constant-folded
-     * by control-flow analysis.
-     */
+   * True when an interrupt (or another direct send) claimed the client during
+   * a drain. Read via a method so cross-await mutations are not constant-folded
+   * by control-flow analysis.
+   */
   private shouldAbortMessageQueueDrain(): boolean {
     return this.isLoading || this.stopMessageQueueDrain
   }
 
   /**
-     * Deliver queued messages after a successful settle.
-     * - `batch`: merge everything currently queued into one send, looping so
-     *   messages enqueued during that batch stream are not stranded.
-     * - `fifo`: walk the queue in a loop, one stream at a time, until empty
-     *   (or until another send claims the client via interrupt).
-     *
-     * Uses `deliverMessage` directly so drains do not re-enter `sendMessage`'s
-     * busy/queue policy (which would re-queue items and strand the rest).
-     */
+   * Deliver queued messages after a successful settle.
+   * - `batch`: merge everything currently queued into one send, looping so
+   *   messages enqueued during that batch stream are not stranded.
+   * - `fifo`: walk the queue in a loop, one stream at a time, until empty
+   *   (or until another send claims the client via interrupt).
+   *
+   * Uses `deliverMessage` directly so drains do not re-enter `sendMessage`'s
+   * busy/queue policy (which would re-queue items and strand the rest).
+   */
   private async drainQueue(): Promise<void> {
     const cannotDrainQueue =
       this.messageQueueDraining ||
@@ -2833,17 +2833,17 @@ export class ChatClient<
   }
 
   /**
-     * Drop any in-flight send claim and discard pending queued messages
-     * (stop / error / clear / unsubscribe / reload).
-     */
+   * Drop any in-flight send claim and discard pending queued messages
+   * (stop / error / clear / unsubscribe / reload).
+   */
   private discardPendingSends(): void {
     this.sendInFlight = false
     this.flushQueue()
   }
 
   /**
-     * Get the current send queue (messages held while a stream was in flight).
-     */
+   * Get the current send queue (messages held while a stream was in flight).
+   */
   getQueue(): Array<QueuedMessage> {
     return this.messageQueue.map(({ id, content, createdAt }) => ({
       id,
@@ -2858,8 +2858,8 @@ export class ChatClient<
   }
 
   /**
-     * Remove a queued message by id before it drains.
-     */
+   * Remove a queued message by id before it drains.
+   */
   cancelQueued(id: string): void {
     const index = this.messageQueue.findIndex((m) => m.id === id)
     if (index === -1) return
@@ -2868,10 +2868,10 @@ export class ChatClient<
   }
 
   /**
-     * Discard all pending queued messages (stop / error / clear / unsubscribe /
-     * reload). Does not send them. Emits `onQueueChange([])` when anything was
-     * removed.
-     */
+   * Discard all pending queued messages (stop / error / clear / unsubscribe /
+   * reload). Does not send them. Emits `onQueueChange([])` when anything was
+   * removed.
+   */
   private flushQueue(): void {
     if (this.messageQueue.length === 0) return
     this.messageQueue = []
@@ -2879,61 +2879,61 @@ export class ChatClient<
   }
 
   /**
-     * Get loading state
-     */
+   * Get loading state
+   */
   getIsLoading(): boolean {
     return this.isLoading
   }
 
   /**
-     * Get current status
-     */
+   * Get current status
+   */
   getStatus(): ChatClientState {
     return this.status
   }
 
   /**
-     * Get whether the subscription loop is active
-     */
+   * Get whether the subscription loop is active
+   */
   getIsSubscribed(): boolean {
     return this.isSubscribed
   }
 
   /**
-     * Get current connection lifecycle status
-     */
+   * Get current connection lifecycle status
+   */
   getConnectionStatus(): ConnectionStatus {
     return this.connectionStatus
   }
 
   /**
-     * Whether the shared session is actively generating.
-     * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
-     * Unlike `isLoading` (request-local), this reflects shared generation
-     * activity visible to all subscribers (e.g. across tabs/devices).
-     */
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
   getSessionGenerating(): boolean {
     return this.sessionGenerating
   }
 
   /**
-     * Get current error
-     */
+   * Get current error
+   */
   getError(): Error | undefined {
     return this.error
   }
 
   /**
-     * Manually set messages
-     */
+   * Manually set messages
+   */
   setMessagesManually(messages: Array<UIMessage<TTools>>): void {
     this.processor.setMessages(messages)
     this.devtoolsBridge.emitSnapshot()
   }
 
   /**
-     * Update options refs (for use in React hooks to avoid recreating client)
-     */
+   * Update options refs (for use in React hooks to avoid recreating client)
+   */
   updateOptions(options: ChatClientUpdateOptionsWithoutContext<TTools>): void
   updateOptions(
     options: ChatClientUpdateOptionsWithoutContext<TTools> &

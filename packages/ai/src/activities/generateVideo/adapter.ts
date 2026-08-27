@@ -16,8 +16,11 @@ import type {
  * @experimental Video generation is an experimental feature and may change.
  */
 export type DurationOptions<T extends string | number | undefined> =
-  | { /** Discriminator for adapter kind - used to determine API shape */
-kind: 'discrete'; values: ReadonlyArray<NonNullable<T>> }
+  | {
+      /** Discriminator for adapter kind - used to determine API shape */
+      kind: 'discrete'
+      values: ReadonlyArray<NonNullable<T>>
+    }
   | { kind: 'range'; min: number; max: number; step?: number; unit: 'seconds' }
   | {
       kind: 'mixed'
@@ -79,8 +82,8 @@ export interface VideoAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
     modelProviderOptionsByName: TModelProviderOptionsByName
@@ -90,9 +93,9 @@ export interface VideoAdapter<
   }
 
   /**
-     * Create a new video generation job.
-     * Returns a job ID that can be used to poll for status and retrieve the video.
-     */
+   * Create a new video generation job.
+   * Returns a job ID that can be used to poll for status and retrieve the video.
+   */
   createVideoJob: (
     options: VideoGenerationOptions<
       TProviderOptions,
@@ -102,27 +105,27 @@ export interface VideoAdapter<
   ) => Promise<VideoJobResult>
 
   /**
-     * Get the current status of a video generation job.
-     */
+   * Get the current status of a video generation job.
+   */
   getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
 
   /**
-     * Get the URL to download/view the generated video.
-     * Should only be called after status is 'completed'.
-     */
+   * Get the URL to download/view the generated video.
+   * Should only be called after status is 'completed'.
+   */
   getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
 
   /**
-     * Describe the durations this adapter's model accepts. Returns a tagged
-     * union so consumers can render UI / coerce input without provider-specific
-     * knowledge.
-     */
+   * Describe the durations this adapter's model accepts. Returns a tagged
+   * union so consumers can render UI / coerce input without provider-specific
+   * knowledge.
+   */
   availableDurations: () => DurationOptions<TModelDurationByName[TModel]>
 
   /**
-     * Coerce a raw seconds value to the closest valid duration for this model.
-     * Returns `undefined` for models with no duration field.
-     */
+   * Coerce a raw seconds value to the closest valid duration for this model.
+   * Returns `undefined` for models with no duration field.
+   */
   snapDuration: (seconds: number) => TModelDurationByName[TModel] | undefined
 }
 

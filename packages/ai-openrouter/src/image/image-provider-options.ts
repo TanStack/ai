@@ -5,17 +5,17 @@ import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
  */
 export interface OpenRouterImageProviderOptions {
   /**
-     * Image resolution (Gemini models)
-     * '1K' = 1024x1024, '2K' = 2048x2048, '4K' = 4096x4096
-     */
+   * Image resolution (Gemini models)
+   * '1K' = 1024x1024, '2K' = 2048x2048, '4K' = 4096x4096
+   */
   image_size?: '1K' | '2K' | '4K'
   /**
-     * Image-to-image influence (0.0–1.0): how strongly the input image
-     * constrains the output. Lower values stay closer to the input; higher
-     * values give the model more freedom. Only meaningful for
-     * image-to-image-capable models that document `image_config.strength`
-     * (e.g. Recraft) — other providers ignore it.
-     */
+   * Image-to-image influence (0.0–1.0): how strongly the input image
+   * constrains the output. Lower values stay closer to the input; higher
+   * values give the model more freedom. Only meaningful for
+   * image-to-image-capable models that document `image_config.strength`
+   * (e.g. Recraft) — other providers ignore it.
+   */
   strength?: number
 }
 

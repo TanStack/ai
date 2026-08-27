@@ -22,26 +22,26 @@
  */
 export interface Scope {
   /**
-     * The conversation this data belongs to. Required — the minimal isolation
-     * key both subsystems already center on. Same concept as
-     * `ChatMiddlewareContext.threadId`.
-     */
+   * The conversation this data belongs to. Required — the minimal isolation
+   * key both subsystems already center on. Same concept as
+   * `ChatMiddlewareContext.threadId`.
+   */
   threadId: string
   /**
-     * Durable end-user identity, for cross-thread recall and per-user isolation.
-     * Optional, but required in practice for any multi-user deployment — a
-     * `threadId` alone is not an authorization boundary (see Security above).
-     */
+   * Durable end-user identity, for cross-thread recall and per-user isolation.
+   * Optional, but required in practice for any multi-user deployment — a
+   * `threadId` alone is not an authorization boundary (see Security above).
+   */
   userId?: string
   /**
-     * Tenant/organization boundary for multi-tenant deployments. When present,
-     * every read and write must be confined to it.
-     */
+   * Tenant/organization boundary for multi-tenant deployments. When present,
+   * every read and write must be confined to it.
+   */
   tenantId?: string
   /**
-     * Logical partition within a tenant/user (e.g. separating distinct memory
-     * banks or persistence namespaces). Reserved — no subsystem keys on it yet;
-     * adapters that don't understand it must ignore it rather than error.
-     */
+   * Logical partition within a tenant/user (e.g. separating distinct memory
+   * banks or persistence namespaces). Reserved — no subsystem keys on it yet;
+   * adapters that don't understand it must ignore it rather than error.
+   */
   namespace?: string
 }

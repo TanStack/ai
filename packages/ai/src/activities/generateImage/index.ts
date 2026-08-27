@@ -30,7 +30,7 @@ import type {
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'image' as const
+  kind = 'image' as const
 
 /**
  * Extract model-specific provider options from an ImageAdapter via ~types.
@@ -94,54 +94,54 @@ export type ImageActivityOptions<
   /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
   /**
-     * Description of the desired image(s). Either a plain string, or — for
-     * models that support image-conditioned generation — an ordered array of
-     * content parts interleaving text with image inputs (image-to-image,
-     * reference-guided, edit, multi-reference). Media parts may carry
-     * `metadata.role` (`'reference' | 'mask' | 'control' | 'character'`) to
-     * disambiguate intent. The accepted part types are narrowed per model via
-     * the adapter's input-modality map.
-     */
+   * Description of the desired image(s). Either a plain string, or — for
+   * models that support image-conditioned generation — an ordered array of
+   * content parts interleaving text with image inputs (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` (`'reference' | 'mask' | 'control' | 'character'`) to
+   * disambiguate intent. The accepted part types are narrowed per model via
+   * the adapter's input-modality map.
+   */
   prompt: ImagePromptForModel<TAdapter, TAdapter['model']>
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
   /**
-     * Whether to stream the image generation result.
-     * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
-     * When false or not provided, returns a Promise<ImageGenerationResult>.
-     *
-     * @default false
-     */
+   * Whether to stream the image generation result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<ImageGenerationResult>.
+   *
+   * @default false
+   */
   stream?: TStream
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
   /**
-     * Observe-only middleware notified on start, usage, success, and error. Pass
-     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
-     * `GenerationMiddleware` contract for a custom backend.
-     */
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
   middleware?: Array<GenerationMiddleware>
   /** Stable conversation/thread id for correlating this run when persisted. */
   threadId?: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
-     * Maximum duration of this activity invocation in milliseconds.
-     * No SDK-wide default — choose a value suitable for the provider and job.
-     * Composed with {@link abortSignal}; the first abort wins.
-     */
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
   timeout?: number
   /**
-     * Caller cancellation signal (request disconnects, job/runtime cancellation).
-     * Composed with {@link timeout} into an effective signal forwarded to the
-     * adapter. Request-specific — not stored on global provider client config.
-     */
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
   abortSignal?: AbortSignal
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {

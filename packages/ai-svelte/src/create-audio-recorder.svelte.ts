@@ -7,10 +7,10 @@ import type {
 
 export type CreateAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
   /**
-     * Optional transform applied to the recording when `stop()` resolves. Its
-     * (awaited) return value becomes `recording` and the resolved value of
-     * `stop()`. Return nothing to keep the raw `AudioRecording`.
-     */
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `recording` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
   onComplete?: TOnComplete
 }
 
@@ -25,10 +25,10 @@ export interface CreateAudioRecorderReturn<TOutput> {
   /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   stop: () => Promise<TOutput>
   /**
-     * Discard the in-progress recording and release the mic. Svelte 5 runes
-     * can't register automatic teardown here (matching `createChat`), so call
-     * this from your component's cleanup if a recording may still be active.
-     */
+   * Discard the in-progress recording and release the mic. Svelte 5 runes
+   * can't register automatic teardown here (matching `createChat`), so call
+   * this from your component's cleanup if a recording may still be active.
+   */
   cancel: () => void
 }
 

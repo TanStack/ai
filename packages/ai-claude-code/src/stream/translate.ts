@@ -17,11 +17,11 @@ import type {
 
 /** Name of the CUSTOM event carrying the Claude Code session id. */
 export const /** Name of the CUSTOM event carrying the Claude Code session id. */
-SESSION_ID_EVENT = 'claude-code.session-id'
+  SESSION_ID_EVENT = 'claude-code.session-id'
 
 /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
 export const /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
-BRIDGED_MCP_SERVER_NAME = 'tanstack'
+  BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const BRIDGED_MCP_PREFIX = `mcp__${BRIDGED_MCP_SERVER_NAME}__`
 
@@ -138,7 +138,7 @@ export async function* translateSdkStream(
   let runStarted = false
   /** Tool calls started but with no result yet. */
   const /** Tool calls started but with no result yet. */
-unresolvedToolCalls = new Set<string>()
+    unresolvedToolCalls = new Set<string>()
   const syntheticOutputToolIds = new Set<string>()
   let capturedStructuredOutput: unknown
   let assistantTextForHarvest = ''
@@ -146,7 +146,7 @@ unresolvedToolCalls = new Set<string>()
   let partialIsStructuredOutput = false
   /** Anthropic message ids whose text/thinking already streamed via partials. */
   const /** Anthropic message ids whose text/thinking already streamed via partials. */
-streamedMessageIds = new Set<string>()
+    streamedMessageIds = new Set<string>()
 
   // Partial-stream state
   let partialMessageId: string | null = null

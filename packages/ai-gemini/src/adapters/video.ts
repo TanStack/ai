@@ -50,13 +50,13 @@ type InteractionContent = Interactions.Content
  */
 export interface GeminiVideoConfig extends GeminiClientConfig {
   /**
-     * Opt into fetching HTTP(S) image URL inputs. Veo's predict API accepts
-     * only inline `imageBytes` or a `gcsUri`, so an HTTP(S) URL has to be
-     * downloaded and base64-encoded locally — which buffers the whole image in
-     * memory and can OOM constrained runtimes (e.g. Cloudflare Workers). When
-     * `false` (the default), HTTP(S) URL image inputs throw; pass a `data:` URI
-     * or a `gs://` reference, or set this to `true` to opt into buffering.
-     */
+   * Opt into fetching HTTP(S) image URL inputs. Veo's predict API accepts
+   * only inline `imageBytes` or a `gcsUri`, so an HTTP(S) URL has to be
+   * downloaded and base64-encoded locally — which buffers the whole image in
+   * memory and can OOM constrained runtimes (e.g. Cloudflare Workers). When
+   * `false` (the default), HTTP(S) URL image inputs throw; pass a `data:` URI
+   * or a `gs://` reference, or set this to `true` to opt into buffering.
+   */
   allowUrlFetch?: boolean
 }
 
@@ -337,10 +337,10 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Gemini Omni Flash job creation via the Interactions API. Creates a
-     * background interaction requesting video output; the interaction id is
-     * the job id polled by `getVideoStatus` / `getVideoUrl`.
-     */
+   * Gemini Omni Flash job creation via the Interactions API. Creates a
+   * background interaction requesting video output; the interaction id is
+   * the job id polled by `getVideoStatus` / `getVideoUrl`.
+   */
   private async createInteractionsVideoJob(
     options: VideoGenerationOptions<
       GeminiVideoModelProviderOptionsByName[TModel],
@@ -423,8 +423,8 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Route image prompt parts onto Veo's request fields by `metadata.role`.
-     */
+   * Route image prompt parts onto Veo's request fields by `metadata.role`.
+   */
   private async routeImageParts(
     parts: Array<ImagePart<MediaInputMetadata>>,
   ): Promise<{
@@ -511,15 +511,15 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Poll an Omni background interaction. `in_progress` maps to
-     * 'processing'; a `completed` interaction with no video content (e.g.
-     * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
-     * throw on an empty response. `requires_action` also fails: the adapter
-     * never sends tools, so it can only arise via
-     * `previous_interaction_id` chaining onto a tool-bearing interaction —
-     * and such an interaction never progresses without a client response,
-     * so polling it would spin until timeout.
-     */
+   * Poll an Omni background interaction. `in_progress` maps to
+   * 'processing'; a `completed` interaction with no video content (e.g.
+   * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
+   * throw on an empty response. `requires_action` also fails: the adapter
+   * never sends tools, so it can only arise via
+   * `previous_interaction_id` chaining onto a tool-bearing interaction —
+   * and such an interaction never progresses without a client response,
+   * so polling it would spin until timeout.
+   */
   private async getInteractionsVideoStatus(
     jobId: string,
   ): Promise<VideoStatusResult> {
@@ -587,12 +587,12 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Extract the finished Omni video. Inline base64 output (the API default)
-     * becomes a `data:` URL — matching the OpenAI Sora adapter's inline
-     * delivery — and URI delivery passes through (Files API URIs need the API
-     * key to download, like Veo). Usage carries the video-modality output
-     * tokens (Omni bills per second of video, reported as tokens).
-     */
+   * Extract the finished Omni video. Inline base64 output (the API default)
+   * becomes a `data:` URL — matching the OpenAI Sora adapter's inline
+   * delivery — and URI delivery passes through (Files API URIs need the API
+   * key to download, like Veo). Usage carries the video-modality output
+   * tokens (Omni bills per second of video, reported as tokens).
+   */
   private async getInteractionsVideoUrl(
     jobId: string,
   ): Promise<VideoUrlResult> {
@@ -635,11 +635,11 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Fetch the long-running operation by name. The SDK's
-     * `operations.getVideosOperation` needs a real `GenerateVideosOperation`
-     * instance (it calls `_fromAPIResponse` on it), so reconstruct one from
-     * the job ID rather than passing an object literal.
-     */
+   * Fetch the long-running operation by name. The SDK's
+   * `operations.getVideosOperation` needs a real `GenerateVideosOperation`
+   * instance (it calls `_fromAPIResponse` on it), so reconstruct one from
+   * the job ID rather than passing an object literal.
+   */
   private async getOperation(jobId: string): Promise<GenerateVideosOperation> {
     const operation = new GenerateVideosOperation()
     operation.name = jobId
@@ -647,8 +647,8 @@ export class GeminiVideoAdapter<
   }
 
   /**
-     * Fetch an Omni background interaction by id.
-     */
+   * Fetch an Omni background interaction by id.
+   */
   private async getInteraction(jobId: string): Promise<Interaction> {
     return await this.client.interactions.get(jobId)
   }

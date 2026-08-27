@@ -255,8 +255,8 @@ export class GeminiLiveClient {
   }
 
   /**
-     * Connection management
-     */
+   * Connection management
+   */
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(
@@ -310,8 +310,8 @@ export class GeminiLiveClient {
   }
 
   /**
-     * Session management
-     */
+   * Session management
+   */
   sendInitialSetupMessage(resume = false) {
     const tools = this.functionDeclarations
 
@@ -462,8 +462,8 @@ export class GeminiLiveClient {
   }
 
   /**
-     * Message transmission & receiving
-     */
+   * Message transmission & receiving
+   */
   sendMessage(message: LiveClientMessage) {
     if (this.webSocket?.readyState === WebSocket.OPEN) {
       this.webSocket.send(JSON.stringify(message))

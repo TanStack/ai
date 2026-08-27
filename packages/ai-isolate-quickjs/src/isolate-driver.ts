@@ -16,39 +16,39 @@ import type {
 
 /** Default memory limit in MB (matches Node isolate driver default). */
 const /** Default memory limit in MB (matches Node isolate driver default). */
-DEFAULT_MEMORY_LIMIT_MB = 128
+  DEFAULT_MEMORY_LIMIT_MB = 128
 
 /** Default max stack size in bytes for QuickJS runtime. */
 const /** Default max stack size in bytes for QuickJS runtime. */
-DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+  DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
 /**
  * Configuration for the QuickJS WASM isolate driver
  */
 export interface QuickJSIsolateDriverConfig {
   /**
-     * Default execution timeout in ms (default: 30000)
-     */
+   * Default execution timeout in ms (default: 30000)
+   */
   timeout?: number
 
   /**
-     * Default memory limit in MB (default: 128).
-     * Applied via QuickJS `runtime.setMemoryLimit`.
-     */
+   * Default memory limit in MB (default: 128).
+   * Applied via QuickJS `runtime.setMemoryLimit`.
+   */
   memoryLimit?: number
 
   /**
-     * Default max stack size in bytes (default: 512 KiB).
-     * Applied via QuickJS `runtime.setMaxStackSize`.
-     */
+   * Default max stack size in bytes (default: 512 KiB).
+   * Applied via QuickJS `runtime.setMaxStackSize`.
+   */
   maxStackSize?: number
 
   /**
-     * URL or path from which Emscripten loads the QuickJS WASM binary.
-     *
-     * When omitted, `quickjs-emscripten` resolves its bundled WASM binary.
-     * Set this when serving the binary from a public directory or CDN.
-     */
+   * URL or path from which Emscripten loads the QuickJS WASM binary.
+   *
+   * When omitted, `quickjs-emscripten` resolves its bundled WASM binary.
+   * Set this when serving the binary from a public directory or CDN.
+   */
   wasmLocation?: string
 }
 

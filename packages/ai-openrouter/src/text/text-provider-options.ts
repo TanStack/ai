@@ -24,12 +24,12 @@ export type PdfParserOptions = NonNullable<PluginFileParser['pdf']>
 
 export type ReasoningOptions = NonNullable<ChatRequest['reasoning']> & {
   /**
-     * Disable reasoning for this request.
-     *
-     * OpenRouter documents `enabled: false`, but the SDK's chat request schema
-     * currently strips that field. The adapter normalizes this explicit opt-out
-     * to `effort: 'none'`, which the SDK preserves on the wire.
-     */
+   * Disable reasoning for this request.
+   *
+   * OpenRouter documents `enabled: false`, but the SDK's chat request schema
+   * currently strips that field. The adapter normalizes this explicit opt-out
+   * to `effort: 'none'`, which the SDK preserves on the wire.
+   */
   enabled?: false
 }
 
@@ -37,8 +37,8 @@ export type StreamOptions = NonNullable<ChatRequest['streamOptions']>
 
 export type ImageConfig = {
   /**
-     * The aspect ratio for generated images.
-     */
+   * The aspect ratio for generated images.
+   */
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
 
   image_size?: '1k' | '2k' | '4k'
@@ -58,13 +58,13 @@ export type OpenRouterCommonOptions = Pick<
   | 'modalities'
 > & {
   /**
-     * A list of model IDs to use as fallbacks if the primary model is unavailable.
-     */
+   * A list of model IDs to use as fallbacks if the primary model is unavailable.
+   */
   models?: Array<OpenRouterChatModel>
   /**
-     * The model variant to use, if supported by the model.
-     * Will be appended to the model ID.
-     */
+   * The model variant to use, if supported by the model.
+   * Will be appended to the model ID.
+   */
   variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
 }
 

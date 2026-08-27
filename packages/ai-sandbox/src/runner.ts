@@ -14,24 +14,24 @@ import type { RunStore } from '@tanstack/ai'
 
 export interface SpawnNdjsonOptions extends ProcessOptions {
   /**
-     * Called for each raw stdout line that is non-empty but fails JSON parsing
-     * (e.g. a CLI banner). Defaults to ignoring it. Stderr is never parsed.
-     */
+   * Called for each raw stdout line that is non-empty but fails JSON parsing
+   * (e.g. a CLI banner). Defaults to ignoring it. Stderr is never parsed.
+   */
   onNonJsonLine?: (line: string) => void
   /**
-     * Written to the process stdin (then stdin is closed) right after spawn —
-     * e.g. the agent prompt for `claude -p`. Avoids putting the prompt in argv.
-     */
+   * Written to the process stdin (then stdin is closed) right after spawn —
+   * e.g. the agent prompt for `claude -p`. Avoids putting the prompt in argv.
+   */
   input?: string
   /**
-     * Route the agent's stdout through an in-sandbox journal rather than holding
-     * its pipe directly.
-     *
-     * This is what makes a run survive host death: with nothing piped, there is
-     * no reader whose disappearance can SIGPIPE the agent, and a later host reads
-     * the same file from byte 0. Opt-in so every existing caller (and every
-     * existing test) is unaffected.
-     */
+   * Route the agent's stdout through an in-sandbox journal rather than holding
+   * its pipe directly.
+   *
+   * This is what makes a run survive host death: with nothing piped, there is
+   * no reader whose disappearance can SIGPIPE the agent, and a later host reads
+   * the same file from byte 0. Opt-in so every existing caller (and every
+   * existing test) is unaffected.
+   */
   journal?: JournalOptions
 }
 
@@ -42,30 +42,30 @@ export interface JournalOptions {
   /** Journal directory. Defaults to `/tmp/tanstack-runs`. */
   dir?: string
   /**
-     * Read an EXISTING journal instead of starting the agent. The read still
-     * begins at byte 0 — the alignment step, not the reader, decides what has
-     * already been delivered.
-     */
+   * Read an EXISTING journal instead of starting the agent. The read still
+   * begins at byte 0 — the alignment step, not the reader, decides what has
+   * already been delivered.
+   */
   attach?: boolean
   /** Poll interval for providers that cannot follow. */
   pollIntervalMs?: number
   /**
-     * Run record store, consulted ONLY on an attach and only when the journal is
-     * absent, to tell "not written yet" from "will never be written" (see
-     * `attach-preflight.ts`). Optional so an attach with no store wired keeps the
-     * bounded wait while losing the unknown/terminal classification.
-     */
+   * Run record store, consulted ONLY on an attach and only when the journal is
+   * absent, to tell "not written yet" from "will never be written" (see
+   * `attach-preflight.ts`). Optional so an attach with no store wired keeps the
+   * bounded wait while losing the unknown/terminal classification.
+   */
   runs?: RunStore
   /**
-     * Bounded wait for a live run's journal to appear on an attach, AND — on every
-     * path, attach or fresh — the bound on the read's first byte
-     * (`ReadJournalOptions.firstByteTimeoutMs`). One knob for both because they
-     * bound the same question from two sides: the preflight covers "the file does
-     * not exist", the read covers "the file exists but nothing is writing to it",
-     * and a caller that widens one always means to widen the other.
-     *
-     * Defaults to `DEFAULT_ATTACH_JOURNAL_WAIT_MS`.
-     */
+   * Bounded wait for a live run's journal to appear on an attach, AND — on every
+   * path, attach or fresh — the bound on the read's first byte
+   * (`ReadJournalOptions.firstByteTimeoutMs`). One knob for both because they
+   * bound the same question from two sides: the preflight covers "the file does
+   * not exist", the read covers "the file exists but nothing is writing to it",
+   * and a caller that widens one always means to widen the other.
+   *
+   * Defaults to `DEFAULT_ATTACH_JOURNAL_WAIT_MS`.
+   */
   attachWaitMs?: number
 }
 
@@ -165,7 +165,7 @@ export async function startJournaledAgent(
 
 /** Chars of stderr attached to a non-zero-exit error, on both paths. */
 const /** Chars of stderr attached to a non-zero-exit error, on both paths. */
-STDERR_ERROR_CHARS = 1000
+  STDERR_ERROR_CHARS = 1000
 
 async function* singleValue(value: string): AsyncIterable<string> {
   yield value

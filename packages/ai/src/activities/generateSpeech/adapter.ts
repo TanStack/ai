@@ -33,15 +33,15 @@ export interface TTSAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
   }
 
   /**
-     * Generate speech from text
-     */
+   * Generate speech from text
+   */
   generateSpeech: (options: TTSOptions<TProviderOptions>) => Promise<TTSResult>
 }
 

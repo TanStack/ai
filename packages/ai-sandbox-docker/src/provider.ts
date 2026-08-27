@@ -23,19 +23,19 @@ export interface DockerSandboxConfig {
   /** Container ports to publish to the host (for `ports.connect`). */
   publishPorts?: Array<number>
   /**
-     * Add `host.docker.internal:host-gateway` so the container can reach the
-     * host (e.g. a host-side MCP tool-bridge). Defaults to true.
-     */
+   * Add `host.docker.internal:host-gateway` so the container can reach the
+   * host (e.g. a host-side MCP tool-bridge). Defaults to true.
+   */
   hostGateway?: boolean
   /** Remove the container on destroy (vs. just stop). Defaults to true. */
   removeOnDestroy?: boolean
   /**
-     * Sink for non-fatal teardown diagnostics — a container-side kill that was
-     * refused, or a process that survived it. Teardown never throws, so without a
-     * logger such a failure is silent and this provider's
-     * `killableProcesses: true` claim cannot be checked. `@tanstack/ai`'s
-     * `InternalLogger` satisfies this shape as-is.
-     */
+   * Sink for non-fatal teardown diagnostics — a container-side kill that was
+   * refused, or a process that survived it. Teardown never throws, so without a
+   * logger such a failure is silent and this provider's
+   * `killableProcesses: true` claim cannot be checked. `@tanstack/ai`'s
+   * `InternalLogger` satisfies this shape as-is.
+   */
   logger?: DockerLogger
 }
 

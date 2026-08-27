@@ -28,8 +28,10 @@ export interface HindsightClientLike {
   recall: (
     bankId: string,
     query: string,
-    opts: { /** Recall budget. Defaults to `'mid'`. */
-budget: string },
+    opts: {
+      /** Recall budget. Defaults to `'mid'`. */
+      budget: string
+    },
   ) => Promise<HindsightRecallResponse>
   reflect: (bankId: string, query: string) => Promise<{ text?: string }>
   listMemories: (

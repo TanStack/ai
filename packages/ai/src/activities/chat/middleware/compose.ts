@@ -233,10 +233,10 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Pipe config through all middleware onConfig hooks in order.
-     * Each middleware receives the merged config from previous middleware.
-     * Partial returns are shallow-merged with the current config.
-     */
+   * Pipe config through all middleware onConfig hooks in order.
+   * Each middleware receives the merged config from previous middleware.
+   * Partial returns are shallow-merged with the current config.
+   */
   async runOnConfig(
     ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
@@ -285,13 +285,13 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Pipe config through all middleware onStructuredOutputConfig hooks in order.
-     * Each middleware receives the merged config from previous middleware.
-     * Partial returns are shallow-merged with the current config.
-     *
-     * Called once at the structured-output boundary, before runOnConfig at the
-     * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
-     */
+   * Pipe config through all middleware onStructuredOutputConfig hooks in order.
+   * Each middleware receives the merged config from previous middleware.
+   * Partial returns are shallow-merged with the current config.
+   *
+   * Called once at the structured-output boundary, before runOnConfig at the
+   * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
+   */
   async runOnStructuredOutputConfig(
     ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
@@ -340,14 +340,14 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run all `setup` hooks in array order, then assert every declared `provides`
-     * capability was actually provided. Wires the last-wins duplicate-provide
-     * warning into the registry. Runs before init `onConfig`.
-     *
-     * Takes the full `ChatMiddlewareContext` — the same stable context the engine
-     * threads through every other hook — because it both forwards `ctx` to each
-     * `setup` hook and emits instrumentation events from it.
-     */
+   * Run all `setup` hooks in array order, then assert every declared `provides`
+   * capability was actually provided. Wires the last-wins duplicate-provide
+   * warning into the registry. Runs before init `onConfig`.
+   *
+   * Takes the full `ChatMiddlewareContext` — the same stable context the engine
+   * threads through every other hook — because it both forwards `ctx` to each
+   * `setup` hook and emits instrumentation events from it.
+   */
   async runSetup(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
     ctx.capabilities.setOnDuplicate((name) => {
       this.logger.warn(
@@ -391,8 +391,8 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Call onStart on all middleware in order.
-     */
+   * Call onStart on all middleware in order.
+   */
   async runOnStart(ctx: ChatMiddlewareContext<TContext>): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onStart) {
@@ -418,14 +418,14 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Pipe a single chunk through all middleware onChunk hooks in order.
-     * Returns the resulting chunks (0..N) to yield to the consumer.
-     *
-     * - void: pass through unchanged
-     * - chunk: replace with this chunk
-     * - chunk[]: expand to multiple chunks
-     * - null: drop the chunk entirely
-     */
+   * Pipe a single chunk through all middleware onChunk hooks in order.
+   * Returns the resulting chunks (0..N) to yield to the consumer.
+   *
+   * - void: pass through unchanged
+   * - chunk: replace with this chunk
+   * - chunk[]: expand to multiple chunks
+   * - null: drop the chunk entirely
+   */
   async runOnChunk(
     ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
@@ -464,10 +464,10 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Dispatch a sandbox file event to every middleware's `sandbox` hooks, in
-     * array order: the catch-all `onFile` then the type-specific hook. Errors are
-     * logged and swallowed so one bad hook can't break the run.
-     */
+   * Dispatch a sandbox file event to every middleware's `sandbox` hooks, in
+   * array order: the catch-all `onFile` then the type-specific hook. Errors are
+   * logged and swallowed so one bad hook can't break the run.
+   */
   async runSandboxFile(
     ctx: ChatMiddlewareContext<TContext>,
     event: SandboxFileHookEvent,
@@ -497,9 +497,9 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onBeforeToolCall through middleware in order.
-     * Returns the first non-void decision, or undefined to continue normally.
-     */
+   * Run onBeforeToolCall through middleware in order.
+   * Returns the first non-void decision, or undefined to continue normally.
+   */
   async runOnBeforeToolCall(
     ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
@@ -533,8 +533,8 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onAfterToolCall on all middleware in order.
-     */
+   * Run onAfterToolCall on all middleware in order.
+   */
   async runOnAfterToolCall(
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
@@ -563,8 +563,8 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onUsage on all middleware in order.
-     */
+   * Run onUsage on all middleware in order.
+   */
   async runOnUsage(
     ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
@@ -593,16 +593,16 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Await ONE terminal hook and RETURN its throw instead of letting it escape
-     * the caller's loop, logging it on the `errors` channel first so the failure
-     * is never invisible. `undefined` means the hook completed.
-     *
-     * Capturing (rather than swallowing at this level) is what lets isolation and
-     * reporting coexist: every caller gives every middleware its turn, and then
-     * each decides on its own whether the collected failures are worth telling the
-     * caller about. See {@link runOnFinish} vs {@link runOnAbort} /
-     * {@link runOnError}.
-     */
+   * Await ONE terminal hook and RETURN its throw instead of letting it escape
+   * the caller's loop, logging it on the `errors` channel first so the failure
+   * is never invisible. `undefined` means the hook completed.
+   *
+   * Capturing (rather than swallowing at this level) is what lets isolation and
+   * reporting coexist: every caller gives every middleware its turn, and then
+   * each decides on its own whether the collected failures are worth telling the
+   * caller about. See {@link runOnFinish} vs {@link runOnAbort} /
+   * {@link runOnError}.
+   */
   private async captureTerminalHook(
     mw: ChatMiddleware<TContext, TInterruptDefinitions>,
     hookName: 'onFinish' | 'onAbort' | 'onError',
@@ -622,56 +622,56 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onFinish on all middleware in order.
-     *
-     * ISOLATED **and** REPORTED. `onFinish` is the only terminal fan-out on the
-     * SUCCESS path, and it is where `withPersistence.onFinish` writes the
-     * assistant turn through the store. So the two properties are needed together
-     * and neither may be traded for the other:
-     *
-     * - ISOLATION: every middleware's hook runs even if an earlier one threw, so a
-     *   transient store error cannot skip a later middleware's own bookkeeping.
-     *   Each failure is captured by {@link captureTerminalHook}, not propagated
-     *   mid-loop.
-     * - REPORTING: after the loop, the failures are rethrown. `chat()`'s catch
-     *   treats what we throw as a genuine error (it is not a
-     *   `MiddlewareAbortError`, and `structuralInterruptFailure` does not match
-     *   it) and rethrows it out of the generator.
-     *
-     * What that rethrow can and cannot achieve depends on the transport, because
-     * this fan-out is awaited AFTER the adapter's `RUN_FINISHED` has already been
-     * yielded (`chat()` yields terminal chunks while streaming, then awaits this
-     * hook on its way out). The success terminal is therefore already gone; the
-     * rethrow can only append to what the consumer saw, never retract it:
-     *
-     * - NON-DURABLE transport: the throw escapes the generator mid-response, and
-     *   the SSE / HTTP-stream encoder turns it into a TRAILING `RUN_ERROR` on the
-     *   wire carrying the store's own message and `code`. `ai-client` surfaces
-     *   that as an error status, so the user is not told the turn was saved when
-     *   it was not.
-     * - DURABLE transport: the throw reaches the durability sink instead. The
-     *   terminal was already persisted AND forwarded, so the sink deliberately
-     *   does NOT append a second, contradictory terminal, and `terminalForwarded`
-     *   (see `stream-to-response.ts`) suppresses the rethrow to the live consumer.
-     *   The `RUN_FINISHED` stands and the failure is RECORDED SERVER-SIDE on the
-     *   sink's `errors` channel. That is the intended outcome, not a gap: the save
-     *   failed, not the run — the consumer did receive the complete stream, so
-     *   telling it the run errored would be the lie. What the rethrow buys here is
-     *   that the sink sees the failure at all; while this loop swallowed, the only
-     *   trace anywhere was {@link captureTerminalHook}'s log line.
-     *
-     * Either way, swallowing is the one option ruled out: a failed
-     * `messages.append` would otherwise leave a `completed` run record with the
-     * assistant turn missing from storage and nothing beyond a middleware log
-     * line, and the client would go on to send a history the server has no record
-     * of.
-     *
-     * A single failure is rethrown AS-IS so the store's own error — its message,
-     * `cause`, `code` and `instanceof` identity — is what reaches the caller and
-     * the wire; wrapping the common case would bury it. Two or more become an
-     * `AggregateError` (never a `MiddlewareAbortError`, so it cannot be mistaken
-     * for an abort) rather than picking a winner and dropping the rest.
-     */
+   * Run onFinish on all middleware in order.
+   *
+   * ISOLATED **and** REPORTED. `onFinish` is the only terminal fan-out on the
+   * SUCCESS path, and it is where `withPersistence.onFinish` writes the
+   * assistant turn through the store. So the two properties are needed together
+   * and neither may be traded for the other:
+   *
+   * - ISOLATION: every middleware's hook runs even if an earlier one threw, so a
+   *   transient store error cannot skip a later middleware's own bookkeeping.
+   *   Each failure is captured by {@link captureTerminalHook}, not propagated
+   *   mid-loop.
+   * - REPORTING: after the loop, the failures are rethrown. `chat()`'s catch
+   *   treats what we throw as a genuine error (it is not a
+   *   `MiddlewareAbortError`, and `structuralInterruptFailure` does not match
+   *   it) and rethrows it out of the generator.
+   *
+   * What that rethrow can and cannot achieve depends on the transport, because
+   * this fan-out is awaited AFTER the adapter's `RUN_FINISHED` has already been
+   * yielded (`chat()` yields terminal chunks while streaming, then awaits this
+   * hook on its way out). The success terminal is therefore already gone; the
+   * rethrow can only append to what the consumer saw, never retract it:
+   *
+   * - NON-DURABLE transport: the throw escapes the generator mid-response, and
+   *   the SSE / HTTP-stream encoder turns it into a TRAILING `RUN_ERROR` on the
+   *   wire carrying the store's own message and `code`. `ai-client` surfaces
+   *   that as an error status, so the user is not told the turn was saved when
+   *   it was not.
+   * - DURABLE transport: the throw reaches the durability sink instead. The
+   *   terminal was already persisted AND forwarded, so the sink deliberately
+   *   does NOT append a second, contradictory terminal, and `terminalForwarded`
+   *   (see `stream-to-response.ts`) suppresses the rethrow to the live consumer.
+   *   The `RUN_FINISHED` stands and the failure is RECORDED SERVER-SIDE on the
+   *   sink's `errors` channel. That is the intended outcome, not a gap: the save
+   *   failed, not the run — the consumer did receive the complete stream, so
+   *   telling it the run errored would be the lie. What the rethrow buys here is
+   *   that the sink sees the failure at all; while this loop swallowed, the only
+   *   trace anywhere was {@link captureTerminalHook}'s log line.
+   *
+   * Either way, swallowing is the one option ruled out: a failed
+   * `messages.append` would otherwise leave a `completed` run record with the
+   * assistant turn missing from storage and nothing beyond a middleware log
+   * line, and the client would go on to send a history the server has no record
+   * of.
+   *
+   * A single failure is rethrown AS-IS so the store's own error — its message,
+   * `cause`, `code` and `instanceof` identity — is what reaches the caller and
+   * the wire; wrapping the common case would bury it. Two or more become an
+   * `AggregateError` (never a `MiddlewareAbortError`, so it cannot be mistaken
+   * for an abort) rather than picking a winner and dropping the rest.
+   */
   async runOnFinish(
     ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
@@ -721,23 +721,23 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onAbort on all middleware in order.
-     *
-     * ISOLATED and DELIBERATELY SWALLOWED. `onAbort` is a pure teardown fan-out
-     * released from `chat()`'s `finally`, on a path where the outcome is already
-     * decided: the run stopped, and the caller is being told why. A throw here has
-     * nothing better to report than the abort reason it would DISPLACE — the
-     * `finally` would surface a flaky store's error in place of "client
-     * disconnected" — so failures are logged on the `errors` channel and go no
-     * further. That is not a silent failure; it is refusing to let teardown
-     * rewrite an outcome it did not produce.
-     *
-     * Isolation matters independently: these hooks release PER-MIDDLEWARE
-     * resources (`withSandbox.onAbort` detaches or destroys the sandbox and stamps
-     * `detachedSince`; `withPersistence.onAbort` records the run status through the
-     * store), so an unguarded loop turns one transient store error into a
-     * permanently leaked sandbox for every middleware ordered after it.
-     */
+   * Run onAbort on all middleware in order.
+   *
+   * ISOLATED and DELIBERATELY SWALLOWED. `onAbort` is a pure teardown fan-out
+   * released from `chat()`'s `finally`, on a path where the outcome is already
+   * decided: the run stopped, and the caller is being told why. A throw here has
+   * nothing better to report than the abort reason it would DISPLACE — the
+   * `finally` would surface a flaky store's error in place of "client
+   * disconnected" — so failures are logged on the `errors` channel and go no
+   * further. That is not a silent failure; it is refusing to let teardown
+   * rewrite an outcome it did not produce.
+   *
+   * Isolation matters independently: these hooks release PER-MIDDLEWARE
+   * resources (`withSandbox.onAbort` detaches or destroys the sandbox and stamps
+   * `detachedSince`; `withPersistence.onAbort` records the run status through the
+   * store), so an unguarded loop turns one transient store error into a
+   * permanently leaked sandbox for every middleware ordered after it.
+   */
   async runOnAbort(
     ctx: ChatMiddlewareContext<TContext>,
     info: AbortInfo,
@@ -770,20 +770,20 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onError on all middleware in order.
-     *
-     * ISOLATED and DELIBERATELY SWALLOWED, for the same reason as
-     * {@link runOnAbort} and NOT merely because it is teardown: the run has
-     * already failed, `info.error` IS that failure, and `chat()` rethrows it to the
-     * caller the moment this fan-out returns. A propagated hook throw could only
-     * REPLACE the run's real error with a teardown artifact — strictly less
-     * information for the caller, who is already learning the run failed. Reporting
-     * would buy nothing and cost the diagnosis, so failures are logged on the
-     * `errors` channel and stop there.
-     *
-     * Contrast {@link runOnFinish}, where nothing else is telling the caller
-     * anything is wrong — which is why that one reports.
-     */
+   * Run onError on all middleware in order.
+   *
+   * ISOLATED and DELIBERATELY SWALLOWED, for the same reason as
+   * {@link runOnAbort} and NOT merely because it is teardown: the run has
+   * already failed, `info.error` IS that failure, and `chat()` rethrows it to the
+   * caller the moment this fan-out returns. A propagated hook throw could only
+   * REPLACE the run's real error with a teardown artifact — strictly less
+   * information for the caller, who is already learning the run failed. Reporting
+   * would buy nothing and cost the diagnosis, so failures are logged on the
+   * `errors` channel and stop there.
+   *
+   * Contrast {@link runOnFinish}, where nothing else is telling the caller
+   * anything is wrong — which is why that one reports.
+   */
   async runOnError(
     ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
@@ -816,9 +816,9 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onIteration on all middleware in order.
-     * Called at the start of each agent loop iteration.
-     */
+   * Run onIteration on all middleware in order.
+   * Called at the start of each agent loop iteration.
+   */
   async runOnIteration(
     ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
@@ -847,10 +847,10 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onShouldContinue through middleware in order (AND semantics).
-     * Any explicit `false` stops further iterations; `true` / void / undefined pass.
-     * Called after `agentLoopStrategy` has already approved continuation.
-     */
+   * Run onShouldContinue through middleware in order (AND semantics).
+   * Any explicit `false` stops further iterations; `true` / void / undefined pass.
+   * Called after `agentLoopStrategy` has already approved continuation.
+   */
   async runOnShouldContinue(
     ctx: ChatMiddlewareContext<TContext>,
     state: AgentLoopState,
@@ -887,9 +887,9 @@ export class MiddlewareRunner<
   }
 
   /**
-     * Run onToolPhaseComplete on all middleware in order.
-     * Called after all tool calls in an iteration have been processed.
-     */
+   * Run onToolPhaseComplete on all middleware in order.
+   * Called after all tool calls in an iteration have been processed.
+   */
   async runOnToolPhaseComplete(
     ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,

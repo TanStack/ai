@@ -30,49 +30,49 @@ export interface ToolCacheStorage {
  */
 export interface ToolCacheMiddlewareOptions {
   /**
-     * Maximum number of entries in the cache.
-     * When exceeded, the oldest entry is evicted (LRU).
-     *
-     * Only applies to the default in-memory storage.
-     * When a custom `storage` is provided, capacity management is the storage's responsibility.
-     *
-     * @default 100
-     */
+   * Maximum number of entries in the cache.
+   * When exceeded, the oldest entry is evicted (LRU).
+   *
+   * Only applies to the default in-memory storage.
+   * When a custom `storage` is provided, capacity management is the storage's responsibility.
+   *
+   * @default 100
+   */
   maxSize?: number
 
   /**
-     * Time-to-live in milliseconds. Entries older than this are not served from cache.
-     * @default Infinity (no expiry)
-     */
+   * Time-to-live in milliseconds. Entries older than this are not served from cache.
+   * @default Infinity (no expiry)
+   */
   ttl?: number
 
   /**
-     * Tool names to cache. If not provided, all tools are cached.
-     */
+   * Tool names to cache. If not provided, all tools are cached.
+   */
   toolNames?: Array<string>
 
   /**
-     * Custom function to generate a cache key from tool name and args.
-     * Defaults to `JSON.stringify([toolName, args])`.
-     */
+   * Custom function to generate a cache key from tool name and args.
+   * Defaults to `JSON.stringify([toolName, args])`.
+   */
   keyFn?: (toolName: string, args: unknown) => string
 
   /**
-     * Custom storage backend. When provided, the middleware uses this instead of
-     * the built-in in-memory Map. The storage is responsible for its own capacity
-     * management — the `maxSize` option is ignored.
-     *
-     * @example
-     * ```ts
-     * toolCacheMiddleware({
-     *   storage: {
-     *     getItem: (key) => redisClient.get(key).then(v => v ? JSON.parse(v) : undefined),
-     *     setItem: (key, value) => redisClient.set(key, JSON.stringify(value)),
-     *     deleteItem: (key) => redisClient.del(key),
-     *   },
-     * })
-     * ```
-     */
+   * Custom storage backend. When provided, the middleware uses this instead of
+   * the built-in in-memory Map. The storage is responsible for its own capacity
+   * management — the `maxSize` option is ignored.
+   *
+   * @example
+   * ```ts
+   * toolCacheMiddleware({
+   *   storage: {
+   *     getItem: (key) => redisClient.get(key).then(v => v ? JSON.parse(v) : undefined),
+   *     setItem: (key, value) => redisClient.set(key, JSON.stringify(value)),
+   *     deleteItem: (key) => redisClient.del(key),
+   *   },
+   * })
+   * ```
+   */
   storage?: ToolCacheStorage
 }
 

@@ -90,40 +90,40 @@ interface SandboxRunState {
     completion: { waitForRunCompletion: () => Promise<void> }
   }
   /**
-     * OPTIONAL because the state is registered BEFORE `definition.ensure()` is
-     * awaited, and `ensure` is the slowest thing in the whole run — cloning a repo
-     * into a fresh sandbox is minutes wide. That window is where the most common
-     * disconnect of all lands (a user starts a run and switches away while the UI
-     * still says "starting the sandbox"), so it is the one window the teardown and
-     * disconnect hooks most need to be able to act in. Registering only after the
-     * handle exists left exactly that window uncovered.
-     *
-     * Nothing the disconnect path does needs the handle: `detachedSince` and
-     * `sandboxKey` come from `ensureCtx`, which is built before `ensure` is called.
-     * Only `onFinish`'s snapshot needs it, and that cannot run before `setup` has
-     * completed.
-     */
+   * OPTIONAL because the state is registered BEFORE `definition.ensure()` is
+   * awaited, and `ensure` is the slowest thing in the whole run — cloning a repo
+   * into a fresh sandbox is minutes wide. That window is where the most common
+   * disconnect of all lands (a user starts a run and switches away while the UI
+   * still says "starting the sandbox"), so it is the one window the teardown and
+   * disconnect hooks most need to be able to act in. Registering only after the
+   * handle exists left exactly that window uncovered.
+   *
+   * Nothing the disconnect path does needs the handle: `detachedSince` and
+   * `sandboxKey` come from `ensureCtx`, which is built before `ensure` is called.
+   * Only `onFinish`'s snapshot needs it, and that cannot run before `setup` has
+   * completed.
+   */
   handle?: SandboxHandle
   privateHandle?: boolean
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
   /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
-     * watcher callback, awaited before teardown so a pending diff isn't
-     * dropped when the run finishes/aborts/errors mid-computation. */
+   * watcher callback, awaited before teardown so a pending diff isn't
+   * dropped when the run finishes/aborts/errors mid-computation. */
   pendingDiffs: Array<Promise<void>>
   /** Logger captured at setup, so terminal hooks can log watcher teardown. */
   logger?: InternalLogger
   /**
-     * Durability resolved once at setup (absent when the run is not durable), so
-     * `onAbort` cannot reach a different verdict than the one `setup` published
-     * on the capability bus.
-     */
+   * Durability resolved once at setup (absent when the run is not durable), so
+   * `onAbort` cannot reach a different verdict than the one `setup` published
+   * on the capability bus.
+   */
   durability?: SandboxRunDurability
   /**
-     * Records the harness's own tool calls into the transcript, so a finished run
-     * restores its tool cards from the message store instead of only from the (live,
-     * rejoin-only) delivery log. See `./tool-history`.
-     */
+   * Records the harness's own tool calls into the transcript, so a finished run
+   * restores its tool cards from the message store instead of only from the (live,
+   * rejoin-only) delivery log. See `./tool-history`.
+   */
   toolHistory: ToolHistoryRecorder
 }
 
@@ -333,33 +333,33 @@ export interface SandboxMiddlewareOptions<TOffset extends string = string> {
     policy?: SandboxSnapshotPolicy
   }
   /**
-     * Durable instance map (which provider sandbox to resume for a key). Pass
-     * your own store to make resume survive across processes/replicas.
-     *
-     * Takes precedence over a store provided on the capability bus (see
-     * `provideSandboxInstanceStore`), so the call site wins over ambient wiring.
-     */
+   * Durable instance map (which provider sandbox to resume for a key). Pass
+   * your own store to make resume survive across processes/replicas.
+   *
+   * Takes precedence over a store provided on the capability bus (see
+   * `provideSandboxInstanceStore`), so the call site wins over ambient wiring.
+   */
   instances?: SandboxInstanceStore
   /**
-     * Distributed lock serializing resume-or-create for one key. Needed for
-     * multi-replica correctness so two concurrent runs don't both create.
-     *
-     * Prefer `withLocks` from `@tanstack/ai/locks` when other middleware also
-     * needs the lock; use this option to scope one to this sandbox. Takes
-     * precedence over a bus-provided lock.
-     */
+   * Distributed lock serializing resume-or-create for one key. Needed for
+   * multi-replica correctness so two concurrent runs don't both create.
+   *
+   * Prefer `withLocks` from `@tanstack/ai/locks` when other middleware also
+   * needs the lock; use this option to scope one to this sandbox. Takes
+   * precedence over a bus-provided lock.
+   */
   locks?: LockStore
   /**
-     * Run lifecycle records. Pair with `durability.adapter` to make a run
-     * DETACHABLE: a client disconnect then leaves the agent running and records
-     * `detachedSince` instead of destroying the sandbox.
-     *
-     * Pass the SAME store chat persistence uses (`persistence.stores.runs`) so
-     * one record describes the run instead of two that can disagree.
-     *
-     * Defaults to `undefined`: an app that passes neither this nor `durability`
-     * keeps today's destroy-on-disconnect behavior exactly.
-     */
+   * Run lifecycle records. Pair with `durability.adapter` to make a run
+   * DETACHABLE: a client disconnect then leaves the agent running and records
+   * `detachedSince` instead of destroying the sandbox.
+   *
+   * Pass the SAME store chat persistence uses (`persistence.stores.runs`) so
+   * one record describes the run instead of two that can disagree.
+   *
+   * Defaults to `undefined`: an app that passes neither this nor `durability`
+   * keeps today's destroy-on-disconnect behavior exactly.
+   */
   runs?: RunStore
   durability?: SandboxDurabilityOptions<TOffset>
 }

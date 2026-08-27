@@ -215,10 +215,10 @@ async function executeManagedToolCall<TContext>(
   content: string | Array<ContentPart>
   state?: ToolOutputState
   /**
-     * Parsed tool output before wire serialization. Surfaced on engine-emitted
-     * `TOOL_CALL_END` events so consumers can read typed `output` without
-     * re-parsing `result`. Undefined on error paths and when execution is skipped.
-     */
+   * Parsed tool output before wire serialization. Surfaced on engine-emitted
+   * `TOOL_CALL_END` events so consumers can read typed `output` without
+   * re-parsing `result`. Undefined on error paths and when execution is skipped.
+   */
   output?: unknown
 }> {
   if (!tool?.execute) {
@@ -301,8 +301,8 @@ export class ToolCallManager<
   }
 
   /**
-     * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
-     */
+   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
+   */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
     const name = event.toolCallName ?? event.toolName
@@ -318,8 +318,8 @@ export class ToolCallManager<
   }
 
   /**
-     * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
-     */
+   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
+   */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
     const extra = event as AdapterYieldChunk
     const toolCallsMapEntries = this.toolCallsMap.entries()
@@ -336,9 +336,9 @@ export class ToolCallManager<
   }
 
   /**
-     * Complete a tool call with its final input
-     * Called when TOOL_CALL_END is received
-     */
+   * Complete a tool call with its final input
+   * Called when TOOL_CALL_END is received
+   */
   completeToolCall(event: ToolCallEndEvent): void {
     const toolCallsMap = this.toolCallsMap.values()
     for (const toolCall of toolCallsMap) {
@@ -352,15 +352,15 @@ export class ToolCallManager<
   }
 
   /**
-     * Check if there are any complete tool calls to execute
-     */
+   * Check if there are any complete tool calls to execute
+   */
   hasToolCalls(): boolean {
     return this.getToolCalls().length > 0
   }
 
   /**
-     * Get all complete tool calls (filtered for valid ID and name)
-     */
+   * Get all complete tool calls (filtered for valid ID and name)
+   */
   getToolCalls(): Array<ToolCall> {
     return Array.from(this.toolCallsMap.values()).filter(
       (tc) => tc.id && tc.function.name && tc.function.name.trim().length > 0,
@@ -368,10 +368,10 @@ export class ToolCallManager<
   }
 
   /**
-     * Execute all tool calls and return tool result messages
-     * Yields TOOL_CALL_END events for streaming
-     * @param finishEvent - RUN_FINISHED event from the stream
-     */
+   * Execute all tool calls and return tool result messages
+   * Yields TOOL_CALL_END events for streaming
+   * @param finishEvent - RUN_FINISHED event from the stream
+   */
   async *executeTools(
     finishEvent: RunFinishedEvent,
     ...contextArgs: ExecuteToolsContextArgs<TContext>
@@ -423,8 +423,8 @@ export class ToolCallManager<
   }
 
   /**
-     * Clear the tool calls map for the next iteration
-     */
+   * Clear the tool calls map for the next iteration
+   */
   clear(): void {
     this.toolCallsMap.clear()
   }
@@ -438,9 +438,9 @@ export interface ToolResult {
   /** Duration of tool execution in milliseconds (only for server-executed tools) */
   duration?: number
   /**
-     * Parsed tool input (after JSON parse + optional Standard Schema validation).
-     * Parsed tool input after JSON parse + optional Standard Schema validation.
-     */
+   * Parsed tool input (after JSON parse + optional Standard Schema validation).
+   * Parsed tool input after JSON parse + optional Standard Schema validation.
+   */
   input?: unknown
   output?: unknown
 }

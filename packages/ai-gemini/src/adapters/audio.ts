@@ -31,8 +31,8 @@ import type { GeminiClientConfig } from '../utils/client'
  */
 export interface GeminiAudioProviderOptions {
   /**
-     * Seed for deterministic generation.
-     */
+   * Seed for deterministic generation.
+   */
   seed?: number
 }
 

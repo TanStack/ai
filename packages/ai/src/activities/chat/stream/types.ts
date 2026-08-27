@@ -19,9 +19,9 @@ export interface InternalToolCallState {
   parsedArguments?: any
   index: number
   /** Provider-specific metadata that round-trips with the tool call
-     * (e.g. Gemini's `thoughtSignature`). Untyped at this layer because
-     * the stream processor is provider-agnostic; adapters narrow it
-     * via their `TToolCallMetadata` generic. */
+   * (e.g. Gemini's `thoughtSignature`). Untyped at this layer because
+   * the stream processor is provider-agnostic; adapters narrow it
+   * via their `TToolCallMetadata` generic. */
   metadata?: Record<string, unknown>
 }
 
@@ -30,16 +30,16 @@ export interface InternalToolCallState {
  */
 export interface ChunkStrategy {
   /**
-     * Called for each text chunk received
-     * @param chunk - The new chunk of text (delta)
-     * @param accumulated - All text accumulated so far
-     * @returns true if an update should be emitted now
-     */
+   * Called for each text chunk received
+   * @param chunk - The new chunk of text (delta)
+   * @param accumulated - All text accumulated so far
+   * @returns true if an update should be emitted now
+   */
   shouldEmit: (chunk: string, accumulated: string) => boolean
 
   /**
-     * Optional: Reset strategy state (called when streaming starts)
-     */
+   * Optional: Reset strategy state (called when streaming starts)
+   */
   reset?: () => void
 }
 

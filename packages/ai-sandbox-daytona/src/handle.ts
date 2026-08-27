@@ -229,9 +229,9 @@ export class DaytonaHandle implements SandboxHandle {
   }
 
   /**
-     * Session execute has no env field. Write values to a workdir file,
-     * then source that file so the stored command never contains secrets.
-     */
+   * Session execute has no env field. Write values to a workdir file,
+   * then source that file so the stored command never contains secrets.
+   */
   private async persistSpawnEnvFile(
     env: Record<string, string>,
   ): Promise<string | undefined> {

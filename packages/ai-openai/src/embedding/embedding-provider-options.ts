@@ -7,8 +7,8 @@
  */
 export interface OpenAIEmbeddingProviderOptions {
   /**
-     * A unique identifier representing your end-user, which can help OpenAI
-     * monitor and detect abuse.
-     */
+   * A unique identifier representing your end-user, which can help OpenAI
+   * monitor and detect abuse.
+   */
   user?: string
 }

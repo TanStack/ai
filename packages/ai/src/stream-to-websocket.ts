@@ -97,10 +97,10 @@ export interface WebSocketStreamInit<TOffset extends string = string> {
   /** Heartbeat ping interval in ms (default 30_000). */
   heartbeatMs?: number
   /**
-     * Close after this many ms without any inbound frame (default 300_000).
-     * Never fires while a turn is still streaming, so a long single generation
-     * (agentic loop, >5-min turn) is safe.
-     */
+   * Close after this many ms without any inbound frame (default 300_000).
+   * Never fires while a turn is still streaming, so a long single generation
+   * (agentic loop, >5-min turn) is safe.
+   */
   idleTimeoutMs?: number
   debug?: DebugOption
 }
@@ -187,12 +187,12 @@ export function toWebSocketStream<TOffset extends string = string>(
   })
 
   /**
-     * Surface a turn failure to the client as a live `RUN_ERROR` frame. The
-     * socket is conversation-scoped and stays open, so without this frame the
-     * client would see neither a terminal chunk nor a close — a permanent hang.
-     * Mirrors the HTTP transports, which synthesize the live `RUN_ERROR` when
-     * the producer rethrows (see `durableStreamSource`'s terminal contract).
-     */
+   * Surface a turn failure to the client as a live `RUN_ERROR` frame. The
+   * socket is conversation-scoped and stays open, so without this frame the
+   * client would see neither a terminal chunk nor a close — a permanent hang.
+   * Mirrors the HTTP transports, which synthesize the live `RUN_ERROR` when
+   * the producer rethrows (see `durableStreamSource`'s terminal contract).
+   */
   function sendRunError(error: unknown): void {
     try {
       socket.send(encodeWsFrame(runErrorChunk(error), undefined))

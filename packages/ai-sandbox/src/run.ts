@@ -75,32 +75,32 @@ export interface RunDeps<TOffset extends string = string> {
   /** Run lifecycle record (status, thread, timings). */
   runs: RunStore
   /**
-     * Per-run delivery-durable event log the run's chunks are appended to.
-     *
-     * A FACTORY, not an instance, and that is load-bearing rather than stylistic.
-     * A `StreamDurability` is bound to one run — `memoryStream(request)` resolves
-     * its `runId` from the request, and a backend adapter's offsets embed a cursor
-     * into one log. Holding a single instance made two failures reachable:
-     *
-     * - **Silent mis-binding at concurrency 1.** `start({ runId })` accepted an
-     *   arbitrary id while the instance was bound to another, writing the record
-     *   under one id and the events under another with no error raised. Resolving
-     *   the log FROM the `runId` makes that unrepresentable.
-     * - **Cross-talk at concurrency > 1.** Parallel runs interleaved their chunks
-     *   into one log, and whichever finished first called `close()` and
-     *   terminalized every other run's stream.
-     *
-     * Called exactly once per run, at the start of {@link pipeToRunLog}. An
-     * implementation MUST return the same instance for the same `runId` within a
-     * process if it wants `snapshot()` to see its own appends.
-     */
+   * Per-run delivery-durable event log the run's chunks are appended to.
+   *
+   * A FACTORY, not an instance, and that is load-bearing rather than stylistic.
+   * A `StreamDurability` is bound to one run — `memoryStream(request)` resolves
+   * its `runId` from the request, and a backend adapter's offsets embed a cursor
+   * into one log. Holding a single instance made two failures reachable:
+   *
+   * - **Silent mis-binding at concurrency 1.** `start({ runId })` accepted an
+   *   arbitrary id while the instance was bound to another, writing the record
+   *   under one id and the events under another with no error raised. Resolving
+   *   the log FROM the `runId` makes that unrepresentable.
+   * - **Cross-talk at concurrency > 1.** Parallel runs interleaved their chunks
+   *   into one log, and whichever finished first called `close()` and
+   *   terminalized every other run's stream.
+   *
+   * Called exactly once per run, at the start of {@link pipeToRunLog}. An
+   * implementation MUST return the same instance for the same `runId` within a
+   * process if it wants `snapshot()` to see its own appends.
+   */
   durability: (runId: string) => StreamDurability<TOffset>
   /**
-     * Optional sink for failures this driver absorbs rather than rejecting with.
-     * A detached run has no caller to receive an error, so without a logger a
-     * failing store or event log is invisible to an operator. Same
-     * `logger?.errors(...)` contract core uses in `stream-to-response.ts`.
-     */
+   * Optional sink for failures this driver absorbs rather than rejecting with.
+   * A detached run has no caller to receive an error, so without a logger a
+   * failing store or event log is invisible to an operator. Same
+   * `logger?.errors(...)` contract core uses in `stream-to-response.ts`.
+   */
   logger?: InternalLogger
 }
 
@@ -333,9 +333,9 @@ export class RunController<TOffset extends string = string> {
   constructor(private readonly deps: RunDeps<TOffset>) {}
 
   /**
-     * Kick off `pipeToRunLog` without awaiting it and return the `runId`
-     * immediately plus a `done` promise the orchestrator may await or detach.
-     */
+   * Kick off `pipeToRunLog` without awaiting it and return the `runId`
+   * immediately plus a `done` promise the orchestrator may await or detach.
+   */
   start(input: RunControllerStartInput): RunHandle {
     /** Resolves with the final record once the run reaches a terminal status. */
     const done = pipeToRunLog(input.stream, {
@@ -351,11 +351,11 @@ export class RunController<TOffset extends string = string> {
   }
 
   /**
-     * Resumable client tail for ONE run — replay from `fromOffset`, then
-     * live-tail. Takes `runId` because the log it reads is per-run; the old
-     * `attach(fromOffset)` signature advertised a multi-run surface the type could
-     * not deliver.
-     */
+   * Resumable client tail for ONE run — replay from `fromOffset`, then
+   * live-tail. Takes `runId` because the log it reads is per-run; the old
+   * `attach(fromOffset)` signature advertised a multi-run surface the type could
+   * not deliver.
+   */
   attach(
     runId: string,
     fromOffset: TOffset,
@@ -370,14 +370,14 @@ export class RunController<TOffset extends string = string> {
   }
 
   /**
-     * Await every currently in-flight run's `done` promise.
-     *
-     * Uses `allSettled` rather than `all` because this is typically awaited
-     * inside a `ctx.waitUntil`: `all` would reject on the first failure, abandon
-     * the wait on every other run, and surface that rejection to the platform.
-     * Draining is about keeping the isolate alive until the runs settle; each
-     * run's own outcome is already recorded in its record and log.
-     */
+   * Await every currently in-flight run's `done` promise.
+   *
+   * Uses `allSettled` rather than `all` because this is typically awaited
+   * inside a `ctx.waitUntil`: `all` would reject on the first failure, abandon
+   * the wait on every other run, and surface that rejection to the platform.
+   * Draining is about keeping the isolate alive until the runs settle; each
+   * run's own outcome is already recorded in its record and log.
+   */
   async drain(): Promise<void> {
     await Promise.allSettled([...this.inFlight])
   }

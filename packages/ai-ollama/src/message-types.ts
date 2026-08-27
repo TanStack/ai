@@ -4,9 +4,9 @@
  */
 export interface OllamaImageMetadata {
   /**
-     * Optional format hint for the image.
-     * Ollama typically auto-detects the format from base64 data.
-     */
+   * Optional format hint for the image.
+   * Ollama typically auto-detects the format from base64 data.
+   */
   format?: 'jpeg' | 'png' | 'gif' | 'webp'
 }
 
@@ -32,8 +32,8 @@ export interface OllamaVideoMetadata {
  */
 export interface OllamaDocumentMetadata {
   /**
-     * The MIME type of the document.
-     */
+   * The MIME type of the document.
+   */
   mediaType?: 'application/pdf'
 }
 

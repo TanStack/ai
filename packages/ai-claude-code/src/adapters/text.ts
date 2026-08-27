@@ -68,16 +68,16 @@ const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
   /**
-     * Working directory inside the sandbox where `claude` runs. Defaults to
-     * `/workspace` (the conventional sandbox workspace root).
-     */
+   * Working directory inside the sandbox where `claude` runs. Defaults to
+   * `/workspace` (the conventional sandbox workspace root).
+   */
   cwd?: string
   /**
-     * Claude Code permission mode passed via `--permission-mode`. Defaults to
-     * `'bypassPermissions'` — a sandbox is isolated, so the agent is allowed to
-     * edit files and run commands without prompting. Tighten via `defineSandboxPolicy`
-     * / this option for less autonomy.
-     */
+   * Claude Code permission mode passed via `--permission-mode`. Defaults to
+   * `'bypassPermissions'` — a sandbox is isolated, so the agent is allowed to
+   * edit files and run commands without prompting. Tighten via `defineSandboxPolicy`
+   * / this option for less autonomy.
+   */
   permissionMode?: ClaudeCodePermissionMode
   /** Built-in tools the harness may use (`--allowedTools`). */
   allowedTools?: Array<string>
@@ -88,17 +88,17 @@ export interface ClaudeCodeTextConfig {
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
   /**
-     * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
-     * `['project']`: workspace projections (instructions, skills, MCP config)
-     * are project-scoped, and the host's `~/.claude` stays out of local-process
-     * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
-     */
+   * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
+   * `['project']`: workspace projections (instructions, skills, MCP config)
+   * are project-scoped, and the host's `~/.claude` stays out of local-process
+   * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
+   */
   settingSources?: Array<ClaudeCodeSettingSource>
   /**
-     * How `systemPrompts` from `chat()` are applied:
-     * - `'append'` (default): `--append-system-prompt` on top of the preset.
-     * - `'replace'`: `--system-prompt` as the entire system prompt.
-     */
+   * How `systemPrompts` from `chat()` are applied:
+   * - `'append'` (default): `--append-system-prompt` on top of the preset.
+   * - `'replace'`: `--system-prompt` as the entire system prompt.
+   */
   systemPromptMode?: 'append' | 'replace'
   /** Path/name of the claude executable inside the sandbox. Defaults to `claude`. */
   claudeExecutable?: string
@@ -107,10 +107,10 @@ export interface ClaudeCodeTextConfig {
   /** Extra environment variables for the claude process inside the sandbox. */
   env?: Record<string, string>
   /**
-     * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
-     * `'host'` uses `claude login` and does not inject the key.
-     * Not inferred from the sandbox.
-     */
+   * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
+   * `'host'` uses `claude login` and does not inject the key.
+   * Not inferred from the sandbox.
+   */
   authMode?: 'host' | 'api-key'
   /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
   emitDiff?: boolean
@@ -333,11 +333,11 @@ export class ClaudeCodeTextAdapter<
   }
 
   /**
-     * Build the permission-prompt resolver the host MCP bridge exposes to claude
-     * (`--permission-prompt-tool`). Maps claude's permission request onto the
-     * sandbox policy + client approvals; on an `ask` action with no decision yet,
-     * records an approval-requested event and denies (the client re-runs to grant).
-     */
+   * Build the permission-prompt resolver the host MCP bridge exposes to claude
+   * (`--permission-prompt-tool`). Maps claude's permission request onto the
+   * sandbox policy + client approvals; on an `ask` action with no decision yet,
+   * records an approval-requested event and denies (the client re-runs to grant).
+   */
   private buildPermissionResolver(
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,

@@ -76,8 +76,8 @@ export type ToolOutputState = 'output-available' | 'output-error'
  */
 export interface JSONSchema {
   /**
-     * Indicates this is inline data content.
-     */
+   * Indicates this is inline data content.
+   */
   type?: string | Array<string>
   properties?: Record<string, JSONSchema>
   items?: JSONSchema | Array<JSONSchema>
@@ -85,13 +85,13 @@ export interface JSONSchema {
   enum?: Array<unknown>
   const?: unknown
   /**
-     * Clear description of what the tool does.
-     *
-     * This is crucial - the model uses this to decide when to call the tool.
-     * Be specific about what the tool does, what parameters it needs, and what it returns.
-     *
-     * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
-     */
+   * Clear description of what the tool does.
+   *
+   * This is crucial - the model uses this to decide when to call the tool.
+   * Be specific about what the tool does, what parameters it needs, and what it returns.
+   *
+   * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
+   */
   description?: string
   default?: unknown
   $ref?: string
@@ -166,13 +166,13 @@ export type InferSchemaType<T> =
 
 export interface ToolCall<TMetadata = unknown> {
   /**
-     * Optional stable message id. Providers ignore it; it exists so a persisted
-     * transcript can retain the streaming `messageId` and survive the
-     * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
-     * reuses it instead of generating a fresh id, so a hydrated message keeps the
-     * same identity as its live stream — which is what lets a mid-stream reload
-     * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
-     */
+   * Optional stable message id. Providers ignore it; it exists so a persisted
+   * transcript can retain the streaming `messageId` and survive the
+   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+   * reuses it instead of generating a fresh id, so a hydrated message keeps the
+   * same identity as its live stream — which is what lets a mid-stream reload
+   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
+   */
   id: string
   type: 'function'
   function: {
@@ -181,8 +181,8 @@ export interface ToolCall<TMetadata = unknown> {
     arguments: string // JSON string
   }
   /** Provider-specific metadata to carry through the tool call lifecycle.
-     * Typed per-adapter via `TToolCallMetadata`. For example,
-     * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
+   * Typed per-adapter via `TToolCallMetadata`. For example,
+   * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
   metadata?: TMetadata
 }
 
@@ -223,13 +223,13 @@ export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
 export interface ContentPartDataSource {
   type: 'data'
   /**
-     * The base64-encoded content value.
-     */
+   * The base64-encoded content value.
+   */
   value: string
   /**
-     * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-     * Required for data sources to ensure proper handling by providers.
-     */
+   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
+   * Required for data sources to ensure proper handling by providers.
+   */
   mimeType: string
 }
 
@@ -366,25 +366,27 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   /** Links the widget to the originating tool call — correlates it with the
-     *  sibling ToolCallPart/ToolResultPart in the same message. */
+   *  sibling ToolCallPart/ToolResultPart in the same message. */
   toolCallId?: string
-  thinking?: Array<{ content: string; /** Thinking signature for a `role: 'reasoning'` fan-out message. */
-signature?: string }>
+  thinking?: Array<{
+    content: string /** Thinking signature for a `role: 'reasoning'` fan-out message. */
+    signature?: string
+  }>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
   /**
-     * Completed structured output represented by this assistant message.
-     * `content` remains the provider-facing JSON text; this field preserves the
-     * typed UI part across persistence and message conversion.
-     */
+   * Completed structured output represented by this assistant message.
+   * `content` remains the provider-facing JSON text; this field preserves the
+   * typed UI part across persistence and message conversion.
+   */
   structuredOutput?: StructuredOutputPart
   id?: string
   /**
-     * Optional message creation timestamp. When present, message converters
-     * preserve it across persist → hydrate round-trips.
-     */
+   * Optional message creation timestamp. When present, message converters
+   * preserve it across persist → hydrate round-trips.
+   */
   createdAt?: Date
 }
 
@@ -403,13 +405,13 @@ export interface ToolCallPart<TMetadata = unknown> {
   name: string
   arguments: string // JSON string (may be incomplete)
   /**
-     * Parsed tool input. Set from the parsed arguments once they are complete
-     * (`state: 'input-complete'` and later). `undefined` while the raw
-     * `arguments` string is still streaming, and may stay `undefined` for a call
-     * that terminates in an error state — the raw `arguments` string is always
-     * available as a fallback. Typed per-tool on the client `ToolCallPart` (see
-     * `@tanstack/ai-client`); `unknown` on this base type.
-     */
+   * Parsed tool input. Set from the parsed arguments once they are complete
+   * (`state: 'input-complete'` and later). `undefined` while the raw
+   * `arguments` string is still streaming, and may stay `undefined` for a call
+   * that terminates in an error state — the raw `arguments` string is always
+   * available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+   * `@tanstack/ai-client`); `unknown` on this base type.
+   */
   input?: unknown
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state: ToolCallState
@@ -485,8 +487,12 @@ export interface StructuredOutputPart<TData = unknown> {
 export interface UIResourcePart {
   type: 'ui-resource'
   /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
-  resource: { uri: string; mimeType: string; /** The text to convert to speech */
-text?: string; blob?: string }
+  resource: {
+    uri: string
+    mimeType: string /** The text to convert to speech */
+    text?: string
+    blob?: string
+  }
   /** Pool prefix / config key — routes interactive calls to the right MCP server. */
   serverId?: string
   /** Links the widget to the originating tool call — correlates it with the
@@ -556,15 +562,15 @@ export interface TanStackRunMetadata {
   usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
   /**
-     * Thread ID for AG-UI protocol run correlation.
-     * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-     */
+   * Thread ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   */
   threadId?: string
   /**
-     * Run ID for AG-UI protocol run correlation.
-     * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-     * If not provided, a unique ID will be generated.
-     */
+   * Run ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * If not provided, a unique ID will be generated.
+   */
   runId?: string
   sessionId?: string
   /** Position of the source item in the (normalized) input array */
@@ -616,11 +622,11 @@ type RuntimeContextField<TContext> =
   IsUnknown<TContext> extends true
     ? {
         /**
-                 * Runtime context provided by the caller.
-                 *
-                 * This is request-local application state for tool and middleware
-                 * implementations, not the AG-UI `Context[]` protocol field.
-                 */
+         * Runtime context provided by the caller.
+         *
+         * This is request-local application state for tool and middleware
+         * implementations, not the AG-UI `Context[]` protocol field.
+         */
         context?: TContext
       }
     : {
@@ -636,29 +642,29 @@ export type ToolExecutionContext<TContext = unknown> =
     /** The ID of the tool call being executed */
     toolCallId?: string
     /**
-         * Abort signal for the current chat run. Aborts when the run's
-         * `abortController` fires (or middleware aborts). Long-running tools —
-         * e.g. MCP `callTool` — should forward this to cancel in-flight work.
-         */
+     * Abort signal for the current chat run. Aborts when the run's
+     * `abortController` fires (or middleware aborts). Long-running tools —
+     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
+     */
     abortSignal?: AbortSignal
     /**
-         * Emit a custom event during tool execution.
-         * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-         *
-         * @param eventName - Name of the custom event
-         * @param value - Event payload value
-         *
-         * @example
-         * ```ts
-         * const tool = toolDefinition({ ... }).server(async (args, context) => {
-         *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-         *   // ... do work ...
-         *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-         *   // ... do more work ...
-         *   return result
-         * })
-         * ```
-         */
+     * Emit a custom event during tool execution.
+     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+     *
+     * @param eventName - Name of the custom event
+     * @param value - Event payload value
+     *
+     * @example
+     * ```ts
+     * const tool = toolDefinition({ ... }).server(async (args, context) => {
+     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+     *   // ... do work ...
+     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+     *   // ... do more work ...
+     *   return result
+     * })
+     * ```
+     */
     emitCustomEvent: (eventName: string, value: Record<string, any>) => void
   }
 
@@ -700,83 +706,83 @@ export interface Tool<
   description: string
 
   /**
-     * Schema describing the tool's input parameters.
-     *
-     * Can be any Standard JSON Schema compliant schema (Zod, ArkType, Valibot, etc.) or a plain JSON Schema object.
-     * Defines the structure and types of arguments the tool accepts.
-     * The model will generate arguments matching this schema.
-     * Standard JSON Schema compliant schemas are converted to JSON Schema for LLM providers.
-     *
-     * @see https://standardschema.dev/json-schema
-     * @see https://json-schema.org/
-     *
-     * @example
-     * // Using Zod v4+ schema (natively supports Standard JSON Schema)
-     * import { z } from 'zod';
-     * z.object({
-     *   location: z.string().describe("City name or coordinates"),
-     *   unit: z.enum(["celsius", "fahrenheit"]).optional()
-     * })
-     *
-     * @example
-     * // Using ArkType (natively supports Standard JSON Schema)
-     * import { type } from 'arktype';
-     * type({
-     *   location: 'string',
-     *   unit: "'celsius' | 'fahrenheit'"
-     * })
-     *
-     * @example
-     * // Using plain JSON Schema
-     * {
-     *   type: 'object',
-     *   properties: {
-     *     location: { type: 'string', description: 'City name or coordinates' },
-     *     unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
-     *   },
-     *   required: ['location']
-     * }
-     */
+   * Schema describing the tool's input parameters.
+   *
+   * Can be any Standard JSON Schema compliant schema (Zod, ArkType, Valibot, etc.) or a plain JSON Schema object.
+   * Defines the structure and types of arguments the tool accepts.
+   * The model will generate arguments matching this schema.
+   * Standard JSON Schema compliant schemas are converted to JSON Schema for LLM providers.
+   *
+   * @see https://standardschema.dev/json-schema
+   * @see https://json-schema.org/
+   *
+   * @example
+   * // Using Zod v4+ schema (natively supports Standard JSON Schema)
+   * import { z } from 'zod';
+   * z.object({
+   *   location: z.string().describe("City name or coordinates"),
+   *   unit: z.enum(["celsius", "fahrenheit"]).optional()
+   * })
+   *
+   * @example
+   * // Using ArkType (natively supports Standard JSON Schema)
+   * import { type } from 'arktype';
+   * type({
+   *   location: 'string',
+   *   unit: "'celsius' | 'fahrenheit'"
+   * })
+   *
+   * @example
+   * // Using plain JSON Schema
+   * {
+   *   type: 'object',
+   *   properties: {
+   *     location: { type: 'string', description: 'City name or coordinates' },
+   *     unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+   *   },
+   *   required: ['location']
+   * }
+   */
   inputSchema?: TInput
 
   /**
-     * Optional schema for validating tool output.
-     *
-     * Can be any Standard JSON Schema compliant schema or a plain JSON Schema object.
-     * If provided with a Standard Schema compliant schema, tool results will be validated
-     * against this schema before being sent back to the model. This catches bugs in tool
-     * implementations and ensures consistent output formatting.
-     *
-     * Note: This is client-side validation only - not sent to LLM providers.
-     * Note: Plain JSON Schema output validation is not performed at runtime.
-     *
-     * @example
-     * // Using Zod
-     * z.object({
-     *   temperature: z.number(),
-     *   conditions: z.string(),
-     *   forecast: z.array(z.string()).optional()
-     * })
-     */
+   * Optional schema for validating tool output.
+   *
+   * Can be any Standard JSON Schema compliant schema or a plain JSON Schema object.
+   * If provided with a Standard Schema compliant schema, tool results will be validated
+   * against this schema before being sent back to the model. This catches bugs in tool
+   * implementations and ensures consistent output formatting.
+   *
+   * Note: This is client-side validation only - not sent to LLM providers.
+   * Note: Plain JSON Schema output validation is not performed at runtime.
+   *
+   * @example
+   * // Using Zod
+   * z.object({
+   *   temperature: z.number(),
+   *   conditions: z.string(),
+   *   forecast: z.array(z.string()).optional()
+   * })
+   */
   outputSchema?: TOutput
 
   /**
-     * Optional function to execute when the model calls this tool.
-     *
-     * If provided, the SDK will automatically execute the function with the model's arguments
-     * and feed the result back to the model. This enables autonomous tool use loops.
-     *
-     * Can return any value - will be automatically stringified if needed.
-     *
-     * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
-     * @returns Result to send back to the model (validated against outputSchema if provided)
-     *
-     * @example
-     * execute: async (args) => {
-     *   const weather = await fetchWeather(args.location);
-     *   return weather; // Can return object or string
-     * }
-     */
+   * Optional function to execute when the model calls this tool.
+   *
+   * If provided, the SDK will automatically execute the function with the model's arguments
+   * and feed the result back to the model. This enables autonomous tool use loops.
+   *
+   * Can return any value - will be automatically stringified if needed.
+   *
+   * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
+   * @returns Result to send back to the model (validated against outputSchema if provided)
+   *
+   * @example
+   * execute: async (args) => {
+   *   const weather = await fetchWeather(args.location);
+   *   return weather; // Can return object or string
+   * }
+   */
   execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
@@ -798,10 +804,10 @@ export interface Tool<
  */
 export interface LazyToolsConfig {
   /**
-     * How much of each lazy tool's description appears in the pre-discovery
-     * catalog (the names list shown before the model discovers the tool).
-     * @default 'none'
-     */
+   * How much of each lazy tool's description appears in the pre-discovery
+   * catalog (the names list shown before the model discovers the tool).
+   * @default 'none'
+   */
   includeDescription?: 'full' | 'first-sentence' | 'none'
 }
 
@@ -828,59 +834,59 @@ export interface ResponseFormat<TData = any> {
   type: 'json_object' | 'json_schema'
 
   /**
-     * JSON schema specification (required when type is "json_schema").
-     *
-     * Defines the exact structure the model's output must conform to.
-     * OpenAI's structured outputs will guarantee the output matches this schema.
-     */
+   * JSON schema specification (required when type is "json_schema").
+   *
+   * Defines the exact structure the model's output must conform to.
+   * OpenAI's structured outputs will guarantee the output matches this schema.
+   */
   json_schema?: {
     name: string
 
     description?: string
 
     /**
-         * JSON Schema definition for the expected output structure.
-         *
-         * Must be a valid JSON Schema (draft 2020-12 or compatible).
-         * The model's output will be validated against this schema.
-         *
-         * @see https://json-schema.org/
-         *
-         * @example
-         * {
-         *   type: "object",
-         *   properties: {
-         *     name: { type: "string" },
-         *     age: { type: "number" },
-         *     email: { type: "string", format: "email" }
-         *   },
-         *   required: ["name", "email"],
-         *   additionalProperties: false
-         * }
-         */
+     * JSON Schema definition for the expected output structure.
+     *
+     * Must be a valid JSON Schema (draft 2020-12 or compatible).
+     * The model's output will be validated against this schema.
+     *
+     * @see https://json-schema.org/
+     *
+     * @example
+     * {
+     *   type: "object",
+     *   properties: {
+     *     name: { type: "string" },
+     *     age: { type: "number" },
+     *     email: { type: "string", format: "email" }
+     *   },
+     *   required: ["name", "email"],
+     *   additionalProperties: false
+     * }
+     */
     schema: Record<string, any>
 
     /**
-         * Whether to enforce strict schema validation.
-         *
-         * When true (recommended), the model guarantees output will match the schema exactly.
-         * When false, the model will "best effort" match the schema.
-         *
-         * Default: true (for providers that support it)
-         *
-         * @see https://platform.openai.com/docs/guides/structured-outputs#strict-mode
-         */
+     * Whether to enforce strict schema validation.
+     *
+     * When true (recommended), the model guarantees output will match the schema exactly.
+     * When false, the model will "best effort" match the schema.
+     *
+     * Default: true (for providers that support it)
+     *
+     * @see https://platform.openai.com/docs/guides/structured-outputs#strict-mode
+     */
     strict?: boolean
   }
 
   /**
-     * Type-only property to carry the inferred data type.
-     *
-     * This is never set at runtime - it only exists for TypeScript type inference.
-     * Allows the SDK to know what type to expect when parsing the response.
-     *
-     * @internal
-     */
+   * Type-only property to carry the inferred data type.
+   *
+   * This is never set at runtime - it only exists for TypeScript type inference.
+   * Allows the SDK to know what type to expect when parsing the response.
+   *
+   * @internal
+   */
   __data?: TData
 }
 
@@ -895,16 +901,16 @@ export interface AgentLoopState {
   /** Finish reason from the last response */
   finishReason: string | null
   /**
-     * Cumulative tool calls counted so far in this run (model-emitted during the
-     * agent loop, including ones skipped by middleware, and pending tools from
-     * the inbound message list when resumed). Not a recount of full message
-     * history; not model turns.
-     */
+   * Cumulative tool calls counted so far in this run (model-emitted during the
+   * agent loop, including ones skipped by middleware, and pending tools from
+   * the inbound message list when resumed). Not a recount of full message
+   * history; not model turns.
+   */
   toolCallCount: number
   /**
-     * Tool calls in the most recent batch — a live model turn or a
-     * pending/resume batch (0 when the last phase produced no tool calls).
-     */
+   * Tool calls in the most recent batch — a live model turn or a
+   * pending/resume batch (0 when the last phase produced no tool calls).
+   */
   lastTurnToolCallCount: number
 }
 
@@ -938,26 +944,26 @@ export interface TextOptions<
   tools?: Array<AnyTool> | undefined
   context?: TContext
   /**
-     * System prompts to include with the request.
-     *
-     * Accepts plain strings (the common case) or `{ content, metadata }`
-     * objects that let providers attach typed metadata (e.g. Anthropic
-     * `cache_control` for prompt caching) per prompt. At the chat call site
-     * the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
-     * — providers that don't declare one default to `never`, which makes the
-     * field carry no meaningful value (TypeScript will only accept
-     * `undefined` there). Provider-foreign metadata that reaches an adapter
-     * via JS / `as any` is silently dropped, never written to the wire.
-     *
-     * @see SystemPrompt
-     */
+   * System prompts to include with the request.
+   *
+   * Accepts plain strings (the common case) or `{ content, metadata }`
+   * objects that let providers attach typed metadata (e.g. Anthropic
+   * `cache_control` for prompt caching) per prompt. At the chat call site
+   * the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
+   * — providers that don't declare one default to `never`, which makes the
+   * field carry no meaningful value (TypeScript will only accept
+   * `undefined` there). Provider-foreign metadata that reaches an adapter
+   * via JS / `as any` is silently dropped, never written to the wire.
+   *
+   * @see SystemPrompt
+   */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
-     * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
-     * Tunes how much of each lazy tool's description appears in the discovery
-     * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
-     */
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
   lazyToolsConfig?: LazyToolsConfig
   metadata?: Record<string, any> | undefined
   /** Provider-specific options forwarded by the summarize() activity. */
@@ -966,72 +972,72 @@ export interface TextOptions<
 
   outputSchema?: SchemaInput
   /**
-     * @deprecated Use `threadId` instead. `conversationId` is the legacy
-     * pre-AG-UI name for the same concept (a stable per-conversation
-     * identifier used to correlate client/server devtools events). When
-     * `conversationId` is omitted, the runtime falls back to `threadId`
-     * automatically, so most callers can simply pass `threadId` (or rely
-     * on `chatParamsFromRequest`, which surfaces it on `params`).
-     *
-     * Will be removed in a future major release.
-     */
+   * @deprecated Use `threadId` instead. `conversationId` is the legacy
+   * pre-AG-UI name for the same concept (a stable per-conversation
+   * identifier used to correlate client/server devtools events). When
+   * `conversationId` is omitted, the runtime falls back to `threadId`
+   * automatically, so most callers can simply pass `threadId` (or rely
+   * on `chatParamsFromRequest`, which surfaces it on `params`).
+   *
+   * Will be removed in a future major release.
+   */
   conversationId?: string
   /**
-     * AbortController for request cancellation.
-     *
-     * Allows you to cancel an in-progress request using an AbortController.
-     * Useful for implementing timeouts or user-initiated cancellations.
-     *
-     * @example
-     * const abortController = new AbortController();
-     * setTimeout(() => abortController.abort(), 5000); // Cancel after 5 seconds
-     * await chat({ ..., abortController });
-     *
-     * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
-     */
+   * AbortController for request cancellation.
+   *
+   * Allows you to cancel an in-progress request using an AbortController.
+   * Useful for implementing timeouts or user-initiated cancellations.
+   *
+   * @example
+   * const abortController = new AbortController();
+   * setTimeout(() => abortController.abort(), 5000); // Cancel after 5 seconds
+   * await chat({ ..., abortController });
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
+   */
   abortController?: AbortController
 
   /**
-     * Internal logger threaded from the chat entry point. Adapter implementations
-     * must call `logger.request()` before SDK calls, `logger.provider()` for each
-     * chunk received, and `logger.errors()` in catch blocks.
-     */
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
   logger: InternalLogger
 
   threadId?: string
   runId?: string
   /**
-     * Parent run ID for AG-UI protocol nested run correlation.
-     * Surfaced for observability/middleware; not consumed by the LLM call.
-     */
+   * Parent run ID for AG-UI protocol nested run correlation.
+   * Surfaced for observability/middleware; not consumed by the LLM call.
+   */
   parentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
 
   /**
-     * AG-UI interrupt resume responses supplied by the client on a follow-up run.
-     * A first-party generic item carries the original request in `metadata`.
-     */
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * A first-party generic item carries the original request in `metadata`.
+   */
   resume?: Array<RunAgentResumeItem>
 
   /**
-     * Middleware capability context for this run. The engine populates it with
-     * the live middleware context so harness adapters that declare
-     * `requires: [SomeCapability]` can read provided capabilities from inside
-     * `chatStream` — e.g. `getSandbox(options.capabilities)`. Capabilities are
-     * provisioned by middleware `setup` before the adapter runs. Undefined for
-     * direct adapter usage outside the chat engine.
-     */
+   * Middleware capability context for this run. The engine populates it with
+   * the live middleware context so harness adapters that declare
+   * `requires: [SomeCapability]` can read provided capabilities from inside
+   * `chatStream` — e.g. `getSandbox(options.capabilities)`. Capabilities are
+   * provisioned by middleware `setup` before the adapter runs. Undefined for
+   * direct adapter usage outside the chat engine.
+   */
   capabilities?: CapabilityContext
 
   /**
-     * Client approval decisions for this run, keyed by approval id. The engine
-     * populates this from approvals carried on the incoming messages. Harness
-     * adapters consult it to resolve `ask`-policy permission requests (the agent
-     * pauses on a risky action; the client re-runs with a decision recorded
-     * here). Undefined for direct adapter usage outside the chat engine.
-     */
+   * Client approval decisions for this run, keyed by approval id. The engine
+   * populates this from approvals carried on the incoming messages. Harness
+   * adapters consult it to resolve `ask`-policy permission requests (the agent
+   * pauses on a risky action; the client re-runs with a decision recorded
+   * here). Undefined for direct adapter usage outside the chat engine.
+   */
   approvals?: ReadonlyMap<string, boolean>
 }
 
@@ -1318,7 +1324,7 @@ export interface ApprovalRequestedEvent extends CustomEvent {
   value: {
     toolCallId: string
     /** Server-native (unprefixed) MCP tool name whose UI this resource renders.
-       *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
+     *  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop). */
     toolName: string
     input: unknown
     /** Approval metadata if tool requires user approval */
@@ -1351,7 +1357,7 @@ export interface UIResourceEvent extends CustomEvent {
     toolCallId: string
     toolName: string
     /** Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
-       *  Currently always `undefined` — nothing populates this field yet. */
+     *  Currently always `undefined` — nothing populates this field yet. */
     meta?: Record<string, unknown>
   }
 }
@@ -1399,8 +1405,11 @@ export interface CodeModeExternalCallEvent extends CustomEvent {
 }
 export interface CodeModeExternalResultEvent extends CustomEvent {
   name: 'code_mode:external_result'
-  value: { function: string; result: unknown; /** Desired duration in seconds */
-duration: number }
+  value: {
+    function: string
+    result: unknown /** Desired duration in seconds */
+    duration: number
+  }
 }
 export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
@@ -1713,13 +1722,13 @@ export interface MediaInputMetadata {
   /** Optional role hint disambiguating the part's intent for the adapter */
   role?: MediaInputRole
   /**
-     * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
-     * **Informational only** — adapters never read it and the SDK never
-     * rewrites prompt text based on it. Use it to correlate parts with the
-     * references you write in your prompt using the provider's own syntax
-     * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
-     * bookkeeping/logging.
-     */
+   * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
+   * **Informational only** — adapters never read it and the SDK never
+   * rewrites prompt text based on it. Use it to correlate parts with the
+   * references you write in your prompt using the provider's own syntax
+   * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
+   * bookkeeping/logging.
+   */
   tag?: string
 }
 
@@ -1794,14 +1803,14 @@ export interface ImageGenerationOptions<
   /** The model to use for image generation */
   model: string
   /**
-     * Description of the desired image(s): a plain string, or an ordered array
-     * of content parts for image-conditioned generation (image-to-image,
-     * reference-guided, edit, multi-reference). Media parts may carry
-     * `metadata.role` to disambiguate intent (mask, control, reference, …).
-     * Adapters map parts onto the provider-native request — e.g. Gemini
-     * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
-     * `mask_url` — and throw a clear runtime error for unsupported modalities.
-     */
+   * Description of the desired image(s): a plain string, or an ordered array
+   * of content parts for image-conditioned generation (image-to-image,
+   * reference-guided, edit, multi-reference). Media parts may carry
+   * `metadata.role` to disambiguate intent (mask, control, reference, …).
+   * Adapters map parts onto the provider-native request — e.g. Gemini
+   * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
+   * `mask_url` — and throw a clear runtime error for unsupported modalities.
+   */
   prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
@@ -1853,11 +1862,11 @@ export interface PersistedArtifactRef {
   size: number
   createdAt: string
   /**
-     * Where these bytes were fetched FROM — the provider's original result URL,
-     * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
-     * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
-     * instead.
-     */
+   * Where these bytes were fetched FROM — the provider's original result URL,
+   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
+   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
+   * instead.
+   */
   sourceUrl?: string
   url?: string
   /** Source of the image content */
@@ -2211,9 +2220,9 @@ export interface EmbeddingOptions<TProviderOptions extends object = object> {
   /** The items to embed — one vector per item */
   input: Array<EmbeddingInputItem>
   /**
-     * Requested output dimensionality. Adapters for models with fixed
-     * dimensions throw a clear runtime error when this is set.
-     */
+   * Requested output dimensionality. Adapters for models with fixed
+   * dimensions throw a clear runtime error when this is set.
+   */
   dimensions?: number
   /** Model-specific options for embedding generation */
   modelOptions?: TProviderOptions

@@ -18,20 +18,20 @@ export type AnthropicImageMediaType =
  */
 export interface AnthropicImageMetadata {
   /**
-     * @deprecated Ignored. The media type is taken from `source.mimeType`.
-     */
+   * @deprecated Ignored. The media type is taken from `source.mimeType`.
+   */
   mediaType?: AnthropicImageMediaType
   /**
-     * Cache control settings for the image content.
-     */
+   * Cache control settings for the image content.
+   */
   cache_control?: CacheControlEphemeral
 }
 
 export interface AnthropicTextMetadata {
   cache_control?: CacheControlEphemeral
   /**
-     * Text citations to include with the text content.
-     */
+   * Text citations to include with the text content.
+   */
   citations?: Array<TextCitationParam>
 }
 /**
@@ -51,8 +51,8 @@ export interface AnthropicDocumentMetadata {
   context?: string
 
   /**
-     * The document filename. Used as the document title when `title` is absent.
-     */
+   * The document filename. Used as the document title when `title` is absent.
+   */
   filename?: string
 
   title?: string

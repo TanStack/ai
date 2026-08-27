@@ -13,21 +13,21 @@ import type {
  */
 export interface NodeIsolateDriverConfig {
   /**
-     * Default memory limit in MB (default: 128)
-     */
+   * Default memory limit in MB (default: 128)
+   */
   memoryLimit?: number
 
   /**
-     * Default execution timeout in ms (default: 30000)
-     */
+   * Default execution timeout in ms (default: 30000)
+   */
   timeout?: number
 
   /**
-     * Skip the subprocess compatibility probe for isolated-vm.
-     * The probe detects native addon incompatibilities that would otherwise
-     * crash the process with a segfault. Only set to true if you have
-     * independently verified compatibility.
-     */
+   * Skip the subprocess compatibility probe for isolated-vm.
+   * The probe detects native addon incompatibilities that would otherwise
+   * crash the process with a segfault. Only set to true if you have
+   * independently verified compatibility.
+   */
   skipProbe?: boolean
 }
 

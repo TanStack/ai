@@ -24,10 +24,10 @@ export interface ResolveAdapterInput {
 /** Options for {@link runInContainerHarness}. */
 export interface RunInContainerHarnessOptions {
   /**
-     * Build the text adapter `chat()` runs for one request's `{ harness, model }`.
-     * The app supplies this so the package doesn't depend on every adapter package
-     * — e.g. `({ model }) => claudeCodeText(model)`.
-     */
+   * Build the text adapter `chat()` runs for one request's `{ harness, model }`.
+   * The app supplies this so the package doesn't depend on every adapter package
+   * — e.g. `({ model }) => claudeCodeText(model)`.
+   */
   resolveAdapter: (input: ResolveAdapterInput) => AnyTextAdapter
   /** Port to listen on. Defaults to `RUNNER_PORT` env, then `8080`. */
   port?: number

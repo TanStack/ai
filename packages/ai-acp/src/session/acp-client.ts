@@ -58,9 +58,9 @@ export interface StartAcpSessionOptions {
     request: AcpPermissionRequest,
   ) => Promise<AcpPermissionOutcome> | AcpPermissionOutcome
   /**
-     * Harness-specific JSON-RPC notifications (e.g. Grok `_x.ai/session_notification`).
-     * Return without throwing — unknown vendor extensions must not tear down the session.
-     */
+   * Harness-specific JSON-RPC notifications (e.g. Grok `_x.ai/session_notification`).
+   * Return without throwing — unknown vendor extensions must not tear down the session.
+   */
   onExtNotification?: (method: string, params: Record<string, unknown>) => void
 }
 

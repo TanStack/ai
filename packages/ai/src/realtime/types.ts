@@ -246,8 +246,11 @@ export interface RealtimeEventPayloads {
     transcript: string
     isFinal: boolean
   }
-  audio_chunk: { /** Base64-encoded image data or a URL */
-data: ArrayBuffer; sampleRate: number }
+  audio_chunk: {
+    /** Base64-encoded image data or a URL */
+    data: ArrayBuffer
+    sampleRate: number
+  }
   tool_call: { toolCallId: string; toolName: string; input: unknown }
   message_complete: { message: RealtimeMessage }
   /** Whether this message was interrupted */
@@ -299,11 +302,11 @@ export interface RealtimeAdapter {
   provider: string
 
   /**
-     * Create a connection using the provided token
-     * @param token - The ephemeral token from the server
-     * @param clientTools - Optional client-side tools to register with the provider
-     * @returns A connection instance
-     */
+   * Create a connection using the provided token
+   * @param token - The ephemeral token from the server
+   * @param clientTools - Optional client-side tools to register with the provider
+   * @returns A connection instance
+   */
   connect: (
     token: RealtimeToken,
     clientTools?: ReadonlyArray<AnyClientTool>,

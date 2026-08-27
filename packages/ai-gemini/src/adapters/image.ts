@@ -213,15 +213,15 @@ export class GeminiImageAdapter<
   }
 
   /**
-     * Build the multimodal `contents` payload. Text-only prompts pass through
-     * as a plain string (the SDK accepts it directly); prompts with image
-     * parts become a single user `Content` whose `parts` mirror the prompt's
-     * interleaved order — position is meaningful to Gemini ("not like this
-     * *(image)*, more like this *(image)*").
-     *
-     * The generateContent API has no numberOfImages parameter, so when more
-     * than one image is requested a trailing instruction is appended.
-     */
+   * Build the multimodal `contents` payload. Text-only prompts pass through
+   * as a plain string (the SDK accepts it directly); prompts with image
+   * parts become a single user `Content` whose `parts` mirror the prompt's
+   * interleaved order — position is meaningful to Gemini ("not like this
+   * *(image)*, more like this *(image)*").
+   *
+   * The generateContent API has no numberOfImages parameter, so when more
+   * than one image is requested a trailing instruction is appended.
+   */
   private buildContents(
     resolved: ResolvedMediaPrompt,
     numberOfImages: number | undefined,

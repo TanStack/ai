@@ -17,7 +17,7 @@ import type { WorkspaceSkill } from './workspace'
 
 /** CLI instruction-file names that should resolve to AGENTS.md. */
 const /** CLI instruction-file names that should resolve to AGENTS.md. */
-SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
+  SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
 
 /**
  * Resolve the directory a `gitSkill` repo is cloned into when no explicit

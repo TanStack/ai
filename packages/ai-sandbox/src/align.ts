@@ -129,40 +129,40 @@ function divergenceError(
 
 export interface AlignToStoredLogOptions<TOffset extends string = string> {
   /**
-     * The run's event log. Read from the beginning; never written here.
-     *
-     * Generic in the offset type, defaulted to `string`, for the same reason
-     * {@link RunDeps} is: a branded-cursor backend's `StreamDurability<TOffset>`
-     * is not assignable to `StreamDurability<string>`.
-     *
-     * Narrowed to `snapshot` — the only member this transform touches, as the
-     * function docs below spell out — so the capability-bus view of a log
-     * (`SandboxDurabilityLog`, which omits the offset-invariant `read`) can be
-     * passed straight through by `alignedIfAttaching`. A full `StreamDurability`
-     * still satisfies it, so no existing caller changes.
-     */
+   * The run's event log. Read from the beginning; never written here.
+   *
+   * Generic in the offset type, defaulted to `string`, for the same reason
+   * {@link RunDeps} is: a branded-cursor backend's `StreamDurability<TOffset>`
+   * is not assignable to `StreamDurability<string>`.
+   *
+   * Narrowed to `snapshot` — the only member this transform touches, as the
+   * function docs below spell out — so the capability-bus view of a log
+   * (`SandboxDurabilityLog`, which omits the offset-invariant `read`) can be
+   * passed straight through by `alignedIfAttaching`. A full `StreamDurability`
+   * still satisfies it, so no existing caller changes.
+   */
   durability: Pick<StreamDurability<TOffset>, 'snapshot'>
   /** Optional sink for the alignment summary. */
   logger?: InternalLogger
   /**
-     * Recognizes a stored chunk that the replay CANNOT reproduce, so alignment
-     * skips it instead of throwing.
-     *
-     * Absent by default, which keeps strict positional comparison: any stored
-     * chunk the replay does not produce is a determinism bug and fails loudly.
-     * Pass {@link isBridgeCustomChunk} on the harness attach path, where the
-     * previous host spliced live bridged-tool events into the log.
-     *
-     * The predicate is applied to the STORED chunk, never to the replayed one. A
-     * skipped entry is suppressed, not re-appended, so the client's view is
-     * unchanged: it already received that chunk under its own offset.
-     */
+   * Recognizes a stored chunk that the replay CANNOT reproduce, so alignment
+   * skips it instead of throwing.
+   *
+   * Absent by default, which keeps strict positional comparison: any stored
+   * chunk the replay does not produce is a determinism bug and fails loudly.
+   * Pass {@link isBridgeCustomChunk} on the harness attach path, where the
+   * previous host spliced live bridged-tool events into the log.
+   *
+   * The predicate is applied to the STORED chunk, never to the replayed one. A
+   * skipped entry is suppressed, not re-appended, so the client's view is
+   * unchanged: it already received that chunk under its own offset.
+   */
   isOutOfBand?: (chunk: StreamChunk) => boolean
   /**
-     * Maximum CONSECUTIVE stored chunks that may be skipped as out-of-band before
-     * alignment gives up. Reset by every match. Defaults to
-     * {@link DEFAULT_MAX_OUT_OF_BAND_SKIP}. Ignored when `isOutOfBand` is absent.
-     */
+   * Maximum CONSECUTIVE stored chunks that may be skipped as out-of-band before
+   * alignment gives up. Reset by every match. Defaults to
+   * {@link DEFAULT_MAX_OUT_OF_BAND_SKIP}. Ignored when `isOutOfBand` is absent.
+   */
   maxOutOfBandSkip?: number
 }
 

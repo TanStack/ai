@@ -35,25 +35,25 @@ export interface MemoryFragment {
  */
 export interface RecallResult {
   /**
-     * Pre-rendered block to inject into the system prompt. An empty string means
-     * "nothing to inject" — the middleware skips it.
-     */
+   * Pre-rendered block to inject into the system prompt. An empty string means
+   * "nothing to inject" — the middleware skips it.
+   */
   systemPrompt: string
   /**
-     * Discrete recalled items, when the adapter produces them. Omitted for
-     * engines that return synthesized output (e.g. honcho's dialectic answer).
-     */
+   * Discrete recalled items, when the adapter produces them. Omitted for
+   * engines that return synthesized output (e.g. honcho's dialectic answer).
+   */
   fragments?: Array<MemoryFragment>
   /**
-     * Tools the adapter wants exposed to the model for this turn (e.g. hindsight's
-     * retain/recall/reflect tools). Merged into the run's tool set by the
-     * middleware. Omit or `[]` when the adapter exposes no tools.
-     */
+   * Tools the adapter wants exposed to the model for this turn (e.g. hindsight's
+   * retain/recall/reflect tools). Merged into the run's tool set by the
+   * middleware. Omit or `[]` when the adapter exposes no tools.
+   */
   tools?: Array<Tool>
   /**
-     * System-prompt text explaining when/how to use {@link RecallResult.tools}.
-     * Injected ahead of `systemPrompt`. Omit or `''` when there are no tools.
-     */
+   * System-prompt text explaining when/how to use {@link RecallResult.tools}.
+   * Injected ahead of `systemPrompt`. Omit or `''` when there are no tools.
+   */
   toolGuidance?: string
   /** Raw vendor payload, surfaced for devtools/inspection. */
   raw?: unknown
@@ -107,16 +107,16 @@ export interface MemoryAdapter {
   readonly name?: string
 
   /**
-     * Read side — retrieve what's relevant to `query` within `scope`. The ranking
-     * strategy (lexical, semantic, hybrid, vendor-native) is entirely the
-     * adapter's concern.
-     */
+   * Read side — retrieve what's relevant to `query` within `scope`. The ranking
+   * strategy (lexical, semantic, hybrid, vendor-native) is entirely the
+   * adapter's concern.
+   */
   recall: (scope: MemoryScope, query: string) => Promise<RecallResult>
 
   /**
-     * Write side — persist a completed turn. Extraction (turn → stored facts)
-     * happens HERE, inside the adapter. Returns one receipt per underlying write.
-     */
+   * Write side — persist a completed turn. Extraction (turn → stored facts)
+   * happens HERE, inside the adapter. Returns one receipt per underlying write.
+   */
   save: (scope: MemoryScope, turn: MemoryTurn) => Promise<Array<SaveReceipt>>
 
   /** Optional — full snapshot for a devtools inspection panel. */

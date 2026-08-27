@@ -34,7 +34,7 @@ export interface TextPart {
   type: 'text'
   content: string
   /** Provider-specific metadata that round-trips with the tool call.
-     * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
+   * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
   metadata?: unknown
 }
 
@@ -258,27 +258,27 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   /** Detailed breakdown of completion tokens by category */
   completionTokensDetails?: CompletionTokensDetails
   /**
-     * The primary non-token billed quantity, self-describing via its unit —
-     * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
-     * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
-     * when the activity bills purely in tokens (the token fields above are
-     * already self-describing). When a provider bills tokens *on top of* a media
-     * unit, the tokens stay in the token fields and `billed` carries the media
-     * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
-     */
+   * The primary non-token billed quantity, self-describing via its unit —
+   * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
+   * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
+   * when the activity bills purely in tokens (the token fields above are
+   * already self-describing). When a provider bills tokens *on top of* a media
+   * unit, the tokens stay in the token fields and `billed` carries the media
+   * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
+   */
   billed?: BilledUsage
   /**
-     * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-     * duration with an explicit `unit: 'seconds'`. Still populated alongside
-     * `billed` for backward compatibility; will be removed in a future release.
-     */
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * duration with an explicit `unit: 'seconds'`. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
+   */
   durationSeconds?: number
   /**
-     * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-     * count with the unit it is denominated in (`seconds`, `units`, …) — this
-     * bare count is ambiguous across providers. Still populated alongside
-     * `billed` for backward compatibility; will be removed in a future release.
-     */
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * count with the unit it is denominated in (`seconds`, `units`, …) — this
+   * bare count is ambiguous across providers. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
+   */
   unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
   providerUsageDetails?: TProviderDetails
@@ -952,9 +952,9 @@ export type MemoryScopeLite = {
 /** Emitted when the middleware begins a `recall` for the current turn. */
 export interface MemoryRetrieveStartedEvent extends BaseEventContext {
   /**
-     * Scope when it was already resolved before the failure. Omitted when the
-     * resolver itself failed or never ran — there is no fake empty scope.
-     */
+   * Scope when it was already resolved before the failure. Omitted when the
+   * resolver itself failed or never ran — there is no fake empty scope.
+   */
   scope: MemoryScopeLite
   /** Adapter id (e.g. 'in-memory', 'hindsight'). */
   adapter: string

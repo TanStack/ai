@@ -17,20 +17,20 @@ import type { WebSearchTool } from '../tools/web-search-tool'
 /** Sampling controls shared by all Responses-API models. */
 export interface OpenAISamplingOptions {
   /**
-     * Sampling temperature, 0–2. Higher = more random. Recommend altering this or top_p, not both.
-     * Note: OpenAI reasoning models (o-series, GPT-5 reasoning) reject temperature/top_p.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
-     */
+   * Sampling temperature, 0–2. Higher = more random. Recommend altering this or top_p, not both.
+   * Note: OpenAI reasoning models (o-series, GPT-5 reasoning) reject temperature/top_p.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-temperature
+   */
   temperature?: number
   /**
-     * Nucleus sampling. 0.1 = only the top 10% probability mass is considered.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
-     */
+   * Nucleus sampling. 0.1 = only the top 10% probability mass is considered.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_p
+   */
   top_p?: number
   /**
-     * Upper bound on generated tokens (visible output + reasoning tokens).
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
-     */
+   * Upper bound on generated tokens (visible output + reasoning tokens).
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_output_tokens
+   */
   max_output_tokens?: number
 }
 
@@ -44,14 +44,18 @@ export interface OpenAIBaseOptions extends OpenAISamplingOptions {
      */
   background?: boolean
   /**
-     * The conversation that this response belongs to. Items from this conversation are prepended to input_items for this response request. Input items and output items from this response are automatically added to this conversation after this response completes.
-     *
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-conversation
-     */
-  conversation?: string | { /**
-     * Unique identifier of your prompt, found in the dashboard
-     */
-id: string }
+   * The conversation that this response belongs to. Items from this conversation are prepended to input_items for this response request. Input items and output items from this response are automatically added to this conversation after this response completes.
+   *
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-conversation
+   */
+  conversation?:
+    | string
+    | {
+        /**
+         * Unique identifier of your prompt, found in the dashboard
+         */
+        id: string
+      }
   /**
      * https://platform.openai.com/docs/api-reference/responses/create#responses_create-include
      Specify additional output data to include in the model response. Currently supported values are:
@@ -67,41 +71,41 @@ id: string }
   include?: Array<OpenAI.Responses.ResponseIncludable>
 
   /**
-     * The unique ID of the previous response to the model. Use this to create multi-turn conversations. Cannot be used in conjunction with conversation.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-previous_response_id
-     */
+   * The unique ID of the previous response to the model. Use this to create multi-turn conversations. Cannot be used in conjunction with conversation.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-previous_response_id
+   */
   previous_response_id?: string
   /**
-     * Reference to a prompt template and its variables.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt
-     */
+   * Reference to a prompt template and its variables.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt
+   */
   prompt?: {
     id: string
     /**
-         * A specific version of your prompt (defaults to the "current" version as specified in the dashboard)
-         */
+     * A specific version of your prompt (defaults to the "current" version as specified in the dashboard)
+     */
     version?: string
     /**
-         * A map of values to substitute in for variables in your prompt. The substitution values can either be strings, or other Response input message types like input_image or input_file
-         */
+     * A map of values to substitute in for variables in your prompt. The substitution values can either be strings, or other Response input message types like input_image or input_file
+     */
     variables?: Record<string, any>
   }
   /**
-     * Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt_cache_key
-     */
+   * Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt_cache_key
+   */
   prompt_cache_key?: string
 
   /**
-     * The retention policy for the prompt cache. Set to 24h to enable extended prompt caching, which keeps cached prefixes active for longer, up to a maximum of 24 hours
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt_cache_retention
-     */
+   * The retention policy for the prompt cache. Set to 24h to enable extended prompt caching, which keeps cached prefixes active for longer, up to a maximum of 24 hours
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-prompt_cache_retention
+   */
   prompt_cache_retention?: 'in-memory' | '24h'
 
   /**
-     * A stable identifier used to help detect users of your application that may be violating OpenAI's usage policies. The IDs should be a string that uniquely identifies each user.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-safety_identifier
-     */
+   * A stable identifier used to help detect users of your application that may be violating OpenAI's usage policies. The IDs should be a string that uniquely identifies each user.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-safety_identifier
+   */
   safety_identifier?: string
 
   /**
@@ -119,21 +123,21 @@ id: string }
   service_tier?: 'auto' | 'default' | 'flex' | 'priority'
 
   /**
-     * Whether to store the generated model response for later retrieval via API.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-store
-     * @default true
-     */
+   * Whether to store the generated model response for later retrieval via API.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-store
+   * @default true
+   */
   store?: boolean
 
   /**
-     * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
-     */
+   * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-text-verbosity
+   */
   verbosity?: 'low' | 'medium' | 'high'
   /**
-     * An integer between 0 and 20 specifying the number of most likely tokens to return at each token position, each with an associated log probability.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
-     */
+   * An integer between 0 and 20 specifying the number of most likely tokens to return at each token position, each with an associated log probability.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-top_logprobs
+   */
   top_logprobs?: number
 
   /**
@@ -156,22 +160,22 @@ type ReasoningSummary = 'auto' | 'detailed'
  */
 export interface OpenAIReasoningOptions {
   /**
-     * Reasoning controls for models that support it.
-     * Lets you guide how much chain-of-thought computation to spend.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-     * https://platform.openai.com/docs/guides/reasoning
-     */
+   * Reasoning controls for models that support it.
+   * Lets you guide how much chain-of-thought computation to spend.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
+   * https://platform.openai.com/docs/guides/reasoning
+   */
   reasoning?: {
     /**
-         * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-         * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-         * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-         */
+     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
+     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
+     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
+     */
     effort?: ReasoningEffort
     /**
-         * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
-         * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-         */
+     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
+     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
+     */
     summary?: ReasoningSummary
   }
 }
@@ -196,35 +200,35 @@ export interface OpenAIStructuredOutputOptions {
 
 export interface OpenAIToolsOptions {
   /**
-     * The maximum number of total calls to built-in tools that can be processed in a response. This maximum number applies across all built-in tool calls, not per individual tool. Any further attempts to call a tool by the model will be ignored.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_tool_calls
-     */
+   * The maximum number of total calls to built-in tools that can be processed in a response. This maximum number applies across all built-in tool calls, not per individual tool. Any further attempts to call a tool by the model will be ignored.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-max_tool_calls
+   */
   max_tool_calls?: number
   /**
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-parallel_tool_calls
-     * Whether to allow the model to run tool calls in parallel.
-     * @default true
-     */
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-parallel_tool_calls
+   * Whether to allow the model to run tool calls in parallel.
+   * @default true
+   */
   parallel_tool_calls?: boolean
   /**
-     * Function/tool calling configuration. Supply tool schemas in `tools`
-     * and control selection here:
-     *  - "auto" | "none" | "required"
-     *  - { type: "tool", tool_name: string } (or model-specific shape)
-     * https://platform.openai.com/docs/guides/tools/tool-choice
-     * https://platform.openai.com/docs/api-reference/introduction (tools array)
-     */
+   * Function/tool calling configuration. Supply tool schemas in `tools`
+   * and control selection here:
+   *  - "auto" | "none" | "required"
+   *  - { type: "tool", tool_name: string } (or model-specific shape)
+   * https://platform.openai.com/docs/guides/tools/tool-choice
+   * https://platform.openai.com/docs/api-reference/introduction (tools array)
+   */
   tool_choice?: 'auto' | 'none' | 'required' | ToolChoice
 }
 
 export interface OpenAIStreamingOptions {
   /**
-     * Options for streaming responses. Only set this when you set stream: true
-     */
+   * Options for streaming responses. Only set this when you set stream: true
+   */
   stream_options?: {
     /**
-         * When true, stream obfuscation will be enabled. Stream obfuscation adds random characters to an obfuscation field on streaming delta events to normalize payload sizes as a mitigation to certain side-channel attacks. These obfuscation fields are included by default, but add a small amount of overhead to the data stream. You can set include_obfuscation to false to optimize for bandwidth if you trust the network links between your application and the OpenAI API.
-         */
+     * When true, stream obfuscation will be enabled. Stream obfuscation adds random characters to an obfuscation field on streaming delta events to normalize payload sizes as a mitigation to certain side-channel attacks. These obfuscation fields are included by default, but add a small amount of overhead to the data stream. You can set include_obfuscation to false to optimize for bandwidth if you trust the network links between your application and the OpenAI API.
+     */
     include_obfuscation?: boolean
   }
 }
@@ -261,25 +265,25 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
   instructions?: string
 
   /**
-     * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-model
-     */
+   * The model name (e.g. "gpt-4o", "gpt-5", "gpt-4.1-mini", etc).
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-model
+   */
   model: string
 
   /**
-     * If set to true, the model response data will be streamed to the client as it is generated using server-sent events.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-stream
-     * @default false
-     */
+   * If set to true, the model response data will be streamed to the client as it is generated using server-sent events.
+   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-stream
+   * @default false
+   */
   stream?: boolean
 
   /**
-     * Tools the model may call (functions, web_search, etc).
-     * Function tool example:
-     *   { type: "function", function: { name, description?, parameters: JSONSchema } }
-     * https://platform.openai.com/docs/guides/tools/tool-choice
-     * https://platform.openai.com/docs/guides/tools-web-search
-     */
+   * Tools the model may call (functions, web_search, etc).
+   * Function tool example:
+   *   { type: "function", function: { name, description?, parameters: JSONSchema } }
+   * https://platform.openai.com/docs/guides/tools/tool-choice
+   * https://platform.openai.com/docs/guides/tools-web-search
+   */
   tools?: Array<
     | FunctionTool
     | FileSearchTool

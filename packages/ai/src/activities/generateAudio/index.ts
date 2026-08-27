@@ -24,7 +24,7 @@ import type { AudioGenerationResult, StreamChunk } from '../../types'
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'audio' as const
+  kind = 'audio' as const
 
 /**
  * Extract provider options from an AudioAdapter via ~types.
@@ -55,40 +55,40 @@ export interface AudioActivityOptions<
   /** Provider-specific options for audio generation */
   modelOptions?: AudioProviderOptions<TAdapter>
   /**
-     * Whether to stream the generation result.
-     * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
-     * When false or not provided, returns a Promise<AudioGenerationResult>.
-     *
-     * @default false
-     */
+   * Whether to stream the generation result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<AudioGenerationResult>.
+   *
+   * @default false
+   */
   stream?: TStream
   /**
-     * Enable debug logging. Pass `true` to enable all categories, `false` to
-     * silence everything including errors, or a `DebugConfig` object for granular
-     * control and/or a custom `Logger`.
-     */
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
   debug?: DebugOption
   /**
-     * Observe-only middleware notified on start, usage, success, and error. Pass
-     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
-     * `GenerationMiddleware` contract for a custom backend.
-     */
+   * Observe-only middleware notified on start, usage, success, and error. Pass
+   * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+   * `GenerationMiddleware` contract for a custom backend.
+   */
   middleware?: Array<GenerationMiddleware>
   /** Stable conversation/thread id for correlating this run when persisted. */
   threadId?: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
-     * Maximum duration of this activity invocation in milliseconds.
-     * No SDK-wide default — choose a value suitable for the provider and job.
-     * Composed with {@link abortSignal}; the first abort wins.
-     */
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
   timeout?: number
   /**
-     * Caller cancellation signal (request disconnects, job/runtime cancellation).
-     * Composed with {@link timeout} into an effective signal forwarded to the
-     * adapter. Request-specific — not stored on global provider client config.
-     */
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
   abortSignal?: AbortSignal
 }
 

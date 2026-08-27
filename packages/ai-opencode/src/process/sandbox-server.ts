@@ -6,10 +6,10 @@ export interface SandboxOpencodeServer {
   /** URL the host uses to reach the in-sandbox server. */
   baseUrl: string
   /**
-     * Headers that authenticate requests to {@link baseUrl}, when the provider's
-     * channel is token-gated (e.g. Daytona's `x-daytona-preview-token`). The host
-     * opencode client must send these on every request or the preview proxy 404s.
-     */
+   * Headers that authenticate requests to {@link baseUrl}, when the provider's
+   * channel is token-gated (e.g. Daytona's `x-daytona-preview-token`). The host
+   * opencode client must send these on every request or the preview proxy 404s.
+   */
   headers?: Record<string, string>
   /** Stop the server process. */
   dispose: () => Promise<void>

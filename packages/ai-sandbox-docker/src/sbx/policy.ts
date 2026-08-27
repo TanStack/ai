@@ -15,7 +15,7 @@ const EMPTY_ALLOWLIST =
 
 /** Guest URLs use host.docker.internal; the sbx proxy rewrites that to localhost. */
 const /** Guest URLs use host.docker.internal; the sbx proxy rewrites that to localhost. */
-BRIDGE_HOST = 'localhost'
+  BRIDGE_HOST = 'localhost'
 
 export function autoApiHosts(adapterName: string | undefined): Array<string> {
   if (!adapterName) return []

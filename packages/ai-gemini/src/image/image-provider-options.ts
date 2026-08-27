@@ -40,95 +40,95 @@ export type GeminiAspectRatio =
  */
 export interface GeminiImageProviderOptions {
   /**
-     * The aspect ratio of generated images
-     * @default '1:1'
-     */
+   * The aspect ratio of generated images
+   * @default '1:1'
+   */
   aspectRatio?: GeminiAspectRatio
 
   /**
-     * Controls whether people can appear in generated images
-     * Use PersonGeneration enum values: DONT_ALLOW, ALLOW_ADULT, ALLOW_ALL
-     * @default 'ALLOW_ADULT'
-     */
+   * Controls whether people can appear in generated images
+   * Use PersonGeneration enum values: DONT_ALLOW, ALLOW_ADULT, ALLOW_ALL
+   * @default 'ALLOW_ADULT'
+   */
   personGeneration?: PersonGeneration
 
   /**
-     * Safety filter level for content filtering
-     * Use SafetyFilterLevel enum values
-     */
+   * Safety filter level for content filtering
+   * Use SafetyFilterLevel enum values
+   */
   safetyFilterLevel?: SafetyFilterLevel
 
   /**
-     * Optional seed for reproducible image generation
-     * When the same seed is used with the same prompt and settings,
-     * you should get similar (though not identical) results
-     */
+   * Optional seed for reproducible image generation
+   * When the same seed is used with the same prompt and settings,
+   * you should get similar (though not identical) results
+   */
   seed?: number
 
   /**
-     * Whether to add a SynthID watermark to generated images
-     * SynthID helps identify AI-generated content
-     * @default true
-     */
+   * Whether to add a SynthID watermark to generated images
+   * SynthID helps identify AI-generated content
+   * @default true
+   */
   addWatermark?: boolean
 
   /**
-     * Language of the prompt
-     * Use ImagePromptLanguage enum values
-     */
+   * Language of the prompt
+   * Use ImagePromptLanguage enum values
+   */
   language?: ImagePromptLanguage
 
   /**
-     * Negative prompt - what to avoid in the generated image
-     * Not all models support negative prompts
-     */
+   * Negative prompt - what to avoid in the generated image
+   * Not all models support negative prompts
+   */
   negativePrompt?: string
 
   /**
-     * Output MIME type for the generated image
-     * @default 'image/png'
-     */
+   * Output MIME type for the generated image
+   * @default 'image/png'
+   */
   outputMimeType?: 'image/png' | 'image/jpeg' | 'image/webp'
 
   /**
-     * Compression quality for JPEG outputs (0-100)
-     * Higher values mean better quality but larger file sizes
-     * @default 75
-     */
+   * Compression quality for JPEG outputs (0-100)
+   * Higher values mean better quality but larger file sizes
+   * @default 75
+   */
   outputCompressionQuality?: number
 
   /**
-     * Controls how much the model adheres to the text prompt
-     * Large values increase output and prompt alignment,
-     * but may compromise image quality
-     */
+   * Controls how much the model adheres to the text prompt
+   * Large values increase output and prompt alignment,
+   * but may compromise image quality
+   */
   guidanceScale?: number
 
   /**
-     * Whether to use the prompt rewriting logic
-     */
+   * Whether to use the prompt rewriting logic
+   */
   enhancePrompt?: boolean
 
   /**
-     * Whether to report the safety scores of each generated image
-     * and the positive prompt in the response
-     */
+   * Whether to report the safety scores of each generated image
+   * and the positive prompt in the response
+   */
   includeSafetyAttributes?: boolean
 
   /**
-     * Whether to include the Responsible AI filter reason
-     * if the image is filtered out of the response
-     */
+   * Whether to include the Responsible AI filter reason
+   * if the image is filtered out of the response
+   */
   includeRaiReason?: boolean
 
   /**
-     * Cloud Storage URI used to store the generated images
-     */
+   * Cloud Storage URI used to store the generated images
+   */
   outputGcsUri?: string
 
   /**
-     * User specified labels to track billing usage
-     */
+   * User specified labels to track billing usage
+   */
   labels?: Record<string, string>
 }
 
@@ -150,31 +150,31 @@ export interface GeminiNativeImageProviderOptions {
   seed?: number
 
   /**
-     * Per-category safety thresholds applied to the request
-     * Each entry pairs a HarmCategory with a HarmBlockThreshold
-     */
+   * Per-category safety thresholds applied to the request
+   * Each entry pairs a HarmCategory with a HarmBlockThreshold
+   */
   safetySettings?: Array<SafetySetting>
 
   /**
-     * Controls the model's internal reasoning before it emits an image
-     * Use to raise or disable the thinking budget on models that support it
-     */
+   * Controls the model's internal reasoning before it emits an image
+   * Use to raise or disable the thinking budget on models that support it
+   */
   thinkingConfig?: ThinkingConfig
 
   /**
-     * Native image output controls. Merged over the values derived from the
-     * portable `size` option, so fields set here win per field while the rest
-     * of `size` is preserved.
-     *
-     * Only `aspectRatio` and `imageSize` are accepted on the Gemini Developer
-     * API. Other SDK `ImageConfig` keys throw on this surface.
-     */
+   * Native image output controls. Merged over the values derived from the
+   * portable `size` option, so fields set here win per field while the rest
+   * of `size` is preserved.
+   *
+   * Only `aspectRatio` and `imageSize` are accepted on the Gemini Developer
+   * API. Other SDK `ImageConfig` keys throw on this surface.
+   */
   imageConfig?: GeminiNativeImageConfig
 
   /**
-     * System-level instructions that steer the model for the whole request,
-     * e.g. a house art direction applied on top of the per-call prompt
-     */
+   * System-level instructions that steer the model for the whole request,
+   * e.g. a house art direction applied on top of the per-call prompt
+   */
   systemInstruction?: ContentUnion
 }
 

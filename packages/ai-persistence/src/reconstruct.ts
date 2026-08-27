@@ -29,19 +29,19 @@ export interface ReconstructChatOptions {
   /** Query parameter carrying the thread id. Defaults to `threadId`. */
   param?: string
   /**
-     * Authorize access to the requested thread before loading history.
-     *
-     * ⚠️ Without this, any caller who knows or guesses `?threadId=` receives the
-     * full transcript. Multi-user / multi-tenant deployments **must** supply
-     * an authorization check (session → owned threads) or resolve a validated
-     * thread id in the route and pass it via a custom `param` that only your
-     * server sets.
-     *
-     * Return:
-     * - `true` to allow the load
-     * - `false` for a default `403` response
-     * - a `Response` to return as-is (e.g. `401` with a body)
-     */
+   * Authorize access to the requested thread before loading history.
+   *
+   * ⚠️ Without this, any caller who knows or guesses `?threadId=` receives the
+   * full transcript. Multi-user / multi-tenant deployments **must** supply
+   * an authorization check (session → owned threads) or resolve a validated
+   * thread id in the route and pass it via a custom `param` that only your
+   * server sets.
+   *
+   * Return:
+   * - `true` to allow the load
+   * - `false` for a default `403` response
+   * - a `Response` to return as-is (e.g. `401` with a body)
+   */
   authorize?: (
     threadId: string,
     request: Request,

@@ -61,8 +61,8 @@ export interface BytePlusTextProviderOptions {
   reasoning_effort?: BytePlusReasoningEffort
 
   /**
-     * Penalty applied to repeated tokens. Values above 1 discourage repetition.
-     */
+   * Penalty applied to repeated tokens. Values above 1 discourage repetition.
+   */
   repetition_penalty?: number
 
   /** Request routing tier — see {@link BytePlusServiceTier}. */
@@ -78,15 +78,15 @@ export interface BytePlusTextProviderOptions {
   top_k?: number
 
   /**
-     * Maximum tokens to generate. Mutually exclusive with
-     * `max_completion_tokens` — sending both is a 400.
-     */
+   * Maximum tokens to generate. Mutually exclusive with
+   * `max_completion_tokens` — sending both is a 400.
+   */
   max_tokens?: number
 
   /**
-     * OpenAI's newer name for {@link BytePlusTextProviderOptions.max_tokens}.
-     * Mutually exclusive with it.
-     */
+   * OpenAI's newer name for {@link BytePlusTextProviderOptions.max_tokens}.
+   * Mutually exclusive with it.
+   */
   max_completion_tokens?: number
 
   /** Penalizes tokens by how often they have already appeared. */

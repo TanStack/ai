@@ -5,10 +5,10 @@ import { parse as parsePartialJSONLib } from 'partial-json'
  */
 export interface JSONParser {
   /**
-     * Parse a JSON string (may be incomplete/partial)
-     * @param jsonString - The JSON string to parse
-     * @returns The parsed object, or undefined if parsing fails
-     */
+   * Parse a JSON string (may be incomplete/partial)
+   * @param jsonString - The JSON string to parse
+   * @returns The parsed object, or undefined if parsing fails
+   */
   parse: (jsonString: string) => any
 }
 

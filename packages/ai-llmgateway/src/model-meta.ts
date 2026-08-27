@@ -39,8 +39,8 @@ interface ModelMeta<TProviderOptions = unknown> {
     tools?: ReadonlyArray<never>
   }
   /**
-     * Type-level description of which provider options this model supports.
-     */
+   * Type-level description of which provider options this model supports.
+   */
   providerOptions?: TProviderOptions
 }
 

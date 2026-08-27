@@ -41,23 +41,23 @@ export interface ResponseFormatJsonSchemaJsonSchema {
   name: string
 
   /**
-     * A description of what the response format is for, used by the model to
-     * determine how to respond in the format.
-     */
+   * A description of what the response format is for, used by the model to
+   * determine how to respond in the format.
+   */
   description?: string
 
   /**
-     * The schema for the response format, described as a JSON Schema object.
-     * @see https://json-schema.org/
-     */
+   * The schema for the response format, described as a JSON Schema object.
+   * @see https://json-schema.org/
+   */
   schema?: { [key: string]: unknown }
 
   /**
-     * Whether to enable strict schema adherence when generating the output. If
-     * set to true, the model will always follow the exact schema defined in the
-     * `schema` field. Only a subset of JSON Schema is supported when `strict`
-     * is `true`.
-     */
+   * Whether to enable strict schema adherence when generating the output. If
+   * set to true, the model will always follow the exact schema defined in the
+   * `schema` field. Only a subset of JSON Schema is supported when `strict`
+   * is `true`.
+   */
   strict?: boolean | null
 }
 
@@ -91,13 +91,13 @@ export interface LLMGatewayTextMetadata {}
  */
 export interface LLMGatewayImageMetadata {
   /**
-     * Specifies the detail level of the image.
-     * - 'auto': Let the model decide based on image size and content
-     * - 'low': Use low resolution processing (faster, cheaper, less detail)
-     * - 'high': Use high resolution processing (slower, more expensive, more detail)
-     *
-     * @default 'auto'
-     */
+   * Specifies the detail level of the image.
+   * - 'auto': Let the model decide based on image size and content
+   * - 'low': Use low resolution processing (faster, cheaper, less detail)
+   * - 'high': Use high resolution processing (slower, more expensive, more detail)
+   *
+   * @default 'auto'
+   */
   detail?: 'auto' | 'low' | 'high'
 }
 

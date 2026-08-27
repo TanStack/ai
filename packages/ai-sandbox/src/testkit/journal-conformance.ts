@@ -20,21 +20,21 @@ export interface JournalConformanceConfig {
     dispose: () => Promise<void>
   }>
   /**
-     * Declare that this provider cannot journal, with the reason. Registers a
-     * skipped case whose title carries the reason. Omit it and the suite runs.
-     */
+   * Declare that this provider cannot journal, with the reason. Registers a
+   * skipped case whose title carries the reason. Omit it and the suite runs.
+   */
   unsupported?: { reason: string }
   /**
-     * Declare that this provider's reads take the POLL strategy rather than the
-     * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles,
-     * because it lacks `backgroundProcesses` or `killableProcesses`. The two follow
-     * cases then register as NAMED skips carrying the reason.
-     *
-     * Declare this ONLY when the provider really cannot follow. It is checked
-     * against a live handle in a case that always runs
-     * ({@link expectDeclaredStrategy}), so a wrong declaration fails the suite in
-     * either direction rather than quietly removing coverage.
-     */
+   * Declare that this provider's reads take the POLL strategy rather than the
+   * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles,
+   * because it lacks `backgroundProcesses` or `killableProcesses`. The two follow
+   * cases then register as NAMED skips carrying the reason.
+   *
+   * Declare this ONLY when the provider really cannot follow. It is checked
+   * against a live handle in a case that always runs
+   * ({@link expectDeclaredStrategy}), so a wrong declaration fails the suite in
+   * either direction rather than quietly removing coverage.
+   */
   followUnsupported?: { reason: string }
 }
 
@@ -160,7 +160,7 @@ function noncePath(label: string): string {
 
 /** Iteration cap on the kill probe's loop, so nothing can outlive the suite. */
 const /** Iteration cap on the kill probe's loop, so nothing can outlive the suite. */
-PROBE_MAX_TICKS = 600
+  PROBE_MAX_TICKS = 600
 
 /**
  * Bound on a journal read, so a reader that delivers nothing FAILS instead of

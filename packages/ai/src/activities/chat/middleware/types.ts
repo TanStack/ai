@@ -187,17 +187,17 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** Interrupted or parent run correlated with this continuation. */
   parentRunId?: string
   /**
-     * AG-UI thread identifier — a stable per-conversation ID used to
-     * correlate client and server devtools events. Resolves to the
-     * caller-provided `threadId` (or legacy `conversationId`), or an
-     * auto-generated value when neither is supplied.
-     */
+   * AG-UI thread identifier — a stable per-conversation ID used to
+   * correlate client and server devtools events. Resolves to the
+   * caller-provided `threadId` (or legacy `conversationId`), or an
+   * auto-generated value when neither is supplied.
+   */
   threadId: string
   /**
-     * @deprecated Use `threadId` instead. Retained as an alias of
-     * `threadId` so middleware written before the AG-UI rename keeps
-     * working unchanged. Will be removed in a future major release.
-     */
+   * @deprecated Use `threadId` instead. Retained as an alias of
+   * `threadId` so middleware written before the AG-UI rename keeps
+   * working unchanged. Will be removed in a future major release.
+   */
   conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
@@ -212,20 +212,20 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** Runtime context provided by chat() options */
   context: TContext
   /**
-     * Defer a non-blocking side-effect promise.
-     * Deferred promises do not block streaming and are awaited
-     * after the terminal hook (onFinish/onAbort/onError).
-     */
+   * Defer a non-blocking side-effect promise.
+   * Deferred promises do not block streaming and are awaited
+   * after the terminal hook (onFinish/onAbort/onError).
+   */
   defer: (promise: Promise<unknown>) => void
 
   // --- Provider / adapter info (immutable for the lifetime of the request) ---
 
   /**
-     * Which activity this context describes — always `'chat'`. Present so the
-     * chat context structurally satisfies the base `GenerationMiddlewareContext`,
-     * letting an observe-only middleware authored against the base (e.g.
-     * `otelMiddleware`) run on both chat and media activities.
-     */
+   * Which activity this context describes — always `'chat'`. Present so the
+   * chat context structurally satisfies the base `GenerationMiddlewareContext`,
+   * letting an observe-only middleware authored against the base (e.g.
+   * `otelMiddleware`) run on both chat and media activities.
+   */
   activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
@@ -268,26 +268,26 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** Generate a unique ID with the given prefix */
   createId: (prefix: string) => string
   /**
-     * Capability bookkeeping for this request. Populated by middleware `setup`
-     * hooks (via `provide` accessors) and read by later middleware (via `get`
-     * accessors). Prefer the accessors returned by `createCapability` over using
-     * this directly. Orthogonal to `context` (the user runtime context).
-     */
+   * Capability bookkeeping for this request. Populated by middleware `setup`
+   * hooks (via `provide` accessors) and read by later middleware (via `get`
+   * accessors). Prefer the accessors returned by `createCapability` over using
+   * this directly. Orthogonal to `context` (the user runtime context).
+   */
   capabilities: CapabilityRegistry
   /**
-     * Read a provided capability by its handle. Equivalent to the handle's own
-     * `get` accessor (`getX(ctx)`); throws if the capability was never provided.
-     */
+   * Read a provided capability by its handle. Equivalent to the handle's own
+   * `get` accessor (`getX(ctx)`); throws if the capability was never provided.
+   */
   get: <TValue>(capability: Capability<TValue>) => TValue
   /**
-     * Read a capability by its handle, returning `undefined` if it was never
-     * provided (never throws).
-     */
+   * Read a capability by its handle, returning `undefined` if it was never
+   * provided (never throws).
+   */
   getOptional: <TValue>(capability: Capability<TValue>) => TValue | undefined
   /**
-     * Provide a capability value. Equivalent to the handle's own `provide`
-     * accessor (`provideX(ctx, value)`). Typically called from `setup`.
-     */
+   * Provide a capability value. Equivalent to the handle's own `provide`
+   * accessor (`provideX(ctx, value)`). Typically called from `setup`.
+   */
   provide: <TValue>(capability: Capability<TValue>, value: TValue) => void
 }
 
@@ -380,12 +380,18 @@ export type BeforeToolCallDecision =
   | void
   | undefined
   | null
-  | { type: 'transformArgs'; /** Parsed arguments for the tool call */
-args: unknown }
-  | { type: 'skip'; /** The result (if ok) or error (if not ok) */
-result: unknown }
-  | { type: 'abort'; /** The reason for the abort, if provided */
-reason?: string }
+  | {
+      type: 'transformArgs' /** Parsed arguments for the tool call */
+      args: unknown
+    }
+  | {
+      type: 'skip' /** The result (if ok) or error (if not ok) */
+      result: unknown
+    }
+  | {
+      type: 'abort' /** The reason for the abort, if provided */
+      reason?: string
+    }
 
 /**
  * Outcome information provided to onAfterToolCall.
@@ -484,20 +490,20 @@ export interface AbortInfo {
   /** Duration until abort in milliseconds */
   duration: number
   /**
-     * True only when the abort came from an explicit, out-of-band cancel (e.g. a
-     * cancel endpoint setting `RunRecord.cancelRequested`), never from a mere
-     * client disconnect.
-     *
-     * A disconnect and a user pressing "stop" are the SAME connection close on
-     * the wire, so consumers must not infer intent from an abort alone. Middleware
-     * that tears down expensive resources reads this to distinguish "the viewer
-     * left, keep going" from "the user wants this stopped". Populated from the
-     * abort reason: `true` exactly when the run was aborted with `RUN_CANCEL_REASON`
-     * (matched with `===`, so an arbitrary error message can never be read as a
-     * deliberate cancel), `false` for every other abort. The durable channel is
-     * separate — middleware that must also catch a cancel recorded on a different
-     * host reads `RunRecord.cancelRequested` in addition to this flag.
-     */
+   * True only when the abort came from an explicit, out-of-band cancel (e.g. a
+   * cancel endpoint setting `RunRecord.cancelRequested`), never from a mere
+   * client disconnect.
+   *
+   * A disconnect and a user pressing "stop" are the SAME connection close on
+   * the wire, so consumers must not infer intent from an abort alone. Middleware
+   * that tears down expensive resources reads this to distinguish "the viewer
+   * left, keep going" from "the user wants this stopped". Populated from the
+   * abort reason: `true` exactly when the run was aborted with `RUN_CANCEL_REASON`
+   * (matched with `===`, so an arbitrary error message can never be read as a
+   * deliberate cancel), `false` for every other abort. The durable channel is
+   * separate — middleware that must also catch a cancel recorded on a different
+   * host reads `RunRecord.cancelRequested` in addition to this flag.
+   */
   cancelRequested?: boolean
 }
 
@@ -548,62 +554,64 @@ export interface ChatMiddleware<
   name?: string
 
   /**
-     * Called at a lifecycle boundary. Return interrupt requests to pause the run.
-     * Requests from every middleware in the same boundary form one batch.
-     */
+   * Called at a lifecycle boundary. Return interrupt requests to pause the run.
+   * Requests from every middleware in the same boundary form one batch.
+   */
   onInterruptBoundary?: (
-    ctx: ChatMiddlewareContext<TContext> & { /** Current lifecycle phase */
-phase: InterruptBoundaryPhase },
+    ctx: ChatMiddlewareContext<TContext> & {
+      /** Current lifecycle phase */
+      phase: InterruptBoundaryPhase
+    },
   ) =>
     | InterruptBoundaryResult<TInterruptDefinitions>
     | Promise<InterruptBoundaryResult<TInterruptDefinitions>>
 
   /**
-     * Called on a continuation run after the client answers registered interrupts.
-     * Return `toolResume` to decide whether pending tools continue, cancel, or stop.
-     */
+   * Called on a continuation run after the client answers registered interrupts.
+   * Return `toolResume` to decide whether pending tools continue, cancel, or stop.
+   */
   onInterruptResolution?: BivariantInterruptResolutionHook<
     TContext,
     TInterruptDefinitions
   >
 
   /**
-     * Capabilities this middleware requires. `chat()` validates that some
-     * middleware (or the adapter) provides each one; unsatisfied requirements are
-     * a compile-time error (array coverage / builder) and a runtime error before
-     * the adapter runs.
-     */
+   * Capabilities this middleware requires. `chat()` validates that some
+   * middleware (or the adapter) provides each one; unsatisfied requirements are
+   * a compile-time error (array coverage / builder) and a runtime error before
+   * the adapter runs.
+   */
   requires?: ReadonlyArray<CapabilityHandle>
 
   /**
-     * Capabilities this middleware provides. Each declared capability MUST be
-     * provided (via its `provide` accessor) inside `setup`, or `chat()` throws
-     * after the setup phase.
-     */
+   * Capabilities this middleware provides. Each declared capability MUST be
+   * provided (via its `provide` accessor) inside `setup`, or `chat()` throws
+   * after the setup phase.
+   */
   provides?: ReadonlyArray<CapabilityHandle>
 
   /**
-     * Capabilities this middleware uses if present but does not require.
-     * Non-gating: never causes a validation error. Read with
-     * `getX(ctx, { optional: true })`.
-     */
+   * Capabilities this middleware uses if present but does not require.
+   * Non-gating: never causes a validation error. Read with
+   * `getX(ctx, { optional: true })`.
+   */
   optionalRequires?: ReadonlyArray<CapabilityHandle>
 
   /**
-     * Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
-     * middleware in array order. Use it to call `provide` accessors so later
-     * middleware (`onConfig` onward) can consume the capabilities. Receives the
-     * stable context; does NOT receive the mutable config.
-     */
+   * Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
+   * middleware in array order. Use it to call `provide` accessors so later
+   * middleware (`onConfig` onward) can consume the capabilities. Receives the
+   * stable context; does NOT receive the mutable config.
+   */
   setup?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
 
   /**
-     * Called to observe or transform the chat configuration.
-     * Called at init and at the beginning of each agent iteration.
-     *
-     * Return a partial config to merge with the current config, or void to pass through.
-     * Only the fields you return are overwritten — everything else is preserved.
-     */
+   * Called to observe or transform the chat configuration.
+   * Called at init and at the beginning of each agent iteration.
+   *
+   * Return a partial config to merge with the current config, or void to pass through.
+   * Only the fields you return are overwritten — everything else is preserved.
+   */
   onConfig?: (
     ctx: ChatMiddlewareContext<TContext>,
     config: ChatMiddlewareConfig,
@@ -614,20 +622,20 @@ phase: InterruptBoundaryPhase },
     | Promise<void | null | Partial<ChatMiddlewareConfig>>
 
   /**
-     * Called at the start of the final structured-output call (when the chat
-     * was invoked with outputSchema). Pipes through middleware in order, like
-     * onConfig, but with access to the JSON Schema being sent to the provider.
-     *
-     * Return a partial to shallow-merge into the current config, or void to
-     * pass through.
-     *
-     * Fires BEFORE onConfig at the structured-output boundary. onConfig also
-     * re-fires at the same boundary with ctx.phase === 'structuredOutput',
-     * receiving the post-onStructuredOutputConfig view of the config (minus
-     * outputSchema). Use onConfig for general-purpose transforms that apply
-     * to every adapter call; use this hook when you need to transform the
-     * outputSchema or apply structured-output-specific behavior.
-     */
+   * Called at the start of the final structured-output call (when the chat
+   * was invoked with outputSchema). Pipes through middleware in order, like
+   * onConfig, but with access to the JSON Schema being sent to the provider.
+   *
+   * Return a partial to shallow-merge into the current config, or void to
+   * pass through.
+   *
+   * Fires BEFORE onConfig at the structured-output boundary. onConfig also
+   * re-fires at the same boundary with ctx.phase === 'structuredOutput',
+   * receiving the post-onStructuredOutputConfig view of the config (minus
+   * outputSchema). Use onConfig for general-purpose transforms that apply
+   * to every adapter call; use this hook when you need to transform the
+   * outputSchema or apply structured-output-specific behavior.
+   */
   onStructuredOutputConfig?: (
     ctx: ChatMiddlewareContext<TContext>,
     config: StructuredOutputMiddlewareConfig,
@@ -638,44 +646,44 @@ phase: InterruptBoundaryPhase },
     | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
 
   /**
-     * Called when the chat run starts (after initial onConfig).
-     */
+   * Called when the chat run starts (after initial onConfig).
+   */
   onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
 
   /**
-     * Called at the start of each agent loop iteration, after a new assistant message ID
-     * is created. Use this to observe iteration boundaries.
-     */
+   * Called at the start of each agent loop iteration, after a new assistant message ID
+   * is created. Use this to observe iteration boundaries.
+   */
   onIteration?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ) => void | Promise<void>
 
   /**
-     * Called when the engine is deciding whether to start another agent-loop
-     * iteration (after a tool phase or between model turns).
-     *
-     * Return `false` to stop further iterations. Return `true`, `void`, or
-     * `undefined` to allow continuation. Combined with AND semantics across
-     * middleware and with `agentLoopStrategy` — any `false` stops the loop.
-     *
-     * Does not abort the run: the stream finishes normally with the current
-     * messages. Use `ctx.abort()` only when you need a hard abort.
-     *
-     * Receives the same {@link AgentLoopState} passed to strategies
-     * (`iterationCount`, `toolCallCount`, `lastTurnToolCallCount`, etc.).
-     */
+   * Called when the engine is deciding whether to start another agent-loop
+   * iteration (after a tool phase or between model turns).
+   *
+   * Return `false` to stop further iterations. Return `true`, `void`, or
+   * `undefined` to allow continuation. Combined with AND semantics across
+   * middleware and with `agentLoopStrategy` — any `false` stops the loop.
+   *
+   * Does not abort the run: the stream finishes normally with the current
+   * messages. Use `ctx.abort()` only when you need a hard abort.
+   *
+   * Receives the same {@link AgentLoopState} passed to strategies
+   * (`iterationCount`, `toolCallCount`, `lastTurnToolCallCount`, etc.).
+   */
   onShouldContinue?: (
     ctx: ChatMiddlewareContext<TContext>,
     state: AgentLoopState,
   ) => boolean | void | Promise<boolean | void>
 
   /**
-     * Called for every chunk yielded by chat().
-     * Can observe, transform, expand, or drop chunks.
-     *
-     * @returns void (pass through), chunk (replace), chunk[] (expand), null (drop)
-     */
+   * Called for every chunk yielded by chat().
+   * Can observe, transform, expand, or drop chunks.
+   *
+   * @returns void (pass through), chunk (replace), chunk[] (expand), null (drop)
+   */
   onChunk?: (
     ctx: ChatMiddlewareContext<TContext>,
     chunk: StreamChunk,
@@ -687,71 +695,71 @@ phase: InterruptBoundaryPhase },
     | Promise<void | StreamChunk | Array<StreamChunk> | null>
 
   /**
-     * Called before a tool is executed.
-     * Can observe, transform args, skip execution, or abort the run.
-     */
+   * Called before a tool is executed.
+   * Can observe, transform args, skip execution, or abort the run.
+   */
   onBeforeToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
 
   /**
-     * Called after a tool execution completes (success or failure).
-     */
+   * Called after a tool execution completes (success or failure).
+   */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
   ) => void | Promise<void>
 
   /**
-     * Called after all tool calls in an iteration have been processed.
-     * Provides aggregate data about tool execution results, approvals, and client tools.
-     */
+   * Called after all tool calls in an iteration have been processed.
+   * Provides aggregate data about tool execution results, approvals, and client tools.
+   */
   onToolPhaseComplete?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: ToolPhaseCompleteInfo,
   ) => void | Promise<void>
 
   /**
-     * Called when usage data is available from a RUN_FINISHED chunk.
-     * Called once per model iteration that reports usage.
-     */
+   * Called when usage data is available from a RUN_FINISHED chunk.
+   * Called once per model iteration that reports usage.
+   */
   onUsage?: (
     ctx: ChatMiddlewareContext<TContext>,
     usage: UsageInfo,
   ) => void | Promise<void>
 
   /**
-     * Called when the chat run completes normally.
-     * Exactly one of onFinish/onAbort/onError will be called per run.
-     */
+   * Called when the chat run completes normally.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
   onFinish?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: FinishInfo,
   ) => void | Promise<void>
 
   /**
-     * Called when the chat run is aborted.
-     * Exactly one of onFinish/onAbort/onError will be called per run.
-     */
+   * Called when the chat run is aborted.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
   onAbort?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AbortInfo,
   ) => void | Promise<void>
 
   /**
-     * Called when the chat run encounters an unhandled error.
-     * Exactly one of onFinish/onAbort/onError will be called per run.
-     */
+   * Called when the chat run encounters an unhandled error.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
   onError?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: ErrorInfo,
   ) => void | Promise<void>
 
   /**
-     * Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
-     * active during the run and a file is created/changed/deleted. Server-side.
-     */
+   * Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
+   * active during the run and a file is created/changed/deleted. Server-side.
+   */
   sandbox?: ChatSandboxHooks<TContext>
 }
 

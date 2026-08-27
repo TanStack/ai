@@ -321,9 +321,9 @@ export function createChat<
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
   /**
-     * @deprecated Use `updateForwardedProps` instead.
-     * Both populate the same wire payload.
-     */
+   * @deprecated Use `updateForwardedProps` instead.
+   * Both populate the same wire payload.
+   */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
   }

@@ -26,7 +26,7 @@ export interface ExecState {
 
 /** Grace window for cancellation continuations after a timeout. */
 const /** Grace window for cancellation continuations after a timeout. */
-CANCEL_GRACE_MS = 100
+  CANCEL_GRACE_MS = 100
 
 /**
  * Await the guest program's promise, but give up at `deadline`. Host tool

@@ -171,12 +171,12 @@ const BUSY_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
 
 /** Bounded backoff for {@link removeDirWithRetry}: 10 attempts, ~2.75s total. */
 const /** Bounded backoff for {@link removeDirWithRetry}: 10 attempts, ~2.75s total. */
-REMOVE_MAX_ATTEMPTS = 10
+  REMOVE_MAX_ATTEMPTS = 10
 const REMOVE_RETRY_DELAY_MS = 50
 
 /** How long {@link LocalProcessHandle.destroy} waits for a killed child to exit. */
 const /** How long {@link LocalProcessHandle.destroy} waits for a killed child to exit. */
-CHILD_EXIT_TIMEOUT_MS = 5_000
+  CHILD_EXIT_TIMEOUT_MS = 5_000
 
 /**
  * `rm -rf` a directory, retrying while the OS still reports it busy.
@@ -557,10 +557,10 @@ export interface LocalProcessHandleOptions {
   /** Env vars to delete from the inherited `process.env` before spawning. */
   scrubEnv?: Array<string>
   /**
-     * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
-     * not confirm the process tree is gone. Teardown never throws, so without a
-     * logger these conditions are silent.
-     */
+   * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
+   * not confirm the process tree is gone. Teardown never throws, so without a
+   * logger these conditions are silent.
+   */
   logger?: LocalProcessLogger
 }
 
@@ -578,11 +578,11 @@ export class LocalProcessHandle implements SandboxHandle {
   private readonly options: LocalProcessHandleOptions
   private readonly envVars: Record<string, string> = {}
   /**
-     * Every child we spawned that has not yet exited. `destroy` needs this to
-     * kill and then CONFIRM the tree is gone before removing the backing dir —
-     * each child's CWD is that dir, and on Windows an open CWD makes the removal
-     * fail with `EBUSY`. Entries are dropped on `close`, so this stays bounded.
-     */
+   * Every child we spawned that has not yet exited. `destroy` needs this to
+   * kill and then CONFIRM the tree is gone before removing the backing dir —
+   * each child's CWD is that dir, and on Windows an open CWD makes the removal
+   * fail with `EBUSY`. Entries are dropped on `close`, so this stays bounded.
+   */
   private readonly liveChildren = new Set<ChildProcess>()
 
   constructor(options: LocalProcessHandleOptions) {
@@ -728,22 +728,22 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   /**
-     * Remember a freshly spawned child until it exits, so `destroy` can tear it
-     * down first. `close` (not `exit`) is the drop point: it fires once the stdio
-     * streams are done too, and a still-draining pipe is another handle on the
-     * dir.
-     */
+   * Remember a freshly spawned child until it exits, so `destroy` can tear it
+   * down first. `close` (not `exit`) is the drop point: it fires once the stdio
+   * streams are done too, and a still-draining pipe is another handle on the
+   * dir.
+   */
   private track(child: ChildProcess): void {
     this.liveChildren.add(child)
     child.once('close', () => this.liveChildren.delete(child))
   }
 
   /**
-     * Kill every child we spawned and wait for the OS to confirm each is gone.
-     * Only then may the backing dir be removed — the child's CWD *is* that dir.
-     * A child that outlives the wait is logged, not thrown: teardown is total by
-     * construction, and {@link removeDirWithRetry} still gets its chance.
-     */
+   * Kill every child we spawned and wait for the OS to confirm each is gone.
+   * Only then may the backing dir be removed — the child's CWD *is* that dir.
+   * A child that outlives the wait is logged, not thrown: teardown is total by
+   * construction, and {@link removeDirWithRetry} still gets its chance.
+   */
   private async terminateChildren(): Promise<void> {
     const children = [...this.liveChildren]
     this.liveChildren.clear()
@@ -885,38 +885,38 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   /**
-     * Tear the sandbox down: kill the process tree we own, then (only if the dir
-     * is ours) remove it.
-     *
-     * THE KILL IS UNCONDITIONAL, and must stay that way. `removeOnDestroy` is a
-     * statement about the DIRECTORY — "this root is mine to delete" — and says
-     * nothing about the processes. Gating {@link terminateChildren} behind it made
-     * `destroy()` return immediately for the natural configuration of an app
-     * pointed at its own checkout (`dir` set ⇒ `removeOnDestroy` defaults false),
-     * leaving the whole spawned tree alive and holding its ports. Closing an IO
-     * stream does not kill an in-sandbox process — that premise is stated
-     * explicitly by `withSandbox`'s `onAbort` — so `terminateChildren` IS the only
-     * thing that ends them, and it is exactly the leak the `killTree` work exists
-     * to close.
-     *
-     * When the backing dir IS ours to remove, the children must additionally go
-     * first and their exit MUST be confirmed: their CWD is that dir, and a `rm`
-     * that races the OS releasing the handle fails with `EBUSY` on Windows. That
-     * race was observable — `ai-acp` and `ai-grok-build` both lost tests per run
-     * to `EBUSY … rmdir` — and it is the same failure shape as the `killTree`
-     * work: a teardown that returned before the OS had caught up.
-     *
-     * COST, measured on Windows 11 and deliberately accepted: when a child really
-     * is still alive this takes SECONDS (`sh -c ps` ~1.9s plus `taskkill /T`
-     * ~1.9-3.0s), because `taskkill /T` is the only thing that reaches a native
-     * grandchild — MSYS `ps` does not even list one. When every child has already
-     * exited — the common case, since `close` drops them from `liveChildren` — the
-     * kill is skipped entirely and this costs ~1ms. A caller that destroys a
-     * sandbox whose agent is STILL RUNNING inside a tight per-test timeout will
-     * feel those seconds, and `@tanstack/ai-acp`'s 5s-budget stdio tests do. The
-     * alternatives are worse: the `EBUSY` rejection this removes, plus a leaked
-     * process tree that outlives the run.
-     */
+   * Tear the sandbox down: kill the process tree we own, then (only if the dir
+   * is ours) remove it.
+   *
+   * THE KILL IS UNCONDITIONAL, and must stay that way. `removeOnDestroy` is a
+   * statement about the DIRECTORY — "this root is mine to delete" — and says
+   * nothing about the processes. Gating {@link terminateChildren} behind it made
+   * `destroy()` return immediately for the natural configuration of an app
+   * pointed at its own checkout (`dir` set ⇒ `removeOnDestroy` defaults false),
+   * leaving the whole spawned tree alive and holding its ports. Closing an IO
+   * stream does not kill an in-sandbox process — that premise is stated
+   * explicitly by `withSandbox`'s `onAbort` — so `terminateChildren` IS the only
+   * thing that ends them, and it is exactly the leak the `killTree` work exists
+   * to close.
+   *
+   * When the backing dir IS ours to remove, the children must additionally go
+   * first and their exit MUST be confirmed: their CWD is that dir, and a `rm`
+   * that races the OS releasing the handle fails with `EBUSY` on Windows. That
+   * race was observable — `ai-acp` and `ai-grok-build` both lost tests per run
+   * to `EBUSY … rmdir` — and it is the same failure shape as the `killTree`
+   * work: a teardown that returned before the OS had caught up.
+   *
+   * COST, measured on Windows 11 and deliberately accepted: when a child really
+   * is still alive this takes SECONDS (`sh -c ps` ~1.9s plus `taskkill /T`
+   * ~1.9-3.0s), because `taskkill /T` is the only thing that reaches a native
+   * grandchild — MSYS `ps` does not even list one. When every child has already
+   * exited — the common case, since `close` drops them from `liveChildren` — the
+   * kill is skipped entirely and this costs ~1ms. A caller that destroys a
+   * sandbox whose agent is STILL RUNNING inside a tight per-test timeout will
+   * feel those seconds, and `@tanstack/ai-acp`'s 5s-budget stdio tests do. The
+   * alternatives are worse: the `EBUSY` rejection this removes, plus a leaked
+   * process tree that outlives the run.
+   */
   async destroy(): Promise<void> {
     await this.terminateChildren()
     if (!this.options.removeOnDestroy) return

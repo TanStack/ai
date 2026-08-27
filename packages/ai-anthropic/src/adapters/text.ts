@@ -470,11 +470,11 @@ export class AnthropicTextAdapter<
   }
 
   /**
-     * Generate structured output using Anthropic's tool-based approach.
-     * Anthropic doesn't have native structured output, so we use a tool with the schema
-     * and force the model to call it.
-     * The outputSchema is already JSON Schema (converted in the ai layer).
-     */
+   * Generate structured output using Anthropic's tool-based approach.
+   * Anthropic doesn't have native structured output, so we use a tool with the schema
+   * and force the model to call it.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -629,11 +629,11 @@ export class AnthropicTextAdapter<
   }
 
   /**
-     * Anthropic supports `output_config.format` + `tools` in a single streaming
-     * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
-     * earlier we keep the forced-tool-use workaround in
-     * {@link structuredOutput} via the engine's finalization path.
-     */
+   * Anthropic supports `output_config.format` + `tools` in a single streaming
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
+   * earlier we keep the forced-tool-use workaround in
+   * {@link structuredOutput} via the engine's finalization path.
+   */
   supportsCombinedToolsAndSchema(): boolean {
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
@@ -897,13 +897,13 @@ export class AnthropicTextAdapter<
   }
 
   /**
-     * Merge consecutive messages of the same role into a single message.
-     * Anthropic's API requires strictly alternating user/assistant roles.
-     * Tool results are wrapped as role:'user' messages, which can collide
-     * with actual user messages in multi-turn conversations.
-     *
-     * Also filters out empty assistant messages (e.g., from a previous failed request).
-     */
+   * Merge consecutive messages of the same role into a single message.
+   * Anthropic's API requires strictly alternating user/assistant roles.
+   * Tool results are wrapped as role:'user' messages, which can collide
+   * with actual user messages in multi-turn conversations.
+   *
+   * Also filters out empty assistant messages (e.g., from a previous failed request).
+   */
   private mergeConsecutiveSameRoleMessages(
     messages: InternalTextProviderOptions['messages'],
   ): InternalTextProviderOptions['messages'] {

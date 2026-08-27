@@ -137,12 +137,12 @@ export class GroqTextAdapter<
   }
 
   /**
-     * Surfaces Groq's reasoning deltas during streaming structured output.
-     * Groq emits `delta.reasoning` (or legacy `delta.reasoning_content`) on
-     * reasoning models when the caller sets `reasoning_format: 'parsed'` in
-     * modelOptions. The base's chatStream and structuredOutputStream both
-     * route reasoning through this hook.
-     */
+   * Surfaces Groq's reasoning deltas during streaming structured output.
+   * Groq emits `delta.reasoning` (or legacy `delta.reasoning_content`) on
+   * reasoning models when the caller sets `reasoning_format: 'parsed'` in
+   * modelOptions. The base's chatStream and structuredOutputStream both
+   * route reasoning through this hook.
+   */
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
@@ -157,12 +157,12 @@ export class GroqTextAdapter<
   }
 
   /**
-     * Groq's API rejects `response_format: json_schema` together with `tools`
-     * + `stream` (returns 400 — see Groq Structured Outputs docs:
-     * "Streaming and tool use are not currently supported with Structured
-     * Outputs."). Force the engine onto the legacy finalization path even
-     * though the OpenAI Chat Completions base would otherwise opt in.
-     */
+   * Groq's API rejects `response_format: json_schema` together with `tools`
+   * + `stream` (returns 400 — see Groq Structured Outputs docs:
+   * "Streaming and tool use are not currently supported with Structured
+   * Outputs."). Force the engine onto the legacy finalization path even
+   * though the OpenAI Chat Completions base would otherwise opt in.
+   */
   override supportsCombinedToolsAndSchema(): boolean {
     return false
   }

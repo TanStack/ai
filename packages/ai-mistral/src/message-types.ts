@@ -16,11 +16,15 @@ export interface ChatCompletionContentPartText {
 }
 
 export interface ChatCompletionContentPartImage {
-  imageUrl: string | { url: string; /**
-   * Specifies the detail level of the image.
-   * @default 'auto'
-   */
-detail?: 'auto' | 'low' | 'high' }
+  imageUrl:
+    | string
+    | {
+        url: string /**
+         * Specifies the detail level of the image.
+         * @default 'auto'
+         */
+        detail?: 'auto' | 'low' | 'high'
+      }
 
   /** The type of the content part. */
   type: 'image_url'

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 
 /** Default journal directory. `/tmp` is the convention the harness adapters already use. */
 export const /** Default journal directory. `/tmp` is the convention the harness adapters already use. */
-DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
+  DEFAULT_JOURNAL_DIR = '/tmp/tanstack-runs'
 
 /**
  * Key of the sentinel object the journaled command appends after the agent
@@ -57,7 +57,7 @@ const EXIT_SENTINEL_NONCE_DOMAIN =
 
 /** Hex digits of the sentinel nonce. 128 bits of digest is far beyond luck. */
 const /** Hex digits of the sentinel nonce. 128 bits of digest is far beyond luck. */
-EXIT_SENTINEL_NONCE_LENGTH = 32
+  EXIT_SENTINEL_NONCE_LENGTH = 32
 
 /** Derive a run's sentinel nonce. Pure, and a function of the runId alone. */
 function deriveExitSentinelNonce(runId: string): string {
@@ -76,12 +76,12 @@ export interface JournalPaths {
   /** Separate file the agent's stderr goes to; NEVER mixed into the journal. */
   stderr: string
   /**
-     * Per-run nonce the exit sentinel carries, so agent stdout cannot forge it.
-     * See {@link EXIT_SENTINEL_NONCE_KEY}. Carried alongside the paths because
-     * every producer and every reader of the sentinel already threads a
-     * `JournalPaths` through, and the two must agree or the run reads as
-     * unterminated.
-     */
+   * Per-run nonce the exit sentinel carries, so agent stdout cannot forge it.
+   * See {@link EXIT_SENTINEL_NONCE_KEY}. Carried alongside the paths because
+   * every producer and every reader of the sentinel already threads a
+   * `JournalPaths` through, and the two must agree or the run reads as
+   * unterminated.
+   */
   nonce: string
 }
 
@@ -129,7 +129,7 @@ const MAX_ENCODED_NAME_LENGTH = 200
 
 /** Hex digest length appended when a runId is long enough to be hashed. */
 const /** Hex digest length appended when a runId is long enough to be hashed. */
-TRUNCATION_HASH_LENGTH = 16
+  TRUNCATION_HASH_LENGTH = 16
 
 /**
  * Hex-escape every byte of `input`, ignoring the "safe character" allowance
@@ -246,7 +246,7 @@ export type DecodedJournalRunId =
 
 /** Extensions {@link journalPaths} appends, longest-first so stripping is unambiguous. */
 const /** Extensions {@link journalPaths} appends, longest-first so stripping is unambiguous. */
-JOURNAL_EXTENSIONS = ['.ndjson', '.err'] as const
+  JOURNAL_EXTENSIONS = ['.ndjson', '.err'] as const
 
 /**
  * Recover the `runId` behind a journal filename — FAIL CLOSED.
@@ -468,7 +468,7 @@ export function journalExistsCommand(
 
 /** Bytes of the stderr sidecar {@link journalStderrReadCommand} reads by default. */
 const /** Bytes of the stderr sidecar {@link journalStderrReadCommand} reads by default. */
-DEFAULT_STDERR_TAIL_BYTES = 4096
+  DEFAULT_STDERR_TAIL_BYTES = 4096
 
 /**
  * Bounded read of the stderr SIDECAR (not the journal), so a non-zero exit can
@@ -681,7 +681,7 @@ export function parseJournalMtimeListing(
 
 /** Bytes of the journal tail {@link journalExitProbeCommand} reads by default. */
 const /** Bytes of the journal tail {@link journalExitProbeCommand} reads by default. */
-DEFAULT_EXIT_PROBE_TAIL_BYTES = 4096
+  DEFAULT_EXIT_PROBE_TAIL_BYTES = 4096
 
 /**
  * Bounded read of the END of a run's journal, purely to learn whether the agent

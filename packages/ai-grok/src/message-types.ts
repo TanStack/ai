@@ -4,13 +4,13 @@
  */
 export interface GrokImageMetadata {
   /**
-     * Controls how the model processes the image.
-     * - 'auto': Let the model decide based on image size and content
-     * - 'low': Use low resolution processing (faster, cheaper, less detail)
-     * - 'high': Use high resolution processing (slower, more expensive, more detail)
-     *
-     * @default 'auto'
-     */
+   * Controls how the model processes the image.
+   * - 'auto': Let the model decide based on image size and content
+   * - 'low': Use low resolution processing (faster, cheaper, less detail)
+   * - 'high': Use high resolution processing (slower, more expensive, more detail)
+   *
+   * @default 'auto'
+   */
   detail?: 'auto' | 'low' | 'high'
 }
 
@@ -20,10 +20,10 @@ export interface GrokImageMetadata {
  */
 export interface GrokAudioMetadata {
   /**
-     * The format of the audio.
-     * Supported formats: mp3, wav, flac, etc.
-     * @default 'mp3'
-     */
+   * The format of the audio.
+   * Supported formats: mp3, wav, flac, etc.
+   * @default 'mp3'
+   */
   format?: 'mp3' | 'wav' | 'flac' | 'ogg' | 'webm' | 'aac'
 }
 

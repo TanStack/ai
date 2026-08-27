@@ -54,18 +54,18 @@ export interface OpencodeTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   directory?: string
   /**
-     * Port the in-sandbox `opencode serve` listens on. Defaults to 4096. For the
-     * Docker provider this port must also be published (`publishPorts: [4096]`)
-     * so the host can reach it.
-     */
+   * Port the in-sandbox `opencode serve` listens on. Defaults to 4096. For the
+   * Docker provider this port must also be published (`publishPorts: [4096]`)
+   * so the host can reach it.
+   */
   port?: number
   /** Hostname the in-sandbox server binds. Defaults to `0.0.0.0`. */
   hostname?: string
   /**
-     * OpenCode permission mode driving the dynamic permission handler. Defaults
-     * to `'default'`; set `'acceptEdits'` / `'bypassPermissions'` to let the
-     * harness edit files and run commands autonomously inside the sandbox.
-     */
+   * OpenCode permission mode driving the dynamic permission handler. Defaults
+   * to `'default'`; set `'acceptEdits'` / `'bypassPermissions'` to let the
+   * harness edit files and run commands autonomously inside the sandbox.
+   */
   permissionMode?: OpencodePermissionMode
   /** Custom permission handler; replaces the adapter's default policy. */
   onPermissionRequest?: PermissionHandler

@@ -336,15 +336,15 @@ const GROK_VOICE_FAST_1 = {
 
 /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
 const /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
-GROK_VOICE_THINK_FAST_1 = {
-  name: 'grok-voice-think-fast-1.0',
-  supports: {
-    input: ['audio', 'text'],
-    output: ['audio', 'text'],
-    capabilities: ['reasoning', 'tool_calling'],
-    tools: [] as const,
-  },
-} as const satisfies ModelMeta
+  GROK_VOICE_THINK_FAST_1 = {
+    name: 'grok-voice-think-fast-1.0',
+    supports: {
+      input: ['audio', 'text'],
+      output: ['audio', 'text'],
+      capabilities: ['reasoning', 'tool_calling'],
+      tools: [] as const,
+    },
+  } as const satisfies ModelMeta
 
 // xAI's current recommended speech-to-speech model.
 const GROK_VOICE_THINK_FAST_2 = {

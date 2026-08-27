@@ -100,11 +100,11 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Surfaces Ark's reasoning deltas. Thinking-enabled models stream the
-     * reasoning trace as `delta.reasoning_content` (the OpenAI chunk shape has
-     * no reasoning field); the base routes this hook through both `chatStream`
-     * and `structuredOutputStream`.
-     */
+   * Surfaces Ark's reasoning deltas. Thinking-enabled models stream the
+   * reasoning trace as `delta.reasoning_content` (the OpenAI chunk shape has
+   * no reasoning field); the base routes this hook through both `chatStream`
+   * and `structuredOutputStream`.
+   */
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
@@ -119,26 +119,26 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Captures Ark's `encrypted_content` and attaches it to the reasoning
-     * step's `STEP_FINISHED` event as its `signature`.
-     *
-     * On a thinking-summary model Ark streams the whole blob as one dedicated
-     * chunk (empty `content` and `reasoning_content`) sitting between the
-     * reasoning deltas and the content deltas — so it is always captured before
-     * the base closes the reasoning lifecycle at the first content delta.
-     *
-     * `signature` is the framework's existing provider-signature seam: the chat
-     * engine stores it on the `ThinkingPart`, which
-     * `buildAssistantMessages` carries into `ModelMessage.thinking[].signature`,
-     * which {@link BytePlusTextAdapter.convertMessage} echoes back to Ark on the
-     * next turn. No base-class change is needed — this is the same round-trip
-     * Anthropic's thinking signatures use.
-     *
-     * Only `chatStream` is covered: `structuredOutputStream` drives the SDK
-     * directly in the base with no per-chunk seam, so a structured-output turn
-     * does not capture the blob. Ark accepts a following turn without it, so the
-     * consequence is a lost reasoning-cache hit, not a failed request.
-     */
+   * Captures Ark's `encrypted_content` and attaches it to the reasoning
+   * step's `STEP_FINISHED` event as its `signature`.
+   *
+   * On a thinking-summary model Ark streams the whole blob as one dedicated
+   * chunk (empty `content` and `reasoning_content`) sitting between the
+   * reasoning deltas and the content deltas — so it is always captured before
+   * the base closes the reasoning lifecycle at the first content delta.
+   *
+   * `signature` is the framework's existing provider-signature seam: the chat
+   * engine stores it on the `ThinkingPart`, which
+   * `buildAssistantMessages` carries into `ModelMessage.thinking[].signature`,
+   * which {@link BytePlusTextAdapter.convertMessage} echoes back to Ark on the
+   * next turn. No base-class change is needed — this is the same round-trip
+   * Anthropic's thinking signatures use.
+   *
+   * Only `chatStream` is covered: `structuredOutputStream` drives the SDK
+   * directly in the base with no per-chunk seam, so a structured-output turn
+   * does not capture the blob. Ark accepts a following turn without it, so the
+   * consequence is a lost reasoning-cache hit, not a failed request.
+   */
   protected override async *processStreamChunks(
     stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
     options: TextOptions,
@@ -174,22 +174,22 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Echoes a captured `encrypted_content` blob back on outgoing assistant
-     * messages so multi-turn conversations replay it verbatim, as Ark's
-     * thinking-summary docs require.
-     *
-     * The gate is `emitsEncryptedContent(this.model)` — the model being called
-     * now, not the provenance of the history. That guarantees a signature is
-     * never sent to a model that has no `encrypted_content` concept. It does
-     * NOT identify who produced the signature: `ModelMessage` carries no
-     * provider field, so a foreign signature (e.g. an Anthropic thinking
-     * signature in replayed cross-provider history) WILL be forwarded when the
-     * current model is a thinking-summary model. No shape guard is attempted —
-     * the blob is opaque and Ark is the only party that can validate it.
-     *
-     * Absence is never an error: a live probe confirmed Ark accepts a turn whose
-     * assistant message omits `encrypted_content`.
-     */
+   * Echoes a captured `encrypted_content` blob back on outgoing assistant
+   * messages so multi-turn conversations replay it verbatim, as Ark's
+   * thinking-summary docs require.
+   *
+   * The gate is `emitsEncryptedContent(this.model)` — the model being called
+   * now, not the provenance of the history. That guarantees a signature is
+   * never sent to a model that has no `encrypted_content` concept. It does
+   * NOT identify who produced the signature: `ModelMessage` carries no
+   * provider field, so a foreign signature (e.g. an Anthropic thinking
+   * signature in replayed cross-provider history) WILL be forwarded when the
+   * current model is a thinking-summary model. No shape guard is attempted —
+   * the blob is opaque and Ark is the only party that can validate it.
+   *
+   * Absence is never an error: a live probe confirmed Ark accepts a turn whose
+   * assistant message omits `encrypted_content`.
+   */
   protected override convertMessage(
     message: ModelMessage,
   ): ChatCompletionMessageParam {
@@ -211,10 +211,10 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Adds the Ark-only content parts on top of the base's text/image handling:
-     * `video_url`, URL-addressed `input_audio`, and the extra `image_url`
-     * fields (`detail: 'xhigh'`, `image_pixel_limit`).
-     */
+   * Adds the Ark-only content parts on top of the base's text/image handling:
+   * `video_url`, URL-addressed `input_audio`, and the extra `image_url`
+   * fields (`detail: 'xhigh'`, `image_pixel_limit`).
+   */
   protected override convertContentPart(
     part: ContentPart,
   ): ChatCompletionContentPart | null {
@@ -271,23 +271,23 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Only the models in {@link BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS} accept
-     * `response_format: json_schema`; the rest reject it with a 400.
-     *
-     * Returning `false` for a rejecting model does not make structured output
-     * work — Ark has no `json_object` fallback to downgrade to. What it buys is
-     * keeping `response_format` out of the request the engine would otherwise
-     * build: with the hook false the engine takes its separate finalization
-     * path, and the guard in {@link BytePlusTextAdapter.structuredOutput} /
-     * {@link BytePlusTextAdapter.structuredOutputStream} stops that *before*
-     * any HTTP call. So a `chat({ outputSchema })` on a rejecting model fails
-     * loudly, named, without a schema Ark would 400 on ever leaving the
-     * process — rather than 400-ing on every turn, or (worse) parsing prose as
-     * if it were JSON.
-     *
-     * Tools without a schema are unaffected: `tools` alone never involves
-     * `response_format`.
-     */
+   * Only the models in {@link BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS} accept
+   * `response_format: json_schema`; the rest reject it with a 400.
+   *
+   * Returning `false` for a rejecting model does not make structured output
+   * work — Ark has no `json_object` fallback to downgrade to. What it buys is
+   * keeping `response_format` out of the request the engine would otherwise
+   * build: with the hook false the engine takes its separate finalization
+   * path, and the guard in {@link BytePlusTextAdapter.structuredOutput} /
+   * {@link BytePlusTextAdapter.structuredOutputStream} stops that *before*
+   * any HTTP call. So a `chat({ outputSchema })` on a rejecting model fails
+   * loudly, named, without a schema Ark would 400 on ever leaving the
+   * process — rather than 400-ing on every turn, or (worse) parsing prose as
+   * if it were JSON.
+   *
+   * Tools without a schema are unaffected: `tools` alone never involves
+   * `response_format`.
+   */
   override supportsCombinedToolsAndSchema(): boolean {
     return supportsStructuredOutput(this.model)
   }
@@ -345,11 +345,11 @@ export class BytePlusTextAdapter<
   }
 
   /**
-     * Explains why structured output is unavailable, or `undefined` when the
-     * model supports it. Ark rejects `response_format: json_object` on every
-     * model, so there is no JSON-mode fallback to degrade to — failing loud
-     * here beats a raw upstream 400.
-     */
+   * Explains why structured output is unavailable, or `undefined` when the
+   * model supports it. Ark rejects `response_format: json_object` on every
+   * model, so there is no JSON-mode fallback to degrade to — failing loud
+   * here beats a raw upstream 400.
+   */
   private structuredOutputUnsupportedMessage(): string | undefined {
     if (supportsStructuredOutput(this.model)) return undefined
     return (

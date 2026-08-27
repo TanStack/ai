@@ -40,12 +40,12 @@ export interface CreateGenerateImageOptions<
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
-     * Callback when images are generated. Can optionally return a transformed value.
-     *
-     * - Return a non-null value to transform and store it as the result
-     * - Return `null` to keep the previous result unchanged
-     * - Return nothing (`void`) to store the raw result as-is
-     */
+   * Callback when images are generated. Can optionally return a transformed value.
+   *
+   * - Return a non-null value to transform and store it as the result
+   * - Return `null` to keep the previous result unchanged
+   * - Return nothing (`void`) to store the raw result as-is
+   */
   onResult?: (result: ImageGenerationResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void

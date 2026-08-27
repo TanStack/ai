@@ -19,29 +19,29 @@ import type {
 
 export interface LocalProcessSandboxConfig {
   /**
-     * Fixed host directory to use as the workspace (e.g. an existing local repo
-     * checkout). When set, every create/resume uses this exact dir and it is NOT
-     * removed on destroy unless `removeOnDestroy` is explicitly true. When
-     * omitted, each create allocates a fresh temp dir that IS removed on destroy.
-     */
+   * Fixed host directory to use as the workspace (e.g. an existing local repo
+   * checkout). When set, every create/resume uses this exact dir and it is NOT
+   * removed on destroy unless `removeOnDestroy` is explicitly true. When
+   * omitted, each create allocates a fresh temp dir that IS removed on destroy.
+   */
   dir?: string
   /** Override the default temp base dir for generated sandboxes. */
   baseDir?: string
   /** Remove the backing dir on destroy. Defaults: true (generated), false (fixed `dir`). */
   removeOnDestroy?: boolean
   /**
-     * Env vars to remove from the inherited `process.env` before spawning. Use to
-     * let a host CLI fall back to its own stored auth — e.g. scrub
-     * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
-     * of billing the API.
-     */
+   * Env vars to remove from the inherited `process.env` before spawning. Use to
+   * let a host CLI fall back to its own stored auth — e.g. scrub
+   * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
+   * of billing the API.
+   */
   scrubEnv?: Array<string>
   /**
-     * Sink for non-fatal teardown diagnostics — a `killTree` that could not
-     * confirm the spawned process tree is gone. Teardown is total by construction
-     * (it never throws), so without a logger such a failure is silent.
-     * `@tanstack/ai`'s `InternalLogger` satisfies this shape as-is.
-     */
+   * Sink for non-fatal teardown diagnostics — a `killTree` that could not
+   * confirm the spawned process tree is gone. Teardown is total by construction
+   * (it never throws), so without a logger such a failure is silent.
+   * `@tanstack/ai`'s `InternalLogger` satisfies this shape as-is.
+   */
   logger?: LocalProcessLogger
 }
 
@@ -107,12 +107,12 @@ class LocalProcessProvider implements SandboxProvider {
   }
 
   /**
-     * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
-     * handle here, so no children can be killed first — a process spawned through
-     * a handle we no longer hold may still own the dir as its CWD. The bounded
-     * retry is all that is available, and a dir that never releases is reported
-     * through the logger rather than silently left behind.
-     */
+   * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+   * handle here, so no children can be killed first — a process spawned through
+   * a handle we no longer hold may still own the dir as its CWD. The bounded
+   * retry is all that is available, and a dir that never releases is reported
+   * through the logger rather than silently left behind.
+   */
   async destroy(input: SandboxDestroyInput): Promise<void> {
     if (this.removeDefault()) {
       await removeDirWithRetry(input.id, this.config.logger)

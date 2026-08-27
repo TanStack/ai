@@ -80,15 +80,17 @@ export const GROK_VIDEO_MAX_DURATION = 15
  * e.g. "16:9_720p" → { aspectRatio: "16:9", resolution: "720p" }.
  * Returns undefined when the string doesn't match the template.
  */
-export function parseGrokVideoSize(
-  size: string,
-): { aspectRatio: string; /**
-   * Output resolution tier. Generation only — edit / extend outputs inherit
-   * the source clip's geometry and the adapter rejects this in those modes.
-   * `1080p` is grok-imagine-video-1.5 generation only; reference-to-video
-   * is capped at 720p.
-   */
-resolution?: string } | undefined {
+export function parseGrokVideoSize(size: string):
+  | {
+      aspectRatio: string /**
+       * Output resolution tier. Generation only — edit / extend outputs inherit
+       * the source clip's geometry and the adapter rejects this in those modes.
+       * `1080p` is grok-imagine-video-1.5 generation only; reference-to-video
+       * is capped at 720p.
+       */
+      resolution?: string
+    }
+  | undefined {
   const match = size.match(/^([\d.]+:[\d.]+)(?:_(.+))?$/)
   const [, aspectRatio, resolution] = match ?? []
   if (aspectRatio === undefined) return undefined
@@ -221,18 +223,18 @@ export type GrokVideoMode = 'edit' | 'extend'
  */
 export interface GrokVideoBaseProviderOptions {
   /**
-     * Output aspect ratio. Generation only — edit / extend outputs inherit
-     * the source clip's geometry and the adapter rejects this in those modes.
-     */
+   * Output aspect ratio. Generation only — edit / extend outputs inherit
+   * the source clip's geometry and the adapter rejects this in those modes.
+   */
   aspect_ratio?: GrokVideoAspectRatio
 
   resolution?: GrokVideoResolution
 
   /**
-     * Video duration in integer seconds (1–15). In `'extend'` mode this is
-     * the length of the added tail only, not the total output length. Not
-     * valid in `'edit'` mode (the output inherits the source clip's length).
-     */
+   * Video duration in integer seconds (1–15). In `'extend'` mode this is
+   * the length of the added tail only, not the total output length. Not
+   * valid in `'edit'` mode (the output inherits the source clip's length).
+   */
   duration?: number
 }
 
@@ -244,11 +246,11 @@ export interface GrokVideoBaseProviderOptions {
  */
 export interface GrokVideoSourceProviderOptions extends GrokVideoBaseProviderOptions {
   /**
-     * Selects the request mode for a source-video prompt part: `'edit'`
-     * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
-     * when the prompt carries a video part; not valid without one. Omit for
-     * plain generation (`/v1/videos/generations`). grok-imagine-video only.
-     */
+   * Selects the request mode for a source-video prompt part: `'edit'`
+   * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
+   * when the prompt carries a video part; not valid without one. Omit for
+   * plain generation (`/v1/videos/generations`). grok-imagine-video only.
+   */
   mode?: GrokVideoMode
 }
 
@@ -260,21 +262,21 @@ export interface GrokVideoSourceProviderOptions extends GrokVideoBaseProviderOpt
  */
 export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
   /**
-     * Reference images for reference-to-video generation (output capped at
-     * 720p). Usually populated from image prompt parts with
-     * `metadata.role: 'reference'` (or `'character'`); set explicitly to
-     * replace the part-derived list. Reference images are addressed from the
-     * prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not
-     * lock the first frame.
-     */
+   * Reference images for reference-to-video generation (output capped at
+   * 720p). Usually populated from image prompt parts with
+   * `metadata.role: 'reference'` (or `'character'`); set explicitly to
+   * replace the part-derived list. Reference images are addressed from the
+   * prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not
+   * lock the first frame.
+   */
   reference_images?: Array<{ url: string }>
 
   /**
-     * Preset TTS voices to reference for generated speech (max 3). Voice ids
-     * come from the xAI TTS voice roster (e.g. 'eve', 'rex') or a custom
-     * voice id, and are addressed from the prompt text as `<AUDIO_0>`,
-     * `<AUDIO_1>`, `<AUDIO_2>`.
-     */
+   * Preset TTS voices to reference for generated speech (max 3). Voice ids
+   * come from the xAI TTS voice roster (e.g. 'eve', 'rex') or a custom
+   * voice id, and are addressed from the prompt text as `<AUDIO_0>`,
+   * `<AUDIO_1>`, `<AUDIO_2>`.
+   */
   reference_audios?: Array<{ voice_id: string }>
 }
 

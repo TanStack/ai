@@ -26,15 +26,15 @@ export interface OpenRouterVideoModelMeta {
   frameImages: ReadonlyArray<string> | null
   sizes: ReadonlyArray<string> | null
   /**
-     * Whether to generate audio alongside the video. Defaults to the
-     * endpoint's `generate_audio` capability flag.
-     */
+   * Whether to generate audio alongside the video. Defaults to the
+   * endpoint's `generate_audio` capability flag.
+   */
   generateAudio: boolean | null
   /**
-     * Deterministic sampling seed. Repeated requests with the same seed and
-     * parameters should return the same result (not guaranteed by all
-     * providers).
-     */
+   * Deterministic sampling seed. Repeated requests with the same seed and
+   * parameters should return the same result (not guaranteed by all
+   * providers).
+   */
   seed: boolean | null
 }
 
@@ -53,17 +53,17 @@ export function getVideoModelMeta(
  */
 export interface OpenRouterVideoCommonOptions {
   /**
-     * HTTPS URL to receive a webhook notification when the video generation
-     * job completes (events like `video.generation.completed` /
-     * `video.generation.failed`, signed with HMAC-SHA256). Overrides the
-     * workspace-level default callback URL if set.
-     */
+   * HTTPS URL to receive a webhook notification when the video generation
+   * job completes (events like `video.generation.completed` /
+   * `video.generation.failed`, signed with HMAC-SHA256). Overrides the
+   * workspace-level default callback URL if set.
+   */
   callbackUrl?: string
   /**
-     * Provider-specific passthrough configuration, keyed by provider slug.
-     * The options for the matched provider are spread into the upstream
-     * request body.
-     */
+   * Provider-specific passthrough configuration, keyed by provider slug.
+   * The options for the matched provider are spread into the upstream
+   * request body.
+   */
   provider?: VideoGenerationRequestProvider
 }
 

@@ -38,20 +38,20 @@ export interface BedrockEmbeddingConfig extends Pick<
 
 /** InvokeModel calls issued concurrently during a per-item fan-out. */
 const /** InvokeModel calls issued concurrently during a per-item fan-out. */
-MAX_CONCURRENT_INVOCATIONS = 5
+  MAX_CONCURRENT_INVOCATIONS = 5
 
 /** Valid `dimensions` for `amazon.titan-embed-text-v2:0`. */
 const /** Valid `dimensions` for `amazon.titan-embed-text-v2:0`. */
-TITAN_TEXT_DIMENSIONS: ReadonlyArray<number> = [256, 512, 1024]
+  TITAN_TEXT_DIMENSIONS: ReadonlyArray<number> = [256, 512, 1024]
 
 /** Valid `dimensions` (outputEmbeddingLength) for `amazon.titan-embed-image-v1`. */
 const /** Valid `dimensions` (outputEmbeddingLength) for `amazon.titan-embed-image-v1`. */
-TITAN_IMAGE_DIMENSIONS: ReadonlyArray<number> = [256, 384, 1024]
+  TITAN_IMAGE_DIMENSIONS: ReadonlyArray<number> = [256, 384, 1024]
 const TITAN_IMAGE_DEFAULT_DIMENSIONS = 1024
 
 /** Cohere embed accepts at most 96 texts per InvokeModel call. */
 const /** Cohere embed accepts at most 96 texts per InvokeModel call. */
-COHERE_MAX_BATCH_SIZE = 96
+  COHERE_MAX_BATCH_SIZE = 96
 
 /**
  * Bedrock Embedding Adapter
@@ -92,20 +92,20 @@ export class BedrockEmbeddingAdapter<
   }
 
   /**
-     * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is
-     * held in a variable (not a string literal) so bundler dep scanners cannot
-     * statically discover the AWS SDK and try to pre-bundle it for the browser.
-     * Same pattern as the Converse text adapter.
-     */
+   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is
+   * held in a variable (not a string literal) so bundler dep scanners cannot
+   * statically discover the AWS SDK and try to pre-bundle it for the browser.
+   * Same pattern as the Converse text adapter.
+   */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
     return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
   }
 
   /**
-     * Lazily construct the `BedrockRuntimeClient`, deferring
-     * `resolveBedrockAuth` until a real request is made.
-     */
+   * Lazily construct the `BedrockRuntimeClient`, deferring
+   * `resolveBedrockAuth` until a real request is made.
+   */
   protected async getClient(): Promise<BedrockRuntimeClient> {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
@@ -133,10 +133,10 @@ export class BedrockEmbeddingAdapter<
   }
 
   /**
-     * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`. Bearer
-     * auth needs `authSchemePreference` pinned or the SDK still tries SigV4
-     * first — same reasoning as the Converse text adapter.
-     */
+   * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`. Bearer
+   * auth needs `authSchemePreference` pinned or the SDK still tries SigV4
+   * first — same reasoning as the Converse text adapter.
+   */
   protected buildClientConfig(
     resolved: ResolvedBedrockAuth,
     region: string,
@@ -208,10 +208,10 @@ export class BedrockEmbeddingAdapter<
   }
 
   /**
-     * `amazon.titan-embed-text-v2:0` — one text per InvokeModel call, fanned
-     * out with a concurrency cap; result order matches input order and per-call
-     * `inputTextTokenCount`s are summed into usage.
-     */
+   * `amazon.titan-embed-text-v2:0` — one text per InvokeModel call, fanned
+   * out with a concurrency cap; result order matches input order and per-call
+   * `inputTextTokenCount`s are summed into usage.
+   */
   private async embedTitanText(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {
@@ -247,11 +247,11 @@ export class BedrockEmbeddingAdapter<
   }
 
   /**
-     * `amazon.titan-embed-image-v1` (Titan Multimodal) — one item per
-     * InvokeModel call. An item may carry text, an image, or both (a fused
-     * item embedded into a single vector). Titan accepts at most one image per
-     * request and never fetches remote URLs.
-     */
+   * `amazon.titan-embed-image-v1` (Titan Multimodal) — one item per
+   * InvokeModel call. An item may carry text, an image, or both (a fused
+   * item embedded into a single vector). Titan accepts at most one image per
+   * request and never fetches remote URLs.
+   */
   private async embedTitanImage(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {
@@ -292,10 +292,10 @@ export class BedrockEmbeddingAdapter<
   }
 
   /**
-     * `cohere.embed-*-v3` — natively batched (chunked at 96 texts per call,
-     * order preserved across chunks). `inputType` is required by the Cohere
-     * API; output dimensionality is fixed, so `dimensions` is rejected.
-     */
+   * `cohere.embed-*-v3` — natively batched (chunked at 96 texts per call,
+   * order preserved across chunks). `inputType` is required by the Cohere
+   * API; output dimensionality is fixed, so `dimensions` is rejected.
+   */
   private async embedCohere(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {

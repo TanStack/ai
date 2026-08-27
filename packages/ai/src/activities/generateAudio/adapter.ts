@@ -33,15 +33,15 @@ export interface AudioAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
   }
 
   /**
-     * Generate audio from a text prompt
-     */
+   * Generate audio from a text prompt
+   */
   generateAudio: (
     options: AudioGenerationOptions<TProviderOptions>,
   ) => Promise<AudioGenerationResult>

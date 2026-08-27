@@ -5,9 +5,9 @@ import type { DebugOption } from '@tanstack/ai'
  */
 export interface ElevenLabsRealtimeTokenOptions {
   /**
-     * Agent ID configured in ElevenLabs dashboard. Falls back to
-     * `ELEVENLABS_AGENT_ID` in the environment when omitted.
-     */
+   * Agent ID configured in ElevenLabs dashboard. Falls back to
+   * `ELEVENLABS_AGENT_ID` in the environment when omitted.
+   */
   agentId?: string
   /** Optional override values for the agent */
   overrides?: {
@@ -29,11 +29,11 @@ export interface ElevenLabsRealtimeOptions {
   /** Connection mode (default: auto-detect) */
   connectionMode?: 'websocket' | 'webrtc'
   /**
-     * Enable debug logging for this adapter.
-     *
-     * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
-     * - A {@link DebugConfig} object selects categories and/or a custom sink.
-     */
+   * Enable debug logging for this adapter.
+   *
+   * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
+   * - A {@link DebugConfig} object selects categories and/or a custom sink.
+   */
   debug?: DebugOption
 }
 

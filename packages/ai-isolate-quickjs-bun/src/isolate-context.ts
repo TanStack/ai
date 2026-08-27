@@ -53,7 +53,7 @@ const MAX_LOG_CHARS = 1_000_000
 
 /** Default ceiling on host tool-call invocations per execution. */
 export const /** Default ceiling on host tool-call invocations per execution. */
-DEFAULT_MAX_TOOL_CALLS = 1000
+  DEFAULT_MAX_TOOL_CALLS = 1000
 
 /**
  * Safety cap on how many stale promise reactions to flush before a run. A
@@ -64,7 +64,7 @@ const MAX_STALE_JOB_DRAIN = 10_000
 
 /** Placeholder used when a console argument cannot be coerced to a string. */
 const /** Placeholder used when a console argument cannot be coerced to a string. */
-UNPRINTABLE_LOG_VALUE = '[unprintable]'
+  UNPRINTABLE_LOG_VALUE = '[unprintable]'
 
 /**
  * Rebuild a throwable carrying a normalized error's name/message/stack so it
@@ -112,24 +112,24 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   private toolCallsUsed = 0
   private disposed = false
   /**
-     * A VM-level failure raised while settling a host tool call (e.g. the
-     * sandbox heap was exhausted when allocating the result string). It is
-     * surfaced through the execution loop rather than left to escape the
-     * floating settle callback as an unhandled rejection.
-     */
+   * A VM-level failure raised while settling a host tool call (e.g. the
+   * sandbox heap was exhausted when allocating the result string). It is
+   * surfaced through the execution loop rather than left to escape the
+   * floating settle callback as an unhandled rejection.
+   */
   private hostSettleError: NormalizedError | undefined
   /**
-     * Serializes executions on this context. A context only ever runs one
-     * program at a time; QuickJS contexts are single-threaded and the
-     * execution loop drives the runtime's job queue.
-     */
+   * Serializes executions on this context. A context only ever runs one
+   * program at a time; QuickJS contexts are single-threaded and the
+   * execution loop drives the runtime's job queue.
+   */
   private execQueue: Promise<void> = Promise.resolve()
 
   /**
-     * Wrap a live `quickjs-bun` runtime + context pair, then install the captured
-     * `console` and the host tool bindings on the sandbox global before the first
-     * `execute`. Takes ownership of `runtime`/`vm`; `dispose()` frees them.
-     */
+   * Wrap a live `quickjs-bun` runtime + context pair, then install the captured
+   * `console` and the host tool bindings on the sandbox global before the first
+   * `execute`. Takes ownership of `runtime`/`vm`; `dispose()` frees them.
+   */
   constructor(options: {
     quickjs: QuickJSBunModule
     runtime: JSRuntime
@@ -148,13 +148,13 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Run `code` to completion inside the sandbox and return its result.
-     * Executions are serialized through a per-context queue, so a second
-     * `execute` (or a concurrent `dispose`) waits for the in-flight run rather
-     * than interleaving. Console output produced during the run is captured and
-     * returned in `logs`. Never throws: tool errors, timeouts, and limit
-     * violations come back as a failed `ExecutionResult` with a normalized error.
-     */
+   * Run `code` to completion inside the sandbox and return its result.
+   * Executions are serialized through a per-context queue, so a second
+   * `execute` (or a concurrent `dispose`) waits for the in-flight run rather
+   * than interleaving. Console output produced during the run is captured and
+   * returned in `logs`. Never throws: tool errors, timeouts, and limit
+   * violations come back as a failed `ExecutionResult` with a normalized error.
+   */
   async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
     if (this.disposed) {
       return this.disposedResult()
@@ -204,10 +204,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Release the underlying QuickJS runtime and abandon any in-flight host tool
-     * calls. Waits for a running execution to finish first (the execution loop
-     * touches native handles throughout). Idempotent.
-     */
+   * Release the underlying QuickJS runtime and abandon any in-flight host tool
+   * calls. Waits for a running execution to finish first (the execution loop
+   * touches native handles throughout). Idempotent.
+   */
   async dispose(): Promise<void> {
     if (this.disposed) return
 
@@ -223,10 +223,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Evaluate the wrapped program and drive the QuickJS job queue (and any
-     * in-flight host tool calls) until the program's promise settles or the
-     * deadline passes. Returns the parsed result value.
-     */
+   * Evaluate the wrapped program and drive the QuickJS job queue (and any
+   * in-flight host tool calls) until the program's promise settles or the
+   * deadline passes. Returns the parsed result value.
+   */
   private async runToCompletion(wrappedCode: string): Promise<unknown> {
     const { QuickJSPromiseState, JSException } = this.quickjs
     const deadline = performance.now() + this.timeout
@@ -312,10 +312,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Install a `console` object on the sandbox global whose `log`/`error`/
-     * `warn`/`info` methods funnel into the host log buffer. Non-`log` levels are
-     * prefixed (e.g. `ERROR: …`) to mirror the other drivers' capture format.
-     */
+   * Install a `console` object on the sandbox global whose `log`/`error`/
+   * `warn`/`info` methods funnel into the host log buffer. Non-`log` levels are
+   * prefixed (e.g. `ERROR: …`) to mirror the other drivers' capture format.
+   */
   private installConsole(): void {
     const { vm } = this
     const methods: Array<[name: string, prefix: string]> = [
@@ -346,13 +346,13 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Coerce a console argument to a string. quickjs-bun's `JSValue.toString()`
-     * asserts the value is already a string and throws for numbers, objects,
-     * booleans, etc.; `coerceToString()` performs a real `ToString` (matching
-     * the WASM driver's `getString`). A coercion that throws (e.g. a symbol or
-     * a `toString` that throws) degrades to a placeholder rather than aborting
-     * the whole execution.
-     */
+   * Coerce a console argument to a string. quickjs-bun's `JSValue.toString()`
+   * asserts the value is already a string and throws for numbers, objects,
+   * booleans, etc.; `coerceToString()` performs a real `ToString` (matching
+   * the WASM driver's `getString`). A coercion that throws (e.g. a symbol or
+   * a `toString` that throws) degrades to a placeholder rather than aborting
+   * the whole execution.
+   */
   private stringifyConsoleArg(arg: JSValue): string {
     const { JSException } = this.quickjs
     try {
@@ -384,11 +384,11 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Install each host tool `binding` as an async function on the sandbox
-     * global. Wrappers are produced by evaluating `TOOL_WRAPPER_FACTORY` once and
-     * calling it per binding, so binding names are never interpolated into
-     * evaluated source. No-op when there are no bindings.
-     */
+   * Install each host tool `binding` as an async function on the sandbox
+   * global. Wrappers are produced by evaluating `TOOL_WRAPPER_FACTORY` once and
+   * calling it per binding, so binding names are never interpolated into
+   * evaluated source. No-op when there are no bindings.
+   */
   private installBindings(bindings: Record<string, ToolBinding>): void {
     const { vm } = this
     const entries = Object.entries(bindings)
@@ -419,12 +419,12 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Host side of a tool call. Invoked synchronously from inside the VM;
-     * returns a QuickJS promise immediately and settles it from the host
-     * once `binding.execute` finishes. Never rejects the promise for tool
-     * errors — failures travel in the JSON envelope so the sandbox wrapper
-     * can rethrow them as regular errors.
-     */
+   * Host side of a tool call. Invoked synchronously from inside the VM;
+   * returns a QuickJS promise immediately and settles it from the host
+   * once `binding.execute` finishes. Never rejects the promise for tool
+   * errors — failures travel in the JSON envelope so the sandbox wrapper
+   * can rethrow them as regular errors.
+   */
   private runBinding(
     binding: ToolBinding,
     argsHandle: JSValue | undefined,
@@ -513,12 +513,12 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Flush promise reactions left queued by a prior aborted/timed-out execution
-     * so they cannot bleed into the next run. Runs the queue to completion and
-     * discards the effects (the caller resets per-run state and re-aborts tasks
-     * immediately after). Bounded, and swallows a throwing reaction so a single
-     * bad job cannot abort the whole drain.
-     */
+   * Flush promise reactions left queued by a prior aborted/timed-out execution
+   * so they cannot bleed into the next run. Runs the queue to completion and
+   * discards the effects (the caller resets per-run state and re-aborts tasks
+   * immediately after). Bounded, and swallows a throwing reaction so a single
+   * bad job cannot abort the whole drain.
+   */
   private drainStaleJobs(): void {
     for (let i = 0; i < MAX_STALE_JOB_DRAIN; i++) {
       try {
@@ -539,10 +539,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Build a failed `ExecutionResult` from a thrown value, attaching the
-     * captured logs. If the error is a fatal QuickJS limit (memory/stack), the
-     * runtime is released first since it may be left unusable.
-     */
+   * Build a failed `ExecutionResult` from a thrown value, attaching the
+   * captured logs. If the error is a fatal QuickJS limit (memory/stack), the
+   * runtime is released first since it may be left unusable.
+   */
   private fail(error: unknown): ExecutionResult<never> {
     const normalized = this.toNormalizedError(error)
     if (isFatalQuickJSLimitError(normalized)) {
@@ -556,13 +556,13 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Convert any thrown value into a `NormalizedError`, unwrapping a quickjs-bun
-     * `JSException`: a bare `null` exception value (heap too exhausted to
-     * allocate an Error) becomes a `MemoryLimitError`, and a thrown plain
-     * object/array has its `message`/`name` recovered so the model still gets
-     * useful feedback — parity with the WASM driver. Always disposes the owned
-     * exception value.
-     */
+   * Convert any thrown value into a `NormalizedError`, unwrapping a quickjs-bun
+   * `JSException`: a bare `null` exception value (heap too exhausted to
+   * allocate an Error) becomes a `MemoryLimitError`, and a thrown plain
+   * object/array has its `message`/`name` recovered so the model still gets
+   * useful feedback — parity with the WASM driver. Always disposes the owned
+   * exception value.
+   */
   private toNormalizedError(error: unknown): NormalizedError {
     const { JSException } = this.quickjs
     if (error instanceof JSException) {
@@ -590,10 +590,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * Read a string property from a thrown QuickJS value, tolerating throwing
-     * getters (the value is attacker-controlled). Returns undefined on any
-     * failure and releases the owned exception in that case.
-     */
+   * Read a string property from a thrown QuickJS value, tolerating throwing
+   * getters (the value is attacker-controlled). Returns undefined on any
+   * failure and releases the owned exception in that case.
+   */
   private readValueProp(value: JSValue, name: string): string | undefined {
     try {
       return value.errorProperty(name)
@@ -604,10 +604,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   }
 
   /**
-     * After a memory/stack limit error the QuickJS runtime may be left in an
-     * unusable state — release it eagerly so the host process reclaims the
-     * native memory. Matches the QuickJS WASM driver's behavior.
-     */
+   * After a memory/stack limit error the QuickJS runtime may be left in an
+   * unusable state — release it eagerly so the host process reclaims the
+   * native memory. Matches the QuickJS WASM driver's behavior.
+   */
   private releaseVmAfterFatalLimit(): void {
     if (this.disposed) return
     this.disposed = true

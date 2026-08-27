@@ -22,16 +22,16 @@ export interface SandboxRunDriverOptions<TOffset extends string = string> {
   runs: RunStore
   locks: LockStore
   /**
-     * Per-run event log factory, the same shape `RunDeps.durability` takes — a
-     * `StreamDurability` is bound to one run, so the log is resolved FROM the
-     * `runId` rather than handed in pre-bound.
-     *
-     * Generic in the offset type, defaulted to `string` so an existing call site
-     * needs no change. Hardcoding the default made a branded-cursor backend
-     * unusable here: `durableStream` returns
-     * `StreamDurability<DurableStreamOffset>`, which is not assignable to
-     * `StreamDurability<string>` because `read` is contravariant in its offset.
-     */
+   * Per-run event log factory, the same shape `RunDeps.durability` takes — a
+   * `StreamDurability` is bound to one run, so the log is resolved FROM the
+   * `runId` rather than handed in pre-bound.
+   *
+   * Generic in the offset type, defaulted to `string` so an existing call site
+   * needs no change. Hardcoding the default made a branded-cursor backend
+   * unusable here: `durableStream` returns
+   * `StreamDurability<DurableStreamOffset>`, which is not assignable to
+   * `StreamDurability<string>` because `read` is contravariant in its offset.
+   */
   durability: (runId: string) => StreamDurability<TOffset>
   /** Produce the run's remaining events. Called only once the claim is held. */
   drive: (input: {

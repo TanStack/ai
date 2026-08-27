@@ -100,10 +100,10 @@ export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
   /**
-     * Codex's own sandbox mode (`--sandbox`). Defaults to `'workspace-write'`
-     * so the agent can edit the workspace — the outer TanStack sandbox is the
-     * real isolation boundary.
-     */
+   * Codex's own sandbox mode (`--sandbox`). Defaults to `'workspace-write'`
+   * so the agent can edit the workspace — the outer TanStack sandbox is the
+   * real isolation boundary.
+   */
   sandboxMode?: CodexSandboxMode
   /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
   approvalPolicy?: CodexApprovalMode
@@ -120,9 +120,9 @@ export interface CodexTextConfig {
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
   /**
-     * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
-     * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
-     */
+   * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
+   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
+   */
   authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>

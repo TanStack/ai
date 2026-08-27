@@ -58,7 +58,7 @@ export interface BytePlusVideoConfig extends BytePlusArkConfig {}
 
 /** Path of the Seedance task API, relative to the Ark base URL. */
 const /** Path of the Seedance task API, relative to the Ark base URL. */
-TASKS_PATH = '/contents/generations/tasks'
+  TASKS_PATH = '/contents/generations/tasks'
 
 /**
  * `content.video_url` and `content.last_frame_url` are deleted 24 hours after
@@ -397,9 +397,9 @@ export class BytePlusVideoAdapter<
   }
 
   /**
-     * Builds the `content[]` array from the resolved prompt, enforcing
-     * Seedance's role vocabulary and mode exclusivity.
-     */
+   * Builds the `content[]` array from the resolved prompt, enforcing
+   * Seedance's role vocabulary and mode exclusivity.
+   */
   private buildContent(
     resolved: ReturnType<typeof resolveMediaPrompt>,
   ): Array<BytePlusVideoContentPart> {
@@ -504,16 +504,16 @@ export class BytePlusVideoAdapter<
   }
 
   /**
-     * Fetches a task, tagging the thrown error with the HTTP status.
-     *
-     * The 200 body is validated rather than cast. `readJsonBody` returns
-     * `undefined` for an empty body and the raw text for a non-JSON one — both
-     * documented failure modes of these hosts (an HTML error page from a proxy
-     * in front of the API). Casting either to `BytePlusVideoTask` yields a task
-     * whose `status` is `undefined`, which {@link mapStatus} would have to
-     * interpret; the honest answer is that the response was not a task at all,
-     * so say so while the body is still in hand.
-     */
+   * Fetches a task, tagging the thrown error with the HTTP status.
+   *
+   * The 200 body is validated rather than cast. `readJsonBody` returns
+   * `undefined` for an empty body and the raw text for a non-JSON one — both
+   * documented failure modes of these hosts (an HTML error page from a proxy
+   * in front of the API). Casting either to `BytePlusVideoTask` yields a task
+   * whose `status` is `undefined`, which {@link mapStatus} would have to
+   * interpret; the honest answer is that the response was not a task at all,
+   * so say so while the body is still in hand.
+   */
   private async retrieveTask(jobId: string): Promise<BytePlusVideoTask> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
@@ -602,17 +602,17 @@ export class BytePlusVideoAdapter<
   }
 
   /**
-     * Maps Seedance task states onto the generic video status set. `expired`
-     * (the task outlived `execution_expires_after`) and `cancelled` are
-     * terminal non-successes, so both report as failed.
-     *
-     * An unrecognized state throws rather than defaulting to `processing`.
-     * Core's poll loop treats `processing` as "keep waiting", so mapping an
-     * unknown state — a missing `status`, or a terminal one Ark adds later such
-     * as `rejected` — onto it means polling until `maxDuration` and then
-     * reporting a generic timeout, with the state Ark actually sent never
-     * reaching the caller. Failing here names it.
-     */
+   * Maps Seedance task states onto the generic video status set. `expired`
+   * (the task outlived `execution_expires_after`) and `cancelled` are
+   * terminal non-successes, so both report as failed.
+   *
+   * An unrecognized state throws rather than defaulting to `processing`.
+   * Core's poll loop treats `processing` as "keep waiting", so mapping an
+   * unknown state — a missing `status`, or a terminal one Ark adds later such
+   * as `rejected` — onto it means polling until `maxDuration` and then
+   * reporting a generic timeout, with the state Ark actually sent never
+   * reaching the caller. Failing here names it.
+   */
   protected mapStatus(
     apiStatus: BytePlusVideoTaskStatus | string | undefined,
   ): VideoStatusResult['status'] {
@@ -638,20 +638,20 @@ export class BytePlusVideoAdapter<
   }
 
   /**
-     * Seedance accepts any whole second inside a per-model range: 4–15s on the
-     * 2.0 family, 4–12s on 1.5-pro, 2–12s on the 1.0 models. An unknown model
-     * reports the union of those ranges as a UI hint — see
-     * `BYTEPLUS_VIDEO_FALLBACK_DURATIONS`, which `createVideoJob` does not snap
-     * against.
-     */
+   * Seedance accepts any whole second inside a per-model range: 4–15s on the
+   * 2.0 family, 4–12s on 1.5-pro, 2–12s on the 1.0 models. An unknown model
+   * reports the union of those ranges as a UI hint — see
+   * `BYTEPLUS_VIDEO_FALLBACK_DURATIONS`, which `createVideoJob` does not snap
+   * against.
+   */
   override availableDurations(): DurationOptions<number> {
     return getBytePlusVideoDurationOptions(this.model)
   }
 
   /**
-     * Coerce a raw seconds value to the closest duration this model accepts
-     * (clamped to its range and rounded to whole seconds).
-     */
+   * Coerce a raw seconds value to the closest duration this model accepts
+   * (clamped to its range and rounded to whole seconds).
+   */
   override snapDuration(seconds: number): number | undefined {
     return snapToDurationOption(seconds, this.availableDurations())
   }

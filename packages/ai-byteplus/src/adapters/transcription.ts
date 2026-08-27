@@ -33,7 +33,7 @@ import type { BytePlusTranscriptionProviderOptions } from '../audio/transcriptio
 
 /** Path of the synchronous ("flash") Seed ASR endpoint. */
 const /** Path of the synchronous ("flash") Seed ASR endpoint. */
-RECOGNIZE_FLASH_PATH = '/api/v3/auc/bigmodel/recognize/flash'
+  RECOGNIZE_FLASH_PATH = '/api/v3/auc/bigmodel/recognize/flash'
 
 /**
  * BytePlus-specific extension of `TranscriptionWord` carrying the per-word
@@ -52,7 +52,7 @@ export interface BytePlusTranscriptionWord extends TranscriptionWord {
 
 /** Default `user.uid` echoed into BytePlus' request logs. */
 const /** Default `user.uid` echoed into BytePlus' request logs. */
-DEFAULT_UID = 'tanstack-ai'
+  DEFAULT_UID = 'tanstack-ai'
 
 /**
  * BytePlus Seed Speech transcription (ASR) adapter.

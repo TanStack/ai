@@ -8,10 +8,10 @@ import type {
 
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
   /**
-     * Optional transform applied to the recording when `stop()` resolves. Its
-     * (awaited) return value becomes `recording` and the resolved value of
-     * `stop()`. Return nothing to keep the raw `AudioRecording`.
-     */
+   * Optional transform applied to the recording when `stop()` resolves. Its
+   * (awaited) return value becomes `recording` and the resolved value of
+   * `stop()`. Return nothing to keep the raw `AudioRecording`.
+   */
   onComplete?: TOnComplete
 }
 

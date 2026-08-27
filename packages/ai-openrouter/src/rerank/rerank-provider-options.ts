@@ -28,8 +28,8 @@ export type OpenRouterRerankModel = KnownOpenRouterRerankModel | (string & {})
  */
 export interface OpenRouterRerankProviderOptions {
   /**
-     * OpenRouter provider routing preferences — pin, order, or allow fallback
-     * across the providers that serve the chosen rerank model.
-     */
+   * OpenRouter provider routing preferences — pin, order, or allow fallback
+   * across the providers that serve the chosen rerank model.
+   */
   provider?: ProviderPreferences
 }

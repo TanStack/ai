@@ -11,7 +11,7 @@ import type { RunError, StreamChunk, TerminalRunStatus } from '@tanstack/ai'
 
 /** How long a post-eviction reader waits before re-polling storage (ms). */
 const /** How long a post-eviction reader waits before re-polling storage (ms). */
-TAIL_POLL_MS = 250
+  TAIL_POLL_MS = 250
 
 /**
  * What a `rec:` key may hold: the converged layout, or the pre-convergence one
@@ -32,10 +32,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
   constructor(private readonly storage: DurableObjectStorage) {}
 
   /**
-     * Read (and, when needed, migrate + write back) the record under `rec:<runId>`.
-     * The single storage read path — everything else goes through here so no
-     * caller can observe the legacy layout.
-     */
+   * Read (and, when needed, migrate + write back) the record under `rec:<runId>`.
+   * The single storage read path — everything else goes through here so no
+   * caller can observe the legacy layout.
+   */
   private async getRecord(runId: string): Promise<RunLogRecord | null> {
     const stored = await this.storage.get<StoredRunRecord>(recKey(runId))
     if (!stored) return null
@@ -134,10 +134,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
   }
 
   /**
-     * Every run record this log holds, migrated. The coordinator's stall
-     * watchdog iterates this instead of listing `rec:` keys itself, so the
-     * storage layout (and its migration) stays this module's private concern.
-     */
+   * Every run record this log holds, migrated. The coordinator's stall
+   * watchdog iterates this instead of listing `rec:` keys itself, so the
+   * storage layout (and its migration) stays this module's private concern.
+   */
   async list(): Promise<Array<RunLogRecord>> {
     const stored = await this.storage.list<StoredRunRecord>({ prefix: 'rec:' })
     const records: Array<RunLogRecord> = []
@@ -179,10 +179,10 @@ export class DurableObjectRunEventLog implements RunEventLog {
   }
 
   /**
-     * Resolve when an append/finish wakes this run, the signal aborts, or the
-     * fallback poll fires (the poll lets a reader that outlived its in-memory
-     * waiter — e.g. after the appending instance was evicted — keep progressing).
-     */
+   * Resolve when an append/finish wakes this run, the signal aborts, or the
+   * fallback poll fires (the poll lets a reader that outlived its in-memory
+   * waiter — e.g. after the appending instance was evicted — keep progressing).
+   */
   private waitForChange(runId: string, signal?: AbortSignal): Promise<void> {
     return new Promise<void>((resolve) => {
       let set = this.waiters.get(runId)

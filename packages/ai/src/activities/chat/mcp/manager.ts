@@ -67,10 +67,10 @@ export class MCPManager {
   }
 
   /**
-     * Discover + merge tools from all sources. Throws on a fatal discovery error
-     * (no `onDiscoveryError`, or it re-threw) or a duplicate tool name; in that
-     * case it first closes any connected sources when the policy is 'close'.
-     */
+   * Discover + merge tools from all sources. Throws on a fatal discovery error
+   * (no `onDiscoveryError`, or it re-threw) or a duplicate tool name; in that
+   * case it first closes any connected sources when the policy is 'close'.
+   */
   async discover(): Promise<Array<AnyServerTool>> {
     if (this.#sources.length === 0) return []
     try {

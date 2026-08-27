@@ -62,12 +62,12 @@ export class LLMGatewayTextAdapter<
   }
 
   /**
-     * Surfaces reasoning deltas during streaming. LLM Gateway normalizes
-     * upstream reasoning output to `delta.reasoning_content` on the OpenAI
-     * Chat Completions wire format (the DeepSeek-style field most
-     * OpenAI-compatible providers emit); some routed providers emit
-     * `delta.reasoning` instead, so both are read.
-     */
+   * Surfaces reasoning deltas during streaming. LLM Gateway normalizes
+   * upstream reasoning output to `delta.reasoning_content` on the OpenAI
+   * Chat Completions wire format (the DeepSeek-style field most
+   * OpenAI-compatible providers emit); some routed providers emit
+   * `delta.reasoning` instead, so both are read.
+   */
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {

@@ -36,9 +36,9 @@ export interface ElevenLabsTranscriptionProviderOptions {
   /** Bias the model towards these keyterms (max 1000). */
   keyterms?: Array<string>
   /**
-     * Entity detection: `'all'`, a category (`'pii'`, `'phi'`, `'pci'`,
-     * `'other'`, `'offensive_language'`), or a specific entity type.
-     */
+   * Entity detection: `'all'`, a category (`'pii'`, `'phi'`, `'pci'`,
+   * `'other'`, `'offensive_language'`), or a specific entity type.
+   */
   entityDetection?: string
   /** Redact entities from the transcript text. Must be a subset of `entityDetection`. */
   entityRedaction?: string
@@ -55,9 +55,9 @@ export interface ElevenLabsTranscriptionProviderOptions {
   /** Multi-channel audio with one speaker per channel. Max 5 channels. */
   useMultiChannel?: boolean
   /**
-     * Hint for audio format. Use `'pcm_s16le_16'` to skip encoding for 16-bit
-     * PCM @ 16kHz mono little-endian inputs (lower latency).
-     */
+   * Hint for audio format. Use `'pcm_s16le_16'` to skip encoding for 16-bit
+   * PCM @ 16kHz mono little-endian inputs (lower latency).
+   */
   fileFormat?: 'pcm_s16le_16' | 'other'
 }
 

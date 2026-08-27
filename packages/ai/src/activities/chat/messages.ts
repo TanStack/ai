@@ -305,8 +305,8 @@ export function restoreToolResultOwnership<T extends object>(message: T): T {
   if (message.role !== 'tool') return message
   const source = message
   /** Provider-specific metadata that round-trips with the tool call.
-       * Untyped at this framework layer; adapters narrow it via their
-       * `TToolCallMetadata` generic. */
+   * Untyped at this framework layer; adapters narrow it via their
+   * `TToolCallMetadata` generic. */
   const metadata = tanstackMetadata(source)
   const owned = metadata?.toolResult
   if (!isRecord(owned)) return message

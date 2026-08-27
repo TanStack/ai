@@ -35,33 +35,33 @@ export interface ReaperConformanceConfig {
     dispose: () => Promise<void>
   }>
   /**
-     * Declare that this provider cannot support the sweeps, with the reason.
-     * Registers a skipped case whose title carries the reason — a NAMED skip,
-     * visible in the reporter. Omit it and the suite runs.
-     */
+   * Declare that this provider cannot support the sweeps, with the reason.
+   * Registers a skipped case whose title carries the reason — a NAMED skip,
+   * visible in the reporter. Omit it and the suite runs.
+   */
   unsupported?: { reason: string }
   /**
-     * Declare that this provider's reads take the POLL strategy rather than the
-     * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles.
-     *
-     * Only the FOLLOW half of the shell-hostile-runId case depends on it, so this
-     * does not skip a case; it names itself in that case's title and the follow
-     * read is omitted. The declaration is checked against the live handle there, in
-     * both directions, so it cannot quietly remove coverage from a provider that
-     * can in fact follow.
-     */
+   * Declare that this provider's reads take the POLL strategy rather than the
+   * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles.
+   *
+   * Only the FOLLOW half of the shell-hostile-runId case depends on it, so this
+   * does not skip a case; it names itself in that case's title and the follow
+   * read is omitted. The declaration is checked against the live handle there, in
+   * both directions, so it cannot quietly remove coverage from a provider that
+   * can in fact follow.
+   */
   followUnsupported?: { reason: string }
   /**
-     * Declare that this provider cannot run GNU `stat -c '%Y %n'`. The three
-     * age-gate cases skip with this reason. Docker alpine is the authority on
-     * the witness line; local-process on Darwin is BSD `stat`.
-     */
+   * Declare that this provider cannot run GNU `stat -c '%Y %n'`. The three
+   * age-gate cases skip with this reason. Docker alpine is the authority on
+   * the witness line; local-process on Darwin is BSD `stat`.
+   */
   mtimeListUnsupported?: { reason: string }
 }
 
 /** Poll interval handed to providers that cannot follow a growing file. */
 const /** Poll interval handed to providers that cannot follow a growing file. */
-POLL_INTERVAL_MS = 50
+  POLL_INTERVAL_MS = 50
 
 /**
  * Quiescence window for the reaper's first append. Short because the agent in
@@ -85,7 +85,7 @@ const READ_BACKSTOP_MS = 90_000
 
 /** Long enough that nothing in this suite is ever classified as expired. */
 const /** Long enough that nothing in this suite is ever classified as expired. */
-NEVER_EXPIRES_MS = 60 * 60 * 1000
+  NEVER_EXPIRES_MS = 60 * 60 * 1000
 
 /**
  * A journal directory nothing else on the machine writes to, created fresh for

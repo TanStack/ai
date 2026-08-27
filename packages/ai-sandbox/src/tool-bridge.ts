@@ -44,19 +44,19 @@ export interface ToolBridgeCoreOptions {
   /** Abort signal forwarded to each tool's `execute()`. */
   signal?: AbortSignal
   /**
-     * Forwarded to each tool's `execute()` so a bridged tool can stream progress /
-     * custom events back to the client mid-execution (e.g. code mode's
-     * `code_mode:console` logs). Without it those events are silently dropped — the
-     * bridge runs out-of-band from the main tool executor, so the executor's own
-     * `emitCustomEvent` never reaches a bridged tool. The harness adapter supplies
-     * one that injects a CUSTOM chunk into its live output stream.
-     */
+   * Forwarded to each tool's `execute()` so a bridged tool can stream progress /
+   * custom events back to the client mid-execution (e.g. code mode's
+   * `code_mode:console` logs). Without it those events are silently dropped — the
+   * bridge runs out-of-band from the main tool executor, so the executor's own
+   * `emitCustomEvent` never reaches a bridged tool. The harness adapter supplies
+   * one that injects a CUSTOM chunk into its live output stream.
+   */
   emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
   /**
-     * Optional permission-prompt tool (e.g. for Claude Code's
-     * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
-     * `<name>` whose handler returns the orchestrator's allow/deny decision.
-     */
+   * Optional permission-prompt tool (e.g. for Claude Code's
+   * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
+   * `<name>` whose handler returns the orchestrator's allow/deny decision.
+   */
   permission?: BridgePermission
 }
 
@@ -249,10 +249,10 @@ export interface StartBridgeOptions extends ToolBridgeCoreOptions {
   /** Hostname the sandbox uses to reach the host (e.g. `host.docker.internal`). */
   hostForSandbox: string
   /**
-     * Address to bind the listener to. Defaults to `127.0.0.1` (loopback) and is
-     * widened to `0.0.0.0` only when the sandbox reaches the host via
-     * `host.docker.internal` (a container can't reach the host's loopback).
-     */
+   * Address to bind the listener to. Defaults to `127.0.0.1` (loopback) and is
+   * widened to `0.0.0.0` only when the sandbox reaches the host via
+   * `host.docker.internal` (a container can't reach the host's loopback).
+   */
   bindAddress?: string
 }
 
@@ -375,12 +375,12 @@ export interface ToolBridgeProvisioner {
 
 /** Default provisioner: a `node:http` listener on the host. */
 export const /** Default provisioner: a `node:http` listener on the host. */
-nodeHttpBridgeProvisioner: ToolBridgeProvisioner = {
-  provision(tools, options) {
-    const { provider, ...core } = options
-    return startHostToolBridge(tools, {
-      hostForSandbox: hostForSandbox(provider),
-      ...core,
-    })
-  },
-}
+  nodeHttpBridgeProvisioner: ToolBridgeProvisioner = {
+    provision(tools, options) {
+      const { provider, ...core } = options
+      return startHostToolBridge(tools, {
+        hostForSandbox: hostForSandbox(provider),
+        ...core,
+      })
+    },
+  }

@@ -135,10 +135,10 @@ export interface GenerationResumeState {
   threadId: string
   runId: string
   /**
-     * Artifact refs observed while the run is still in flight. Non-null only while
-     * a run is streaming (`resumeState` itself is null once it ends); the final
-     * refs move onto `result.artifacts` when the run completes.
-     */
+   * Artifact refs observed while the run is still in flight. Non-null only while
+   * a run is streaming (`resumeState` itself is null once it ends); the final
+   * refs move onto `result.artifacts` when the run completes.
+   */
   pendingArtifacts?: Array<PersistedArtifactRef>
 }
 
@@ -149,19 +149,19 @@ export interface GenerationResultSnapshot {
   /** Current status of the video generation job */
   status?: string
   /**
-     * The provider's async job handle (e.g. a Veo/fal video job id used for
-     * status polling) — NOT the generation's own `runId`, which lives on
-     * {@link GenerationResumeState.runId}.
-     */
+   * The provider's async job handle (e.g. a Veo/fal video job id used for
+   * status polling) — NOT the generation's own `runId`, which lives on
+   * {@link GenerationResumeState.runId}.
+   */
   providerJobId?: string
   /** When the URL expires, if applicable */
   expiresAt?: string
   /**
-     * The text output of a text activity (a transcription's `text` or a summary's
-     * `summary`). Persisted so a text generation restores its result on reload
-     * (text is small and not bytes). Absent for media activities, whose output
-     * restores from `artifacts`.
-     */
+   * The text output of a text activity (a transcription's `text` or a summary's
+   * `summary`). Persisted so a text generation restores its result on reload
+   * (text is small and not bytes). Absent for media activities, whose output
+   * restores from `artifacts`.
+   */
   text?: string
   /** Token usage, persisted so a text result that requires it can be rebuilt. */
   usage?: TokenUsage
@@ -185,10 +185,10 @@ export interface GenerationEventSnapshot {
 /** @internal */
 export interface GenerationResumeSnapshot {
   /**
-     * Version of the snapshot shape. Written on every snapshot the client builds
-     * so future shape changes can migrate (or reject) an older record hydrated
-     * from the server. Absent means `1`.
-     */
+   * Version of the snapshot shape. Written on every snapshot the client builds
+   * so future shape changes can migrate (or reject) an older record hydrated
+   * from the server. Absent means `1`.
+   */
   schemaVersion?: 1
   resumeState: GenerationResumeState | null
   status: GenerationResumeStatus
@@ -228,18 +228,18 @@ export interface GenerationResumeSnapshot {
 export type GenerationPersistenceOptions =
   | {
       /**
-         * How this generation persists across reloads.
-         *
-         * - Omit or `false`: ephemeral, in-memory only.
-         * - `true`: server-driven. On mount the client hydrates the last generation
-         *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
-         *   from the connection or the option below) and repaints that snapshot. It
-         *   never auto-starts a run.
-         *
-         * The record lives on the server, written by `withGenerationPersistence`. The
-         * browser caches nothing, so a generation's history is never duplicated into
-         * client storage.
-         */
+       * How this generation persists across reloads.
+       *
+       * - Omit or `false`: ephemeral, in-memory only.
+       * - `true`: server-driven. On mount the client hydrates the last generation
+       *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
+       *   from the connection or the option below) and repaints that snapshot. It
+       *   never auto-starts a run.
+       *
+       * The record lives on the server, written by `withGenerationPersistence`. The
+       * browser caches nothing, so a generation's history is never duplicated into
+       * client storage.
+       */
       persistence: true
       /** Required by `persistence`. The stable scope runs are filed under. */
       threadId: string
@@ -316,16 +316,16 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   body?: Record<string, any>
 
   /**
-     * Optional BYOK keyring. On each generate the client prepares the resolved
-     * provider and stamps `x-byok-*` request headers. Keys never go in the body.
-     */
+   * Optional BYOK keyring. On each generate the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
   byok?: ByokClient
 
   /**
-     * Optional provider id for this generation. If it returns a provider slug,
-     * only that key is prepared and sent. Otherwise `body.provider` is used.
-     * If no slug resolves, generate throws instead of attaching every stored key.
-     */
+   * Optional provider id for this generation. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise `body.provider` is used.
+   * If no slug resolves, generate throws instead of attaching every stored key.
+   */
   byokProvider?: () => string | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
@@ -334,43 +334,43 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   persistence?: boolean
 
   /**
-     * Server-driven hydration handler, for transports that don't carry one on
-     * the connection: supply it alongside `fetcher` (or a `stream()` /
-     * `rpcStream()` connection built without handlers) so `persistence: true`
-     * can restore the last generation for `threadId` on mount. Typically a
-     * one-line TanStack Start server-function call backed by
-     * `getGenerationHydration` from `@tanstack/ai-persistence`.
-     *
-     * A connection's own `hydrateGeneration` takes precedence when both exist.
-     */
+   * Server-driven hydration handler, for transports that don't carry one on
+   * the connection: supply it alongside `fetcher` (or a `stream()` /
+   * `rpcStream()` connection built without handlers) so `persistence: true`
+   * can restore the last generation for `threadId` on mount. Typically a
+   * one-line TanStack Start server-function call backed by
+   * `getGenerationHydration` from `@tanstack/ai-persistence`.
+   *
+   * A connection's own `hydrateGeneration` takes precedence when both exist.
+   */
   hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
 
   /**
-     * Re-attach handler for a run that is still generating, for transports that
-     * don't carry one on the connection. The client tails this on mount when a
-     * restored/hydrated snapshot reports a run in flight, replaying it to
-     * completion in place. Without it, a restored `running` snapshot surfaces
-     * as an (interrupted) error — an interrupted generation cannot be resumed,
-     * only re-run.
-     *
-     * A connection's own `joinRun` takes precedence when both exist.
-     */
+   * Re-attach handler for a run that is still generating, for transports that
+   * don't carry one on the connection. The client tails this on mount when a
+   * restored/hydrated snapshot reports a run in flight, replaying it to
+   * completion in place. Without it, a restored `running` snapshot surfaces
+   * as an (interrupted) error — an interrupted generation cannot be resumed,
+   * only re-run.
+   *
+   * A connection's own `joinRun` takes precedence when both exist.
+   */
   joinRun?: ConnectConnectionAdapter['joinRun']
 
   /**
-     * Factory that constructs the devtools bridge. Default is a no-op
-     * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
-     */
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
+   */
   devtoolsBridgeFactory?: GenerationDevtoolsBridgeFactory
 
   /**
-     * Callback when a result is received. Can optionally return a transformed value
-     * that replaces the stored result.
-     *
-     * - Return a non-null value to transform and store it as the result
-     * - Return `null` to keep the previous result unchanged
-     * - Return nothing (`void`) to store the raw result as-is
-     */
+   * Callback when a result is received. Can optionally return a transformed value
+   * that replaces the stored result.
+   *
+   * - Return a non-null value to transform and store it as the result
+   * - Return `null` to keep the previous result unchanged
+   * - Return nothing (`void`) to store the raw result as-is
+   */
   onResult?: (result: TResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -396,13 +396,13 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   onResumeStateChange?: (resumeState: GenerationResumeState | null) => void
 
   /**
-     * @internal Rebuild a typed result from a restored snapshot, injected by each
-     * specialized client/hook (which knows the concrete result shape). Called on
-     * mount restore (client store or server hydrate) so `result` repaints as if the
-     * run had just finished, with media resolved to the durable serve URL. Returns
-     * `null` when the snapshot cannot rebuild a result (then `result` stays null;
-     * `status` / `error` / `resumeState` still repaint).
-     */
+   * @internal Rebuild a typed result from a restored snapshot, injected by each
+   * specialized client/hook (which knows the concrete result shape). Called on
+   * mount restore (client store or server hydrate) so `result` repaints as if the
+   * run had just finished, with media resolved to the durable serve URL. Returns
+   * `null` when the snapshot cannot rebuild a result (then `result` stays null;
+   * `status` / `error` / `resumeState` still repaint).
+   */
   reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
 
@@ -706,10 +706,10 @@ export interface VideoGenerationClientOptions<
  */
 export interface ImageGenerateInput {
   /**
-     * Description of the desired image(s): plain text, or an ordered array of
-     * content parts (text + image) for image-conditioned generation
-     * (image-to-image, multi-reference, edit / inpaint).
-     */
+   * Description of the desired image(s): plain text, or an ordered array of
+   * content parts (text + image) for image-conditioned generation
+   * (image-to-image, multi-reference, edit / inpaint).
+   */
   prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number

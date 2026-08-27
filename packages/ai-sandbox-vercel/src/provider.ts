@@ -11,9 +11,9 @@ import type {
 
 export interface VercelSandboxConfig {
   /**
-     * Vercel access token. Falls back to the `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN`
-     * env vars (read by the SDK) when omitted.
-     */
+   * Vercel access token. Falls back to the `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN`
+   * env vars (read by the SDK) when omitted.
+   */
   token?: string
   /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
   teamId?: string
@@ -26,15 +26,15 @@ export interface VercelSandboxConfig {
   /** Ports to expose; reachable from the host via `ports.connect(port)`. */
   ports?: Array<number>
   /**
-     * Create a persistent (named) sandbox that survives `stop()` and can be
-     * reconnected with `resume({ id })`. Defaults to false (ephemeral), in which
-     * case `resume` resolves null once the sandbox has stopped.
-     */
+   * Create a persistent (named) sandbox that survives `stop()` and can be
+   * reconnected with `resume({ id })`. Defaults to false (ephemeral), in which
+   * case `resume` resolves null once the sandbox has stopped.
+   */
   persistent?: boolean
   /**
-     * Working directory inside the sandbox. The `/workspace` virtual root maps
-     * here. Defaults to `/vercel/sandbox`.
-     */
+   * Working directory inside the sandbox. The `/workspace` virtual root maps
+   * here. Defaults to `/vercel/sandbox`.
+   */
   workdir?: string
 }
 
@@ -100,9 +100,11 @@ class VercelProvider implements SandboxProvider {
   }
 
   /** Auth overrides shared by create/get/stop, omitting undefined fields. */
-  private auth(): { token?: string; /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
-teamId?: string; /** Vercel project id. Falls back to `VERCEL_PROJECT_ID`. */
-projectId?: string } {
+  private auth(): {
+    token?: string /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
+    teamId?: string /** Vercel project id. Falls back to `VERCEL_PROJECT_ID`. */
+    projectId?: string
+  } {
     const out: { token?: string; teamId?: string; projectId?: string } = {}
     const token = this.config.token ?? process.env.VERCEL_TOKEN
     const teamId = this.config.teamId ?? process.env.VERCEL_TEAM_ID

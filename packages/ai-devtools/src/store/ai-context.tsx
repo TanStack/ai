@@ -462,7 +462,7 @@ export const AIProvider: ParentComponent = (props) => {
   const requestToConversation = new Map<string, string>()
   /** Track max cumulative usage per requestId per conversation for correct totals */
   const /** Track max cumulative usage per requestId per conversation for correct totals */
-requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
+    requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   const fixturesStorageKey = 'tanstack-ai-devtools:tool-fixtures'
 
   const pendingConversationChunks = new Map<
@@ -817,10 +817,10 @@ requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   }
 
   /**
-     * Update conversation-level usage by tracking max cumulative per request.
-     * Usage events report cumulative totals per-request, so we keep the highest
-     * value seen for each requestId and sum across all requests for the total.
-     */
+   * Update conversation-level usage by tracking max cumulative per request.
+   * Usage events report cumulative totals per-request, so we keep the highest
+   * value seen for each requestId and sum across all requests for the total.
+   */
   function updateConversationUsage(
     conversationId: string,
     requestId: string | undefined,
@@ -1375,9 +1375,9 @@ requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   }
 
   /**
-     * For server conversations, ensure a message exists for the given messageId.
-     * This creates a placeholder message that will be updated as chunks arrive.
-     */
+   * For server conversations, ensure a message exists for the given messageId.
+   * This creates a placeholder message that will be updated as chunks arrive.
+   */
   function ensureMessageForChunk(
     conversationId: string,
     messageId: string | undefined,

@@ -67,10 +67,10 @@ export interface GeminiRealtimeTokenOptions {
   expiresAt?: number
   uses?: number
   /**
-     * Config for LiveConnectConstraints for Auth Token creation.
-     *
-     * NOTE: Adding liveConnectConstraints will cause the API to ignore any config passed later to WebSocket.
-     */
+   * Config for LiveConnectConstraints for Auth Token creation.
+   *
+   * NOTE: Adding liveConnectConstraints will cause the API to ignore any config passed later to WebSocket.
+   */
   liveConnectConstraints?: StrictLiveConnectionConstraints
 }
 

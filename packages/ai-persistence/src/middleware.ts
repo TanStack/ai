@@ -81,40 +81,40 @@ export interface ArtifactPersistenceOptions {
     | Promise<Array<GenerationArtifactDescriptor | PersistedArtifactRef>>
   nameArtifact?: (input: GenerationArtifactNameInput) => string
   /**
-     * Map a freshly-persisted artifact ref to the durable app-origin URL that
-     * serves its bytes (your `GET` route around `retrieveArtifact` /
-     * `retrieveBlob`). The returned URL is stamped onto `ref.url` and written into
-     * the result's media field, so both the live and the restored result render
-     * durable media from your own origin instead of the provider's expiring link.
-     * Return `undefined` to leave a ref without a durable URL.
-     */
+   * Map a freshly-persisted artifact ref to the durable app-origin URL that
+   * serves its bytes (your `GET` route around `retrieveArtifact` /
+   * `retrieveBlob`). The returned URL is stamped onto `ref.url` and written into
+   * the result's media field, so both the live and the restored result render
+   * durable media from your own origin instead of the provider's expiring link.
+   * Return `undefined` to leave a ref without a durable URL.
+   */
   artifactUrl?: (ref: PersistedArtifactRef) => string | undefined
   /**
-     * Choose the blob-store key each artifact's bytes are written under, so
-     * generated media can land in your own folder structure rather than the
-     * default `artifacts/<runId>/<artifactId>`.
-     *
-     * ```ts
-     * storageKey: ({ runId, artifactId, mimeType }) =>
-     *   `video/${videoId}/frames/${runId}-${artifactId}.png`
-     * ```
-     *
-     * Server-side only, and deliberately so: a key supplied by the browser would
-     * be a path-traversal and cross-tenant-write vector.
-     *
-     * The resolved key is recorded on `ArtifactRecord.blobKey`, because once the
-     * path is arbitrary a reader can no longer recompute it. Returning a
-     * non-unique key overwrites — include `artifactId` (or something equally
-     * unique) unless you intend that.
-     */
+   * Choose the blob-store key each artifact's bytes are written under, so
+   * generated media can land in your own folder structure rather than the
+   * default `artifacts/<runId>/<artifactId>`.
+   *
+   * ```ts
+   * storageKey: ({ runId, artifactId, mimeType }) =>
+   *   `video/${videoId}/frames/${runId}-${artifactId}.png`
+   * ```
+   *
+   * Server-side only, and deliberately so: a key supplied by the browser would
+   * be a path-traversal and cross-tenant-write vector.
+   *
+   * The resolved key is recorded on `ArtifactRecord.blobKey`, because once the
+   * path is arbitrary a reader can no longer recompute it. Returning a
+   * non-unique key overwrites — include `artifactId` (or something equally
+   * unique) unless you intend that.
+   */
   storageKey?: (input: {
     artifactId: string
     runId: string
     /**
-       * Override the scope runs are filed under. Defaults to the `threadId` you
-       * passed the activity, which is normally what you want, so leave this unset
-       * unless the record belongs somewhere other than the activity's own scope.
-       */
+     * Override the scope runs are filed under. Defaults to the `threadId` you
+     * passed the activity, which is normally what you want, so leave this unset
+     * unless the record belongs somewhere other than the activity's own scope.
+     */
     threadId: string
     role: PersistedArtifactRole
     activity: PersistedArtifactActivity
@@ -123,29 +123,29 @@ export interface ArtifactPersistenceOptions {
     name: string
   }) => string
   /**
-     * Opt in to fetching prompt media referenced by URL (`role: 'input'`).
-     *
-     * Off by default, and deliberately expressed as a predicate rather than a
-     * boolean: input URLs come from the caller, so fetching them server-side
-     * turns your server into a proxy for whatever the caller names — cloud
-     * metadata endpoints, `localhost` admin services, anything your network can
-     * reach. The bytes are also redundant in the common case, since the client
-     * already had the media it referenced.
-     *
-     * Enable this only when you genuinely need a durable copy of caller-supplied
-     * media (a "paste an image URL" input box, say), and validate the target:
-     *
-     * ```ts
-     * allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com')
-     * ```
-     *
-     * Requests are additionally forced through the same baseline checks every
-     * artifact fetch gets (http/https only, timeout, size cap), plus — because
-     * the target is untrusted — a loopback/private/link-local host block and
-     * `redirect: 'manual'` so a 302 cannot hop to an internal address. Those are
-     * a backstop, not a substitute for a narrow predicate: a hostname that
-     * resolves to a private address still passes a literal-IP check.
-     */
+   * Opt in to fetching prompt media referenced by URL (`role: 'input'`).
+   *
+   * Off by default, and deliberately expressed as a predicate rather than a
+   * boolean: input URLs come from the caller, so fetching them server-side
+   * turns your server into a proxy for whatever the caller names — cloud
+   * metadata endpoints, `localhost` admin services, anything your network can
+   * reach. The bytes are also redundant in the common case, since the client
+   * already had the media it referenced.
+   *
+   * Enable this only when you genuinely need a durable copy of caller-supplied
+   * media (a "paste an image URL" input box, say), and validate the target:
+   *
+   * ```ts
+   * allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com')
+   * ```
+   *
+   * Requests are additionally forced through the same baseline checks every
+   * artifact fetch gets (http/https only, timeout, size cap), plus — because
+   * the target is untrusted — a loopback/private/link-local host block and
+   * `redirect: 'manual'` so a 302 cannot hop to an internal address. Those are
+   * a backstop, not a substitute for a narrow predicate: a hostname that
+   * resolves to a private address still passes a literal-IP check.
+   */
   allowInputUrl?: (input: {
     url: URL
     descriptor: GenerationArtifactDescriptor
@@ -153,30 +153,30 @@ export interface ArtifactPersistenceOptions {
   /** Abort an artifact fetch after this many ms. Default 30_000. */
   artifactFetchTimeoutMs?: number
   /**
-     * Refuse an artifact body larger than this many bytes. Default 1 GiB.
-     *
-     * This is a bound on TRANSFER, not on memory: the URL path streams into the
-     * blob store and never buffers, so a 1 GiB artifact costs a streaming store
-     * (R2, S3, filesystem) flat memory. What the cap buys is a ceiling on what a
-     * broken or hostile origin can make you pull and store — `content-length` is
-     * advisory, so without it an artifact fetch is an unbounded transfer billed
-     * to you.
-     *
-     * Pass `false` to remove the ceiling entirely. That also removes the
-     * cap-enforcing `TransformStream` wrapper, so the fetched body reaches your
-     * store exactly as `fetch` produced it — on workerd that means it keeps its
-     * native declared length and `R2Bucket.put` can single-shot it with no hint,
-     * no multipart, and nothing buffered. Do that when you trust the origins you
-     * fetch from (your provider's CDN); keep the cap when `allowInputUrl` lets
-     * callers name the URL.
-     */
+   * Refuse an artifact body larger than this many bytes. Default 1 GiB.
+   *
+   * This is a bound on TRANSFER, not on memory: the URL path streams into the
+   * blob store and never buffers, so a 1 GiB artifact costs a streaming store
+   * (R2, S3, filesystem) flat memory. What the cap buys is a ceiling on what a
+   * broken or hostile origin can make you pull and store — `content-length` is
+   * advisory, so without it an artifact fetch is an unbounded transfer billed
+   * to you.
+   *
+   * Pass `false` to remove the ceiling entirely. That also removes the
+   * cap-enforcing `TransformStream` wrapper, so the fetched body reaches your
+   * store exactly as `fetch` produced it — on workerd that means it keeps its
+   * native declared length and `R2Bucket.put` can single-shot it with no hint,
+   * no multipart, and nothing buffered. Do that when you trust the origins you
+   * fetch from (your provider's CDN); keep the cap when `allowInputUrl` lets
+   * callers name the URL.
+   */
   maxArtifactBytes?: number | false
   /**
-     * `fetch` used to download artifact bytes. Defaults to the global. Inject to
-     * route downloads through a proxy or an egress-restricted agent — the most
-     * robust SSRF control available here, since it can resolve and check the
-     * address actually connected to.
-     */
+   * `fetch` used to download artifact bytes. Defaults to the global. Inject to
+   * route downloads through a proxy or an egress-restricted agent — the most
+   * robust SSRF control available here, since it can resolve and check the
+   * address actually connected to.
+   */
   artifactFetch?: typeof globalThis.fetch
 }
 
@@ -253,11 +253,11 @@ interface RunStateEntry {
   merged: boolean
   interrupted: boolean
   /**
-     * Resumes accepted in `onConfig` but not yet committed to the interrupt
-     * store. They are applied (resolve/cancel) only once the run reaches a
-     * successful boundary — see {@link commitPendingResumes}. Left uncommitted
-     * (still pending in the store) if the run fails or aborts first.
-     */
+   * Resumes accepted in `onConfig` but not yet committed to the interrupt
+   * store. They are applied (resolve/cancel) only once the run reaches a
+   * successful boundary — see {@link commitPendingResumes}. Left uncommitted
+   * (still pending in the store) if the run fails or aborts first.
+   */
   pendingResumes?: {
     pending: Array<InterruptRecord>
     resumeByInterruptId: Map<string, RunAgentResumeItem>
@@ -269,11 +269,11 @@ interface RunStateEntry {
   /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
   lastSnapshotAt?: number
   /**
-     * The current assistant turn's stream messageId, captured from
-     * `TEXT_MESSAGE_START`. Persisted onto the assistant message so its identity
-     * survives the persist → hydrate round-trip and a reload can resume the same
-     * bubble in place.
-     */
+   * The current assistant turn's stream messageId, captured from
+   * `TEXT_MESSAGE_START`. Persisted onto the assistant message so its identity
+   * survives the persist → hydrate round-trip and a reload can resume the same
+   * bubble in place.
+   */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
   completion?: {
@@ -1403,10 +1403,10 @@ type ResolvedDescriptorBody = {
   body: BlobBody
   size: number
   /**
-         * Exact byte length of a streamed body, when the origin declared one
-         * that survives decoding — forwarded to `BlobStore.put` as
-         * `BlobPutOptions.expectedLength`. Undefined when unknown.
-         */
+   * Exact byte length of a streamed body, when the origin declared one
+   * that survives decoding — forwarded to `BlobStore.put` as
+   * `BlobPutOptions.expectedLength`. Undefined when unknown.
+   */
   expectedLength?: number
   mimeType: string
   sourceUrl?: string
@@ -2202,18 +2202,18 @@ function detachableRun(ctx: ChatMiddlewareContext): boolean {
  */
 export interface WithPersistenceOptions {
   /**
-     * Also persist a throttled snapshot of the in-progress assistant reply while
-     * it streams. Off by default — the transcript is otherwise persisted at the
-     * pending turn (`onStart`), interrupt boundaries, and completion (`onFinish`).
-     * Enable it to recover partial output if the process dies mid-generation, at
-     * the cost of extra writes. Snapshots are throttled to at most one per
-     * {@link WithPersistenceOptions.snapshotIntervalMs}.
-     */
+   * Also persist a throttled snapshot of the in-progress assistant reply while
+   * it streams. Off by default — the transcript is otherwise persisted at the
+   * pending turn (`onStart`), interrupt boundaries, and completion (`onFinish`).
+   * Enable it to recover partial output if the process dies mid-generation, at
+   * the cost of extra writes. Snapshots are throttled to at most one per
+   * {@link WithPersistenceOptions.snapshotIntervalMs}.
+   */
   snapshotStreaming?: boolean
   /**
-     * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
-     * is on. Defaults to 1000.
-     */
+   * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
+   * is on. Defaults to 1000.
+   */
   snapshotIntervalMs?: number
 }
 

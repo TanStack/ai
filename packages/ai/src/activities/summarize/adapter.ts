@@ -37,24 +37,24 @@ export interface SummarizeAdapter<
   readonly model: TModel
 
   /**
-     * @internal Type-only properties for inference. Not assigned at runtime.
-     */
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
   '~types': {
     providerOptions: TProviderOptions
   }
 
   /**
-     * Summarize the given text
-     */
+   * Summarize the given text
+   */
   summarize: (
     options: SummarizationOptions<TProviderOptions>,
   ) => Promise<SummarizationResult>
 
   /**
-     * Stream summarization of the given text.
-     * Optional - if not implemented, the activity layer will fall back to
-     * non-streaming summarize and yield the result as a single chunk.
-     */
+   * Stream summarization of the given text.
+   * Optional - if not implemented, the activity layer will fall back to
+   * non-streaming summarize and yield the result as a single chunk.
+   */
   summarizeStream?: (
     options: SummarizationOptions<TProviderOptions>,
   ) => AsyncIterable<StreamChunk>

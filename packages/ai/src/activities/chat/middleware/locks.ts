@@ -36,7 +36,7 @@ export const LocksCapability = createCapability<LockStore>()('locks')
 
 /** Destructured accessors: `getLocks(ctx)` / `provideLocks(ctx, store)`. */
 export const /** Destructured accessors: `getLocks(ctx)` / `provideLocks(ctx, store)`. */
-[getLocks, provideLocks] = LocksCapability
+  [getLocks, provideLocks] = LocksCapability
 
 /**
  * In-memory {@link LockStore} — a per-key promise chain. Correct within a single

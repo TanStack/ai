@@ -17,26 +17,26 @@ import type {
  */
 export interface CloudflareIsolateDriverConfig {
   /**
-     * URL of the deployed Cloudflare Worker
-     * For local development, use: http://localhost:8787
-     */
+   * URL of the deployed Cloudflare Worker
+   * For local development, use: http://localhost:8787
+   */
   workerUrl: string
 
   /**
-     * Optional authorization header value
-     * Useful for protecting your Worker endpoint
-     */
+   * Optional authorization header value
+   * Useful for protecting your Worker endpoint
+   */
   authorization?: string
 
   /**
-     * Default execution timeout in ms (default: 30000)
-     */
+   * Default execution timeout in ms (default: 30000)
+   */
   timeout?: number
 
   /**
-     * Maximum number of tool callback rounds (default: 10)
-     * Prevents infinite loops
-     */
+   * Maximum number of tool callback rounds (default: 10)
+   * Prevents infinite loops
+   */
   maxToolRounds?: number
 }
 

@@ -1,9 +1,9 @@
 /** Options for `amazon.titan-embed-text-v2:0`. */
 export interface BedrockTitanTextEmbeddingProviderOptions {
   /**
-     * Normalize the output embedding to unit length. Titan's service-side
-     * default is `true`; leave unset to use it.
-     */
+   * Normalize the output embedding to unit length. Titan's service-side
+   * default is `true`; leave unset to use it.
+   */
   normalize?: boolean
 }
 
@@ -27,18 +27,18 @@ export type BedrockCohereEmbeddingInputType =
 /** Options for `cohere.embed-english-v3` / `cohere.embed-multilingual-v3`. */
 export interface BedrockCohereEmbeddingProviderOptions {
   /**
-     * What the embeddings will be used for (required by the Cohere API; sent
-     * as `input_type`). Use `search_document` when indexing, `search_query`
-     * when querying, `classification` / `clustering` for those downstream
-     * tasks. Because this field is required, `modelOptions` is required at the
-     * `embed()` call site for the Cohere models.
-     */
+   * What the embeddings will be used for (required by the Cohere API; sent
+   * as `input_type`). Use `search_document` when indexing, `search_query`
+   * when querying, `classification` / `clustering` for those downstream
+   * tasks. Because this field is required, `modelOptions` is required at the
+   * `embed()` call site for the Cohere models.
+   */
   inputType: BedrockCohereEmbeddingInputType
   /**
-     * How to handle inputs longer than the model's maximum token length.
-     * `NONE` (the API default) returns an error, `START` / `END` truncate
-     * from that side.
-     */
+   * How to handle inputs longer than the model's maximum token length.
+   * `NONE` (the API default) returns an error, `START` / `END` truncate
+   * from that side.
+   */
   truncate?: 'NONE' | 'START' | 'END'
 }
 

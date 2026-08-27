@@ -618,11 +618,11 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   )
 
   /**
-     * Compute delta usage for display.
-     * The store holds cumulative usage per iteration (as reported by the provider).
-     * If a previous iteration exists on the same request, subtract its cumulative
-     * to get this iteration's incremental usage.
-     */
+   * Compute delta usage for display.
+   * The store holds cumulative usage per iteration (as reported by the provider).
+   * If a previous iteration exists on the same request, subtract its cumulative
+   * to get this iteration's incremental usage.
+   */
   const deltaUsage = createMemo(() => {
     const usage = iter().usage
     if (!usage) return undefined
@@ -686,21 +686,21 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
 
   /** Count actual tool invocations in this iteration's messages */
   const /** Count actual tool invocations in this iteration's messages */
-toolInvocationCounts = createMemo(() => {
-    const counts = new Map<string, number>()
-    const msgIds = new Set(iter().messageIds)
-    for (const msg of props.messages) {
-      if (msgIds.has(msg.id)) {
-        const toolCalls = msg.toolCalls
-        if (toolCalls) {
-          for (const tc of toolCalls) {
-            counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+    toolInvocationCounts = createMemo(() => {
+      const counts = new Map<string, number>()
+      const msgIds = new Set(iter().messageIds)
+      for (const msg of props.messages) {
+        if (msgIds.has(msg.id)) {
+          const toolCalls = msg.toolCalls
+          if (toolCalls) {
+            for (const tc of toolCalls) {
+              counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+            }
           }
         }
       }
-    }
-    return counts
-  })
+      return counts
+    })
 
   const totalToolCalls = createMemo(() => {
     let count = 0

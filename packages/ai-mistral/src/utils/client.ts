@@ -14,15 +14,15 @@ export interface MistralClientConfig {
   defaultHeaders?: Record<string, string>
 
   /**
-     * Optional Google / Vertex access token. When set, it replaces
-     * `apiKey` on the Authorization header.
-     */
+   * Optional Google / Vertex access token. When set, it replaces
+   * `apiKey` on the Authorization header.
+   */
   getAccessToken?: () => Promise<string>
 
   /**
-     * Optional chat completions URL. Vertex uses this for
-     * `:rawPredict` and `:streamRawPredict`.
-     */
+   * Optional chat completions URL. Vertex uses this for
+   * `:rawPredict` and `:streamRawPredict`.
+   */
   resolveRequestUrl?: (stream: boolean) => string
 
   /** Optional model id sent on the wire. Vertex uses publisher model ids. */

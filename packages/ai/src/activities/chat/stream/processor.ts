@@ -214,37 +214,37 @@ export class StreamProcessor {
   }
 
   /**
-     * Set the messages array (e.g., from persisted state)
-     */
+   * Set the messages array (e.g., from persisted state)
+   */
   setMessages(messages: Array<UIMessage>): void {
     this.messages = [...messages]
     this.emitMessagesChange()
   }
 
   /**
-     * Add a user message to the conversation.
-     * Supports both simple string content and multimodal content arrays.
-     *
-     * @param content - The message content (string or array of content parts)
-     * @param id - Optional custom message ID (generated if not provided)
-     * @param metadata - Optional AG-UI metadata bag
-     * @returns The created UIMessage
-     *
-     * @example
-     * ```ts
-     * // Simple text message
-     * processor.addUserMessage('Hello!')
-     *
-     * // Multimodal message with image
-     * processor.addUserMessage([
-     *   { type: 'text', content: 'What is in this image?' },
-     *   { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
-     * ])
-     *
-     * // With custom ID
-     * processor.addUserMessage('Hello!', 'custom-id-123')
-     * ```
-     */
+   * Add a user message to the conversation.
+   * Supports both simple string content and multimodal content arrays.
+   *
+   * @param content - The message content (string or array of content parts)
+   * @param id - Optional custom message ID (generated if not provided)
+   * @param metadata - Optional AG-UI metadata bag
+   * @returns The created UIMessage
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * processor.addUserMessage('Hello!')
+   *
+   * // Multimodal message with image
+   * processor.addUserMessage([
+   *   { type: 'text', content: 'What is in this image?' },
+   *   { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   * ])
+   *
+   * // With custom ID
+   * processor.addUserMessage('Hello!', 'custom-id-123')
+   * ```
+   */
   addUserMessage(
     content: string | Array<ContentPart>,
     id?: string,
@@ -274,21 +274,21 @@ export class StreamProcessor {
   }
 
   /**
-     * Prepare for a new assistant message stream.
-     * Does NOT create the message immediately -- the message is created lazily
-     * when the first content-bearing chunk arrives via ensureAssistantMessage().
-     * This prevents empty assistant messages from flickering in the UI when
-     * auto-continuation produces no content.
-     */
+   * Prepare for a new assistant message stream.
+   * Does NOT create the message immediately -- the message is created lazily
+   * when the first content-bearing chunk arrives via ensureAssistantMessage().
+   * This prevents empty assistant messages from flickering in the UI when
+   * auto-continuation produces no content.
+   */
   prepareAssistantMessage(): void {
     // Reset stream state for new message
     this.resetStreamState()
   }
 
   /**
-     * @deprecated Use prepareAssistantMessage() instead. This eagerly creates
-     * an assistant message which can cause empty message flicker.
-     */
+   * @deprecated Use prepareAssistantMessage() instead. This eagerly creates
+   * an assistant message which can cause empty message flicker.
+   */
   startAssistantMessage(messageId?: string): string {
     this.prepareAssistantMessage()
     const { messageId: id } = this.ensureAssistantMessage(messageId)
@@ -297,10 +297,10 @@ export class StreamProcessor {
   }
 
   /**
-     * Get the current assistant message ID (if one has been created).
-     * Returns null if prepareAssistantMessage() was called but no content
-     * has arrived yet.
-     */
+   * Get the current assistant message ID (if one has been created).
+   * Returns null if prepareAssistantMessage() was called but no content
+   * has arrived yet.
+   */
   getCurrentAssistantMessageId(): string | null {
     let lastId: string | null = null
     for (const [id, state] of this.messageStates) {
@@ -312,8 +312,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Add a tool result (called by client after handling onToolCall)
-     */
+   * Add a tool result (called by client after handling onToolCall)
+   */
   addToolResult(toolCallId: string, output: any, error?: string): void {
     // Find the message containing this tool call
     const messageWithToolCall = this.messages.find((msg) =>
@@ -356,8 +356,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Add an approval response (called by client after handling onApprovalRequest)
-     */
+   * Add an approval response (called by client after handling onApprovalRequest)
+   */
   addToolApprovalResponse(approvalId: string, approved: boolean): void {
     this.messages = updateToolCallApprovalResponse(
       this.messages,
@@ -368,8 +368,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Get the conversation as ModelMessages (for sending to LLM)
-     */
+   * Get the conversation as ModelMessages (for sending to LLM)
+   */
   toModelMessages(): Array<ModelMessage> {
     const modelMessages: Array<ModelMessage> = []
     for (const msg of this.messages) {
@@ -379,16 +379,16 @@ export class StreamProcessor {
   }
 
   /**
-     * Get current messages
-     */
+   * Get current messages
+   */
   getMessages(): Array<UIMessage> {
     return this.messages
   }
 
   /**
-     * Check if all tool calls in the last assistant message are complete
-     * Useful for auto-continue logic
-     */
+   * Check if all tool calls in the last assistant message are complete
+   * Useful for auto-continue logic
+   */
   areAllToolsComplete(): boolean {
     const lastAssistant = this.messages.findLast(
       (m: UIMessage) => m.role === 'assistant',
@@ -420,8 +420,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Remove messages after a certain index (for reload/retry)
-     */
+   * Remove messages after a certain index (for reload/retry)
+   */
   removeMessagesAfter(index: number): void {
     const keptIds = new Set(this.messages.slice(0, index + 1).map((m) => m.id))
     for (const id of this.structuredMessageIds) {
@@ -447,8 +447,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Clear all messages
-     */
+   * Clear all messages
+   */
   clearMessages(): void {
     this.messages = []
     this.messageStates.clear()
@@ -461,8 +461,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Process a stream and emit events through handlers
-     */
+   * Process a stream and emit events through handlers
+   */
   async process(stream: AsyncIterable<any>): Promise<ProcessorResult> {
     // Reset stream state (but keep messages)
     this.resetStreamState()
@@ -489,14 +489,14 @@ export class StreamProcessor {
   }
 
   /**
-     * Process a single chunk from the stream.
-     *
-     * Central dispatch for all AG-UI events. Each event type maps to a specific
-     * handler. Events not listed in the switch are intentionally ignored
-     * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
-     *
-     * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
-     */
+   * Process a single chunk from the stream.
+   *
+   * Central dispatch for all AG-UI events. Each event type maps to a specific
+   * handler. Events not listed in the switch are intentionally ignored
+   * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   *
+   * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
+   */
   processChunk(chunk: StreamChunk): void {
     if (this.recording) {
       this.recording.chunks.push({
@@ -614,8 +614,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Create a new MessageStreamState for a message
-     */
+   * Create a new MessageStreamState for a message
+   */
   private createMessageState(
     messageId: string,
     role: 'user' | 'assistant' | 'system',
@@ -641,18 +641,18 @@ export class StreamProcessor {
   }
 
   /**
-     * Get the MessageStreamState for a message
-     */
+   * Get the MessageStreamState for a message
+   */
   private getMessageState(messageId: string): MessageStreamState | undefined {
     return this.messageStates.get(messageId)
   }
 
   /**
-     * Promote a pending stepId from a STEP_STARTED that fired before the
-     * assistant message existed onto the given message state, so the next
-     * thinking event (STEP_FINISHED or REASONING_MESSAGE_CONTENT) attributes
-     * to the correct step.
-     */
+   * Promote a pending stepId from a STEP_STARTED that fired before the
+   * assistant message existed onto the given message state, so the next
+   * thinking event (STEP_FINISHED or REASONING_MESSAGE_CONTENT) attributes
+   * to the correct step.
+   */
   private consumePendingThinkingStep(state: MessageStreamState): void {
     if (!this.pendingThinkingStepId) return
     const stepId = this.pendingThinkingStepId
@@ -665,9 +665,9 @@ export class StreamProcessor {
   }
 
   /**
-     * Get the most recent active assistant message ID.
-     * Used as fallback for events that don't include a messageId.
-     */
+   * Get the most recent active assistant message ID.
+   * Used as fallback for events that don't include a messageId.
+   */
   private getActiveAssistantMessageId(): string | null {
     // Set iteration is insertion-order; reverse-iterate to search from the end
     const ids = Array.from(this.activeMessageIds).reverse()
@@ -698,14 +698,14 @@ export class StreamProcessor {
   }
 
   /**
-     * Ensure an active assistant message exists, creating one if needed.
-     * Used for backward compat when events arrive without prior TEXT_MESSAGE_START.
-     *
-     * On reconnect/resume, a TEXT_MESSAGE_CONTENT may arrive for a message that
-     * already exists in this.messages (e.g. from initialMessages or a prior
-     * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
-     * hydrate state from the existing message rather than creating a duplicate.
-     */
+   * Ensure an active assistant message exists, creating one if needed.
+   * Used for backward compat when events arrive without prior TEXT_MESSAGE_START.
+   *
+   * On reconnect/resume, a TEXT_MESSAGE_CONTENT may arrive for a message that
+   * already exists in this.messages (e.g. from initialMessages or a prior
+   * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
+   * hydrate state from the existing message rather than creating a duplicate.
+   */
   private ensureAssistantMessage(preferredId?: string): {
     messageId: string
     state: MessageStreamState
@@ -769,11 +769,11 @@ export class StreamProcessor {
   }
 
   /**
-     * Merge event metadata onto a UIMessage. `tanstack` is deep-merged so a
-     * later delta does not wipe `tanstack.model`. High-frequency leftover
-     * keys (`content`, `args`) never stamp onto the message.
-     * Rebuilds `createdAt` when `tanstack.createdAt` is an ISO string.
-     */
+   * Merge event metadata onto a UIMessage. `tanstack` is deep-merged so a
+   * later delta does not wipe `tanstack.model`. High-frequency leftover
+   * keys (`content`, `args`) never stamp onto the message.
+   * Rebuilds `createdAt` when `tanstack.createdAt` is an ISO string.
+   */
   private mergeMessageMetadata(messageId: string, incoming: unknown): void {
     if (
       incoming == null ||
@@ -817,8 +817,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TEXT_MESSAGE_START event
-     */
+   * Handle TEXT_MESSAGE_START event
+   */
   private handleTextMessageStartEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
   ): void {
@@ -921,8 +921,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TEXT_MESSAGE_END event
-     */
+   * Handle TEXT_MESSAGE_END event
+   */
   private handleTextMessageEndEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>,
   ): void {
@@ -939,8 +939,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle MESSAGES_SNAPSHOT event
-     */
+   * Handle MESSAGES_SNAPSHOT event
+   */
   private handleMessagesSnapshotEvent(
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
@@ -963,12 +963,12 @@ export class StreamProcessor {
   }
 
   /**
-     * Wire order is reasoning fan-outs, then the assistant anchor.
-     * Snapshot conversion turns each reasoning row into its own assistant
-     * message. Fold leading thinking-only messages into the next real
-     * assistant. Do not fold into a tool-result-only message (`role: 'tool'`
-     * on the wire). `reconcileSnapshotToolCalls` anchors those results.
-     */
+   * Wire order is reasoning fan-outs, then the assistant anchor.
+   * Snapshot conversion turns each reasoning row into its own assistant
+   * message. Fold leading thinking-only messages into the next real
+   * assistant. Do not fold into a tool-result-only message (`role: 'tool'`
+   * on the wire). `reconcileSnapshotToolCalls` anchors those results.
+   */
   private mergeReasoningFanOut(messages: Array<UIMessage>): Array<UIMessage> {
     const out: Array<UIMessage> = []
     let pending: Array<UIMessage> = []
@@ -1102,10 +1102,10 @@ export class StreamProcessor {
   }
 
   /**
-     * Post-pass (c): fold `tool-result` content into sibling `tool-call` parts
-     * and prefer pre-snapshot complete/output when the snapshot rebuilt a
-     * poorer `input-complete` call (AG-UI ModelMessage has no result on calls).
-     */
+   * Post-pass (c): fold `tool-result` content into sibling `tool-call` parts
+   * and prefer pre-snapshot complete/output when the snapshot rebuilt a
+   * poorer `input-complete` call (AG-UI ModelMessage has no result on calls).
+   */
   private enrichSnapshotToolCallsFromResults(
     messages: Array<UIMessage>,
     prevToolCalls: Map<string, ToolCallPart>,
@@ -1182,16 +1182,16 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TEXT_MESSAGE_CONTENT event.
-     *
-     * Accumulates delta into both currentSegmentText (for UI emission) and
-     * totalTextContent (for ProcessorResult). Lazily creates the assistant
-     * UIMessage on first content. Uses updateTextPart() which replaces the
-     * last TextPart or creates a new one depending on part ordering.
-     *
-     * @see docs/chat-architecture.md#single-shot-text-response — Text accumulation step-by-step
-     * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
-     */
+   * Handle TEXT_MESSAGE_CONTENT event.
+   *
+   * Accumulates delta into both currentSegmentText (for UI emission) and
+   * totalTextContent (for ProcessorResult). Lazily creates the assistant
+   * UIMessage on first content. Uses updateTextPart() which replaces the
+   * last TextPart or creates a new one depending on part ordering.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Text accumulation step-by-step
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
+   */
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
@@ -1254,18 +1254,18 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TOOL_CALL_START event.
-     *
-     * Creates a new InternalToolCallState entry in the toolCalls Map and appends
-     * a ToolCallPart to the UIMessage. Duplicate toolCallId is a no-op.
-     *
-     * CRITICAL: This MUST be received before any TOOL_CALL_ARGS for the same
-     * toolCallId. Args for unknown IDs are silently dropped.
-     *
-     * @see docs/chat-architecture.md#single-shot-tool-call-response — Tool call state transitions
-     * @see docs/chat-architecture.md#parallel-tool-calls-single-shot — Parallel tracking by ID
-     * @see docs/chat-architecture.md#adapter-contract — Ordering requirements
-     */
+   * Handle TOOL_CALL_START event.
+   *
+   * Creates a new InternalToolCallState entry in the toolCalls Map and appends
+   * a ToolCallPart to the UIMessage. Duplicate toolCallId is a no-op.
+   *
+   * CRITICAL: This MUST be received before any TOOL_CALL_ARGS for the same
+   * toolCallId. Args for unknown IDs are silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Tool call state transitions
+   * @see docs/chat-architecture.md#parallel-tool-calls-single-shot — Parallel tracking by ID
+   * @see docs/chat-architecture.md#adapter-contract — Ordering requirements
+   */
   private handleToolCallStartEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
   ): void {
@@ -1327,17 +1327,17 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TOOL_CALL_ARGS event.
-     *
-     * Appends the delta to the tool call's accumulated arguments string.
-     * Transitions state from awaiting-input → input-streaming on first non-empty delta.
-     * Attempts partial JSON parse on each update for UI preview.
-     *
-     * If toolCallId is not found in the Map (no preceding TOOL_CALL_START),
-     * this event is silently dropped.
-     *
-     * @see docs/chat-architecture.md#single-shot-tool-call-response — Step-by-step tool call processing
-     */
+   * Handle TOOL_CALL_ARGS event.
+   *
+   * Appends the delta to the tool call's accumulated arguments string.
+   * Transitions state from awaiting-input → input-streaming on first non-empty delta.
+   * Attempts partial JSON parse on each update for UI preview.
+   *
+   * If toolCallId is not found in the Map (no preceding TOOL_CALL_START),
+   * this event is silently dropped.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Step-by-step tool call processing
+   */
   private handleToolCallArgsEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
   ): void {
@@ -1386,17 +1386,17 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TOOL_CALL_END event — arguments are finalized (input-complete).
-     * Tool output arrives on TOOL_CALL_RESULT, not on this event.
-     *
-     * If TOOL_CALL_END carries parsed `input`, use it as the canonical arguments:
-     * back-fill the accumulated string when no TOOL_CALL_ARGS deltas were seen
-     * (adapters that deliver the whole input on END — e.g. Anthropic
-     * server_tool_use / web_search — issue #839) and override the rendered part's
-     * `input` with the canonical value.
-     *
-     * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
-     */
+   * Handle TOOL_CALL_END event — arguments are finalized (input-complete).
+   * Tool output arrives on TOOL_CALL_RESULT, not on this event.
+   *
+   * If TOOL_CALL_END carries parsed `input`, use it as the canonical arguments:
+   * back-fill the accumulated string when no TOOL_CALL_ARGS deltas were seen
+   * (adapters that deliver the whole input on END — e.g. Anthropic
+   * server_tool_use / web_search — issue #839) and override the rendered part's
+   * `input` with the canonical value.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
+   */
   private handleToolCallEndEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
   ): void {
@@ -1458,12 +1458,12 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle TOOL_CALL_RESULT event (AG-UI spec).
-     *
-     * Creates a tool-result part and updates the tool-call output field,
-     * mirroring the logic from TOOL_CALL_END when it carries a result.
-     * This is the spec-compliant path for delivering tool results to the client.
-     */
+   * Handle TOOL_CALL_RESULT event (AG-UI spec).
+   *
+   * Creates a tool-result part and updates the tool-call output field,
+   * mirroring the logic from TOOL_CALL_END when it carries a result.
+   * This is the spec-compliant path for delivering tool results to the client.
+   */
   private handleToolCallResultEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
   ): void {
@@ -1510,11 +1510,11 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle RUN_STARTED event.
-     *
-     * Registers the run so that RUN_FINISHED can determine whether other
-     * runs are still active before finalizing.
-     */
+   * Handle RUN_STARTED event.
+   *
+   * Registers the run so that RUN_FINISHED can determine whether other
+   * runs are still active before finalizing.
+   */
   private handleRunStartedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_STARTED' }>,
   ): void {
@@ -1522,15 +1522,15 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle RUN_FINISHED event.
-     *
-     * Records the finishReason and removes the run from activeRuns.
-     * Only finalizes when no more runs are active, so that concurrent
-     * runs don't interfere with each other.
-     *
-     * @see docs/chat-architecture.md#single-shot-tool-call-response — finishReason semantics
-     * @see docs/chat-architecture.md#adapter-contract — Why RUN_FINISHED is mandatory
-     */
+   * Handle RUN_FINISHED event.
+   *
+   * Records the finishReason and removes the run from activeRuns.
+   * Only finalizes when no more runs are active, so that concurrent
+   * runs don't interfere with each other.
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — finishReason semantics
+   * @see docs/chat-architecture.md#adapter-contract — Why RUN_FINISHED is mandatory
+   */
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
@@ -1632,8 +1632,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle RUN_ERROR event
-     */
+   * Handle RUN_ERROR event
+   */
   private handleRunErrorEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
@@ -1669,12 +1669,12 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle STEP_STARTED event (for thinking/reasoning content).
-     *
-     * Records the stepId so later REASONING_MESSAGE_CONTENT deltas accumulate
-     * into their own ThinkingPart. Does not create a message — the message
-     * is lazily created when the first REASONING_MESSAGE_CONTENT arrives.
-     */
+   * Handle STEP_STARTED event (for thinking/reasoning content).
+   *
+   * Records the stepId so later REASONING_MESSAGE_CONTENT deltas accumulate
+   * into their own ThinkingPart. Does not create a message — the message
+   * is lazily created when the first REASONING_MESSAGE_CONTENT arrives.
+   */
   private handleStepStartedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_STARTED' }>,
   ): void {
@@ -1699,13 +1699,13 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle STEP_FINISHED event.
-     *
-     * Thinking *content* comes from REASONING_MESSAGE_CONTENT, not STEP_FINISHED.
-     * But some adapters (e.g. BytePlus thinking-summary) carry the provider
-     * signature blob ONLY on the STEP_FINISHED event, so still extract that here
-     * and attach it to the thinking step the reasoning events already built.
-     */
+   * Handle STEP_FINISHED event.
+   *
+   * Thinking *content* comes from REASONING_MESSAGE_CONTENT, not STEP_FINISHED.
+   * But some adapters (e.g. BytePlus thinking-summary) carry the provider
+   * signature blob ONLY on the STEP_FINISHED event, so still extract that here
+   * and attach it to the thinking step the reasoning events already built.
+   */
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
@@ -1733,11 +1733,11 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle REASONING_MESSAGE_CONTENT event (AG-UI reasoning protocol).
-     *
-     * Accumulates reasoning delta into thinking content and updates the
-     * corresponding ThinkingPart in the UIMessage.
-     */
+   * Handle REASONING_MESSAGE_CONTENT event (AG-UI reasoning protocol).
+   *
+   * Accumulates reasoning delta into thinking content and updates the
+   * corresponding ThinkingPart in the UIMessage.
+   */
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
@@ -1773,10 +1773,10 @@ export class StreamProcessor {
   }
 
   /**
-     * Attach a provider signature blob from REASONING_ENCRYPTED_VALUE.
-     * `subtype: 'message'` updates ThinkingPart.signature.
-     * `subtype: 'tool-call'` stores Gemini thoughtSignature on the tool-call part.
-     */
+   * Attach a provider signature blob from REASONING_ENCRYPTED_VALUE.
+   * `subtype: 'message'` updates ThinkingPart.signature.
+   * `subtype: 'tool-call'` stores Gemini thoughtSignature on the tool-call part.
+   */
   private handleReasoningEncryptedValueEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_ENCRYPTED_VALUE' }>,
   ): void {
@@ -1844,20 +1844,20 @@ export class StreamProcessor {
   }
 
   /**
-     * Handle CUSTOM event.
-     *
-     * Handles custom events consumed by the processor:
-     * - 'tool-input-available': Legacy/replay-compatible input for client tool
-     *   execution. Fires onToolCall.
-     * - 'approval-requested': Legacy/replay-compatible input for tool approval.
-     *   Updates tool-call part state and fires onApprovalRequest.
-     *
-     * Current core streams represent user-actionable waits through
-     * RUN_FINISHED.outcome.type === 'interrupt'; these custom events are not the
-     * source of truth for new emissions.
-     *
-     * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
-     */
+   * Handle CUSTOM event.
+   *
+   * Handles custom events consumed by the processor:
+   * - 'tool-input-available': Legacy/replay-compatible input for client tool
+   *   execution. Fires onToolCall.
+   * - 'approval-requested': Legacy/replay-compatible input for tool approval.
+   *   Updates tool-call part state and fires onApprovalRequest.
+   *
+   * Current core streams represent user-actionable waits through
+   * RUN_FINISHED.outcome.type === 'interrupt'; these custom events are not the
+   * source of truth for new emissions.
+   *
+   * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
+   */
   private handleCustomEvent(
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
@@ -2019,8 +2019,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Detect if an incoming content chunk represents a NEW text segment
-     */
+   * Detect if an incoming content chunk represents a NEW text segment
+   */
   private isNewTextSegment(
     _chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
     _previous: string,
@@ -2029,14 +2029,14 @@ export class StreamProcessor {
   }
 
   /**
-     * Complete all tool calls across all active messages — safety net for stream termination.
-     *
-     * Called by RUN_FINISHED and finalizeStream(). Force-transitions any tool call
-     * not yet in input-complete state. Handles cases where TOOL_CALL_END was
-     * missed (adapter bug, network error, aborted stream).
-     *
-     * @see docs/chat-architecture.md#single-shot-tool-call-response — Safety net behavior
-     */
+   * Complete all tool calls across all active messages — safety net for stream termination.
+   *
+   * Called by RUN_FINISHED and finalizeStream(). Force-transitions any tool call
+   * not yet in input-complete state. Handles cases where TOOL_CALL_END was
+   * missed (adapter bug, network error, aborted stream).
+   *
+   * @see docs/chat-architecture.md#single-shot-tool-call-response — Safety net behavior
+   */
   private completeAllToolCalls(): void {
     for (const messageId of this.activeMessageIds) {
       this.completeAllToolCallsForMessage(messageId)
@@ -2044,8 +2044,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Complete all tool calls for a specific message
-     */
+   * Complete all tool calls for a specific message
+   */
   private completeAllToolCallsForMessage(messageId: string): void {
     const state = this.getMessageState(messageId)
     if (!state) return
@@ -2059,8 +2059,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Mark a tool call as complete and emit event
-     */
+   * Mark a tool call as complete and emit event
+   */
   private completeToolCall(
     messageId: string,
     _index: number,
@@ -2119,10 +2119,10 @@ export class StreamProcessor {
   }
 
   /**
-     * Whether the rendered tool-call part for the given id has reached the
-     * terminal 'error' state. Used to prevent the completion safety net from
-     * downgrading a failed call back to 'input-complete'.
-     */
+   * Whether the rendered tool-call part for the given id has reached the
+   * terminal 'error' state. Used to prevent the completion safety net from
+   * downgrading a failed call back to 'input-complete'.
+   */
   private isToolCallPartErrored(toolCallId: string): boolean {
     return this.messages.some((msg) =>
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
@@ -2136,14 +2136,14 @@ export class StreamProcessor {
   }
 
   /**
-     * Emit pending text update for a specific message.
-     *
-     * Calls updateTextPart() which has critical append-vs-replace logic:
-     * - If last UIMessage part is TextPart → replaces its content (same segment).
-     * - If last part is anything else → pushes new TextPart (new segment after tools).
-     *
-     * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
-     */
+   * Emit pending text update for a specific message.
+   *
+   * Calls updateTextPart() which has critical append-vs-replace logic:
+   * - If last UIMessage part is TextPart → replaces its content (same segment).
+   * - If last part is anything else → pushes new TextPart (new segment after tools).
+   *
+   * @see docs/chat-architecture.md#uimessage-part-ordering-invariants — Replace vs. push logic
+   */
   private emitTextUpdateForMessage(messageId: string): void {
     const state = this.getMessageState(messageId)
     if (!state) return
@@ -2216,21 +2216,21 @@ export class StreamProcessor {
   }
 
   /**
-     * Emit messages change event
-     */
+   * Emit messages change event
+   */
   private emitMessagesChange(): void {
     this.events.onMessagesChange?.([...this.messages])
   }
 
   /**
-     * Finalize the stream — complete all pending operations.
-     *
-     * Called when the async iterable ends (stream closed). Acts as the final
-     * safety net: completes any remaining tool calls, flushes un-emitted text,
-     * and fires onStreamEnd.
-     *
-     * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
-     */
+   * Finalize the stream — complete all pending operations.
+   *
+   * Called when the async iterable ends (stream closed). Acts as the final
+   * safety net: completes any remaining tool calls, flushes un-emitted text,
+   * and fires onStreamEnd.
+   *
+   * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
+   */
   finalizeStream(): void {
     this.isDone = true
     let lastAssistantMessage: UIMessage | undefined
@@ -2288,8 +2288,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Get completed tool calls in API format (aggregated across all messages)
-     */
+   * Get completed tool calls in API format (aggregated across all messages)
+   */
   private getCompletedToolCalls(): Array<ToolCall> {
     const result: Array<ToolCall> = []
     const messageStates = this.messageStates.values()
@@ -2313,8 +2313,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Get current result (aggregated across all messages)
-     */
+   * Get current result (aggregated across all messages)
+   */
   private getResult(): ProcessorResult {
     const toolCalls = this.getCompletedToolCalls()
     let content = ''
@@ -2337,8 +2337,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Get current processor state (aggregated across all messages)
-     */
+   * Get current processor state (aggregated across all messages)
+   */
   getState(): ProcessorState {
     let content = ''
     let thinking = ''
@@ -2368,8 +2368,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Start recording chunks
-     */
+   * Start recording chunks
+   */
   startRecording(): void {
     this.recordingEnabled = true
     this.recordingStartTime = Date.now()
@@ -2381,15 +2381,15 @@ export class StreamProcessor {
   }
 
   /**
-     * Get the current recording
-     */
+   * Get the current recording
+   */
   getRecording(): ChunkRecording | null {
     return this.recording
   }
 
   /**
-     * Reset stream state (but keep messages)
-     */
+   * Reset stream state (but keep messages)
+   */
   private resetStreamState(): void {
     this.messageStates.clear()
     this.activeMessageIds.clear()
@@ -2407,17 +2407,17 @@ export class StreamProcessor {
   }
 
   /**
-     * Full reset (including messages)
-     */
+   * Full reset (including messages)
+   */
   reset(): void {
     this.resetStreamState()
     this.messages = []
   }
 
   /**
-     * Check if a message contains only whitespace text and no other meaningful parts
-     * (no tool calls, tool results, thinking, etc.)
-     */
+   * Check if a message contains only whitespace text and no other meaningful parts
+   * (no tool calls, tool results, thinking, etc.)
+   */
   private isWhitespaceOnlyMessage(message: UIMessage): boolean {
     if (message.parts.length === 0) return false
     return message.parts.every(
@@ -2426,8 +2426,8 @@ export class StreamProcessor {
   }
 
   /**
-     * Replay a recording through the processor
-     */
+   * Replay a recording through the processor
+   */
   static async replay(
     recording: ChunkRecording,
     options?: StreamProcessorOptions,

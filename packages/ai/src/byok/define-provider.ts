@@ -8,9 +8,9 @@ export interface ByokProvider<TId extends string = string> {
   readonly id: TId
   readonly label: string
   /**
-     * Env var names the relay may read. Names only — never put `process.env`
-     * values here. This object is imported on the client.
-     */
+   * Env var names the relay may read. Names only — never put `process.env`
+   * values here. This object is imported on the client.
+   */
   readonly env?: ReadonlyArray<string>
 }
 

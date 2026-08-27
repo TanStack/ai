@@ -11,53 +11,56 @@ export interface StreamDurability<TOffset extends string = string> {
   /** Return the adapter offset captured from the request, or null for a producer. */
   resumeFrom: () => TOffset | null
   /**
-     * Persist a batch before it is delivered and return exactly one resumable
-     * offset for each chunk, in the same order.
-     */
+   * Persist a batch before it is delivered and return exactly one resumable
+   * offset for each chunk, in the same order.
+   */
   append: (chunks: Array<StreamChunk>) => Promise<Array<TOffset>>
   /** Replay chunks strictly after the supplied adapter-owned offset. */
   read: (
     offset: TOffset,
     signal?: AbortSignal,
-  ) => AsyncIterable<{ /**
-   * Resume offset captured by the consumer (`resumeFrom()` returns it).
-   * Defaults to `null` (a producer / from-start reader).
-   */
-offset: TOffset; chunk: StreamChunk }>
-  /**
-     * Terminalize the producer log and unblock live readers. Core awaits this
-     * for every producer exit, including completion, cancellation, and failure.
+  ) => AsyncIterable<{
+    /**
+     * Resume offset captured by the consumer (`resumeFrom()` returns it).
+     * Defaults to `null` (a producer / from-start reader).
      */
+    offset: TOffset
+    chunk: StreamChunk
+  }>
+  /**
+   * Terminalize the producer log and unblock live readers. Core awaits this
+   * for every producer exit, including completion, cancellation, and failure.
+   */
   close: () => Promise<void>
   /**
-     * Everything stored for this run **at the moment of the call**, in append
-     * order, then resolve.
-     *
-     * This is the bounded counterpart to {@link StreamDurability.read}. `read`
-     * tails: it parks until the log is terminalized or the caller aborts, so it
-     * cannot be used to inspect a log whose producer died without calling
-     * `close` — that log stays open forever and a `for await` over it never
-     * finishes. `snapshot` exists for exactly that case: a producer resuming a
-     * run needs to see the prefix a previous host already stored so it can line
-     * its own output up against it, and it needs that read to *return*.
-     *
-     * Implementations MUST:
-     *
-     * - never wait for more entries — resolve with what is stored, including
-     *   while the log is still open and still being appended to;
-     * - resolve to an empty array for a run with nothing stored, rather than
-     *   throwing. In particular an implementation must not reuse the
-     *   unknown-run failure path a from-start `read` join takes (`read('-1')` on
-     *   an empty log is allowed to fail; `snapshot()` is not). A backend over a
-     *   network may of course still reject on a transport, protocol, or
-     *   authorization failure — that is a failed call, not an empty run;
-     * - return a fresh array the caller can keep or mutate without reaching the
-     *   stored log through it.
-     *
-     * The result is a point-in-time view and carries no lock: a concurrent
-     * `append` may land immediately after the snapshot is taken, so a caller
-     * must not treat the last returned offset as the permanent tail.
-     */
+   * Everything stored for this run **at the moment of the call**, in append
+   * order, then resolve.
+   *
+   * This is the bounded counterpart to {@link StreamDurability.read}. `read`
+   * tails: it parks until the log is terminalized or the caller aborts, so it
+   * cannot be used to inspect a log whose producer died without calling
+   * `close` — that log stays open forever and a `for await` over it never
+   * finishes. `snapshot` exists for exactly that case: a producer resuming a
+   * run needs to see the prefix a previous host already stored so it can line
+   * its own output up against it, and it needs that read to *return*.
+   *
+   * Implementations MUST:
+   *
+   * - never wait for more entries — resolve with what is stored, including
+   *   while the log is still open and still being appended to;
+   * - resolve to an empty array for a run with nothing stored, rather than
+   *   throwing. In particular an implementation must not reuse the
+   *   unknown-run failure path a from-start `read` join takes (`read('-1')` on
+   *   an empty log is allowed to fail; `snapshot()` is not). A backend over a
+   *   network may of course still reject on a transport, protocol, or
+   *   authorization failure — that is a failed call, not an empty run;
+   * - return a fresh array the caller can keep or mutate without reaching the
+   *   stored log through it.
+   *
+   * The result is a point-in-time view and carries no lock: a concurrent
+   * `append` may land immediately after the snapshot is taken, so a caller
+   * must not treat the last returned offset as the permanent tail.
+   */
   snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
 }
 
@@ -88,9 +91,9 @@ export interface UpsertableStreamDurability<
   TOffset extends string = string,
 > extends StreamDurability<TOffset> {
   /**
-     * Persist a batch at caller-supplied offsets, replacing any entry already
-     * stored at the same offset. Returns the offsets in the order supplied.
-     */
+   * Persist a batch at caller-supplied offsets, replacing any entry already
+   * stored at the same offset. Returns the offsets in the order supplied.
+   */
   upsert: (
     entries: Array<{ chunk: StreamChunk; offset: TOffset }>,
   ) => Promise<Array<TOffset>>
@@ -242,10 +245,10 @@ const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 100
 /** Options for the in-process delivery-durability backend. */
 export interface MemoryStreamOptions {
   /**
-     * Milliseconds a from-start join waits for the run's first chunk before
-     * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
-     * raise it if a producer can legitimately start long after a joiner attaches.
-     */
+   * Milliseconds a from-start join waits for the run's first chunk before
+   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
+   * raise it if a producer can legitimately start long after a joiner attaches.
+   */
   firstChunkDeadlineMs?: number
 }
 

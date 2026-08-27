@@ -6,11 +6,11 @@
  */
 export interface GeminiEmbeddingProviderOptions {
   /**
-     * Type of task for which the embedding will be used. Helps the model
-     * produce embeddings optimized for the intended use case.
-     *
-     * @see https://ai.google.dev/gemini-api/docs/embeddings#task-types
-     */
+   * Type of task for which the embedding will be used. Helps the model
+   * produce embeddings optimized for the intended use case.
+   *
+   * @see https://ai.google.dev/gemini-api/docs/embeddings#task-types
+   */
   taskType?:
     | 'SEMANTIC_SIMILARITY'
     | 'CLASSIFICATION'
@@ -22,8 +22,8 @@ export interface GeminiEmbeddingProviderOptions {
     | 'CODE_RETRIEVAL_QUERY'
 
   /**
-     * Title for the text. Only applicable when `taskType` is
-     * `RETRIEVAL_DOCUMENT`.
-     */
+   * Title for the text. Only applicable when `taskType` is
+   * `RETRIEVAL_DOCUMENT`.
+   */
   title?: string
 }

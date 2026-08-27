@@ -44,42 +44,42 @@ export const BYTEPLUS_OUTPUT_FORMAT_IMAGE_MODELS: ReadonlyArray<BytePlusImageMod
  */
 export interface BytePlusImageBaseProviderOptions {
   /**
-     * Return images as expiring links (`url`, valid 24 hours) or inline base64
-     * (`b64_json`).
-     *
-     * @default 'url'
-     */
+   * Return images as expiring links (`url`, valid 24 hours) or inline base64
+   * (`b64_json`).
+   *
+   * @default 'url'
+   */
   response_format?: BytePlusImageResponseFormat
 
   /**
-     * Whether to stamp an "AI generated" watermark in the bottom-right corner.
-     *
-     * **BytePlus defaults this to `true`.** Pass `false` for a clean image.
-     */
+   * Whether to stamp an "AI generated" watermark in the bottom-right corner.
+   *
+   * **BytePlus defaults this to `true`.** Pass `false` for a clean image.
+   */
   watermark?: boolean
 
   /**
-     * Group-image mode. Set to `auto` to let the model return a set of related
-     * images (bounded by {@link BytePlusImageBaseProviderOptions.sequential_image_generation_options}).
-     * `generateImage()`'s `numberOfImages` sets this for you; an explicit value
-     * here wins.
-     *
-     * Documented on Seedream 5.0-lite, 4.5 and 4.0. It is sent as given on
-     * every model rather than gated locally — the shipped 5.0 ids post-date the
-     * published parameter table, and an unsupported combination comes back as a
-     * clear Ark error.
-     *
-     * @default 'disabled'
-     */
+   * Group-image mode. Set to `auto` to let the model return a set of related
+   * images (bounded by {@link BytePlusImageBaseProviderOptions.sequential_image_generation_options}).
+   * `generateImage()`'s `numberOfImages` sets this for you; an explicit value
+   * here wins.
+   *
+   * Documented on Seedream 5.0-lite, 4.5 and 4.0. It is sent as given on
+   * every model rather than gated locally — the shipped 5.0 ids post-date the
+   * published parameter table, and an unsupported combination comes back as a
+   * clear Ark error.
+   *
+   * @default 'disabled'
+   */
   sequential_image_generation?: BytePlusSequentialImageGeneration
 
   /** Bounds for group-image mode. Only read when the mode is `auto`. */
   sequential_image_generation_options?: BytePlusSequentialImageGenerationOptions
 
   /**
-     * Prompt-rewriting configuration. Documented on Seedream 5.0-lite, 4.5 and
-     * 4.0; `mode: 'fast'` is unsupported on 5.0-lite and 4.5.
-     */
+   * Prompt-rewriting configuration. Documented on Seedream 5.0-lite, 4.5 and
+   * 4.0; `mode: 'fast'` is unsupported on 5.0-lite and 4.5.
+   */
   optimize_prompt_options?: BytePlusOptimizePromptOptions
 }
 
@@ -89,10 +89,10 @@ export interface BytePlusImageBaseProviderOptions {
  */
 export interface BytePlusSeedream5ImageProviderOptions extends BytePlusImageBaseProviderOptions {
   /**
-     * File format of the generated image.
-     *
-     * @default 'jpeg'
-     */
+   * File format of the generated image.
+   *
+   * @default 'jpeg'
+   */
   output_format?: BytePlusImageOutputFormat
 }
 

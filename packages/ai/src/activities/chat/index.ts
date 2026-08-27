@@ -141,7 +141,7 @@ import type { ChatMCPOptions } from './mcp/types'
 
 /** The adapter kind this activity handles */
 export const /** The adapter kind this activity handles */
-kind = 'text' as const
+  kind = 'text' as const
 
 type AnyRuntimeTool = AnyTool
 type RuntimeToolWithApproval = AnyRuntimeTool & {
@@ -357,10 +357,12 @@ type CheckInterruptRegistry<
 type RuntimeContextOption<TTools, TMiddleware, TContext> = [
   MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>,
 ] extends [never]
-  ? { /**
-   * Runtime context value passed to middleware hooks and server tools.
-   */
-context?: TContext }
+  ? {
+      /**
+       * Runtime context value passed to middleware hooks and server tools.
+       */
+      context?: TContext
+    }
   : undefined extends MergeContext<
         ContextFromInputs<TTools, TMiddleware>,
         TContext
@@ -414,34 +416,34 @@ type TextActivityOptionsWithContext<
   'tools' | 'middleware' | 'context' | 'interrupts'
 > & {
   /**
-     * Tools for function calling (auto-executed when called).
-     *
-     * Accepts two shapes:
-     *  - User-defined tools via `toolDefinition()` — plain `Tool`, always assignable.
-     *  - Provider tools from `@tanstack/ai-<provider>/tools` (e.g. `webSearchTool`)
-     *    — branded and type-checked against the selected model's
-     *    `supports.tools` list. Passing an unsupported tool produces a
-     *    compile-time error on the array element.
-     */
+   * Tools for function calling (auto-executed when called).
+   *
+   * Accepts two shapes:
+   *  - User-defined tools via `toolDefinition()` — plain `Tool`, always assignable.
+   *  - Provider tools from `@tanstack/ai-<provider>/tools` (e.g. `webSearchTool`)
+   *    — branded and type-checked against the selected model's
+   *    `supports.tools` list. Passing an unsupported tool produces a
+   *    compile-time error on the array element.
+   */
   tools?: TTools
   /**
-     * First-party generic interrupt definitions for this chat call.
-     * Register the same definitions on the client to type payloads and answers.
-     */
+   * First-party generic interrupt definitions for this chat call.
+   * Register the same definitions on the client to type payloads and answers.
+   */
   interrupts?: TInterrupts & CheckUniqueInterruptDefinitions<TInterrupts>
   /**
-     * Optional middleware array for observing/transforming chat behavior.
-     * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
-     *
-     * @example
-     * ```ts
-     * const stream = chat({
-     *   adapter: openaiText('gpt-5.5'),
-     *   messages: [...],
-     *   middleware: [loggingMiddleware, redactionMiddleware],
-     * })
-     * ```
-     */
+   * Optional middleware array for observing/transforming chat behavior.
+   * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
+   *
+   * @example
+   * ```ts
+   * const stream = chat({
+   *   adapter: openaiText('gpt-5.5'),
+   *   messages: [...],
+   *   middleware: [loggingMiddleware, redactionMiddleware],
+   * })
+   * ```
+   */
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
 } & RuntimeContextOption<TTools, TMiddleware, TContext>
 
@@ -463,13 +465,13 @@ export interface TextActivityOptions<
   /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
   /**
-     * Conversation messages. Accepts:
-     * - `ConstrainedModelMessage` — content types constrained by the adapter's input modalities.
-     * - `ModelMessage` — unconstrained model message (e.g., forwarded from an AG-UI wire payload).
-     * - `UIMessage` — parts-based UI representation; converted internally via `convertMessagesToModelMessages`.
-     *
-     * The three shapes can be mixed in a single array (e.g., when forwarding a wire payload that includes both anchor UIMessages and AG-UI fan-out ModelMessages).
-     */
+   * Conversation messages. Accepts:
+   * - `ConstrainedModelMessage` — content types constrained by the adapter's input modalities.
+   * - `ModelMessage` — unconstrained model message (e.g., forwarded from an AG-UI wire payload).
+   * - `UIMessage` — parts-based UI representation; converted internally via `convertMessagesToModelMessages`.
+   *
+   * The three shapes can be mixed in a single array (e.g., when forwarding a wire payload that includes both anchor UIMessages and AG-UI fan-out ModelMessages).
+   */
   messages?:
     | Array<
         | UIMessage
@@ -481,14 +483,14 @@ export interface TextActivityOptions<
       >
     | undefined
   /**
-     * System prompts to prepend to the conversation.
-     *
-     * Accepts plain strings or `{ content, metadata }` objects. The `metadata`
-     * field is typed by the adapter — Anthropic narrows it to
-     * `AnthropicSystemPromptMetadata` (with `cache_control` for prompt
-     * caching), providers without per-prompt metadata reject the field
-     * entirely.
-     */
+   * System prompts to prepend to the conversation.
+   *
+   * Accepts plain strings or `{ content, metadata }` objects. The `metadata`
+   * field is typed by the adapter — Anthropic narrows it to
+   * `AnthropicSystemPromptMetadata` (with `cache_control` for prompt
+   * caching), providers without per-prompt metadata reject the field
+   * entirely.
+   */
   systemPrompts?:
     | Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
     | undefined
@@ -499,10 +501,10 @@ export interface TextActivityOptions<
       >
     | undefined
   /**
-     * Hand MCP clients/pools to chat(): their tools are discovered at run start
-     * and merged into the run; `connection` controls whether chat() closes them
-     * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
-     */
+   * Hand MCP clients/pools to chat(): their tools are discovered at run start
+   * and merged into the run; `connection` controls whether chat() closes them
+   * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
+   */
   mcp?: ChatMCPOptions
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
@@ -513,10 +515,10 @@ export interface TextActivityOptions<
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /**
-     * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
-     * Tunes how much of each lazy tool's description appears in the discovery
-     * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
-     */
+   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+   * Tunes how much of each lazy tool's description appears in the discovery
+   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+   */
   lazyToolsConfig?: LazyToolsConfig
   /** Unique conversation identifier for tracking */
   conversationId?: TextOptions['conversationId']
@@ -529,59 +531,59 @@ export interface TextActivityOptions<
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
-     * AG-UI interrupt resume responses. Persistence middleware validates these
-     * before accepting new input on a thread with pending interrupts.
-     */
+   * AG-UI interrupt resume responses. Persistence middleware validates these
+   * before accepting new input on a thread with pending interrupts.
+   */
   resume?: TextOptions['resume']
   /**
-     * Optional Standard Schema for structured output.
-     * When provided, the activity will:
-     * 1. Run the full agentic loop (executing tools as needed)
-     * 2. Once complete, return a Promise with the parsed output matching the schema
-     *
-     * Supports any Standard Schema compliant library (Zod v4+, ArkType, Valibot, etc.)
-     *
-     * @example
-     * ```ts
-     * const result = await chat({
-     *   adapter: openaiText('gpt-5.5'),
-     *   messages: [{ role: 'user', content: 'Generate a person' }],
-     *   outputSchema: z.object({ name: z.string(), age: z.number() })
-     * })
-     * // result is { name: string, age: number }
-     * ```
-     */
+   * Optional Standard Schema for structured output.
+   * When provided, the activity will:
+   * 1. Run the full agentic loop (executing tools as needed)
+   * 2. Once complete, return a Promise with the parsed output matching the schema
+   *
+   * Supports any Standard Schema compliant library (Zod v4+, ArkType, Valibot, etc.)
+   *
+   * @example
+   * ```ts
+   * const result = await chat({
+   *   adapter: openaiText('gpt-5.5'),
+   *   messages: [{ role: 'user', content: 'Generate a person' }],
+   *   outputSchema: z.object({ name: z.string(), age: z.number() })
+   * })
+   * // result is { name: string, age: number }
+   * ```
+   */
   outputSchema?: TSchema
   /**
-     * Whether to stream the text result.
-     * When true (default), returns a ChatStream for streaming output.
-     * When false, returns a Promise<string> with the collected text content.
-     *
-     * Note: If outputSchema is provided, this option is ignored and the result
-     * is always a Promise<InferSchemaType<TSchema>>.
-     *
-     * @default true
-     *
-     * @example Non-streaming text
-     * ```ts
-     * const text = await chat({
-     *   adapter: openaiText('gpt-5.5'),
-     *   messages: [{ role: 'user', content: 'Hello!' }],
-     *   stream: false
-     * })
-     * // text is a string with the full response
-     * ```
-     */
+   * Whether to stream the text result.
+   * When true (default), returns a ChatStream for streaming output.
+   * When false, returns a Promise<string> with the collected text content.
+   *
+   * Note: If outputSchema is provided, this option is ignored and the result
+   * is always a Promise<InferSchemaType<TSchema>>.
+   *
+   * @default true
+   *
+   * @example Non-streaming text
+   * ```ts
+   * const text = await chat({
+   *   adapter: openaiText('gpt-5.5'),
+   *   messages: [{ role: 'user', content: 'Hello!' }],
+   *   stream: false
+   * })
+   * // text is a string with the full response
+   * ```
+   */
   stream?: TStream
   middleware?: Array<ChatMiddleware<TContext>>
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   context?: TContext
   /**
-     * Enable debug logging. Pass `true` to enable all categories with the default
-     * console logger, `false` to silence everything, or a `DebugConfig` object for
-     * granular control and/or a custom `Logger`. Defaults to `undefined`, which
-     * means only the `errors` category is active.
-     */
+   * Enable debug logging. Pass `true` to enable all categories with the default
+   * console logger, `false` to silence everything, or a `DebugConfig` object for
+   * granular control and/or a custom `Logger`. Defaults to `undefined`, which
+   * means only the `errors` category is active.
+   */
   debug?: DebugOption
 }
 
@@ -685,42 +687,42 @@ interface TextEngineConfig<
   middleware?: Array<AnyChatMiddleware>
   context?: TContext
   /**
-     * If set, after the agent loop finishes the engine runs a
-     * structured-output finalization step through the same middleware
-     * pipeline. See `runStructuredFinalization` for the flow.
-     *
-     * - jsonSchema: the JSON Schema to send to the provider
-     * - yieldChunks: when true, finalization chunks are yielded to the caller
-     *   (used by runStreamingStructuredOutput). When false, chunks are
-     *   consumed internally for middleware visibility but not yielded
-     *   (used by runAgenticStructuredOutput).
-     * - normalize: optional schema-aware transform applied to the captured
-     *   structured-output object the moment it enters the engine — BEFORE it is
-     *   stored, validated, or yielded. Used to undo strict-mode null-widening
-     *   (`undoNullWidening`): strict schemas widen optional fields to
-     *   `required` + nullable so the provider returns `null` for an absent
-     *   optional, and this strips exactly those synthesized nulls while keeping
-     *   the ones a `.nullable()` field genuinely allows. Applied here (not in
-     *   the adapter) because the engine is the only layer holding the original
-     *   schema's null-widening map, and applying it at capture fixes BOTH the
-     *   streaming chunk and the Promise<T> result with one transform.
-     * - validate: optional callback invoked AFTER `normalize` and AFTER the
-     *   structured-output result is captured, but BEFORE the terminal hook
-     *   fires. If it throws, the engine records a `finalizationError` and fires
-     *   `onError` instead of `onFinish` (per spec §7.3). On success, the
-     *   returned value is stored as the validated result and retrievable via
-     *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
-     *   to perform Standard Schema validation inside the engine.
-     * - nativeCombined: when true, the adapter declared
-     *   `supportsCombinedToolsAndSchema()` and the engine wires `jsonSchema`
-     *   into the regular `chatStream` call instead of running a separate
-     *   finalization round-trip. The `'structuredOutput'` middleware phase
-     *   does NOT fire on this path — middleware sees the run through
-     *   `beforeModel` / `modelStream` as usual.
-     * - source: how to take the combined object. `'text'` (default) parses
-     *   accumulated assistant text. `'event'` reads an adapter-emitted
-     *   `structured-output.complete` and does not parse prose.
-     */
+   * If set, after the agent loop finishes the engine runs a
+   * structured-output finalization step through the same middleware
+   * pipeline. See `runStructuredFinalization` for the flow.
+   *
+   * - jsonSchema: the JSON Schema to send to the provider
+   * - yieldChunks: when true, finalization chunks are yielded to the caller
+   *   (used by runStreamingStructuredOutput). When false, chunks are
+   *   consumed internally for middleware visibility but not yielded
+   *   (used by runAgenticStructuredOutput).
+   * - normalize: optional schema-aware transform applied to the captured
+   *   structured-output object the moment it enters the engine — BEFORE it is
+   *   stored, validated, or yielded. Used to undo strict-mode null-widening
+   *   (`undoNullWidening`): strict schemas widen optional fields to
+   *   `required` + nullable so the provider returns `null` for an absent
+   *   optional, and this strips exactly those synthesized nulls while keeping
+   *   the ones a `.nullable()` field genuinely allows. Applied here (not in
+   *   the adapter) because the engine is the only layer holding the original
+   *   schema's null-widening map, and applying it at capture fixes BOTH the
+   *   streaming chunk and the Promise<T> result with one transform.
+   * - validate: optional callback invoked AFTER `normalize` and AFTER the
+   *   structured-output result is captured, but BEFORE the terminal hook
+   *   fires. If it throws, the engine records a `finalizationError` and fires
+   *   `onError` instead of `onFinish` (per spec §7.3). On success, the
+   *   returned value is stored as the validated result and retrievable via
+   *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
+   *   to perform Standard Schema validation inside the engine.
+   * - nativeCombined: when true, the adapter declared
+   *   `supportsCombinedToolsAndSchema()` and the engine wires `jsonSchema`
+   *   into the regular `chatStream` call instead of running a separate
+   *   finalization round-trip. The `'structuredOutput'` middleware phase
+   *   does NOT fire on this path — middleware sees the run through
+   *   `beforeModel` / `modelStream` as usual.
+   * - source: how to take the combined object. `'text'` (default) parses
+   *   accumulated assistant text. `'event'` reads an adapter-emitted
+   *   `structured-output.complete` and does not parse prose.
+   */
   finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
@@ -851,11 +853,11 @@ class TextEngine<
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
   /**
-     * Latched the first time the delivery socket closes; see `notifyDisconnected`.
-     * Also read by `subscribe` so a listener registered AFTER the disconnect (a
-     * middleware whose `setup` was still running at the time — the common case) is
-     * called immediately rather than never.
-     */
+   * Latched the first time the delivery socket closes; see `notifyDisconnected`.
+   * Also read by `subscribe` so a listener registered AFTER the disconnect (a
+   * middleware whose `setup` was still running at the time — the common case) is
+   * called immediately rather than never.
+   */
   private disconnected = false
   private readonly disconnectListeners: Array<() => void | Promise<void>> = []
 
@@ -1064,12 +1066,12 @@ class TextEngine<
   }
 
   /**
-     * Returns the validated structured-output value (the result of running
-     * `finalStructuredOutput.validate` against the raw structured-output data)
-     * wrapped in a `{ value }` object so callers can distinguish "no validation
-     * happened" from "validation produced undefined". Returns `null` when no
-     * validator was configured or validation hasn't been performed yet.
-     */
+   * Returns the validated structured-output value (the result of running
+   * `finalStructuredOutput.validate` against the raw structured-output data)
+   * wrapped in a `{ value }` object so callers can distinguish "no validation
+   * happened" from "validation produced undefined". Returns `null` when no
+   * validator was configured or validation hasn't been performed yet.
+   */
   getValidatedStructuredOutput(): { value: unknown } | null {
     return this.hasValidatedStructuredOutput
       ? { value: this.validatedStructuredOutput }
@@ -1841,13 +1843,13 @@ class TextEngine<
   }
 
   /**
-     * Tools available for execution this turn. The discovery tool is dropped
-     * from the advertised set (`this.tools`) once every lazy tool is discovered,
-     * but a model may still re-request discovery; this widens execution lookup
-     * to include it so such calls don't fail with "Unknown tool". Centralised so
-     * both execution sites (`processToolCalls` and `checkForPendingToolCalls`)
-     * stay in sync.
-     */
+   * Tools available for execution this turn. The discovery tool is dropped
+   * from the advertised set (`this.tools`) once every lazy tool is discovered,
+   * but a model may still re-request discovery; this widens execution lookup
+   * to include it so such calls don't fail with "Unknown tool". Centralised so
+   * both execution sites (`processToolCalls` and `checkForPendingToolCalls`)
+   * stay in sync.
+   */
   private resolveExecutableTools(
     toolCalls: ReadonlyArray<ToolCall>,
   ): ReadonlyArray<AnyTool> {
@@ -2506,10 +2508,10 @@ class TextEngine<
   }
 
   /**
-     * Extract client state (approvals and client tool results) from original messages.
-     * This is called in the constructor BEFORE converting to ModelMessage format,
-     * because the parts array (which contains approval state) is lost during conversion.
-     */
+   * Extract client state (approvals and client tool results) from original messages.
+   * This is called in the constructor BEFORE converting to ModelMessage format,
+   * because the parts array (which contains approval state) is lost during conversion.
+   */
   private extractClientStateFromOriginalMessages(
     originalMessages: Array<any>,
   ): {
@@ -3206,9 +3208,9 @@ class TextEngine<
   }
 
   /**
-     * Find a tool call by id in message history (including already-completed ones).
-     * Used when the client has already attached a tool result for UI before resume.
-     */
+   * Find a tool call by id in message history (including already-completed ones).
+   * Used when the client has already attached a tool result for UI before resume.
+   */
   private findToolCallInMessages(toolCallId: string): ToolCall | undefined {
     for (const message of this.messages) {
       if (message.role !== 'assistant') continue
@@ -3221,11 +3223,11 @@ class TextEngine<
   }
 
   /**
-     * Tool calls that must be reconstructed as interrupt pending for ephemeral
-     * resume. Includes outstanding tools plus client tools that already have
-     * results in history when the resume batch still carries `client_tool_*`
-     * entries (the client writes local tool results before submitting resume).
-     */
+   * Tool calls that must be reconstructed as interrupt pending for ephemeral
+   * resume. Includes outstanding tools plus client tools that already have
+   * results in history when the resume batch still carries `client_tool_*`
+   * entries (the client writes local tool results before submitting resume).
+   */
   private getToolCallsForEphemeralResume(
     resume: ReadonlyArray<{ interruptId: string }> | undefined,
   ): Array<ToolCall> {
@@ -3288,14 +3290,14 @@ class TextEngine<
   }
 
   /**
-     * Record tool calls (deduped by id) toward `toolCallCount` /
-     * `lastTurnToolCallCount` for strategies and middleware `onShouldContinue`.
-     *
-     * Used for both live model turns and pending/resume batches. IDs already
-     * counted in this run (e.g. wait→resume after a live turn) are not
-     * re-added to `toolCallCount`. Per-turn execution caps are app middleware
-     * (`onBeforeToolCall` skip), not engine policy.
-     */
+   * Record tool calls (deduped by id) toward `toolCallCount` /
+   * `lastTurnToolCallCount` for strategies and middleware `onShouldContinue`.
+   *
+   * Used for both live model turns and pending/resume batches. IDs already
+   * counted in this run (e.g. wait→resume after a live turn) are not
+   * re-added to `toolCallCount`. Per-turn execution caps are app middleware
+   * (`onBeforeToolCall` skip), not engine policy.
+   */
   private recordToolCalls(toolCalls: Array<ToolCall>): void {
     this.lastTurnToolCallCount = toolCalls.length
     let newlyCounted = 0
@@ -3321,16 +3323,16 @@ class TextEngine<
   }
 
   /**
-     * The reason to report on `AbortInfo` for a cancelled run.
-     *
-     * `this.abortReason` only ever holds a *middleware*-initiated reason
-     * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
-     * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
-     * cancel channel — never touches that field, so the reason has to be read back
-     * off the caller's signal, which is the signal `isCancelled()` consults via
-     * `isAborted()`. A signal aborted with no reason carries a DOMException rather
-     * than a string, so non-string reasons are reported as absent.
-     */
+   * The reason to report on `AbortInfo` for a cancelled run.
+   *
+   * `this.abortReason` only ever holds a *middleware*-initiated reason
+   * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
+   * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
+   * cancel channel — never touches that field, so the reason has to be read back
+   * off the caller's signal, which is the signal `isCancelled()` consults via
+   * `isAborted()`. A signal aborted with no reason carries a DOMException rather
+   * than a string, so non-string reasons are reported as absent.
+   */
   private resolveAbortReason(): string | undefined {
     if (this.abortReason !== undefined) return this.abortReason
     const signalReason: unknown = this.effectiveSignal?.reason
@@ -3338,48 +3340,48 @@ class TextEngine<
   }
 
   /**
-     * Whether this run's teardown declared its abort a DETACH — see
-     * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
-     * and only for a plain, intentless disconnect of a detachable run, so every
-     * other exit path answers `false`.
-     *
-     * Surfaced on the engine (rather than the ctx being handed out) so the
-     * capability read stays inside core, and so the delivery sink learns the
-     * verdict through {@link publishRunDetachedSignal} instead of reaching into a
-     * middleware context it has no business holding.
-     *
-     * @internal
-     */
+   * Whether this run's teardown declared its abort a DETACH — see
+   * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
+   * and only for a plain, intentless disconnect of a detachable run, so every
+   * other exit path answers `false`.
+   *
+   * Surfaced on the engine (rather than the ctx being handed out) so the
+   * capability read stays inside core, and so the delivery sink learns the
+   * verdict through {@link publishRunDetachedSignal} instead of reaching into a
+   * middleware context it has no business holding.
+   *
+   * @internal
+   */
   wasDetached(): boolean {
     return getRunDetached(this.middlewareCtx, { optional: true }) === true
   }
 
   /**
-     * The delivery socket closed while this run was still going.
-     *
-     * Notifies every subscriber (see {@link RunDisconnectCapability}) and RETURNS
-     * IMMEDIATELY. Synchronous on purpose: it is called from
-     * `ReadableStream.cancel()`, which must not be made to wait on a run-store
-     * write, and the caller ({@link notifyRunDisconnected}) has no consumer left to
-     * report to anyway.
-     *
-     * Subscribers therefore run CONCURRENTLY with the still-executing run — which is
-     * the entire point. The run is typically suspended inside a slow middleware
-     * `setup` at this moment, so anything dispatched from the run's own unwinding
-     * would be minutes late. Nothing on this path aborts the run: a durable run
-     * outlives its viewer.
-     *
-     * Each subscriber's promise is parked on `deferredPromises`, which the run awaits
-     * in its `finally`, so bookkeeping cannot be lost to a race with the run's own
-     * completion even though nothing awaits it here.
-     *
-     * IDEMPOTENT. A second cancel, or one arriving after a terminal hook already ran,
-     * is ignored: the terminal hooks own the run's outcome, and re-stamping
-     * `detachedSince` on a run that has already finished would hand a completed run
-     * to the reaper as reclaimable work.
-     *
-     * @internal
-     */
+   * The delivery socket closed while this run was still going.
+   *
+   * Notifies every subscriber (see {@link RunDisconnectCapability}) and RETURNS
+   * IMMEDIATELY. Synchronous on purpose: it is called from
+   * `ReadableStream.cancel()`, which must not be made to wait on a run-store
+   * write, and the caller ({@link notifyRunDisconnected}) has no consumer left to
+   * report to anyway.
+   *
+   * Subscribers therefore run CONCURRENTLY with the still-executing run — which is
+   * the entire point. The run is typically suspended inside a slow middleware
+   * `setup` at this moment, so anything dispatched from the run's own unwinding
+   * would be minutes late. Nothing on this path aborts the run: a durable run
+   * outlives its viewer.
+   *
+   * Each subscriber's promise is parked on `deferredPromises`, which the run awaits
+   * in its `finally`, so bookkeeping cannot be lost to a race with the run's own
+   * completion even though nothing awaits it here.
+   *
+   * IDEMPOTENT. A second cancel, or one arriving after a terminal hook already ran,
+   * is ignored: the terminal hooks own the run's outcome, and re-stamping
+   * `detachedSince` on a run that has already finished would hand a completed run
+   * to the reaper as reclaimable work.
+   *
+   * @internal
+   */
   notifyDisconnected(): void {
     const alreadyDisconnected = this.disconnected || this.terminalHookCalled
     if (alreadyDisconnected) return
@@ -3390,15 +3392,15 @@ class TextEngine<
   }
 
   /**
-     * Invoke one disconnect listener, isolated and with its failure SWALLOWED after
-     * logging.
-     *
-     * There is no caller left to report to — the socket this would report on is the
-     * one that just closed — and a rejection parked on `deferredPromises` would
-     * surface as the run's failure, replacing a healthy outcome with a bookkeeping
-     * error. Isolation matters for the usual reason too: one subscriber's failing
-     * write must not skip the next one's.
-     */
+   * Invoke one disconnect listener, isolated and with its failure SWALLOWED after
+   * logging.
+   *
+   * There is no caller left to report to — the socket this would report on is the
+   * one that just closed — and a rejection parked on `deferredPromises` would
+   * surface as the run's failure, replacing a healthy outcome with a bookkeeping
+   * error. Isolation matters for the usual reason too: one subscriber's failing
+   * write must not skip the next one's.
+   */
   private runDisconnectListener(listener: () => void | Promise<void>): void {
     let result: void | Promise<void>
     try {
@@ -3416,14 +3418,14 @@ class TextEngine<
   }
 
   /**
-     * Run the final structured-output adapter call through the middleware
-     * pipeline. Yields chunks to the caller only when
-     * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
-     * silently while still piping through middleware.
-     *
-     * On success, populates this.structuredOutputResult.
-     * On failure, populates this.finalizationError.
-     */
+   * Run the final structured-output adapter call through the middleware
+   * pipeline. Yields chunks to the caller only when
+   * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
+   * silently while still piping through middleware.
+   *
+   * On success, populates this.structuredOutputResult.
+   * On failure, populates this.finalizationError.
+   */
   private async *runStructuredFinalization(): AsyncGenerator<StreamChunk> {
     if (!this.finalStructuredOutput) {
       throw new Error(
@@ -3807,22 +3809,22 @@ class TextEngine<
   }
 
   /**
-     * Native combined mode: harvest the structured output from the agent
-     * loop's accumulated final-turn text (no separate provider call).
-     *
-     * The adapter wired `outputSchema` into the regular `chatStream` request,
-     * so the model's final-turn text is the schema-constrained JSON. We parse
-     * `this.accumulatedContent`, populate `this.structuredOutputResult`, emit
-     * a synthetic `structured-output.complete` (and a `structured-output.start`
-     * if one wasn't emitted earlier — only happens on the streaming path when
-     * the model returned no text at all), and run the validate callback when
-     * present. Failures populate `this.finalizationError` so the engine's
-     * terminal-hook chooser routes to `onError` (per spec §7.3).
-     *
-     * The `'structuredOutput'` middleware phase intentionally does NOT fire on
-     * this path — middleware sees the run through `beforeModel` / `modelStream`
-     * as usual. See PR #605 / issue #605 for the design rationale.
-     */
+   * Native combined mode: harvest the structured output from the agent
+   * loop's accumulated final-turn text (no separate provider call).
+   *
+   * The adapter wired `outputSchema` into the regular `chatStream` request,
+   * so the model's final-turn text is the schema-constrained JSON. We parse
+   * `this.accumulatedContent`, populate `this.structuredOutputResult`, emit
+   * a synthetic `structured-output.complete` (and a `structured-output.start`
+   * if one wasn't emitted earlier — only happens on the streaming path when
+   * the model returned no text at all), and run the validate callback when
+   * present. Failures populate `this.finalizationError` so the engine's
+   * terminal-hook chooser routes to `onError` (per spec §7.3).
+   *
+   * The `'structuredOutput'` middleware phase intentionally does NOT fire on
+   * this path — middleware sees the run through `beforeModel` / `modelStream`
+   * as usual. See PR #605 / issue #605 for the design rationale.
+   */
   private async *harvestCombinedStructuredOutput(): AsyncGenerator<StreamChunk> {
     if (!this.finalStructuredOutput) {
       throw new Error(
@@ -4294,9 +4296,9 @@ class TextEngine<
   }
 
   /**
-     * Spec-normalize middleware output, then yield to the public iterable.
-     * Engine state and `onChunk` already saw the raw chunk.
-     */
+   * Spec-normalize middleware output, then yield to the public iterable.
+   * Engine state and `onChunk` already saw the raw chunk.
+   */
   private *emitPublicChunks(
     outputs: Array<StreamChunk>,
   ): Generator<StreamChunk, void, void> {
@@ -4314,9 +4316,9 @@ class TextEngine<
   }
 
   /**
-     * Pipe a single internal chunk through middleware, then spec-normalize
-     * before the public `for await` stream.
-     */
+   * Pipe a single internal chunk through middleware, then spec-normalize
+   * before the public `for await` stream.
+   */
   private async *pipeThroughMiddleware(
     chunk: AdapterYieldChunk,
   ): AsyncGenerator<StreamChunk, void, void> {
@@ -4328,9 +4330,9 @@ class TextEngine<
   }
 
   /**
-     * Drain queued `sandbox.file` chunks (emitted via the SandboxRuntime sink)
-     * through the middleware pipeline and into the public stream.
-     */
+   * Drain queued `sandbox.file` chunks (emitted via the SandboxRuntime sink)
+   * through the middleware pipeline and into the public stream.
+   */
   private async *drainSandboxFileQueue(): AsyncGenerator<StreamChunk> {
     while (this.sandboxFileQueue.length > 0) {
       const chunk = this.sandboxFileQueue.shift()
@@ -4339,9 +4341,9 @@ class TextEngine<
   }
 
   /**
-     * Drain an executeToolCalls async generator, yielding any CustomEvent chunks
-     * through the middleware pipeline and returning the final ExecuteToolCallsResult.
-     */
+   * Drain an executeToolCalls async generator, yielding any CustomEvent chunks
+   * through the middleware pipeline and returning the final ExecuteToolCallsResult.
+   */
   private async *drainToolCallGenerator(
     generator: AsyncGenerator<
       CustomEvent,

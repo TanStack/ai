@@ -344,11 +344,11 @@ export class ChatStreamSummarizeAdapter<
   }
 
   /**
-     * Build the TextOptions passed to the underlying chatStream. Provider
-     * `modelOptions` from the summarize call are forwarded as-is so knobs like
-     * Anthropic cache headers, Gemini safety settings, or Ollama tuning params
-     * still reach the wire layer.
-     */
+   * Build the TextOptions passed to the underlying chatStream. Provider
+   * `modelOptions` from the summarize call are forwarded as-is so knobs like
+   * Anthropic cache headers, Gemini safety settings, or Ollama tuning params
+   * still reach the wire layer.
+   */
   protected buildTextOptions(
     options: SummarizationOptions<TProviderOptions>,
     systemPrompt: string,

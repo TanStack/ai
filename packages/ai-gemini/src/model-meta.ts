@@ -45,8 +45,8 @@ interface ModelMeta<TProviderOptions = unknown> {
     }
   }
   /**
-     * Type-level description of which provider options this model supports.
-     */
+   * Type-level description of which provider options this model supports.
+   */
   providerOptions?: TProviderOptions
 }
 

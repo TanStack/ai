@@ -110,9 +110,9 @@ export class ChatPersistor {
   }
 
   /**
-     * Synchronously read the persisted state for constructor-time hydration.
-     * Returns the normalized combined record, or a promise of it for async stores.
-     */
+   * Synchronously read the persisted state for constructor-time hydration.
+   * Returns the normalized combined record, or a promise of it for async stores.
+   */
   readInitial():
     | ChatPersistedState
     | undefined
@@ -134,9 +134,9 @@ export class ChatPersistor {
   }
 
   /**
-     * Apply state from an async `getItem` once it resolves, unless the message
-     * list has already changed since hydration began.
-     */
+   * Apply state from an async `getItem` once it resolves, unless the message
+   * list has already changed since hydration began.
+   */
   hydrateAsync(
     persistedState:
       | ChatPersistedState
@@ -169,10 +169,10 @@ export class ChatPersistor {
   }
 
   /**
-     * Record a message-list change and queue a combined write for it. Skips a
-     * single write after {@link beginClear} so the clear's empty snapshot isn't
-     * persisted between `clearMessages()` and {@link remove}.
-     */
+   * Record a message-list change and queue a combined write for it. Skips a
+   * single write after {@link beginClear} so the clear's empty snapshot isn't
+   * persisted between `clearMessages()` and {@link remove}.
+   */
   notifyMessagesChanged(messages: Array<UIMessage>): void {
     this.messagesGeneration++
     this.lastMessages = [...messages]
@@ -184,10 +184,10 @@ export class ChatPersistor {
   }
 
   /**
-     * Record the current resume snapshot (which run to rejoin / which interrupts
-     * are pending) and persist it alongside the messages. Pass `null` to clear it
-     * once the run reaches a non-interrupt terminal.
-     */
+   * Record the current resume snapshot (which run to rejoin / which interrupts
+   * are pending) and persist it alongside the messages. Pass `null` to clear it
+   * once the run reaches a non-interrupt terminal.
+   */
   persistResumeSnapshot(snapshot: ChatResumeSnapshot | null): void {
     this.lastResume = snapshot
     if (this.skipNextPersist) {
@@ -243,9 +243,9 @@ export class ChatPersistor {
   }
 
   /**
-     * Capture the message/run ids that exist at the moment of a clear so chunks
-     * still arriving for them can be ignored.
-     */
+   * Capture the message/run ids that exist at the moment of a clear so chunks
+   * still arriving for them can be ignored.
+   */
   snapshotClear(context: {
     messages: Array<UIMessage>
     activeRunIds: Set<string>
@@ -322,9 +322,9 @@ export class ChatPersistor {
   }
 
   /**
-     * The owning client calls this when a run starts so runless content chunks
-     * (adapters that omit `runId` on content events) can be attributed to it.
-     */
+   * The owning client calls this when a run starts so runless content chunks
+   * (adapters that omit `runId` on content events) can be attributed to it.
+   */
   onRunStarted(runId: string): void {
     this.currentRunlessRunId = runId
   }
@@ -351,9 +351,9 @@ export class ChatPersistor {
   }
 
   /**
-     * Consume the current runless run id (if any), forgetting it. Used when an
-     * ignored, runId-less RUN_ERROR drains the run the client is still tracking.
-     */
+   * Consume the current runless run id (if any), forgetting it. Used when an
+   * ignored, runId-less RUN_ERROR drains the run the client is still tracking.
+   */
   takeRunlessRunId(): string | null {
     const runId = this.currentRunlessRunId
     if (!runId) return null

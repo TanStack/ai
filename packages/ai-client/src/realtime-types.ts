@@ -15,69 +15,69 @@ export type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai/client'
  */
 export interface RealtimeClientOptions {
   /**
-     * Function to fetch a realtime token from the server.
-     * Called on connect and when token needs refresh.
-     */
+   * Function to fetch a realtime token from the server.
+   * Called on connect and when token needs refresh.
+   */
   getToken: () => Promise<RealtimeToken>
 
   /**
-     * The realtime adapter to use (e.g., openaiRealtime())
-     */
+   * The realtime adapter to use (e.g., openaiRealtime())
+   */
   adapter: RealtimeAdapter
 
   /**
-     * Client-side tools with execution logic
-     */
+   * Client-side tools with execution logic
+   */
   tools?: ReadonlyArray<AnyClientTool>
 
   /**
-     * Auto-play assistant audio (default: true)
-     */
+   * Auto-play assistant audio (default: true)
+   */
   autoPlayback?: boolean
 
   /**
-     * Request microphone access on connect (default: true)
-     */
+   * Request microphone access on connect (default: true)
+   */
   autoCapture?: boolean
 
   /**
-     * System instructions for the assistant
-     */
+   * System instructions for the assistant
+   */
   instructions?: string
 
   /**
-     * Voice to use for audio output
-     */
+   * Voice to use for audio output
+   */
   voice?: string
 
   /**
-     * Voice activity detection mode (default: 'server')
-     */
+   * Voice activity detection mode (default: 'server')
+   */
   vadMode?: 'server' | 'semantic' | 'manual'
 
   /**
-     * Output modalities for responses (e.g., ['audio', 'text'])
-     */
+   * Output modalities for responses (e.g., ['audio', 'text'])
+   */
   outputModalities?: Array<'audio' | 'text'>
 
   /**
-     * Temperature for generation (provider-specific range)
-     */
+   * Temperature for generation (provider-specific range)
+   */
   temperature?: number
 
   /**
-     * Maximum number of tokens in a response
-     */
+   * Maximum number of tokens in a response
+   */
   maxOutputTokens?: number | 'inf'
 
   /**
-     * Eagerness level for semantic VAD ('low', 'medium', 'high')
-     */
+   * Eagerness level for semantic VAD ('low', 'medium', 'high')
+   */
   semanticEagerness?: 'low' | 'medium' | 'high'
 
   /**
-     * Provider-specific options
-     */
+   * Provider-specific options
+   */
   providerOptions?: Record<string, unknown>
 
   // Callbacks
