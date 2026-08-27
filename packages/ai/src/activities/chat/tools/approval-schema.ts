@@ -124,8 +124,7 @@ function decisionEnvelope(input: {
     approved: { const: input.approved },
   }
   const required = ['approved']
-  const isApproved = input.approved && input.inputSchema
-  if (isApproved) {
+  if (input.approved && input.inputSchema) {
     properties['editedArgs'] = input.inputSchema.jsonSchema ?? {}
   }
   if (input.payload) {
@@ -150,9 +149,7 @@ export function normalizeApprovalSchema(
   let reject: NormalizedSchemaInput | null = null
 
   if (approvalSchema !== undefined) {
-    const isStandardSchema =
-      isStandardSchema(approvalSchema) || isRawJsonSchema(approvalSchema)
-    if (isStandardSchema) {
+    if (isStandardSchema(approvalSchema) || isRawJsonSchema(approvalSchema)) {
       approve = schemaToWire(approvalSchema)
       reject = approve
     } else if (isApprovalBranchMap(approvalSchema)) {

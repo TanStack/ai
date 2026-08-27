@@ -260,9 +260,11 @@ function applyResumeIdentity(
   }
 }
 
+type CustomStreamChunk = Extract<StreamChunk, { type: 'CUSTOM' }>
+
 function applyArtifactsCustomEvent(
   next: GenerationResumeSnapshot,
-  chunk: StreamChunk,
+  chunk: CustomStreamChunk,
 ): void {
   const artifacts = collectArtifactRefs(chunk.value)
   if (artifacts.length === 0) return
@@ -272,14 +274,12 @@ function applyArtifactsCustomEvent(
 
 function applyResultCustomEvent(
   next: GenerationResumeSnapshot,
-  chunk: StreamChunk,
+  chunk: CustomStreamChunk,
 ): void {
   const result = createGenerationResultSnapshot(chunk.value)
   if (!result) return
   next.result = result
-  const isArtifactsAndNonemptyArtifacts =
-    result.artifacts && result.artifacts.length > 0
-  if (isArtifactsAndNonemptyArtifacts) {
+  if (result.artifacts && result.artifacts.length > 0) {
     next.pendingArtifacts = result.artifacts
     next.activity = result.artifacts[0]?.source.activity
   }
@@ -287,7 +287,7 @@ function applyResultCustomEvent(
 
 function applyVideoJobCreatedCustomEvent(
   next: GenerationResumeSnapshot,
-  chunk: StreamChunk,
+  chunk: CustomStreamChunk,
 ): void {
   const providerJobId = isObject(chunk.value)
     ? stringField(chunk.value, 'jobId')
@@ -299,7 +299,7 @@ function applyVideoJobCreatedCustomEvent(
 
 const generationCustomEventHandlers: Record<
   string,
-  (next: GenerationResumeSnapshot, chunk: StreamChunk) => void
+  (next: GenerationResumeSnapshot, chunk: CustomStreamChunk) => void
 > = {
   [GENERATION_EVENTS.ARTIFACTS]: applyArtifactsCustomEvent,
   [GENERATION_EVENTS.RESULT]: applyResultCustomEvent,

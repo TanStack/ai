@@ -128,11 +128,8 @@ export class RealtimeClient {
   }
 
   startListening(): void {
-    const isNotConnectionOrStatusIsNotConnected =
-      !this.connection || this.state.status !== 'connected'
-    if (isNotConnectionOrStatusIsNotConnected) {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
     void this.connection.startAudioCapture()
     this.updateState({ mode: 'listening' })
   }
@@ -153,11 +150,8 @@ export class RealtimeClient {
   }
 
   sendText(text: string): void {
-    const isNotConnectionOrStatusIsNotConnected =
-      !this.connection || this.state.status !== 'connected'
-    if (isNotConnectionOrStatusIsNotConnected) {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
 
     // Add user message
     const userMessage: RealtimeMessage = {
@@ -173,11 +167,8 @@ export class RealtimeClient {
   }
 
   sendImage(imageData: string, mimeType: string): void {
-    const isNotConnectionOrStatusIsNotConnected =
-      !this.connection || this.state.status !== 'connected'
-    if (isNotConnectionOrStatusIsNotConnected) {
-      return
-    }
+    if (!this.connection) return
+    if (this.state.status !== 'connected') return
 
     // Add user message with image part
     const userMessage: RealtimeMessage = {
@@ -272,14 +263,10 @@ export class RealtimeClient {
     }
 
     // Notify specific callbacks
-    const isUpdatesHasStatusAndStatusIsNotUndefined =
-      'status' in updates && updates.status !== undefined
-    if (isUpdatesHasStatusAndStatusIsNotUndefined) {
+    if ('status' in updates && updates.status !== undefined) {
       this.options.onStatusChange?.(updates.status)
     }
-    const isUpdatesHasModeAndModeIsNotUndefined =
-      'mode' in updates && updates.mode !== undefined
-    if (isUpdatesHasModeAndModeIsNotUndefined) {
+    if ('mode' in updates && updates.mode !== undefined) {
       this.options.onModeChange?.(updates.mode)
     }
   }

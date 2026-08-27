@@ -132,8 +132,7 @@ export class ChatPersistor {
         this.lastResume = state.resume ?? null
         this.lastMessages = state.messages
         this.applyMessages(state.messages)
-        const isResumeAndApplyResume = state.resume && this.applyResume
-        if (isResumeAndApplyResume) {
+        if (state.resume && this.applyResume) {
           this.applyResume(state.resume)
         }
       })
@@ -329,12 +328,12 @@ export class ChatPersistor {
 
   private isRunlessChunkFromIgnoredRun(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    const isRunIdOrNotCurrentRunlessRunId = runId || !this.currentRunlessRunId
-    if (isRunIdOrNotCurrentRunlessRunId) return false
-    const isNotHasIgnoredActiveRunIdAndNotHasClearedRunId =
+    if (runId) return false
+    if (!this.currentRunlessRunId) return false
+    const isUnknownRunlessId =
       !this.ignoredActiveRunIds.has(this.currentRunlessRunId) &&
       !this.clearedRunIds.has(this.currentRunlessRunId)
-    if (isNotHasIgnoredActiveRunIdAndNotHasClearedRunId) {
+    if (isUnknownRunlessId) {
       return false
     }
     return (

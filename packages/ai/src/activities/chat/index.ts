@@ -204,14 +204,11 @@ function isBatchInterruptSubmissionError(value: object): boolean {
 function isInterruptSubmissionError(
   value: unknown,
 ): value is InterruptSubmissionError {
-  const isInvalid =
-    value === null || typeof value !== 'object' || Array.isArray(value)
-  if (isInvalid) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return false
   }
   if (!hasInterruptErrorFields(value)) return false
-  const hasScope = 'scope' in value && value.scope === 'item'
-  if (hasScope) {
+  if ('scope' in value && value.scope === 'item') {
     return isItemInterruptSubmissionError(value)
   }
   return isBatchInterruptSubmissionError(value)
@@ -229,14 +226,14 @@ function parseEphemeralToolInput(toolCall: ToolCall): unknown {
 function structuralInterruptFailure(
   error: unknown,
 ): StructuralInterruptFailure | undefined {
-  const isEmptyInterruptResumeValidationError =
+  if (
     !(error instanceof Error) ||
     error.name !== 'InterruptResumeValidationError' ||
     !('errors' in error) ||
     !Array.isArray(error.errors) ||
     error.errors.length === 0 ||
     !error.errors.every(isInterruptSubmissionError)
-  if (isEmptyInterruptResumeValidationError) {
+  ) {
     return undefined
   }
   return {
@@ -1465,9 +1462,7 @@ class TextEngine<
 
   private handleTextMessageContentEvent(chunk: TextMessageContentEvent): void {
     const extra = chunk as AdapterYieldChunk
-    const isInvalidExtra =
-      typeof extra.content === 'string' && extra.content !== ''
-    if (isInvalidExtra) {
+    if (typeof extra.content === 'string' && extra.content !== '') {
       this.accumulatedContent = extra.content
     } else {
       this.accumulatedContent += chunk.delta
@@ -1490,9 +1485,10 @@ class TextEngine<
   }
 
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
-    const isInvalidChunk =
-      typeof chunk.parentMessageId === 'string' && chunk.parentMessageId !== ''
-    if (isInvalidChunk) {
+    if (
+      typeof chunk.parentMessageId === 'string' &&
+      chunk.parentMessageId !== ''
+    ) {
       this.captureStreamMessageIdentity(chunk.parentMessageId)
     }
     this.toolCallManager.addToolCallStartEvent(chunk)
@@ -1614,9 +1610,7 @@ class TextEngine<
   }
 
   private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
-    const isInvalidChunk =
-      typeof chunk.signature === 'string' && chunk.signature !== ''
-    if (isInvalidChunk) {
+    if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.currentThinkingSignature = chunk.signature
     }
   }
@@ -2202,8 +2196,7 @@ class TextEngine<
       (message) =>
         message.role === 'assistant' && message.id === this.currentMessageId,
     )
-    const hasInput = input.structuredOutput && existingStructuredIndex >= 0
-    if (hasInput) {
+    if (input.structuredOutput && existingStructuredIndex >= 0) {
       this.patchExistingStructuredMessage(
         messages,
         existingStructuredIndex,
@@ -2212,11 +2205,14 @@ class TextEngine<
       )
       return existingStructuredIndex
     }
-    const hasInput2 = input.structuredOutput && !input.splitStructuredMessage
-    if (hasInput2) {
+    if (input.structuredOutput && !input.splitStructuredMessage) {
       this.appendCombinedStructuredMessage(
         messages,
-        input,
+        {
+          structuredOutput: input.structuredOutput,
+          raw: input.raw,
+          structuredId: input.structuredId,
+        },
         currentTurnAlreadyRecorded,
       )
       return existingStructuredIndex
@@ -2356,8 +2352,7 @@ class TextEngine<
     for (const message of this.messages) {
       // Check for ModelMessage format (role: 'tool' messages contain tool results)
       // This handles results sent back from the client after executing client-side tools
-      const isTool = message.role === 'tool' && message.toolCallId
-      if (isTool) {
+      if (message.role === 'tool' && message.toolCallId) {
         let output: unknown
         if (Array.isArray(message.content)) {
           output = message.content
@@ -2574,10 +2569,11 @@ class TextEngine<
   }
 
   private publicInterruptTerminal(chunk: StreamChunk): StreamChunk {
-    const shouldSkipChunk =
+    if (
       chunk.type !== EventType.RUN_FINISHED ||
-      chunk.outcome?.type !== 'interrupt'
-    if (shouldSkipChunk) {
+      !chunk.outcome ||
+      chunk.outcome.type !== 'interrupt'
+    ) {
       return chunk
     }
     return {
@@ -2585,11 +2581,11 @@ class TextEngine<
       outcome: {
         ...chunk.outcome,
         interrupts: chunk.outcome.interrupts.map((interrupt) => {
-          const isInvalidInterrupt =
+          if (
             !interrupt.metadata ||
             typeof interrupt.metadata !== 'object' ||
             Array.isArray(interrupt.metadata)
-          if (isInvalidInterrupt) {
+          ) {
             return interrupt
           }
           const metadata = { ...interrupt.metadata }
@@ -2828,10 +2824,11 @@ class TextEngine<
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
-    const shouldSkipChunk =
+    if (
       chunk.type !== EventType.RUN_FINISHED ||
-      chunk.outcome?.type !== 'interrupt'
-    if (shouldSkipChunk) {
+      !chunk.outcome ||
+      chunk.outcome.type !== 'interrupt'
+    ) {
       return chunk
     }
     const interruptedRunId = this.runIdOverride ?? this.requestId
@@ -2840,20 +2837,20 @@ class TextEngine<
       outcome: {
         ...chunk.outcome,
         interrupts: chunk.outcome.interrupts.map((interrupt) => {
-          const isInvalidInterrupt =
+          if (
             !interrupt.metadata ||
             typeof interrupt.metadata !== 'object' ||
             Array.isArray(interrupt.metadata)
-          if (isInvalidInterrupt) {
+          ) {
             return interrupt
           }
           const metadata = { ...interrupt.metadata }
           const unopened = metadata[interruptBindingMetadataKey]
-          const isInvalidUnopened =
+          if (
             unopened === null ||
             typeof unopened !== 'object' ||
             Array.isArray(unopened)
-          if (isInvalidUnopened) {
+          ) {
             return interrupt
           }
           metadata[interruptBindingMetadataKey] = {
@@ -2961,8 +2958,7 @@ class TextEngine<
     const completedToolIds = new Set<string>()
 
     for (const message of this.messages) {
-      const isTool = message.role === 'tool' && message.toolCallId
-      if (isTool) {
+      if (message.role === 'tool' && message.toolCallId) {
         // Check if this is an approval response with pendingExecution marker
         let hasPendingExecution = false
         if (typeof message.content === 'string') {
@@ -2986,8 +2982,7 @@ class TextEngine<
     const pending: Array<ToolCall> = []
 
     for (const message of this.messages) {
-      const isAssistant = message.role === 'assistant' && message.toolCalls
-      if (isAssistant) {
+      if (message.role === 'assistant' && message.toolCalls) {
         for (const toolCall of message.toolCalls) {
           if (isProviderExecutedToolCall(toolCall)) {
             continue
@@ -3004,9 +2999,8 @@ class TextEngine<
 
   private findToolCallInMessages(toolCallId: string): ToolCall | undefined {
     for (const message of this.messages) {
-      const shouldSkipAssistant =
-        message.role !== 'assistant' || !message.toolCalls
-      if (shouldSkipAssistant) continue
+      if (message.role !== 'assistant') continue
+      if (!message.toolCalls) continue
       for (const toolCall of message.toolCalls) {
         if (toolCall.id === toolCallId) return toolCall
       }
@@ -3026,12 +3020,9 @@ class TextEngine<
       } else if (entry.interruptId.startsWith('approval_')) {
         toolCallId = entry.interruptId.slice('approval_'.length)
       }
-      const isIncompleteToolCallId =
-        toolCallId === undefined || byId.has(toolCallId)
-      if (isIncompleteToolCallId) continue
+      if (toolCallId === undefined || byId.has(toolCallId)) continue
       const toolCall = this.findToolCallInMessages(toolCallId)
-      const hasToolCall = toolCall && !isProviderExecutedToolCall(toolCall)
-      if (hasToolCall) {
+      if (toolCall && !isProviderExecutedToolCall(toolCall)) {
         pending.push(toolCall)
         byId.set(toolCallId, toolCall)
       }
@@ -3355,22 +3346,24 @@ class TextEngine<
       runChunkMiddleware: (chunk: StreamChunk) => Promise<Array<StreamChunk>>
     },
   ): AsyncGenerator<StreamChunk> {
-    const hasStructuredOutputResult =
+    const missingStructuredResult =
       !this.structuredOutputResult && !this.finalizationError
-    if (hasStructuredOutputResult) {
+    if (missingStructuredResult) {
       this.finalizationError = {
         message: 'missing structured result',
         code: 'structured-output-missing-result',
       }
     }
-    const hasStructuredOutputResult2 =
-      this.structuredOutputResult &&
+    const structuredResult = this.structuredOutputResult
+    const structuredConfig = this.finalStructuredOutput
+    if (
+      structuredResult &&
       !this.finalizationError &&
-      this.finalStructuredOutput?.validate
-    if (hasStructuredOutputResult2) {
+      structuredConfig?.validate
+    ) {
       try {
-        this.validatedStructuredOutput = this.finalStructuredOutput.validate(
-          this.structuredOutputResult.data,
+        this.validatedStructuredOutput = structuredConfig.validate(
+          structuredResult.data,
         )
         this.hasValidatedStructuredOutput = true
       } catch (err: unknown) {
@@ -3381,30 +3374,28 @@ class TextEngine<
         }
       }
     }
-    const shouldSkipFinalizationError =
-      !this.finalizationError ||
-      !this.finalStructuredOutput?.yieldChunks ||
-      state.runErrorYielded
-    if (shouldSkipFinalizationError) {
-      return
-    }
-    if (!state.startEmitted) {
-      state.startEmitted = true
+    const finalizationError = this.finalizationError
+    if (
+      finalizationError &&
+      structuredConfig?.yieldChunks &&
+      !state.runErrorYielded
+    ) {
+      if (!state.startEmitted) {
+        state.startEmitted = true
+        yield* this.emitPublicChunks(
+          await helpers.runChunkMiddleware(helpers.buildSynthesizedStart()),
+        )
+      }
+      const errChunk: StreamChunk = {
+        type: EventType.RUN_ERROR,
+        timestamp: Date.now(),
+        message: finalizationError.message,
+        ...(finalizationError.code ? { code: finalizationError.code } : {}),
+      }
       yield* this.emitPublicChunks(
-        await helpers.runChunkMiddleware(helpers.buildSynthesizedStart()),
+        await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
       )
     }
-    const errChunk: StreamChunk = {
-      type: EventType.RUN_ERROR,
-      timestamp: Date.now(),
-      message: this.finalizationError.message,
-      ...(this.finalizationError.code
-        ? { code: this.finalizationError.code }
-        : {}),
-    }
-    yield* this.emitPublicChunks(
-      await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
-    )
   }
 
   private captureCombinedStructuredOutput(): void {
@@ -3420,23 +3411,23 @@ class TextEngine<
     } else {
       this.parseCombinedStructuredText()
     }
-    const shouldSkipStructuredOutputResult =
-      !this.structuredOutputResult ||
-      this.finalizationError ||
-      !this.finalStructuredOutput.validate
-    if (shouldSkipStructuredOutputResult) {
-      return
-    }
-    try {
-      this.validatedStructuredOutput = this.finalStructuredOutput.validate(
-        this.structuredOutputResult.data,
-      )
-      this.hasValidatedStructuredOutput = true
-    } catch (err: unknown) {
-      this.finalizationError = {
-        message: err instanceof Error ? err.message : String(err),
-        code: 'structured-output-validation-failed',
-        cause: err,
+    const structuredResult = this.structuredOutputResult
+    if (
+      structuredResult &&
+      !this.finalizationError &&
+      this.finalStructuredOutput.validate
+    ) {
+      try {
+        this.validatedStructuredOutput = this.finalStructuredOutput.validate(
+          structuredResult.data,
+        )
+        this.hasValidatedStructuredOutput = true
+      } catch (err: unknown) {
+        this.finalizationError = {
+          message: err instanceof Error ? err.message : String(err),
+          code: 'structured-output-validation-failed',
+          cause: err,
+        }
       }
     }
   }
@@ -3482,17 +3473,18 @@ class TextEngine<
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, synthStart),
       )
     }
-    const hasStructuredOutputResult =
-      this.structuredOutputResult &&
+    const structuredResult = this.structuredOutputResult
+    if (
+      structuredResult &&
       !this.finalizationError &&
       !this.combinedCompleteEmitted
-    if (hasStructuredOutputResult) {
+    ) {
       const completeChunk: StreamChunk = {
         type: EventType.CUSTOM,
         name: 'structured-output.complete',
         value: {
-          object: this.structuredOutputResult.data,
-          raw: this.structuredOutputResult.rawText,
+          object: structuredResult.data,
+          raw: structuredResult.rawText,
           ...(this.combinedStructuredMessageId
             ? { messageId: this.combinedStructuredMessageId }
             : {}),
@@ -3613,9 +3605,7 @@ class TextEngine<
       resume: config.resume,
       tools: this.tools,
     })
-    const hasValidated =
-      validated.errors.length > 0 || !validated.resumeToolState
-    if (hasValidated) {
+    if (validated.errors.length > 0 || !validated.resumeToolState) {
       throw new InterruptResumeValidationError(validated.errors)
     }
 
@@ -3708,57 +3698,61 @@ class TextEngine<
     genericResolutions: ChatResumeToolState['genericInterrupts'] | undefined,
     pendingToolCalls: Array<ToolCall>,
   ): Promise<void> {
-    const isEmptyGenericPending =
-      genericPending.length === 0 || !genericResolutions
-    if (isEmptyGenericPending) return
-    const resolutions = genericPending
-      .sort((left, right) => {
-        const leftIndex =
-          left.binding.kind === 'generic' ? (left.binding.batchIndex ?? 0) : 0
-        const rightIndex =
-          right.binding.kind === 'generic' ? (right.binding.batchIndex ?? 0) : 0
-        return leftIndex - rightIndex
-      })
-      .flatMap((record) => {
-        const resolution = genericResolutions.get(record.interruptId)
-        const shouldSkipResolution = !resolution || !record.genericRequest
-        if (shouldSkipResolution) return []
-        return [
-          resolution.status === 'resolved'
-            ? {
-                request: record.genericRequest,
-                status: 'resolved' as const,
-                response: resolution.payload,
-              }
-            : {
-                request: record.genericRequest,
-                status: 'cancelled' as const,
-              },
-        ]
-      })
-    const collection: InterruptResolutionCollection = {
-      for: (definition) =>
-        resolutions.filter(
-          (resolution) => resolution.request.definition === definition,
-        ) as never,
-      all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
-        definitions.length === 0
-          ? resolutions
-          : resolutions.filter((resolution) =>
-              definitions.includes(resolution.request.definition),
-            ),
-    }
-    const policy = await this.middlewareRunner.runOnInterruptResolution(
-      this.middlewareCtx,
-      collection,
-    )
-    if (policy.toolResume === 'stop') {
-      this.earlyTermination = true
-      return
-    }
-    if (policy.toolResume !== 'cancel') return
-    for (const request of pendingToolCalls) {
-      this.resumeCancelledToolCallIds.add(request.id)
+    if (genericPending.length > 0 && genericResolutions) {
+      const resolutions = genericPending
+        .sort((left, right) => {
+          const leftIndex =
+            left.binding.kind === 'generic' ? (left.binding.batchIndex ?? 0) : 0
+          const rightIndex =
+            right.binding.kind === 'generic'
+              ? (right.binding.batchIndex ?? 0)
+              : 0
+          return leftIndex - rightIndex
+        })
+        .flatMap((record) => {
+          const resolution = genericResolutions.get(record.interruptId)
+          if (resolution && record.genericRequest) {
+            return [
+              resolution.status === 'resolved'
+                ? {
+                    request: record.genericRequest,
+                    status: 'resolved' as const,
+                    response: resolution.payload,
+                  }
+                : {
+                    request: record.genericRequest,
+                    status: 'cancelled' as const,
+                  },
+            ]
+          }
+          return []
+        })
+      const collection: InterruptResolutionCollection = {
+        for: (definition) =>
+          resolutions.filter(
+            (resolution) => resolution.request.definition === definition,
+          ) as never,
+        all: (
+          ...definitions: Array<InterruptDefinition<any, any, any, any>>
+        ) =>
+          definitions.length === 0
+            ? resolutions
+            : resolutions.filter((resolution) =>
+                definitions.includes(resolution.request.definition),
+              ),
+      }
+      const policy = await this.middlewareRunner.runOnInterruptResolution(
+        this.middlewareCtx,
+        collection,
+      )
+      if (policy.toolResume === 'stop') {
+        this.earlyTermination = true
+        return
+      }
+      if (policy.toolResume !== 'cancel') return
+      for (const request of pendingToolCalls) {
+        this.resumeCancelledToolCallIds.add(request.id)
+      }
     }
   }
 

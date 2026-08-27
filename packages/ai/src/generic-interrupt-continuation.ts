@@ -116,12 +116,12 @@ export function genericInterruptContinuationFromDescriptor(
   interrupt: Interrupt,
 ): GenericInterruptContinuation | undefined {
   const binding = readUnopenedInterruptBinding(interrupt)
-  const isIncompleteBinding =
+  if (
     binding?.kind !== 'generic' ||
     binding.definitionId === undefined ||
     binding.key === undefined ||
     binding.batchIndex === undefined
-  if (isIncompleteBinding) {
+  ) {
     return undefined
   }
   const metadata = isRecord(interrupt.metadata) ? interrupt.metadata : undefined

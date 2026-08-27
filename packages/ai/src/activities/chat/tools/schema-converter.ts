@@ -25,12 +25,10 @@ function isPropertyCarrier(schema: unknown): schema is Record<string, unknown> {
 export function isStandardJSONSchema(
   schema: unknown,
 ): schema is StandardJSONSchemaV1 {
-  const shouldSkipIsPropertyCarrier =
-    !isPropertyCarrier(schema) || !('~standard' in schema)
-  if (shouldSkipIsPropertyCarrier) return false
+  if (!isPropertyCarrier(schema) || !('~standard' in schema)) return false
 
   const standard = schema['~standard']
-  const hasVersion =
+  if (
     typeof standard !== 'object' ||
     standard === null ||
     !('version' in standard) ||
@@ -39,7 +37,7 @@ export function isStandardJSONSchema(
     typeof standard.jsonSchema !== 'object' ||
     standard.jsonSchema === null ||
     !('input' in standard.jsonSchema)
-  if (hasVersion) {
+  ) {
     return false
   }
 
@@ -70,12 +68,10 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
 }
 
 function widenOptionalScalar(prop: JSONSchema): JSONSchema | undefined {
-  const isInvalidProp = prop.type && !Array.isArray(prop.type)
-  if (isInvalidProp) {
+  if (prop.type && !Array.isArray(prop.type)) {
     return { ...prop, type: [prop.type, 'null'] }
   }
-  const isInvalidProp2 = Array.isArray(prop.type) && !prop.type.includes('null')
-  if (isInvalidProp2) {
+  if (Array.isArray(prop.type) && !prop.type.includes('null')) {
     return { ...prop, type: [...prop.type, 'null'] }
   }
   return undefined
@@ -85,8 +81,7 @@ function transformStructuredProperty(
   prop: JSONSchema,
   wasOptional: boolean,
 ): { schema: JSONSchema; widenedHere: boolean; childMap?: NullWideningMap } {
-  const isObject = prop.type === 'object' && prop.properties
-  if (isObject) {
+  if (prop.type === 'object' && prop.properties) {
     const nested = makeStructuredOutputCompatible(prop, prop.required || [])
     return {
       schema: wasOptional
@@ -96,8 +91,7 @@ function transformStructuredProperty(
       childMap: nested.nullWidening,
     }
   }
-  const isArray = prop.type === 'array' && prop.items
-  if (isArray) {
+  if (prop.type === 'array' && prop.items) {
     const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
     const nestedItems = items
       ? makeStructuredOutputCompatible(items, items.required || [])

@@ -297,9 +297,7 @@ export function memoryStream(
       const isFromStartJoin = offset === '-1' || offset === 'now'
 
       let log = memoryLogs.get(runId)
-      const isEmptyLog =
-        log === undefined || (log.entries.length === 0 && !log.complete)
-      if (isEmptyLog) {
+      if (log === undefined || (log.entries.length === 0 && !log.complete)) {
         if (!isFromStartJoin) {
           throw new Error(
             `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,

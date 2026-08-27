@@ -348,10 +348,10 @@ function readSubmissionErrors(
   error: unknown,
 ): ReadonlyArray<InterruptSubmissionError> {
   if (isSubmissionError(error)) return [error]
-  const isNotIsUnknownObjectOrNotErrorsIsArray =
-    !isUnknownObject(error) || !Array.isArray(error['errors'])
-  if (isNotIsUnknownObjectOrNotErrorsIsArray) return []
-  return error['errors'].every(isSubmissionError) ? error['errors'] : []
+  if (isUnknownObject(error) && Array.isArray(error['errors'])) {
+    return error['errors'].every(isSubmissionError) ? error['errors'] : []
+  }
+  return []
 }
 
 function haveSameInterruptIds(
@@ -595,12 +595,12 @@ export class InterruptManager<
     const firstPartyIndexes = new Map<number, number>()
     for (const interrupt of hydration.interrupts) {
       const binding = getDescriptorBinding(interrupt)
-      const isKindIsGenericAndDefinitionIdIsNotUndefinedAndKeyIsNotUndefined =
+      if (
         binding?.kind === 'generic' &&
         binding.definitionId !== undefined &&
         binding.key !== undefined &&
         binding.batchIndex !== undefined
-      if (isKindIsGenericAndDefinitionIdIsNotUndefinedAndKeyIsNotUndefined) {
+      ) {
         firstPartyIndexes.set(
           binding.batchIndex,
           (firstPartyIndexes.get(binding.batchIndex) ?? 0) + 1,
@@ -1003,46 +1003,43 @@ export class InterruptManager<
     correlated: boolean,
     firstPartyIndexes: ReadonlyMap<number, number>,
   ): RuntimeInterrupt | undefined {
-    const isNotCorrelatedOrCandidateIsUndefinedOrKindIsNotGenericOrKeyIsUndefined =
-      !correlated ||
-      candidate === undefined ||
-      candidate.kind !== 'generic' ||
-      candidate.definitionId === undefined ||
-      candidate.key === undefined ||
-      candidate.batchIndex === undefined ||
-      candidate.key.length === 0 ||
-      firstPartyIndexes.get(candidate.batchIndex) !== 1
     if (
-      isNotCorrelatedOrCandidateIsUndefinedOrKindIsNotGenericOrKeyIsUndefined
+      correlated &&
+      candidate !== undefined &&
+      candidate.kind === 'generic' &&
+      candidate.definitionId !== undefined &&
+      candidate.key !== undefined &&
+      candidate.batchIndex !== undefined &&
+      candidate.key.length > 0 &&
+      firstPartyIndexes.get(candidate.batchIndex) === 1
     ) {
-      return undefined
+      const definition = this.interruptDefinitions.get(candidate.definitionId)
+      if (
+        definition !== undefined &&
+        definitionSchemaHash(definition.responseSchema) ===
+          candidate.responseSchemaHash &&
+        (definition.payloadSchema === undefined
+          ? candidate.payloadSchemaHash === undefined
+          : candidate.payloadSchemaHash ===
+            definitionSchemaHash(definition.payloadSchema))
+      ) {
+        const rawPayload = getInterruptPayload(interrupt)
+        return {
+          descriptor: interrupt,
+          binding: cloneAndDeepFreezeJson(candidate),
+          definition,
+          kind: 'generic',
+          status: 'pending',
+          canResolve: true,
+          resumable: true,
+          ...(rawPayload === undefined
+            ? {}
+            : { payload: cloneAndDeepFreezeJson(rawPayload) }),
+          validationGeneration: 0,
+        }
+      }
     }
-    const definition = this.interruptDefinitions.get(candidate.definitionId)
-    const isDefinitionIsUndefinedOrDefinitionSchemaHashIsNotResponseSchemaHash =
-      definition === undefined ||
-      definitionSchemaHash(definition.responseSchema) !==
-        candidate.responseSchemaHash ||
-      (definition.payloadSchema === undefined
-        ? candidate.payloadSchemaHash !== undefined
-        : candidate.payloadSchemaHash !==
-          definitionSchemaHash(definition.payloadSchema))
-    if (isDefinitionIsUndefinedOrDefinitionSchemaHashIsNotResponseSchemaHash) {
-      return undefined
-    }
-    const rawPayload = getInterruptPayload(interrupt)
-    return {
-      descriptor: interrupt,
-      binding: cloneAndDeepFreezeJson(candidate),
-      definition,
-      kind: 'generic',
-      status: 'pending',
-      canResolve: true,
-      resumable: true,
-      ...(rawPayload === undefined
-        ? {}
-        : { payload: cloneAndDeepFreezeJson(rawPayload) }),
-      validationGeneration: 0,
-    }
+    return undefined
   }
 
   private hydrateGenericFallbackInterrupt(
@@ -1081,9 +1078,7 @@ export class InterruptManager<
         const base = baseSnapshot(item, hydration)
         // Not ours to resume: expose the descriptor so a UI can show the run
         // is paused, with no `resolveInterrupt` to call.
-        const isKindIsUnboundOrBindingIsUndefined =
-          item.kind === 'unbound' || item.binding === undefined
-        if (isKindIsUnboundOrBindingIsUndefined) {
+        if (item.kind === 'unbound') {
           const snapshot: UnboundInterrupt = {
             ...base,
             kind: 'unbound',
@@ -1091,38 +1086,46 @@ export class InterruptManager<
           }
           return Object.freeze(snapshot)
         }
-        const isKindIsToolApprovalAndKindIsToolApproval =
-          item.kind === 'tool-approval' && item.binding.kind === 'tool-approval'
-        if (isKindIsToolApprovalAndKindIsToolApproval) {
-          const binding = cloneAndDeepFreezeJson(item.binding)
-          const snapshot = {
+        if (item.binding === undefined) {
+          const snapshot: UnboundInterrupt = {
             ...base,
-            kind: 'tool-approval' as const,
-            binding,
-            toolName: item.binding.toolName,
-            toolCallId: item.binding.toolCallId,
-            originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
-            cancel: () => this.cancelItem(item.descriptor.id, transaction),
-            clearResolution: () =>
-              this.clearItem(item.descriptor.id, transaction),
-            resolveInterrupt: (approved: boolean, options?: unknown) => {
-              const details = isUnknownObject(options) ? options : undefined
-              this.resolveItem(
-                item.descriptor.id,
-                {
-                  approved,
-                  ...(approved && details?.['editedArgs'] !== undefined
-                    ? { editedArgs: details['editedArgs'] }
-                    : {}),
-                  ...(details?.['payload'] !== undefined
-                    ? { payload: details['payload'] }
-                    : {}),
-                },
-                transaction,
-              )
-            },
+            kind: 'unbound',
+            canResolve: false,
           }
           return Object.freeze(snapshot)
+        }
+        if (item.kind === 'tool-approval') {
+          if (item.binding.kind === 'tool-approval') {
+            const binding = cloneAndDeepFreezeJson(item.binding)
+            const snapshot = {
+              ...base,
+              kind: 'tool-approval' as const,
+              binding,
+              toolName: item.binding.toolName,
+              toolCallId: item.binding.toolCallId,
+              originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
+              cancel: () => this.cancelItem(item.descriptor.id, transaction),
+              clearResolution: () =>
+                this.clearItem(item.descriptor.id, transaction),
+              resolveInterrupt: (approved: boolean, options?: unknown) => {
+                const details = isUnknownObject(options) ? options : undefined
+                this.resolveItem(
+                  item.descriptor.id,
+                  {
+                    approved,
+                    ...(approved && details?.['editedArgs'] !== undefined
+                      ? { editedArgs: details['editedArgs'] }
+                      : {}),
+                    ...(details?.['payload'] !== undefined
+                      ? { payload: details['payload'] }
+                      : {}),
+                  },
+                  transaction,
+                )
+              },
+            }
+            return Object.freeze(snapshot)
+          }
         }
         const boundGeneric =
           item.binding.kind === 'generic'
@@ -1137,9 +1140,7 @@ export class InterruptManager<
                   ? { responseSchemaHash: item.binding.responseSchemaHash }
                   : {}),
               })
-        const isDefinitionIsNotUndefinedAndKindIsGeneric =
-          item.definition !== undefined && item.binding.kind === 'generic'
-        if (isDefinitionIsNotUndefinedAndKindIsGeneric) {
+        if (item.definition !== undefined && item.binding.kind === 'generic') {
           const snapshot = {
             ...base,
             kind: 'generic',

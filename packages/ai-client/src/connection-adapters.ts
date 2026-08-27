@@ -341,14 +341,10 @@ function recordSseChunkIds(
   chunk: StreamChunk,
   state: SseEventParseState,
 ): void {
-  const isChunkHasThreadIdAndTypeofThreadIdIsString =
-    'threadId' in chunk && typeof chunk.threadId === 'string'
-  if (isChunkHasThreadIdAndTypeofThreadIdIsString) {
+  if ('threadId' in chunk && typeof chunk.threadId === 'string') {
     state.lastThreadId = chunk.threadId
   }
-  const isChunkHasRunIdAndTypeofRunIdIsString =
-    'runId' in chunk && typeof chunk.runId === 'string'
-  if (isChunkHasRunIdAndTypeofRunIdIsString) {
+  if ('runId' in chunk && typeof chunk.runId === 'string') {
     state.lastRunId = chunk.runId
   }
   const model = sseChunkModel(chunk)
@@ -721,14 +717,10 @@ interface ConnectSendState {
 }
 
 function noteConnectChunk(chunk: StreamChunk, state: ConnectSendState): void {
-  const isChunkHasThreadIdAndTypeofThreadIdIsString =
-    'threadId' in chunk && typeof chunk.threadId === 'string'
-  if (isChunkHasThreadIdAndTypeofThreadIdIsString) {
+  if ('threadId' in chunk && typeof chunk.threadId === 'string') {
     state.upstreamThreadId = chunk.threadId
   }
-  const isChunkHasRunIdAndTypeofRunIdIsString =
-    'runId' in chunk && typeof chunk.runId === 'string'
-  if (isChunkHasRunIdAndTypeofRunIdIsString) {
+  if ('runId' in chunk && typeof chunk.runId === 'string') {
     state.upstreamRunId = chunk.runId
   }
   const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
@@ -1729,9 +1721,12 @@ export function webSocket(
   }
 
   function openOnce(target: string, mode: 'run' | 'resume'): WebSocket {
-    const isSocketAndReadyStateComparedAndModeIsRunAndSocketModeIsRun =
-      socket && socket.readyState <= 1 && mode === 'run' && socketMode === 'run'
-    if (isSocketAndReadyStateComparedAndModeIsRunAndSocketModeIsRun) {
+    if (
+      socket &&
+      socket.readyState <= 1 &&
+      mode === 'run' &&
+      socketMode === 'run'
+    ) {
       return socket
     }
     const prior = socket
@@ -1850,9 +1845,7 @@ export function webSocket(
       const target = typeof url === 'function' ? url() : url
       const ws = openOnce(runIdQuery(target, runContext?.runId), 'run')
       await waitOpen(ws)
-      const isNotCurrentSessionOrRunIdIsNotRunId =
-        !currentSession || currentSession.runId !== runContext?.runId
-      if (isNotCurrentSessionOrRunIdIsNotRunId) {
+      if (!currentSession || currentSession.runId !== runContext?.runId) {
         currentSession = {
           runId: runContext?.runId,
           tracker: createReconnectTracker(options.reconnect),
@@ -1871,13 +1864,13 @@ export function webSocket(
         () => {
           const abortRunId = session.runId
           const live = socket
-          const isAbortRunIdIsUndefinedOrSawTerminalOrSocketModeIsNotRun =
+          if (
             abortRunId === undefined ||
             session.sawTerminal ||
             socketMode !== 'run' ||
             live === undefined ||
             live.readyState !== 1
-          if (isAbortRunIdIsUndefinedOrSawTerminalOrSocketModeIsNotRun) {
+          ) {
             return
           }
           try {

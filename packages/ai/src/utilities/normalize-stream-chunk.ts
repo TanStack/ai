@@ -18,9 +18,7 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       ? chunk.timestamp
       : undefined
 
-  const isInvalidChunk =
-    typeof chunk.signature === 'string' && chunk.signature !== ''
-  if (isInvalidChunk) {
+  if (typeof chunk.signature === 'string' && chunk.signature !== '') {
     const source = chunk as Record<string, unknown>
     const toolCallId = stringField(source.toolCallId)
     const entityId =
@@ -82,15 +80,11 @@ function copySpecFields(
       specChunk.toolCallName = chunk.toolName
     }
   }
-  const isChunk = chunk.type === EventType.RUN_ERROR && chunk.error != null
-  if (isChunk) {
-    const hasSpecChunk2 = specChunk.message === undefined && chunk.error.message
-    if (hasSpecChunk2) {
+  if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
+    if (specChunk.message === undefined && chunk.error.message) {
       specChunk.message = chunk.error.message
     }
-    const hasSpecChunk3 =
-      specChunk.code === undefined && chunk.error.code !== undefined
-    if (hasSpecChunk3) {
+    if (specChunk.code === undefined && chunk.error.code !== undefined) {
       specChunk.code = chunk.error.code
     }
   }
@@ -155,11 +149,11 @@ function collectTanstackMetadata(
       tanstack[key] = value
     }
   }
-  const isChunk =
+  if (
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
     isTanstackUsage(specChunk.usage)
-  if (isChunk) {
+  ) {
     const { usage, leftover } = toSpecTokenUsage(specChunk.usage, {
       model: typeof chunk.model === 'string' ? chunk.model : undefined,
     })
@@ -175,9 +169,7 @@ function toolCallEndResultChunks(
   chunk: AdapterYieldChunk,
   source: Record<string, unknown>,
 ): Array<StreamChunk> {
-  const isIncompleteChunk =
-    chunk.type !== EventType.TOOL_CALL_END || chunk.result === undefined
-  if (isIncompleteChunk) {
+  if (chunk.type !== EventType.TOOL_CALL_END || chunk.result === undefined) {
     return []
   }
   const parentMessageId = source.parentMessageId

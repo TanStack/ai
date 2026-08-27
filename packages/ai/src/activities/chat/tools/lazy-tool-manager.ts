@@ -120,8 +120,7 @@ export class LazyToolManager {
     const discoveryCallIds = new Set<string>()
 
     for (const msg of messages) {
-      const isAssistant = msg.role === 'assistant' && msg.toolCalls
-      if (isAssistant) {
+      if (msg.role === 'assistant' && msg.toolCalls) {
         for (const tc of msg.toolCalls) {
           if (tc.function.name === DISCOVERY_TOOL_NAME) {
             discoveryCallIds.add(tc.id)

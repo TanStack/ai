@@ -37,7 +37,7 @@ function shouldSkipInstrumentation(mw: ChatMiddleware<any, any>): boolean {
 }
 
 function applyOnChunkResult(input: {
-  result: StreamChunk | Array<StreamChunk> | null | undefined
+  result: StreamChunk | Array<StreamChunk> | null | undefined | void
   original: StreamChunk
   chunkType: StreamChunk['type']
   nextChunks: Array<StreamChunk>
@@ -94,25 +94,29 @@ function applyOnChunkResult(input: {
     }
     return
   }
-  nextChunks.push(result)
-  if (!skip) {
-    logger.middleware(
-      `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
-      {
-        middleware: mw.name ?? 'unnamed',
-        hook: 'onChunk',
-        in: original,
-        out: result,
-      },
-    )
-    aiEventClient.emit('middleware:chunk:transformed', {
-      ...instrumentCtx(ctx),
-      middlewareName: mw.name || 'unnamed',
-      originalChunkType: chunkType,
-      resultCount: 1,
-      wasDropped: false,
-    })
+  if (result) {
+    nextChunks.push(result)
+    if (!skip) {
+      logger.middleware(
+        `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${chunkType} out=${result.type}`,
+        {
+          middleware: mw.name ?? 'unnamed',
+          hook: 'onChunk',
+          in: original,
+          out: result,
+        },
+      )
+      aiEventClient.emit('middleware:chunk:transformed', {
+        ...instrumentCtx(ctx),
+        middlewareName: mw.name || 'unnamed',
+        originalChunkType: chunkType,
+        resultCount: 1,
+        wasDropped: false,
+      })
+    }
+    return
   }
+  nextChunks.push(original)
 }
 
 /** Build the base context for middleware instrumentation events. */

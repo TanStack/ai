@@ -24,12 +24,12 @@ function consumeSpecSummarizeChunk(
   }
 
   const tanstack = tanstackMetadata(chunk)
-  const isChunk =
+  if (
     (chunk.type === EventType.RUN_STARTED ||
       chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.TEXT_MESSAGE_START) &&
     typeof tanstack?.model === 'string'
-  if (isChunk) {
+  ) {
     state.model = tanstack.model
   }
 
@@ -320,8 +320,7 @@ export class ChatStreamSummarizeAdapter<
         prompt += 'Provide a clear and concise summary. '
     }
 
-    const hasOptions = options.focus && options.focus.length > 0
-    if (hasOptions) {
+    if (options.focus && options.focus.length > 0) {
       prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
     }
 

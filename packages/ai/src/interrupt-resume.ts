@@ -465,22 +465,24 @@ function detectToolSchemaDrift(
     )
     return { approval: undefined, drifted: true }
   }
-  const hasApproval =
-    approval !== undefined &&
-    (hashSchemaInput(tool.inputSchema) !== binding.inputSchemaHash ||
-      approval.approvalSchemaHash !== binding.approvalSchemaHash ||
-      approval.responseSchemaHash !== binding.responseSchemaHash)
-  if (hasApproval) {
-    errors.push(
-      interruptItemError(
-        input,
-        record.interruptId,
-        'stale',
-        `Tool ${tool.name} approval schema has changed.`,
-        { source: 'server' },
-      ),
-    )
-    return { approval, drifted: true }
+  if (binding.kind === 'tool-approval') {
+    if (
+      approval !== undefined &&
+      (hashSchemaInput(tool.inputSchema) !== binding.inputSchemaHash ||
+        approval.approvalSchemaHash !== binding.approvalSchemaHash ||
+        approval.responseSchemaHash !== binding.responseSchemaHash)
+    ) {
+      errors.push(
+        interruptItemError(
+          input,
+          record.interruptId,
+          'stale',
+          `Tool ${tool.name} approval schema has changed.`,
+          { source: 'server' },
+        ),
+      )
+      return { approval, drifted: true }
+    }
   }
   return { approval, drifted: false }
 }

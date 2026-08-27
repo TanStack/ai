@@ -21,11 +21,11 @@ export function stripToSpec(
     }
   }
 
-  const isChunk =
+  if (
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
     isTanstackUsage(out.usage)
-  if (isChunk) {
+  ) {
     const model = tanstackMetadata(chunk)?.model
     const { usage, leftover } = toSpecTokenUsage(out.usage, {
       model: typeof model === 'string' ? model : undefined,

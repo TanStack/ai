@@ -359,7 +359,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     throw new Error(msg)
   }
 
-  private applyVideoCustomChunk(chunk: StreamChunk, runId: string): void {
+  private applyVideoCustomChunk(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    runId: string,
+  ): void {
     this.devtoolsBridge.ensureRunStarted(runId)
     if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
       const { jobId } = chunk.value as { jobId: string }

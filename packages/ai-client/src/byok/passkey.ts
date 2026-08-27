@@ -265,8 +265,7 @@ export function passkeyStorage(
     credentialId: ArrayBuffer
     salt: Uint8Array<ArrayBuffer>
   }> {
-    const isCachedKeyAndCachedMeta = cachedKey && cachedMeta
-    if (isCachedKeyAndCachedMeta) {
+    if (cachedKey && cachedMeta) {
       return { key: cachedKey, ...cachedMeta }
     }
     const existing = await idbGet(dbName)

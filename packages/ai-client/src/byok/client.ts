@@ -312,16 +312,13 @@ export class ByokClient {
   }
 
   #lockedProvider(): ProviderId | undefined {
-    const isPromptAndIsProviderId =
-      this.#prompt && isProviderId(this.#prompt.provider)
-    if (isPromptAndIsProviderId) {
-      return this.#prompt.provider
+    const prompt = this.#prompt
+    if (prompt && isProviderId(prompt.provider)) {
+      return prompt.provider
     }
     const objectEntries = Object.entries(this.#statuses)
     for (const [id, status] of objectEntries) {
-      const isStateIsLockedAndIsProviderId =
-        status?.state === 'locked' && isProviderId(id)
-      if (isStateIsLockedAndIsProviderId) return id
+      if (status?.state === 'locked' && isProviderId(id)) return id
     }
     return undefined
   }

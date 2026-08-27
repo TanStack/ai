@@ -256,14 +256,14 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
 }
 
 function readApprovalApproved(payload: unknown): boolean | undefined {
-  const isMissingPayloadOrTypeofPayloadIsNotObjectOrPayloadIsArray =
-    payload === null || typeof payload !== 'object' || Array.isArray(payload)
-  if (isMissingPayloadOrTypeofPayloadIsNotObjectOrPayloadIsArray) {
+  if (
+    payload === null ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
     return undefined
   }
-  const isNotPayloadHasApprovedOrTypeofApprovedIsNotBoolean =
-    !('approved' in payload) || typeof payload.approved !== 'boolean'
-  if (isNotPayloadHasApprovedOrTypeofApprovedIsNotBoolean) {
+  if (!('approved' in payload) || typeof payload.approved !== 'boolean') {
     return undefined
   }
   return payload.approved
@@ -273,13 +273,15 @@ function readResumeState(
   snapshot: ChatResumeSnapshot,
 ): ChatResumeState | undefined {
   const value: unknown = snapshot
-  const isMissingValueOrTypeofValueIsNotObjectOrNotValueHasResumeState =
-    value === null || typeof value !== 'object' || !('resumeState' in value)
-  if (isMissingValueOrTypeofValueIsNotObjectOrNotValueHasResumeState) {
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('resumeState' in value)
+  ) {
     return undefined
   }
   const resumeState = value.resumeState
-  const isMissingResumeStateOrTypeofResumeStateIsNotObjectOrEmptyThreadId =
+  if (
     resumeState === null ||
     typeof resumeState !== 'object' ||
     !('threadId' in resumeState) ||
@@ -288,7 +290,7 @@ function readResumeState(
     !('runId' in resumeState) ||
     typeof resumeState.runId !== 'string' ||
     resumeState.runId.length === 0
-  if (isMissingResumeStateOrTypeofResumeStateIsNotObjectOrEmptyThreadId) {
+  ) {
     return undefined
   }
   return { threadId: resumeState.threadId, runId: resumeState.runId }
@@ -879,9 +881,7 @@ export class ChatClient<
       if (result.messages.length > 0) {
         this.processor.setMessages(normalizeMessagesDates(result.messages))
       }
-      const isInterruptsAndNonemptyPending =
-        result.interrupts && result.interrupts.pending.length > 0
-      if (isInterruptsAndNonemptyPending) {
+      if (result.interrupts && result.interrupts.pending.length > 0) {
         this.applyResumeSnapshot({
           resumeState: {
             threadId: this.threadId,
@@ -1015,33 +1015,35 @@ export class ChatClient<
     chunk: StreamChunk,
     runId: string | undefined,
   ): boolean {
-    const isTypeIsNotRUNFINISHEDOrTypeIsNotInterrupt =
-      chunk.type !== 'RUN_FINISHED' || chunk.outcome?.type !== 'interrupt'
-    if (isTypeIsNotRUNFINISHEDOrTypeIsNotInterrupt) {
-      return false
+    if (
+      chunk.type === 'RUN_FINISHED' &&
+      chunk.outcome != null &&
+      chunk.outcome.type === 'interrupt'
+    ) {
+      const threadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      // Track the REQUEST run id (what the client sent) so a resume targets the
+      // same run even when provider events carry their own run id.
+      const interruptedRunId =
+        this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      this.lastResume = {
+        threadId: threadId ?? this.threadId,
+        runId: interruptedRunId,
+      }
+      this.interruptManager.hydrate(
+        {
+          threadId: this.lastResume.threadId,
+          interruptedRunId,
+          generation: this.interruptGeneration(chunk.outcome.interrupts),
+          interrupts: chunk.outcome.interrupts,
+        },
+        'live',
+      )
+      return true
     }
-    const threadId =
-      'threadId' in chunk && typeof chunk.threadId === 'string'
-        ? chunk.threadId
-        : this.activeResumeThreadId
-    // Track the REQUEST run id (what the client sent) so a resume targets the
-    // same run even when provider events carry their own run id.
-    const interruptedRunId =
-      this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
-    this.lastResume = {
-      threadId: threadId ?? this.threadId,
-      runId: interruptedRunId,
-    }
-    this.interruptManager.hydrate(
-      {
-        threadId: this.lastResume.threadId,
-        interruptedRunId,
-        generation: this.interruptGeneration(chunk.outcome.interrupts),
-        interrupts: chunk.outcome.interrupts,
-      },
-      'live',
-    )
-    return true
+    return false
   }
 
   private isTrackedOrCurrentRunTerminal(runId: string | undefined): boolean {
@@ -1249,21 +1251,17 @@ export class ChatClient<
     for (const interrupt of interrupts) {
       const candidate: unknown =
         interrupt.metadata?.['tanstack:interruptBinding']
-      const isMissingCandidateOrTypeofCandidateIsNotObjectOrNotGenerationIsInteger =
+      if (
         candidate === null ||
         typeof candidate !== 'object' ||
         !('generation' in candidate) ||
         typeof candidate.generation !== 'number' ||
         !Number.isInteger(candidate.generation) ||
         candidate.generation < 0
-      if (
-        isMissingCandidateOrTypeofCandidateIsNotObjectOrNotGenerationIsInteger
       ) {
         return 0
       }
-      const isGenerationIsNotUndefinedAndGenerationIsNotGeneration =
-        generation !== undefined && generation !== candidate.generation
-      if (isGenerationIsNotUndefinedAndGenerationIsNotGeneration) {
+      if (generation !== undefined && generation !== candidate.generation) {
         return 0
       }
       generation = candidate.generation
@@ -2106,9 +2104,7 @@ export class ChatClient<
       this.setIsLoading(false)
       this.pendingMessageBody = undefined
 
-      const isActiveDevtoolsRunIdAndNotRunTerminalEventEmitted =
-        activeDevtoolsRunId && !runTerminalEventEmitted
-      if (isActiveDevtoolsRunIdAndNotRunTerminalEventEmitted) {
+      if (activeDevtoolsRunId && !runTerminalEventEmitted) {
         if (streamCompletedSuccessfully) {
           this.devtoolsBridge.emitRunLifecycle(
             'run:completed',

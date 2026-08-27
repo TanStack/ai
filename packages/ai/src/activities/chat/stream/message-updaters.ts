@@ -220,8 +220,7 @@ export function updateToolCallApprovalResponse(
         p.type === 'tool-call' && p.approval?.id === approvalId,
     )
 
-    const hasToolCallPart = toolCallPart && toolCallPart.approval
-    if (hasToolCallPart) {
+    if (toolCallPart && toolCallPart.approval) {
       const index = parts.indexOf(toolCallPart)
       parts[index] = {
         ...toolCallPart,

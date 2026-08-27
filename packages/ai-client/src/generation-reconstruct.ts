@@ -89,9 +89,7 @@ export function reconstructTranscriptionResult(
 export function reconstructSummarizeResult(
   restored: GenerationRestoredResult,
 ): SummarizationResult | null {
-  const isTextIsUndefinedOrUsageIsUndefined =
-    restored.text === undefined || restored.usage === undefined
-  if (isTextIsUndefinedOrUsageIsUndefined) return null
+  if (restored.text === undefined || restored.usage === undefined) return null
   return {
     id: restored.id ?? '',
     model: restored.model ?? '',

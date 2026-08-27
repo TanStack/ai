@@ -26,34 +26,38 @@ const validateDomains = (tool: WebSearchToolConfig) => {
 const validateUserLocation = (tool: WebSearchToolConfig) => {
   const userLocation = tool.user_location
   if (userLocation) {
-    const cityOutOfRange =
-      Boolean(userLocation.city) &&
-      (userLocation.city.length < 1 || userLocation.city.length > 255)
-    if (cityOutOfRange) {
-      throw new Error(
-        'user_location.city must be between 1 and 255 characters.',
-      )
+    const city = userLocation.city
+    if (city) {
+      const cityOutOfRange = city.length < 1 || city.length > 255
+      if (cityOutOfRange) {
+        throw new Error(
+          'user_location.city must be between 1 and 255 characters.',
+        )
+      }
     }
-    const countryOutOfRange =
-      Boolean(userLocation.country) && userLocation.country.length !== 2
-    if (countryOutOfRange) {
-      throw new Error('user_location.country must be exactly 2 characters.')
+    const country = userLocation.country
+    if (country) {
+      if (country.length !== 2) {
+        throw new Error('user_location.country must be exactly 2 characters.')
+      }
     }
-    const regionOutOfRange =
-      Boolean(userLocation.region) &&
-      (userLocation.region.length < 1 || userLocation.region.length > 255)
-    if (regionOutOfRange) {
-      throw new Error(
-        'user_location.region must be between 1 and 255 characters.',
-      )
+    const region = userLocation.region
+    if (region) {
+      const regionOutOfRange = region.length < 1 || region.length > 255
+      if (regionOutOfRange) {
+        throw new Error(
+          'user_location.region must be between 1 and 255 characters.',
+        )
+      }
     }
-    const timezoneOutOfRange =
-      Boolean(userLocation.timezone) &&
-      (userLocation.timezone.length < 1 || userLocation.timezone.length > 255)
-    if (timezoneOutOfRange) {
-      throw new Error(
-        'user_location.timezone must be between 1 and 255 characters.',
-      )
+    const timezone = userLocation.timezone
+    if (timezone) {
+      const timezoneOutOfRange = timezone.length < 1 || timezone.length > 255
+      if (timezoneOutOfRange) {
+        throw new Error(
+          'user_location.timezone must be between 1 and 255 characters.',
+        )
+      }
     }
   }
 }

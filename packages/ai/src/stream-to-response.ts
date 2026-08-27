@@ -33,9 +33,7 @@ export async function streamToText(
       throw runErrorEventToError(chunk)
     }
 
-    const isTEXTMESSAGECONTENT =
-      chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta
-    if (isTEXTMESSAGECONTENT) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
   }
@@ -157,11 +155,11 @@ function toEncodedStream(
             }
           }
 
-          const cancelled =
+          if (
             !cancelled &&
             !isAborted(cancellation.signal) &&
             pumpFailure !== undefined
-          if (cancelled) {
+          ) {
             controller.enqueue(encodeError(pumpFailure.error))
           }
           if (!cancelled) controller.close()
@@ -187,9 +185,7 @@ function toEncodedStream(
       }
       await pumpPromise
 
-      const hasPumpFailure =
-        pumpFailure !== undefined && cancellationFailure !== undefined
-      if (hasPumpFailure) {
+      if (pumpFailure !== undefined && cancellationFailure !== undefined) {
         throw combineFailures(
           pumpFailure.error,
           cancellationFailure.error,
@@ -599,8 +595,7 @@ function startRunDriver(driver: RunDriverOptions): void {
       })
       return
     }
-    const isMissingRecord = record !== null && !isRunStatus(record.status)
-    if (isMissingRecord) {
+    if (record !== null && !isRunStatus(record.status)) {
       logger?.errors(
         'resume driver: the run record has an unrecognized status',
         {
@@ -610,12 +605,8 @@ function startRunDriver(driver: RunDriverOptions): void {
       )
       return
     }
-    const isInvalidRecord =
-      record === null || isTerminalRunStatus(record.status)
-    if (isInvalidRecord) return
+    if (record === null || isTerminalRunStatus(record.status)) return
     if (record.cancelRequested === true) return
-    // Captured after narrowing so the closure below sees a definite record
-    // rather than the re-widened `let`.
     const active = record
 
     try {

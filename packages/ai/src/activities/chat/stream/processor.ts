@@ -1255,12 +1255,12 @@ export class StreamProcessor {
   }
 
   private extractToolResultError(output: unknown): string {
-    const hasError =
+    if (
       output &&
       typeof output === 'object' &&
       'error' in output &&
       typeof output.error === 'string'
-    if (hasError) {
+    ) {
       return output.error
     }
     return typeof output === 'string' ? output : 'Tool execution failed'
@@ -1951,8 +1951,7 @@ export class StreamProcessor {
       state.isComplete = true
 
       const msg = this.messages.find((m) => m.id === messageId)
-      const isAssistant = msg && msg.role === 'assistant'
-      if (isAssistant) {
+      if (msg && msg.role === 'assistant') {
         lastAssistantMessage = msg
       }
     }
@@ -1971,8 +1970,7 @@ export class StreamProcessor {
 
     this.activeMessageIds.clear()
 
-    const hasLastAssistantMessage = lastAssistantMessage && !this.hasError
-    if (hasLastAssistantMessage) {
+    if (lastAssistantMessage && !this.hasError) {
       if (this.isWhitespaceOnlyMessage(lastAssistantMessage)) {
         this.messages = this.messages.filter(
           (m) => m.id !== lastAssistantMessage.id,

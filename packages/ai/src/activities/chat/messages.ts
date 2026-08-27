@@ -352,29 +352,22 @@ function optionalName(source: { name?: string }): { name?: string } {
 }
 
 function isUiResourcePart(value: unknown): value is UIResourcePart {
-  const isInvalid =
-    value == null || typeof value !== 'object' || Array.isArray(value)
-  if (isInvalid) {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
     return false
   }
-  const hasType = !('type' in value) || value.type !== 'ui-resource'
-  if (hasType) return false
-  const hasToolCallId =
-    !('toolCallId' in value) || typeof value.toolCallId !== 'string'
-  if (hasToolCallId) {
+  if (!('type' in value) || value.type !== 'ui-resource') return false
+  if (!('toolCallId' in value) || typeof value.toolCallId !== 'string') {
     return false
   }
-  const hasToolName =
-    !('toolName' in value) || typeof value.toolName !== 'string'
-  if (hasToolName) {
+  if (!('toolName' in value) || typeof value.toolName !== 'string') {
     return false
   }
-  const hasResource =
+  if (
     !('resource' in value) ||
     value.resource == null ||
     typeof value.resource !== 'object' ||
     Array.isArray(value.resource)
-  if (hasResource) {
+  ) {
     return false
   }
   const resource = value.resource
@@ -637,12 +630,12 @@ function appendImplicitToolResults(
       })
       emittedToolResultIds.add(part.id)
     }
-    const hasPart2 =
+    if (
       part.output === undefined &&
       part.state === 'approval-responded' &&
       part.approval?.approved !== undefined &&
       !emittedToolResultIds.has(part.id)
-    if (hasPart2) {
+    ) {
       const approved = part.approval.approved
       messageList.push({
         role: 'tool',
@@ -664,18 +657,15 @@ function appendAssistantThinkingParts(
   modelMessage: ModelMessage,
   parts: Array<MessagePart>,
 ): void {
-  const shouldSkipModelMessage =
-    modelMessage.role !== 'assistant' || !modelMessage.thinking?.length
-  if (shouldSkipModelMessage) {
-    return
-  }
-  for (const thinking of modelMessage.thinking) {
-    if (!thinking.content) continue
-    parts.push({
-      type: 'thinking',
-      content: thinking.content,
-      ...(thinking.signature && { signature: thinking.signature }),
-    })
+  if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
+    for (const thinking of modelMessage.thinking) {
+      if (!thinking.content) continue
+      parts.push({
+        type: 'thinking',
+        content: thinking.content,
+        ...(thinking.signature && { signature: thinking.signature }),
+      })
+    }
   }
 }
 
@@ -685,13 +675,12 @@ function appendModelContentParts(
   structuredOutput: StructuredOutputPart | undefined,
   createdAt: Date | undefined,
 ): void {
-  const isAssistant = modelMessage.role === 'assistant' && structuredOutput
-  if (isAssistant) {
-    const isInvalidModelMessage =
+  if (modelMessage.role === 'assistant' && structuredOutput) {
+    if (
       typeof modelMessage.content === 'string' &&
       modelMessage.content &&
       modelMessage.content !== structuredOutput.raw
-    if (isInvalidModelMessage) {
+    ) {
       const suffix = structuredOutput.raw
       const text =
         suffix !== '' && modelMessage.content.endsWith(suffix)
@@ -702,8 +691,7 @@ function appendModelContentParts(
     parts.push(structuredOutput)
     return
   }
-  const isTool = modelMessage.role === 'tool' && modelMessage.toolCallId
-  if (isTool) {
+  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
@@ -738,9 +726,7 @@ function appendModelToolCallParts(
   modelMessage: ModelMessage,
   parts: Array<MessagePart>,
 ): void {
-  const isEmptyModelMessage =
-    !modelMessage.toolCalls || modelMessage.toolCalls.length === 0
-  if (isEmptyModelMessage) return
+  if (!modelMessage.toolCalls) return
   for (const toolCall of modelMessage.toolCalls) {
     let input: unknown
     try {
@@ -960,13 +946,13 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
 function snapshotStructuredOutput(
   value: TanStackMessageMetadata['structuredOutput'],
 ): StructuredOutputPart | undefined {
-  const isInvalidStreaming =
+  if (
     value == null ||
     (value.status !== 'streaming' &&
       value.status !== 'complete' &&
       value.status !== 'error') ||
     typeof value.raw !== 'string'
-  if (isInvalidStreaming) {
+  ) {
     return undefined
   }
   return {
@@ -1009,11 +995,11 @@ export function modelMessagesToUIMessages(
   for (const msg of modelMessages) {
     if (msg.role === 'tool') {
       // Tool result - merge into the last assistant message if possible
-      const hasMsg =
+      if (
         msg.toolCallId !== undefined &&
         currentAssistantMessage &&
         currentAssistantMessage.role === 'assistant'
-      if (hasMsg) {
+      ) {
         const content = toolResultContent(msg.content)
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>

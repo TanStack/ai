@@ -1368,19 +1368,13 @@ function cloneFixtureMessagePart(
   part: unknown,
   toolCallIds: Map<string, string>,
 ): MessagePart | undefined {
-  const isNotIsRecordOrTypeofTypeIsNotString =
-    !isRecord(part) || typeof part.type !== 'string'
-  if (isNotIsRecordOrTypeofTypeIsNotString) return undefined
+  if (!isRecord(part) || typeof part.type !== 'string') return undefined
   const cloned: Record<string, unknown> = { ...part }
 
-  const isTypeIsToolCallAndTypeofIdIsString =
-    part.type === 'tool-call' && typeof part.id === 'string'
-  if (isTypeIsToolCallAndTypeofIdIsString) {
+  if (part.type === 'tool-call' && typeof part.id === 'string') {
     cloned.id = toolCallIds.get(part.id) ?? part.id
   }
-  const isTypeIsToolResultAndTypeofToolCallIdIsString =
-    part.type === 'tool-result' && typeof part.toolCallId === 'string'
-  if (isTypeIsToolResultAndTypeofToolCallIdIsString) {
+  if (part.type === 'tool-result' && typeof part.toolCallId === 'string') {
     cloned.toolCallId = toolCallIds.get(part.toolCallId) ?? part.toolCallId
   }
   return cloned as MessagePart
@@ -1517,14 +1511,13 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 
   ensureRunStarted(runId: string): void {
-    const isActiveRunStartedAndActiveRunIdIsRunId =
-      this.activeRunStarted && this.activeRunId === runId
-    if (isActiveRunStartedAndActiveRunIdIsRunId) return
-
-    const isNotActiveRunStartedAndActiveRunIdAndActiveRunIdIsNotRunId =
-      !this.activeRunStarted && this.activeRunId && this.activeRunId !== runId
-    if (isNotActiveRunStartedAndActiveRunIdAndActiveRunIdIsNotRunId) {
-      this.renameRun(this.activeRunId, runId)
+    if (this.activeRunStarted) {
+      if (this.activeRunId === runId) return
+    } else {
+      const activeRunId = this.activeRunId
+      if (activeRunId && activeRunId !== runId) {
+        this.renameRun(activeRunId, runId)
+      }
     }
 
     this.activeRunId = runId

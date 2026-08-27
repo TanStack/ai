@@ -136,12 +136,12 @@ export class ClearedStreamTracker {
 
   private isRunlessChunkFromIgnoredRun(chunk: StreamChunk): boolean {
     const runId = getChunkRunId(chunk)
-    const isRunIdOrNotCurrentRunlessRunId = runId || !this.currentRunlessRunId
-    if (isRunIdOrNotCurrentRunlessRunId) return false
-    const isNotHasIgnoredActiveRunIdAndNotHasClearedRunId =
+    if (runId) return false
+    if (!this.currentRunlessRunId) return false
+    const isUnknownRunlessId =
       !this.ignoredActiveRunIds.has(this.currentRunlessRunId) &&
       !this.clearedRunIds.has(this.currentRunlessRunId)
-    if (isNotHasIgnoredActiveRunIdAndNotHasClearedRunId) {
+    if (isUnknownRunlessId) {
       return false
     }
     return (

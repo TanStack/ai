@@ -142,15 +142,13 @@ export class AudioRecorder {
   }
 
   stop(): Promise<AudioRecording> {
-    const is_stateIsNotRecordingOrNotRecorder =
-      this._state !== 'recording' || !this.recorder
-    if (is_stateIsNotRecordingOrNotRecorder) {
+    const recorder = this.recorder
+    if (this._state !== 'recording' || recorder === null) {
       return Promise.reject(
         new Error('AudioRecorder.stop() called while not recording'),
       )
     }
     this.setState('stopping')
-    const recorder = this.recorder
     return new Promise<AudioRecording>((resolve, reject) => {
       // Some browsers/codecs never fire onstop; this watchdog unwedges the
       // recorder instead of leaking this promise forever.

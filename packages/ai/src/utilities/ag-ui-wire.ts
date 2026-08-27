@@ -70,11 +70,13 @@ export type WireMessage =
   | WireReasoningMessage
 
 function appendStandaloneToolMessage(
-  msg: ModelMessage & { role: 'tool'; toolCallId: string },
+  msg: ModelMessage,
   wire: Array<WireMessage>,
   usedWireIds: Set<string>,
   assistantIds: ReadonlySet<string>,
 ): void {
+  if (msg.role !== 'tool') return
+  if (!msg.toolCallId) return
   const id = uniqueToolWireId(
     toolWireId(msg.id, msg.toolCallId, assistantIds),
     usedWireIds,
@@ -288,15 +290,13 @@ export function uiMessagesToWire(
 
   const assistantIds = new Set<string>()
   for (const msg of messages) {
-    const hasMsg = msg.role === 'assistant' && msg.id !== undefined
-    if (hasMsg) {
+    if (msg.role === 'assistant' && msg.id !== undefined) {
       assistantIds.add(msg.id)
     }
   }
 
   for (const msg of messages) {
-    const hasParts = !('parts' in msg) && msg.role === 'tool' && msg.toolCallId
-    if (hasParts) {
+    if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
       appendStandaloneToolMessage(msg, wire, usedWireIds, assistantIds)
       continue
     }

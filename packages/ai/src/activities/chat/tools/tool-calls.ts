@@ -56,8 +56,9 @@ async function emitUiResourceIfLinked<TContext>(
 ): Promise<void> {
   const mcp = readMcpAppMeta(tool)
   const uiUri = mcp?.uiResourceUri
-  const shouldSkipUiUri = !uiUri || !mcp.readResource
-  if (shouldSkipUiUri) return
+  if (!mcp || uiUri == null || typeof mcp.readResource !== 'function') {
+    return
+  }
 
   // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
   // an exception from the emit path can't be mislabeled as a read failure.
@@ -249,9 +250,7 @@ export class ToolCallManager<
     const toolCallsMapEntries = this.toolCallsMap.entries()
     for (const [, toolCall] of toolCallsMapEntries) {
       if (toolCall.id === event.toolCallId) {
-        const isInvalidExtra =
-          typeof extra.args === 'string' && extra.args !== ''
-        if (isInvalidExtra) {
+        if (typeof extra.args === 'string' && extra.args !== '') {
           toolCall.function.arguments = extra.args
         } else {
           toolCall.function.arguments += event.delta
