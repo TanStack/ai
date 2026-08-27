@@ -4634,6 +4634,35 @@ describe('StreamProcessor', () => {
       )
     })
 
+    it('flushes leftover text after a stop RUN_FINISHED and fires onStreamEnd once', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+
+      processor.processChunk(ev.textContent(' world', 'msg-1'))
+      expect(processor.getState().done).toBe(false)
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.finalizeStream()
+
+      const textPart = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'text')
+      if (textPart?.type !== 'text') {
+        throw new Error('expected a text part')
+      }
+      expect(textPart.content).toBe('Hello world')
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
     it('does not fire onStreamEnd on a sequential tool_calls terminal', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

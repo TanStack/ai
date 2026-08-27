@@ -171,6 +171,10 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
   if (chunk.outcome?.type === 'interrupt') return false
+  const extra = chunk as StreamChunk & { finishReason?: unknown }
+  if (extra.finishReason !== undefined) {
+    return extra.finishReason === 'tool_calls'
+  }
   return tanstackMetadata(chunk)?.finishReason === 'tool_calls'
 }
 

@@ -1058,18 +1058,19 @@ export function normalizeConnectionAdapter(
   async function waitUntilSubscriberIdle(
     abortSignal?: AbortSignal,
   ): Promise<void> {
+    // Idle means the subscriber is waiting for the next chunk, so the
+    // previous chunk has left processIncomingChunk. Empty waiters with an
+    // empty buffer is in-flight delivery, not idle.
     const idle = () =>
       activeBuffer.length === 0 &&
       (activeWaiters.length > 0 || abortSignal?.aborted)
     for (let i = 0; i < 16 && !abortSignal?.aborted; i++) {
       if (idle()) return
-      if (activeBuffer.length === 0 && activeWaiters.length === 0) return
       await Promise.resolve()
     }
     let macrotaskWaits = 0
     while (!abortSignal?.aborted) {
       if (idle()) return
-      if (activeBuffer.length === 0 && activeWaiters.length === 0) return
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
       macrotaskWaits++
       if (activeWaiters.length === 0 && macrotaskWaits >= 32) return

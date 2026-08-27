@@ -212,6 +212,7 @@ export class StreamProcessor {
   private finishReason: string | null = null
   private hasError = false
   private isDone = false
+  private streamEndEmitted = false
 
   // Recording
   private recording: ChunkRecording | null = null
@@ -741,6 +742,14 @@ export class StreamProcessor {
     return null
   }
 
+  private resumeAssistantState(id: string, state: MessageStreamState): void {
+    this.activeMessageIds.add(id)
+    if (state.isComplete || this.isDone) {
+      state.isComplete = false
+      this.isDone = false
+    }
+  }
+
   /**
    * Ensure an active assistant message exists, creating one if needed.
    * Used for backward compat when events arrive without prior TEXT_MESSAGE_START.
@@ -758,7 +767,7 @@ export class StreamProcessor {
     if (preferredId) {
       const state = this.getMessageState(preferredId)
       if (state) {
-        this.activeMessageIds.add(preferredId)
+        this.resumeAssistantState(preferredId, state)
         return { messageId: preferredId, state }
       }
     }
@@ -768,7 +777,7 @@ export class StreamProcessor {
     if (activeId) {
       const state = this.getMessageState(activeId)
       if (state) {
-        this.activeMessageIds.add(activeId)
+        this.resumeAssistantState(activeId, state)
         return { messageId: activeId, state }
       }
     }
@@ -2429,7 +2438,8 @@ export class StreamProcessor {
     }
 
     // Emit stream end for the last assistant message
-    if (lastAssistantMessage) {
+    if (lastAssistantMessage && !this.streamEndEmitted) {
+      this.streamEndEmitted = true
       this.events.onStreamEnd?.(lastAssistantMessage)
     }
   }
@@ -2548,6 +2558,7 @@ export class StreamProcessor {
     this.finishReason = null
     this.hasError = false
     this.isDone = false
+    this.streamEndEmitted = false
     this.chunkStrategy.reset?.()
   }
 
