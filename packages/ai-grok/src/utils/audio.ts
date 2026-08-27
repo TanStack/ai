@@ -10,6 +10,46 @@
  * The same rule applies to raw `ArrayBuffer` inputs: the caller must supply
  * an `audioFormat` so we know what MIME type and extension to use.
  */
+function audioFileFromBytes(bytes: BlobPart, mimeType: string): File {
+  return new File([bytes], `audio.${extensionFor(mimeType)}`, {
+    type: mimeType,
+  })
+}
+
+function audioFileFromString(audio: string, audioFormat?: string): File {
+  if (audio.startsWith('data:')) {
+    const [header, base64Data] = audio.split(',')
+    // Fail loudly on malformed data: URIs instead of silently defaulting
+    // to `audio/mpeg` — the file's contract is that we never mislabel
+    // audio for the server.
+    const headerMatch = header?.match(/data:([^;]+)/)
+    const uriMimeType = headerMatch?.[1]
+    if (!uriMimeType) {
+      throw new Error(
+        'Malformed data: URI in toAudioFile: cannot parse MIME type — expected data:<mime>[;charset=…][;base64],<payload>',
+      )
+    }
+    if (base64Data === undefined || base64Data.trim() === '') {
+      throw new Error(
+        'Malformed data: URI in toAudioFile: missing base64 payload after comma',
+      )
+    }
+    // Caller-supplied `audioFormat` wins over the URI-embedded MIME: the
+    // caller has more context (the URI MIME may be wrong, or a generic
+    // `application/octet-stream`).
+    const mimeType = audioFormat ? toMimeType(audioFormat) : uriMimeType
+    return audioFileFromBytes(base64ToArrayBuffer(base64Data), mimeType)
+  }
+
+  if (!audioFormat) {
+    throw new Error(
+      'toAudioFile requires a data: URI (e.g. data:audio/wav;base64,...) or an explicit audioFormat argument — bare base64 strings have no MIME type to infer',
+    )
+  }
+
+  return audioFileFromBytes(base64ToArrayBuffer(audio), toMimeType(audioFormat))
+}
+
 export function toAudioFile(
   audio: string | File | Blob | ArrayBuffer,
   audioFormat?: string,
@@ -20,10 +60,7 @@ export function toAudioFile(
     // they have more context than the browser does about the payload. If
     // neither is set, fall through to the Blob-style error path below.
     if (audioFormat) {
-      const mimeType = toMimeType(audioFormat)
-      return new File([audio], `audio.${extensionFor(mimeType)}`, {
-        type: mimeType,
-      })
+      return audioFileFromBytes(audio, toMimeType(audioFormat))
     }
     if (audio.type) {
       return audio
@@ -46,9 +83,7 @@ export function toAudioFile(
         'toAudioFile cannot infer type for Blob input with empty .type — pass an explicit audioFormat (e.g. "mp3", "wav", "audio/mpeg")',
       )
     }
-    return new File([audio], `audio.${extensionFor(mimeType)}`, {
-      type: mimeType,
-    })
+    return audioFileFromBytes(audio, mimeType)
   }
 
   if (audio instanceof ArrayBuffer) {
@@ -57,51 +92,11 @@ export function toAudioFile(
         'toAudioFile cannot infer type for ArrayBuffer input — pass an explicit audioFormat (e.g. "mp3", "wav", "audio/mpeg")',
       )
     }
-    const mimeType = toMimeType(audioFormat)
-    return new File([audio], `audio.${extensionFor(mimeType)}`, {
-      type: mimeType,
-    })
+    return audioFileFromBytes(audio, toMimeType(audioFormat))
   }
 
   if (typeof audio === 'string') {
-    if (audio.startsWith('data:')) {
-      const [header, base64Data] = audio.split(',')
-      // Fail loudly on malformed data: URIs instead of silently defaulting
-      // to `audio/mpeg` — the file's contract is that we never mislabel
-      // audio for the server.
-      const headerMatch = header?.match(/data:([^;]+)/)
-      const uriMimeType = headerMatch?.[1]
-      if (!uriMimeType) {
-        throw new Error(
-          'Malformed data: URI in toAudioFile: cannot parse MIME type — expected data:<mime>[;charset=…][;base64],<payload>',
-        )
-      }
-      if (base64Data === undefined || base64Data.trim() === '') {
-        throw new Error(
-          'Malformed data: URI in toAudioFile: missing base64 payload after comma',
-        )
-      }
-      // Caller-supplied `audioFormat` wins over the URI-embedded MIME: the
-      // caller has more context (the URI MIME may be wrong, or a generic
-      // `application/octet-stream`).
-      const mimeType = audioFormat ? toMimeType(audioFormat) : uriMimeType
-      const buffer = base64ToArrayBuffer(base64Data)
-      return new File([buffer], `audio.${extensionFor(mimeType)}`, {
-        type: mimeType,
-      })
-    }
-
-    if (!audioFormat) {
-      throw new Error(
-        'toAudioFile requires a data: URI (e.g. data:audio/wav;base64,...) or an explicit audioFormat argument — bare base64 strings have no MIME type to infer',
-      )
-    }
-
-    const buffer = base64ToArrayBuffer(audio)
-    const mimeType = toMimeType(audioFormat)
-    return new File([buffer], `audio.${extensionFor(mimeType)}`, {
-      type: mimeType,
-    })
+    return audioFileFromString(audio, audioFormat)
   }
 
   throw new Error('Invalid audio input type')

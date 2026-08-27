@@ -118,6 +118,73 @@ export type GeminiProviderUsageDetails = {
  * provider reported no usage metadata, so callers omit the field rather than
  * fabricating zeroed totals.
  */
+function geminiPromptTokensDetails(
+  usageMetadata: GenerateContentResponseUsageMetadata,
+) {
+  const promptModalities = flattenModalityTokenCounts(
+    usageMetadata.promptTokensDetails,
+  )
+  const cachedTokens = usageMetadata.cachedContentTokenCount
+  return {
+    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
+    ...(cachedTokens !== undefined && cachedTokens > 0 ? { cachedTokens } : {}),
+  }
+}
+
+function geminiCompletionTokensDetails(
+  usageMetadata: GenerateContentResponseUsageMetadata,
+) {
+  const completionModalities = flattenModalityTokenCounts(
+    usageMetadata.candidatesTokensDetails,
+  )
+  const thoughtsTokens = usageMetadata.thoughtsTokenCount
+  return {
+    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
+    ...(thoughtsTokens !== undefined && thoughtsTokens > 0
+      ? { reasoningTokens: thoughtsTokens }
+      : {}),
+  }
+}
+
+function mapModalityTokenCounts(
+  items: Array<{ modality?: string; tokenCount?: number }>,
+): Array<{ modality: string; tokenCount: number }> {
+  return items.map((item) => ({
+    modality: item.modality || 'UNKNOWN',
+    tokenCount: item.tokenCount ?? 0,
+  }))
+}
+
+function geminiProviderDetails(
+  usageMetadata: GenerateContentResponseUsageMetadata,
+): GeminiProviderUsageDetails {
+  return {
+    ...(usageMetadata.trafficType
+      ? { trafficType: usageMetadata.trafficType }
+      : {}),
+    ...(usageMetadata.toolUsePromptTokenCount !== undefined &&
+    usageMetadata.toolUsePromptTokenCount > 0
+      ? { toolUsePromptTokenCount: usageMetadata.toolUsePromptTokenCount }
+      : {}),
+    ...(usageMetadata.toolUsePromptTokensDetails &&
+    usageMetadata.toolUsePromptTokensDetails.length > 0
+      ? {
+          toolUsePromptTokensDetails: mapModalityTokenCounts(
+            usageMetadata.toolUsePromptTokensDetails,
+          ),
+        }
+      : {}),
+    ...(usageMetadata.cacheTokensDetails &&
+    usageMetadata.cacheTokensDetails.length > 0
+      ? {
+          cacheTokensDetails: mapModalityTokenCounts(
+            usageMetadata.cacheTokensDetails,
+          ),
+        }
+      : {}),
+  }
+}
+
 export function buildGeminiUsage(
   usageMetadata: GenerateContentResponseUsageMetadata | undefined | null,
 ): TokenUsage<GeminiProviderUsageDetails> | undefined {
@@ -133,72 +200,16 @@ export function buildGeminiUsage(
       usageMetadata.totalTokenCount ?? promptTokens + completionTokens,
   })
 
-  // Add prompt token details
-  // Flatten modality breakdown for prompt
-  const promptModalities = flattenModalityTokenCounts(
-    usageMetadata.promptTokensDetails,
-  )
-  const cachedTokens = usageMetadata.cachedContentTokenCount
+  const promptTokensDetails = geminiPromptTokensDetails(usageMetadata)
+  const completionTokensDetails = geminiCompletionTokensDetails(usageMetadata)
+  const providerDetails = geminiProviderDetails(usageMetadata)
 
-  const promptTokensDetails = {
-    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
-    ...(cachedTokens !== undefined && cachedTokens > 0 ? { cachedTokens } : {}),
-  }
-
-  // Add completion token details
-  // Flatten modality breakdown for candidates (output)
-  const completionModalities = flattenModalityTokenCounts(
-    usageMetadata.candidatesTokensDetails,
-  )
-  const thoughtsTokens = usageMetadata.thoughtsTokenCount
-
-  const completionTokensDetails = {
-    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
-    // Map thoughtsTokenCount to reasoningTokens for consistency with OpenAI
-    ...(thoughtsTokens !== undefined && thoughtsTokens > 0
-      ? { reasoningTokens: thoughtsTokens }
-      : {}),
-  }
-
-  // Add provider-specific details
-  const providerDetails: GeminiProviderUsageDetails = {
-    ...(usageMetadata.trafficType
-      ? { trafficType: usageMetadata.trafficType }
-      : {}),
-    ...(usageMetadata.toolUsePromptTokenCount !== undefined &&
-    usageMetadata.toolUsePromptTokenCount > 0
-      ? { toolUsePromptTokenCount: usageMetadata.toolUsePromptTokenCount }
-      : {}),
-    ...(usageMetadata.toolUsePromptTokensDetails &&
-    usageMetadata.toolUsePromptTokensDetails.length > 0
-      ? {
-          toolUsePromptTokensDetails:
-            usageMetadata.toolUsePromptTokensDetails.map((item) => ({
-              modality: item.modality || 'UNKNOWN',
-              tokenCount: item.tokenCount ?? 0,
-            })),
-        }
-      : {}),
-    ...(usageMetadata.cacheTokensDetails &&
-    usageMetadata.cacheTokensDetails.length > 0
-      ? {
-          cacheTokensDetails: usageMetadata.cacheTokensDetails.map((item) => ({
-            modality: item.modality || 'UNKNOWN',
-            tokenCount: item.tokenCount ?? 0,
-          })),
-        }
-      : {}),
-  }
-
-  // Add prompt token details if available
   if (Object.keys(promptTokensDetails).length > 0) {
     result.promptTokensDetails = promptTokensDetails
   }
-  // Add provider details if available
   if (Object.keys(providerDetails).length > 0) {
     result.providerUsageDetails = providerDetails
   }
-  // Add completion token details if available
   if (Object.keys(completionTokensDetails).length > 0) {
     result.completionTokensDetails = completionTokensDetails
   }

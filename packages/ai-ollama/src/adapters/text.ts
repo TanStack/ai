@@ -214,6 +214,187 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
 
+    function* closeReasoningEvents(
+      model: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+    }
+
+    function* emitTextContent(
+      model: string,
+      content: string,
+    ): Generator<AdapterYieldChunk> {
+      yield* closeReasoningEvents(model)
+      if (!hasEmittedTextMessageStart) {
+        hasEmittedTextMessageStart = true
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          model,
+          timestamp: Date.now(),
+          role: 'assistant',
+        }
+      }
+      accumulatedContent += content
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        model,
+        timestamp: Date.now(),
+        delta: content,
+        content: accumulatedContent,
+      }
+    }
+
+    function* emitThinkingContent(
+      model: string,
+      thinking: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!hasEmittedStepStarted) {
+        hasEmittedStepStarted = true
+        stepId = generateId('step')
+        reasoningMessageId = generateId('msg')
+        yield {
+          type: EventType.REASONING_START,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: reasoningMessageId,
+          role: 'reasoning' as const,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.STEP_STARTED,
+          stepName: stepId,
+          stepId,
+          model,
+          timestamp: Date.now(),
+          stepType: 'thinking',
+        }
+      }
+      accumulatedReasoning += thinking
+      if (reasoningMessageId) {
+        yield {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: reasoningMessageId,
+          delta: thinking,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+      yield {
+        type: EventType.STEP_FINISHED,
+        stepName: stepId || generateId('step'),
+        stepId: stepId || generateId('step'),
+        model,
+        timestamp: Date.now(),
+        delta: thinking,
+        content: accumulatedReasoning,
+      }
+    }
+
+    const handleToolCall = (
+      toolCall: ToolCall,
+      model: string,
+    ): Array<AdapterYieldChunk> => {
+      const actualToolCall = toolCall as ToolCall & {
+        id: string
+        function: { index: number }
+      }
+      const toolCallId =
+        actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+      const events: Array<AdapterYieldChunk> = []
+
+      if (!toolCallsEmitted.has(toolCallId)) {
+        toolCallsEmitted.add(toolCallId)
+        events.push({
+          type: EventType.TOOL_CALL_START,
+          toolCallId,
+          toolCallName: actualToolCall.function.name || '',
+          toolName: actualToolCall.function.name || '',
+          parentMessageId: messageId,
+          model,
+          timestamp: Date.now(),
+          index: actualToolCall.function.index,
+        })
+      }
+
+      let parsedInput: unknown = {}
+      const argsStr =
+        typeof actualToolCall.function.arguments === 'string'
+          ? actualToolCall.function.arguments
+          : JSON.stringify(actualToolCall.function.arguments)
+      try {
+        const parsed = JSON.parse(argsStr)
+        parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        parsedInput = actualToolCall.function.arguments
+      }
+
+      events.push({
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        model,
+        timestamp: Date.now(),
+        delta: argsStr,
+        args: argsStr,
+      })
+      events.push({
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: actualToolCall.function.name || '',
+        toolName: actualToolCall.function.name || '',
+        model,
+        timestamp: Date.now(),
+        input: parsedInput,
+      })
+      return events
+    }
+
+    function* emitDone(chunk: ChatResponse): Generator<AdapterYieldChunk> {
+      if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
+        for (const toolCall of chunk.message.tool_calls) {
+          for (const event of handleToolCall(toolCall, chunk.model)) yield event
+        }
+      }
+      yield* closeReasoningEvents(chunk.model)
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model: chunk.model,
+          timestamp: Date.now(),
+        }
+      }
+      const finishUsage = buildOllamaUsage(chunk)
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model: chunk.model,
+        timestamp: Date.now(),
+        finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+        ...(finishUsage && { usage: finishUsage }),
+      }
+    }
+
     for await (const chunk of stream) {
       logger.provider(`provider=ollama`, { chunk })
       // Emit RUN_STARTED on first chunk
@@ -229,226 +410,20 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         }
       }
 
-      const handleToolCall = (toolCall: ToolCall): Array<AdapterYieldChunk> => {
-        const actualToolCall = toolCall as ToolCall & {
-          id: string
-          function: { index: number }
-        }
-        const toolCallId =
-          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
-        const events: Array<AdapterYieldChunk> = []
-
-        // Emit TOOL_CALL_START if not already emitted for this tool call
-        if (!toolCallsEmitted.has(toolCallId)) {
-          toolCallsEmitted.add(toolCallId)
-          events.push({
-            type: EventType.TOOL_CALL_START,
-            toolCallId,
-            toolCallName: actualToolCall.function.name || '',
-            toolName: actualToolCall.function.name || '',
-            parentMessageId: messageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-            index: actualToolCall.function.index,
-          })
-        }
-
-        // Serialize arguments to a string for the TOOL_CALL_ARGS event
-        let parsedInput: unknown = {}
-        const argsStr =
-          typeof actualToolCall.function.arguments === 'string'
-            ? actualToolCall.function.arguments
-            : JSON.stringify(actualToolCall.function.arguments)
-        try {
-          const parsed = JSON.parse(argsStr)
-          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-        } catch {
-          parsedInput = actualToolCall.function.arguments
-        }
-
-        // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
-        events.push({
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId,
-          model: chunk.model,
-          timestamp: Date.now(),
-          delta: argsStr,
-          args: argsStr,
-        })
-
-        // Emit TOOL_CALL_END
-        events.push({
-          type: EventType.TOOL_CALL_END,
-          toolCallId,
-          toolCallName: actualToolCall.function.name || '',
-          toolName: actualToolCall.function.name || '',
-          model: chunk.model,
-          timestamp: Date.now(),
-          input: parsedInput,
-        })
-
-        return events
-      }
-
       if (chunk.done) {
-        if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
-          for (const toolCall of chunk.message.tool_calls) {
-            const events = handleToolCall(toolCall)
-            for (const event of events) {
-              yield event
-            }
-          }
-        }
-
-        // Close reasoning events if still open
-        if (reasoningMessageId && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield {
-            type: EventType.REASONING_MESSAGE_END,
-            messageId: reasoningMessageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_END,
-            messageId: reasoningMessageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Emit TEXT_MESSAGE_END if we had text content
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-        }
-
-        const finishUsage = buildOllamaUsage(chunk)
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId,
-          threadId,
-          model: chunk.model,
-          timestamp: Date.now(),
-          finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
-          // usage is optional under exactOptionalPropertyTypes; omit the key
-          // entirely when Ollama reported no token counts.
-          ...(finishUsage && { usage: finishUsage }),
-        }
+        yield* emitDone(chunk)
         continue
       }
-
       if (chunk.message.content) {
-        // Close reasoning before text starts
-        if (reasoningMessageId && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield {
-            type: EventType.REASONING_MESSAGE_END,
-            messageId: reasoningMessageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_END,
-            messageId: reasoningMessageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Emit TEXT_MESSAGE_START on first text content
-        if (!hasEmittedTextMessageStart) {
-          hasEmittedTextMessageStart = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-            role: 'assistant',
-          }
-        }
-
-        accumulatedContent += chunk.message.content
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId,
-          model: chunk.model,
-          timestamp: Date.now(),
-          delta: chunk.message.content,
-          content: accumulatedContent,
-        }
+        yield* emitTextContent(chunk.model, chunk.message.content)
       }
-
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
         for (const toolCall of chunk.message.tool_calls) {
-          const events = handleToolCall(toolCall)
-          for (const event of events) {
-            yield event
-          }
+          for (const event of handleToolCall(toolCall, chunk.model)) yield event
         }
       }
-
       if (chunk.message.thinking) {
-        // Emit STEP_STARTED and REASONING events on first thinking content
-        if (!hasEmittedStepStarted) {
-          hasEmittedStepStarted = true
-          stepId = generateId('step')
-          reasoningMessageId = generateId('msg')
-
-          // Spec REASONING events
-          yield {
-            type: EventType.REASONING_START,
-            messageId: reasoningMessageId,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_MESSAGE_START,
-            messageId: reasoningMessageId,
-            role: 'reasoning' as const,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-
-          // Legacy STEP events (kept during transition)
-          yield {
-            type: EventType.STEP_STARTED,
-            stepName: stepId,
-            stepId,
-            model: chunk.model,
-            timestamp: Date.now(),
-            stepType: 'thinking',
-          }
-        }
-
-        accumulatedReasoning += chunk.message.thinking
-
-        // Spec REASONING content event — reasoningMessageId is set in the
-        // hasEmittedStepStarted block above (entered on the same `thinking` path)
-        if (reasoningMessageId) {
-          yield {
-            type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId: reasoningMessageId,
-            delta: chunk.message.thinking,
-            model: chunk.model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Legacy STEP event
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId || generateId('step'),
-          stepId: stepId || generateId('step'),
-          model: chunk.model,
-          timestamp: Date.now(),
-          delta: chunk.message.thinking,
-          content: accumulatedReasoning,
-        }
+        yield* emitThinkingContent(chunk.model, chunk.message.thinking)
       }
     }
   }

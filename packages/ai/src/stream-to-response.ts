@@ -480,11 +480,8 @@ export function durableStreamSource<TOffset extends string>(
       }
     }
 
-    try {
+    async function* runProduceLoop(): AsyncIterable<StreamChunk> {
       if (isAborted(abortController.signal)) return
-      // Make the run joinable BEFORE the producer is first pulled — the pull
-      // is what runs the middleware chain, and middleware may take minutes to
-      // yield a first chunk. See {@link RUN_ACCEPTED_EVENT}.
       batch.push({
         type: 'CUSTOM',
         name: RUN_ACCEPTED_EVENT,
@@ -500,16 +497,14 @@ export function durableStreamSource<TOffset extends string>(
         }
       }
       if (!isAborted(abortController.signal)) yield* flush()
+    }
+
+    try {
+      yield* runProduceLoop()
     } catch (error) {
       terminalCause = error
       hasTerminalCause = true
       recordFailure(error, 'producer failed')
-      // The provider stream threw. Persist a terminal RUN_ERROR to the
-      // durability log so a resumer / joiner learns the run failed (otherwise
-      // the log ends with no terminal and they wait forever). Flush any
-      // buffered chunks first, then append the terminal WITHOUT forwarding it
-      // live — the transport layer synthesizes the live RUN_ERROR on rethrow,
-      // so forwarding here too would double-emit.
       if (!isAborted(abortController.signal)) {
         try {
           yield* flush()
@@ -518,137 +513,81 @@ export function durableStreamSource<TOffset extends string>(
         }
       }
     } finally {
-      // The PRODUCER was stopped, which is deliberately not the same question as
-      // "did the delivery socket go away". A disconnect alone must leave this
-      // false: the run survives it and terminalizes this log itself on its way
-      // out, and treating the disconnect as a cancel here would make `detached`
-      // true for a run that had already finished — skipping `close()` and parking
-      // every later tailer forever on a log nobody will ever continue.
-      const cancelled = isAborted(abortController.signal)
+      await finalizeProduce()
+    }
 
-      // Persist any buffered-but-unflushed chunks before terminalizing, so a
-      // joiner replaying the log sees everything produced up to a disconnect
-      // rather than a truncated prefix. On the abort path the streaming loop
-      // broke before its trailing flush; drain flush() here for its persistence
-      // side effect only (the delivery socket is gone, so the yielded chunks are
-      // discarded). The normal and provider-throw paths already flushed, so
-      // `batch` is empty for them and this is a no-op.
-      if (batch.length > 0) {
-        try {
-          for await (const _chunk of flush()) {
-            // persist-only: nothing consumes these
-          }
-        } catch (flushError) {
-          recordFailure(flushError, 'flushing buffered chunks on exit failed')
+    async function persistBufferedBatch(): Promise<void> {
+      if (batch.length === 0) return
+      try {
+        for await (const _chunk of flush()) {
+          // persist-only: nothing consumes these
         }
+      } catch (flushError) {
+        recordFailure(flushError, 'flushing buffered chunks on exit failed')
       }
+    }
 
-      // Was this abort a DETACH? Only the run's own middleware can say — it is
-      // the only actor that has resolved both out-of-band cancel bands and
-      // `detachOnDisconnect` — and it says so on the stream itself (see
-      // `./delivery-detach`). Read only AFTER the try block above has exited,
-      // which is what awaits the chat generator's `return()` and therefore the
-      // whole `onAbort` chain that publishes the verdict.
-      //
-      // Every conjunct is load bearing. `cancelled` keeps a normal finish on
-      // today's path. `!isExplicitCancel` is core's own belt-and-braces refusal to
-      // spare a run the user deliberately stopped, whatever a middleware claims.
-      // `!hasTerminalCause` keeps a GENUINE provider failure
-      // terminal even if the socket died too, so a real error is never mistaken
-      // for a detach. And `wasRunDetached` is false for an
-      // explicit cancel (either band), for a non-detachable disconnect, and for
-      // every app that has not wired durability — all of which keep terminalizing
-      // and closing exactly as before.
-      //
-      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
-      // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
-      // `finishReason: 'tool_calls'` terminal is flushed at its boundary
-      // mid-run — so `terminalPersisted` means "some terminal is in the log",
-      // never "the run ended". Gating on it terminalized the log of a healthy,
-      // still-running agent for every tool-calling run. Nor can the sink
-      // distinguish a final terminal from an intermediate one by its
-      // `finishReason`: only the run's middleware knows, and that is exactly
-      // what the verdict reports. So a published detach verdict WINS — it
-      // already means "the agent is alive and a successor will terminalize this
-      // log".
+    async function persistTerminalIfNeeded(detached: boolean): Promise<void> {
+      const cancelled = isAborted(abortController.signal)
+      if (
+        detached ||
+        !needsTerminalPersistence(
+          terminalPersisted,
+          cancelled,
+          hasTerminalCause,
+        )
+      ) {
+        return
+      }
+      const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
+      try {
+        await durability.append([runErrorChunk(cause)])
+        terminalPersisted = true
+      } catch (terminalError) {
+        logger?.errors('persisting terminal RUN_ERROR failed', {
+          error: terminalError,
+        })
+        recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
+      }
+    }
+
+    async function closeDurabilityIfNeeded(detached: boolean): Promise<void> {
+      if (detached) return
+      try {
+        await durability.close()
+      } catch (closeError) {
+        logger?.errors('closing durability stream failed', {
+          error: closeError,
+        })
+        recordFailure(closeError, 'closing durability stream failed')
+      }
+    }
+
+    function rethrowDurabilityFailure(): void {
+      if (failure === undefined) return
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
+      if (!terminalForwarded) {
+        throw failure.error
+      }
+      logger?.errors(
+        'durability failure after a terminal event was forwarded',
+        {
+          error: failure.error,
+        },
+      )
+    }
+
+    async function finalizeProduce(): Promise<void> {
+      const cancelled = isAborted(abortController.signal)
+      await persistBufferedBatch()
       const detached =
         cancelled &&
         !isExplicitCancel(abortController.signal) &&
         !hasTerminalCause &&
         wasRunDetached(stream)
-
-      if (
-        !detached &&
-        needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
-      ) {
-        // Prefer the real provider error even when the delivery socket was also
-        // aborted: if the run genuinely failed, a joiner should see that cause,
-        // not a generic AbortError that masks it. AbortError is only used for a
-        // pure cancellation with no underlying failure.
-        const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }
-        try {
-          await durability.append([runErrorChunk(cause)])
-          terminalPersisted = true
-        } catch (terminalError) {
-          // Rethrown to the live consumer below, but a joiner replaying the log
-          // only ever sees a generic incomplete error — so record the real
-          // cause server-side where an operator can act on it.
-          logger?.errors('persisting terminal RUN_ERROR failed', {
-            error: terminalError,
-          })
-          recordFailure(terminalError, 'persisting terminal RUN_ERROR failed')
-        }
-      }
-
-      // A detached run's log is deliberately left OPEN: the run is still going,
-      // and `close()` would terminalize the log the takeover has to continue —
-      // a tailing attach would stop at the prefix, and a stored synthetic
-      // `RUN_ERROR` would additionally diverge the takeover's journal replay and
-      // record a healthy run as failed.
-      //
-      // This is NOT the general "fence the close" that `ai-sandbox`'s claim.ts
-      // rules out. That fence would suppress `close()` for a run nobody will ever
-      // drive again, wedging the record at `'running'` with every tailer parked
-      // forever. The skip here is conditional on a verdict that means the exact
-      // opposite: the agent is alive and a successor WILL terminalize this log
-      // (its own producer exit runs this same `finally`). Keep that distinction —
-      // widening this condition to "any abort" re-introduces the wedge.
-      if (!detached) {
-        try {
-          await durability.close()
-        } catch (closeError) {
-          // A failed close leaves the durable log unterminated for joiners; the
-          // live consumer gets the rethrow, but log it for the joiner's sake.
-          logger?.errors('closing durability stream failed', {
-            error: closeError,
-          })
-          recordFailure(closeError, 'closing durability stream failed')
-        }
-      }
-
-      // Rethrow a terminalization/close failure to the live consumer ONLY when
-      // no terminal reached it yet — the transport then synthesizes a live
-      // RUN_ERROR so the consumer isn't left without a terminal. If a terminal
-      // was already forwarded (the run ended on the wire), a late failure is a
-      // server-side cleanup issue; rethrowing it would append a contradictory
-      // second terminal (RUN_ERROR after RUN_FINISHED) on the wire. Suppress the
-      // rethrow, but never let the cause vanish — record it server-side, the
-      // same as the close / terminal-append failures above. (This also covers a
-      // provider that throws AFTER emitting its own terminal, whose error is
-      // otherwise neither delivered nor logged.)
-      if (failure !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- terminalForwarded is set only inside the flush() closure, which TS CFA narrows away here
-        if (!terminalForwarded) {
-          // eslint-disable-next-line no-unsafe-finally
-          throw failure.error
-        }
-        logger?.errors(
-          'durability failure after a terminal event was forwarded',
-          {
-            error: failure.error,
-          },
-        )
-      }
+      await persistTerminalIfNeeded(detached)
+      await closeDurabilityIfNeeded(detached)
+      rethrowDurabilityFailure()
     }
   }
 

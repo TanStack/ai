@@ -450,6 +450,131 @@ export async function* translateSdkStream(
     }
   }
 
+  function* handleContentBlockStart(startedBlock: {
+    type: string
+    id?: string
+    name?: string
+    input?: unknown
+  }): Generator<AdapterYieldChunk> {
+    partialBlockType = startedBlock.type
+    partialIsStructuredOutput =
+      ctx.expectStructuredOutput === true &&
+      startedBlock.type === 'tool_use' &&
+      'name' in startedBlock &&
+      startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
+    if (partialIsStructuredOutput) {
+      partialStructuredJson = ''
+      if ('id' in startedBlock && typeof startedBlock.id === 'string') {
+        syntheticOutputToolIds.add(startedBlock.id)
+      }
+      if ('input' in startedBlock) {
+        capturedStructuredOutput = rememberStructuredOutput(
+          capturedStructuredOutput,
+          startedBlock.input,
+        )
+      }
+    }
+    if (partialBlockType === 'text') {
+      partialTextMessageId = partialMessageId ?? genId()
+      partialTextContent = ''
+      if (!partialTextStarted) {
+        partialTextStarted = true
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: partialTextMessageId,
+          model,
+          timestamp: now(),
+          role: 'assistant',
+        }
+      }
+      return
+    }
+    if (partialBlockType === 'thinking') {
+      partialReasoningId = genId()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: partialReasoningId,
+        model,
+        timestamp: now(),
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: partialReasoningId,
+        role: 'reasoning' as const,
+        model,
+        timestamp: now(),
+      }
+    }
+  }
+
+  function* handleContentBlockDelta(
+    event: Extract<
+      SdkPartialAssistantMessage['event'],
+      { type: 'content_block_delta' }
+    >,
+  ): Generator<AdapterYieldChunk> {
+    if (
+      event.delta.type === 'text_delta' &&
+      partialTextStarted &&
+      partialTextMessageId &&
+      typeof event.delta.text === 'string'
+    ) {
+      partialTextContent += event.delta.text
+      assistantTextForHarvest += event.delta.text
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: partialTextMessageId,
+        model,
+        timestamp: now(),
+        delta: event.delta.text,
+        content: partialTextContent,
+      }
+      return
+    }
+    if (
+      event.delta.type === 'input_json_delta' &&
+      partialIsStructuredOutput &&
+      typeof event.delta.partial_json === 'string'
+    ) {
+      partialStructuredJson += event.delta.partial_json
+      return
+    }
+    if (
+      event.delta.type === 'thinking_delta' &&
+      partialReasoningId &&
+      typeof event.delta.thinking === 'string'
+    ) {
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: partialReasoningId,
+        delta: event.delta.thinking,
+        model,
+        timestamp: now(),
+      }
+    }
+  }
+
+  function* handleContentBlockStop(): Generator<AdapterYieldChunk> {
+    if (partialIsStructuredOutput && partialStructuredJson !== '') {
+      try {
+        capturedStructuredOutput = rememberStructuredOutput(
+          capturedStructuredOutput,
+          JSON.parse(partialStructuredJson),
+        )
+      } catch {
+        // Incomplete JSON; the complete assistant tool_use may still arrive.
+      }
+    }
+    if (partialBlockType === 'text') {
+      yield* closePartialText()
+    } else if (partialBlockType === 'thinking') {
+      yield* closePartialReasoning()
+    }
+    partialBlockType = null
+    partialIsStructuredOutput = false
+    partialStructuredJson = ''
+  }
+
   function* handleStreamEvent(
     message: SdkPartialAssistantMessage,
   ): Generator<AdapterYieldChunk> {
@@ -457,110 +582,18 @@ export async function* translateSdkStream(
     if (event.type === 'message_start') {
       partialMessageId = event.message.id ?? genId()
       streamedMessageIds.add(partialMessageId)
-    } else if (event.type === 'content_block_start') {
-      partialBlockType = event.content_block.type
-      const startedBlock = event.content_block
-      partialIsStructuredOutput =
-        ctx.expectStructuredOutput === true &&
-        startedBlock.type === 'tool_use' &&
-        'name' in startedBlock &&
-        startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
-      if (partialIsStructuredOutput) {
-        partialStructuredJson = ''
-        if ('id' in startedBlock && typeof startedBlock.id === 'string') {
-          syntheticOutputToolIds.add(startedBlock.id)
-        }
-        if ('input' in startedBlock) {
-          capturedStructuredOutput = rememberStructuredOutput(
-            capturedStructuredOutput,
-            startedBlock.input,
-          )
-        }
-      }
-      if (partialBlockType === 'text') {
-        partialTextMessageId = partialMessageId ?? genId()
-        partialTextContent = ''
-        if (!partialTextStarted) {
-          partialTextStarted = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId: partialTextMessageId,
-            model,
-            timestamp: now(),
-            role: 'assistant',
-          }
-        }
-      } else if (partialBlockType === 'thinking') {
-        partialReasoningId = genId()
-        yield {
-          type: EventType.REASONING_START,
-          messageId: partialReasoningId,
-          model,
-          timestamp: now(),
-        }
-        yield {
-          type: EventType.REASONING_MESSAGE_START,
-          messageId: partialReasoningId,
-          role: 'reasoning' as const,
-          model,
-          timestamp: now(),
-        }
-      }
-    } else if (event.type === 'content_block_delta') {
-      if (
-        event.delta.type === 'text_delta' &&
-        partialTextStarted &&
-        partialTextMessageId &&
-        typeof event.delta.text === 'string'
-      ) {
-        partialTextContent += event.delta.text
-        assistantTextForHarvest += event.delta.text
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId: partialTextMessageId,
-          model,
-          timestamp: now(),
-          delta: event.delta.text,
-          content: partialTextContent,
-        }
-      } else if (
-        event.delta.type === 'input_json_delta' &&
-        partialIsStructuredOutput &&
-        typeof event.delta.partial_json === 'string'
-      ) {
-        partialStructuredJson += event.delta.partial_json
-      } else if (
-        event.delta.type === 'thinking_delta' &&
-        partialReasoningId &&
-        typeof event.delta.thinking === 'string'
-      ) {
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: partialReasoningId,
-          delta: event.delta.thinking,
-          model,
-          timestamp: now(),
-        }
-      }
-    } else if (event.type === 'content_block_stop') {
-      if (partialIsStructuredOutput && partialStructuredJson !== '') {
-        try {
-          capturedStructuredOutput = rememberStructuredOutput(
-            capturedStructuredOutput,
-            JSON.parse(partialStructuredJson),
-          )
-        } catch {
-          // Incomplete JSON; the complete assistant tool_use may still arrive.
-        }
-      }
-      if (partialBlockType === 'text') {
-        yield* closePartialText()
-      } else if (partialBlockType === 'thinking') {
-        yield* closePartialReasoning()
-      }
-      partialBlockType = null
-      partialIsStructuredOutput = false
-      partialStructuredJson = ''
+      return
+    }
+    if (event.type === 'content_block_start') {
+      yield* handleContentBlockStart(event.content_block)
+      return
+    }
+    if (event.type === 'content_block_delta') {
+      yield* handleContentBlockDelta(event)
+      return
+    }
+    if (event.type === 'content_block_stop') {
+      yield* handleContentBlockStop()
     }
   }
 

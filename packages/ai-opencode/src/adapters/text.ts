@@ -72,6 +72,62 @@ export interface OpencodeTextConfig {
 }
 
 /** Split a `provider/model` id into its provider and model halves. */
+function chatRunErrorChunk(error: unknown, model: string): AdapterYieldChunk {
+  const err = error as Error & { code?: string }
+  const rawEvent = toRunErrorRawEvent(error)
+  const message = err.message || 'Unknown error occurred'
+  return {
+    type: EventType.RUN_ERROR,
+    model,
+    timestamp: Date.now(),
+    message,
+    ...(err.code !== undefined && { code: err.code }),
+    ...(rawEvent !== undefined && { rawEvent }),
+    error: {
+      message,
+      ...(err.code !== undefined && { code: err.code }),
+    },
+  }
+}
+
+async function* emitOpencodeStructuredOutput(
+  lastAssistantText: string,
+  messageId: string,
+  model: string,
+  threadId: string,
+  runId: string,
+): AsyncIterable<AdapterYieldChunk> {
+  try {
+    const object = parseJsonFromAssistantText(lastAssistantText)
+    yield structuredOutputStartChunk({
+      messageId,
+      model,
+      threadId,
+      runId,
+    })
+    yield structuredOutputCompleteChunk({
+      messageId,
+      model,
+      threadId,
+      runId,
+      object,
+      raw: lastAssistantText,
+    })
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed to parse structured output'
+    yield {
+      type: EventType.RUN_ERROR,
+      model,
+      timestamp: Date.now(),
+      message,
+      error: { message },
+    }
+  }
+}
+
 function splitModel(model: string): { providerID: string; modelID: string } {
   const slash = model.indexOf('/')
   if (slash <= 0 || slash === model.length - 1) {
@@ -165,288 +221,30 @@ export class OpencodeTextAdapter<
     })
 
     try {
-      const sandbox = this.sandboxFrom(options)
-      const directory =
-        options.modelOptions?.directory ??
-        this.adapterConfig.directory ??
-        DEFAULT_WORKDIR
-
-      // Durability wired onto a path that cannot deliver it. Two outcomes, split
-      // by whether a first attempt has already run.
-      //
-      // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
-      // when a previous host was already streaming this run, so continuing past
-      // here reaches `startOpencodeServerInSandbox` + the session prompt and
-      // re-runs the agent from scratch against the workspace that attempt
-      // already mutated, appending its whole output to a log that still holds
-      // the first attempt's. This adapter has no journal to tail, no
-      // `awaitAttachableJournal` to refuse the attach up front, and no
-      // `alignedIfAttaching` to suppress the already-delivered prefix — so there
-      // is nothing between here and that corruption except this throw.
-      //
-      // A FRESH durable run only fails to be recoverable LATER, which an app may
-      // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
-      // the middleware level and still route some runs through this adapter). So
-      // that is a warn, not a throw: audible, not fatal. Once per run, not per
-      // chunk — a per-chunk warning would be worse than none. Mirrors
-      // `ai-grok-build`'s `chatStreamAcp`.
-      const durability = options.capabilities
-        ? getSandboxDurability(options.capabilities, { optional: true })
-        : undefined
-      if (durability !== undefined) {
-        if (durability.attach) {
-          throw new DurableAttachNotSupportedError(
-            'opencode',
-            'this adapter drives the harness over the opencode HTTP server ' +
-              'and does not journal',
-          )
-        }
-        logger.warn(
-          'opencode: sandbox durability is wired but this adapter never ' +
-            'journals — this run will not be recoverable on reconnect. Use a ' +
-            'journaling harness adapter for runs that must survive a host ' +
-            'restart, or drop durability if these runs are not meant to.',
-          { runId, adapter: 'opencode' },
-        )
-      }
-
-      // Project workspace skills / MCP servers into the sandbox before starting
-      // the opencode server so the workspace config is in place for the session.
-      if (options.capabilities !== undefined) {
-        const projection = getWorkspaceProjection(options.capabilities, {
-          optional: true,
-        })
-        if (projection !== undefined) {
-          await projectOpencodeWorkspace(sandbox, projection)
-        }
-      }
-
-      const modelOptions = options.modelOptions
-      const sessionId = modelOptions?.sessionId
-      const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
-      const { providerID, modelID } = splitModel(this.model)
-
-      // Bridge chat()-provided tools into the in-sandbox server over MCP
-      // (configured via OPENCODE_CONFIG_CONTENT at server spawn).
-      const bridgedToolNames = new Set(
-        (options.tools ?? []).map((tool) => tool.name),
-      )
-      if (options.tools && options.tools.length > 0) {
-        const provisioner =
-          (options.capabilities
-            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
-            : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
-          provider: sandbox.provider,
-          context: options.context,
-          emitCustomEvent: channel.emitCustomEvent,
-          ...(externalSignal ? { signal: externalSignal } : {}),
-        })
-      }
-
-      // Approval-requested events for `ask`-policy actions with no client
-      // decision yet, emitted after the stream so the client can approve + re-run.
-      const approvalRequests: Array<AdapterYieldChunk> = []
-
-      const queue = new AsyncQueue<OpencodeStreamEvent>()
-      const mode =
-        modelOptions?.permissionMode ??
-        this.adapterConfig.permissionMode ??
-        'default'
-      const permissionHandler: PermissionHandler =
-        this.adapterConfig.onPermissionRequest ??
-        ((request) => {
-          const result = resolveInteractivePermission(
-            request,
-            mode,
-            bridgedToolNames,
-            options.approvals,
-          )
-          if (result.approvalId !== undefined) {
-            approvalRequests.push(
-              buildApprovalRequestedEvent({
-                approvalId: result.approvalId,
-                title: result.title ?? request.title,
-                threadId,
-                runId,
-                detail: { provider: 'opencode' },
-              }),
-            )
-          }
-          return result.response
-        })
-
-      logger.request(
-        `activity=chat provider=opencode model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
-        { provider: 'opencode', model: this.model },
-      )
-
-      const serverEnv = bridge
-        ? {
-            OPENCODE_CONFIG_CONTENT: JSON.stringify({
-              mcp: {
-                [bridge.name]: {
-                  type: 'remote',
-                  url: bridge.url,
-                  enabled: true,
-                  headers: { Authorization: `Bearer ${bridge.token}` },
-                },
-              },
-            }),
-          }
-        : undefined
-
-      server = await startOpencodeServerInSandbox(sandbox, {
-        port: this.adapterConfig.port ?? DEFAULT_PORT,
-        ...(this.adapterConfig.hostname !== undefined && {
-          hostname: this.adapterConfig.hostname,
-        }),
-        cwd: directory,
-        ...(serverEnv ? { env: serverEnv } : {}),
-        ...(externalSignal ? { signal: externalSignal } : {}),
+      yield* this.runOpencodeSession(options, {
+        runId,
+        threadId,
+        channel,
+        externalSignal,
+        setServer: (next) => {
+          server = next
+        },
+        setHandle: (next) => {
+          handle = next
+        },
+        setBridge: (next) => {
+          bridge = next
+        },
+        setOnAbort: (next) => {
+          onAbort = next
+        },
       })
-
-      handle = await startOpencodeSession({
-        baseUrl: server.baseUrl,
-        // Forward the channel's auth headers (e.g. Daytona's preview token) so
-        // the host client can reach a token-gated preview proxy.
-        ...(server.headers !== undefined && { headers: server.headers }),
-        // NOTE: do NOT pass `directory` here. `directory` is the VIRTUAL sandbox
-        // path (e.g. `/workspace`); the server is already spawned with that as its
-        // cwd (the provider handle maps it to the real workdir — `/workspace`
-        // inside Docker, a host temp dir for local-process). Forwarding the
-        // virtual path to the host-side opencode HTTP API breaks local-process,
-        // where `/workspace` doesn't exist → the API stalls until the request
-        // times out. Omitting it makes opencode use the server's (correct) cwd.
-        providerID,
-        modelID,
-        ...(sessionId !== undefined && { resumeSessionId: sessionId }),
-        onEvent: (event) => queue.push({ kind: 'event', event }),
-        onPermissionRequest: permissionHandler,
-        onError: (error) => queue.fail(error),
-      })
-      const session = handle
-
-      if (externalSignal !== undefined) {
-        onAbort = () => void session.abort().catch(() => undefined)
-        if (externalSignal.aborted) onAbort()
-        else externalSignal.addEventListener('abort', onAbort, { once: true })
-      }
-
-      queue.push({ kind: 'session', sessionId: session.sessionId })
-
-      let promptText = this.applySystemPrompts(
-        options,
-        session.resumed || sessionId === undefined
-          ? resumePrompt
-          : buildPrompt(options.messages, undefined).prompt,
-      )
-      if (options.outputSchema) {
-        promptText = appendOutputSchemaInstruction(
-          promptText,
-          options.outputSchema,
-        )
-      }
-
-      let lastAssistantText = ''
-      session
-        .prompt(promptText)
-        .then(({ message, text }) => {
-          lastAssistantText = text
-          queue.push({ kind: 'done', message })
-          queue.end()
-        })
-        .catch((error: unknown) => queue.fail(error))
-
-      let heldFinished: AdapterYieldChunk | undefined
-      let lastTextMessageId: string | undefined
-      for await (const chunk of mergeChunkStreams(
-        translateOpencodeStream(queue, {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          genId: () => this.generateId(),
-          bridgedToolNames,
-          onStreamEvent: (event) =>
-            logger.provider(`provider=opencode kind=${event.kind}`, {
-              chunk: event,
-            }),
-        }),
-        channel.stream,
-      )) {
-        if (options.outputSchema && chunk.type === EventType.RUN_FINISHED) {
-          heldFinished = chunk
-          continue
-        }
-        if (
-          chunk.type === EventType.TEXT_MESSAGE_START &&
-          typeof chunk.messageId === 'string' &&
-          chunk.messageId !== ''
-        ) {
-          lastTextMessageId = chunk.messageId
-        }
-        yield chunk
-      }
-
-      if (options.outputSchema) {
-        try {
-          const object = parseJsonFromAssistantText(lastAssistantText)
-          const messageId = lastTextMessageId ?? this.generateId()
-          yield structuredOutputStartChunk({
-            messageId,
-            model: this.model,
-            threadId,
-            runId,
-          })
-          yield structuredOutputCompleteChunk({
-            messageId,
-            model: this.model,
-            threadId,
-            runId,
-            object,
-            raw: lastAssistantText,
-          })
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Failed to parse structured output'
-          yield {
-            type: EventType.RUN_ERROR,
-            model: this.model,
-            timestamp: Date.now(),
-            message,
-            error: { message },
-          }
-        }
-      }
-      if (heldFinished) yield heldFinished
-
-      // Surface pending approval requests (ask-policy actions awaiting a client
-      // decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('opencode.chatStream fatal', {
         error,
         source: 'opencode.chatStream',
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        ...(err.code !== undefined && { code: err.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          ...(err.code !== undefined && { code: err.code }),
-        },
-      }
+      yield chatRunErrorChunk(error, options.model)
     } finally {
       if (externalSignal !== undefined && onAbort !== undefined) {
         externalSignal.removeEventListener('abort', onAbort)
@@ -456,6 +254,321 @@ export class OpencodeTextAdapter<
       await server?.dispose()
       await bridge?.close()
     }
+  }
+
+  private guardOpencodeDurability(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    runId: string,
+  ): void {
+    // Durability wired onto a path that cannot deliver it. Two outcomes, split
+    // by whether a first attempt has already run.
+    //
+    // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
+    // when a previous host was already streaming this run, so continuing past
+    // here reaches `startOpencodeServerInSandbox` + the session prompt and
+    // re-runs the agent from scratch against the workspace that attempt
+    // already mutated, appending its whole output to a log that still holds
+    // the first attempt's. This adapter has no journal to tail, no
+    // `awaitAttachableJournal` to refuse the attach up front, and no
+    // `alignedIfAttaching` to suppress the already-delivered prefix — so there
+    // is nothing between here and that corruption except this throw.
+    //
+    // A FRESH durable run only fails to be recoverable LATER, which an app may
+    // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
+    // the middleware level and still route some runs through this adapter). So
+    // that is a warn, not a throw: audible, not fatal. Once per run, not per
+    // chunk — a per-chunk warning would be worse than none. Mirrors
+    // `ai-grok-build`'s `chatStreamAcp`.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    if (durability === undefined) return
+    if (durability.attach) {
+      throw new DurableAttachNotSupportedError(
+        'opencode',
+        'this adapter drives the harness over the opencode HTTP server ' +
+          'and does not journal',
+      )
+    }
+    options.logger.warn(
+      'opencode: sandbox durability is wired but this adapter never ' +
+        'journals — this run will not be recoverable on reconnect. Use a ' +
+        'journaling harness adapter for runs that must survive a host ' +
+        'restart, or drop durability if these runs are not meant to.',
+      { runId, adapter: 'opencode' },
+    )
+  }
+
+  private async maybeProjectOpencodeWorkspace(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    sandbox: SandboxHandle,
+  ): Promise<void> {
+    if (options.capabilities === undefined) return
+    const projection = getWorkspaceProjection(options.capabilities, {
+      optional: true,
+    })
+    if (projection !== undefined) {
+      await projectOpencodeWorkspace(sandbox, projection)
+    }
+  }
+
+  private async maybeProvisionOpencodeBridge(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    sandbox: SandboxHandle,
+    channel: ReturnType<typeof createBridgeEventChannel>,
+    externalSignal: AbortSignal | undefined,
+  ): Promise<HostToolBridge | undefined> {
+    if (!options.tools || options.tools.length === 0) return undefined
+    const provisioner =
+      (options.capabilities
+        ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+        : undefined) ?? nodeHttpBridgeProvisioner
+    return await provisioner.provision(options.tools, {
+      provider: sandbox.provider,
+      context: options.context,
+      emitCustomEvent: channel.emitCustomEvent,
+      ...(externalSignal ? { signal: externalSignal } : {}),
+    })
+  }
+
+  private opencodePermissionHandler(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    bridgedToolNames: Set<string>,
+    threadId: string,
+    runId: string,
+    approvalRequests: Array<AdapterYieldChunk>,
+  ): PermissionHandler {
+    const mode =
+      options.modelOptions?.permissionMode ??
+      this.adapterConfig.permissionMode ??
+      'default'
+    return (
+      this.adapterConfig.onPermissionRequest ??
+      ((request) => {
+        const result = resolveInteractivePermission(
+          request,
+          mode,
+          bridgedToolNames,
+          options.approvals,
+        )
+        if (result.approvalId !== undefined) {
+          approvalRequests.push(
+            buildApprovalRequestedEvent({
+              approvalId: result.approvalId,
+              title: result.title ?? request.title,
+              threadId,
+              runId,
+              detail: { provider: 'opencode' },
+            }),
+          )
+        }
+        return result.response
+      })
+    )
+  }
+
+  private async *runOpencodeSession(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    ctx: {
+      runId: string
+      threadId: string
+      channel: ReturnType<typeof createBridgeEventChannel>
+      externalSignal: AbortSignal | undefined
+      setServer: (
+        server: Awaited<ReturnType<typeof startOpencodeServerInSandbox>>,
+      ) => void
+      setHandle: (handle: OpencodeSessionHandle) => void
+      setBridge: (bridge: HostToolBridge | undefined) => void
+      setOnAbort: (onAbort: (() => void) | undefined) => void
+    },
+  ): AsyncIterable<AdapterYieldChunk> {
+    const { logger } = options
+    const sandbox = this.sandboxFrom(options)
+    const directory =
+      options.modelOptions?.directory ??
+      this.adapterConfig.directory ??
+      DEFAULT_WORKDIR
+    this.guardOpencodeDurability(options, ctx.runId)
+    await this.maybeProjectOpencodeWorkspace(options, sandbox)
+
+    const sessionId = options.modelOptions?.sessionId
+    const { prompt: resumePrompt } = buildPrompt(options.messages, sessionId)
+    const { providerID, modelID } = splitModel(this.model)
+    const bridgedToolNames = new Set(
+      (options.tools ?? []).map((tool) => tool.name),
+    )
+    const bridge = await this.maybeProvisionOpencodeBridge(
+      options,
+      sandbox,
+      ctx.channel,
+      ctx.externalSignal,
+    )
+    ctx.setBridge(bridge)
+
+    const approvalRequests: Array<AdapterYieldChunk> = []
+    const queue = new AsyncQueue<OpencodeStreamEvent>()
+    const permissionHandler = this.opencodePermissionHandler(
+      options,
+      bridgedToolNames,
+      ctx.threadId,
+      ctx.runId,
+      approvalRequests,
+    )
+
+    logger.request(
+      `activity=chat provider=opencode model=${this.model} sandbox=${sandbox.provider} messages=${options.messages.length} resume=${sessionId ?? 'none'}`,
+      { provider: 'opencode', model: this.model },
+    )
+
+    const server = await startOpencodeServerInSandbox(sandbox, {
+      port: this.adapterConfig.port ?? DEFAULT_PORT,
+      ...(this.adapterConfig.hostname !== undefined && {
+        hostname: this.adapterConfig.hostname,
+      }),
+      cwd: directory,
+      ...(bridge
+        ? {
+            env: {
+              OPENCODE_CONFIG_CONTENT: JSON.stringify({
+                mcp: {
+                  [bridge.name]: {
+                    type: 'remote',
+                    url: bridge.url,
+                    enabled: true,
+                    headers: { Authorization: `Bearer ${bridge.token}` },
+                  },
+                },
+              }),
+            },
+          }
+        : {}),
+      ...(ctx.externalSignal ? { signal: ctx.externalSignal } : {}),
+    })
+    ctx.setServer(server)
+
+    const handle = await startOpencodeSession({
+      baseUrl: server.baseUrl,
+      // Forward the channel's auth headers (e.g. Daytona's preview token) so
+      // the host client can reach a token-gated preview proxy.
+      ...(server.headers !== undefined && { headers: server.headers }),
+      // NOTE: do NOT pass `directory` here. `directory` is the VIRTUAL sandbox
+      // path (e.g. `/workspace`); the server is already spawned with that as its
+      // cwd (the provider handle maps it to the real workdir — `/workspace`
+      // inside Docker, a host temp dir for local-process). Forwarding the
+      // virtual path to the host-side opencode HTTP API breaks local-process,
+      // where `/workspace` doesn't exist → the API stalls until the request
+      // times out. Omitting it makes opencode use the server's (correct) cwd.
+      providerID,
+      modelID,
+      ...(sessionId !== undefined && { resumeSessionId: sessionId }),
+      onEvent: (event) => queue.push({ kind: 'event', event }),
+      onPermissionRequest: permissionHandler,
+      onError: (error) => queue.fail(error),
+    })
+    ctx.setHandle(handle)
+
+    if (ctx.externalSignal !== undefined) {
+      const onAbort = () => void handle.abort().catch(() => undefined)
+      ctx.setOnAbort(onAbort)
+      if (ctx.externalSignal.aborted) onAbort()
+      else ctx.externalSignal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    queue.push({ kind: 'session', sessionId: handle.sessionId })
+    yield* this.pumpOpencodeStream(options, {
+      handle,
+      queue,
+      bridgedToolNames,
+      resumePrompt,
+      sessionId,
+      runId: ctx.runId,
+      threadId: ctx.threadId,
+      channel: ctx.channel,
+      approvalRequests,
+    })
+  }
+
+  private async *pumpOpencodeStream(
+    options: TextOptions<OpencodeTextProviderOptions>,
+    args: {
+      handle: OpencodeSessionHandle
+      queue: AsyncQueue<OpencodeStreamEvent>
+      bridgedToolNames: Set<string>
+      resumePrompt: string
+      sessionId: string | undefined
+      runId: string
+      threadId: string
+      channel: ReturnType<typeof createBridgeEventChannel>
+      approvalRequests: Array<AdapterYieldChunk>
+    },
+  ): AsyncIterable<AdapterYieldChunk> {
+    let promptText = this.applySystemPrompts(
+      options,
+      args.handle.resumed || args.sessionId === undefined
+        ? args.resumePrompt
+        : buildPrompt(options.messages, undefined).prompt,
+    )
+    if (options.outputSchema) {
+      promptText = appendOutputSchemaInstruction(
+        promptText,
+        options.outputSchema,
+      )
+    }
+
+    let lastAssistantText = ''
+    args.handle
+      .prompt(promptText)
+      .then(({ message, text }) => {
+        lastAssistantText = text
+        args.queue.push({ kind: 'done', message })
+        args.queue.end()
+      })
+      .catch((error: unknown) => args.queue.fail(error))
+
+    let heldFinished: AdapterYieldChunk | undefined
+    let lastTextMessageId: string | undefined
+    for await (const chunk of mergeChunkStreams(
+      translateOpencodeStream(args.queue, {
+        model: this.model,
+        runId: args.runId,
+        threadId: args.threadId,
+        ...(options.parentRunId !== undefined && {
+          parentRunId: options.parentRunId,
+        }),
+        genId: () => this.generateId(),
+        bridgedToolNames: args.bridgedToolNames,
+        onStreamEvent: (event) =>
+          options.logger.provider(`provider=opencode kind=${event.kind}`, {
+            chunk: event,
+          }),
+      }),
+      args.channel.stream,
+    )) {
+      if (options.outputSchema && chunk.type === EventType.RUN_FINISHED) {
+        heldFinished = chunk
+        continue
+      }
+      if (
+        chunk.type === EventType.TEXT_MESSAGE_START &&
+        typeof chunk.messageId === 'string' &&
+        chunk.messageId !== ''
+      ) {
+        lastTextMessageId = chunk.messageId
+      }
+      yield chunk
+    }
+
+    if (options.outputSchema) {
+      yield* emitOpencodeStructuredOutput(
+        lastAssistantText,
+        lastTextMessageId ?? this.generateId(),
+        this.model,
+        args.threadId,
+        args.runId,
+      )
+    }
+    if (heldFinished) yield heldFinished
+    for (const event of args.approvalRequests) yield event
   }
 
   structuredOutput(

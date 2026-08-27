@@ -41,6 +41,51 @@ function invalid(
   return { status: 'invalid', message }
 }
 
+function hasInvalidContinuationFields(raw: Record<string, unknown>): boolean {
+  return (
+    raw.v !== INTERRUPT_CONTINUATION_VERSION ||
+    typeof raw.definitionId !== 'string' ||
+    typeof raw.key !== 'string' ||
+    typeof raw.reason !== 'string' ||
+    typeof raw.message !== 'string' ||
+    typeof raw.batchIndex !== 'number' ||
+    !Number.isInteger(raw.batchIndex) ||
+    raw.batchIndex < 0 ||
+    (raw.responseSchemaHash !== undefined &&
+      typeof raw.responseSchemaHash !== 'string') ||
+    (raw.expiresAt !== undefined && typeof raw.expiresAt !== 'string') ||
+    (raw.payloadSchemaHash !== undefined &&
+      typeof raw.payloadSchemaHash !== 'string')
+  )
+}
+
+function continuationFromRaw(
+  raw: Record<string, unknown>,
+): GenericInterruptContinuation {
+  const definitionId = raw.definitionId
+  const key = raw.key
+  const reason = raw.reason
+  const message = raw.message
+  const batchIndex = raw.batchIndex
+  const expiresAt = raw.expiresAt
+  const responseSchemaHash = raw.responseSchemaHash
+  const payloadSchemaHash = raw.payloadSchemaHash
+  return {
+    v: INTERRUPT_CONTINUATION_VERSION,
+    definitionId: typeof definitionId === 'string' ? definitionId : '',
+    key: typeof key === 'string' ? key : '',
+    batchIndex: typeof batchIndex === 'number' ? batchIndex : 0,
+    reason: typeof reason === 'string' ? reason : '',
+    message: typeof message === 'string' ? message : '',
+    ...(typeof expiresAt === 'string' ? { expiresAt } : {}),
+    ...(typeof responseSchemaHash === 'string' ? { responseSchemaHash } : {}),
+    ...(typeof payloadSchemaHash === 'string' ? { payloadSchemaHash } : {}),
+    ...(Object.prototype.hasOwnProperty.call(raw, 'payload')
+      ? { payload: raw.payload }
+      : {}),
+  }
+}
+
 /**
  * Read one generic request from `resume[].metadata`.
  *
@@ -66,46 +111,10 @@ export function readGenericInterruptContinuation(
   if (!isRecord(raw)) {
     return invalid('Generic interrupt continuation is invalid.')
   }
-  if (
-    raw.v !== INTERRUPT_CONTINUATION_VERSION ||
-    typeof raw.definitionId !== 'string' ||
-    typeof raw.key !== 'string' ||
-    typeof raw.reason !== 'string' ||
-    typeof raw.message !== 'string' ||
-    typeof raw.batchIndex !== 'number' ||
-    !Number.isInteger(raw.batchIndex) ||
-    raw.batchIndex < 0 ||
-    (raw.responseSchemaHash !== undefined &&
-      typeof raw.responseSchemaHash !== 'string') ||
-    (raw.expiresAt !== undefined && typeof raw.expiresAt !== 'string') ||
-    (raw.payloadSchemaHash !== undefined &&
-      typeof raw.payloadSchemaHash !== 'string')
-  ) {
+  if (hasInvalidContinuationFields(raw)) {
     return invalid('Generic interrupt continuation contains invalid fields.')
   }
-  return {
-    status: 'ok',
-    value: {
-      v: INTERRUPT_CONTINUATION_VERSION,
-      definitionId: raw.definitionId,
-      key: raw.key,
-      batchIndex: raw.batchIndex,
-      reason: raw.reason,
-      message: raw.message,
-      ...(typeof raw.expiresAt === 'string'
-        ? { expiresAt: raw.expiresAt }
-        : {}),
-      ...(typeof raw.responseSchemaHash === 'string'
-        ? { responseSchemaHash: raw.responseSchemaHash }
-        : {}),
-      ...(typeof raw.payloadSchemaHash === 'string'
-        ? { payloadSchemaHash: raw.payloadSchemaHash }
-        : {}),
-      ...(Object.prototype.hasOwnProperty.call(raw, 'payload')
-        ? { payload: raw.payload }
-        : {}),
-    },
-  }
+  return { status: 'ok', value: continuationFromRaw(raw) }
 }
 
 /** Put a parsed continuation on `ResumeEntry.metadata`. */

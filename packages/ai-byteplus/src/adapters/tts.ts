@@ -248,28 +248,13 @@ export function buildTTSRequestBody(options: {
   // rates the endpoint accepts, so relying on it is a coin flip.
   const sampleRate = modelOptions?.sample_rate ?? DEFAULT_SAMPLE_RATE
 
-  const audioConfig: BytePlusTTSAudioConfig = {
-    format: audioFormat,
-    sample_rate: sampleRate,
-  }
-  if (modelOptions?.pitch_rate !== undefined) {
-    audioConfig.pitch_rate = modelOptions.pitch_rate
-  }
-  if (modelOptions?.loudness_rate !== undefined) {
-    audioConfig.loudness_rate = modelOptions.loudness_rate
-  }
-  if (modelOptions?.enable_subtitle !== undefined) {
-    audioConfig.enable_subtitle = modelOptions.enable_subtitle
-  }
-
-  // An explicit `speech_rate` always wins over the derived one — it is the
-  // native unit and the only way to reach the extremes precisely.
-  const speechRate =
-    modelOptions?.speech_rate ??
-    (speed !== undefined ? toSpeechRate(speed, logger) : undefined)
-  if (speechRate !== undefined) {
-    audioConfig.speech_rate = speechRate
-  }
+  const audioConfig = buildTTSAudioConfig({
+    audioFormat,
+    sampleRate,
+    speed,
+    modelOptions,
+    logger,
+  })
 
   const body: BytePlusTTSCreateRequest = {
     model,
@@ -309,6 +294,39 @@ export function buildTTSRequestBody(options: {
  * `TTSOptions.speed` spans a wider 0.25×–4× than the endpoint supports, so
  * anything outside 0.5×–2× clamps (and warns) rather than erroring.
  */
+function buildTTSAudioConfig(options: {
+  audioFormat: BytePlusTTSAudioFormat
+  sampleRate: number
+  speed: number | undefined
+  modelOptions: BytePlusTTSProviderOptions | undefined
+  logger: InternalLogger
+}): BytePlusTTSAudioConfig {
+  const { audioFormat, sampleRate, speed, modelOptions, logger } = options
+  const audioConfig: BytePlusTTSAudioConfig = {
+    format: audioFormat,
+    sample_rate: sampleRate,
+  }
+  if (modelOptions?.pitch_rate !== undefined) {
+    audioConfig.pitch_rate = modelOptions.pitch_rate
+  }
+  if (modelOptions?.loudness_rate !== undefined) {
+    audioConfig.loudness_rate = modelOptions.loudness_rate
+  }
+  if (modelOptions?.enable_subtitle !== undefined) {
+    audioConfig.enable_subtitle = modelOptions.enable_subtitle
+  }
+
+  // An explicit `speech_rate` always wins over the derived one — it is the
+  // native unit and the only way to reach the extremes precisely.
+  const speechRate =
+    modelOptions?.speech_rate ??
+    (speed !== undefined ? toSpeechRate(speed, logger) : undefined)
+  if (speechRate !== undefined) {
+    audioConfig.speech_rate = speechRate
+  }
+  return audioConfig
+}
+
 export function toSpeechRate(speed: number, logger?: InternalLogger): number {
   const rate = Math.round((speed - 1) * 100)
   const clamped = Math.min(100, Math.max(-50, rate))

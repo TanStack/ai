@@ -465,6 +465,124 @@ export interface GenerationRestoredResult {
   artifacts: Array<PersistedArtifactRef>
 }
 
+function chunkCorrelationId(
+  chunk: StreamChunk,
+  key: 'threadId' | 'runId',
+): string | undefined {
+  const tanstack = tanstackMetadata(chunk)
+  const fromChunk = stringField(chunk, key)
+  if (fromChunk) return fromChunk
+  const fromMeta = tanstack?.[key]
+  return typeof fromMeta === 'string' ? fromMeta : undefined
+}
+
+function createCarriedResumeSnapshot(
+  previous: GenerationResumeSnapshot | null | undefined,
+  chunk: StreamChunk,
+): GenerationResumeSnapshot {
+  const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
+  const previousArtifacts = carried?.pendingArtifacts ?? []
+  return {
+    schemaVersion: 1,
+    resumeState: carried?.resumeState ?? null,
+    status: carried?.status ?? 'idle',
+    ...(carried?.activity ? { activity: carried.activity } : {}),
+    ...(previousArtifacts.length > 0
+      ? { pendingArtifacts: [...previousArtifacts] }
+      : {}),
+    ...(carried?.result ? { result: { ...carried.result } } : {}),
+    ...(carried?.error ? { error: { ...carried.error } } : {}),
+    lastEvent: createGenerationEventSnapshot(chunk),
+  }
+}
+
+function applyResumeIdentity(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  const threadId = chunkCorrelationId(chunk, 'threadId')
+  const runId = chunkCorrelationId(chunk, 'runId')
+  if (threadId && runId) {
+    next.resumeState = { threadId, runId }
+    next.status = 'running'
+    return
+  }
+  if (chunk.type === 'RUN_STARTED') {
+    next.status = 'running'
+  }
+}
+
+function applyArtifactsCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  const artifacts = collectArtifactRefs(chunk.value)
+  if (artifacts.length === 0) return
+  next.pendingArtifacts = artifacts
+  next.activity = artifacts[0]?.source.activity
+}
+
+function applyResultCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  const result = createGenerationResultSnapshot(chunk.value)
+  if (!result) return
+  next.result = result
+  if (result.artifacts && result.artifacts.length > 0) {
+    next.pendingArtifacts = result.artifacts
+    next.activity = result.artifacts[0]?.source.activity
+  }
+}
+
+function applyVideoJobCreatedCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  // Capture the provider job id as soon as the job exists — for a long
+  // video run this is the one piece of identity worth having after a
+  // reload, and the terminal `generation:result` may never arrive.
+  const providerJobId = isObject(chunk.value)
+    ? stringField(chunk.value, 'jobId')
+    : undefined
+  if (providerJobId) {
+    next.result = { ...next.result, providerJobId }
+  }
+}
+
+const generationCustomEventHandlers: Record<
+  string,
+  (next: GenerationResumeSnapshot, chunk: StreamChunk) => void
+> = {
+  [GENERATION_EVENTS.ARTIFACTS]: applyArtifactsCustomEvent,
+  [GENERATION_EVENTS.RESULT]: applyResultCustomEvent,
+  [GENERATION_EVENTS.VIDEO_JOB_CREATED]: applyVideoJobCreatedCustomEvent,
+}
+
+function applyGenerationCustomEvent(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  if (chunk.type !== 'CUSTOM') return
+  generationCustomEventHandlers[chunk.name]?.(next, chunk)
+}
+
+function applyGenerationRunTerminal(
+  next: GenerationResumeSnapshot,
+  chunk: StreamChunk,
+): void {
+  if (chunk.type === 'RUN_FINISHED') {
+    next.resumeState = null
+    next.status = 'complete'
+    return
+  }
+  if (chunk.type === 'RUN_ERROR') {
+    next.resumeState = null
+    next.status = 'error'
+    next.error = createGenerationErrorSnapshot(chunk)
+  }
+}
+
 /**
  * Reduces one observed stream chunk into the lightweight resume snapshot.
  *
@@ -478,71 +596,10 @@ export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
   chunk: StreamChunk,
 ): GenerationResumeSnapshot {
-  const tanstack = tanstackMetadata(chunk)
-  const threadId =
-    stringField(chunk, 'threadId') ??
-    (typeof tanstack?.threadId === 'string' ? tanstack.threadId : undefined)
-  const runId =
-    stringField(chunk, 'runId') ??
-    (typeof tanstack?.runId === 'string' ? tanstack.runId : undefined)
-  const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
-  const previousArtifacts = carried?.pendingArtifacts ?? []
-  const next: GenerationResumeSnapshot = {
-    schemaVersion: 1,
-    resumeState: carried?.resumeState ?? null,
-    status: carried?.status ?? 'idle',
-    ...(carried?.activity ? { activity: carried.activity } : {}),
-    ...(previousArtifacts.length > 0
-      ? { pendingArtifacts: [...previousArtifacts] }
-      : {}),
-    ...(carried?.result ? { result: { ...carried.result } } : {}),
-    ...(carried?.error ? { error: { ...carried.error } } : {}),
-    lastEvent: createGenerationEventSnapshot(chunk),
-  }
-
-  if (threadId && runId) {
-    next.resumeState = { threadId, runId }
-    next.status = 'running'
-  } else if (chunk.type === 'RUN_STARTED') {
-    next.status = 'running'
-  }
-
-  if (chunk.type === 'CUSTOM') {
-    if (chunk.name === GENERATION_EVENTS.ARTIFACTS) {
-      const artifacts = collectArtifactRefs(chunk.value)
-      if (artifacts.length > 0) {
-        next.pendingArtifacts = artifacts
-        next.activity = artifacts[0]?.source.activity
-      }
-    } else if (chunk.name === GENERATION_EVENTS.RESULT) {
-      const result = createGenerationResultSnapshot(chunk.value)
-      if (result) {
-        next.result = result
-        if (result.artifacts && result.artifacts.length > 0) {
-          next.pendingArtifacts = result.artifacts
-          next.activity = result.artifacts[0]?.source.activity
-        }
-      }
-    } else if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
-      // Capture the provider job id as soon as the job exists — for a long
-      // video run this is the one piece of identity worth having after a
-      // reload, and the terminal `generation:result` may never arrive.
-      const providerJobId = isObject(chunk.value)
-        ? stringField(chunk.value, 'jobId')
-        : undefined
-      if (providerJobId) {
-        next.result = { ...next.result, providerJobId }
-      }
-    }
-  } else if (chunk.type === 'RUN_FINISHED') {
-    next.resumeState = null
-    next.status = 'complete'
-  } else if (chunk.type === 'RUN_ERROR') {
-    next.resumeState = null
-    next.status = 'error'
-    next.error = createGenerationErrorSnapshot(chunk)
-  }
-
+  const next = createCarriedResumeSnapshot(previous, chunk)
+  applyResumeIdentity(next, chunk)
+  applyGenerationCustomEvent(next, chunk)
+  applyGenerationRunTerminal(next, chunk)
   return next
 }
 

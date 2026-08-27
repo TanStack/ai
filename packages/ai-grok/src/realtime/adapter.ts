@@ -59,6 +59,70 @@ type RealtimeServerError = Error & {
   param?: string
 }
 
+function applyVadMode(
+  sessionUpdate: Record<string, unknown>,
+  config: Partial<RealtimeSessionConfig>,
+): void {
+  if (!config.vadMode) return
+  if (config.vadMode === 'semantic') {
+    sessionUpdate.turn_detection = {
+      type: 'semantic_vad',
+      eagerness: config.semanticEagerness ?? 'medium',
+    }
+    return
+  }
+  if (config.vadMode === 'server') {
+    sessionUpdate.turn_detection = {
+      type: 'server_vad',
+      threshold: config.vadConfig?.threshold ?? 0.5,
+      prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
+      silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
+    }
+    return
+  }
+  sessionUpdate.turn_detection = null
+}
+
+function applyRealtimeTools(
+  sessionUpdate: Record<string, unknown>,
+  config: Partial<RealtimeSessionConfig>,
+): void {
+  if (config.tools === undefined) return
+  sessionUpdate.tools = config.tools.map((t) => ({
+    type: 'function',
+    name: t.name,
+    description: t.description,
+    parameters: t.inputSchema ?? { type: 'object', properties: {} },
+  }))
+  sessionUpdate.tool_choice = 'auto'
+}
+
+function applyGrokTranscription(
+  sessionUpdate: Record<string, unknown>,
+  config: Partial<RealtimeSessionConfig>,
+  hasSentInitialSessionUpdate: boolean,
+): void {
+  // Let callers forward an explicit `input_audio_transcription` value
+  // through `providerOptions` — including `null` / `false` to disable
+  // the feature. Only apply our `grok-stt` default on the first
+  // session.update and only if the caller hasn't set it themselves.
+  const providerOptions: Record<string, unknown> = config.providerOptions ?? {}
+  const callerTranscription =
+    'inputAudioTranscription' in providerOptions
+      ? providerOptions.inputAudioTranscription
+      : 'input_audio_transcription' in providerOptions
+        ? providerOptions.input_audio_transcription
+        : undefined
+  if (callerTranscription !== undefined) {
+    sessionUpdate.input_audio_transcription =
+      callerTranscription === false ? null : callerTranscription
+    return
+  }
+  if (!hasSentInitialSessionUpdate) {
+    sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
+  }
+}
+
 /**
  * Creates a Grok realtime adapter for client-side use.
  *
@@ -533,246 +597,210 @@ async function createWebRTCConnection(
     throw err
   }
 
+  function setRealtimeMode(mode: RealtimeMode) {
+    currentMode = mode
+    emit('mode_change', { mode })
+  }
+
+  function emitAssistantTranscript(text: string | undefined, isFinal: boolean) {
+    if (text === undefined) return
+    emit('transcript', { role: 'assistant', transcript: text, isFinal })
+  }
+
+  function listenUnlessIdle() {
+    if (currentMode !== 'idle') setRealtimeMode('listening')
+  }
+
+  function handleOutputItemAdded(event: Record<string, unknown>) {
+    const item = readObject(event, 'item')
+    if (!item || readString(item, 'type') !== 'message') return
+    const id = readString(item, 'id')
+    if (id !== undefined) currentMessageId = id
+  }
+
+  function handleFunctionCallDone(event: Record<string, unknown>) {
+    // Only `call_id` is valid for `sendToolResult` correlation. Falling
+    // back to `item_id` would produce a tool-call id the server doesn't
+    // recognise when the result is posted back, silently dropping the
+    // tool execution. If `call_id` is missing we surface an error event
+    // so the UI can react instead of pretending the tool call succeeded.
+    const callId = readString(event, 'call_id')
+    const name = readString(event, 'name') ?? ''
+    const args = readString(event, 'arguments') ?? ''
+    if (!callId) {
+      logger.errors(
+        'grok.realtime tool_call missing call_id — dropping tool_call',
+        {
+          source: 'grok.realtime',
+          event_type: 'response.function_call_arguments.done',
+          item_id: event.item_id,
+        },
+      )
+      emit('error', {
+        error: new Error(
+          'Realtime tool call missing call_id; tool will not execute',
+        ),
+      })
+      return
+    }
+    try {
+      const input = JSON.parse(args)
+      emit('tool_call', { toolCallId: callId, toolName: name, input })
+    } catch {
+      emit('tool_call', { toolCallId: callId, toolName: name, input: args })
+    }
+  }
+
+  function appendRealtimePart(
+    message: RealtimeMessage,
+    part: Record<string, unknown>,
+  ) {
+    const partType = readString(part, 'type')
+    if (partType === 'audio') {
+      const transcript = readString(part, 'transcript')
+      if (transcript) message.parts.push({ type: 'audio', transcript })
+      return
+    }
+    if (partType === 'text') {
+      const text = readString(part, 'text')
+      if (text) message.parts.push({ type: 'text', content: text })
+    }
+  }
+
+  function completeRealtimeMessage(
+    output: Array<Record<string, unknown>> | undefined,
+  ) {
+    if (!currentMessageId) return
+    const message: RealtimeMessage = {
+      id: currentMessageId,
+      role: 'assistant',
+      timestamp: Date.now(),
+      parts: [],
+    }
+    for (const item of output ?? []) {
+      if (readString(item, 'type') !== 'message') continue
+      const content = readObjectArray(item, 'content')
+      if (!content) continue
+      for (const part of content) appendRealtimePart(message, part)
+    }
+    emit('message_complete', { message })
+    currentMessageId = null
+  }
+
+  function handleResponseDone(event: Record<string, unknown>) {
+    const response = readObject(event, 'response') ?? {}
+    listenUnlessIdle()
+    completeRealtimeMessage(readObjectArray(response, 'output'))
+  }
+
+  function handleTruncated() {
+    // Assistant playback was interrupted — flip mode back to `listening`
+    // unless the user already called `stopAudioCapture()` (idle). Without
+    // this the visualisation would stay stuck on `speaking` even though
+    // no audio is playing.
+    listenUnlessIdle()
+    emit('interrupted', {
+      ...(currentMessageId !== null && { messageId: currentMessageId }),
+    })
+  }
+
+  function handleServerError(event: Record<string, unknown>) {
+    // The realtime server's `error` envelope isn't guaranteed to carry
+    // an `error` object at all (network-layer corruption, protocol
+    // drift, etc.). Validate shape before dereferencing so a malformed
+    // payload can't throw a TypeError inside this handler and stop the
+    // dispatcher from running for the rest of the session.
+    const errorObj = readObject(event, 'error') ?? {}
+    const message =
+      readString(errorObj, 'message') ?? 'Unknown realtime server error'
+    const err: RealtimeServerError = new Error(message)
+    const code = readString(errorObj, 'code')
+    if (code !== undefined) err.code = code
+    const errType = readString(errorObj, 'type')
+    if (errType !== undefined) err.type = errType
+    const param = readString(errorObj, 'param')
+    if (param !== undefined) err.param = param
+    logger.errors('grok.realtime server error', {
+      ...errorObj,
+      source: 'grok.realtime server',
+    })
+    emit('error', { error: err })
+  }
+
+  const grokServerEventHandlers: Record<
+    string,
+    (event: Record<string, unknown>) => void
+  > = {
+    'session.created': () => {},
+    'session.updated': () => {},
+    'input_audio_buffer.speech_started': () => setRealtimeMode('listening'),
+    'input_audio_buffer.speech_stopped': () => setRealtimeMode('thinking'),
+    'input_audio_buffer.committed': () => {},
+    'conversation.item.input_audio_transcription.completed': (event) => {
+      const transcript = readString(event, 'transcript')
+      if (transcript === undefined) return
+      emit('transcript', { role: 'user', transcript, isFinal: true })
+    },
+    'response.created': () => {
+      // Reset message id so a tool-only response (which never emits
+      // response.output_item.added for a message) can't reuse the previous
+      // turn's id when `response.done` later inspects this flag.
+      currentMessageId = null
+      setRealtimeMode('thinking')
+    },
+    'response.output_item.added': handleOutputItemAdded,
+    // xAI realtime per docs uses `response.output_audio_transcript.*`;
+    // accept the legacy OpenAI-realtime `response.audio_transcript.*` as
+    // an alias so this adapter stays compatible across protocol versions.
+    'response.output_audio_transcript.delta': (event) =>
+      emitAssistantTranscript(readString(event, 'delta'), false),
+    'response.audio_transcript.delta': (event) =>
+      emitAssistantTranscript(readString(event, 'delta'), false),
+    'response.output_audio_transcript.done': (event) =>
+      emitAssistantTranscript(readString(event, 'transcript'), true),
+    'response.audio_transcript.done': (event) =>
+      emitAssistantTranscript(readString(event, 'transcript'), true),
+    // xAI realtime per docs uses `response.text.*`; accept the legacy
+    // OpenAI-realtime `response.output_text.*` as an alias.
+    'response.text.delta': (event) =>
+      emitAssistantTranscript(readString(event, 'delta'), false),
+    'response.output_text.delta': (event) =>
+      emitAssistantTranscript(readString(event, 'delta'), false),
+    'response.text.done': (event) =>
+      emitAssistantTranscript(readString(event, 'text'), true),
+    'response.output_text.done': (event) =>
+      emitAssistantTranscript(readString(event, 'text'), true),
+    // xAI realtime per docs uses `response.output_audio.*`; accept the
+    // legacy OpenAI-realtime `response.audio.*` as an alias.
+    'response.output_audio.delta': () => {
+      if (currentMode !== 'speaking') setRealtimeMode('speaking')
+    },
+    'response.audio.delta': () => {
+      if (currentMode !== 'speaking') setRealtimeMode('speaking')
+    },
+    'response.output_audio.done': () => {},
+    'response.audio.done': () => {},
+    'response.function_call_arguments.done': handleFunctionCallDone,
+    'response.done': handleResponseDone,
+    'conversation.item.truncated': handleTruncated,
+    error: handleServerError,
+  }
+
   function handleServerEvent(event: Record<string, unknown>) {
     const type = readString(event, 'type')
-
-    switch (type) {
-      case 'session.created':
-      case 'session.updated':
-        break
-
-      case 'input_audio_buffer.speech_started':
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
-        break
-
-      case 'input_audio_buffer.speech_stopped':
-        currentMode = 'thinking'
-        emit('mode_change', { mode: 'thinking' })
-        break
-
-      case 'input_audio_buffer.committed':
-        break
-
-      case 'conversation.item.input_audio_transcription.completed': {
-        const transcript = readString(event, 'transcript')
-        if (transcript === undefined) break
-        emit('transcript', { role: 'user', transcript, isFinal: true })
-        break
-      }
-
-      case 'response.created':
-        // Reset message id so a tool-only response (which never emits
-        // response.output_item.added for a message) can't reuse the previous
-        // turn's id when `response.done` later inspects this flag.
-        currentMessageId = null
-        currentMode = 'thinking'
-        emit('mode_change', { mode: 'thinking' })
-        break
-
-      case 'response.output_item.added': {
-        const item = readObject(event, 'item')
-        if (item && readString(item, 'type') === 'message') {
-          const id = readString(item, 'id')
-          if (id !== undefined) currentMessageId = id
-        }
-        break
-      }
-
-      // xAI realtime per docs uses `response.output_audio_transcript.*`;
-      // accept the legacy OpenAI-realtime `response.audio_transcript.*` as
-      // an alias so this adapter stays compatible across protocol versions.
-      case 'response.output_audio_transcript.delta':
-      case 'response.audio_transcript.delta': {
-        const delta = readString(event, 'delta')
-        if (delta === undefined) break
-        emit('transcript', {
-          role: 'assistant',
-          transcript: delta,
-          isFinal: false,
-        })
-        break
-      }
-
-      case 'response.output_audio_transcript.done':
-      case 'response.audio_transcript.done': {
-        const transcript = readString(event, 'transcript')
-        if (transcript === undefined) break
-        emit('transcript', { role: 'assistant', transcript, isFinal: true })
-        break
-      }
-
-      // xAI realtime per docs uses `response.text.*`; accept the legacy
-      // OpenAI-realtime `response.output_text.*` as an alias.
-      case 'response.text.delta':
-      case 'response.output_text.delta': {
-        const delta = readString(event, 'delta')
-        if (delta === undefined) break
-        emit('transcript', {
-          role: 'assistant',
-          transcript: delta,
-          isFinal: false,
-        })
-        break
-      }
-
-      case 'response.text.done':
-      case 'response.output_text.done': {
-        const text = readString(event, 'text')
-        if (text === undefined) break
-        emit('transcript', {
-          role: 'assistant',
-          transcript: text,
-          isFinal: true,
-        })
-        break
-      }
-
-      // xAI realtime per docs uses `response.output_audio.*`; accept the
-      // legacy OpenAI-realtime `response.audio.*` as an alias.
-      case 'response.output_audio.delta':
-      case 'response.audio.delta':
-        if (currentMode !== 'speaking') {
-          currentMode = 'speaking'
-          emit('mode_change', { mode: 'speaking' })
-        }
-        break
-
-      case 'response.output_audio.done':
-      case 'response.audio.done':
-        break
-
-      case 'response.function_call_arguments.done': {
-        // Only `call_id` is valid for `sendToolResult` correlation. Falling
-        // back to `item_id` would produce a tool-call id the server doesn't
-        // recognise when the result is posted back, silently dropping the
-        // tool execution. If `call_id` is missing we surface an error event
-        // so the UI can react instead of pretending the tool call succeeded.
-        const callId = readString(event, 'call_id')
-        const name = readString(event, 'name') ?? ''
-        const args = readString(event, 'arguments') ?? ''
-        if (!callId) {
-          logger.errors(
-            'grok.realtime tool_call missing call_id — dropping tool_call',
-            {
-              source: 'grok.realtime',
-              event_type: 'response.function_call_arguments.done',
-              item_id: event.item_id,
-            },
-          )
-          emit('error', {
-            error: new Error(
-              'Realtime tool call missing call_id; tool will not execute',
-            ),
-          })
-          break
-        }
-        try {
-          const input = JSON.parse(args)
-          emit('tool_call', { toolCallId: callId, toolName: name, input })
-        } catch {
-          emit('tool_call', { toolCallId: callId, toolName: name, input: args })
-        }
-        break
-      }
-
-      case 'response.done': {
-        const response = readObject(event, 'response') ?? {}
-        const output = readObjectArray(response, 'output')
-
-        // Only transition back to `listening` if the user hasn't already
-        // stopped capture — otherwise we'd override their explicit `idle`
-        // state and re-arm the mic visualisation.
-        if (currentMode !== 'idle') {
-          currentMode = 'listening'
-          emit('mode_change', { mode: 'listening' })
-        }
-
-        if (currentMessageId) {
-          const message: RealtimeMessage = {
-            id: currentMessageId,
-            role: 'assistant',
-            timestamp: Date.now(),
-            parts: [],
-          }
-
-          for (const item of output ?? []) {
-            if (readString(item, 'type') !== 'message') continue
-            const content = readObjectArray(item, 'content')
-            if (!content) continue
-            for (const part of content) {
-              const partType = readString(part, 'type')
-              if (partType === 'audio') {
-                const transcript = readString(part, 'transcript')
-                if (transcript) {
-                  message.parts.push({ type: 'audio', transcript })
-                }
-              } else if (partType === 'text') {
-                const content = readString(part, 'text')
-                if (content) {
-                  message.parts.push({ type: 'text', content })
-                }
-              }
-            }
-          }
-
-          emit('message_complete', { message })
-          currentMessageId = null
-        }
-        break
-      }
-
-      case 'conversation.item.truncated':
-        // Assistant playback was interrupted — flip mode back to `listening`
-        // unless the user already called `stopAudioCapture()` (idle). Without
-        // this the visualisation would stay stuck on `speaking` even though
-        // no audio is playing.
-        if (currentMode !== 'idle') {
-          currentMode = 'listening'
-          emit('mode_change', { mode: 'listening' })
-        }
-        emit('interrupted', {
-          ...(currentMessageId !== null && { messageId: currentMessageId }),
-        })
-        break
-
-      case 'error': {
-        // The realtime server's `error` envelope isn't guaranteed to carry
-        // an `error` object at all (network-layer corruption, protocol
-        // drift, etc.). Validate shape before dereferencing so a malformed
-        // payload can't throw a TypeError inside this handler and stop the
-        // switch from running for the rest of the session.
-        const errorObj = readObject(event, 'error') ?? {}
-        const message =
-          readString(errorObj, 'message') ?? 'Unknown realtime server error'
-        const err: RealtimeServerError = new Error(message)
-        // Preserve `code` / `type` / `param` on the Error as extra props so
-        // consumers can branch on them without re-parsing the raw event.
-        const code = readString(errorObj, 'code')
-        if (code !== undefined) err.code = code
-        const errType = readString(errorObj, 'type')
-        if (errType !== undefined) err.type = errType
-        const param = readString(errorObj, 'param')
-        if (param !== undefined) err.param = param
-        logger.errors('grok.realtime server error', {
-          ...errorObj,
-          source: 'grok.realtime server',
-        })
-        emit('error', { error: err })
-        break
-      }
-
-      case undefined:
-      default:
-        // The xAI realtime protocol is a moving target; log unhandled event
-        // types at provider level so they're visible during debugging without
-        // emitting a user-visible error. `undefined` shares the bucket because
-        // a malformed event without a `type` field is just as unhandleable.
-        logger.provider('grok.realtime unhandled server event', {
-          type: event.type,
-        })
-        break
+    const handler =
+      type === undefined ? undefined : grokServerEventHandlers[type]
+    if (handler) {
+      handler(event)
+      return
     }
+    // The xAI realtime protocol is a moving target; log unhandled event
+    // types at provider level so they're visible during debugging without
+    // emitting a user-visible error. `undefined` shares the bucket because
+    // a malformed event without a `type` field is just as unhandleable.
+    logger.provider('grok.realtime unhandled server event', {
+      type: event.type,
+    })
   }
 
   function setupOutputAudioAnalysis(stream: MediaStream) {
@@ -1050,33 +1078,8 @@ async function createWebRTCConnection(
         sessionUpdate.voice = config.voice
       }
 
-      if (config.vadMode) {
-        if (config.vadMode === 'semantic') {
-          sessionUpdate.turn_detection = {
-            type: 'semantic_vad',
-            eagerness: config.semanticEagerness ?? 'medium',
-          }
-        } else if (config.vadMode === 'server') {
-          sessionUpdate.turn_detection = {
-            type: 'server_vad',
-            threshold: config.vadConfig?.threshold ?? 0.5,
-            prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
-            silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
-          }
-        } else {
-          sessionUpdate.turn_detection = null
-        }
-      }
-
-      if (config.tools !== undefined) {
-        sessionUpdate.tools = config.tools.map((t) => ({
-          type: 'function',
-          name: t.name,
-          description: t.description,
-          parameters: t.inputSchema ?? { type: 'object', properties: {} },
-        }))
-        sessionUpdate.tool_choice = 'auto'
-      }
+      applyVadMode(sessionUpdate, config)
+      applyRealtimeTools(sessionUpdate, config)
 
       if (config.outputModalities) {
         sessionUpdate.modalities = config.outputModalities
@@ -1090,24 +1093,7 @@ async function createWebRTCConnection(
         sessionUpdate.max_response_output_tokens = config.maxOutputTokens
       }
 
-      // Let callers forward an explicit `input_audio_transcription` value
-      // through `providerOptions` — including `null` / `false` to disable
-      // the feature. Only apply our `grok-stt` default on the first
-      // session.update and only if the caller hasn't set it themselves.
-      const providerOptions: Record<string, unknown> =
-        config.providerOptions ?? {}
-      const callerTranscription =
-        'inputAudioTranscription' in providerOptions
-          ? providerOptions.inputAudioTranscription
-          : 'input_audio_transcription' in providerOptions
-            ? providerOptions.input_audio_transcription
-            : undefined
-      if (callerTranscription !== undefined) {
-        sessionUpdate.input_audio_transcription =
-          callerTranscription === false ? null : callerTranscription
-      } else if (!hasSentInitialSessionUpdate) {
-        sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
-      }
+      applyGrokTranscription(sessionUpdate, config, hasSentInitialSessionUpdate)
 
       if (Object.keys(sessionUpdate).length > 0) {
         sendEvent({

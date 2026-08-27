@@ -58,27 +58,24 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
   return extras
 }
 
-export function normalizeStreamChunk(
+function copySpecFields(
   chunk: AdapterYieldChunk,
-): Array<StreamChunk> {
+  source: Record<string, unknown>,
+): Record<string, unknown> & { metadata?: MetadataRecord | null } {
   const specKeys = specKeysFor(chunk.type)
-  const source = chunk as Record<string, unknown>
   const specChunk: Record<string, unknown> & {
     metadata?: MetadataRecord | null
   } = {}
-
   for (const key of Object.keys(chunk)) {
     if (specKeys.has(key)) {
       specChunk[key] = source[key]
     }
   }
-
   if (chunk.type === EventType.TOOL_CALL_START) {
     if (specChunk.toolCallName === undefined && chunk.toolName) {
       specChunk.toolCallName = chunk.toolName
     }
   }
-
   if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
     if (specChunk.message === undefined && chunk.error.message) {
       specChunk.message = chunk.error.message
@@ -87,35 +84,10 @@ export function normalizeStreamChunk(
       specChunk.code = chunk.error.code
     }
   }
+  return specChunk
+}
 
-  const tanstack: MetadataRecord = {}
-
-  if (
-    chunk.model !== undefined &&
-    chunk.type !== EventType.TEXT_MESSAGE_CONTENT &&
-    chunk.type !== EventType.TOOL_CALL_ARGS
-  ) {
-    tanstack.model = chunk.model
-  }
-
-  if (chunk.finishReason !== undefined) {
-    tanstack.finishReason = chunk.finishReason
-  }
-
-  const interruptErrors = chunk['tanstack:interruptErrors']
-  if (interruptErrors !== undefined) {
-    tanstack.interruptErrors = interruptErrors
-  }
-
-  if (chunk.type === EventType.CUSTOM || chunk.type === EventType.RUN_ERROR) {
-    if (chunk.threadId !== undefined) {
-      tanstack.threadId = chunk.threadId
-    }
-    if (chunk.runId !== undefined) {
-      tanstack.runId = chunk.runId
-    }
-  }
-
+function leftoverSkipKeys(chunk: AdapterYieldChunk): Set<string> {
   const skipLeftover = new Set(['result', 'error', 'tanstack:interruptErrors'])
   if (
     chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
@@ -128,6 +100,39 @@ export function normalizeStreamChunk(
   if (chunk.type === EventType.TOOL_CALL_START) {
     skipLeftover.add('toolName')
   }
+  return skipLeftover
+}
+
+function collectTanstackMetadata(
+  chunk: AdapterYieldChunk,
+  source: Record<string, unknown>,
+  specChunk: Record<string, unknown>,
+): MetadataRecord {
+  const tanstack: MetadataRecord = {}
+  if (
+    chunk.model !== undefined &&
+    chunk.type !== EventType.TEXT_MESSAGE_CONTENT &&
+    chunk.type !== EventType.TOOL_CALL_ARGS
+  ) {
+    tanstack.model = chunk.model
+  }
+  if (chunk.finishReason !== undefined) {
+    tanstack.finishReason = chunk.finishReason
+  }
+  const interruptErrors = chunk['tanstack:interruptErrors']
+  if (interruptErrors !== undefined) {
+    tanstack.interruptErrors = interruptErrors
+  }
+  if (chunk.type === EventType.CUSTOM || chunk.type === EventType.RUN_ERROR) {
+    if (chunk.threadId !== undefined) {
+      tanstack.threadId = chunk.threadId
+    }
+    if (chunk.runId !== undefined) {
+      tanstack.runId = chunk.runId
+    }
+  }
+  const specKeys = specKeysFor(chunk.type)
+  const skipLeftover = leftoverSkipKeys(chunk)
   for (const key of Object.keys(chunk)) {
     if (specKeys.has(key) || skipLeftover.has(key)) continue
     if (tanstack[key] !== undefined) continue
@@ -136,7 +141,6 @@ export function normalizeStreamChunk(
       tanstack[key] = value
     }
   }
-
   if (
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
@@ -150,37 +154,52 @@ export function normalizeStreamChunk(
       tanstack.usage = leftover
     }
   }
+  return tanstack
+}
 
+function toolCallEndResultChunks(
+  chunk: AdapterYieldChunk,
+  source: Record<string, unknown>,
+): Array<StreamChunk> {
+  if (chunk.type !== EventType.TOOL_CALL_END || chunk.result === undefined) {
+    return []
+  }
+  const parentMessageId = source.parentMessageId
+  const resultChunk: ToolCallResultEvent = {
+    type: EventType.TOOL_CALL_RESULT,
+    toolCallId: chunk.toolCallId,
+    content: Array.isArray(chunk.result)
+      ? JSON.stringify(chunk.result)
+      : chunk.result,
+    messageId:
+      typeof parentMessageId === 'string' && parentMessageId !== ''
+        ? parentMessageId
+        : chunk.toolCallId,
+  }
+  if (chunk.state === 'output-error') {
+    return [
+      {
+        ...resultChunk,
+        metadata: { tanstack: { state: chunk.state } },
+      },
+    ]
+  }
+  return [resultChunk]
+}
+
+export function normalizeStreamChunk(
+  chunk: AdapterYieldChunk,
+): Array<StreamChunk> {
+  const source = chunk as Record<string, unknown>
+  const specChunk = copySpecFields(chunk, source)
+  const tanstack = collectTanstackMetadata(chunk, source, specChunk)
   const normalized =
     Object.keys(tanstack).length === 0
       ? specChunk
       : withTanstackMetadata(specChunk, tanstack)
-
-  const extras = encryptedValueExtras(chunk)
-  const main: Array<StreamChunk> = [normalized as StreamChunk]
-
-  if (chunk.type === EventType.TOOL_CALL_END && chunk.result !== undefined) {
-    const parentMessageId = source.parentMessageId
-    const resultChunk: ToolCallResultEvent = {
-      type: EventType.TOOL_CALL_RESULT,
-      toolCallId: chunk.toolCallId,
-      content: Array.isArray(chunk.result)
-        ? JSON.stringify(chunk.result)
-        : chunk.result,
-      messageId:
-        typeof parentMessageId === 'string' && parentMessageId !== ''
-          ? parentMessageId
-          : chunk.toolCallId,
-    }
-    if (chunk.state === 'output-error') {
-      main.push({
-        ...resultChunk,
-        metadata: { tanstack: { state: chunk.state } },
-      })
-    } else {
-      main.push(resultChunk)
-    }
-  }
-
-  return [...main, ...extras]
+  return [
+    normalized as StreamChunk,
+    ...toolCallEndResultChunks(chunk, source),
+    ...encryptedValueExtras(chunk),
+  ]
 }

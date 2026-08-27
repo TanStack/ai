@@ -177,6 +177,45 @@ async function ownedGitDestMatchesSource(
 const CREDENTIAL_HELPER =
   '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
 
+function gitCloneEnv(auth: { username?: string; token: string } | undefined) {
+  const env = { ...process.env }
+  if (!auth?.token) return env
+  env.GIT_TERMINAL_PROMPT = '0'
+  env.GIT_ASKPASS_USER = auth.username ?? 'x-access-token'
+  env.GIT_ASKPASS_TOKEN = auth.token
+  env.GIT_CONFIG_COUNT = '1'
+  env.GIT_CONFIG_KEY_0 = 'credential.helper'
+  env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
+  return env
+}
+
+async function checkoutGitSha(
+  dest: string,
+  ref: string,
+  resolvedDepth: number | 'full',
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  const fetchArgs = ['fetch']
+  if (resolvedDepth !== 'full') {
+    fetchArgs.push('--depth', String(resolvedDepth))
+  }
+  fetchArgs.push('--', 'origin', ref)
+  await runGit(fetchArgs, { cwd: dest, env })
+  await runGit(['checkout', '--detach', ref], { cwd: dest, env })
+}
+
+function rethrowMissingGitBin(error: unknown): never {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ENOENT'
+  ) {
+    throw new Error(MISSING_GIT_BIN)
+  }
+  throw error
+}
+
 async function cloneGitSource(
   id: string,
   source: {
@@ -212,37 +251,15 @@ async function cloneGitSource(
     args.push('--branch', source.ref)
   }
   args.push('--', source.url, dest)
-  const env = { ...process.env }
-  if (source.auth?.token) {
-    env.GIT_TERMINAL_PROMPT = '0'
-    env.GIT_ASKPASS_USER = source.auth.username ?? 'x-access-token'
-    env.GIT_ASKPASS_TOKEN = source.auth.token
-    env.GIT_CONFIG_COUNT = '1'
-    env.GIT_CONFIG_KEY_0 = 'credential.helper'
-    env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
-  }
+  const env = gitCloneEnv(source.auth)
   try {
     await runGit(args, { env })
     if (source.ref && isGitSha(source.ref)) {
-      const fetchArgs = ['fetch']
-      if (resolvedDepth !== 'full') {
-        fetchArgs.push('--depth', String(resolvedDepth))
-      }
-      fetchArgs.push('--', 'origin', source.ref)
-      await runGit(fetchArgs, { cwd: dest, env })
-      await runGit(['checkout', '--detach', source.ref], { cwd: dest, env })
+      await checkoutGitSha(dest, source.ref, resolvedDepth, env)
     }
   } catch (error) {
     await rm(dest, { recursive: true, force: true }).catch(() => {})
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ENOENT'
-    ) {
-      throw new Error(MISSING_GIT_BIN)
-    }
-    throw error
+    rethrowMissingGitBin(error)
   }
   return dest
 }

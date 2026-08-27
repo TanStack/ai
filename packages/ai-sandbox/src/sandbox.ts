@@ -13,8 +13,15 @@ import { InMemoryLockStore } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { InMemorySandboxInstanceStore } from './instance-store'
-import type { SandboxInstanceStore } from './instance-store'
-import type { SandboxHandle, SandboxProvider } from './contracts'
+import type {
+  SandboxInstanceRecord,
+  SandboxInstanceStore,
+} from './instance-store'
+import type {
+  SandboxCapabilities,
+  SandboxHandle,
+  SandboxProvider,
+} from './contracts'
 import type { SandboxKeyInput } from './key'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
@@ -196,6 +203,117 @@ async function applyWorkspaceSecrets(
   await handle.env.set(resolved)
 }
 
+function workspaceCreateEnv(
+  workspace: WorkspaceDefinition | undefined,
+): Record<string, string> | undefined {
+  return workspace?.secrets !== undefined
+    ? resolveAllSecrets(workspace.secrets)
+    : undefined
+}
+
+async function tryReuseExistingSandbox(input: {
+  existing: SandboxInstanceRecord
+  maxAgeMs: number | undefined
+  config: SandboxConfig
+  ctx: SandboxEnsureContext
+  store: SandboxInstanceStore
+  caps: SandboxCapabilities
+}): Promise<SandboxEnsureOutcome | null> {
+  const { existing, maxAgeMs, config, ctx, store, caps } = input
+  const tooOld =
+    maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs
+  if (tooOld) return null
+
+  const resumed = await config.provider.resume({
+    id: existing.providerSandboxId,
+    signal: ctx.signal,
+  })
+  if (resumed) {
+    await applyWorkspaceSecrets(resumed, config.workspace)
+    await store.upsert({
+      ...existing,
+      latestRunId: ctx.runId,
+      updatedAt: Date.now(),
+    })
+    return { handle: resumed, outcome: 'resumed' }
+  }
+  if (
+    existing.latestSnapshotId &&
+    caps.snapshots &&
+    config.provider.restoreSnapshot
+  ) {
+    const restored = await config.provider.restoreSnapshot({
+      snapshotId: existing.latestSnapshotId,
+      workspace: config.workspace,
+      policy: config.policy,
+      env: workspaceCreateEnv(config.workspace),
+      signal: ctx.signal,
+    })
+    await applyWorkspaceSecrets(restored, config.workspace)
+    await store.upsert({
+      ...existing,
+      providerSandboxId: restored.id,
+      latestRunId: ctx.runId,
+      updatedAt: Date.now(),
+    })
+    return { handle: restored, outcome: 'native-restored' }
+  }
+  return null
+}
+
+async function createBootstrappedSandbox(input: {
+  key: string
+  config: SandboxConfig
+  ctx: SandboxEnsureContext
+  store: SandboxInstanceStore
+  caps: SandboxCapabilities
+  effectiveSnapshot: SnapshotStrategy
+}): Promise<SandboxEnsureOutcome> {
+  const { key, config, ctx, store, caps, effectiveSnapshot } = input
+  const created = await config.provider.create({
+    id: key,
+    workspace: config.workspace,
+    policy: config.policy,
+    env: workspaceCreateEnv(config.workspace),
+    signal: ctx.signal,
+    adapterName: ctx.adapterName,
+  })
+
+  if (config.workspace) {
+    try {
+      await bootstrapWorkspace(created, config.workspace, {
+        signal: ctx.signal,
+      })
+    } catch (error) {
+      // Bootstrap failed after the sandbox was created but before it was
+      // recorded — destroy the orphan so a failed/retried run doesn't leak
+      // a (billed) sandbox, then surface the original error.
+      await created.destroy().catch(() => {})
+      throw error
+    }
+  }
+
+  let latestSnapshotId: string | undefined
+  if (
+    effectiveSnapshot === 'after-setup' &&
+    caps.snapshots &&
+    created.snapshot
+  ) {
+    latestSnapshotId = (await created.snapshot('after-setup')).id
+  }
+
+  await store.upsert({
+    key,
+    provider: config.provider.name,
+    providerSandboxId: created.id,
+    latestSnapshotId,
+    threadId: ctx.threadId,
+    latestRunId: ctx.runId,
+    updatedAt: Date.now(),
+  })
+  return { handle: created, outcome: 'created' }
+}
+
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const keyInputFor = (ctx: SandboxEnsureContext): SandboxKeyInput => ({
     threadId:
@@ -225,102 +343,30 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       if (existing) {
         // Check whether the record has exceeded snapshotMaxAge; if so,
         // discard and fall through to a fresh create.
-        const tooOld =
-          maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs
-
-        if (!tooOld) {
-          // 1) Try to reconnect to the still-running sandbox.
-          const resumed = await config.provider.resume({
-            id: existing.providerSandboxId,
-            signal: ctx.signal,
-          })
-          if (resumed) {
-            await applyWorkspaceSecrets(resumed, config.workspace)
-            await store.upsert({
-              ...existing,
-              latestRunId: ctx.runId,
-              updatedAt: Date.now(),
-            })
-            return { handle: resumed, outcome: 'resumed' }
-          }
-          // 2) Else restore from the latest snapshot, if supported.
-          if (
-            existing.latestSnapshotId &&
-            caps.snapshots &&
-            config.provider.restoreSnapshot
-          ) {
-            const restored = await config.provider.restoreSnapshot({
-              snapshotId: existing.latestSnapshotId,
-              workspace: config.workspace,
-              policy: config.policy,
-              env:
-                config.workspace?.secrets !== undefined
-                  ? resolveAllSecrets(config.workspace.secrets)
-                  : undefined,
-              signal: ctx.signal,
-            })
-            await applyWorkspaceSecrets(restored, config.workspace)
-            await store.upsert({
-              ...existing,
-              providerSandboxId: restored.id,
-              latestRunId: ctx.runId,
-              updatedAt: Date.now(),
-            })
-            return { handle: restored, outcome: 'native-restored' }
-          }
-        }
-        // 3) Else fall through and re-create under the same identity
-        //    (capability-aware degradation for ephemeral-disk providers, or
-        //    snapshotMaxAge TTL exceeded).
+        const reused = await tryReuseExistingSandbox({
+          existing,
+          maxAgeMs,
+          config,
+          ctx,
+          store,
+          caps,
+        })
+        if (reused) return reused
+        // Fall through and re-create under the same identity
+        // (capability-aware degradation for ephemeral-disk providers, or
+        // snapshotMaxAge TTL exceeded).
       }
 
-      const created = await config.provider.create({
-        // Deterministic id so consumers can reconstruct the provider sandbox
-        // address from run context (not just from the store record).
-        id: key,
-        workspace: config.workspace,
-        policy: config.policy,
-        env:
-          config.workspace?.secrets !== undefined
-            ? resolveAllSecrets(config.workspace.secrets)
-            : undefined,
-        signal: ctx.signal,
-        adapterName: ctx.adapterName,
-      })
-
-      if (config.workspace) {
-        try {
-          await bootstrapWorkspace(created, config.workspace, {
-            signal: ctx.signal,
-          })
-        } catch (error) {
-          // Bootstrap failed after the sandbox was created but before it was
-          // recorded — destroy the orphan so a failed/retried run doesn't leak
-          // a (billed) sandbox, then surface the original error.
-          await created.destroy().catch(() => {})
-          throw error
-        }
-      }
-
-      let latestSnapshotId: string | undefined
-      if (
-        effectiveSnapshot === 'after-setup' &&
-        caps.snapshots &&
-        created.snapshot
-      ) {
-        latestSnapshotId = (await created.snapshot('after-setup')).id
-      }
-
-      await store.upsert({
+      // Deterministic id so consumers can reconstruct the provider sandbox
+      // address from run context (not just from the store record).
+      return createBootstrappedSandbox({
         key,
-        provider: config.provider.name,
-        providerSandboxId: created.id,
-        latestSnapshotId,
-        threadId: ctx.threadId,
-        latestRunId: ctx.runId,
-        updatedAt: Date.now(),
+        config,
+        ctx,
+        store,
+        caps,
+        effectiveSnapshot,
       })
-      return { handle: created, outcome: 'created' }
     })
   }
 

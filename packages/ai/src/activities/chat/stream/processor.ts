@@ -538,7 +538,6 @@ export class StreamProcessor {
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
   processChunk(chunk: StreamChunk): void {
-    // Record chunk if enabled
     if (this.recording) {
       this.recording.chunks.push({
         chunk,
@@ -546,118 +545,110 @@ export class StreamProcessor {
         index: this.recording.chunks.length,
       })
     }
+    if (!this.dispatchPrimaryProcessChunk(chunk)) {
+      this.dispatchSecondaryProcessChunk(chunk)
+    }
+  }
 
-    // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
-    // which prevents TypeScript from narrowing the `type` discriminant in switch.
+  private dispatchPrimaryProcessChunk(chunk: StreamChunk): boolean {
     const c = chunk
-    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
-      // AG-UI Events
       case 'TEXT_MESSAGE_START':
         this.handleTextMessageStartEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
         )
-        break
-
+        return true
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
         )
-        break
-
+        return true
       case 'TEXT_MESSAGE_END':
         this.handleTextMessageEndEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>,
         )
-        break
-
+        return true
       case 'TOOL_CALL_START':
         this.handleToolCallStartEvent(
           chunk as Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
         )
-        break
-
+        return true
       case 'TOOL_CALL_ARGS':
         this.handleToolCallArgsEvent(
           chunk as Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
         )
-        break
-
+        return true
       case 'TOOL_CALL_END':
         this.handleToolCallEndEvent(
           chunk as Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
         )
-        break
-
+        return true
       case 'RUN_FINISHED':
         this.handleRunFinishedEvent(
           chunk as Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
         )
-        break
-
+        return true
       case 'RUN_ERROR':
         this.handleRunErrorEvent(
           chunk as Extract<StreamChunk, { type: 'RUN_ERROR' }>,
         )
-        break
-
+        return true
       case 'STEP_FINISHED':
         this.handleStepFinishedEvent(
           chunk as Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
         )
-        break
-
+        return true
       case 'MESSAGES_SNAPSHOT':
         this.handleMessagesSnapshotEvent(
           chunk as Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
         )
-        break
+        return true
+      default:
+        return false
+    }
+  }
 
+  private dispatchSecondaryProcessChunk(chunk: StreamChunk): void {
+    const c = chunk
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
+    switch (c.type) {
       case 'CUSTOM':
         this.handleCustomEvent(
           chunk as Extract<StreamChunk, { type: 'CUSTOM' }>,
         )
         break
-
       case 'RUN_STARTED':
         this.handleRunStartedEvent(
           chunk as Extract<StreamChunk, { type: 'RUN_STARTED' }>,
         )
         break
-
       case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
-        // No special handling needed
         break
-
       case 'REASONING_MESSAGE_CONTENT':
         this.handleReasoningMessageContentEvent(
           chunk as Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
         )
         break
-
       case 'REASONING_ENCRYPTED_VALUE':
         this.handleReasoningEncryptedValueEvent(
           chunk as Extract<StreamChunk, { type: 'REASONING_ENCRYPTED_VALUE' }>,
         )
         break
-
       case 'TOOL_CALL_RESULT':
         this.handleToolCallResultEvent(
           chunk as Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
         )
         break
-
       case 'STEP_STARTED':
         this.handleStepStartedEvent(
           chunk as Extract<StreamChunk, { type: 'STEP_STARTED' }>,
         )
         break
-
       default:
-        // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
   }
@@ -2006,143 +1997,25 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
     const messageId = this.getActiveAssistantMessageId()
-
     if (chunk.name === 'structured-output.start' && chunk.value) {
-      const v = chunk.value as { messageId?: string }
-      const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
-      )
-      if (targetId) {
-        this.structuredMessageIds.add(targetId)
-        this.structuredOutputUpdateBatches.delete(targetId)
-        this.events.onStructuredOutputChange?.({
-          phase: 'start',
-          messageId: targetId,
-          status: 'streaming',
-          raw: '',
-        })
-      }
+      this.handleStructuredOutputStartEvent(chunk, messageId)
       return
     }
-
     if (chunk.name === 'structured-output.complete' && chunk.value) {
-      const v = chunk.value as {
-        object: unknown
-        raw?: string
-        reasoning?: string
-        messageId?: string
-      }
-      const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
-      )
-      if (targetId) {
-        this.flushStructuredOutputUpdate(targetId)
-        this.messages = completeStructuredOutputPart(
-          this.messages,
-          targetId,
-          v.object,
-          v.raw ?? '',
-          v.reasoning,
-        )
-        this.structuredMessageIds.delete(targetId)
-        this.emitStructuredOutputChange(targetId, 'complete')
-        this.emitMessagesChange()
-      }
-      // Fall through so user `onCustomEvent` callbacks still observe the event.
+      this.handleStructuredOutputCompleteEvent(chunk, messageId)
     }
-
-    // Handle client tool input availability - trigger client-side execution
     if (chunk.name === 'tool-input-available' && chunk.value) {
-      const { toolCallId, toolName, input } = chunk.value as {
-        toolCallId: string
-        toolName: string
-        input: any
-      }
-
-      // Emit onToolCall event for the client to execute the tool
-      this.events.onToolCall?.({
-        toolCallId,
-        toolName,
-        input,
-      })
+      this.handleToolInputAvailableEvent(chunk)
       return
     }
-
-    // Handle approval requests
     if (chunk.name === 'approval-requested' && chunk.value) {
-      const { toolCallId, toolName, input, approval } = chunk.value as {
-        toolCallId: string
-        toolName: string
-        input: any
-        approval: { id: string; needsApproval: boolean }
-      }
-
-      // Resolve the message containing this tool call. After RUN_FINISHED,
-      // activeMessageIds is cleared, so fall back to the toolCallToMessage map
-      // which is populated during TOOL_CALL_START and preserved across finalize.
-      const resolvedMessageId =
-        messageId ?? this.toolCallToMessage.get(toolCallId)
-      if (resolvedMessageId) {
-        this.messages = updateToolCallApproval(
-          this.messages,
-          resolvedMessageId,
-          toolCallId,
-          approval.id,
-        )
-        this.emitMessagesChange()
-      }
-
-      // Emit approval request event
-      this.events.onApprovalRequest?.({
-        toolCallId,
-        toolName,
-        input,
-        approvalId: approval.id,
-      })
+      this.handleApprovalRequestedEvent(chunk, messageId)
       return
     }
-
-    // Handle MCP Apps ui-resource events — materialize a UIResourcePart on the
-    // active assistant message. Never falls through to onCustomEvent because
-    // ui-resource is a system event, not a user-defined custom event.
     if (chunk.name === 'ui-resource' && chunk.value) {
-      const v: UIResourceEvent['value'] = chunk.value
-      // Resolve the target assistant message. When a toolCallId is present, the
-      // tool call's OWNER message is authoritative, so prefer it first; fall
-      // back to the active assistant id only if the tool call isn't mapped.
-      // This avoids misattaching the widget to a different active message in a
-      // multi-message session.
-      const resolvedMessageId =
-        this.toolCallToMessage.get(v.toolCallId) ?? messageId
-      if (resolvedMessageId) {
-        const part: UIResourcePart = {
-          type: 'ui-resource',
-          resource: v.resource,
-          toolCallId: v.toolCallId,
-          toolName: v.toolName,
-          ...(v.serverId !== undefined && { serverId: v.serverId }),
-          ...(v.meta !== undefined && { meta: v.meta }),
-        }
-        this.messages = this.messages.map((msg) =>
-          msg.id === resolvedMessageId
-            ? { ...msg, parts: [...msg.parts, part] }
-            : msg,
-        )
-        this.emitMessagesChange()
-      } else {
-        // No owner message and no active assistant id — the server read and
-        // streamed a widget that has nowhere to attach (e.g. a toolCallId never
-        // registered, or the event arrived after the run cleared its active
-        // ids). Drop fail-soft, but warn: a vanished widget is otherwise
-        // undebuggable from the client.
-        console.warn(
-          `[mcp-apps] dropped ui-resource: no target message for toolCallId "${v.toolCallId}" (toolName "${v.toolName}")`,
-        )
-      }
+      this.handleUiResourceEvent(chunk, messageId)
       return
     }
-
-    // Forward non-system custom events to onCustomEvent callback
     if (this.events.onCustomEvent) {
       const toolCallId =
         chunk.value && typeof chunk.value === 'object'
@@ -2150,6 +2023,125 @@ export class StreamProcessor {
           : undefined
       this.events.onCustomEvent(chunk.name, chunk.value, { toolCallId })
     }
+  }
+
+  private handleStructuredOutputStartEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    messageId: string | null,
+  ): void {
+    const v = chunk.value as { messageId?: string }
+    const { messageId: targetId } = this.ensureAssistantMessage(
+      v.messageId ?? messageId ?? undefined,
+    )
+    if (!targetId) return
+    this.structuredMessageIds.add(targetId)
+    this.structuredOutputUpdateBatches.delete(targetId)
+    this.events.onStructuredOutputChange?.({
+      phase: 'start',
+      messageId: targetId,
+      status: 'streaming',
+      raw: '',
+    })
+  }
+
+  private handleStructuredOutputCompleteEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    messageId: string | null,
+  ): void {
+    const v = chunk.value as {
+      object: unknown
+      raw?: string
+      reasoning?: string
+      messageId?: string
+    }
+    const { messageId: targetId } = this.ensureAssistantMessage(
+      v.messageId ?? messageId ?? undefined,
+    )
+    if (!targetId) return
+    this.flushStructuredOutputUpdate(targetId)
+    this.messages = completeStructuredOutputPart(
+      this.messages,
+      targetId,
+      v.object,
+      v.raw ?? '',
+      v.reasoning,
+    )
+    this.structuredMessageIds.delete(targetId)
+    this.emitStructuredOutputChange(targetId, 'complete')
+    this.emitMessagesChange()
+  }
+
+  private handleToolInputAvailableEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+  ): void {
+    const { toolCallId, toolName, input } = chunk.value as {
+      toolCallId: string
+      toolName: string
+      input: any
+    }
+    this.events.onToolCall?.({
+      toolCallId,
+      toolName,
+      input,
+    })
+  }
+
+  private handleApprovalRequestedEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    messageId: string | null,
+  ): void {
+    const { toolCallId, toolName, input, approval } = chunk.value as {
+      toolCallId: string
+      toolName: string
+      input: any
+      approval: { id: string; needsApproval: boolean }
+    }
+    const resolvedMessageId =
+      messageId ?? this.toolCallToMessage.get(toolCallId)
+    if (resolvedMessageId) {
+      this.messages = updateToolCallApproval(
+        this.messages,
+        resolvedMessageId,
+        toolCallId,
+        approval.id,
+      )
+      this.emitMessagesChange()
+    }
+    this.events.onApprovalRequest?.({
+      toolCallId,
+      toolName,
+      input,
+      approvalId: approval.id,
+    })
+  }
+
+  private handleUiResourceEvent(
+    chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
+    messageId: string | null,
+  ): void {
+    const v: UIResourceEvent['value'] = chunk.value
+    const resolvedMessageId =
+      this.toolCallToMessage.get(v.toolCallId) ?? messageId
+    if (!resolvedMessageId) {
+      console.warn(
+        `[mcp-apps] dropped ui-resource: no target message for toolCallId "${v.toolCallId}" (toolName "${v.toolName}")`,
+      )
+      return
+    }
+    const part: UIResourcePart = {
+      type: 'ui-resource',
+      resource: v.resource,
+      toolCallId: v.toolCallId,
+      toolName: v.toolName,
+      ...(v.serverId !== undefined && { serverId: v.serverId }),
+      ...(v.meta !== undefined && { meta: v.meta }),
+    }
+    this.messages = this.messages.map((msg) =>
+      msg.id === resolvedMessageId
+        ? { ...msg, parts: [...msg.parts, part] }
+        : msg,
+    )
+    this.emitMessagesChange()
   }
 
   // ============================================

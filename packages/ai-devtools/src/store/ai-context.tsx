@@ -29,7 +29,10 @@ import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
   ContentPart,
   DevtoolsToolFixtureApplyEvent,
+  MessagePart as EventMessagePart,
   RunLifecycleEvent,
+  TextMessageCreatedEvent,
+  ToolsApprovalRequestedEvent,
 } from '@tanstack/ai-event-client'
 import type { HookRegistryState, ToolFixtureRecord } from './hook-registry'
 import type { MemoryRegistryState } from './memory-registry'
@@ -256,6 +259,171 @@ interface AIContextValue {
   saveToolFixture: (fixture: ToolFixtureRecord) => void
   deleteToolFixture: (fixtureId: string) => void
   applyToolFixture: (fixture: ToolFixtureRecord) => void
+}
+
+function chatConversationKind(
+  conversationId: string,
+  clientId: string | undefined,
+  source: 'client' | 'server',
+): 'client' | 'server' {
+  return conversationId === clientId && source === 'client'
+    ? 'client'
+    : 'server'
+}
+
+function chatConversationLabel(
+  conversationId: string,
+  type: 'client' | 'server',
+): string {
+  return type === 'client'
+    ? `Client Chat (${conversationId.substring(0, 8)})`
+    : `Server Chat (${conversationId.substring(0, 8)})`
+}
+
+function stringifyToolArguments(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value ?? {})
+  } catch (error) {
+    console.error(
+      '[ai-devtools] failed to JSON.stringify tool call arguments; saved fixture replay will be malformed.',
+      { error, value },
+    )
+    return `[ai-devtools] unserializable tool arguments: ${
+      error instanceof Error ? error.message : String(error)
+    }`
+  }
+}
+
+function eventPartToMessagePart(part: EventMessagePart): MessagePart | null {
+  if (part.type === 'text') {
+    return { type: 'text', content: part.content }
+  }
+  if (part.type === 'tool-call') {
+    return {
+      type: 'tool-call',
+      toolCallId: part.id,
+      toolName: part.name,
+      arguments: part.arguments,
+      state: part.state,
+      output: part.output,
+      approval: part.approval,
+      content: part.approval ? JSON.stringify(part.approval) : undefined,
+    }
+  }
+  if (part.type === 'tool-result') {
+    return {
+      type: 'tool-result',
+      toolCallId: part.toolCallId,
+      content: part.content,
+      state: part.state,
+      error: part.error,
+    }
+  }
+  if (part.type === 'thinking') {
+    return {
+      type: 'thinking',
+      content: part.content,
+    }
+  }
+  if (part.type === 'structured-output') {
+    return {
+      type: 'structured-output',
+      status: part.status,
+      raw: part.raw,
+      partial: part.partial,
+      data: part.data,
+      reasoning: part.reasoning,
+      errorMessage: part.errorMessage,
+    }
+  }
+  if (part.type === 'image' || part.type === 'audio' || part.type === 'video') {
+    return {
+      type: part.type,
+      source: part.source,
+      metadata: part.metadata,
+    }
+  }
+  return null
+}
+
+function isStoreMessagePart(part: MessagePart | null): part is MessagePart {
+  return part !== null
+}
+
+function partsFromCreatedEvent(
+  parts: Array<EventMessagePart> | undefined,
+): Array<MessagePart> {
+  return parts?.map(eventPartToMessagePart).filter(isStoreMessagePart) ?? []
+}
+
+function toolCallsFromCreatedParts(
+  parts: Array<MessagePart>,
+  messageId: string,
+): Array<ToolCall> {
+  return parts
+    .filter((part) => part.type === 'tool-call')
+    .map((part) => ({
+      id: part.toolCallId ?? `${messageId}:${part.toolName ?? 'tool'}`,
+      name: part.toolName ?? 'tool',
+      arguments: part.arguments ?? stringifyToolArguments(part.output),
+      state: part.state ?? 'input-complete',
+      ...(part.output !== undefined ? { result: part.output } : {}),
+      ...(part.approval?.needsApproval !== undefined
+        ? { approvalRequired: part.approval.needsApproval }
+        : {}),
+      ...(part.approval?.id ? { approvalId: part.approval.id } : {}),
+      ...(part.approval?.approved !== undefined
+        ? { approvalApproved: part.approval.approved }
+        : {}),
+    }))
+}
+
+function createdMessageToolCalls(
+  payload: TextMessageCreatedEvent,
+  parts: Array<MessagePart>,
+  messageId: string,
+): Array<ToolCall> | undefined {
+  const toolCallsFromPayload = payload.toolCalls?.map((toolCall) => ({
+    id: toolCall.id,
+    name: toolCall.function.name,
+    arguments: toolCall.function.arguments,
+    state: 'input-complete',
+  }))
+  const toolCallsFromParts = toolCallsFromCreatedParts(parts, messageId)
+  if (toolCallsFromPayload && toolCallsFromPayload.length > 0) {
+    return toolCallsFromPayload
+  }
+  if (toolCallsFromParts.length > 0) {
+    return toolCallsFromParts
+  }
+  return undefined
+}
+
+function structuredOutputFields(payload: {
+  raw?: string
+  partial?: unknown
+  data?: unknown
+  reasoning?: string
+  errorMessage?: string
+}): {
+  raw: string
+  partial?: unknown
+  data?: unknown
+  reasoning?: string
+  errorMessage?: string
+} {
+  return {
+    raw: payload.raw ?? '',
+    ...(payload.partial !== undefined ? { partial: payload.partial } : {}),
+    ...(payload.data !== undefined ? { data: payload.data } : {}),
+    ...(payload.reasoning !== undefined
+      ? { reasoning: payload.reasoning }
+      : {}),
+    ...(payload.errorMessage !== undefined
+      ? { errorMessage: payload.errorMessage }
+      : {}),
+  }
 }
 
 const AIContext = createContext<AIContextValue>()
@@ -830,21 +998,6 @@ export const AIProvider: ParentComponent = (props) => {
     return source === 'client' || source === 'server' ? source : fallback
   }
 
-  function stringifyToolArguments(value: unknown): string {
-    if (typeof value === 'string') return value
-    try {
-      return JSON.stringify(value ?? {})
-    } catch (error) {
-      console.error(
-        '[ai-devtools] failed to JSON.stringify tool call arguments; saved fixture replay will be malformed.',
-        { error, value },
-      )
-      return `[ai-devtools] unserializable tool arguments: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    }
-  }
-
   // Additional optimized helper functions
   function updateConversation(
     conversationId: string,
@@ -1177,6 +1330,263 @@ export const AIProvider: ParentComponent = (props) => {
     })
   }
 
+  function ensureChatConversation(
+    conversationId: string,
+    clientId: string | undefined,
+    source: 'client' | 'server',
+  ): void {
+    if (state.conversations[conversationId]) return
+    const type = chatConversationKind(conversationId, clientId, source)
+    getOrCreateConversation(
+      conversationId,
+      type,
+      chatConversationLabel(conversationId, type),
+    )
+  }
+
+  function resolveCreatedMessageTarget(payload: TextMessageCreatedEvent):
+    | {
+        conversationId: string
+        conv: Conversation
+        source: 'client' | 'server'
+      }
+    | undefined {
+    const { clientId, streamId, role } = payload
+    const conversationId =
+      clientId || (streamId ? streamToConversation.get(streamId) : undefined)
+    if (!conversationId) return undefined
+    if (clientId && streamId) {
+      streamToConversation.set(streamId, clientId)
+    }
+    if (role === 'tool' || role === 'system') return undefined
+    const source = normalizeMessageSource(
+      payload.source,
+      clientId ? 'client' : 'server',
+    )
+    const conversationType =
+      clientId && source !== 'server' ? 'client' : 'server'
+    if (!state.conversations[conversationId]) {
+      getOrCreateConversation(
+        conversationId,
+        conversationType,
+        chatConversationLabel(conversationId, conversationType),
+      )
+    }
+    const conv = state.conversations[conversationId]
+    if (!conv) return undefined
+    return { conversationId, conv, source }
+  }
+
+  function attachCreatedMessageToIteration(
+    conv: Conversation,
+    conversationId: string,
+    messageId: string,
+    requestId: string | undefined,
+  ): void {
+    if (conv.iterations.length === 0) return
+    let iterIndex = -1
+    if (requestId) {
+      for (let i = conv.iterations.length - 1; i >= 0; i--) {
+        if (conv.iterations[i]?.requestId === requestId) {
+          iterIndex = i
+          break
+        }
+      }
+    } else {
+      iterIndex = conv.iterations.length - 1
+    }
+    if (iterIndex < 0) return
+    const iter = conv.iterations[iterIndex]
+    if (!iter || iter.messageIds.includes(messageId)) return
+    setState(
+      'conversations',
+      conversationId,
+      'iterations',
+      iterIndex,
+      'messageIds',
+      produce((arr: Array<string>) => {
+        arr.push(messageId)
+      }),
+    )
+  }
+
+  function handleTextMessageCreated(payload: TextMessageCreatedEvent): void {
+    const resolved = resolveCreatedMessageTarget(payload)
+    if (!resolved) return
+    const { conversationId, conv, source } = resolved
+    const { messageId, role, content, timestamp, requestId } = payload
+    const existingIndex = conv.messages.findIndex(
+      (message) => message.id === messageId,
+    )
+    const parts = partsFromCreatedEvent(payload.parts)
+    const toolCalls = createdMessageToolCalls(payload, parts, messageId)
+    if (role === 'user' && conv.type === 'client' && source === 'server') {
+      return
+    }
+    if (
+      shouldSkipClientAssistantPlaceholder({
+        role,
+        source,
+        content,
+        toolCalls,
+        parts,
+      })
+    ) {
+      return
+    }
+    const messagePayload: Message = {
+      id: messageId,
+      role,
+      content,
+      timestamp,
+      parts,
+      toolCalls,
+      source,
+      requestId,
+    }
+    if (existingIndex >= 0) {
+      updateMessage(conversationId, existingIndex, messagePayload)
+    } else {
+      addMessage(conversationId, messagePayload)
+    }
+    attachCreatedMessageToIteration(conv, conversationId, messageId, requestId)
+    updateConversation(conversationId, { status: 'active', hasChat: true })
+  }
+
+  function enqueueStructuredOutputChunk(
+    conversationId: string,
+    messageIndex: number | undefined,
+    chunk: Chunk,
+  ): void {
+    const conv = state.conversations[conversationId]
+    if (conv?.type === 'client' && messageIndex !== undefined) {
+      queueMessageChunk(conversationId, messageIndex, chunk)
+    } else if (conv?.type === 'client') {
+      addChunkToMessage(conversationId, chunk)
+    } else {
+      addChunk(conversationId, chunk)
+    }
+  }
+
+  function applyApprovalRequestedToConversation(
+    conversationId: string,
+    payload: ToolsApprovalRequestedEvent,
+    source: 'client' | 'server',
+  ): void {
+    const {
+      messageId,
+      toolCallId,
+      toolName,
+      input,
+      approvalId,
+      timestamp,
+      clientId,
+    } = payload
+    ensureChatConversation(conversationId, clientId, source)
+    let resolvedMessageId = messageId
+    const location = findToolCallLocation(conversationId, { toolCallId })
+    if (location) {
+      updateToolCall(
+        conversationId,
+        location.messageIndex,
+        location.toolCallIndex,
+        {
+          approvalRequired: true,
+          approvalId,
+          state: 'approval-requested',
+        },
+      )
+      resolvedMessageId =
+        state.conversations[conversationId]?.messages[location.messageIndex]
+          ?.id ?? messageId
+    } else {
+      resolvedMessageId = messageId || `approval-message-${toolCallId}`
+      addMessage(
+        conversationId,
+        createClientToolCallMessage({
+          messageId: resolvedMessageId,
+          toolCallId,
+          toolName,
+          arguments: stringifyToolArguments(input),
+          state: 'approval-requested',
+          timestamp,
+          source: chatConversationKind(conversationId, clientId, source),
+          approvalRequired: true,
+          approvalId,
+        }),
+      )
+    }
+
+    const chunk: Chunk = {
+      id: `chunk-${Date.now()}-${Math.random()}`,
+      type: 'approval',
+      ...(resolvedMessageId ? { messageId: resolvedMessageId } : {}),
+      toolCallId,
+      toolName,
+      approvalId,
+      input,
+      timestamp,
+      chunkCount: 1,
+    }
+
+    if (state.conversations[conversationId]?.type === 'client') {
+      addChunkToMessage(conversationId, chunk)
+    } else {
+      addChunk(conversationId, chunk)
+    }
+  }
+
+  function applyApprovalRequestedFallback(
+    payload: ToolsApprovalRequestedEvent,
+  ): void {
+    const {
+      clientId,
+      threadId,
+      messageId,
+      toolCallId,
+      toolName,
+      input,
+      approvalId,
+      timestamp,
+    } = payload
+    const fallbackConversationId = clientId || threadId
+    if (!fallbackConversationId) return
+
+    getOrCreateConversation(
+      fallbackConversationId,
+      clientId ? 'client' : 'server',
+      clientId
+        ? `Client Chat (${fallbackConversationId.substring(0, 8)})`
+        : `Server Chat (${fallbackConversationId.substring(0, 8)})`,
+    )
+    const resolvedMessageId = messageId || `approval-message-${toolCallId}`
+    addMessage(
+      fallbackConversationId,
+      createClientToolCallMessage({
+        messageId: resolvedMessageId,
+        toolCallId,
+        toolName,
+        arguments: stringifyToolArguments(input),
+        state: 'approval-requested',
+        timestamp,
+        source: clientId ? 'client' : 'server',
+        approvalRequired: true,
+        approvalId,
+      }),
+    )
+    addChunkToMessage(fallbackConversationId, {
+      id: `chunk-${Date.now()}-${Math.random()}`,
+      type: 'approval',
+      messageId: resolvedMessageId,
+      toolCallId,
+      toolName,
+      approvalId,
+      input,
+      timestamp,
+      chunkCount: 1,
+    })
+  }
+
   // Register all event listeners on mount
   onMount(() => {
     const cleanupFns: Array<() => void> = []
@@ -1351,208 +1761,7 @@ export const AIProvider: ParentComponent = (props) => {
 
     cleanupFns.push(
       aiEventClient.on('text:message:created', (e) => {
-        const {
-          clientId,
-          streamId,
-          messageId,
-          role,
-          content,
-          timestamp,
-          requestId,
-        } = e.payload
-        const conversationId =
-          clientId ||
-          (streamId ? streamToConversation.get(streamId) : undefined)
-
-        if (!conversationId) return
-        if (clientId && streamId) {
-          streamToConversation.set(streamId, clientId)
-        }
-        if (role === 'tool' || role === 'system') return
-
-        const source = normalizeMessageSource(
-          e.payload.source,
-          clientId ? 'client' : 'server',
-        )
-        const conversationType =
-          clientId && source !== 'server' ? 'client' : 'server'
-
-        if (!state.conversations[conversationId]) {
-          getOrCreateConversation(
-            conversationId,
-            conversationType,
-            conversationType === 'client'
-              ? `Client Chat (${conversationId.substring(0, 8)})`
-              : `Server Chat (${conversationId.substring(0, 8)})`,
-          )
-        }
-
-        const conv = state.conversations[conversationId]
-        if (!conv) return
-
-        const existingIndex = conv.messages.findIndex(
-          (message) => message.id === messageId,
-        )
-
-        const parts =
-          e.payload.parts
-            ?.map((part): MessagePart | null => {
-              if (part.type === 'text') {
-                return { type: 'text', content: part.content }
-              }
-              if (part.type === 'tool-call') {
-                return {
-                  type: 'tool-call',
-                  toolCallId: part.id,
-                  toolName: part.name,
-                  arguments: part.arguments,
-                  state: part.state,
-                  output: part.output,
-                  approval: part.approval,
-                  content: part.approval
-                    ? JSON.stringify(part.approval)
-                    : undefined,
-                }
-              }
-              if (part.type === 'tool-result') {
-                return {
-                  type: 'tool-result',
-                  toolCallId: part.toolCallId,
-                  content: part.content,
-                  state: part.state,
-                  error: part.error,
-                }
-              }
-              if (part.type === 'thinking') {
-                return {
-                  type: 'thinking',
-                  content: part.content,
-                }
-              }
-              if (part.type === 'structured-output') {
-                return {
-                  type: 'structured-output',
-                  status: part.status,
-                  raw: part.raw,
-                  partial: part.partial,
-                  data: part.data,
-                  reasoning: part.reasoning,
-                  errorMessage: part.errorMessage,
-                }
-              }
-              // Handle multimodal parts (image, audio, video)
-              // These have a source property instead of content
-              if (
-                part.type === 'image' ||
-                part.type === 'audio' ||
-                part.type === 'video'
-              ) {
-                return {
-                  type: part.type,
-                  source: part.source,
-                  metadata: part.metadata,
-                }
-              }
-              // Fallback for any unknown part types - skip them
-              return null
-            })
-            .filter((part): part is MessagePart => part !== null) ?? []
-
-        const toolCallsFromPayload = e.payload.toolCalls?.map((toolCall) => ({
-          id: toolCall.id,
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments,
-          state: 'input-complete',
-        }))
-        const toolCallsFromParts = parts
-          .filter((part) => part.type === 'tool-call')
-          .map((part) => ({
-            id: part.toolCallId ?? `${messageId}:${part.toolName ?? 'tool'}`,
-            name: part.toolName ?? 'tool',
-            arguments: part.arguments ?? stringifyToolArguments(part.output),
-            state: part.state ?? 'input-complete',
-            ...(part.output !== undefined ? { result: part.output } : {}),
-            ...(part.approval?.needsApproval !== undefined
-              ? { approvalRequired: part.approval.needsApproval }
-              : {}),
-            ...(part.approval?.id ? { approvalId: part.approval.id } : {}),
-            ...(part.approval?.approved !== undefined
-              ? { approvalApproved: part.approval.approved }
-              : {}),
-          }))
-        const toolCalls =
-          toolCallsFromPayload && toolCallsFromPayload.length > 0
-            ? toolCallsFromPayload
-            : toolCallsFromParts.length > 0
-              ? toolCallsFromParts
-              : undefined
-
-        if (role === 'user' && conv.type === 'client' && source === 'server') {
-          return
-        }
-
-        if (
-          shouldSkipClientAssistantPlaceholder({
-            role,
-            source,
-            content,
-            toolCalls,
-            parts,
-          })
-        ) {
-          return
-        }
-
-        const messagePayload: Message = {
-          id: messageId,
-          role,
-          content,
-          timestamp,
-          parts,
-          toolCalls,
-          source,
-          requestId,
-        }
-
-        if (existingIndex >= 0) {
-          updateMessage(conversationId, existingIndex, messagePayload)
-        } else {
-          addMessage(conversationId, messagePayload)
-        }
-
-        // Track messageId in the correct iteration (scoped by requestId)
-        if (conv.iterations.length > 0) {
-          let iterIndex = -1
-          if (requestId) {
-            // Find the latest iteration for this specific request
-            for (let i = conv.iterations.length - 1; i >= 0; i--) {
-              if (conv.iterations[i]?.requestId === requestId) {
-                iterIndex = i
-                break
-              }
-            }
-          } else {
-            // Fallback: use latest iteration
-            iterIndex = conv.iterations.length - 1
-          }
-          if (iterIndex >= 0) {
-            const iter = conv.iterations[iterIndex]
-            if (iter && !iter.messageIds.includes(messageId)) {
-              setState(
-                'conversations',
-                conversationId,
-                'iterations',
-                iterIndex,
-                'messageIds',
-                produce((arr: Array<string>) => {
-                  arr.push(messageId)
-                }),
-              )
-            }
-          }
-        }
-
-        updateConversation(conversationId, { status: 'active', hasChat: true })
+        handleTextMessageCreated(e.payload)
       }),
     )
 
@@ -1997,41 +2206,18 @@ export const AIProvider: ParentComponent = (props) => {
         streamId,
         messageId,
       })
+      const fields = structuredOutputFields(payload)
 
       for (const conversationId of conversationIds) {
-        if (!state.conversations[conversationId]) {
-          getOrCreateConversation(
-            conversationId,
-            conversationId === clientId && source === 'client'
-              ? 'client'
-              : 'server',
-            conversationId === clientId && source === 'client'
-              ? `Client Chat (${conversationId.substring(0, 8)})`
-              : `Server Chat (${conversationId.substring(0, 8)})`,
-          )
-        }
-
+        ensureChatConversation(conversationId, clientId, source)
         attachRunToConversation(conversationId, runId)
         const messageIndex = upsertStructuredOutputPart(conversationId, {
           messageId,
           timestamp,
-          source:
-            conversationId === clientId && source === 'client'
-              ? 'client'
-              : 'server',
+          source: chatConversationKind(conversationId, clientId, source),
           ...(requestId ? { requestId } : {}),
           status: payload.status,
-          raw: payload.raw ?? '',
-          ...(payload.partial !== undefined
-            ? { partial: payload.partial }
-            : {}),
-          ...(payload.data !== undefined ? { data: payload.data } : {}),
-          ...(payload.reasoning !== undefined
-            ? { reasoning: payload.reasoning }
-            : {}),
-          ...(payload.errorMessage !== undefined
-            ? { errorMessage: payload.errorMessage }
-            : {}),
+          ...fields,
         })
 
         const chunk: Chunk = {
@@ -2041,29 +2227,11 @@ export const AIProvider: ParentComponent = (props) => {
           timestamp,
           chunkCount: 1,
           structuredStatus: payload.status,
-          raw: payload.raw ?? '',
-          ...(payload.partial !== undefined
-            ? { partial: payload.partial }
-            : {}),
-          ...(payload.data !== undefined ? { data: payload.data } : {}),
-          ...(payload.reasoning !== undefined
-            ? { reasoning: payload.reasoning }
-            : {}),
-          ...(payload.errorMessage !== undefined
-            ? { errorMessage: payload.errorMessage }
-            : {}),
+          ...fields,
           ...(payload.delta !== undefined ? { delta: payload.delta } : {}),
         }
 
-        const conv = state.conversations[conversationId]
-        if (conv?.type === 'client' && messageIndex !== undefined) {
-          queueMessageChunk(conversationId, messageIndex, chunk)
-        } else if (conv?.type === 'client') {
-          addChunkToMessage(conversationId, chunk)
-        } else {
-          addChunk(conversationId, chunk)
-        }
-
+        enqueueStructuredOutputChunk(conversationId, messageIndex, chunk)
         attachMessageToLatestIteration(conversationId, messageId, requestId)
         updateConversation(conversationId, {
           status: payload.status === 'error' ? 'error' : 'active',
@@ -2460,18 +2628,8 @@ export const AIProvider: ParentComponent = (props) => {
 
     cleanupFns.push(
       aiEventClient.on('tools:approval:requested', (e) => {
-        const {
-          streamId,
-          messageId,
-          toolCallId,
-          toolName,
-          input,
-          approvalId,
-          timestamp,
-          clientId,
-          threadId,
-        } = e.payload
-
+        const { streamId, clientId, threadId, toolCallId, approvalId } =
+          e.payload
         const source = normalizeMessageSource(
           e.payload.source,
           clientId ? 'client' : 'server',
@@ -2489,113 +2647,15 @@ export const AIProvider: ParentComponent = (props) => {
         })
 
         for (const conversationId of conversationIds) {
-          if (!state.conversations[conversationId]) {
-            getOrCreateConversation(
-              conversationId,
-              conversationId === clientId && source === 'client'
-                ? 'client'
-                : 'server',
-              conversationId === clientId && source === 'client'
-                ? `Client Chat (${conversationId.substring(0, 8)})`
-                : `Server Chat (${conversationId.substring(0, 8)})`,
-            )
-          }
-
-          let resolvedMessageId = messageId
-          const location = findToolCallLocation(conversationId, { toolCallId })
-          if (location) {
-            updateToolCall(
-              conversationId,
-              location.messageIndex,
-              location.toolCallIndex,
-              {
-                approvalRequired: true,
-                approvalId,
-                state: 'approval-requested',
-              },
-            )
-            resolvedMessageId =
-              state.conversations[conversationId]?.messages[
-                location.messageIndex
-              ]?.id ?? messageId
-          } else {
-            resolvedMessageId = messageId || `approval-message-${toolCallId}`
-            addMessage(
-              conversationId,
-              createClientToolCallMessage({
-                messageId: resolvedMessageId,
-                toolCallId,
-                toolName,
-                arguments: stringifyToolArguments(input),
-                state: 'approval-requested',
-                timestamp,
-                source:
-                  conversationId === clientId && source === 'client'
-                    ? 'client'
-                    : 'server',
-                approvalRequired: true,
-                approvalId,
-              }),
-            )
-          }
-
-          const chunk: Chunk = {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'approval',
-            ...(resolvedMessageId ? { messageId: resolvedMessageId } : {}),
-            toolCallId,
-            toolName,
-            approvalId,
-            input,
-            timestamp,
-            chunkCount: 1,
-          }
-
-          if (state.conversations[conversationId]?.type === 'client') {
-            addChunkToMessage(conversationId, chunk)
-          } else {
-            addChunk(conversationId, chunk)
-          }
+          applyApprovalRequestedToConversation(
+            conversationId,
+            e.payload,
+            source,
+          )
         }
 
         if (conversationIds.length === 0) {
-          const fallbackConversationId = clientId || threadId
-          if (!fallbackConversationId) return
-
-          getOrCreateConversation(
-            fallbackConversationId,
-            clientId ? 'client' : 'server',
-            clientId
-              ? `Client Chat (${fallbackConversationId.substring(0, 8)})`
-              : `Server Chat (${fallbackConversationId.substring(0, 8)})`,
-          )
-          const resolvedMessageId =
-            messageId || `approval-message-${toolCallId}`
-          addMessage(
-            fallbackConversationId,
-            createClientToolCallMessage({
-              messageId: resolvedMessageId,
-              toolCallId,
-              toolName,
-              arguments: stringifyToolArguments(input),
-              state: 'approval-requested',
-              timestamp,
-              source: clientId ? 'client' : 'server',
-              approvalRequired: true,
-              approvalId,
-            }),
-          )
-          addChunkToMessage(fallbackConversationId, {
-            id: `chunk-${Date.now()}-${Math.random()}`,
-            type: 'approval',
-            messageId: resolvedMessageId,
-            toolCallId,
-            toolName,
-            approvalId,
-            input,
-            timestamp,
-            chunkCount: 1,
-          })
+          applyApprovalRequestedFallback(e.payload)
         }
       }),
     )

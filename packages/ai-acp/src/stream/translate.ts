@@ -237,123 +237,164 @@ export async function* translateAcpStream(
     }
   }
 
+  function* handleAgentMessageChunk(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'agent_message_chunk' }>,
+  ): Generator<AdapterYieldChunk> {
+    yield* closeReasoning()
+    // Non-text content (image / audio / resource / resource_link): surface it
+    // as a CUSTOM event when the harness opted in, instead of dropping it.
+    if (update.content.type !== 'text') {
+      if (labels.contentEvent !== undefined) {
+        yield* closeText()
+        yield {
+          type: EventType.CUSTOM,
+          model,
+          timestamp: now(),
+          name: labels.contentEvent,
+          value: { content: update.content },
+        }
+      }
+      return
+    }
+    const text =
+      typeof update.content.text === 'string' ? update.content.text : ''
+    if (text === '') return
+    if (textMessageId === null) {
+      textMessageId = genId()
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: textMessageId,
+        model,
+        timestamp: now(),
+        role: 'assistant',
+      }
+    }
+    textContent += text
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: textMessageId,
+      model,
+      timestamp: now(),
+      delta: text,
+      content: textContent,
+    }
+  }
+
+  function* handleAgentThoughtChunk(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'agent_thought_chunk' }>,
+  ): Generator<AdapterYieldChunk> {
+    yield* closeText()
+    const thought =
+      typeof update.content.text === 'string' ? update.content.text : ''
+    if (thought === '') return
+    if (reasoningId === null) {
+      reasoningId = genId()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningId,
+        model,
+        timestamp: now(),
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningId,
+        role: 'reasoning' as const,
+        model,
+        timestamp: now(),
+      }
+    }
+    yield {
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: reasoningId,
+      delta: thought,
+      model,
+      timestamp: now(),
+    }
+  }
+
+  function* handleToolCall(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'tool_call' }>,
+  ): Generator<AdapterYieldChunk> {
+    yield* closeText()
+    yield* closeReasoning()
+    yield* openToolCall(update)
+    if (update.status === 'completed' || update.status === 'failed') {
+      yield* resolveToolCall(update)
+    }
+  }
+
+  function* handleInProgressToolUpdate(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'tool_call_update' }>,
+  ): Generator<AdapterYieldChunk> {
+    yield* closeText()
+    yield* closeReasoning()
+    if (!knownToolCalls.has(update.toolCallId)) {
+      yield* openToolCall(update)
+      return
+    }
+    const input = {
+      ...(update.title != null && { title: update.title }),
+      ...(typeof update.rawInput === 'object' && update.rawInput !== null
+        ? (update.rawInput as Record<string, unknown>)
+        : { input: update.rawInput }),
+    }
+    const args = JSON.stringify(input)
+    yield {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: update.toolCallId,
+      model,
+      timestamp: now(),
+      delta: args,
+      args,
+    }
+  }
+
+  function* handleToolCallUpdate(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'tool_call_update' }>,
+  ): Generator<AdapterYieldChunk> {
+    if (update.status === 'completed' || update.status === 'failed') {
+      yield* resolveToolCall(update)
+      return
+    }
+    if (update.status === 'in_progress' && update.rawInput !== undefined) {
+      yield* handleInProgressToolUpdate(update)
+    }
+  }
+
+  function* handlePlan(
+    update: Extract<AcpSessionUpdate, { sessionUpdate: 'plan' }>,
+  ): Generator<AdapterYieldChunk> {
+    if (labels.planEvent === undefined) return
+    yield {
+      type: EventType.CUSTOM,
+      model,
+      timestamp: now(),
+      name: labels.planEvent,
+      value: { entries: update.entries },
+    }
+  }
+
   function* handleUpdate(
     update: AcpSessionUpdate,
   ): Generator<AdapterYieldChunk> {
     if (update.sessionUpdate === 'agent_message_chunk') {
-      yield* closeReasoning()
-      // Non-text content (image / audio / resource / resource_link): surface it
-      // as a CUSTOM event when the harness opted in, instead of dropping it.
-      if (update.content.type !== 'text') {
-        if (labels.contentEvent !== undefined) {
-          yield* closeText()
-          yield {
-            type: EventType.CUSTOM,
-            model,
-            timestamp: now(),
-            name: labels.contentEvent,
-            value: { content: update.content },
-          }
-        }
-        return
-      }
-      const text =
-        typeof update.content.text === 'string' ? update.content.text : ''
-      if (text === '') return
-      if (textMessageId === null) {
-        textMessageId = genId()
-        yield {
-          type: EventType.TEXT_MESSAGE_START,
-          messageId: textMessageId,
-          model,
-          timestamp: now(),
-          role: 'assistant',
-        }
-      }
-      textContent += text
-      yield {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId: textMessageId,
-        model,
-        timestamp: now(),
-        delta: text,
-        content: textContent,
-      }
-    } else if (update.sessionUpdate === 'agent_thought_chunk') {
-      yield* closeText()
-      const thought =
-        typeof update.content.text === 'string' ? update.content.text : ''
-      if (thought === '') return
-      if (reasoningId === null) {
-        reasoningId = genId()
-        yield {
-          type: EventType.REASONING_START,
-          messageId: reasoningId,
-          model,
-          timestamp: now(),
-        }
-        yield {
-          type: EventType.REASONING_MESSAGE_START,
-          messageId: reasoningId,
-          role: 'reasoning' as const,
-          model,
-          timestamp: now(),
-        }
-      }
-      yield {
-        type: EventType.REASONING_MESSAGE_CONTENT,
-        messageId: reasoningId,
-        delta: thought,
-        model,
-        timestamp: now(),
-      }
-    } else if (update.sessionUpdate === 'tool_call') {
-      yield* closeText()
-      yield* closeReasoning()
-      yield* openToolCall(update)
-      if (update.status === 'completed' || update.status === 'failed') {
-        yield* resolveToolCall(update)
-      }
-    } else if (update.sessionUpdate === 'tool_call_update') {
-      if (update.status === 'completed' || update.status === 'failed') {
-        yield* resolveToolCall(update)
-      } else if (
-        update.status === 'in_progress' &&
-        update.rawInput !== undefined
-      ) {
-        yield* closeText()
-        yield* closeReasoning()
-        if (!knownToolCalls.has(update.toolCallId)) {
-          yield* openToolCall(update)
-        } else {
-          const input = {
-            ...(update.title != null && { title: update.title }),
-            ...(typeof update.rawInput === 'object' && update.rawInput !== null
-              ? (update.rawInput as Record<string, unknown>)
-              : { input: update.rawInput }),
-          }
-          const args = JSON.stringify(input)
-          yield {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: update.toolCallId,
-            model,
-            timestamp: now(),
-            delta: args,
-            args,
-          }
-        }
-      }
-    } else if (
-      update.sessionUpdate === 'plan' &&
-      labels.planEvent !== undefined
-    ) {
-      yield {
-        type: EventType.CUSTOM,
-        model,
-        timestamp: now(),
-        name: labels.planEvent,
-        value: { entries: update.entries },
-      }
+      yield* handleAgentMessageChunk(update)
+      return
+    }
+    if (update.sessionUpdate === 'agent_thought_chunk') {
+      yield* handleAgentThoughtChunk(update)
+      return
+    }
+    if (update.sessionUpdate === 'tool_call') {
+      yield* handleToolCall(update)
+      return
+    }
+    if (update.sessionUpdate === 'tool_call_update') {
+      yield* handleToolCallUpdate(update)
+      return
+    }
+    if (update.sessionUpdate === 'plan') {
+      yield* handlePlan(update)
     }
   }
 

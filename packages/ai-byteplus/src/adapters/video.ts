@@ -82,6 +82,174 @@ function mediaPartToUrl(
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`
 }
 
+interface BytePlusMediaCounts {
+  firstFrames: number
+  lastFrames: number
+  visualReferences: number
+  audioReferences: number
+}
+
+function appendBytePlusImageParts(
+  content: Array<BytePlusVideoContentPart>,
+  images: ReturnType<typeof resolveMediaPrompt>['images'],
+  model: string,
+  gated: boolean,
+  counts: BytePlusMediaCounts,
+): void {
+  for (const part of images) {
+    const role = part.metadata?.role
+    switch (role) {
+      case 'mask':
+      case 'control':
+        throw new Error(
+          `byteplus: Seedance has no '${role}' image input on model ${model}. ` +
+            `Use 'start_frame', 'end_frame' or 'reference'.`,
+        )
+      case 'end_frame': {
+        if (gated && !supportsLastFrame(model)) {
+          throw new Error(
+            `byteplus: ${model} does not support a closing frame — it does ` +
+              `text-to-video and first-frame image-to-video only. Drop the ` +
+              `'end_frame' image or switch to a model with first-and-last-frame support.`,
+          )
+        }
+        counts.lastFrames++
+        content.push({
+          type: 'image_url',
+          image_url: { url: mediaPartToUrl(part) },
+          role: 'last_frame',
+        })
+        break
+      }
+      case 'reference':
+      case 'character': {
+        if (gated && !supportsReferenceMedia(model)) {
+          throw new Error(
+            `byteplus: ${model} does not support reference images. Reference ` +
+              `media is available on Seedance 2.5 and the 2.0 family; on this ` +
+              `model use 'start_frame' / 'end_frame' images instead.`,
+          )
+        }
+        counts.visualReferences++
+        content.push({
+          type: 'image_url',
+          image_url: { url: mediaPartToUrl(part) },
+          role: 'reference_image',
+        })
+        break
+      }
+      // An un-roled image is the opening frame, matching the API's own
+      // default and the fal / Veo adapters' positional convention.
+      case 'start_frame':
+      case undefined: {
+        counts.firstFrames++
+        content.push({
+          type: 'image_url',
+          image_url: { url: mediaPartToUrl(part) },
+          role: 'first_frame',
+        })
+        break
+      }
+    }
+  }
+}
+
+function appendBytePlusVideoParts(
+  content: Array<BytePlusVideoContentPart>,
+  videos: ReturnType<typeof resolveMediaPrompt>['videos'],
+  model: string,
+  gated: boolean,
+  counts: BytePlusMediaCounts,
+): void {
+  for (const part of videos) {
+    if (gated && !supportsReferenceMedia(model)) {
+      throw new Error(
+        `byteplus: ${model} does not accept video prompt parts. Reference ` +
+          `video is available on Seedance 2.5 and the 2.0 family only.`,
+      )
+    }
+    counts.visualReferences++
+    content.push({
+      type: 'video_url',
+      video_url: { url: mediaPartToUrl(part) },
+      role: 'reference_video',
+    })
+  }
+}
+
+function appendBytePlusAudioParts(
+  content: Array<BytePlusVideoContentPart>,
+  audios: ReturnType<typeof resolveMediaPrompt>['audios'],
+  model: string,
+  gated: boolean,
+  counts: BytePlusMediaCounts,
+): void {
+  for (const part of audios) {
+    if (gated && !supportsReferenceMedia(model)) {
+      throw new Error(
+        `byteplus: ${model} does not accept audio prompt parts. Reference ` +
+          `audio is available on Seedance 2.5 and the 2.0 family only.`,
+      )
+    }
+    counts.audioReferences++
+    content.push({
+      type: 'audio_url',
+      audio_url: { url: mediaPartToUrl(part) },
+      role: 'reference_audio',
+    })
+  }
+}
+
+function assertBytePlusModeRules(
+  model: string,
+  gated: boolean,
+  counts: BytePlusMediaCounts,
+): void {
+  if (!gated) return
+  const { firstFrames, lastFrames, visualReferences, audioReferences } = counts
+  if (firstFrames + lastFrames > 0 && visualReferences + audioReferences > 0) {
+    throw new Error(
+      `byteplus: first/last frame inputs cannot be combined with reference ` +
+        `media on model ${model}. Use either frame roles ('start_frame', ` +
+        `'end_frame') or reference roles ('reference', 'character', video, ` +
+        `audio) — not both.`,
+    )
+  }
+  if (firstFrames > 1) {
+    throw new Error(
+      `byteplus: ${model} accepts at most one opening frame; received ` +
+        `${firstFrames} un-roled or 'start_frame' images. Use metadata.role ` +
+        `('end_frame', 'reference') to disambiguate the others.`,
+    )
+  }
+  if (lastFrames > 1) {
+    throw new Error(
+      `byteplus: ${model} accepts at most one closing frame; received ` +
+        `${lastFrames} 'end_frame' images.`,
+    )
+  }
+  // Seedance treats a closing frame as the second half of first-and-last-
+  // frame mode: on its own it fails with "last frame image content cannot be
+  // mixed with first frame or reference image content".
+  if (lastFrames > 0 && firstFrames === 0) {
+    throw new Error(
+      `byteplus: a closing frame needs an opening frame alongside it on ` +
+        `model ${model}. Add a 'start_frame' image, or drop the 'end_frame' role.`,
+    )
+  }
+  if (
+    audioReferences > 0 &&
+    visualReferences === 0 &&
+    !supportsAudioOnlyReference(model)
+  ) {
+    throw new Error(
+      `byteplus: a reference audio input cannot be the only reference on ` +
+        `model ${model}. Pair it with a reference image or video, or use ` +
+        `Seedance 2.5 which accepts audio-only reference input.`,
+    )
+  }
+}
+
 /** Coerces a usage count that the API types as a string but sends as a number. */
 function toTokenCount(value: number | string | undefined): number | undefined {
   if (typeof value === 'number') return value
@@ -244,151 +412,16 @@ export class BytePlusVideoAdapter<
     // BytePlusVideoModelOrString). 'mask' / 'control' still throw: Seedance's
     // wire format has no field to carry them on any model.
     const gated = isKnownBytePlusVideoModel(model)
-
-    let firstFrames = 0
-    let lastFrames = 0
-    // Audio counts as a reference for the mode-exclusivity check. On Seedance
-    // 2.0 it also needs a visual reference; 2.5 allows audio-only.
-    let visualReferences = 0
-    let audioReferences = 0
-
-    for (const part of resolved.images) {
-      const role = part.metadata?.role
-      switch (role) {
-        case 'mask':
-        case 'control':
-          throw new Error(
-            `byteplus: Seedance has no '${role}' image input on model ${model}. ` +
-              `Use 'start_frame', 'end_frame' or 'reference'.`,
-          )
-        case 'end_frame': {
-          if (gated && !supportsLastFrame(model)) {
-            throw new Error(
-              `byteplus: ${model} does not support a closing frame — it does ` +
-                `text-to-video and first-frame image-to-video only. Drop the ` +
-                `'end_frame' image or switch to a model with first-and-last-frame support.`,
-            )
-          }
-          lastFrames++
-          content.push({
-            type: 'image_url',
-            image_url: { url: mediaPartToUrl(part) },
-            role: 'last_frame',
-          })
-          break
-        }
-        case 'reference':
-        case 'character': {
-          if (gated && !supportsReferenceMedia(model)) {
-            throw new Error(
-              `byteplus: ${model} does not support reference images. Reference ` +
-                `media is available on Seedance 2.5 and the 2.0 family; on this ` +
-                `model use 'start_frame' / 'end_frame' images instead.`,
-            )
-          }
-          visualReferences++
-          content.push({
-            type: 'image_url',
-            image_url: { url: mediaPartToUrl(part) },
-            role: 'reference_image',
-          })
-          break
-        }
-        // An un-roled image is the opening frame, matching the API's own
-        // default and the fal / Veo adapters' positional convention.
-        case 'start_frame':
-        case undefined: {
-          firstFrames++
-          content.push({
-            type: 'image_url',
-            image_url: { url: mediaPartToUrl(part) },
-            role: 'first_frame',
-          })
-          break
-        }
-      }
+    const counts = {
+      firstFrames: 0,
+      lastFrames: 0,
+      visualReferences: 0,
+      audioReferences: 0,
     }
-
-    // Video and audio parts only exist in reference mode: Seedance rejects an
-    // un-roled video with "reference media mode requires video role to be
-    // reference_video", and has no frame-style role for either modality.
-    for (const part of resolved.videos) {
-      if (gated && !supportsReferenceMedia(model)) {
-        throw new Error(
-          `byteplus: ${model} does not accept video prompt parts. Reference ` +
-            `video is available on Seedance 2.5 and the 2.0 family only.`,
-        )
-      }
-      visualReferences++
-      content.push({
-        type: 'video_url',
-        video_url: { url: mediaPartToUrl(part) },
-        role: 'reference_video',
-      })
-    }
-
-    for (const part of resolved.audios) {
-      if (gated && !supportsReferenceMedia(model)) {
-        throw new Error(
-          `byteplus: ${model} does not accept audio prompt parts. Reference ` +
-            `audio is available on Seedance 2.5 and the 2.0 family only.`,
-        )
-      }
-      audioReferences++
-      content.push({
-        type: 'audio_url',
-        audio_url: { url: mediaPartToUrl(part) },
-        role: 'reference_audio',
-      })
-    }
-
-    const frames = firstFrames + lastFrames
-    if (gated && frames > 0 && visualReferences + audioReferences > 0) {
-      throw new Error(
-        `byteplus: first/last frame inputs cannot be combined with reference ` +
-          `media on model ${model}. Use either frame roles ('start_frame', ` +
-          `'end_frame') or reference roles ('reference', 'character', video, ` +
-          `audio) — not both.`,
-      )
-    }
-
-    if (gated && firstFrames > 1) {
-      throw new Error(
-        `byteplus: ${model} accepts at most one opening frame; received ` +
-          `${firstFrames} un-roled or 'start_frame' images. Use metadata.role ` +
-          `('end_frame', 'reference') to disambiguate the others.`,
-      )
-    }
-
-    if (gated && lastFrames > 1) {
-      throw new Error(
-        `byteplus: ${model} accepts at most one closing frame; received ` +
-          `${lastFrames} 'end_frame' images.`,
-      )
-    }
-
-    // Seedance treats a closing frame as the second half of first-and-last-
-    // frame mode: on its own it fails with "last frame image content cannot be
-    // mixed with first frame or reference image content".
-    if (gated && lastFrames > 0 && firstFrames === 0) {
-      throw new Error(
-        `byteplus: a closing frame needs an opening frame alongside it on ` +
-          `model ${model}. Add a 'start_frame' image, or drop the 'end_frame' role.`,
-      )
-    }
-
-    if (
-      gated &&
-      audioReferences > 0 &&
-      visualReferences === 0 &&
-      !supportsAudioOnlyReference(model)
-    ) {
-      throw new Error(
-        `byteplus: a reference audio input cannot be the only reference on ` +
-          `model ${model}. Pair it with a reference image or video, or use ` +
-          `Seedance 2.5 which accepts audio-only reference input.`,
-      )
-    }
+    appendBytePlusImageParts(content, resolved.images, model, gated, counts)
+    appendBytePlusVideoParts(content, resolved.videos, model, gated, counts)
+    appendBytePlusAudioParts(content, resolved.audios, model, gated, counts)
+    assertBytePlusModeRules(model, gated, counts)
 
     if (content.length === 0) {
       throw new Error(

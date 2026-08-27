@@ -7,10 +7,14 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
-import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import type { StructuredOutputCompatibility } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
+import { processResponsesStream } from './responses-stream'
+import type {
+  LegacyReasoningDeltaEvent,
+  StreamedFunctionCallMetadata,
+} from './responses-stream'
 import type OpenAI from 'openai'
 import type {
   StructuredOutputOptions,
@@ -37,6 +41,138 @@ import type {
 // these bytes, so inline document data must begin with this prefix.
 const PDF_BASE64_MAGIC = 'JVBERi'
 
+function toDataUrl(value: string, mime: string): string {
+  return value.startsWith('data:') ? value : `data:${mime};base64,${value}`
+}
+
+function convertImagePartToInput(
+  part: Extract<ContentPart, { type: 'image' }>,
+): ResponseInputContent {
+  const imageMetadata = part.metadata as
+    | { detail?: 'auto' | 'low' | 'high' }
+    | undefined
+  if (part.source.type === 'url') {
+    return {
+      type: 'input_image',
+      image_url: part.source.value,
+      detail: imageMetadata?.detail || 'auto',
+    }
+  }
+  // For base64 data, construct a data URI using the mimeType from
+  // source. Default to a generic octet-stream MIME if the source
+  // didn't supply one — letting `undefined` interpolate would produce
+  // an invalid URI like "data:undefined;base64,...".
+  const imageMime = part.source.mimeType || 'application/octet-stream'
+  return {
+    type: 'input_image',
+    image_url: toDataUrl(part.source.value, imageMime),
+    detail: imageMetadata?.detail || 'auto',
+  }
+}
+
+function convertAudioPartToInput(
+  part: Extract<ContentPart, { type: 'audio' }>,
+): ResponseInputContent {
+  if (part.source.type === 'url') {
+    return {
+      type: 'input_file',
+      file_url: part.source.value,
+    }
+  }
+  // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+  // payloads (matches the image branch above).
+  // Default the MIME if missing so we never interpolate `undefined`.
+  const audioMime = part.source.mimeType || 'application/octet-stream'
+  return {
+    type: 'input_file',
+    file_data: toDataUrl(part.source.value, audioMime),
+  }
+}
+
+function assertInlinePdf(
+  documentValue: string,
+  documentMime: string,
+  adapterName: string,
+): void {
+  if (documentMime !== 'application/pdf') {
+    throw new Error(
+      `${adapterName} document parts only support application/pdf ` +
+        `(received ${documentMime})`,
+    )
+  }
+  // A pre-wrapped data URL carries its own media type — validate it too.
+  if (
+    documentValue.startsWith('data:') &&
+    !/^data:application\/pdf[;,]/i.test(documentValue)
+  ) {
+    throw new Error(
+      `${adapterName} document parts only support application/pdf ` +
+        `(received data URL with non-PDF media type)`,
+    )
+  }
+  // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
+  // caught locally instead of by an opaque provider 400. Only base64
+  // payloads are checked; a rare `data:` URL without `;base64` is left
+  // to the server.
+  const documentBase64 = documentValue.startsWith('data:')
+    ? /;base64,/i.test(documentValue)
+      ? documentValue.slice(documentValue.indexOf(',') + 1)
+      : ''
+    : documentValue
+  if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
+    throw new Error(
+      `${adapterName} document parts only support application/pdf ` +
+        `(inline data does not start with the %PDF header)`,
+    )
+  }
+}
+
+function convertDocumentPartToInput(
+  part: Extract<ContentPart, { type: 'document' }>,
+  adapterName: string,
+): ResponseInputContent {
+  const documentMetadata = part.metadata as
+    | { filename?: string; detail?: 'auto' | 'low' | 'high' }
+    | undefined
+  // Spread `detail` only when provided so the API applies its own
+  // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
+  // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
+  // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
+  // pass through without a type error.
+  const documentDetail =
+    documentMetadata?.detail !== undefined
+      ? { detail: documentMetadata.detail as 'low' | 'high' }
+      : {}
+  if (part.source.type === 'url') {
+    // The Responses API fetches the PDF itself; filename and MIME
+    // type are inferred from the response.
+    return {
+      type: 'input_file',
+      file_url: part.source.value,
+      ...documentDetail,
+    }
+  }
+  // This adapter supports only PDF documents; anything else is
+  // rejected. MIME types are case-insensitive and can carry
+  // ;parameters (RFC 2045), so the type is normalized before comparing.
+  const documentValue = part.source.value
+  const documentMime = (
+    (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
+  )
+    .trim()
+    .toLowerCase()
+  assertInlinePdf(documentValue, documentMime, adapterName)
+  // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+  // payloads (matches the image and audio branches above).
+  return {
+    type: 'input_file',
+    // The Responses API requires a filename alongside PDF `file_data`.
+    filename: documentMetadata?.filename || 'document.pdf',
+    file_data: toDataUrl(documentValue, documentMime),
+    ...documentDetail,
+  }
+}
+
 /**
  * Provider-specific metadata that preserves the Responses API output item ID.
  *
@@ -47,25 +183,6 @@ const PDF_BASE64_MAGIC = 'JVBERi'
  */
 export interface OpenAIResponsesToolCallMetadata {
   itemId: string
-}
-
-interface StreamedFunctionCallMetadata {
-  callId: string
-  index: number
-  name: string
-  started: boolean
-  ended?: boolean
-  pendingArguments?: string | undefined
-}
-
-/**
- * The pre-2025-07 spec name for `response.reasoning_text.delta`. Removed from
- * the openai SDK, but OpenAI-compatible providers frozen on the older spec
- * (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
- */
-interface LegacyReasoningDeltaEvent {
-  type: 'response.reasoning.delta'
-  delta?: unknown
 }
 
 /**
@@ -335,10 +452,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let stop = false
+    const adapterName = this.name
 
-    const closeReasoning = function* (this: {
-      name: string
-    }): Generator<AdapterYieldChunk> {
+    const joinDelta = (raw: unknown): string => {
+      if (Array.isArray(raw)) return raw.join('')
+      if (typeof raw === 'string') return raw
+      return ''
+    }
+
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -367,14 +490,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         stepId = undefined
         hasClosedReasoning = false
       }
-    }.bind(this)
+    }
 
-    const openReasoning = function* (this: {
-      name: string
-    }): Generator<AdapterYieldChunk> {
+    const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
-      reasoningMessageId = generateId(this.name)
-      stepId = generateId(this.name)
+      reasoningMessageId = generateId(adapterName)
+      stepId = generateId(adapterName)
       yield {
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
@@ -396,7 +517,245 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp: Date.now(),
         stepType: 'thinking',
       }
-    }.bind(this)
+    }
+
+    type StructuredChunk = ResponseStreamEvent | LegacyReasoningDeltaEvent
+
+    const handleCreatedOrProgress = (chunk: StructuredChunk): void => {
+      if (
+        chunk.type !== 'response.created' &&
+        chunk.type !== 'response.in_progress'
+      ) {
+        return
+      }
+      if (chunk.response.model) model = chunk.response.model
+    }
+
+    const handleRefusal = function* (
+      chunk: StructuredChunk,
+    ): Generator<AdapterYieldChunk> {
+      if (chunk.type !== 'response.refusal.delta') return
+      const delta = typeof chunk.delta === 'string' ? chunk.delta : ''
+      yield {
+        type: EventType.RUN_ERROR,
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message: `Model refused: ${delta}`,
+        code: 'refusal',
+        error: { message: `Model refused: ${delta}`, code: 'refusal' },
+      }
+      stop = true
+    }
+
+    const handleReasoningDelta = function* (
+      chunk: StructuredChunk,
+    ): Generator<AdapterYieldChunk> {
+      const reasoningDelta = joinDelta(
+        'delta' in chunk ? chunk.delta : undefined,
+      )
+      if (!reasoningDelta) return
+      yield* openReasoning()
+      // openReasoning() guarantees reasoningMessageId is set on first call;
+      // TS can't see through the generator side-effect.
+      if (!reasoningMessageId) return
+      accumulatedReasoning += reasoningDelta
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: reasoningDelta,
+        model,
+        timestamp: Date.now(),
+      }
+    }
+
+    const handleOutputTextDelta = function* (
+      chunk: StructuredChunk,
+    ): Generator<AdapterYieldChunk> {
+      const textDelta = joinDelta('delta' in chunk ? chunk.delta : undefined)
+      if (!textDelta) return
+
+      yield* closeReasoning()
+
+      if (!hasEmittedTextMessageStart) {
+        hasEmittedTextMessageStart = true
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: aguiState.messageId,
+          model,
+          timestamp: Date.now(),
+          role: 'assistant',
+        }
+      }
+      accumulatedContent += textDelta
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: aguiState.messageId,
+        model,
+        timestamp: Date.now(),
+        delta: textDelta,
+        content: accumulatedContent,
+      }
+    }
+
+    const handleCompleted = (chunk: StructuredChunk): void => {
+      if (chunk.type !== 'response.completed') return
+      if (chunk.response.usage) usage = chunk.response.usage
+      if (chunk.response.model) model = chunk.response.model
+    }
+
+    const handleFailed = function* (
+      chunk: StructuredChunk,
+    ): Generator<AdapterYieldChunk> {
+      if (chunk.type !== 'response.failed') return
+      const response = chunk.response
+      const message = response.error?.message || 'Responses API stream failed'
+      const code = response.error?.code
+      yield {
+        type: EventType.RUN_ERROR,
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        ...(code !== undefined && { code }),
+        error: { message, ...(code !== undefined && { code }) },
+      }
+      stop = true
+    }
+
+    const structuredHandlers: Record<
+      string,
+      (chunk: StructuredChunk) => Generator<AdapterYieldChunk> | void
+    > = {
+      'response.created': handleCreatedOrProgress,
+      'response.in_progress': handleCreatedOrProgress,
+      'response.refusal.delta': handleRefusal,
+      'response.reasoning_text.delta': handleReasoningDelta,
+      'response.reasoning_summary_text.delta': handleReasoningDelta,
+      'response.reasoning.delta': handleReasoningDelta,
+      'response.output_text.delta': handleOutputTextDelta,
+      'response.completed': handleCompleted,
+      'response.failed': handleFailed,
+    }
+
+    const finalize = function* (
+      transform: (parsed: unknown) => unknown,
+    ): Generator<AdapterYieldChunk> {
+      yield* closeReasoning()
+
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: aguiState.messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+
+      if (accumulatedContent.length === 0) {
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message: `${adapterName}.structuredOutputStream: response contained no content`,
+          code: 'empty-response',
+          error: {
+            message: `${adapterName}.structuredOutputStream: response contained no content`,
+            code: 'empty-response',
+          },
+        }
+        return
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(accumulatedContent)
+      } catch {
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
+          code: 'parse-error',
+          error: {
+            message: 'Failed to parse structured output as JSON',
+            code: 'parse-error',
+          },
+        }
+        return
+      }
+
+      const transformed = transform(parsed)
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: {
+          object: transformed,
+          raw: accumulatedContent,
+          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
+        },
+        model,
+        timestamp: Date.now(),
+      }
+
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model,
+        timestamp: Date.now(),
+        finishReason: 'stop',
+        ...(usage && {
+          usage: buildResponsesUsage(usage),
+        }),
+      }
+    }
+
+    const handleFatal = function* (
+      error: unknown,
+      isAbort: boolean,
+    ): Generator<AdapterYieldChunk> {
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model,
+          timestamp: Date.now(),
+          parentRunId: chatOptions.parentRunId,
+        }
+      }
+
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${adapterName}.structuredOutputStream failed`,
+      )
+
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      yield {
+        type: EventType.RUN_ERROR,
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
+      }
+
+      chatOptions.logger.errors(`${adapterName}.structuredOutputStream fatal`, {
+        error: errorPayload,
+        source: `${adapterName}.structuredOutputStream`,
+      })
+    }
 
     try {
       const { tools: _tools, ...cleanParams } = requestParams
@@ -443,239 +802,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
 
-        if (
-          chunk.type === 'response.created' ||
-          chunk.type === 'response.in_progress'
-        ) {
-          const responseModel = (chunk as { response?: { model?: string } })
-            .response?.model
-          if (responseModel) model = responseModel
-          continue
-        }
-
-        if (chunk.type === 'response.refusal.delta') {
-          const delta =
-            typeof (chunk as { delta?: unknown }).delta === 'string'
-              ? (chunk as { delta: string }).delta
-              : ''
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message: `Model refused: ${delta}`,
-            code: 'refusal',
-            error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          }
-          return
-        }
-
-        if (
-          chunk.type === 'response.reasoning_text.delta' ||
-          chunk.type === 'response.reasoning_summary_text.delta' ||
-          chunk.type === 'response.reasoning.delta'
-        ) {
-          const raw = (chunk as { delta?: unknown }).delta
-          const reasoningDelta = Array.isArray(raw)
-            ? raw.join('')
-            : typeof raw === 'string'
-              ? raw
-              : ''
-          if (!reasoningDelta) continue
-          yield* openReasoning()
-          // openReasoning() guarantees reasoningMessageId is set on first call;
-          // TS can't see through the generator side-effect.
-          if (!reasoningMessageId) continue
-          accumulatedReasoning += reasoningDelta
-          yield {
-            type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId: reasoningMessageId,
-            delta: reasoningDelta,
-            model,
-            timestamp: Date.now(),
-          }
-          continue
-        }
-
-        if (chunk.type === 'response.output_text.delta') {
-          const raw = (chunk as { delta?: unknown }).delta
-          const textDelta = Array.isArray(raw)
-            ? raw.join('')
-            : typeof raw === 'string'
-              ? raw
-              : ''
-          if (!textDelta) continue
-
-          yield* closeReasoning()
-
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-          accumulatedContent += textDelta
-          yield {
-            type: EventType.TEXT_MESSAGE_CONTENT,
-            messageId: aguiState.messageId,
-            model,
-            timestamp: Date.now(),
-            delta: textDelta,
-            content: accumulatedContent,
-          }
-          continue
-        }
-
-        if (chunk.type === 'response.completed') {
-          const response = chunk.response
-          if (response.usage) usage = response.usage
-          if (response.model) model = response.model
-          continue
-        }
-
-        if (chunk.type === 'response.failed') {
-          const response = (
-            chunk as {
-              response?: { error?: { message?: string; code?: string } }
-            }
-          ).response
-          const message =
-            response?.error?.message || 'Responses API stream failed'
-          const code = response?.error?.code
-          // Conditional `code` spread keeps the wire shape spec-compliant
-          // under `exactOptionalPropertyTypes` (see chatStream catch).
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message,
-            ...(code !== undefined && { code }),
-            error: { message, ...(code !== undefined && { code }) },
-          }
-          return
-        }
+        const handler = structuredHandlers[chunk.type]
+        if (!handler) continue
+        const produced = handler(chunk)
+        if (produced) yield* produced
+        if (stop) return
       }
 
-      yield* closeReasoning()
-
-      if (hasEmittedTextMessageStart) {
-        yield {
-          type: EventType.TEXT_MESSAGE_END,
-          messageId: aguiState.messageId,
-          model,
-          timestamp: Date.now(),
-        }
-      }
-
-      if (accumulatedContent.length === 0) {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId: aguiState.runId,
-          model,
-          timestamp: Date.now(),
-          message: `${this.name}.structuredOutputStream: response contained no content`,
-          code: 'empty-response',
-          error: {
-            message: `${this.name}.structuredOutputStream: response contained no content`,
-            code: 'empty-response',
-          },
-        }
-        return
-      }
-
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(accumulatedContent)
-      } catch {
-        yield {
-          type: EventType.RUN_ERROR,
-          runId: aguiState.runId,
-          model,
-          timestamp: Date.now(),
-          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
-          code: 'parse-error',
-          error: {
-            message: 'Failed to parse structured output as JSON',
-            code: 'parse-error',
-          },
-        }
-        return
-      }
-
-      // Route through the same hook as the non-streaming path (default
-      // passthrough). Engine un-widens nulls; the streaming path must not strip
-      // them blindly either.
-      const transformed = this.transformStructuredOutput(parsed)
-
-      yield {
-        type: EventType.CUSTOM,
-        name: 'structured-output.complete',
-        value: {
-          object: transformed,
-          raw: accumulatedContent,
-          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
-        },
-        model,
-        timestamp: Date.now(),
-      }
-
-      yield {
-        type: EventType.RUN_FINISHED,
-        runId: aguiState.runId,
-        threadId: aguiState.threadId,
-        model,
-        timestamp: Date.now(),
-        finishReason: 'stop',
-        ...(usage && {
-          usage: buildResponsesUsage(usage),
-        }),
-      }
+      yield* finalize((parsed) => this.transformStructuredOutput(parsed))
     } catch (error: unknown) {
-      if (!aguiState.hasEmittedRunStarted) {
-        aguiState.hasEmittedRunStarted = true
-        yield {
-          type: EventType.RUN_STARTED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model,
-          timestamp: Date.now(),
-          parentRunId: chatOptions.parentRunId,
-        }
-      }
-
-      const isAbort = this.isAbortError(error)
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.structuredOutputStream failed`,
-      )
-
-      // Conditional `code` spread keeps the wire shape spec-compliant under
-      // `exactOptionalPropertyTypes` (see chatStream catch).
-      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
-      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
-      yield {
-        type: EventType.RUN_ERROR,
-        runId: aguiState.runId,
-        model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(resolvedCode !== undefined && { code: resolvedCode }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(resolvedCode !== undefined && { code: resolvedCode }),
-        },
-      }
-
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
+      yield* handleFatal(error, this.isAbortError(error))
     }
   }
 
@@ -817,907 +953,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<AdapterYieldChunk> {
-    const normalizeToolInput = createToolInputNormalizer(
-      options.tools,
-      (schema, required) =>
+    yield* processResponsesStream({
+      stream,
+      toolCallMetadata,
+      options,
+      aguiState,
+      adapterName: this.name,
+      toCompatibility: (schema, required) =>
         this.makeStructuredOutputCompatibleWithMap(schema, required),
-    )
-    let accumulatedContent = ''
-    let accumulatedReasoning = ''
-
-    // Track if we've been streaming deltas to avoid duplicating content from done events
-    let hasStreamedContentDeltas = false
-    let hasStreamedReasoningDeltas = false
-
-    // Preserve response metadata across events
-    let model: string = options.model
-
-    // AG-UI lifecycle tracking
-    let stepId: string | null = null
-    let hasEmittedTextMessageStart = false
-    let reasoningMessageId: string | undefined
-    let hasClosedReasoning = false
-    // Track whether we've emitted a terminal RUN_FINISHED so the
-    // end-of-stream fallback below knows to synthesise one when the upstream
-    // cuts off without a response.completed event.
-    let runFinishedEmitted = false
-
-    const adapterName = this.name
-    const emitModel = () => model || options.model
-
-    const openReasoning = function* (): Generator<AdapterYieldChunk> {
-      if (reasoningMessageId) return
-      reasoningMessageId = generateId(adapterName)
-      stepId = generateId(adapterName)
-      const timestamp = Date.now()
-      const currentModel = emitModel()
-      yield {
-        type: EventType.REASONING_START,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.REASONING_MESSAGE_START,
-        messageId: reasoningMessageId,
-        role: 'reasoning' as const,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.STEP_STARTED,
-        stepName: stepId,
-        stepId,
-        model: currentModel,
-        timestamp,
-        stepType: 'thinking',
-      }
-    }
-
-    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
-      if (!reasoningMessageId || hasClosedReasoning) return
-      hasClosedReasoning = true
-      const timestamp = Date.now()
-      const currentModel = emitModel()
-      yield {
-        type: EventType.REASONING_MESSAGE_END,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      yield {
-        type: EventType.REASONING_END,
-        messageId: reasoningMessageId,
-        model: currentModel,
-        timestamp,
-      }
-      if (stepId) {
-        yield {
-          type: EventType.STEP_FINISHED,
-          stepName: stepId,
-          stepId,
-          model: currentModel,
-          timestamp,
-          content: accumulatedReasoning,
-        }
-      }
-      reasoningMessageId = undefined
-      stepId = null
-      hasClosedReasoning = false
-      accumulatedReasoning = ''
-    }
-
-    const emitReasoningDelta = function* (
-      text: string,
-    ): Generator<AdapterYieldChunk> {
-      if (!text) return
-      yield* openReasoning()
-      if (!reasoningMessageId) return
-      accumulatedReasoning += text
-      hasStreamedReasoningDeltas = true
-      yield {
-        type: EventType.REASONING_MESSAGE_CONTENT,
-        messageId: reasoningMessageId,
-        delta: text,
-        model: emitModel(),
-        timestamp: Date.now(),
-      }
-    }
-
-    try {
-      for await (const chunk of stream) {
-        options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
-          provider: this.name,
-          type: chunk.type,
-        })
-
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield {
-            type: EventType.RUN_STARTED,
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            parentRunId: options.parentRunId,
-          }
-        }
-
-        const handleContentPart = (contentPart: {
-          type: string
-          text?: string
-          refusal?: string
-        }): AdapterYieldChunk => {
-          if (contentPart.type === 'output_text') {
-            accumulatedContent += contentPart.text || ''
-            return {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: contentPart.text || '',
-              content: accumulatedContent,
-            }
-          }
-
-          // Either a real refusal or an unknown content_part type. Surface
-          // the part type in the error so unknown parts are debuggable
-          // instead of being misreported as "Unknown refusal".
-          const isRefusal = contentPart.type === 'refusal'
-          const message = isRefusal
-            ? contentPart.refusal || 'Refused without explanation'
-            : `Unsupported response content_part type: ${contentPart.type}`
-          const code = isRefusal ? 'refusal' : contentPart.type
-          return {
-            type: EventType.RUN_ERROR,
-            model: model || options.model,
-            timestamp: Date.now(),
-            message,
-            code,
-            error: { message, code },
-          }
-        }
-
-        // Capture model metadata from any of these events (created starts
-        // the run; failed/incomplete signal terminal failure).
-        if (
-          chunk.type === 'response.created' ||
-          chunk.type === 'response.incomplete' ||
-          chunk.type === 'response.failed'
-        ) {
-          model = chunk.response.model
-        }
-
-        // response.created marks the start of a fresh run — safe to reset
-        // the per-run accumulators here.
-        if (chunk.type === 'response.created') {
-          hasStreamedContentDeltas = false
-          hasStreamedReasoningDeltas = false
-          hasEmittedTextMessageStart = false
-          reasoningMessageId = undefined
-          hasClosedReasoning = false
-          stepId = null
-          accumulatedContent = ''
-          accumulatedReasoning = ''
-        }
-
-        // response.failed and response.incomplete are TERMINAL events for
-        // the current response. Close any open AG-UI message lifecycle FIRST
-        // so consumers tracking start/end pairs don't see an unbalanced
-        // TEXT_MESSAGE_START. Then surface the error and mark the run as
-        // finished so the post-loop synthetic terminal block doesn't emit
-        // a duplicate RUN_FINISHED on top of RUN_ERROR.
-        if (
-          chunk.type === 'response.failed' ||
-          chunk.type === 'response.incomplete'
-        ) {
-          yield* closeReasoning()
-          if (hasEmittedTextMessageStart) {
-            yield {
-              type: EventType.TEXT_MESSAGE_END,
-              messageId: aguiState.messageId,
-              model: chunk.response.model,
-              timestamp: Date.now(),
-            }
-            hasEmittedTextMessageStart = false
-          }
-          // Coalesce error + incomplete_details into a single RUN_ERROR
-          // payload — emitting two distinct events for one terminal upstream
-          // event would force consumers to handle a non-existent ordering.
-          const errorMessage =
-            chunk.response.error?.message ||
-            chunk.response.incomplete_details?.reason ||
-            (chunk.type === 'response.failed'
-              ? 'Response failed'
-              : 'Response ended incomplete')
-          const errorCode =
-            chunk.response.error?.code ??
-            (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
-            undefined
-          // Always emit RUN_ERROR for terminal failure events, even when the
-          // upstream omitted both `error` and `incomplete_details`. Skipping
-          // emission on a `response.incomplete` with no detail would let the
-          // post-loop synthetic block silently coerce the run to a clean
-          // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
-          yield {
-            type: EventType.RUN_ERROR,
-            model: chunk.response.model,
-            timestamp: Date.now(),
-            message: errorMessage,
-            ...(errorCode !== undefined && { code: errorCode }),
-            error: {
-              message: errorMessage,
-              ...(errorCode !== undefined && { code: errorCode }),
-            },
-          }
-          // RUN_ERROR is the terminal event for this run; stop processing
-          // any further chunks the iterator might still deliver.
-          runFinishedEmitted = true
-          return
-        }
-
-        // Handle output text deltas (token-by-token streaming)
-        // response.output_text.delta provides incremental text updates
-        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
-          // Delta can be an array of strings or a single string
-          const textDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-
-          if (textDelta) {
-            yield* closeReasoning()
-            // Emit TEXT_MESSAGE_START on first text content
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                role: 'assistant',
-              }
-            }
-
-            accumulatedContent += textDelta
-            hasStreamedContentDeltas = true
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: textDelta,
-              content: accumulatedContent,
-            }
-          }
-        }
-
-        // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
-        // response.reasoning_text.delta provides incremental reasoning updates
-        if (
-          (chunk.type === 'response.reasoning_text.delta' ||
-            chunk.type === 'response.reasoning.delta') &&
-          chunk.delta
-        ) {
-          const reasoningDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-          yield* emitReasoningDelta(reasoningDelta)
-        }
-
-        // Handle reasoning summary deltas (when using reasoning.summary option)
-        if (
-          chunk.type === 'response.reasoning_summary_text.delta' &&
-          chunk.delta
-        ) {
-          const summaryDelta =
-            typeof chunk.delta === 'string' ? chunk.delta : ''
-          yield* emitReasoningDelta(summaryDelta)
-        }
-
-        // handle content_part added events for text, reasoning and refusals
-        if (chunk.type === 'response.content_part.added') {
-          const contentPart = chunk.part
-          // The Responses API can announce a text part with an empty
-          // placeholder before putting the actual text only on the completed
-          // response. An empty placeholder is not streamed content and must
-          // not suppress the completion backstop below.
-          if (
-            (contentPart.type === 'output_text' ||
-              contentPart.type === 'reasoning_text') &&
-            !contentPart.text
-          ) {
-            continue
-          }
-          if (contentPart.type === 'reasoning_text') {
-            yield* emitReasoningDelta(contentPart.text || '')
-            continue
-          }
-          if (
-            contentPart.type === 'output_text' &&
-            !hasEmittedTextMessageStart
-          ) {
-            yield* closeReasoning()
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-          // Mark whichever stream we just emitted into so a subsequent
-          // `content_part.done` doesn't duplicate the same text. Without
-          // this flag, an `added` event carrying the full text followed by
-          // a matching `done` event would emit TEXT_MESSAGE_CONTENT twice.
-          if (contentPart.type === 'output_text') {
-            hasStreamedContentDeltas = true
-          }
-          const partChunk = handleContentPart(contentPart)
-          yield partChunk
-          // handleContentPart returns RUN_ERROR for refusals / unknown
-          // content_part types — those are terminal events. Don't keep
-          // processing more chunks (and don't let the post-loop synthetic
-          // block emit a second terminal event).
-          if (partChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
-          }
-        }
-
-        if (chunk.type === 'response.content_part.done') {
-          const contentPart = chunk.part
-
-          // Skip emitting chunks for content parts that we've already streamed via deltas
-          // The done event is just a completion marker, not new content
-          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
-            // Content already accumulated from deltas, skip
-            continue
-          }
-          if (
-            contentPart.type === 'reasoning_text' &&
-            hasStreamedReasoningDeltas
-          ) {
-            // Reasoning already accumulated from deltas, skip
-            continue
-          }
-
-          // Upstreams that emit `content_part.done` without any preceding
-          // deltas (or `content_part.added`) still need a START event before
-          // CONTENT — otherwise consumers tracking start/end pairs see content
-          // without a start and never see an end. Emit the lifecycle opener
-          // for whichever stream this content_part belongs to before yielding
-          // the CONTENT chunk; the post-loop block emits the matching END.
-          if (contentPart.type === 'reasoning_text') {
-            yield* emitReasoningDelta(contentPart.text || '')
-            continue
-          }
-          if (
-            contentPart.type === 'output_text' &&
-            !hasEmittedTextMessageStart
-          ) {
-            yield* closeReasoning()
-            hasEmittedTextMessageStart = true
-            yield {
-              type: EventType.TEXT_MESSAGE_START,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              role: 'assistant',
-            }
-          }
-
-          // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
-          const doneChunk = handleContentPart(contentPart)
-          yield doneChunk
-          if (doneChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
-          }
-        }
-
-        // handle output_item.added to capture function call metadata (name)
-        if (chunk.type === 'response.output_item.added') {
-          const item = chunk.item
-          if (item.type === 'function_call' && item.id) {
-            // Track the item as soon as we see it so subsequent arg deltas
-            // aren't logged as orphans, but only emit TOOL_CALL_START when
-            // both id AND name are populated. Emitting START with an empty
-            // name would propagate into TOOL_CALL_END (which reads the same
-            // metadata) and route the tool call to whatever name happens to
-            // match `''` downstream — a silent misroute.
-            let metadata = toolCallMetadata.get(item.id)
-            if (!metadata) {
-              metadata = {
-                callId: item.call_id || item.id,
-                index: chunk.output_index,
-                name: item.name || '',
-                started: false,
-              }
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.call_id) metadata.callId = item.call_id
-              if (!metadata.name && item.name) {
-                // A later output_item.added for the same id finally carries
-                // the name. Update so the gated emission below can fire.
-                metadata.name = item.name
-              }
-            }
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: chunk.output_index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-          }
-        }
-
-        // Handle function call arguments delta (streaming). Drop the
-        // previously-emitted `args` field — it had inverted polarity
-        // (populated only when metadata was MISSING, i.e. when the
-        // matching TOOL_CALL_START hadn't fired) and the chat-completions
-        // adapter never emitted it, so it leaked partial deltas as
-        // pseudo-args only on the orphan path. Consumers should accumulate
-        // `delta` themselves.
-        //
-        // Guard with `metadata?.started`: the matching TOOL_CALL_START fires
-        // from `output_item.added`, and emitting TOOL_CALL_ARGS before that
-        // would violate the AG-UI lifecycle (ARGS without START). The .done
-        // handler below applies the same guard.
-        if (
-          chunk.type === 'response.function_call_arguments.delta' &&
-          chunk.delta
-        ) {
-          const metadata = toolCallMetadata.get(chunk.item_id)
-          if (!metadata?.started) {
-            options.logger.errors(
-              `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
-              {
-                source: `${this.name}.processStreamChunks`,
-                // No metadata yet, so the `call_id` is unknown here — only the
-                // output item id the delta referenced.
-                itemId: chunk.item_id,
-                rawDelta: chunk.delta,
-              },
-            )
-            continue
-          }
-          yield {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: metadata.callId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            delta: chunk.delta,
-          }
-        }
-
-        if (chunk.type === 'response.function_call_arguments.done') {
-          const { item_id } = chunk
-
-          // Get the function name from metadata (captured in output_item.added)
-          const metadata = toolCallMetadata.get(item_id)
-          // If the matching START was never emitted (the upstream sent an
-          // `output_item.added` without a name and no later event has filled
-          // it in yet), defer END until `output_item.done` or
-          // `response.completed` can backfill the name. We stash the raw
-          // arguments so the late emission has them. Emitting END without
-          // START would produce an unbalanced AG-UI lifecycle event
-          // downstream consumers can't pair.
-          if (!metadata?.started) {
-            if (metadata) {
-              metadata.pendingArguments = chunk.arguments
-            }
-            options.logger.errors(
-              `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
-              {
-                source: `${this.name}.processStreamChunks`,
-                ...(metadata && { toolCallId: metadata.callId }),
-                itemId: item_id,
-                rawArguments: chunk.arguments,
-              },
-            )
-            continue
-          }
-          // The output_item.done backstop may have already emitted END (when
-          // it arrived before args.done with a populated item.arguments).
-          // Skip so we never produce a duplicate close for the same id.
-          if (metadata.ended) continue
-          const name = metadata.name || ''
-          metadata.ended = true
-
-          // Parse arguments. Surface parse failures via the logger so a
-          // model emitting malformed JSON is debuggable instead of silently
-          // invoking the tool with {}.
-          let parsedInput: unknown = {}
-          if (chunk.arguments) {
-            try {
-              const parsed = JSON.parse(chunk.arguments)
-              parsedInput = normalizeToolInput(
-                name,
-                parsed && typeof parsed === 'object' ? parsed : {},
-              )
-            } catch (parseError) {
-              options.logger.errors(
-                `${this.name}.processStreamChunks tool-args JSON parse failed`,
-                {
-                  error: toRunErrorPayload(
-                    parseError,
-                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                  ),
-                  source: `${this.name}.processStreamChunks`,
-                  toolCallId: metadata.callId,
-                  itemId: item_id,
-                  toolName: name,
-                  rawArguments: chunk.arguments,
-                },
-              )
-              parsedInput = {}
-            }
-          }
-
-          yield {
-            type: EventType.TOOL_CALL_END,
-            toolCallId: metadata.callId,
-            toolCallName: name,
-            toolName: name,
-            model: model || options.model,
-            timestamp: Date.now(),
-            input: parsedInput,
-          }
-        }
-
-        // `output_item.done` is the last point at which a function_call's
-        // name is guaranteed to be on the wire — it carries the fully-formed
-        // ResponseFunctionToolCall. Use it as a backstop to recover any
-        // tool call whose name was missing from `output_item.added` (and
-        // whose START + END therefore never fired).
-        if (chunk.type === 'response.output_item.done') {
-          const item = chunk.item
-          if (item.type === 'function_call' && item.id) {
-            const metadata = toolCallMetadata.get(item.id) ?? {
-              callId: item.call_id || item.id,
-              index: chunk.output_index,
-              name: item.name || '',
-              started: false,
-            }
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.call_id) metadata.callId = item.call_id
-              if (!metadata.name && item.name) metadata.name = item.name
-            }
-            // Emit gated START if we now have a name and never started.
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-            // Emit END if we have args (either from a previously-deferred
-            // args.done OR from item.arguments) and haven't already ended.
-            const rawArgs =
-              typeof item.arguments === 'string' && item.arguments.length > 0
-                ? item.arguments
-                : metadata.pendingArguments
-            if (metadata.started && !metadata.ended && rawArgs !== undefined) {
-              const name = metadata.name || ''
-              let parsedInput: unknown = {}
-              if (rawArgs) {
-                try {
-                  const parsed = JSON.parse(rawArgs)
-                  parsedInput = normalizeToolInput(
-                    name,
-                    parsed && typeof parsed === 'object' ? parsed : {},
-                  )
-                } catch (parseError) {
-                  options.logger.errors(
-                    `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
-                    {
-                      error: toRunErrorPayload(
-                        parseError,
-                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                      ),
-                      source: `${this.name}.processStreamChunks`,
-                      toolCallId: metadata.callId,
-                      itemId: item.id,
-                      toolName: name,
-                      rawArguments: rawArgs,
-                    },
-                  )
-                  parsedInput = {}
-                }
-              }
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: metadata.callId,
-                toolCallName: name,
-                toolName: name,
-                model: model || options.model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-              metadata.ended = true
-              metadata.pendingArguments = undefined
-            }
-          }
-        }
-
-        if (chunk.type === 'response.completed') {
-          // Some Responses API streams, notably reasoning-model responses,
-          // can omit text deltas and carry the successful final text only in
-          // response.completed.output. Recover that text so consumers never
-          // observe an empty result for a successful response.
-          const completedText = chunk.response.output
-            .flatMap((item) => (item.type === 'message' ? item.content : []))
-            .filter((part) => part.type === 'output_text')
-            .map((part) => part.text)
-            .join('')
-
-          if (accumulatedContent.length === 0 && completedText.length > 0) {
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                role: 'assistant',
-              }
-            }
-
-            accumulatedContent = completedText
-            hasStreamedContentDeltas = true
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: completedText,
-              content: accumulatedContent,
-            }
-          }
-
-          // Final backstop for function_call lifecycle: if a function_call
-          // appears in `response.output[]` but was never matched by an
-          // output_item.added/done with a name, recover the missing START
-          // (and END if args were pending). Without this, a tool call could
-          // be silently dropped from the AG-UI stream while `hasFunctionCalls`
-          // below still routes the run's finishReason to 'tool_calls' —
-          // leaving consumers waiting for tool results they never saw start.
-          for (const item of chunk.response.output) {
-            if (item.type !== 'function_call' || !item.id) continue
-            const metadata = toolCallMetadata.get(item.id) ?? {
-              callId: item.call_id || item.id,
-              index: 0,
-              name: item.name || '',
-              started: false,
-            }
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, metadata)
-            } else {
-              if (item.call_id) metadata.callId = item.call_id
-              if (!metadata.name && item.name) metadata.name = item.name
-            }
-            if (!metadata.started && metadata.name) {
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: metadata.callId,
-                toolCallName: metadata.name,
-                toolName: metadata.name,
-                parentMessageId: aguiState.messageId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
-              }
-              metadata.started = true
-            }
-            const rawArgs =
-              typeof item.arguments === 'string' && item.arguments.length > 0
-                ? item.arguments
-                : metadata.pendingArguments
-            if (metadata.started && !metadata.ended) {
-              const name = metadata.name || ''
-              let parsedInput: unknown = {}
-              if (rawArgs) {
-                try {
-                  const parsed = JSON.parse(rawArgs)
-                  parsedInput = normalizeToolInput(
-                    name,
-                    parsed && typeof parsed === 'object' ? parsed : {},
-                  )
-                } catch (parseError) {
-                  options.logger.errors(
-                    `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,
-                    {
-                      error: toRunErrorPayload(
-                        parseError,
-                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
-                      ),
-                      source: `${this.name}.processStreamChunks`,
-                      toolCallId: metadata.callId,
-                      itemId: item.id,
-                      toolName: name,
-                      rawArguments: rawArgs,
-                    },
-                  )
-                  parsedInput = {}
-                }
-              }
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: metadata.callId,
-                toolCallName: name,
-                toolName: name,
-                model: model || options.model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-              metadata.ended = true
-              metadata.pendingArguments = undefined
-            }
-          }
-
-          yield* closeReasoning()
-          // Emit TEXT_MESSAGE_END if we had text content
-          if (hasEmittedTextMessageStart) {
-            yield {
-              type: EventType.TEXT_MESSAGE_END,
-              messageId: aguiState.messageId,
-              model: model || options.model,
-              timestamp: Date.now(),
-            }
-            hasEmittedTextMessageStart = false
-          }
-
-          // Determine finish reason. Function-call output → tool_calls.
-          // Otherwise surface incomplete_details.reason when present so
-          // callers can distinguish length-limit / content-filter cutoffs
-          // from a clean stop, mirroring the chat-completions adapter.
-          // The Responses API's incomplete_details.reason ('max_output_tokens'
-          // | 'content_filter') maps to the AG-UI finishReason vocabulary:
-          // max_output_tokens → 'length', content_filter → 'content_filter'.
-          const hasFunctionCalls = chunk.response.output.some(
-            (item: unknown) =>
-              (item as { type: string }).type === 'function_call',
-          )
-          const incompleteReason = chunk.response.incomplete_details?.reason
-          const finishReason:
-            | 'tool_calls'
-            | 'length'
-            | 'content_filter'
-            | 'stop' = hasFunctionCalls
-            ? 'tool_calls'
-            : incompleteReason === 'max_output_tokens'
-              ? 'length'
-              : incompleteReason === 'content_filter'
-                ? 'content_filter'
-                : 'stop'
-
-          yield {
-            type: EventType.RUN_FINISHED,
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: model || options.model,
-            timestamp: Date.now(),
-            // Omit usage entirely when the provider reported none rather than
-            // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
-            ...(chunk.response.usage && {
-              usage: buildResponsesUsage(chunk.response.usage),
-            }),
-            finishReason,
-          }
-          runFinishedEmitted = true
-        }
-
-        if (chunk.type === 'error') {
-          // Conditional `code` spread keeps the wire shape spec-compliant
-          // under `exactOptionalPropertyTypes` (see chatStream catch).
-          const code = chunk.code ?? undefined
-          yield {
-            type: EventType.RUN_ERROR,
-            model: model || options.model,
-            timestamp: Date.now(),
-            message: chunk.message,
-            ...(code !== undefined && { code }),
-            error: {
-              message: chunk.message,
-              ...(code !== undefined && { code }),
-            },
-          }
-          // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
-          // block fire after a top-level stream error event, and stop
-          // processing further chunks so no in-flight lifecycle events
-          // (TEXT_MESSAGE_CONTENT, TOOL_CALL_*) leak past the terminal
-          // error. Mirrors the `response.failed` / `response.incomplete`
-          // branches above which return after their RUN_ERROR emission.
-          runFinishedEmitted = true
-          return
-        }
-      }
-
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event (e.g. truncated upstream connection). This
-      // mirrors the chat-completions adapter's behavior so consumers always
-      // see a terminal event for every started run.
-      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
-        yield* closeReasoning()
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId: aguiState.messageId,
-            model: model || options.model,
-            timestamp: Date.now(),
-          }
-        }
-        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
-        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
-        // `RunFinishedEvent.usage` is optional without `| undefined` under
-        // `exactOptionalPropertyTypes`.
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: model || options.model,
-          timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
-        }
-      }
-    } catch (error: unknown) {
-      // Narrow before logging: raw SDK errors can carry request metadata
-      // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.processStreamChunks failed`,
-      )
-      const rawEvent = toRunErrorRawEvent(error)
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
-      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
-      // catch for the rationale). `rawEvent` carries the provider's structured
-      // error body when present.
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        },
-      }
-    }
+    })
   }
 
   /**
@@ -1912,129 +1156,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: 'input_text',
           text: part.content,
         }
-      case 'image': {
-        const imageMetadata = part.metadata as
-          | { detail?: 'auto' | 'low' | 'high' }
-          | undefined
-        if (part.source.type === 'url') {
-          return {
-            type: 'input_image',
-            image_url: part.source.value,
-            detail: imageMetadata?.detail || 'auto',
-          }
-        }
-        // For base64 data, construct a data URI using the mimeType from
-        // source. Default to a generic octet-stream MIME if the source
-        // didn't supply one — letting `undefined` interpolate would produce
-        // an invalid URI like "data:undefined;base64,...".
-        const imageValue = part.source.value
-        const imageMime = part.source.mimeType || 'application/octet-stream'
-        const imageUrl = imageValue.startsWith('data:')
-          ? imageValue
-          : `data:${imageMime};base64,${imageValue}`
-        return {
-          type: 'input_image',
-          image_url: imageUrl,
-          detail: imageMetadata?.detail || 'auto',
-        }
-      }
-      case 'audio': {
-        if (part.source.type === 'url') {
-          return {
-            type: 'input_file',
-            file_url: part.source.value,
-          }
-        }
-        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
-        // payloads (matches the image branch above).
-        // Default the MIME if missing so we never interpolate `undefined`.
-        const audioValue = part.source.value
-        const audioMime = part.source.mimeType || 'application/octet-stream'
-        const audioFileData = audioValue.startsWith('data:')
-          ? audioValue
-          : `data:${audioMime};base64,${audioValue}`
-        return {
-          type: 'input_file',
-          file_data: audioFileData,
-        }
-      }
-
-      case 'document': {
-        const documentMetadata = part.metadata as
-          | { filename?: string; detail?: 'auto' | 'low' | 'high' }
-          | undefined
-        // Spread `detail` only when provided so the API applies its own
-        // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
-        // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
-        // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
-        // pass through without a type error.
-        const documentDetail =
-          documentMetadata?.detail !== undefined
-            ? { detail: documentMetadata.detail as 'low' | 'high' }
-            : {}
-        if (part.source.type === 'url') {
-          // The Responses API fetches the PDF itself; filename and MIME
-          // type are inferred from the response.
-          return {
-            type: 'input_file',
-            file_url: part.source.value,
-            ...documentDetail,
-          }
-        }
-        // This adapter supports only PDF documents; anything else is
-        // rejected. MIME types are case-insensitive and can carry
-        // ;parameters (RFC 2045), so the type is normalized before comparing.
-        const documentValue = part.source.value
-        const documentMime = (
-          (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
-        )
-          .trim()
-          .toLowerCase()
-        if (documentMime !== 'application/pdf') {
-          throw new Error(
-            `${this.name} document parts only support application/pdf ` +
-              `(received ${documentMime})`,
-          )
-        }
-        // A pre-wrapped data URL carries its own media type — validate it too.
-        if (
-          documentValue.startsWith('data:') &&
-          !/^data:application\/pdf[;,]/i.test(documentValue)
-        ) {
-          throw new Error(
-            `${this.name} document parts only support application/pdf ` +
-              `(received data URL with non-PDF media type)`,
-          )
-        }
-        // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
-        // caught locally instead of by an opaque provider 400. Only base64
-        // payloads are checked; a rare `data:` URL without `;base64` is left
-        // to the server.
-        const documentBase64 = documentValue.startsWith('data:')
-          ? /;base64,/i.test(documentValue)
-            ? documentValue.slice(documentValue.indexOf(',') + 1)
-            : ''
-          : documentValue
-        if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
-          throw new Error(
-            `${this.name} document parts only support application/pdf ` +
-              `(inline data does not start with the %PDF header)`,
-          )
-        }
-        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
-        // payloads (matches the image and audio branches above).
-        const documentFileData = documentValue.startsWith('data:')
-          ? documentValue
-          : `data:${documentMime};base64,${documentValue}`
-        return {
-          type: 'input_file',
-          // The Responses API requires a filename alongside PDF `file_data`.
-          filename: documentMetadata?.filename || 'document.pdf',
-          file_data: documentFileData,
-          ...documentDetail,
-        }
-      }
-
+      case 'image':
+        return convertImagePartToInput(part)
+      case 'audio':
+        return convertAudioPartToInput(part)
+      case 'document':
+        return convertDocumentPartToInput(part, this.name)
       case 'video':
       default:
         // OpenAI Responses API doesn't accept native video parts on this

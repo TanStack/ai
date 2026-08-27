@@ -344,6 +344,333 @@ export class AcpCompatibleTextAdapter<
       resolvePermission(request, input.mode, input.bridgedToolNames)
   }
 
+  private resolveAcpLayout(
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    sandbox: SandboxHandle,
+  ) {
+    const modelOptions = options.modelOptions
+    const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
+    const harnessCwd = resolveHarnessCwd(sandbox, cwd)
+    // This adapter does not journal yet, so a generated id is still fine.
+    // Routed through the helper anyway so that whenever it gains journaling
+    // it inherits the caller-supplied-runId requirement instead of
+    // re-deriving it (see `packages/ai-sandbox/src/durability.ts`).
+    const runId = resolveDurableRunId(options.runId, {
+      durable: false,
+      adapter: 'acp',
+      fallback: () => this.generateId(),
+    })
+    const threadId = options.threadId ?? this.generateId()
+    return { modelOptions, cwd, harnessCwd, runId, threadId }
+  }
+
+  private enforceAcpDurability(
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    logger: TextOptions['logger'],
+    runId: string,
+  ): void {
+    // Durability wired onto a path that cannot deliver it. Two outcomes, split
+    // by whether a first attempt has already run.
+    //
+    // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
+    // when a previous host was already streaming this run, so continuing past
+    // here reaches `startAcpSession` + `session.prompt(...)` and re-runs the
+    // agent from scratch against the workspace that attempt already mutated,
+    // appending its whole output to a log that still holds the first
+    // attempt's. This adapter has no journal to tail, no
+    // `awaitAttachableJournal` to refuse the attach up front, and no
+    // `alignedIfAttaching` to suppress the already-delivered prefix — so there
+    // is nothing between here and that corruption except this throw.
+    //
+    // A FRESH durable run only fails to be recoverable LATER, which an app may
+    // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
+    // the middleware level and still route some runs through this adapter). So
+    // that is a warn, not a throw: audible, not fatal. Once per run, not per
+    // chunk — a per-chunk warning would be worse than none. Mirrors
+    // `ai-grok-build`'s `chatStreamAcp`.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    if (durability === undefined) return
+    if (durability.attach) {
+      throw new DurableAttachNotSupportedError(
+        'acp',
+        'this adapter drives the harness over a bidirectional ACP ' +
+          'connection and does not journal',
+      )
+    }
+    logger.warn(
+      'acp: sandbox durability is wired but this adapter never journals — ' +
+        'this run will not be recoverable on reconnect. Use a journaling ' +
+        'harness adapter for runs that must survive a host restart, or drop ' +
+        'durability if these runs are not meant to.',
+      { runId, adapter: 'acp' },
+    )
+  }
+
+  private async provisionAcpToolBridge(
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    sandbox: SandboxHandle,
+    channel: ReturnType<typeof createBridgeEventChannel>,
+    externalSignal: AbortSignal | undefined,
+  ): Promise<HostToolBridge | undefined> {
+    if (!options.tools || options.tools.length === 0) return undefined
+    const provisioner =
+      (options.capabilities
+        ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+        : undefined) ?? nodeHttpBridgeProvisioner
+    return provisioner.provision(options.tools, {
+      provider: sandbox.provider,
+      context: options.context,
+      emitCustomEvent: channel.emitCustomEvent,
+      ...(externalSignal ? { signal: externalSignal } : {}),
+    })
+  }
+
+  private async projectAcpWorkspaceServers(
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    sandbox: SandboxHandle,
+  ): Promise<Array<AcpMcpServer>> {
+    const projection = options.capabilities
+      ? getWorkspaceProjection(options.capabilities, { optional: true })
+      : undefined
+    if (projection === undefined) return []
+    await projectAcpWorkspace(sandbox, projection, {
+      ...(this.harness.skillsDir !== undefined && {
+        skillsDir: this.harness.skillsDir,
+      }),
+      harnessName: this.name,
+    })
+    return workspaceMcpServers(projection)
+  }
+
+  private resolveAcpAuth(
+    modelOptions: ResolvedOptions<TModelOptions> | undefined,
+  ): { mode: AcpPermissionMode; authMethodId: string | undefined } {
+    const mode =
+      modelOptions?.permissionMode ??
+      this.harness.permissionMode ??
+      'bypassPermissions'
+    const authMode =
+      modelOptions?.authMode ?? this.harness.authMode ?? 'api-key'
+    const authMethodId =
+      authMode === 'host'
+        ? undefined
+        : (modelOptions?.authMethodId ?? this.harness.authMethodId)
+    return { mode, authMethodId }
+  }
+
+  private collectAcpMcpServers(
+    bridge: HostToolBridge | undefined,
+    workspaceServers: Array<AcpMcpServer>,
+  ): Array<AcpMcpServer> {
+    return [
+      ...(bridge !== undefined
+        ? [
+            {
+              name: bridge.name,
+              url: bridge.url,
+              headers: [
+                { name: 'Authorization', value: `Bearer ${bridge.token}` },
+              ],
+            },
+          ]
+        : []),
+      ...workspaceServers,
+    ]
+  }
+
+  private bindAcpAbort(
+    externalSignal: AbortSignal | undefined,
+    session: AcpSessionHandle,
+  ): (() => void) | undefined {
+    if (externalSignal === undefined) return undefined
+    const onAbort = () => void session.cancel().catch(() => undefined)
+    if (externalSignal.aborted) onAbort()
+    else externalSignal.addEventListener('abort', onAbort, { once: true })
+    return onAbort
+  }
+
+  private composeAcpPromptText(
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    session: AcpSessionHandle,
+    sessionId: string | undefined,
+    resumePrompt: string,
+  ): string {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+      .map((p) => p.content)
+      .filter((c) => c.trim() !== '')
+    let promptText = this.applySystemPrompts(
+      systemPrompts,
+      session.resumed || sessionId === undefined
+        ? resumePrompt
+        : this.buildPrompt(options.messages, undefined).prompt,
+    )
+    if (options.outputSchema) {
+      promptText = appendOutputSchemaInstruction(
+        promptText,
+        options.outputSchema,
+      )
+    }
+    return promptText
+  }
+
+  private startAcpPrompt(
+    session: AcpSessionHandle,
+    queue: AsyncQueue<AcpStreamEvent>,
+    promptText: string,
+  ): void {
+    session
+      .prompt(promptText)
+      .then(({ stopReason, usage }) => {
+        queue.push({
+          kind: 'done',
+          stopReason,
+          ...(usage !== undefined && { usage }),
+        })
+        queue.end()
+      })
+      .catch((error: unknown) => queue.fail(error))
+  }
+
+  private async *streamAcpChunks(input: {
+    options: TextOptions<ResolvedOptions<TModelOptions>>
+    channel: ReturnType<typeof createBridgeEventChannel>
+    queue: AsyncQueue<AcpStreamEvent>
+    bridgedToolNames: ReadonlySet<string>
+    threadId: string
+    runId: string
+    sandbox: SandboxHandle
+    cwd: string
+    approvalRequests: Array<AdapterYieldChunk>
+  }): AsyncIterable<AdapterYieldChunk> {
+    const {
+      options,
+      channel,
+      queue,
+      bridgedToolNames,
+      threadId,
+      runId,
+      sandbox,
+      cwd,
+      approvalRequests,
+    } = input
+    const wantsStructured = options.outputSchema !== undefined
+    let lastAssistantText = ''
+    let lastTextMessageId: string | undefined
+    let heldFinished: AdapterYieldChunk | undefined
+    for await (const chunk of mergeChunkStreams(
+      translateAcpStream(queue, {
+        model: this.model,
+        runId,
+        threadId,
+        ...(options.parentRunId !== undefined && {
+          parentRunId: options.parentRunId,
+        }),
+        genId: () => this.generateId(),
+        bridgedToolNames,
+        labels: {
+          sessionIdEvent: `${this.name}.session-id`,
+          // Surface non-text agent content (image/audio/resource) instead of
+          // dropping it — emitted as a CUSTOM `<name>.message-content` event.
+          contentEvent: `${this.name}.message-content`,
+          ...(this.harness.planEventName !== undefined && {
+            planEvent: this.harness.planEventName,
+          }),
+          ...(this.harness.refusalMessage !== undefined && {
+            refusalMessage: this.harness.refusalMessage,
+          }),
+        },
+        onAcpEvent: (event) =>
+          options.logger.provider(`provider=${this.name} kind=${event.kind}`, {
+            chunk: event,
+          }),
+      }),
+      channel.stream,
+    )) {
+      if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+        heldFinished = chunk
+        continue
+      }
+      if (wantsStructured) {
+        if (chunk.type === EventType.TEXT_MESSAGE_START) {
+          lastAssistantText = ''
+          if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+            lastTextMessageId = chunk.messageId
+          }
+        } else if (
+          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+          typeof chunk.delta === 'string'
+        ) {
+          lastAssistantText += chunk.delta
+        }
+      }
+      yield chunk
+    }
+
+    if (options.outputSchema) {
+      yield* this.emitParsedStructuredOutput(
+        lastAssistantText,
+        threadId,
+        runId,
+        lastTextMessageId,
+      )
+    }
+    if (heldFinished) yield heldFinished
+
+    // Surface any pending approval requests (interactive ask-policy actions
+    // awaiting a client decision); the client approves and re-runs to continue.
+    for (const event of approvalRequests) yield event
+
+    if (this.harness.emitDiff) {
+      yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
+    }
+  }
+
+  private acpChatStreamErrorChunk(
+    error: unknown,
+    options: TextOptions<ResolvedOptions<TModelOptions>>,
+    logger: TextOptions['logger'],
+  ): AdapterYieldChunk {
+    const err = error as Error & { code?: string }
+    const rawEvent = toRunErrorRawEvent(error)
+    logger.errors(`${this.name}.chatStream fatal`, {
+      error,
+      source: `${this.name}.chatStream`,
+    })
+    return {
+      type: EventType.RUN_ERROR,
+      model: options.model,
+      timestamp: Date.now(),
+      message: err.message || 'Unknown error occurred',
+      ...(err.code !== undefined && { code: err.code }),
+      ...(rawEvent !== undefined && { rawEvent }),
+      error: {
+        message: err.message || 'Unknown error occurred',
+        ...(err.code !== undefined && { code: err.code }),
+      },
+    }
+  }
+
+  private async releaseAcpChatResources(input: {
+    externalSignal: AbortSignal | undefined
+    onAbort: (() => void) | undefined
+    handle: AcpSessionHandle | undefined
+    transport: AcpSessionTransport | undefined
+    bridge: HostToolBridge | undefined
+  }): Promise<void> {
+    if (input.externalSignal !== undefined && input.onAbort !== undefined) {
+      input.externalSignal.removeEventListener('abort', input.onAbort)
+    }
+    // startAcpSession owns transport teardown once a handle exists (and tears
+    // it down itself on a failed init). Only dispose here if we opened a
+    // transport but never reached a session.
+    if (input.handle !== undefined) await input.handle.dispose()
+    else if (input.transport !== undefined)
+      await disposeTransport(input.transport)
+    await input.bridge?.close()
+  }
+
   async *chatStream(
     options: TextOptions<ResolvedOptions<TModelOptions>>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -357,58 +684,9 @@ export class AcpCompatibleTextAdapter<
 
     try {
       const sandbox = this.sandboxFrom(options)
-      const modelOptions = options.modelOptions
-      const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
-      const harnessCwd = resolveHarnessCwd(sandbox, cwd)
-      // This adapter does not journal yet, so a generated id is still fine.
-      // Routed through the helper anyway so that whenever it gains journaling
-      // it inherits the caller-supplied-runId requirement instead of
-      // re-deriving it (see `packages/ai-sandbox/src/durability.ts`).
-      const runId = resolveDurableRunId(options.runId, {
-        durable: false,
-        adapter: 'acp',
-        fallback: () => this.generateId(),
-      })
-      const threadId = options.threadId ?? this.generateId()
-
-      // Durability wired onto a path that cannot deliver it. Two outcomes, split
-      // by whether a first attempt has already run.
-      //
-      // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
-      // when a previous host was already streaming this run, so continuing past
-      // here reaches `startAcpSession` + `session.prompt(...)` and re-runs the
-      // agent from scratch against the workspace that attempt already mutated,
-      // appending its whole output to a log that still holds the first
-      // attempt's. This adapter has no journal to tail, no
-      // `awaitAttachableJournal` to refuse the attach up front, and no
-      // `alignedIfAttaching` to suppress the already-delivered prefix — so there
-      // is nothing between here and that corruption except this throw.
-      //
-      // A FRESH durable run only fails to be recoverable LATER, which an app may
-      // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
-      // the middleware level and still route some runs through this adapter). So
-      // that is a warn, not a throw: audible, not fatal. Once per run, not per
-      // chunk — a per-chunk warning would be worse than none. Mirrors
-      // `ai-grok-build`'s `chatStreamAcp`.
-      const durability = options.capabilities
-        ? getSandboxDurability(options.capabilities, { optional: true })
-        : undefined
-      if (durability !== undefined) {
-        if (durability.attach) {
-          throw new DurableAttachNotSupportedError(
-            'acp',
-            'this adapter drives the harness over a bidirectional ACP ' +
-              'connection and does not journal',
-          )
-        }
-        logger.warn(
-          'acp: sandbox durability is wired but this adapter never journals — ' +
-            'this run will not be recoverable on reconnect. Use a journaling ' +
-            'harness adapter for runs that must survive a host restart, or drop ' +
-            'durability if these runs are not meant to.',
-          { runId, adapter: 'acp' },
-        )
-      }
+      const { modelOptions, cwd, harnessCwd, runId, threadId } =
+        this.resolveAcpLayout(options, sandbox)
+      this.enforceAcpDurability(options, logger, runId)
 
       const channel = createBridgeEventChannel({
         model: this.model,
@@ -422,38 +700,19 @@ export class AcpCompatibleTextAdapter<
         sessionId,
       )
 
-      // Bridge chat()-provided tools into the agent over MCP (ACP http server).
       const bridgedToolNames = new Set(
         (options.tools ?? []).map((tool) => tool.name),
       )
-      if (options.tools && options.tools.length > 0) {
-        const provisioner =
-          (options.capabilities
-            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
-            : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
-          provider: sandbox.provider,
-          context: options.context,
-          emitCustomEvent: channel.emitCustomEvent,
-          ...(externalSignal ? { signal: externalSignal } : {}),
-        })
-      }
-
-      // Project workspace skills declared via withSandbox. MCP skills ride ACP's
-      // native `mcpServers` (below); gitSkills are linked into `skillsDir`.
-      let workspaceServers: Array<AcpMcpServer> = []
-      const projection = options.capabilities
-        ? getWorkspaceProjection(options.capabilities, { optional: true })
-        : undefined
-      if (projection !== undefined) {
-        await projectAcpWorkspace(sandbox, projection, {
-          ...(this.harness.skillsDir !== undefined && {
-            skillsDir: this.harness.skillsDir,
-          }),
-          harnessName: this.name,
-        })
-        workspaceServers = workspaceMcpServers(projection)
-      }
+      bridge = await this.provisionAcpToolBridge(
+        options,
+        sandbox,
+        channel,
+        externalSignal,
+      )
+      const workspaceServers = await this.projectAcpWorkspaceServers(
+        options,
+        sandbox,
+      )
 
       const ctx: AcpHarnessContext<ResolvedOptions<TModelOptions>> = {
         sandbox,
@@ -468,17 +727,7 @@ export class AcpCompatibleTextAdapter<
         ? await this.harness.openTransport(ctx)
         : await this.openStdioTransport(ctx)
 
-      const mode =
-        modelOptions?.permissionMode ??
-        this.harness.permissionMode ??
-        'bypassPermissions'
-      const authMode =
-        modelOptions?.authMode ?? this.harness.authMode ?? 'api-key'
-      const authMethodId =
-        authMode === 'host'
-          ? undefined
-          : (modelOptions?.authMethodId ?? this.harness.authMethodId)
-
+      const { mode, authMethodId } = this.resolveAcpAuth(modelOptions)
       const approvalRequests: Array<AdapterYieldChunk> = []
       const permissionHandler = this.makePermissionHandler({
         mode,
@@ -496,22 +745,7 @@ export class AcpCompatibleTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      // The host tool-bridge (chat() tools) + workspace MCP skills, both over
-      // ACP's native MCP channel.
-      const mcpServers: Array<AcpMcpServer> = [
-        ...(bridge !== undefined
-          ? [
-              {
-                name: bridge.name,
-                url: bridge.url,
-                headers: [
-                  { name: 'Authorization', value: `Bearer ${bridge.token}` },
-                ],
-              },
-            ]
-          : []),
-        ...workspaceServers,
-      ]
+      const mcpServers = this.collectAcpMcpServers(bridge, workspaceServers)
 
       const onAcpUpdate = (update: AcpSessionUpdate) =>
         queue.push({ kind: 'update', update })
@@ -529,141 +763,38 @@ export class AcpCompatibleTextAdapter<
       })
       const session = handle
 
-      if (externalSignal !== undefined) {
-        onAbort = () => void session.cancel().catch(() => undefined)
-        if (externalSignal.aborted) onAbort()
-        else externalSignal.addEventListener('abort', onAbort, { once: true })
-      }
-
+      onAbort = this.bindAcpAbort(externalSignal, session)
       queue.push({ kind: 'session', sessionId: session.sessionId })
 
-      const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
-        .map((p) => p.content)
-        .filter((c) => c.trim() !== '')
-      let promptText = this.applySystemPrompts(
-        systemPrompts,
-        session.resumed || sessionId === undefined
-          ? resumePrompt
-          : this.buildPrompt(options.messages, undefined).prompt,
+      const promptText = this.composeAcpPromptText(
+        options,
+        session,
+        sessionId,
+        resumePrompt,
       )
-      if (options.outputSchema) {
-        promptText = appendOutputSchemaInstruction(
-          promptText,
-          options.outputSchema,
-        )
-      }
+      this.startAcpPrompt(session, queue, promptText)
 
-      session
-        .prompt(promptText)
-        .then(({ stopReason, usage }) => {
-          queue.push({
-            kind: 'done',
-            stopReason,
-            ...(usage !== undefined && { usage }),
-          })
-          queue.end()
-        })
-        .catch((error: unknown) => queue.fail(error))
-
-      const wantsStructured = options.outputSchema !== undefined
-      let lastAssistantText = ''
-      let lastTextMessageId: string | undefined
-      let heldFinished: AdapterYieldChunk | undefined
-      for await (const chunk of mergeChunkStreams(
-        translateAcpStream(queue, {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          genId: () => this.generateId(),
-          bridgedToolNames,
-          labels: {
-            sessionIdEvent: `${this.name}.session-id`,
-            // Surface non-text agent content (image/audio/resource) instead of
-            // dropping it — emitted as a CUSTOM `<name>.message-content` event.
-            contentEvent: `${this.name}.message-content`,
-            ...(this.harness.planEventName !== undefined && {
-              planEvent: this.harness.planEventName,
-            }),
-            ...(this.harness.refusalMessage !== undefined && {
-              refusalMessage: this.harness.refusalMessage,
-            }),
-          },
-          onAcpEvent: (event) =>
-            logger.provider(`provider=${this.name} kind=${event.kind}`, {
-              chunk: event,
-            }),
-        }),
-        channel.stream,
-      )) {
-        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
-          heldFinished = chunk
-          continue
-        }
-        if (wantsStructured) {
-          if (chunk.type === EventType.TEXT_MESSAGE_START) {
-            lastAssistantText = ''
-            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
-              lastTextMessageId = chunk.messageId
-            }
-          } else if (
-            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-            typeof chunk.delta === 'string'
-          ) {
-            lastAssistantText += chunk.delta
-          }
-        }
-        yield chunk
-      }
-
-      if (options.outputSchema) {
-        yield* this.emitParsedStructuredOutput(
-          lastAssistantText,
-          threadId,
-          runId,
-          lastTextMessageId,
-        )
-      }
-      if (heldFinished) yield heldFinished
-
-      // Surface any pending approval requests (interactive ask-policy actions
-      // awaiting a client decision); the client approves and re-runs to continue.
-      for (const event of approvalRequests) yield event
-
-      if (this.harness.emitDiff) {
-        yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
-      }
-    } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
-      logger.errors(`${this.name}.chatStream fatal`, {
-        error,
-        source: `${this.name}.chatStream`,
+      yield* this.streamAcpChunks({
+        options,
+        channel,
+        queue,
+        bridgedToolNames,
+        threadId,
+        runId,
+        sandbox,
+        cwd,
+        approvalRequests,
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        ...(err.code !== undefined && { code: err.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          ...(err.code !== undefined && { code: err.code }),
-        },
-      }
+    } catch (error: unknown) {
+      yield this.acpChatStreamErrorChunk(error, options, logger)
     } finally {
-      if (externalSignal !== undefined && onAbort !== undefined) {
-        externalSignal.removeEventListener('abort', onAbort)
-      }
-      // startAcpSession owns transport teardown once a handle exists (and tears
-      // it down itself on a failed init). Only dispose here if we opened a
-      // transport but never reached a session.
-      if (handle !== undefined) await handle.dispose()
-      else if (transport !== undefined) await disposeTransport(transport)
-      await bridge?.close()
+      await this.releaseAcpChatResources({
+        externalSignal,
+        onAbort,
+        handle,
+        transport,
+        bridge,
+      })
     }
   }
 

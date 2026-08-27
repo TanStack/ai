@@ -418,22 +418,72 @@ function sseChunkModel(chunk: StreamChunk): string | undefined {
  *
  * A JSON parse failure throws — the consumer surfaces it as an error.
  */
+interface SseEventParseState {
+  lastThreadId?: string
+  lastRunId?: string
+  lastModel?: string
+  pendingId?: string
+}
+
+function readSseIdLine(line: string): string | false {
+  if (line !== 'id' && !line.startsWith('id:')) return false
+  // SSE spec: strip a single leading space after the colon, preserve the
+  // rest verbatim so an opaque adapter offset round-trips exactly (do NOT
+  // trim, which would mangle a legitimate offset). An empty value is kept as
+  // '' and resets the resume cursor downstream (see resumableStream).
+  const rawId = line === 'id' ? '' : line.slice(3)
+  return rawId.startsWith(' ') ? rawId.slice(1) : rawId
+}
+
+function isSseControlLine(line: string): boolean {
+  return (
+    line.startsWith(':') ||
+    line.startsWith('event:') ||
+    line.startsWith('retry:')
+  )
+}
+
+function createDoneStreamChunk(
+  state: SseEventParseState,
+  fallbackIds?: { threadId?: string; runId?: string },
+): StreamChunk {
+  return withTanstackMetadata(
+    {
+      type: EventType.RUN_FINISHED,
+      threadId: state.lastThreadId ?? fallbackIds?.threadId ?? '',
+      runId: state.lastRunId ?? fallbackIds?.runId ?? '',
+      timestamp: Date.now(),
+    },
+    {
+      finishReason: 'stop',
+      ...(state.lastModel !== undefined ? { model: state.lastModel } : {}),
+    },
+  ) as StreamChunk
+}
+
+function recordSseChunkIds(
+  chunk: StreamChunk,
+  state: SseEventParseState,
+): void {
+  if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+    state.lastThreadId = chunk.threadId
+  }
+  if ('runId' in chunk && typeof chunk.runId === 'string') {
+    state.lastRunId = chunk.runId
+  }
+  const model = sseChunkModel(chunk)
+  if (model !== undefined) state.lastModel = model
+}
+
 async function* linesToSSEEvents(
   lines: AsyncIterable<string>,
   fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
-  let lastThreadId: string | undefined
-  let lastRunId: string | undefined
-  let lastModel: string | undefined
-  let pendingId: string | undefined
+  const state: SseEventParseState = {}
   for await (const line of lines) {
-    if (line === 'id' || line.startsWith('id:')) {
-      // SSE spec: strip a single leading space after the colon, preserve the
-      // rest verbatim so an opaque adapter offset round-trips exactly (do NOT
-      // trim, which would mangle a legitimate offset). An empty value is kept as
-      // '' and resets the resume cursor downstream (see resumableStream).
-      const rawId = line === 'id' ? '' : line.slice(3)
-      pendingId = rawId.startsWith(' ') ? rawId.slice(1) : rawId
+    const idValue = readSseIdLine(line)
+    if (idValue !== false) {
+      state.pendingId = idValue
       continue
     }
     // Assumes the durability wire emits one `id:` immediately followed by one
@@ -441,42 +491,18 @@ async function* linesToSSEEvents(
     // next data line and is cleared after it; blank-line event boundaries are
     // stripped upstream, so a hand-rolled server that emits an id-only event or
     // a persistent `id:` across events is not supported here.
-    if (
-      line.startsWith(':') ||
-      line.startsWith('event:') ||
-      line.startsWith('retry:')
-    ) {
+    if (isSseControlLine(line)) {
       continue
     }
     const data = parseSseDataLine(line)
     if (data === '[DONE]') {
-      yield {
-        chunk: withTanstackMetadata(
-          {
-            type: EventType.RUN_FINISHED,
-            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-            runId: lastRunId ?? fallbackIds?.runId ?? '',
-            timestamp: Date.now(),
-          },
-          {
-            finishReason: 'stop',
-            ...(lastModel !== undefined ? { model: lastModel } : {}),
-          },
-        ) as StreamChunk,
-      }
+      yield { chunk: createDoneStreamChunk(state, fallbackIds) }
       return
     }
     const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
-    if ('threadId' in chunk && typeof chunk.threadId === 'string') {
-      lastThreadId = chunk.threadId
-    }
-    if ('runId' in chunk && typeof chunk.runId === 'string') {
-      lastRunId = chunk.runId
-    }
-    const model = sseChunkModel(chunk)
-    if (model !== undefined) lastModel = model
-    const id = pendingId
-    pendingId = undefined
+    recordSseChunkIds(chunk, state)
+    const id = state.pendingId
+    state.pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
   }
 }
@@ -1001,6 +1027,85 @@ export type ConnectionAdapter =
  * If a connection provides native subscribe/send, that mode is used.
  * Otherwise, connect() is wrapped using an async queue.
  */
+interface ConnectSendState {
+  hasTerminalEvent: boolean
+  upstreamThreadId?: string
+  upstreamRunId?: string
+}
+
+function noteConnectChunk(chunk: StreamChunk, state: ConnectSendState): void {
+  if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+    state.upstreamThreadId = chunk.threadId
+  }
+  if ('runId' in chunk && typeof chunk.runId === 'string') {
+    state.upstreamRunId = chunk.runId
+  }
+  if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+    state.hasTerminalEvent = true
+  }
+}
+
+function pushSyntheticRunFinished(
+  state: ConnectSendState,
+  abortSignal: AbortSignal | undefined,
+  runContext: RunAgentInputContext | undefined,
+  push: (chunk: StreamChunk, runId?: string) => void,
+): void {
+  if (abortSignal?.aborted || state.hasTerminalEvent) return
+  push(
+    withTanstackMetadata(
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: requireSyntheticId(
+          state.upstreamThreadId ?? runContext?.threadId,
+          'threadId',
+        ),
+        runId: requireSyntheticId(
+          state.upstreamRunId ?? runContext?.runId,
+          'runId',
+        ),
+        timestamp: Date.now(),
+      },
+      { finishReason: 'stop', model: 'connect-wrapper' },
+    ) as StreamChunk,
+    runContext?.runId,
+  )
+}
+
+function pushSyntheticRunError(
+  state: ConnectSendState,
+  abortSignal: AbortSignal | undefined,
+  runContext: RunAgentInputContext | undefined,
+  err: unknown,
+  push: (chunk: StreamChunk, runId?: string) => void,
+): void {
+  if (abortSignal?.aborted || state.hasTerminalEvent) return
+  // Guard synthesis: requireSyntheticId throws when no id is available,
+  // and that must not replace the original `err` we are about to
+  // rethrow. If we can't synthesize a terminal, the real failure still
+  // surfaces below.
+  try {
+    const message =
+      err instanceof Error ? err.message : 'Unknown error in connect()'
+    const synthetic: RunErrorEvent = {
+      type: EventType.RUN_ERROR,
+      threadId: requireSyntheticId(
+        state.upstreamThreadId ?? runContext?.threadId,
+        'threadId',
+      ),
+      runId: requireSyntheticId(
+        state.upstreamRunId ?? runContext?.runId,
+        'runId',
+      ),
+      timestamp: Date.now(),
+      message,
+    }
+    push(synthetic, runContext?.runId)
+  } catch {
+    // fall through to rethrow the original error
+  }
+}
+
 export function normalizeConnectionAdapter(
   connection: ConnectionAdapter | undefined,
 ): SubscribeConnectionAdapter {
@@ -1107,9 +1212,7 @@ export function normalizeConnectionAdapter(
       })()
     },
     async send(messages, data, abortSignal, runContext) {
-      let hasTerminalEvent = false
-      let upstreamThreadId: string | undefined
-      let upstreamRunId: string | undefined
+      const state: ConnectSendState = { hasTerminalEvent: false }
       try {
         const stream = connection.connect(
           messages,
@@ -1118,15 +1221,7 @@ export function normalizeConnectionAdapter(
           runContext,
         )
         for await (const chunk of stream) {
-          if ('threadId' in chunk && typeof chunk.threadId === 'string') {
-            upstreamThreadId = chunk.threadId
-          }
-          if ('runId' in chunk && typeof chunk.runId === 'string') {
-            upstreamRunId = chunk.runId
-          }
-          if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-            hasTerminalEvent = true
-          }
+          noteConnectChunk(chunk, state)
           push(chunk, runContext?.runId)
         }
 
@@ -1135,53 +1230,9 @@ export function normalizeConnectionAdapter(
         // The event payload may carry an upstream/provider runId when one was
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push(
-            withTanstackMetadata(
-              {
-                type: EventType.RUN_FINISHED,
-                threadId: requireSyntheticId(
-                  upstreamThreadId ?? runContext?.threadId,
-                  'threadId',
-                ),
-                runId: requireSyntheticId(
-                  upstreamRunId ?? runContext?.runId,
-                  'runId',
-                ),
-                timestamp: Date.now(),
-              },
-              { finishReason: 'stop', model: 'connect-wrapper' },
-            ) as StreamChunk,
-            runContext?.runId,
-          )
-        }
+        pushSyntheticRunFinished(state, abortSignal, runContext, push)
       } catch (err) {
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
-          // Guard synthesis: requireSyntheticId throws when no id is available,
-          // and that must not replace the original `err` we are about to
-          // rethrow. If we can't synthesize a terminal, the real failure still
-          // surfaces below.
-          try {
-            const message =
-              err instanceof Error ? err.message : 'Unknown error in connect()'
-            const synthetic: RunErrorEvent = {
-              type: EventType.RUN_ERROR,
-              threadId: requireSyntheticId(
-                upstreamThreadId ?? runContext?.threadId,
-                'threadId',
-              ),
-              runId: requireSyntheticId(
-                upstreamRunId ?? runContext?.runId,
-                'runId',
-              ),
-              timestamp: Date.now(),
-              message,
-            }
-            push(synthetic, runContext?.runId)
-          } catch {
-            // fall through to rethrow the original error
-          }
-        }
+        pushSyntheticRunError(state, abortSignal, runContext, err, push)
         throw err
       }
       await waitUntilSubscriberIdle(abortSignal)

@@ -277,6 +277,100 @@ async function redactBytes(
   return output
 }
 
+interface CaptureWalkContext {
+  handle: SandboxHandle
+  bundle: SandboxSnapshotBundle
+  policy: SandboxSnapshotPolicy
+  resolvedSecrets: Readonly<Record<string, string>>
+  files: Array<SandboxSnapshotEntry>
+  destinationKeys: Map<string, string>
+}
+
+function isSkippedCapturePath(
+  relative: string,
+  kind: 'file' | 'dir',
+  policy: SandboxSnapshotPolicy,
+): boolean {
+  return Boolean(
+    isProtectedPath(relative, policy.workspaceHash) ||
+    policy.exclude?.(relative, kind),
+  )
+}
+
+function childRelativePath(relative: string, childName: string): string {
+  return relative ? `${relative}/${childName}` : childName
+}
+
+function shouldKeepEmptyDir(
+  relative: string,
+  policy: SandboxSnapshotPolicy,
+): boolean {
+  return relative !== '' && (!policy.include || policy.include(relative, 'dir'))
+}
+
+async function captureWalkFile(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const path = normalize(relative)
+  if (ctx.policy.include && !ctx.policy.include(path, 'file')) return false
+  let bytes = await ctx.handle.fs.readBytes(absolute)
+  if (ctx.policy.redact)
+    bytes = ctx.policy.redact({
+      path,
+      bytes,
+      resolvedSecrets: ctx.resolvedSecrets,
+    })
+  bytes = await redactBytes(bytes, ctx.resolvedSecrets)
+  const blob = await putIfAbsent(ctx.bundle.blobs, bytes, ctx.destinationKeys)
+  ctx.files.push({ path, kind: 'file', blobKey: blob.key, size: blob.size })
+  return true
+}
+
+async function captureWalkDir(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const children = await ctx.handle.fs.list(absolute)
+  let hasCapturedChild = false
+  for (const child of children) {
+    const childEntry = childPath(absolute, child)
+    const childRelative = childRelativePath(relative, childEntry.relative)
+    if (isSkippedCapturePath(childRelative, child.type, ctx.policy)) continue
+    hasCapturedChild =
+      (await captureWalk(ctx, childEntry.absolute, childRelative)) ||
+      hasCapturedChild
+  }
+  if (!hasCapturedChild && shouldKeepEmptyDir(relative, ctx.policy))
+    ctx.files.push({ path: normalize(relative), kind: 'dir' })
+  return hasCapturedChild || shouldKeepEmptyDir(relative, ctx.policy)
+}
+
+async function captureWalk(
+  ctx: CaptureWalkContext,
+  absolute: string,
+  relative: string,
+): Promise<boolean> {
+  const stat = await lstat(ctx.handle, absolute)
+  if (!stat)
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
+      `Snapshot entry disappeared '${relative}'`,
+    )
+  assertSupported(stat, relative)
+  if (stat.type !== 'file' && stat.type !== 'dir')
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
+      `Unsupported entry '${relative}'`,
+    )
+  if (relative && isSkippedCapturePath(relative, stat.type, ctx.policy))
+    return false
+  if (stat.type === 'file') return captureWalkFile(ctx, absolute, relative)
+  return captureWalkDir(ctx, absolute, relative)
+}
+
 export async function captureSandboxFiles(
   handle: SandboxHandle,
   bundle: SandboxSnapshotBundle,
@@ -302,62 +396,18 @@ export async function captureSandboxFiles(
   assertSupported(root, rootPath)
   const files: Array<SandboxSnapshotEntry> = []
   const destinationKeys = new Map<string, string>()
-  const walk = async (absolute: string, relative: string): Promise<boolean> => {
-    const stat = await lstat(handle, absolute)
-    if (!stat)
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
-        `Snapshot entry disappeared '${relative}'`,
-      )
-    assertSupported(stat, relative)
-    if (stat.type !== 'file' && stat.type !== 'dir')
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
-        `Unsupported entry '${relative}'`,
-      )
-    if (
-      relative &&
-      (isProtectedPath(relative, policy.workspaceHash) ||
-        policy.exclude?.(relative, stat.type))
-    )
-      return false
-    if (stat.type === 'file') {
-      const path = normalize(relative)
-      if (policy.include && !policy.include(path, 'file')) return false
-      let bytes = await handle.fs.readBytes(absolute)
-      if (policy.redact) bytes = policy.redact({ path, bytes, resolvedSecrets })
-      bytes = await redactBytes(bytes, resolvedSecrets)
-      const blob = await putIfAbsent(bundle.blobs, bytes, destinationKeys)
-      files.push({ path, kind: 'file', blobKey: blob.key, size: blob.size })
-      return true
-    }
-    const children = await handle.fs.list(absolute)
-    let hasCapturedChild = false
-    for (const child of children) {
-      const childEntry = childPath(absolute, child)
-      const childRelative = relative
-        ? `${relative}/${childEntry.relative}`
-        : childEntry.relative
-      if (
-        isProtectedPath(childRelative, policy.workspaceHash) ||
-        policy.exclude?.(childRelative, child.type)
-      )
-        continue
-      hasCapturedChild =
-        (await walk(childEntry.absolute, childRelative)) || hasCapturedChild
-    }
-    if (
-      relative &&
-      !hasCapturedChild &&
-      (!policy.include || policy.include(relative, 'dir'))
-    )
-      files.push({ path: normalize(relative), kind: 'dir' })
-    return (
-      hasCapturedChild ||
-      (relative !== '' && (!policy.include || policy.include(relative, 'dir')))
-    )
-  }
-  await walk(rootPath, '')
+  await captureWalk(
+    {
+      handle,
+      bundle,
+      policy,
+      resolvedSecrets,
+      files,
+      destinationKeys,
+    },
+    rootPath,
+    '',
+  )
   files.sort((a, b) => comparePath(a.path, b.path))
   return { files }
 }
@@ -365,64 +415,57 @@ export async function captureSandboxFiles(
 type PlannedEntry = SandboxSnapshotEntry & { path: string }
 type PlannedFile = Extract<PlannedEntry, { kind: 'file' }>
 
-function validateManifest(
-  snapshot: {
-    files: ReadonlyArray<SandboxSnapshotEntry>
-  },
+function assertManifestAncestorsAllowed(
+  path: string,
   policy: SandboxSnapshotPolicy,
-): Array<PlannedEntry> {
-  const paths = new Map<string, PlannedEntry>()
-  for (const entry of snapshot.files) {
-    const path = normalize(entry.path)
-    for (const ancestor of parents(path)) {
-      if (
-        isProtectedPath(ancestor, policy.workspaceHash) ||
-        policy.exclude?.(ancestor, 'dir')
-      )
-        throw new SandboxSnapshotError(
-          'SANDBOX_SNAPSHOT_INVALID_PATH',
-          `Excluded snapshot ancestor '${ancestor}'`,
-        )
-    }
-    if (isProtectedPath(path, policy.workspaceHash))
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Protected snapshot path '${path}'`,
-      )
+): void {
+  for (const ancestor of parents(path)) {
     if (
-      !included(path, entry.kind, policy) ||
-      (entry.kind === 'dir' && policy.include?.(path, 'dir') === false)
+      isProtectedPath(ancestor, policy.workspaceHash) ||
+      policy.exclude?.(ancestor, 'dir')
     )
       throw new SandboxSnapshotError(
         'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Excluded snapshot path '${path}'`,
-      )
-    if (paths.has(path))
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Duplicate path '${path}'`,
-      )
-    if (entry.kind === 'file') {
-      const { blobKey, size } = entry
-      if (
-        typeof blobKey !== 'string' ||
-        !FILE_BLOB_KEY.test(blobKey) ||
-        typeof size !== 'number' ||
-        !Number.isSafeInteger(size) ||
-        size < 0
-      )
-        throw new SandboxSnapshotError(
-          'SANDBOX_SNAPSHOT_INVALID_PATH',
-          `Invalid file entry '${path}'`,
-        )
-      paths.set(path, { path, kind: 'file', blobKey, size })
-    } else if (entry.kind === 'dir') paths.set(path, { path, kind: 'dir' })
-    else
-      throw new SandboxSnapshotError(
-        'SANDBOX_SNAPSHOT_INVALID_PATH',
-        `Unknown snapshot entry '${path}'`,
+        `Excluded snapshot ancestor '${ancestor}'`,
       )
   }
+}
+
+function assertManifestPathIncluded(
+  path: string,
+  kind: SandboxSnapshotEntry['kind'],
+  policy: SandboxSnapshotPolicy,
+): void {
+  if (
+    !included(path, kind, policy) ||
+    (kind === 'dir' && policy.include?.(path, 'dir') === false)
+  )
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_PATH',
+      `Excluded snapshot path '${path}'`,
+    )
+}
+
+function plannedFileEntry(
+  path: string,
+  entry: Extract<SandboxSnapshotEntry, { kind: 'file' }>,
+): PlannedFile {
+  const { blobKey, size } = entry
+  if (
+    typeof blobKey !== 'string' ||
+    !FILE_BLOB_KEY.test(blobKey) ||
+    typeof size !== 'number' ||
+    !Number.isSafeInteger(size) ||
+    size < 0
+  )
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_INVALID_PATH',
+      `Invalid file entry '${path}'`,
+    )
+  return { path, kind: 'file', blobKey, size }
+}
+
+function assertNoFileParent(paths: Map<string, PlannedEntry>): void {
   for (const [path] of paths)
     for (
       let index = path.indexOf('/');
@@ -436,6 +479,39 @@ function validateManifest(
           `File ancestor '${parent.path}'`,
         )
     }
+}
+
+function validateManifest(
+  snapshot: {
+    files: ReadonlyArray<SandboxSnapshotEntry>
+  },
+  policy: SandboxSnapshotPolicy,
+): Array<PlannedEntry> {
+  const paths = new Map<string, PlannedEntry>()
+  for (const entry of snapshot.files) {
+    const path = normalize(entry.path)
+    assertManifestAncestorsAllowed(path, policy)
+    if (isProtectedPath(path, policy.workspaceHash))
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Protected snapshot path '${path}'`,
+      )
+    assertManifestPathIncluded(path, entry.kind, policy)
+    if (paths.has(path))
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Duplicate path '${path}'`,
+      )
+    if (entry.kind === 'file') {
+      paths.set(path, plannedFileEntry(path, entry))
+    } else if (entry.kind === 'dir') paths.set(path, { path, kind: 'dir' })
+    else
+      throw new SandboxSnapshotError(
+        'SANDBOX_SNAPSHOT_INVALID_PATH',
+        `Unknown snapshot entry '${path}'`,
+      )
+  }
+  assertNoFileParent(paths)
   return [...paths.values()]
 }
 

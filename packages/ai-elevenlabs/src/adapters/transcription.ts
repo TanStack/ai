@@ -98,56 +98,9 @@ export class ElevenLabsTranscriptionAdapter<
       { provider: 'elevenlabs', model: this.model },
     )
     try {
-      const modelOpts = options.modelOptions ?? {}
-      const audioInput = normalizeAudioInput(options.audio)
-
-      const response = await this.client.speechToText.convert({
-        modelId: this.model,
-        ...(audioInput.kind === 'file'
-          ? { file: audioInput.value }
-          : { cloudStorageUrl: audioInput.value }),
-        ...(options.language ? { languageCode: options.language } : {}),
-        ...(modelOpts.tagAudioEvents != null
-          ? { tagAudioEvents: modelOpts.tagAudioEvents }
-          : {}),
-        ...(modelOpts.numSpeakers != null
-          ? { numSpeakers: modelOpts.numSpeakers }
-          : {}),
-        ...(modelOpts.timestampsGranularity
-          ? { timestampsGranularity: modelOpts.timestampsGranularity }
-          : {}),
-        ...(modelOpts.diarize != null ? { diarize: modelOpts.diarize } : {}),
-        ...(modelOpts.diarizationThreshold != null
-          ? { diarizationThreshold: modelOpts.diarizationThreshold }
-          : {}),
-        ...(modelOpts.detectSpeakerRoles != null
-          ? { detectSpeakerRoles: modelOpts.detectSpeakerRoles }
-          : {}),
-        ...(modelOpts.keyterms ? { keyterms: modelOpts.keyterms } : {}),
-        ...(modelOpts.entityDetection
-          ? { entityDetection: modelOpts.entityDetection }
-          : {}),
-        ...(modelOpts.entityRedaction
-          ? { entityRedaction: modelOpts.entityRedaction }
-          : {}),
-        ...(modelOpts.entityRedactionMode
-          ? { entityRedactionMode: modelOpts.entityRedactionMode }
-          : {}),
-        ...(modelOpts.noVerbatim != null
-          ? { noVerbatim: modelOpts.noVerbatim }
-          : {}),
-        ...(modelOpts.temperature != null
-          ? { temperature: modelOpts.temperature }
-          : {}),
-        ...(modelOpts.seed != null ? { seed: modelOpts.seed } : {}),
-        ...(modelOpts.enableLogging != null
-          ? { enableLogging: modelOpts.enableLogging }
-          : {}),
-        ...(modelOpts.useMultiChannel != null
-          ? { useMultiChannel: modelOpts.useMultiChannel }
-          : {}),
-        ...(modelOpts.fileFormat ? { fileFormat: modelOpts.fileFormat } : {}),
-      } as Parameters<ElevenLabsClient['speechToText']['convert']>[0])
+      const response = await this.client.speechToText.convert(
+        toSpeechToTextConvertParams(this.model, options),
+      )
 
       return this.transformResponse(response)
     } catch (error) {
@@ -233,6 +186,48 @@ export class ElevenLabsTranscriptionAdapter<
 type NormalizedAudio =
   | { kind: 'file'; value: Blob }
   | { kind: 'url'; value: string }
+
+function assignIfDefined<K extends string, V>(
+  key: K,
+  value: V | null | undefined,
+): Partial<Record<K, V>> {
+  if (value == null) return {}
+  return { [key]: value } as Partial<Record<K, V>>
+}
+
+function toSpeechToTextConvertParams(
+  modelId: string,
+  options: TranscriptionOptions<ElevenLabsTranscriptionProviderOptions>,
+): Parameters<ElevenLabsClient['speechToText']['convert']>[0] {
+  const modelOpts = options.modelOptions ?? {}
+  const audioInput = normalizeAudioInput(options.audio)
+  return {
+    modelId,
+    ...(audioInput.kind === 'file'
+      ? { file: audioInput.value }
+      : { cloudStorageUrl: audioInput.value }),
+    ...assignIfDefined('languageCode', options.language),
+    ...assignIfDefined('tagAudioEvents', modelOpts.tagAudioEvents),
+    ...assignIfDefined('numSpeakers', modelOpts.numSpeakers),
+    ...assignIfDefined(
+      'timestampsGranularity',
+      modelOpts.timestampsGranularity,
+    ),
+    ...assignIfDefined('diarize', modelOpts.diarize),
+    ...assignIfDefined('diarizationThreshold', modelOpts.diarizationThreshold),
+    ...assignIfDefined('detectSpeakerRoles', modelOpts.detectSpeakerRoles),
+    ...assignIfDefined('keyterms', modelOpts.keyterms),
+    ...assignIfDefined('entityDetection', modelOpts.entityDetection),
+    ...assignIfDefined('entityRedaction', modelOpts.entityRedaction),
+    ...assignIfDefined('entityRedactionMode', modelOpts.entityRedactionMode),
+    ...assignIfDefined('noVerbatim', modelOpts.noVerbatim),
+    ...assignIfDefined('temperature', modelOpts.temperature),
+    ...assignIfDefined('seed', modelOpts.seed),
+    ...assignIfDefined('enableLogging', modelOpts.enableLogging),
+    ...assignIfDefined('useMultiChannel', modelOpts.useMultiChannel),
+    ...assignIfDefined('fileFormat', modelOpts.fileFormat),
+  } as Parameters<ElevenLabsClient['speechToText']['convert']>[0]
+}
 
 function normalizeAudioInput(
   audio: TranscriptionOptions['audio'],

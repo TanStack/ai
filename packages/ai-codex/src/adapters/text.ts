@@ -39,6 +39,36 @@ import type { CodexModel } from '../model-meta'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
+function chatRunErrorChunk(error: unknown, model: string): AdapterYieldChunk {
+  const err = error as Error & { code?: string }
+  const rawEvent = toRunErrorRawEvent(error)
+  const message = err.message || 'Unknown error occurred'
+  return {
+    type: EventType.RUN_ERROR,
+    model,
+    timestamp: Date.now(),
+    message,
+    ...(err.code !== undefined && { code: err.code }),
+    ...(rawEvent !== undefined && { rawEvent }),
+    error: {
+      message,
+      ...(err.code !== undefined && { code: err.code }),
+    },
+  }
+}
+
+function abortSignalFields(
+  options: TextOptions<CodexTextProviderOptions>,
+): { signal: AbortSignal } | Record<string, never> {
+  if (options.abortController?.signal) {
+    return { signal: options.abortController.signal }
+  }
+  if (options.request?.signal) {
+    return { signal: options.request.signal }
+  }
+  return {}
+}
+
 export type CodexSandboxMode =
   | 'read-only'
   | 'workspace-write'
@@ -195,12 +225,47 @@ export class CodexTextAdapter<
     // literal `--cd` makes codex chdir to a path that doesn't exist on the real
     // filesystem → "No such file or directory (os error 2)". Codex inherits the
     // handle-set process cwd instead.
-    if (skipGitRepoCheck !== false) args.push('--skip-git-repo-check')
-    for (const dir of config.additionalDirectories ?? []) {
-      args.push('--add-dir', q(dir))
+    this.pushCodexDirFlags(args, skipGitRepoCheck, config.additionalDirectories)
+
+    const cfg = this.codexConfigFlags(
+      approvalPolicy,
+      reasoning,
+      networkAccessEnabled,
+      bridge,
+    )
+    for (const [key, value] of Object.entries(cfg)) {
+      args.push('--config', q(`${key}=${value}`))
     }
 
-    const cfg: Record<string, string> = {
+    if (outputSchemaPath !== undefined) {
+      args.push('--output-schema', q(outputSchemaPath))
+    }
+
+    // Resume an existing thread (mirrors the SDK's `resume <threadId>`).
+    if (resume !== undefined) args.push('resume', q(resume))
+
+    return `${exe} ${args.join(' ')}`
+  }
+
+  private pushCodexDirFlags(
+    args: Array<string>,
+    skipGitRepoCheck: boolean | undefined,
+    additionalDirectories: Array<string> | undefined,
+  ): void {
+    if (skipGitRepoCheck !== false) args.push('--skip-git-repo-check')
+    for (const dir of additionalDirectories ?? []) {
+      args.push('--add-dir', q(dir))
+    }
+  }
+
+  private codexConfigFlags(
+    approvalPolicy: string,
+    reasoning: string | undefined,
+    networkAccessEnabled: boolean | undefined,
+    bridge: HostToolBridge | undefined,
+  ): Record<string, string> {
+    const config = this.adapterConfig
+    return {
       approval_policy: `"${approvalPolicy}"`,
       ...(reasoning ? { model_reasoning_effort: `"${reasoning}"` } : {}),
       ...(networkAccessEnabled !== undefined
@@ -226,18 +291,56 @@ export class CodexTextAdapter<
         : {}),
       ...config.config,
     }
-    for (const [key, value] of Object.entries(cfg)) {
-      args.push('--config', q(`${key}=${value}`))
+  }
+
+  private async maybeProvisionCodexBridge(
+    options: TextOptions<CodexTextProviderOptions>,
+    sandbox: SandboxHandle,
+    channel: ReturnType<typeof createBridgeEventChannel>,
+  ): Promise<HostToolBridge | undefined> {
+    if (!options.tools || options.tools.length === 0) return undefined
+    const provisioner =
+      (options.capabilities
+        ? getToolBridgeProvisioner(options.capabilities, { optional: true })
+        : undefined) ?? nodeHttpBridgeProvisioner
+    return await provisioner.provision(options.tools, {
+      provider: sandbox.provider,
+      context: options.context,
+      emitCustomEvent: channel.emitCustomEvent,
+      ...(options.abortController?.signal
+        ? { signal: options.abortController.signal }
+        : {}),
+    })
+  }
+
+  private codexPrompt(
+    options: TextOptions<CodexTextProviderOptions>,
+    prompt: string,
+  ): string {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+      .map((p) => p.content)
+      .filter((c) => c.trim() !== '')
+    if (systemPrompts.length === 0) return prompt
+    return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private async prepareCodexStdin(
+    sandbox: SandboxHandle,
+    command: string,
+    fullPrompt: string,
+    runId: string,
+    tempFiles: Array<string>,
+  ): Promise<{ runCommand: string; stdinInput: string | undefined }> {
+    if (sandbox.capabilities.writableStdin !== false) {
+      return { runCommand: command, stdinInput: fullPrompt }
     }
-
-    if (outputSchemaPath !== undefined) {
-      args.push('--output-schema', q(outputSchemaPath))
+    const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
+    await sandbox.fs.write(promptPath, fullPrompt)
+    tempFiles.push(promptPath)
+    return {
+      runCommand: `${command} < ${q(promptPath)}`,
+      stdinInput: undefined,
     }
-
-    // Resume an existing thread (mirrors the SDK's `resume <threadId>`).
-    if (resume !== undefined) args.push('resume', q(resume))
-
-    return `${exe} ${args.join(' ')}`
   }
 
   async *chatStream(
@@ -294,32 +397,13 @@ export class CodexTextAdapter<
         : undefined
       if (projection) await projectCodexWorkspace(sandbox, projection)
 
-      if (options.tools && options.tools.length > 0) {
-        const provisioner =
-          (options.capabilities
-            ? getToolBridgeProvisioner(options.capabilities, { optional: true })
-            : undefined) ?? nodeHttpBridgeProvisioner
-        bridge = await provisioner.provision(options.tools, {
-          provider: sandbox.provider,
-          context: options.context,
-          emitCustomEvent: channel.emitCustomEvent,
-          ...(options.abortController?.signal
-            ? { signal: options.abortController.signal }
-            : {}),
-        })
-      }
+      bridge = await this.maybeProvisionCodexBridge(options, sandbox, channel)
 
       const { prompt, resume } = buildPrompt(
         options.messages,
         options.modelOptions?.sessionId,
       )
-      const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
-        .map((p) => p.content)
-        .filter((c) => c.trim() !== '')
-      const fullPrompt =
-        systemPrompts.length > 0
-          ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
-          : prompt
+      const fullPrompt = this.codexPrompt(options, prompt)
 
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
@@ -351,29 +435,13 @@ export class CodexTextAdapter<
       // stdout when stdin EOF is signalled (losing the agent's output), and
       // Cloudflare can't write stdin at all — so feed the prompt from a file
       // (`codex exec … < file`) instead.
-      let runCommand = command
-      let stdinInput: string | undefined = fullPrompt
-      if (sandbox.capabilities.writableStdin === false) {
-        // Reuse the ALREADY-RESOLVED `runId`, not a fresh `options.runId ?? this.generateId()`
-        // re-derivation: the latter mints a SECOND random id whenever
-        // `options.runId` is absent, so the prompt file's suffix would not
-        // even match the journal path derived from the run's own `runId`
-        // above (see `resolveDurableRunId`). That mismatch is invisible
-        // (the prompt still gets read), but it defeats the whole point of a
-        // stable, caller-supplied `runId` for anything keyed off it.
-        // `encodeRunId`, because durability makes `runId` CALLER-chosen and this
-        // interpolates it into a filesystem path. Raw, a `/` would silently turn
-        // the basename into a nested path (writing outside `/tmp` or failing on a
-        // missing dir), `..` would climb out of it, and a long id would fail the
-        // spawn with `ENAMETOOLONG`. The encoder collapses every id to one
-        // bounded, injective path segment — the same one `journalPaths` uses, so
-        // the prompt file and the journal agree on how this id spells.
-        const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
-        await sandbox.fs.write(promptPath, fullPrompt)
-        tempFiles.push(promptPath)
-        runCommand = `${command} < ${q(promptPath)}`
-        stdinInput = undefined
-      }
+      const prepared = await this.prepareCodexStdin(
+        sandbox,
+        command,
+        fullPrompt,
+        runId,
+        tempFiles,
+      )
 
       // `undefined` whenever the run is not durable, so `spawnNdjson` takes its
       // original, unjournaled path and behavior stays byte-identical to a
@@ -383,15 +451,13 @@ export class CodexTextAdapter<
       // never by an application's POST handler (see `SandboxDurabilityOptions.attach`).
       const journalOptions = journalOptionsFor(durability, runId)
 
-      const rawEvents = spawnNdjson(sandbox, runCommand, {
+      const rawEvents = spawnNdjson(sandbox, prepared.runCommand, {
         cwd,
-        ...(stdinInput !== undefined ? { input: stdinInput } : {}),
+        ...(prepared.stdinInput !== undefined
+          ? { input: prepared.stdinInput }
+          : {}),
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
-        ...(options.abortController?.signal
-          ? { signal: options.abortController.signal }
-          : options.request?.signal
-            ? { signal: options.request.signal }
-            : {}),
+        ...abortSignalFields(options),
         onNonJsonLine: (line) =>
           logger.provider(`provider=codex non-json line: ${line}`, {
             chunk: line,
@@ -450,24 +516,11 @@ export class CodexTextAdapter<
         logger,
       )
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('codex.chatStream fatal', {
         error,
         source: 'codex.chatStream',
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        ...(err.code !== undefined && { code: err.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          ...(err.code !== undefined && { code: err.code }),
-        },
-      }
+      yield chatRunErrorChunk(error, options.model)
     } finally {
       channel.close()
       await bridge?.close()

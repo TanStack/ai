@@ -275,87 +275,106 @@ export class GenerationClient<
     const { signal } = abortController
 
     try {
-      let headers: Record<string, string> | undefined
-      if (this.byok) {
-        const provider = resolveByokProviderId(
-          this.byokProvider,
-          this.body.provider,
-        )
-        headers = await prepareResolvedByokHeaders(this.byok, provider)
-      }
-
-      if (this.fetcher) {
-        // Direct fetch path
-        const result = await this.fetcher(
-          input,
-          headers === undefined ? { signal } : { signal, headers },
-        )
-        if (signal.aborted) return
-        if (result instanceof Response) {
-          // Server function returned SSE Response — parse stream
-          await this.processStream(
-            parseSSEResponse(result, signal),
-            runId,
-            signal,
-          )
-        } else {
-          this.devtoolsBridge.ensureRunStarted(runId)
-          this.setResult(result)
-          this.setStatus('success')
-          this.completePlainFetcherResumeSnapshot(result)
-        }
-      } else if (this.connection) {
-        // Streaming adapter path
-        const mergedData = { ...this.body, ...input }
-        const stream = this.connection.connect(
-          [],
-          mergedData,
-          signal,
-          this.createRunContext(runId, headers),
-        )
-        await this.processStream(stream, runId, signal)
-      } else {
-        throw new Error(
-          'GenerationClient requires either a connection or fetcher option',
-        )
-      }
-      if (!signal.aborted && this.status === 'success') {
-        // Bump progress to 100 on successful completion so devtools
-        // snapshots reflect the final state. The bridge mirrors this in
-        // the run's recorded progress, but the snapshot reads `progress`
-        // from the client's core state.
-        this.progress = completeProgressValue(this.progress)
-        this.devtoolsBridge.finishRun(
-          this.devtoolsBridge.getActiveRunId() ?? runId,
-          'run:completed',
-          'completed',
-        )
-      }
+      await this.executeGenerate(input, runId, signal)
     } catch (err: unknown) {
-      if (signal.aborted) return
-      const error = err instanceof Error ? err : new Error(String(err))
-      if (error instanceof ByokMissingError) {
-        this.byok?.request(error.provider, 'missing')
-      }
-      if (error instanceof ByokBlockedError && error.reason === 'locked') {
-        this.byok?.request(error.provider, 'locked')
-      }
-      this.setError(error)
-      this.setStatus('error')
-      this.recordResumeSnapshotError(error)
-      this.devtoolsBridge.finishRun(
-        this.devtoolsBridge.getActiveRunId() ?? runId,
-        'run:errored',
-        'errored',
-        error.message,
-      )
-      this.callbacksRef.onError?.(error)
+      this.handleGenerateFailure(err, signal, runId)
     } finally {
       if (this.abortController === abortController) {
         this.abortController = null
         this.setIsLoading(false)
       }
     }
+  }
+
+  private async executeGenerate(
+    input: TInput,
+    runId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    let headers: Record<string, string> | undefined
+    if (this.byok) {
+      const provider = resolveByokProviderId(
+        this.byokProvider,
+        this.body.provider,
+      )
+      headers = await prepareResolvedByokHeaders(this.byok, provider)
+    }
+
+    if (this.fetcher) {
+      await this.generateWithFetcher(input, signal, runId, headers)
+    } else if (this.connection) {
+      const mergedData = { ...this.body, ...input }
+      const stream = this.connection.connect(
+        [],
+        mergedData,
+        signal,
+        this.createRunContext(runId, headers),
+      )
+      await this.processStream(stream, runId, signal)
+    } else {
+      throw new Error(
+        'GenerationClient requires either a connection or fetcher option',
+      )
+    }
+    if (!signal.aborted && this.status === 'success') {
+      // Bump progress to 100 on successful completion so devtools
+      // snapshots reflect the final state. The bridge mirrors this in
+      // the run's recorded progress, but the snapshot reads `progress`
+      // from the client's core state.
+      this.progress = completeProgressValue(this.progress)
+      this.devtoolsBridge.finishRun(
+        this.devtoolsBridge.getActiveRunId() ?? runId,
+        'run:completed',
+        'completed',
+      )
+    }
+  }
+
+  private async generateWithFetcher(
+    input: TInput,
+    signal: AbortSignal,
+    runId: string,
+    headers?: Record<string, string>,
+  ): Promise<void> {
+    if (!this.fetcher) return
+    const result = await this.fetcher(
+      input,
+      headers === undefined ? { signal } : { signal, headers },
+    )
+    if (signal.aborted) return
+    if (result instanceof Response) {
+      await this.processStream(parseSSEResponse(result, signal), runId, signal)
+      return
+    }
+    this.devtoolsBridge.ensureRunStarted(runId)
+    this.setResult(result)
+    this.setStatus('success')
+    this.completePlainFetcherResumeSnapshot(result)
+  }
+
+  private handleGenerateFailure(
+    err: unknown,
+    signal: AbortSignal,
+    runId: string,
+  ): void {
+    if (signal.aborted) return
+    const error = err instanceof Error ? err : new Error(String(err))
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.setError(error)
+    this.setStatus('error')
+    this.recordResumeSnapshotError(error)
+    this.devtoolsBridge.finishRun(
+      this.devtoolsBridge.getActiveRunId() ?? runId,
+      'run:errored',
+      'errored',
+      error.message,
+    )
+    this.callbacksRef.onError?.(error)
   }
 
   /**

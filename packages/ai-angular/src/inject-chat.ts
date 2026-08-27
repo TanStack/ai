@@ -42,6 +42,32 @@ import type {
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
+function persistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TSchema extends SchemaInput | undefined,
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+>(
+  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+):
+  | { persistence: NonNullable<typeof options.persistence>; threadId: string }
+  | { threadId?: typeof options.threadId } {
+  if (typeof options.threadId === 'string' && options.persistence) {
+    return { persistence: options.persistence, threadId: options.threadId }
+  }
+  return options.threadId !== undefined ? { threadId: options.threadId } : {}
+}
+
+function definedFields(
+  fields: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) out[key] = value
+  }
+  return out
+}
+
 export function injectChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -102,33 +128,9 @@ export function injectChat<
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    ...(options.initialMessages !== undefined && {
-      initialMessages: options.initialMessages,
-    }),
-    ...(typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(bodySource !== undefined && { body: bodySource() }),
-    ...(forwardedPropsSource !== undefined && {
-      forwardedProps: forwardedPropsSource(),
-    }),
-    ...(options.byok !== undefined && { byok: options.byok }),
+    ...persistenceOptions(options),
     byokProvider: () => options.byokProvider?.(),
-    ...(contextSource !== undefined && { context: contextSource() }),
-    devtools: {
-      ...options.devtools,
-      framework: 'angular',
-      hookName: 'injectChat',
-      outputKind: options.outputSchema ? 'structured' : 'chat',
-    },
+    tools: options.tools,
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
@@ -142,15 +144,8 @@ export function injectChat<
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
-    tools: options.tools,
-    ...(options.interrupts !== undefined && {
-      interrupts: options.interrupts,
-    }),
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
-    ...(options.streamProcessor !== undefined && {
-      streamProcessor: options.streamProcessor,
-    }),
     onMessagesChange: (m: Array<UIMessage<TTools>>) => messages.set(m),
     onLoadingChange: (v: boolean) => isLoading.set(v),
     onStatusChange: (v: ChatClientState) => status.set(v),
@@ -158,8 +153,24 @@ export function injectChat<
     onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
     onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
     onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
-    ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
+    devtools: {
+      ...options.devtools,
+      framework: 'angular',
+      hookName: 'injectChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    ...definedFields({
+      initialMessages: options.initialMessages,
+      initialResumeSnapshot: options.initialResumeSnapshot,
+      body: bodySource?.(),
+      forwardedProps: forwardedPropsSource?.(),
+      byok: options.byok,
+      context: contextSource?.(),
+      interrupts: options.interrupts,
+      streamProcessor: options.streamProcessor,
+      queue: options.queue,
+    }),
   })
 
   messages.set(client.getMessages())

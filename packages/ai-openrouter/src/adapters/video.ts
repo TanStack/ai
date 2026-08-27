@@ -91,6 +91,45 @@ interface VideoImageFields {
  * Frame roles are validated against the model's `supported_frame_images`
  * metadata when known.
  */
+function appendVideoImageByRole(
+  model: string,
+  part: ImagePart<MediaInputMetadata>,
+  starts: Array<string>,
+  ends: Array<string>,
+  references: Array<string>,
+): void {
+  const role = part.metadata?.role
+  if (role === 'mask' || role === 'control') {
+    throw new Error(
+      `openrouter: metadata.role === '${role}' is not supported for video generation on model ${model}. Remove the role or use 'start_frame' / 'end_frame' / 'reference'.`,
+    )
+  }
+  const url = imagePartToUrl(part)
+  if (role === 'end_frame') ends.push(url)
+  else if (role === 'reference' || role === 'character') references.push(url)
+  // Unroled parts default to the start frame (image-to-video).
+  else starts.push(url)
+}
+
+function assertSupportedVideoFrames(
+  model: string,
+  starts: Array<string>,
+  ends: Array<string>,
+): void {
+  const supportedFrames = getVideoModelMeta(model)?.frameImages
+  if (!supportedFrames) return
+  if (starts.length > 0 && !supportedFrames.includes('first_frame')) {
+    throw new Error(
+      `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+    )
+  }
+  if (ends.length > 0 && !supportedFrames.includes('last_frame')) {
+    throw new Error(
+      `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+    )
+  }
+}
+
 function mapImagePartsToVideoFields(
   model: string,
   images: Array<ImagePart<MediaInputMetadata>>,
@@ -101,17 +140,7 @@ function mapImagePartsToVideoFields(
   const ends: Array<string> = []
   const references: Array<string> = []
   for (const part of images) {
-    const role = part.metadata?.role
-    if (role === 'mask' || role === 'control') {
-      throw new Error(
-        `openrouter: metadata.role === '${role}' is not supported for video generation on model ${model}. Remove the role or use 'start_frame' / 'end_frame' / 'reference'.`,
-      )
-    }
-    const url = imagePartToUrl(part)
-    if (role === 'end_frame') ends.push(url)
-    else if (role === 'reference' || role === 'character') references.push(url)
-    // Unroled parts default to the start frame (image-to-video).
-    else starts.push(url)
+    appendVideoImageByRole(model, part, starts, ends, references)
   }
 
   if (starts.length > 1) {
@@ -125,19 +154,7 @@ function mapImagePartsToVideoFields(
     )
   }
 
-  const supportedFrames = getVideoModelMeta(model)?.frameImages
-  if (supportedFrames) {
-    if (starts.length > 0 && !supportedFrames.includes('first_frame')) {
-      throw new Error(
-        `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
-      )
-    }
-    if (ends.length > 0 && !supportedFrames.includes('last_frame')) {
-      throw new Error(
-        `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
-      )
-    }
-  }
+  assertSupportedVideoFrames(model, starts, ends)
 
   const frameImages: Array<FrameImage> = [
     ...starts.map(

@@ -1425,6 +1425,112 @@ function partsFromUnknown(
     .filter(isPreviewPart)
 }
 
+function stringFieldOr(
+  value: unknown,
+  fallback: unknown,
+  defaultValue: string,
+): string {
+  if (typeof value === 'string') return value
+  if (typeof fallback === 'string') return fallback
+  return defaultValue
+}
+
+function previewToolCallPart(
+  part: PreviewPartSource,
+  index: number,
+  messageId?: string,
+): PreviewPart {
+  const name = stringFieldOr(part.name, part.toolName, 'tool')
+  const rawId = stringFieldOr(part.toolCallId, part.id, `${index}:${name}`)
+  const input = part.input ?? part.arguments
+  const output = part.output
+  const parsedInput = input === undefined ? {} : parseJsonishValue(input)
+  const parsedOutput =
+    output === undefined ? undefined : parseJsonishValue(output)
+  const approvalStatus = approvalStatusFromRecord(part.approval, part.state)
+  const jsonItems: Array<PreviewJsonItem> = []
+  if (input !== undefined) {
+    jsonItems.push({
+      label: 'Input',
+      value: parsedInput,
+    })
+  }
+  if (part.approval !== undefined) {
+    jsonItems.push({
+      label: 'Approval',
+      value: parseJsonishValue(part.approval),
+    })
+  }
+  if (output !== undefined) {
+    jsonItems.push({
+      label: 'Output',
+      value: parsedOutput,
+    })
+  }
+  return {
+    id: toolCallPartId(rawId),
+    label: approvalStatus
+      ? `tool call ${name} - ${approvalStatus}`
+      : `tool call ${name}`,
+    content: formatUnknown(input ?? output),
+    jsonItems,
+    kind: 'tool-call',
+    fixture: {
+      toolName: name,
+      input: parsedInput,
+      ...(parsedOutput !== undefined ? { output: parsedOutput } : {}),
+      toolCallId: rawId,
+      ...(messageId ? { messageId } : {}),
+    },
+  }
+}
+
+function previewToolResultPart(
+  part: PreviewPartSource,
+  index: number,
+): PreviewPart {
+  const name =
+    typeof part.name === 'string'
+      ? part.name
+      : typeof part.toolName === 'string'
+        ? part.toolName
+        : undefined
+  const rawId = stringFieldOr(part.toolCallId, part.id, `${index}`)
+  const output = part.output ?? part.content ?? part.error
+  return {
+    id: toolResultPartId(rawId),
+    label: name ? `tool result ${name}` : 'tool result',
+    content: formatUnknown(output),
+    jsonItems:
+      output === undefined
+        ? []
+        : [
+            {
+              label: part.error ? 'Error' : 'Output',
+              value: parseJsonishValue(output),
+            },
+          ],
+    kind: 'tool-result',
+  }
+}
+
+function previewStructuredOutputPart(
+  part: PreviewPartSource,
+  index: number,
+  messageId?: string,
+): PreviewPart {
+  const status = typeof part.status === 'string' ? part.status : undefined
+  const raw = typeof part.raw === 'string' ? part.raw : undefined
+
+  return {
+    id: structuredOutputPartId(messageId ?? `${index}`),
+    label: status ? `structured output - ${status}` : 'structured output',
+    content: raw ?? formatUnknown(part.data ?? part.partial),
+    jsonItems: structuredOutputJsonItems(part),
+    kind: 'structured-output',
+  }
+}
+
 function previewPartFromRecord(
   part: PreviewPartSource,
   index: number,
@@ -1432,101 +1538,13 @@ function previewPartFromRecord(
 ): PreviewPart {
   const type = typeof part.type === 'string' ? part.type : 'part'
   if (type === 'tool-call') {
-    const name =
-      typeof part.name === 'string'
-        ? part.name
-        : typeof part.toolName === 'string'
-          ? part.toolName
-          : 'tool'
-    const rawId =
-      typeof part.toolCallId === 'string'
-        ? part.toolCallId
-        : typeof part.id === 'string'
-          ? part.id
-          : `${index}:${name}`
-    const input = part.input ?? part.arguments
-    const output = part.output
-    const parsedInput = input === undefined ? {} : parseJsonishValue(input)
-    const parsedOutput =
-      output === undefined ? undefined : parseJsonishValue(output)
-    const approvalStatus = approvalStatusFromRecord(part.approval, part.state)
-    const jsonItems: Array<PreviewJsonItem> = []
-    if (input !== undefined) {
-      jsonItems.push({
-        label: 'Input',
-        value: parsedInput,
-      })
-    }
-    if (part.approval !== undefined) {
-      jsonItems.push({
-        label: 'Approval',
-        value: parseJsonishValue(part.approval),
-      })
-    }
-    if (output !== undefined) {
-      jsonItems.push({
-        label: 'Output',
-        value: parsedOutput,
-      })
-    }
-    return {
-      id: toolCallPartId(rawId),
-      label: approvalStatus
-        ? `tool call ${name} - ${approvalStatus}`
-        : `tool call ${name}`,
-      content: formatUnknown(input ?? output),
-      jsonItems,
-      kind: 'tool-call',
-      fixture: {
-        toolName: name,
-        input: parsedInput,
-        ...(parsedOutput !== undefined ? { output: parsedOutput } : {}),
-        toolCallId: rawId,
-        ...(messageId ? { messageId } : {}),
-      },
-    }
+    return previewToolCallPart(part, index, messageId)
   }
   if (type === 'tool-result') {
-    const name =
-      typeof part.name === 'string'
-        ? part.name
-        : typeof part.toolName === 'string'
-          ? part.toolName
-          : undefined
-    const rawId =
-      typeof part.toolCallId === 'string'
-        ? part.toolCallId
-        : typeof part.id === 'string'
-          ? part.id
-          : `${index}`
-    const output = part.output ?? part.content ?? part.error
-    return {
-      id: toolResultPartId(rawId),
-      label: name ? `tool result ${name}` : 'tool result',
-      content: formatUnknown(output),
-      jsonItems:
-        output === undefined
-          ? []
-          : [
-              {
-                label: part.error ? 'Error' : 'Output',
-                value: parseJsonishValue(output),
-              },
-            ],
-      kind: 'tool-result',
-    }
+    return previewToolResultPart(part, index)
   }
   if (type === 'structured-output') {
-    const status = typeof part.status === 'string' ? part.status : undefined
-    const raw = typeof part.raw === 'string' ? part.raw : undefined
-
-    return {
-      id: structuredOutputPartId(messageId ?? `${index}`),
-      label: status ? `structured output - ${status}` : 'structured output',
-      content: raw ?? formatUnknown(part.data ?? part.partial),
-      jsonItems: structuredOutputJsonItems(part),
-      kind: 'structured-output',
-    }
+    return previewStructuredOutputPart(part, index, messageId)
   }
   if (type === 'thinking') {
     return {

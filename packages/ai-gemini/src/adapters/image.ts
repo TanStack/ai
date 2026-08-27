@@ -42,6 +42,16 @@ import type {
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
+function assignDefined<T, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K] | undefined,
+): void {
+  if (value !== undefined) {
+    target[key] = value
+  }
+}
+
 /**
  * Configuration for Gemini image adapter
  */
@@ -329,68 +339,39 @@ export class GeminiImageAdapter<
     options: ImageGenerationOptions<GeminiAnyImageProviderOptions>,
   ): GenerateImagesConfig {
     const { size, numberOfImages, modelOptions } = options
-
-    // Build with conditional spreads — under exactOptionalPropertyTypes the
-    // vendor `GenerateImagesConfig` fields are `field?: T` (no `| undefined`),
-    // so we can only assign the property when we actually have a value.
-    const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
-
-    // Named picks, never a wholesale spread — the mirror image of the native
-    // path below. A native-only field (safetySettings, thinkingConfig,
-    // imageConfig, systemInstruction) belongs to GenerateContentConfig and is
-    // rejected by generateImages with 400 INVALID_ARGUMENT, so it must not be
-    // able to reach here even when the caller's `modelOptions` was typed
-    // against both shapes at once (e.g. an adapter inferred from a union of
-    // model names).
-    return {
+    const config: GenerateImagesConfig = {
       numberOfImages: numberOfImages ?? 1,
-      // Map size to aspect ratio if provided; modelOptions.aspectRatio,
-      // picked after it, overrides.
-      ...(sizeAspectRatio !== undefined && { aspectRatio: sizeAspectRatio }),
-      ...(modelOptions?.aspectRatio !== undefined && {
-        aspectRatio: modelOptions.aspectRatio,
-      }),
-      ...(modelOptions?.personGeneration !== undefined && {
-        personGeneration: modelOptions.personGeneration,
-      }),
-      ...(modelOptions?.safetyFilterLevel !== undefined && {
-        safetyFilterLevel: modelOptions.safetyFilterLevel,
-      }),
-      ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
-      ...(modelOptions?.addWatermark !== undefined && {
-        addWatermark: modelOptions.addWatermark,
-      }),
-      ...(modelOptions?.language !== undefined && {
-        language: modelOptions.language,
-      }),
-      ...(modelOptions?.negativePrompt !== undefined && {
-        negativePrompt: modelOptions.negativePrompt,
-      }),
-      ...(modelOptions?.outputMimeType !== undefined && {
-        outputMimeType: modelOptions.outputMimeType,
-      }),
-      ...(modelOptions?.outputCompressionQuality !== undefined && {
-        outputCompressionQuality: modelOptions.outputCompressionQuality,
-      }),
-      ...(modelOptions?.guidanceScale !== undefined && {
-        guidanceScale: modelOptions.guidanceScale,
-      }),
-      ...(modelOptions?.enhancePrompt !== undefined && {
-        enhancePrompt: modelOptions.enhancePrompt,
-      }),
-      ...(modelOptions?.includeSafetyAttributes !== undefined && {
-        includeSafetyAttributes: modelOptions.includeSafetyAttributes,
-      }),
-      ...(modelOptions?.includeRaiReason !== undefined && {
-        includeRaiReason: modelOptions.includeRaiReason,
-      }),
-      ...(modelOptions?.outputGcsUri !== undefined && {
-        outputGcsUri: modelOptions.outputGcsUri,
-      }),
-      ...(modelOptions?.labels !== undefined && {
-        labels: modelOptions.labels,
-      }),
     }
+    const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
+    assignDefined(
+      config,
+      'aspectRatio',
+      modelOptions?.aspectRatio ?? sizeAspectRatio,
+    )
+    if (!modelOptions) return config
+    assignDefined(config, 'personGeneration', modelOptions.personGeneration)
+    assignDefined(config, 'safetyFilterLevel', modelOptions.safetyFilterLevel)
+    assignDefined(config, 'seed', modelOptions.seed)
+    assignDefined(config, 'addWatermark', modelOptions.addWatermark)
+    assignDefined(config, 'language', modelOptions.language)
+    assignDefined(config, 'negativePrompt', modelOptions.negativePrompt)
+    assignDefined(config, 'outputMimeType', modelOptions.outputMimeType)
+    assignDefined(
+      config,
+      'outputCompressionQuality',
+      modelOptions.outputCompressionQuality,
+    )
+    assignDefined(config, 'guidanceScale', modelOptions.guidanceScale)
+    assignDefined(config, 'enhancePrompt', modelOptions.enhancePrompt)
+    assignDefined(
+      config,
+      'includeSafetyAttributes',
+      modelOptions.includeSafetyAttributes,
+    )
+    assignDefined(config, 'includeRaiReason', modelOptions.includeRaiReason)
+    assignDefined(config, 'outputGcsUri', modelOptions.outputGcsUri)
+    assignDefined(config, 'labels', modelOptions.labels)
+    return config
   }
 
   private transformImagenResponse(

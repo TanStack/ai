@@ -8,7 +8,11 @@ import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { GoogleGenAI, SpeechConfig } from '@google/genai'
+import type {
+  GenerateContentResponse,
+  GoogleGenAI,
+  SpeechConfig,
+} from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -145,49 +149,7 @@ export class GeminiTTSAdapter<
       model,
     })
 
-    const speechConfig: SpeechConfig = {}
-
-    if (modelOptions?.multiSpeakerVoiceConfig) {
-      // Validate multi-speaker config: 1 or 2 speakers allowed.
-      const speakerConfigs =
-        modelOptions.multiSpeakerVoiceConfig.speakerVoiceConfigs
-      if (
-        !Array.isArray(speakerConfigs) ||
-        speakerConfigs.length < 1 ||
-        speakerConfigs.length > 2
-      ) {
-        throw new Error(
-          `Gemini TTS multiSpeakerVoiceConfig.speakerVoiceConfigs must contain 1 or 2 speakers; received ${Array.isArray(speakerConfigs) ? speakerConfigs.length : 'non-array'}.`,
-        )
-      }
-      speechConfig.multiSpeakerVoiceConfig =
-        modelOptions.multiSpeakerVoiceConfig
-    } else {
-      // Honor the standard TTSOptions.voice (used by every other TTS adapter)
-      // as a fallback for the prebuilt voice name. If an explicit
-      // modelOptions.voiceConfig is supplied its values win — but we still
-      // fall back to `voice` / 'Kore' if the supplied voiceConfig is missing
-      // prebuiltVoiceConfig.voiceName.
-      if (
-        voice !== undefined &&
-        !(GEMINI_TTS_VOICES as ReadonlyArray<string>).includes(voice)
-      ) {
-        throw new Error(
-          `Invalid Gemini TTS voice "${voice}". Valid voices are: ${GEMINI_TTS_VOICES.join(', ')}.`,
-        )
-      }
-      const defaultVoiceName = (voice as GeminiTTSVoice | undefined) ?? 'Kore'
-      const supplied = modelOptions?.voiceConfig
-      const resolvedVoiceName =
-        supplied?.prebuiltVoiceConfig?.voiceName ?? defaultVoiceName
-      speechConfig.voiceConfig = {
-        prebuiltVoiceConfig: { voiceName: resolvedVoiceName },
-      }
-    }
-
-    if (modelOptions?.languageCode) {
-      speechConfig.languageCode = modelOptions.languageCode
-    }
+    const speechConfig = buildSpeechConfig(modelOptions, voice)
 
     try {
       const response = await this.client.models.generateContent({
@@ -201,77 +163,13 @@ export class GeminiTTSAdapter<
         config: {
           responseModalities: ['AUDIO'],
           speechConfig,
-          // systemInstruction belongs inside `config` per the @google/genai
-          // contract — matches sibling Gemini adapters (summarize, text).
           ...(modelOptions?.systemInstruction && {
             systemInstruction: modelOptions.systemInstruction,
           }),
         },
       })
 
-      // Extract audio data from response
-      const candidate = response.candidates?.[0]
-      const parts = candidate?.content?.parts
-
-      if (!parts || parts.length === 0) {
-        throw new Error('No audio output received from Gemini TTS')
-      }
-
-      // Look for inline data (audio)
-      const audioPart = parts.find((part: any) =>
-        part.inlineData?.mimeType?.startsWith('audio/'),
-      )
-
-      if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-        throw new Error('No audio data in Gemini TTS response')
-      }
-
-      const audioBase64 = audioPart.inlineData.data
-      // mime is guaranteed by the `startsWith('audio/')` find predicate above.
-      const mimeType = audioPart.inlineData.mimeType as string
-
-      // Surface token usage (with per-modality breakdown) when Gemini reports
-      // it. Spread conditionally for exactOptionalPropertyTypes — shared by both
-      // the PCM→WAV and pass-through return paths below.
-      const usageField = response.usageMetadata
-        ? { usage: buildGeminiUsage(response.usageMetadata) }
-        : {}
-
-      // Gemini TTS models return raw 16-bit LE PCM with a mime type like
-      // `audio/L16;codec=pcm;rate=24000`. That isn't playable in an <audio>
-      // element and the bare string isn't a usable file extension, so we
-      // prepend a RIFF/WAV header here and normalize the result to audio/wav.
-      const pcm = parsePcmMimeType(mimeType)
-      if (pcm) {
-        const wavBase64 = wrapPcmBase64AsWav(
-          audioBase64,
-          pcm.sampleRate,
-          pcm.channels,
-          pcm.bitsPerSample,
-        )
-        return {
-          id: generateId(this.name),
-          model,
-          audio: wavBase64,
-          format: 'wav',
-          contentType: 'audio/wav',
-          ...usageField,
-        }
-      }
-
-      // Strip any mime parameters (e.g. `audio/ogg;codec=opus`) before pulling
-      // the subtype out as the file format. `String.split` always returns at
-      // least one element, so [0] is defined.
-      const format = (mimeType.split(';')[0] ?? '').split('/')[1] || 'wav'
-
-      return {
-        id: generateId(this.name),
-        model,
-        audio: audioBase64,
-        format,
-        contentType: mimeType,
-        ...usageField,
-      }
+      return speechResultFromResponse(response, this.name, model)
     } catch (error) {
       logger.errors('gemini.generateSpeech fatal', {
         error,
@@ -279,6 +177,105 @@ export class GeminiTTSAdapter<
       })
       throw error
     }
+  }
+}
+
+function buildSpeechConfig(
+  modelOptions: GeminiTTSProviderOptions | undefined,
+  voice: string | undefined,
+): SpeechConfig {
+  const speechConfig: SpeechConfig = {}
+
+  if (modelOptions?.multiSpeakerVoiceConfig) {
+    const speakerConfigs =
+      modelOptions.multiSpeakerVoiceConfig.speakerVoiceConfigs
+    if (
+      !Array.isArray(speakerConfigs) ||
+      speakerConfigs.length < 1 ||
+      speakerConfigs.length > 2
+    ) {
+      throw new Error(
+        `Gemini TTS multiSpeakerVoiceConfig.speakerVoiceConfigs must contain 1 or 2 speakers; received ${Array.isArray(speakerConfigs) ? speakerConfigs.length : 'non-array'}.`,
+      )
+    }
+    speechConfig.multiSpeakerVoiceConfig = modelOptions.multiSpeakerVoiceConfig
+  } else {
+    if (
+      voice !== undefined &&
+      !(GEMINI_TTS_VOICES as ReadonlyArray<string>).includes(voice)
+    ) {
+      throw new Error(
+        `Invalid Gemini TTS voice "${voice}". Valid voices are: ${GEMINI_TTS_VOICES.join(', ')}.`,
+      )
+    }
+    const defaultVoiceName = (voice as GeminiTTSVoice | undefined) ?? 'Kore'
+    const supplied = modelOptions?.voiceConfig
+    const resolvedVoiceName =
+      supplied?.prebuiltVoiceConfig?.voiceName ?? defaultVoiceName
+    speechConfig.voiceConfig = {
+      prebuiltVoiceConfig: { voiceName: resolvedVoiceName },
+    }
+  }
+
+  if (modelOptions?.languageCode) {
+    speechConfig.languageCode = modelOptions.languageCode
+  }
+
+  return speechConfig
+}
+
+function speechResultFromResponse(
+  response: GenerateContentResponse,
+  adapterName: string,
+  model: string,
+): TTSResult {
+  const parts = response.candidates?.[0]?.content?.parts
+
+  if (!parts || parts.length === 0) {
+    throw new Error('No audio output received from Gemini TTS')
+  }
+
+  const audioPart = parts.find((part: any) =>
+    part.inlineData?.mimeType?.startsWith('audio/'),
+  )
+
+  if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+    throw new Error('No audio data in Gemini TTS response')
+  }
+
+  const audioBase64 = audioPart.inlineData.data
+  const mimeType = audioPart.inlineData.mimeType as string
+  const usageField = response.usageMetadata
+    ? { usage: buildGeminiUsage(response.usageMetadata) }
+    : {}
+
+  const pcm = parsePcmMimeType(mimeType)
+  if (pcm) {
+    const wavBase64 = wrapPcmBase64AsWav(
+      audioBase64,
+      pcm.sampleRate,
+      pcm.channels,
+      pcm.bitsPerSample,
+    )
+    return {
+      id: generateId(adapterName),
+      model,
+      audio: wavBase64,
+      format: 'wav',
+      contentType: 'audio/wav',
+      ...usageField,
+    }
+  }
+
+  const format = (mimeType.split(';')[0] ?? '').split('/')[1] || 'wav'
+
+  return {
+    id: generateId(adapterName),
+    model,
+    audio: audioBase64,
+    format,
+    contentType: mimeType,
+    ...usageField,
   }
 }
 

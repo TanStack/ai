@@ -370,8 +370,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     fallbackRunId: string,
     signal: AbortSignal,
   ): Promise<void> {
-    let streamRunId: string | undefined
-    let sawTerminalChunk = false
+    const state = {
+      streamRunId: undefined as string | undefined,
+      sawTerminalChunk: false,
+    }
 
     for await (const raw of source) {
       if (signal.aborted) break
@@ -379,66 +381,76 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
       this.observeResumeSnapshot(chunk)
-      const chunkRunId =
-        'runId' in chunk && typeof chunk.runId === 'string'
-          ? chunk.runId
-          : undefined
-
-      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType has ~22 variants; this consumer only handles the subset relevant to video generation lifecycle.
-      switch (chunk.type) {
-        case 'RUN_STARTED': {
-          streamRunId = chunk.runId
-          this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          break
-        }
-        case 'CUSTOM': {
-          this.devtoolsBridge.ensureRunStarted(streamRunId ?? fallbackRunId)
-          if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
-            const { jobId } = chunk.value as { jobId: string }
-            this.setJobId(jobId)
-            this.callbacksRef.onJobCreated?.(jobId)
-          } else if (chunk.name === GENERATION_EVENTS.VIDEO_STATUS) {
-            const statusInfo = chunk.value as VideoStatusInfo
-            this.setVideoStatus(statusInfo)
-            this.callbacksRef.onStatusUpdate?.(statusInfo)
-            if (statusInfo.progress !== undefined) {
-              this.setProgress(statusInfo.progress)
-            }
-          } else if (chunk.name === GENERATION_EVENTS.RESULT) {
-            this.setResult(chunk.value as VideoGenerateResult)
-          } else if (chunk.name === GENERATION_EVENTS.PROGRESS) {
-            const { progress, message } = chunk.value as {
-              progress: number
-              message?: string
-            }
-            this.setProgress(progress, message)
-          }
-          break
-        }
-        case 'RUN_FINISHED': {
-          streamRunId = chunk.runId
-          sawTerminalChunk = true
-          this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          this.setStatus('success')
-          break
-        }
-        case 'RUN_ERROR': {
-          this.devtoolsBridge.ensureRunStarted(
-            chunkRunId ?? streamRunId ?? fallbackRunId,
-          )
-          // Spec RUN_ERROR message. Missing message uses this fallback.
-          const msg =
-            (chunk.message as string | undefined) || 'An error occurred'
-          throw new Error(msg)
-        }
-        default:
-          break
-      }
+      this.applyVideoStreamChunk(chunk, fallbackRunId, state)
     }
 
     // An aborted read is a deliberate stop/dispose, not a truncation.
-    if (!sawTerminalChunk && !signal.aborted) {
+    if (!state.sawTerminalChunk && !signal.aborted) {
       throw new Error(GENERATION_STREAM_TRUNCATED_MESSAGE)
+    }
+  }
+
+  private applyVideoStreamChunk(
+    chunk: StreamChunk,
+    fallbackRunId: string,
+    state: { streamRunId: string | undefined; sawTerminalChunk: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      state.streamRunId = chunk.runId
+      this.devtoolsBridge.ensureRunStarted(chunk.runId)
+      return
+    }
+    if (chunk.type === 'CUSTOM') {
+      this.applyVideoCustomChunk(chunk, state.streamRunId ?? fallbackRunId)
+      return
+    }
+    if (chunk.type === 'RUN_FINISHED') {
+      state.streamRunId = chunk.runId
+      state.sawTerminalChunk = true
+      this.devtoolsBridge.ensureRunStarted(chunk.runId)
+      this.setStatus('success')
+      return
+    }
+    if (chunk.type !== 'RUN_ERROR') return
+    const chunkRunId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : undefined
+    this.devtoolsBridge.ensureRunStarted(
+      chunkRunId ?? state.streamRunId ?? fallbackRunId,
+    )
+    // Spec RUN_ERROR message. Missing message uses this fallback.
+    const msg = (chunk.message as string | undefined) || 'An error occurred'
+    throw new Error(msg)
+  }
+
+  private applyVideoCustomChunk(chunk: StreamChunk, runId: string): void {
+    this.devtoolsBridge.ensureRunStarted(runId)
+    if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
+      const { jobId } = chunk.value as { jobId: string }
+      this.setJobId(jobId)
+      this.callbacksRef.onJobCreated?.(jobId)
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.VIDEO_STATUS) {
+      const statusInfo = chunk.value as VideoStatusInfo
+      this.setVideoStatus(statusInfo)
+      this.callbacksRef.onStatusUpdate?.(statusInfo)
+      if (statusInfo.progress !== undefined) {
+        this.setProgress(statusInfo.progress)
+      }
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.RESULT) {
+      this.setResult(chunk.value as VideoGenerateResult)
+      return
+    }
+    if (chunk.name === GENERATION_EVENTS.PROGRESS) {
+      const { progress, message } = chunk.value as {
+        progress: number
+        message?: string
+      }
+      this.setProgress(progress, message)
     }
   }
 

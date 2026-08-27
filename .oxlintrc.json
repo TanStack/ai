@@ -243,6 +243,12 @@
             "selector": "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
             "message": "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// oxlint-disable-next-line eslint-js/no-restricted-syntax -- <reason>`."
           }
+        ],
+        "complexity": [
+          "error",
+          {
+            "max": 20
+          }
         ]
       },
       "plugins": ["typescript"]

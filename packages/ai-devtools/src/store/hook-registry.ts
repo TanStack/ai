@@ -189,46 +189,59 @@ interface HookUpsertEvent extends Partial<
   timestamp: number
 }
 
+type EventDedupeFields = Partial<AIDevtoolsEventEnvelope> & {
+  runtimeId?: string
+  timestamp?: number
+}
+
+function syntheticEventDedupeKey(
+  eventName: string,
+  event: EventDedupeFields,
+): string {
+  return [
+    eventName,
+    event.source ?? 'unknown',
+    event.visibility ?? 'unknown',
+    event.runtimeId ?? 'no-runtime',
+    event.hookId ?? event.clientId ?? 'no-hook',
+    event.threadId ?? 'no-thread',
+    event.runId ?? 'no-run',
+    event.messageId ?? 'no-message',
+    event.toolCallId ?? 'no-tool-call',
+    event.timestamp ?? 'no-time',
+  ].join(':')
+}
+
+function eventHasNoDedupeIdentity(event: EventDedupeFields): boolean {
+  return (
+    !event.source &&
+    !event.visibility &&
+    !event.runtimeId &&
+    !event.hookId &&
+    !event.clientId &&
+    !event.threadId &&
+    !event.runId &&
+    !event.messageId &&
+    !event.toolCallId &&
+    !event.timestamp
+  )
+}
+
 export function markEventSeen(
   state: HookRegistryState,
   eventName: string,
-  event: Partial<AIDevtoolsEventEnvelope> & {
-    runtimeId?: string
-    timestamp?: number
-  },
+  event: EventDedupeFields,
 ): boolean {
   let key: string
   if (event.eventId) {
     key = event.eventId
   } else {
-    key = [
-      eventName,
-      event.source ?? 'unknown',
-      event.visibility ?? 'unknown',
-      event.runtimeId ?? 'no-runtime',
-      event.hookId ?? event.clientId ?? 'no-hook',
-      event.threadId ?? 'no-thread',
-      event.runId ?? 'no-run',
-      event.messageId ?? 'no-message',
-      event.toolCallId ?? 'no-tool-call',
-      event.timestamp ?? 'no-time',
-    ].join(':')
+    key = syntheticEventDedupeKey(eventName, event)
     // If every identifying field fell back to its literal sentinel the synthesised
     // key is just `eventName:unknown:unknown:no-runtime:...` — useful for very
     // little. Warn so it's obvious in the console why deduplication may be
     // collapsing distinct events together.
-    if (
-      !event.source &&
-      !event.visibility &&
-      !event.runtimeId &&
-      !event.hookId &&
-      !event.clientId &&
-      !event.threadId &&
-      !event.runId &&
-      !event.messageId &&
-      !event.toolCallId &&
-      !event.timestamp
-    ) {
+    if (eventHasNoDedupeIdentity(event)) {
       console.warn(
         `[ai-devtools] dedupe key for "${eventName}" has no identifying fields; events may collide.`,
       )
@@ -249,6 +262,175 @@ export function markEventSeen(
   return true
 }
 
+type HookEventHandler = (
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+) => void
+
+function applyRegisteredHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const registered = event as HookRegisteredEvent
+  delete state.unregisteredHookIds[registered.hookId]
+  upsertHook(state, registered)
+  attachEventToHook(state, registered.hookId, timelineEvent.id)
+}
+
+function applyUpdatedHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const updated = event as HookUpdatedEvent
+  if (state.unregisteredHookIds[updated.hookId]) {
+    return
+  }
+  if (isStaleHookInstanceEvent(state, updated.hookId, updated)) {
+    return
+  }
+  upsertHook(state, updated)
+  attachEventToHook(state, updated.hookId, timelineEvent.id)
+}
+
+function applyUnregisteredHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+): void {
+  const unregistered = event as HookUnregisteredEvent
+  const existing = state.hooks[unregistered.hookId]
+  if (
+    existing?.clientId &&
+    unregistered.clientId &&
+    existing.clientId !== unregistered.clientId
+  ) {
+    return
+  }
+  if (
+    existing?.correlationId &&
+    unregistered.correlationId &&
+    existing.correlationId !== unregistered.correlationId
+  ) {
+    return
+  }
+  if (existing && existing.registeredAt > unregistered.timestamp) {
+    return
+  }
+  state.unregisteredHookIds[unregistered.hookId] = true
+  removeHookRecord(state, unregistered.hookId)
+}
+
+function applyStateSnapshotHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const snapshot = event as HookStateSnapshotEvent
+  if (state.unregisteredHookIds[snapshot.hookId]) {
+    return
+  }
+  if (isStaleHookInstanceEvent(state, snapshot.hookId, snapshot)) {
+    return
+  }
+  upsertHook(state, {
+    ...snapshot,
+    lifecycle: inferLifecycleFromSnapshot(snapshot.state),
+  })
+  const hook = state.hooks[snapshot.hookId]
+  if (hook) {
+    hook.state = snapshot.state
+    hook.updatedAt = snapshot.timestamp
+  }
+  attachEventToHook(state, snapshot.hookId, timelineEvent.id)
+  // Generation hooks ship their run history inside the snapshot. When
+  // devtools is opened after a run has already completed, the run
+  // lifecycle events fired before mount are lost, so backfill the
+  // global runs map and the hook's runIds from the snapshot itself.
+  syncRunsFromSnapshot(state, snapshot, timelineEvent.id)
+}
+
+function applyToolsRegisteredHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const toolsEvent = event as ToolsRegisteredEvent
+  if (state.unregisteredHookIds[toolsEvent.hookId]) {
+    return
+  }
+  if (isStaleHookInstanceEvent(state, toolsEvent.hookId, toolsEvent)) {
+    return
+  }
+  if (!toolsEvent.hookName) {
+    console.warn(
+      `[ai-devtools] tools:registered event for hook "${toolsEvent.hookId}" had no hookName; displaying raw hookId in the UI.`,
+    )
+  }
+  upsertHook(state, {
+    ...toolsEvent,
+    hookName: toolsEvent.hookName ?? toolsEvent.hookId,
+    lifecycle: 'active',
+  })
+  const hook = state.hooks[toolsEvent.hookId]
+  if (hook) {
+    hook.tools = toolsEvent.tools
+    hook.updatedAt = toolsEvent.timestamp
+  }
+  attachEventToHook(state, toolsEvent.hookId, timelineEvent.id)
+}
+
+function applyRunLifecycleHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const runEvent = event as RunLifecycleEvent
+  if (runEvent.hookId && state.unregisteredHookIds[runEvent.hookId]) {
+    return
+  }
+  if (
+    runEvent.hookId &&
+    isStaleHookInstanceEvent(state, runEvent.hookId, runEvent)
+  ) {
+    return
+  }
+  upsertRun(state, runEvent, timelineEvent.id)
+  if (runEvent.hookId) {
+    upsertUnknownHook(state, runEvent.hookId, runEvent)
+    attachRunToHook(state, runEvent.hookId, runEvent.runId)
+    attachActivityRunToHook(state, runEvent.hookId, runEvent.runId)
+    attachEventToHook(state, runEvent.hookId, timelineEvent.id)
+  }
+}
+
+function applyToolFixtureHookEvent(
+  state: HookRegistryState,
+  event: RuntimeScopedHookEvent,
+  timelineEvent: TimelineEvent,
+): void {
+  const fixtureEvent = event as DevtoolsToolFixtureApplyEvent
+  if (fixtureEvent.hookId) {
+    attachEventToHook(state, fixtureEvent.hookId, timelineEvent.id)
+  }
+}
+
+const hookEventHandlers: Record<string, HookEventHandler> = {
+  'hook:registered': applyRegisteredHookEvent,
+  'hook:updated': applyUpdatedHookEvent,
+  'hook:unregistered': applyUnregisteredHookEvent,
+  'hook:state-snapshot': applyStateSnapshotHookEvent,
+  'tools:registered': applyToolsRegisteredHookEvent,
+  'run:created': applyRunLifecycleHookEvent,
+  'run:started': applyRunLifecycleHookEvent,
+  'run:updated': applyRunLifecycleHookEvent,
+  'run:completed': applyRunLifecycleHookEvent,
+  'run:errored': applyRunLifecycleHookEvent,
+  'run:cancelled': applyRunLifecycleHookEvent,
+  'devtools:tool-fixture:apply': applyToolFixtureHookEvent,
+}
+
 export function applyHookEvent(
   state: HookRegistryState,
   eventName: string,
@@ -265,134 +447,8 @@ export function applyHookEvent(
   const timelineEvent = createTimelineEvent(eventName, event)
   state.events[timelineEvent.id] = timelineEvent
 
-  switch (eventName) {
-    case 'hook:registered': {
-      const registered = event as HookRegisteredEvent
-      delete state.unregisteredHookIds[registered.hookId]
-      upsertHook(state, registered)
-      attachEventToHook(state, registered.hookId, timelineEvent.id)
-      break
-    }
-    case 'hook:updated': {
-      const updated = event as HookUpdatedEvent
-      if (state.unregisteredHookIds[updated.hookId]) {
-        break
-      }
-      if (isStaleHookInstanceEvent(state, updated.hookId, updated)) {
-        break
-      }
-      upsertHook(state, updated)
-      attachEventToHook(state, updated.hookId, timelineEvent.id)
-      break
-    }
-    case 'hook:unregistered': {
-      const unregistered = event as HookUnregisteredEvent
-      const existing = state.hooks[unregistered.hookId]
-      if (
-        existing?.clientId &&
-        unregistered.clientId &&
-        existing.clientId !== unregistered.clientId
-      ) {
-        break
-      }
-      if (
-        existing?.correlationId &&
-        unregistered.correlationId &&
-        existing.correlationId !== unregistered.correlationId
-      ) {
-        break
-      }
-      if (existing && existing.registeredAt > unregistered.timestamp) {
-        break
-      }
-      state.unregisteredHookIds[unregistered.hookId] = true
-      removeHookRecord(state, unregistered.hookId)
-      break
-    }
-    case 'hook:state-snapshot': {
-      const snapshot = event as HookStateSnapshotEvent
-      if (state.unregisteredHookIds[snapshot.hookId]) {
-        break
-      }
-      if (isStaleHookInstanceEvent(state, snapshot.hookId, snapshot)) {
-        break
-      }
-      upsertHook(state, {
-        ...snapshot,
-        lifecycle: inferLifecycleFromSnapshot(snapshot.state),
-      })
-      const hook = state.hooks[snapshot.hookId]
-      if (hook) {
-        hook.state = snapshot.state
-        hook.updatedAt = snapshot.timestamp
-      }
-      attachEventToHook(state, snapshot.hookId, timelineEvent.id)
-      // Generation hooks ship their run history inside the snapshot. When
-      // devtools is opened after a run has already completed, the run
-      // lifecycle events fired before mount are lost, so backfill the
-      // global runs map and the hook's runIds from the snapshot itself.
-      syncRunsFromSnapshot(state, snapshot, timelineEvent.id)
-      break
-    }
-    case 'tools:registered': {
-      const toolsEvent = event as ToolsRegisteredEvent
-      if (state.unregisteredHookIds[toolsEvent.hookId]) {
-        break
-      }
-      if (isStaleHookInstanceEvent(state, toolsEvent.hookId, toolsEvent)) {
-        break
-      }
-      if (!toolsEvent.hookName) {
-        console.warn(
-          `[ai-devtools] tools:registered event for hook "${toolsEvent.hookId}" had no hookName; displaying raw hookId in the UI.`,
-        )
-      }
-      upsertHook(state, {
-        ...toolsEvent,
-        hookName: toolsEvent.hookName ?? toolsEvent.hookId,
-        lifecycle: 'active',
-      })
-      const hook = state.hooks[toolsEvent.hookId]
-      if (hook) {
-        hook.tools = toolsEvent.tools
-        hook.updatedAt = toolsEvent.timestamp
-      }
-      attachEventToHook(state, toolsEvent.hookId, timelineEvent.id)
-      break
-    }
-    case 'run:created':
-    case 'run:started':
-    case 'run:updated':
-    case 'run:completed':
-    case 'run:errored':
-    case 'run:cancelled': {
-      const runEvent = event as RunLifecycleEvent
-      if (runEvent.hookId && state.unregisteredHookIds[runEvent.hookId]) {
-        break
-      }
-      if (
-        runEvent.hookId &&
-        isStaleHookInstanceEvent(state, runEvent.hookId, runEvent)
-      ) {
-        break
-      }
-      upsertRun(state, runEvent, timelineEvent.id)
-      if (runEvent.hookId) {
-        upsertUnknownHook(state, runEvent.hookId, runEvent)
-        attachRunToHook(state, runEvent.hookId, runEvent.runId)
-        attachActivityRunToHook(state, runEvent.hookId, runEvent.runId)
-        attachEventToHook(state, runEvent.hookId, timelineEvent.id)
-      }
-      break
-    }
-    case 'devtools:tool-fixture:apply': {
-      const fixtureEvent = event as DevtoolsToolFixtureApplyEvent
-      if (fixtureEvent.hookId) {
-        attachEventToHook(state, fixtureEvent.hookId, timelineEvent.id)
-      }
-      break
-    }
-  }
+  const apply = hookEventHandlers[eventName]
+  if (apply) apply(state, event, timelineEvent)
 
   if (state.activeHookId && !state.hooks[state.activeHookId]) {
     state.activeHookId = null

@@ -8,6 +8,7 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { processAnthropicStream } from './text-stream'
 import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
@@ -211,6 +212,132 @@ export function computeAnthropicBetas(
   return betas.size > 0 ? Array.from(betas) : undefined
 }
 
+const ANTHROPIC_MODEL_OPTION_KEYS: Array<keyof ExternalTextProviderOptions> = [
+  'cache_control',
+  'container',
+  'context_management',
+  'effort',
+  'mcp_servers',
+  'output_config',
+  'service_tier',
+  'stop_sequences',
+  'thinking',
+  'tool_choice',
+  'top_k',
+  'temperature',
+  'top_p',
+]
+
+function copyValidAnthropicModelOptions(
+  modelOptions: ExternalTextProviderOptions | undefined,
+  logger: InternalLogger,
+): Partial<InternalTextProviderOptions> {
+  const validProviderOptions: Partial<InternalTextProviderOptions> = {}
+  if (!modelOptions) return validProviderOptions
+
+  // `max_tokens` is a legitimate public modelOptions field, but it is read
+  // via a dedicated path (defaultMaxTokens below) rather than copied into
+  // validProviderOptions. Exempt it from the dropped-key warning here so a
+  // correct `modelOptions: { max_tokens }` call doesn't log a spurious
+  // "dropped unknown key" error, while keeping it out of the copy loop.
+  const droppedKeyExemptSet = new Set<string>([
+    ...ANTHROPIC_MODEL_OPTION_KEYS,
+    'max_tokens',
+  ])
+  const droppedKeys = Object.keys(modelOptions).filter(
+    (key) => !droppedKeyExemptSet.has(key),
+  )
+  if (droppedKeys.length > 0) {
+    // Reachable when callers cast around the public type (e.g.
+    // `modelOptions: { system: ... } as any`). Without this warning the
+    // unknown keys are silently dropped — `system` in particular was a
+    // previously-tested path for attaching `cache_control` and we don't
+    // want that to fail in production with no signal.
+    logger.errors(
+      `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
+      {
+        source: 'anthropic.mapCommonOptionsToAnthropic',
+        droppedKeys,
+        hint: droppedKeys.includes('system')
+          ? 'pass system prompts via the top-level `systemPrompts` option; `modelOptions.system` is no longer honored'
+          : undefined,
+      },
+    )
+  }
+  for (const key of ANTHROPIC_MODEL_OPTION_KEYS) {
+    if (!(key in modelOptions)) continue
+    const value = modelOptions[key]
+    if (key === 'tool_choice' && typeof value === 'string') {
+      ;(validProviderOptions as Record<string, unknown>)[key] = {
+        type: value,
+      }
+    } else {
+      ;(validProviderOptions as Record<string, unknown>)[key] = value
+    }
+  }
+  return validProviderOptions
+}
+
+function buildAnthropicSystemBlocks(
+  systemPrompts: TextOptions['systemPrompts'],
+): Array<TextBlockParam> | undefined {
+  const normalized =
+    normalizeSystemPrompts<AnthropicSystemPromptMetadata>(systemPrompts)
+  if (normalized.length === 0) return undefined
+  return normalized.map(
+    (p): TextBlockParam => ({
+      type: 'text',
+      text: p.content,
+      ...(p.metadata?.cache_control && {
+        cache_control: p.metadata.cache_control,
+      }),
+    }),
+  )
+}
+
+function applyCodeExecutionSkills(
+  tools: Array<AnyTool> | undefined,
+  validProviderOptions: Partial<InternalTextProviderOptions>,
+): void {
+  const toolSkills = tools
+    ?.map((tool) =>
+      getAnthropicProviderToolKind(tool) === 'code_execution'
+        ? readCodeExecutionSkills(tool)
+        : undefined,
+    )
+    .find((skills) => skills && skills.length > 0)
+
+  if (toolSkills && toolSkills.length > 0) {
+    const existingContainer = validProviderOptions.container ?? undefined
+    validProviderOptions.container = {
+      id: existingContainer?.id ?? null,
+      skills: toolSkills,
+    }
+  }
+}
+
+function resolveAnthropicMaxTokens(
+  model: string,
+  modelOptions: { max_tokens?: number } | undefined,
+  thinkingBudget: number | undefined,
+  stream: boolean,
+): number {
+  // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
+  // value. When the caller doesn't specify one, default to the resolved
+  // model's real output ceiling (from model-meta) rather than a low constant
+  // that silently truncates long responses with `stop_reason: "max_tokens"`
+  // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
+  // tokens actually generated, so a higher default costs nothing extra.
+  // For non-streaming requests (the `structuredOutput()` path) the default is
+  // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
+  // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
+  const defaultMaxTokens =
+    modelOptions?.max_tokens ?? getAnthropicDefaultMaxTokens(model, { stream })
+  return thinkingBudget && thinkingBudget >= defaultMaxTokens
+    ? thinkingBudget + 1
+    : defaultMaxTokens
+}
+
 /**
  * Configuration for Anthropic text adapter
  */
@@ -346,7 +473,7 @@ export class AnthropicTextAdapter<
         },
       )
 
-      yield* this.processAnthropicStream(
+      yield* processAnthropicStream(
         stream,
         options,
         () => generateId(this.name),
@@ -484,110 +611,32 @@ export class AnthropicTextAdapter<
     options: TextOptions<AnthropicTextProviderOptions>,
     { stream = true }: { stream?: boolean } = {},
   ) {
-    const modelOptions = options.modelOptions
-
     const formattedMessages = this.formatMessages(options.messages)
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    const validProviderOptions: Partial<InternalTextProviderOptions> = {}
-    if (modelOptions) {
-      const validKeys: Array<keyof AnthropicTextProviderOptions> = [
-        'cache_control',
-        'container',
-        'context_management',
-        'effort',
-        'mcp_servers',
-        'output_config',
-        'service_tier',
-        'stop_sequences',
-        'thinking',
-        'tool_choice',
-        'top_k',
-        'temperature',
-        'top_p',
-      ]
-      // `max_tokens` is a legitimate public modelOptions field, but it is read
-      // via a dedicated path (defaultMaxTokens below) rather than copied into
-      // validProviderOptions. Exempt it from the dropped-key warning here so a
-      // correct `modelOptions: { max_tokens }` call doesn't log a spurious
-      // "dropped unknown key" error, while keeping it out of the copy loop.
-      const droppedKeyExemptSet = new Set<string>([...validKeys, 'max_tokens'])
-      const droppedKeys = Object.keys(modelOptions).filter(
-        (key) => !droppedKeyExemptSet.has(key),
-      )
-      if (droppedKeys.length > 0) {
-        // Reachable when callers cast around the public type (e.g.
-        // `modelOptions: { system: ... } as any`). Without this warning the
-        // unknown keys are silently dropped — `system` in particular was a
-        // previously-tested path for attaching `cache_control` and we don't
-        // want that to fail in production with no signal.
-        options.logger.errors(
-          `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
-          {
-            source: 'anthropic.mapCommonOptionsToAnthropic',
-            droppedKeys,
-            hint: droppedKeys.includes('system')
-              ? 'pass system prompts via the top-level `systemPrompts` option; `modelOptions.system` is no longer honored'
-              : undefined,
-          },
-        )
-      }
-      for (const key of validKeys) {
-        if (key in modelOptions) {
-          const value = modelOptions[key]
-          if (key === 'tool_choice' && typeof value === 'string') {
-            ;(validProviderOptions as Record<string, unknown>)[key] = {
-              type: value,
-            }
-          } else {
-            ;(validProviderOptions as Record<string, unknown>)[key] = value
-          }
-        }
-      }
-    }
+    const validProviderOptions = copyValidAnthropicModelOptions(
+      options.modelOptions,
+      options.logger,
+    )
 
     const thinkingBudget =
       validProviderOptions.thinking?.type === 'enabled'
         ? validProviderOptions.thinking.budget_tokens
         : undefined
-    // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
-    // value. When the caller doesn't specify one, default to the resolved
-    // model's real output ceiling (from model-meta) rather than a low constant
-    // that silently truncates long responses with `stop_reason: "max_tokens"`
-    // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
-    // tokens actually generated, so a higher default costs nothing extra.
-    // For non-streaming requests (the `structuredOutput()` path) the default is
-    // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
-    // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
-    const defaultMaxTokens =
-      modelOptions?.max_tokens ??
-      getAnthropicDefaultMaxTokens(this.model, { stream })
-    const maxTokens =
-      thinkingBudget && thinkingBudget >= defaultMaxTokens
-        ? thinkingBudget + 1
-        : defaultMaxTokens
+    const maxTokens = resolveAnthropicMaxTokens(
+      this.model,
+      options.modelOptions,
+      thinkingBudget,
+      stream,
+    )
 
     // `InternalTextProviderOptions.system` is typed
     // `string | Array<TextBlockParam>` (no `| undefined`), so build it
     // outside the literal and spread it conditionally rather than
     // assigning `undefined` under exactOptionalPropertyTypes.
-    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
-      const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-        options.systemPrompts,
-      )
-      if (normalized.length === 0) return undefined
-      return normalized.map(
-        (p): TextBlockParam => ({
-          type: 'text',
-          text: p.content,
-          ...(p.metadata?.cache_control && {
-            cache_control: p.metadata.cache_control,
-          }),
-        }),
-      )
-    })()
+    const systemBlocks = buildAnthropicSystemBlocks(options.systemPrompts)
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
     // loop and a single schema-constrained JSON message on its final turn.
@@ -612,21 +661,7 @@ export class AnthropicTextAdapter<
     // `container.skills` request param (Anthropic's required shape). Preserve any
     // `container.id` supplied via modelOptions for container reuse. This is the
     // canonical path for skills; `modelOptions.container.skills` is deprecated.
-    const toolSkills = options.tools
-      ?.map((tool) =>
-        getAnthropicProviderToolKind(tool) === 'code_execution'
-          ? readCodeExecutionSkills(tool)
-          : undefined,
-      )
-      .find((skills) => skills && skills.length > 0)
-
-    if (toolSkills && toolSkills.length > 0) {
-      const existingContainer = validProviderOptions.container ?? undefined
-      validProviderOptions.container = {
-        id: existingContainer?.id ?? null,
-        skills: toolSkills,
-      }
-    }
+    applyCodeExecutionSkills(options.tools, validProviderOptions)
 
     // `temperature`/`top_p` arrive via `...validProviderOptions` (sourced from
     // `modelOptions`). `InternalTextProviderOptions` declares `system` and
@@ -736,6 +771,117 @@ export class AnthropicTextAdapter<
     }
   }
 
+  private formatToolResultMessage(
+    message: ModelMessage,
+    toolCallId: string,
+  ): InternalTextProviderOptions['messages'][number] {
+    const toolContent = message.content
+    return {
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: toolCallId,
+          content: Array.isArray(toolContent)
+            ? toolContent.map((part) =>
+                this.convertContentPartToAnthropic(part),
+              )
+            : typeof toolContent === 'string'
+              ? toolContent
+              : '',
+        },
+      ],
+    }
+  }
+
+  private parseToolCallInput(toolCall: {
+    function: { arguments?: string }
+  }): unknown {
+    try {
+      const parsed = toolCall.function.arguments
+        ? JSON.parse(toolCall.function.arguments)
+        : {}
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      return toolCall.function.arguments
+    }
+  }
+
+  private formatAssistantToolCallMessage(
+    message: ModelMessage,
+    toolCalls: NonNullable<ModelMessage['toolCalls']>,
+  ): InternalTextProviderOptions['messages'][number] {
+    const contentBlocks: Array<ContentBlockParam> = []
+
+    this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+    if (message.content) {
+      const content = typeof message.content === 'string' ? message.content : ''
+      const textBlock: TextBlockParam = {
+        type: 'text',
+        text: content,
+      }
+      contentBlocks.push(textBlock)
+    }
+
+    for (const toolCall of toolCalls) {
+      const parsedInput = this.parseToolCallInput(toolCall)
+
+      // Provider-executed server tools (e.g. web_search) replay as the
+      // original `server_tool_use` + result blocks so the model still sees
+      // the prior evidence. Their result was captured verbatim during
+      // streaming (see processAnthropicStream).
+      const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+      if (serverMeta) {
+        const serverToolUseBlock: ServerToolUseBlockParam = {
+          type: 'server_tool_use',
+          id: toolCall.id,
+          name: serverMeta.serverToolType,
+          input: parsedInput,
+        }
+        contentBlocks.push(serverToolUseBlock)
+        contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+        continue
+      }
+
+      const toolUseBlock: ToolUseBlockParam = {
+        type: 'tool_use',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        input: parsedInput,
+      }
+      contentBlocks.push(toolUseBlock)
+    }
+
+    return {
+      role: 'assistant',
+      content: contentBlocks,
+    }
+  }
+
+  private formatAssistantContentMessage(
+    message: ModelMessage,
+  ): InternalTextProviderOptions['messages'][number] {
+    const contentBlocks: Array<ContentBlockParam> = []
+    this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+    if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        contentBlocks.push(this.convertContentPartToAnthropic(part))
+      }
+    } else if (message.content) {
+      contentBlocks.push({
+        type: 'text',
+        text: message.content,
+      })
+    }
+
+    return {
+      role: 'assistant',
+      content: contentBlocks.length > 0 ? contentBlocks : '',
+    }
+  }
+
   private formatMessages(
     messages: Array<ModelMessage>,
   ): InternalTextProviderOptions['messages'] {
@@ -745,117 +891,30 @@ export class AnthropicTextAdapter<
       const role = message.role
 
       if (role === 'tool' && message.toolCallId) {
-        const toolContent = message.content
-        formattedMessages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: message.toolCallId,
-              content: Array.isArray(toolContent)
-                ? toolContent.map((part) =>
-                    this.convertContentPartToAnthropic(part),
-                  )
-                : typeof toolContent === 'string'
-                  ? toolContent
-                  : '',
-            },
-          ],
-        })
+        formattedMessages.push(
+          this.formatToolResultMessage(message, message.toolCallId),
+        )
         continue
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: Array<ContentBlockParam> = []
-
-        this.appendThinkingBlocks(contentBlocks, message.thinking)
-
-        if (message.content) {
-          const content =
-            typeof message.content === 'string' ? message.content : ''
-          const textBlock: TextBlockParam = {
-            type: 'text',
-            text: content,
-          }
-          contentBlocks.push(textBlock)
-        }
-
-        for (const toolCall of message.toolCalls) {
-          let parsedInput: unknown = {}
-          try {
-            const parsed = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {}
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = toolCall.function.arguments
-          }
-
-          // Provider-executed server tools (e.g. web_search) replay as the
-          // original `server_tool_use` + result blocks so the model still sees
-          // the prior evidence. Their result was captured verbatim during
-          // streaming (see processAnthropicStream).
-          const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
-          if (serverMeta) {
-            const serverToolUseBlock: ServerToolUseBlockParam = {
-              type: 'server_tool_use',
-              id: toolCall.id,
-              name: serverMeta.serverToolType,
-              input: parsedInput,
-            }
-            contentBlocks.push(serverToolUseBlock)
-            contentBlocks.push(
-              buildServerToolResultBlock(toolCall.id, serverMeta),
-            )
-            continue
-          }
-
-          const toolUseBlock: ToolUseBlockParam = {
-            type: 'tool_use',
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: parsedInput,
-          }
-          contentBlocks.push(toolUseBlock)
-        }
-
-        formattedMessages.push({
-          role: 'assistant',
-          content: contentBlocks,
-        })
-
+        formattedMessages.push(
+          this.formatAssistantToolCallMessage(message, message.toolCalls),
+        )
         continue
       }
 
       if (role === 'assistant') {
-        const contentBlocks: Array<ContentBlockParam> = []
-        this.appendThinkingBlocks(contentBlocks, message.thinking)
-
-        if (Array.isArray(message.content)) {
-          for (const part of message.content) {
-            contentBlocks.push(this.convertContentPartToAnthropic(part))
-          }
-        } else if (message.content) {
-          contentBlocks.push({
-            type: 'text',
-            text: message.content,
-          })
-        }
-
-        formattedMessages.push({
-          role: 'assistant',
-          content: contentBlocks.length > 0 ? contentBlocks : '',
-        })
+        formattedMessages.push(this.formatAssistantContentMessage(message))
         continue
       }
 
       if (role === 'user' && Array.isArray(message.content)) {
-        const contentBlocks = message.content.map((part) =>
-          this.convertContentPartToAnthropic(part),
-        )
         formattedMessages.push({
           role: 'user',
-          content: contentBlocks,
+          content: message.content.map((part) =>
+            this.convertContentPartToAnthropic(part),
+          ),
         })
         continue
       }
@@ -958,547 +1017,6 @@ export class AnthropicTextAdapter<
     }
 
     return merged
-  }
-
-  private async *processAnthropicStream(
-    stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
-    options: TextOptions<AnthropicTextProviderOptions>,
-    genId: () => string,
-    logger: InternalLogger,
-  ): AsyncIterable<AdapterYieldChunk> {
-    const model = options.model
-    let accumulatedContent = ''
-    let accumulatedThinking = ''
-    let accumulatedSignature = ''
-    const toolCallsMap = new Map<
-      number,
-      { id: string; name: string; input: string; started: boolean }
-    >()
-    let currentToolIndex = -1
-    // Server-side tools share the `input_json_delta` wire format with client
-    // `tool_use` blocks; routing both to the same buffer corrupts client tool
-    // input.
-    let currentServerTool: { id: string; name: string; input: string } | null =
-      null
-    // Completed server tools awaiting their matching result block. Anthropic
-    // emits `server_tool_use` then a separate `*_tool_result` block; we hold
-    // the call here (keyed by id) until the result arrives so we can emit a
-    // single provider-executed tool call carrying the raw result for round-trip.
-    const completedServerTools = new Map<
-      string,
-      { id: string; name: string; input: string }
-    >()
-
-    // AG-UI lifecycle tracking
-    const runId = options.runId ?? genId()
-    const threadId = options.threadId ?? genId()
-    const messageId = genId()
-    let stepId: string | null = null
-    let reasoningMessageId: string | null = null
-    let hasClosedReasoning = false
-    let hasEmittedRunStarted = false
-    let hasEmittedTextMessageStart = false
-    let hasEmittedRunFinished = false
-    // Track current content block type for proper content_block_stop handling
-    let currentBlockType: string | null = null
-
-    try {
-      for await (const event of stream) {
-        logger.provider(`provider=anthropic type=${event.type}`, {
-          chunk: event,
-        })
-        // Emit RUN_STARTED on first event
-        if (!hasEmittedRunStarted) {
-          hasEmittedRunStarted = true
-          yield {
-            type: EventType.RUN_STARTED,
-            runId,
-            threadId,
-            model,
-            timestamp: Date.now(),
-            parentRunId: options.parentRunId,
-          }
-        }
-
-        if (event.type === 'content_block_start') {
-          currentBlockType = event.content_block.type
-          if (event.content_block.type === 'tool_use') {
-            currentToolIndex++
-            toolCallsMap.set(currentToolIndex, {
-              id: event.content_block.id,
-              name: event.content_block.name,
-              input: '',
-              started: false,
-            })
-          } else if (event.content_block.type === 'server_tool_use') {
-            currentServerTool = {
-              id: event.content_block.id,
-              name: event.content_block.name,
-              input: '',
-            }
-          } else if (
-            event.content_block.type === 'web_fetch_tool_result' ||
-            event.content_block.type === 'web_search_tool_result'
-          ) {
-            // The result content arrives in full at content_block_start (no
-            // deltas). Surface error variants so a failed fetch/search isn't
-            // invisible to the consumer.
-            const content = event.content_block.content as
-              | { type?: string; error_code?: string }
-              | Array<unknown>
-            const errorBlock =
-              !Array.isArray(content) &&
-              (content.type === 'web_fetch_tool_result_error' ||
-                content.type === 'web_search_tool_result_error')
-                ? content
-                : null
-            if (errorBlock) {
-              logger.errors(
-                `anthropic.${event.content_block.type} error_code=${errorBlock.error_code}`,
-                {
-                  toolUseId: event.content_block.tool_use_id,
-                  blockType: event.content_block.type,
-                  errorCode: errorBlock.error_code,
-                  source: 'anthropic.processAnthropicStream',
-                },
-              )
-            }
-
-            // Emit the server tool as a single provider-executed tool call,
-            // carrying its raw result so the evidence (e.g. web_search sources)
-            // round-trips into the next turn's request. The agent loop skips
-            // provider-executed calls, so this never triggers client execution.
-            const serverTool = completedServerTools.get(
-              event.content_block.tool_use_id,
-            )
-            if (serverTool) {
-              completedServerTools.delete(serverTool.id)
-
-              let parsedInput: unknown = {}
-              try {
-                const parsed = serverTool.input
-                  ? JSON.parse(serverTool.input)
-                  : {}
-                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-              } catch {
-                parsedInput = {}
-              }
-
-              const serverToolMetadata = {
-                providerExecuted: true,
-                anthropic: {
-                  serverToolType: serverTool.name,
-                  resultBlockType: event.content_block.type,
-                  result: content,
-                },
-              }
-
-              currentToolIndex++
-              yield {
-                type: EventType.TOOL_CALL_START,
-                toolCallId: serverTool.id,
-                toolCallName: serverTool.name,
-                toolName: serverTool.name,
-                parentMessageId: messageId,
-                model,
-                timestamp: Date.now(),
-                index: currentToolIndex,
-                metadata: serverToolMetadata,
-              }
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: serverTool.id,
-                toolCallName: serverTool.name,
-                toolName: serverTool.name,
-                model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-
-              // Text after the server tool starts a fresh message segment.
-              hasEmittedTextMessageStart = false
-            }
-          } else if (event.content_block.type === 'thinking') {
-            accumulatedThinking = ''
-            accumulatedSignature = ''
-            // Emit REASONING and STEP_STARTED for thinking
-            stepId = genId()
-            reasoningMessageId = genId()
-
-            // Spec REASONING events
-            yield {
-              type: EventType.REASONING_START,
-              messageId: reasoningMessageId,
-              model,
-              timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.REASONING_MESSAGE_START,
-              messageId: reasoningMessageId,
-              role: 'reasoning' as const,
-              model,
-              timestamp: Date.now(),
-            }
-
-            // Legacy STEP events (kept during transition)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
-          }
-        } else if (event.type === 'content_block_delta') {
-          if (event.delta.type === 'text_delta') {
-            // Close reasoning before text starts
-            if (reasoningMessageId && !hasClosedReasoning) {
-              hasClosedReasoning = true
-              yield {
-                type: EventType.REASONING_MESSAGE_END,
-                messageId: reasoningMessageId,
-                model,
-                timestamp: Date.now(),
-              }
-              yield {
-                type: EventType.REASONING_END,
-                messageId: reasoningMessageId,
-                model,
-                timestamp: Date.now(),
-              }
-            }
-
-            // Emit TEXT_MESSAGE_START on first text content
-            if (!hasEmittedTextMessageStart) {
-              hasEmittedTextMessageStart = true
-              yield {
-                type: EventType.TEXT_MESSAGE_START,
-                messageId,
-                model,
-                timestamp: Date.now(),
-                role: 'assistant',
-              }
-            }
-
-            const delta = event.delta.text
-            accumulatedContent += delta
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId,
-              model,
-              timestamp: Date.now(),
-              delta,
-              content: accumulatedContent,
-            }
-          } else if (
-            event.delta.type === 'thinking_delta' &&
-            reasoningMessageId
-          ) {
-            const delta = event.delta.thinking
-            accumulatedThinking += delta
-
-            // Spec REASONING content event
-            yield {
-              type: EventType.REASONING_MESSAGE_CONTENT,
-              messageId: reasoningMessageId,
-              delta,
-              model,
-              timestamp: Date.now(),
-            }
-
-            // Legacy STEP event
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId || genId(),
-              stepId: stepId || genId(),
-              model,
-              timestamp: Date.now(),
-              delta,
-              content: accumulatedThinking,
-            }
-          } else if (
-            (event.delta as { type: string }).type === 'signature_delta'
-          ) {
-            accumulatedSignature +=
-              (event.delta as { signature: string }).signature || ''
-          } else if (event.delta.type === 'input_json_delta') {
-            // Route deltas by current block type so server_tool_use input
-            // never appends onto the prior client tool's buffer.
-            if (currentBlockType === 'tool_use') {
-              const existing = toolCallsMap.get(currentToolIndex)
-              if (existing) {
-                // Emit TOOL_CALL_START on first args delta
-                if (!existing.started) {
-                  existing.started = true
-                  yield {
-                    type: EventType.TOOL_CALL_START,
-                    toolCallId: existing.id,
-                    toolCallName: existing.name,
-                    toolName: existing.name,
-                    parentMessageId: messageId,
-                    model,
-                    timestamp: Date.now(),
-                    index: currentToolIndex,
-                  }
-                }
-
-                existing.input += event.delta.partial_json
-
-                yield {
-                  type: EventType.TOOL_CALL_ARGS,
-                  toolCallId: existing.id,
-                  model,
-                  timestamp: Date.now(),
-                  delta: event.delta.partial_json,
-                  args: existing.input,
-                }
-              }
-            } else if (
-              currentBlockType === 'server_tool_use' &&
-              currentServerTool
-            ) {
-              // Accumulate server tool input internally. We don't emit
-              // TOOL_CALL_* events: the call is executed by Anthropic, not
-              // by our agent loop, so surfacing it as a client tool call
-              // would cause downstream code to try (and fail) to run it.
-              currentServerTool.input += event.delta.partial_json
-            }
-          }
-        } else if (event.type === 'content_block_stop') {
-          if (currentBlockType === 'thinking') {
-            // Emit signature so it can be replayed in multi-turn context
-            if (accumulatedSignature && stepId) {
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId,
-                stepId,
-                model,
-                timestamp: Date.now(),
-                delta: '',
-                content: accumulatedThinking,
-                signature: accumulatedSignature,
-              }
-            }
-          } else if (currentBlockType === 'tool_use') {
-            const existing = toolCallsMap.get(currentToolIndex)
-            if (existing) {
-              // If tool call wasn't started yet (no args), start it now
-              if (!existing.started) {
-                existing.started = true
-                yield {
-                  type: EventType.TOOL_CALL_START,
-                  toolCallId: existing.id,
-                  toolCallName: existing.name,
-                  toolName: existing.name,
-                  parentMessageId: messageId,
-                  model,
-                  timestamp: Date.now(),
-                  index: currentToolIndex,
-                }
-              }
-
-              // Emit TOOL_CALL_END
-              let parsedInput: unknown = {}
-              try {
-                const parsed = existing.input ? JSON.parse(existing.input) : {}
-                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-              } catch {
-                parsedInput = {}
-              }
-
-              yield {
-                type: EventType.TOOL_CALL_END,
-                toolCallId: existing.id,
-                toolCallName: existing.name,
-                toolName: existing.name,
-                model,
-                timestamp: Date.now(),
-                input: parsedInput,
-              }
-
-              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
-              hasEmittedTextMessageStart = false
-            }
-          } else if (currentBlockType === 'server_tool_use') {
-            if (currentServerTool) {
-              // Anthropic executes the call; we only need a breadcrumb so
-              // consumers (devtools, telemetry) can see what ran.
-              logger.provider(
-                `provider=anthropic server_tool_use name=${currentServerTool.name}`,
-                {
-                  toolUseId: currentServerTool.id,
-                  name: currentServerTool.name,
-                  input: currentServerTool.input,
-                },
-              )
-              // Hold the call until its result block arrives so we can emit
-              // both together as one provider-executed tool call.
-              completedServerTools.set(currentServerTool.id, currentServerTool)
-            }
-            currentServerTool = null
-          } else if (
-            currentBlockType === 'web_fetch_tool_result' ||
-            currentBlockType === 'web_search_tool_result'
-          ) {
-            // The model already consumed the result; error variants were
-            // already surfaced at content_block_start.
-          } else {
-            // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
-            if (hasEmittedTextMessageStart && accumulatedContent) {
-              yield {
-                type: EventType.TEXT_MESSAGE_END,
-                messageId,
-                model,
-                timestamp: Date.now(),
-              }
-            }
-          }
-          currentBlockType = null
-        } else if (event.type === 'message_stop') {
-          // Close reasoning events if still open
-          if (reasoningMessageId && !hasClosedReasoning) {
-            hasClosedReasoning = true
-            yield {
-              type: EventType.REASONING_MESSAGE_END,
-              messageId: reasoningMessageId,
-              model,
-              timestamp: Date.now(),
-            }
-            yield {
-              type: EventType.REASONING_END,
-              messageId: reasoningMessageId,
-              model,
-              timestamp: Date.now(),
-            }
-          }
-
-          // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
-          // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
-          // while message_stop is just a completion signal.
-          if (!hasEmittedRunFinished) {
-            yield {
-              type: EventType.RUN_FINISHED,
-              runId,
-              threadId,
-              model,
-              timestamp: Date.now(),
-              finishReason: 'stop',
-            }
-          }
-        } else if (event.type === 'message_delta') {
-          if (event.delta.stop_reason) {
-            hasEmittedRunFinished = true
-
-            // Close reasoning events if still open
-            if (reasoningMessageId && !hasClosedReasoning) {
-              hasClosedReasoning = true
-              yield {
-                type: EventType.REASONING_MESSAGE_END,
-                messageId: reasoningMessageId,
-                model,
-                timestamp: Date.now(),
-              }
-              yield {
-                type: EventType.REASONING_END,
-                messageId: reasoningMessageId,
-                model,
-                timestamp: Date.now(),
-              }
-            }
-
-            switch (event.delta.stop_reason) {
-              case 'tool_use': {
-                yield {
-                  type: EventType.RUN_FINISHED,
-                  runId,
-                  threadId,
-                  model,
-                  timestamp: Date.now(),
-                  finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
-                }
-                break
-              }
-              case 'max_tokens': {
-                // Surface a warning when the truncating cap was the
-                // adapter-supplied default (caller didn't pass `max_tokens`), so
-                // the truncation isn't silently attributed to the model "doing
-                // nothing" (issue #849). When the caller set `max_tokens`
-                // themselves, hitting it is their own deliberate ceiling.
-                if (options.modelOptions?.max_tokens == null) {
-                  const defaultedMaxTokens = getAnthropicDefaultMaxTokens(model)
-                  logger.warn(
-                    `anthropic response truncated at the default max_tokens (${defaultedMaxTokens}) for model=${model}; pass maxTokens (or modelOptions.max_tokens) to raise the output ceiling`,
-                    {
-                      source: 'anthropic.processAnthropicStream',
-                      model,
-                      defaultedMaxTokens,
-                    },
-                  )
-                }
-                yield {
-                  type: EventType.RUN_ERROR,
-                  model,
-                  timestamp: Date.now(),
-                  message:
-                    'The response was cut off because the maximum token limit was reached.',
-                  code: 'max_tokens',
-                  error: {
-                    message:
-                      'The response was cut off because the maximum token limit was reached.',
-                    code: 'max_tokens',
-                  },
-                }
-                break
-              }
-              case 'stop_sequence':
-              case 'end_turn':
-              case 'pause_turn':
-              case 'refusal':
-              case 'model_context_window_exceeded':
-              case 'compaction':
-              default: {
-                // All remaining Anthropic stop_reason variants map to the
-                // generic "stop" finish reason — they describe *why* the
-                // stream ended, but for AG-UI consumers the resulting event
-                // shape is identical.
-                yield {
-                  type: EventType.RUN_FINISHED,
-                  runId,
-                  threadId,
-                  model,
-                  timestamp: Date.now(),
-                  finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (error: unknown) {
-      const err = error as Error & { status?: number; code?: string }
-      const rawEvent = toRunErrorRawEvent(error)
-
-      logger.errors('anthropic.processAnthropicStream fatal', {
-        error,
-        source: 'anthropic.processAnthropicStream',
-      })
-      yield {
-        type: EventType.RUN_ERROR,
-        model,
-        timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
-        code: err.code || String(err.status),
-        // Forward the Anthropic SDK error's `.error` response body when present.
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: err.message || 'Unknown error occurred',
-          code: err.code || String(err.status),
-        },
-      }
-    }
   }
 }
 

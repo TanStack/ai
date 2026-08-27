@@ -34,6 +34,40 @@ function networkDecision(
   return policy.capabilities?.network ?? policy.default ?? 'ask'
 }
 
+function planRestrictedNetwork(input: {
+  policy?: SandboxPolicy
+  allowNetwork?: Array<string>
+  denyNetwork?: Array<string>
+  auto: Array<string>
+}): SbxPolicyPlan {
+  const decision = networkDecision(input.policy)
+  const deny = [...(input.denyNetwork ?? [])]
+  if (decision === 'allow') {
+    return { kind: 'per-sandbox', allow: ['**'], deny }
+  }
+
+  // deny/ask (including default-ask from a real policy): allowlist + auto hosts.
+  // No policy + allowNetwork: still merge auto hosts (README / Quick Start).
+  // denyNetwork-only stays { allow: [], deny } with no auto hosts (A19).
+  const mergeAuto =
+    Boolean(input.policy) || (input.allowNetwork?.length ?? 0) > 0
+  const allow = [
+    ...(mergeAuto ? input.auto : []),
+    ...(input.allowNetwork ?? []),
+  ]
+  if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
+    throw new Error(EMPTY_ALLOWLIST)
+  }
+  // Real allowlists must include localhost. The proxy rewrites
+  // host.docker.internal to localhost before the policy match.
+  // denyNetwork-only keeps allow=[] (A19). Open ** stays ** only.
+  return {
+    kind: 'per-sandbox',
+    allow: mergeAuto && allow.length > 0 ? withBridgeHost(allow) : allow,
+    deny,
+  }
+}
+
 export function planSbxPolicy(input: {
   policy?: SandboxPolicy
   adapterName?: string
@@ -51,30 +85,7 @@ export function planSbxPolicy(input: {
     return { kind: 'machine-preset' }
   }
 
-  const decision = networkDecision(input.policy)
-  const deny = [...(input.denyNetwork ?? [])]
-
-  if (decision === 'allow') {
-    return { kind: 'per-sandbox', allow: ['**'], deny }
-  }
-
-  // deny/ask (including default-ask from a real policy): allowlist + auto hosts.
-  // No policy + allowNetwork: still merge auto hosts (README / Quick Start).
-  // denyNetwork-only stays { allow: [], deny } with no auto hosts (A19).
-  const mergeAuto =
-    Boolean(input.policy) || (input.allowNetwork?.length ?? 0) > 0
-  const allow = [...(mergeAuto ? auto : []), ...(input.allowNetwork ?? [])]
-  if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
-    throw new Error(EMPTY_ALLOWLIST)
-  }
-  // Real allowlists must include localhost. The proxy rewrites
-  // host.docker.internal to localhost before the policy match.
-  // denyNetwork-only keeps allow=[] (A19). Open ** stays ** only.
-  return {
-    kind: 'per-sandbox',
-    allow: mergeAuto && allow.length > 0 ? withBridgeHost(allow) : allow,
-    deny,
-  }
+  return planRestrictedNetwork({ ...input, auto })
 }
 
 export function policyArgs(

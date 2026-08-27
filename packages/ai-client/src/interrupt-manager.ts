@@ -460,6 +460,53 @@ function genericBinding(
   })
 }
 
+function isCorrelatedBinding(
+  candidate: InterruptBinding,
+  interrupt: Interrupt,
+  hydration: InterruptManagerHydration,
+): boolean {
+  return (
+    candidate.interruptId === interrupt.id &&
+    candidate.interruptedRunId === hydration.interruptedRunId &&
+    candidate.generation === hydration.generation &&
+    responseSchemaHash(interrupt) === candidate.responseSchemaHash
+  )
+}
+
+function isStructurallyCorrelatedBinding(
+  candidate: InterruptBinding,
+  interrupt: Interrupt,
+  hydration: InterruptManagerHydration,
+): boolean {
+  return (
+    candidate.interruptId === interrupt.id &&
+    candidate.interruptedRunId === hydration.interruptedRunId &&
+    candidate.generation === hydration.generation &&
+    candidate.responseSchemaHash ===
+      (responseSchemaHash(interrupt) ?? candidate.responseSchemaHash)
+  )
+}
+
+function isGenericFallbackResumable(
+  legacyResumable: boolean,
+  candidate: InterruptBinding | undefined,
+  interrupt: Interrupt,
+  hydration: InterruptManagerHydration,
+): boolean {
+  if (legacyResumable) return true
+  if (candidate === undefined) return false
+  if (
+    candidate.interruptId !== interrupt.id ||
+    candidate.interruptedRunId !== hydration.interruptedRunId ||
+    candidate.generation !== hydration.generation
+  ) {
+    return false
+  }
+  if (candidate.kind !== 'generic') return true
+  const hash = responseSchemaHash(interrupt)
+  return hash === undefined || candidate.responseSchemaHash === hash
+}
+
 function baseSnapshot(
   item: RuntimeInterrupt,
   hydration: InterruptManagerHydration,
@@ -723,6 +770,65 @@ export class InterruptManager<
     const legacyResumable =
       candidate === undefined && isLegacyInterruptMetadata(interrupt)
 
+    if (candidate === undefined && !legacyResumable) {
+      return this.hydrateUnownedInterrupt(interrupt, hydration)
+    }
+
+    const structurallyCorrelated =
+      candidate !== undefined &&
+      isStructurallyCorrelatedBinding(candidate, interrupt, hydration)
+    const mismatched = this.hydrateMismatchedFirstPartyGeneric(
+      interrupt,
+      hydration,
+      candidate,
+      structurallyCorrelated,
+    )
+    if (mismatched) return mismatched
+
+    const toolApproval = this.hydrateToolApprovalInterrupt(
+      interrupt,
+      candidate,
+      structurallyCorrelated,
+    )
+    if (toolApproval) return toolApproval
+
+    const clientTool = this.hydrateClientToolInterrupt(
+      interrupt,
+      candidate,
+      structurallyCorrelated,
+    )
+    if (clientTool) return clientTool
+
+    const duplicate = this.hydrateDuplicateGenericBatch(
+      interrupt,
+      candidate,
+      firstPartyIndexes,
+    )
+    if (duplicate) return duplicate
+
+    const correlated =
+      candidate !== undefined &&
+      isCorrelatedBinding(candidate, interrupt, hydration)
+    const firstParty = this.hydrateFirstPartyGenericInterrupt(
+      interrupt,
+      candidate,
+      correlated,
+      firstPartyIndexes,
+    )
+    if (firstParty) return firstParty
+
+    return this.hydrateGenericFallbackInterrupt(
+      interrupt,
+      hydration,
+      candidate,
+      legacyResumable,
+    )
+  }
+
+  private hydrateUnownedInterrupt(
+    interrupt: Interrupt,
+    hydration: InterruptManagerHydration,
+  ): RuntimeInterrupt {
     // No binding we understand, and nothing else identifying the descriptor as
     // ours, means this interrupt was not produced by this package's resume
     // path — a workflow engine's durable approval projected onto the same
@@ -739,61 +845,10 @@ export class InterruptManager<
     // Pre-binding TanStack descriptors are still ours: they carry the legacy
     // `metadata.kind` marker, so they keep hydrating through the generic path
     // below.
-    if (candidate === undefined && !legacyResumable) {
-      if (hasReservedFirstPartyBindingMarker(interrupt)) {
-        return {
-          descriptor: interrupt,
-          binding: genericBinding(interrupt, hydration, undefined),
-          kind: 'generic',
-          status: 'error',
-          canResolve: false,
-          resumable: false,
-          error: this.itemError(
-            interrupt.id,
-            'stale',
-            'The interrupt binding is invalid or incomplete.',
-          ),
-          validationGeneration: 0,
-        }
-      }
+    if (hasReservedFirstPartyBindingMarker(interrupt)) {
       return {
         descriptor: interrupt,
-        binding: undefined,
-        kind: 'unbound',
-        status: 'pending',
-        canResolve: false,
-        resumable: false,
-        validationGeneration: 0,
-      }
-    }
-
-    const correlated =
-      candidate !== undefined &&
-      candidate.interruptId === interrupt.id &&
-      candidate.interruptedRunId === hydration.interruptedRunId &&
-      candidate.generation === hydration.generation &&
-      responseSchemaHash(interrupt) === candidate.responseSchemaHash
-
-    const structurallyCorrelated =
-      candidate !== undefined &&
-      candidate.interruptId === interrupt.id &&
-      candidate.interruptedRunId === hydration.interruptedRunId &&
-      candidate.generation === hydration.generation &&
-      candidate.responseSchemaHash ===
-        (responseSchemaHash(interrupt) ?? candidate.responseSchemaHash)
-
-    if (
-      candidate !== undefined &&
-      hasFirstPartyGenericMarker(interrupt) &&
-      (!structurallyCorrelated ||
-        candidate.kind !== 'generic' ||
-        candidate.definitionId === undefined ||
-        candidate.key === undefined ||
-        candidate.batchIndex === undefined)
-    ) {
-      return {
-        descriptor: interrupt,
-        binding: genericBinding(interrupt, hydration, candidate),
+        binding: genericBinding(interrupt, hydration, undefined),
         kind: 'generic',
         status: 'error',
         canResolve: false,
@@ -801,64 +856,93 @@ export class InterruptManager<
         error: this.itemError(
           interrupt.id,
           'stale',
-          'The interrupt binding does not match this interrupted run.',
+          'The interrupt binding is invalid or incomplete.',
         ),
         validationGeneration: 0,
       }
     }
-
-    if (structurallyCorrelated && candidate.kind === 'tool-approval') {
-      const tool = this.tools?.find(
-        (configured) => configured.name === candidate.toolName,
-      )
-      // Gated on the binding and the schema hashes below, not on
-      // `interrupt.reason` — that string is free-form AG-UI text another
-      // producer can also use, so it cannot be what decides ownership.
-      if (
-        tool?.needsApproval === true &&
-        interrupt.toolCallId === candidate.toolCallId
-      ) {
-        try {
-          const approval = normalizeApprovalSchema(
-            tool.approvalSchema,
-            tool.inputSchema,
-          )
-          if (
-            hashSchemaInput(tool.inputSchema) === candidate.inputSchemaHash &&
-            approval.approvalSchemaHash === candidate.approvalSchemaHash &&
-            approval.responseSchemaHash === candidate.responseSchemaHash
-          ) {
-            return {
-              descriptor: interrupt,
-              binding: cloneAndDeepFreezeJson(candidate),
-              kind: 'tool-approval',
-              status: 'pending',
-              canResolve: true,
-              resumable: true,
-              tool,
-              validationGeneration: 0,
-            }
-          }
-        } catch {
-          // Invalid configured schemas cannot safely grant typed hydration.
-        }
-      }
+    return {
+      descriptor: interrupt,
+      binding: undefined,
+      kind: 'unbound',
+      status: 'pending',
+      canResolve: false,
+      resumable: false,
+      validationGeneration: 0,
     }
+  }
 
-    if (structurallyCorrelated && candidate.kind === 'client-tool-execution') {
-      const tool = this.tools?.find(
-        (configured) => configured.name === candidate.toolName,
+  private hydrateMismatchedFirstPartyGeneric(
+    interrupt: Interrupt,
+    hydration: InterruptManagerHydration,
+    candidate: InterruptBinding | undefined,
+    structurallyCorrelated: boolean,
+  ): RuntimeInterrupt | undefined {
+    if (
+      candidate === undefined ||
+      !hasFirstPartyGenericMarker(interrupt) ||
+      (structurallyCorrelated &&
+        candidate.kind === 'generic' &&
+        candidate.definitionId !== undefined &&
+        candidate.key !== undefined &&
+        candidate.batchIndex !== undefined)
+    ) {
+      return undefined
+    }
+    return {
+      descriptor: interrupt,
+      binding: genericBinding(interrupt, hydration, candidate),
+      kind: 'generic',
+      status: 'error',
+      canResolve: false,
+      resumable: false,
+      error: this.itemError(
+        interrupt.id,
+        'stale',
+        'The interrupt binding does not match this interrupted run.',
+      ),
+      validationGeneration: 0,
+    }
+  }
+
+  private hydrateToolApprovalInterrupt(
+    interrupt: Interrupt,
+    candidate: InterruptBinding | undefined,
+    structurallyCorrelated: boolean,
+  ): RuntimeInterrupt | undefined {
+    if (
+      !structurallyCorrelated ||
+      candidate === undefined ||
+      candidate.kind !== 'tool-approval'
+    ) {
+      return undefined
+    }
+    const tool = this.tools?.find(
+      (configured) => configured.name === candidate.toolName,
+    )
+    // Gated on the binding and the schema hashes below, not on
+    // `interrupt.reason` — that string is free-form AG-UI text another
+    // producer can also use, so it cannot be what decides ownership.
+    if (
+      tool?.needsApproval !== true ||
+      interrupt.toolCallId !== candidate.toolCallId
+    ) {
+      return undefined
+    }
+    try {
+      const approval = normalizeApprovalSchema(
+        tool.approvalSchema,
+        tool.inputSchema,
       )
-      // Binding-gated, for the same reason as tool approvals above.
       if (
-        tool !== undefined &&
-        interrupt.toolCallId === candidate.toolCallId &&
-        hashSchemaInput(tool.outputSchema) === candidate.outputSchemaHash
+        hashSchemaInput(tool.inputSchema) === candidate.inputSchemaHash &&
+        approval.approvalSchemaHash === candidate.approvalSchemaHash &&
+        approval.responseSchemaHash === candidate.responseSchemaHash
       ) {
         return {
           descriptor: interrupt,
           binding: cloneAndDeepFreezeJson(candidate),
-          kind: 'client-tool-execution',
+          kind: 'tool-approval',
           status: 'pending',
           canResolve: true,
           resumable: true,
@@ -866,83 +950,142 @@ export class InterruptManager<
           validationGeneration: 0,
         }
       }
+    } catch {
+      // Invalid configured schemas cannot safely grant typed hydration.
     }
+    return undefined
+  }
 
+  private hydrateClientToolInterrupt(
+    interrupt: Interrupt,
+    candidate: InterruptBinding | undefined,
+    structurallyCorrelated: boolean,
+  ): RuntimeInterrupt | undefined {
     if (
-      candidate !== undefined &&
-      candidate.kind === 'generic' &&
-      candidate.definitionId !== undefined &&
-      candidate.key !== undefined &&
-      candidate.batchIndex !== undefined &&
-      candidate.key.length > 0 &&
-      firstPartyIndexes.get(candidate.batchIndex) !== 1
+      !structurallyCorrelated ||
+      candidate === undefined ||
+      candidate.kind !== 'client-tool-execution'
     ) {
-      return {
-        descriptor: interrupt,
-        binding: cloneAndDeepFreezeJson(candidate),
-        kind: 'generic',
-        status: 'error',
-        canResolve: false,
-        resumable: false,
-        error: this.itemError(
-          interrupt.id,
-          'stale',
-          'Generic interrupt batch contains a duplicate batchIndex.',
-        ),
-        validationGeneration: 0,
-      }
+      return undefined
     }
-
+    const tool = this.tools?.find(
+      (configured) => configured.name === candidate.toolName,
+    )
+    // Binding-gated, for the same reason as tool approvals above.
     if (
-      correlated &&
-      candidate.kind === 'generic' &&
-      candidate.definitionId !== undefined &&
-      candidate.key !== undefined &&
-      candidate.batchIndex !== undefined &&
-      candidate.key.length > 0 &&
+      tool === undefined ||
+      interrupt.toolCallId !== candidate.toolCallId ||
+      hashSchemaInput(tool.outputSchema) !== candidate.outputSchemaHash
+    ) {
+      return undefined
+    }
+    return {
+      descriptor: interrupt,
+      binding: cloneAndDeepFreezeJson(candidate),
+      kind: 'client-tool-execution',
+      status: 'pending',
+      canResolve: true,
+      resumable: true,
+      tool,
+      validationGeneration: 0,
+    }
+  }
+
+  private hydrateDuplicateGenericBatch(
+    interrupt: Interrupt,
+    candidate: InterruptBinding | undefined,
+    firstPartyIndexes: ReadonlyMap<number, number>,
+  ): RuntimeInterrupt | undefined {
+    if (
+      candidate === undefined ||
+      candidate.kind !== 'generic' ||
+      candidate.definitionId === undefined ||
+      candidate.key === undefined ||
+      candidate.batchIndex === undefined ||
+      candidate.key.length === 0 ||
       firstPartyIndexes.get(candidate.batchIndex) === 1
     ) {
-      const definition = this.interruptDefinitions.get(candidate.definitionId)
-      if (
-        definition !== undefined &&
-        definitionSchemaHash(definition.responseSchema) ===
-          candidate.responseSchemaHash &&
-        (definition.payloadSchema === undefined
-          ? candidate.payloadSchemaHash === undefined
-          : candidate.payloadSchemaHash ===
-            definitionSchemaHash(definition.payloadSchema))
-      ) {
-        const rawPayload = getInterruptPayload(interrupt)
-        // First-party display payloads are parsed by definition.interrupt()
-        // before the server emits them. Re-validating here would feed schema
-        // output back through an input schema and reject transforms such as
-        // z.string().transform(Number). The checks above still bind this value
-        // to the exact descriptor, run, generation, definition, and schemas.
-        return {
-          descriptor: interrupt,
-          binding: cloneAndDeepFreezeJson(candidate),
-          definition,
-          kind: 'generic',
-          status: 'pending',
-          canResolve: true,
-          resumable: true,
-          ...(rawPayload === undefined
-            ? {}
-            : { payload: cloneAndDeepFreezeJson(rawPayload) }),
-          validationGeneration: 0,
-        }
-      }
+      return undefined
     }
+    return {
+      descriptor: interrupt,
+      binding: cloneAndDeepFreezeJson(candidate),
+      kind: 'generic',
+      status: 'error',
+      canResolve: false,
+      resumable: false,
+      error: this.itemError(
+        interrupt.id,
+        'stale',
+        'Generic interrupt batch contains a duplicate batchIndex.',
+      ),
+      validationGeneration: 0,
+    }
+  }
 
-    const resumable =
-      legacyResumable ||
-      (candidate !== undefined &&
-        candidate.interruptId === interrupt.id &&
-        candidate.interruptedRunId === hydration.interruptedRunId &&
-        candidate.generation === hydration.generation &&
-        (candidate.kind !== 'generic' ||
-          responseSchemaHash(interrupt) === undefined ||
-          candidate.responseSchemaHash === responseSchemaHash(interrupt)))
+  private hydrateFirstPartyGenericInterrupt(
+    interrupt: Interrupt,
+    candidate: InterruptBinding | undefined,
+    correlated: boolean,
+    firstPartyIndexes: ReadonlyMap<number, number>,
+  ): RuntimeInterrupt | undefined {
+    if (
+      !correlated ||
+      candidate === undefined ||
+      candidate.kind !== 'generic' ||
+      candidate.definitionId === undefined ||
+      candidate.key === undefined ||
+      candidate.batchIndex === undefined ||
+      candidate.key.length === 0 ||
+      firstPartyIndexes.get(candidate.batchIndex) !== 1
+    ) {
+      return undefined
+    }
+    const definition = this.interruptDefinitions.get(candidate.definitionId)
+    if (
+      definition === undefined ||
+      definitionSchemaHash(definition.responseSchema) !==
+        candidate.responseSchemaHash ||
+      (definition.payloadSchema === undefined
+        ? candidate.payloadSchemaHash !== undefined
+        : candidate.payloadSchemaHash !==
+          definitionSchemaHash(definition.payloadSchema))
+    ) {
+      return undefined
+    }
+    const rawPayload = getInterruptPayload(interrupt)
+    // First-party display payloads are parsed by definition.interrupt()
+    // before the server emits them. Re-validating here would feed schema
+    // output back through an input schema and reject transforms such as
+    // z.string().transform(Number). The checks above still bind this value
+    // to the exact descriptor, run, generation, definition, and schemas.
+    return {
+      descriptor: interrupt,
+      binding: cloneAndDeepFreezeJson(candidate),
+      definition,
+      kind: 'generic',
+      status: 'pending',
+      canResolve: true,
+      resumable: true,
+      ...(rawPayload === undefined
+        ? {}
+        : { payload: cloneAndDeepFreezeJson(rawPayload) }),
+      validationGeneration: 0,
+    }
+  }
+
+  private hydrateGenericFallbackInterrupt(
+    interrupt: Interrupt,
+    hydration: InterruptManagerHydration,
+    candidate: InterruptBinding | undefined,
+    legacyResumable: boolean,
+  ): RuntimeInterrupt {
+    const resumable = isGenericFallbackResumable(
+      legacyResumable,
+      candidate,
+      interrupt,
+      hydration,
+    )
     return {
       descriptor: interrupt,
       binding: genericBinding(interrupt, hydration, candidate),

@@ -14,10 +14,6 @@ import {
   rehydrateInterruptRequest,
   toRunErrorPayload,
 } from '@tanstack/ai/adapter-internals'
-import type {
-  GenericInterruptRequest,
-  InterruptDefinition,
-} from '@tanstack/ai/adapter-internals'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
@@ -630,166 +626,217 @@ function durableGenericFailure(
   ])
 }
 
-async function durableGenericResumeState(
-  ctx: ChatMiddlewareContext,
-  pending: Array<InterruptRecord>,
-  resume: ReadonlyArray<RunAgentResumeItem>,
-  tools: Array<Tool>,
-): Promise<ChatResumeToolState | undefined> {
-  const registry = getGenericInterruptDefinitionRegistry(ctx, {
-    optional: true,
-  })
-  const records: Array<PendingInterruptResumeRecord> = []
+type PersistedInterruptDescriptor = Interrupt & {
+  reason: string
+  message: string
+}
 
-  for (const persisted of pending) {
-    if (!isPersistedInterruptDescriptor(persisted.payload)) {
-      if (hasReservedInterruptBinding(persisted.payload)) {
-        throw durableGenericFailure(
-          ctx,
-          persisted,
-          `Persisted interrupt ${persisted.interruptId} has an invalid binding descriptor.`,
-        )
-      }
-      continue
+type GenericResumeRecord = PendingInterruptResumeRecord & {
+  binding: Extract<PendingInterruptResumeRecord['binding'], { kind: 'generic' }>
+  genericRequest: NonNullable<PendingInterruptResumeRecord['genericRequest']>
+}
+
+type InterruptDefinitionRegistry = ReturnType<
+  typeof getGenericInterruptDefinitionRegistry
+>
+
+function readPersistedInterruptBinding(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+):
+  | {
+      descriptor: PersistedInterruptDescriptor
+      binding: NonNullable<ReturnType<typeof readInterruptBinding>>
     }
-    const descriptor = persisted.payload
-    const binding = readInterruptBinding(descriptor)
-    if (!binding) {
-      if (hasReservedInterruptBinding(descriptor)) {
-        throw durableGenericFailure(
-          ctx,
-          persisted,
-          `Persisted interrupt ${persisted.interruptId} has an invalid or incomplete binding.`,
-        )
-      }
-      continue
-    }
-    if (
-      descriptor.id !== persisted.interruptId ||
-      binding.interruptId !== persisted.interruptId ||
-      binding.interruptedRunId !== persisted.runId ||
-      binding.generation !== 0
-    ) {
+  | undefined {
+  if (!isPersistedInterruptDescriptor(persisted.payload)) {
+    if (hasReservedInterruptBinding(persisted.payload)) {
       throw durableGenericFailure(
         ctx,
         persisted,
-        `Persisted interrupt ${persisted.interruptId} has stale correlation metadata.`,
+        `Persisted interrupt ${persisted.interruptId} has an invalid binding descriptor.`,
       )
     }
-    if (binding.kind !== 'generic') {
-      records.push({
-        interruptId: persisted.interruptId,
-        payload: descriptor,
-        binding,
-      })
-      continue
-    }
-    if (
-      !binding.definitionId ||
-      !binding.key ||
-      binding.batchIndex === undefined
-    ) {
-      records.push({
-        interruptId: persisted.interruptId,
-        payload: descriptor,
-        binding,
-      })
-      continue
-    }
-    if (!registry) {
+    return undefined
+  }
+  const descriptor = persisted.payload
+  const binding = readInterruptBinding(descriptor)
+  if (!binding) {
+    if (hasReservedInterruptBinding(descriptor)) {
       throw durableGenericFailure(
         ctx,
         persisted,
-        `Persisted generic interrupt ${persisted.interruptId} cannot be restored because no interrupt registry is available.`,
+        `Persisted interrupt ${persisted.interruptId} has an invalid or incomplete binding.`,
       )
     }
-    const definition = registry.definitions.get(binding.definitionId)
-    if (!definition) {
-      throw durableGenericFailure(
-        ctx,
-        persisted,
-        `Persisted generic interrupt definition ${binding.definitionId} is unavailable.`,
-      )
-    }
-    const metadata = objectValue(descriptor.metadata)
-    const payload = metadata?.['tanstack:interruptPayload']
-    let request: GenericInterruptRequest<
-      InterruptDefinition<any, any, any, any>
-    >
-    try {
-      request = rehydrateInterruptRequest(definition, {
-        key: binding.key,
-        reason: descriptor.reason,
-        message: descriptor.message,
-        ...(descriptor.expiresAt !== undefined
-          ? { expiresAt: descriptor.expiresAt }
-          : {}),
-        ...(payload !== undefined ? { payload } : {}),
-      })
-    } catch (error) {
-      throw durableGenericFailure(
-        ctx,
-        persisted,
-        `Persisted generic interrupt ${persisted.interruptId} is invalid: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
-    const emitted = createInterruptBinding(request, {
-      batchIndex: binding.batchIndex,
+    return undefined
+  }
+  return { descriptor, binding }
+}
+
+function assertPersistedInterruptCorrelation(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  descriptor: PersistedInterruptDescriptor,
+  binding: NonNullable<ReturnType<typeof readInterruptBinding>>,
+): void {
+  if (
+    descriptor.id !== persisted.interruptId ||
+    binding.interruptId !== persisted.interruptId ||
+    binding.interruptedRunId !== persisted.runId ||
+    binding.generation !== 0
+  ) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted interrupt ${persisted.interruptId} has stale correlation metadata.`,
+    )
+  }
+}
+
+function rehydratePersistedGenericRequest(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  descriptor: PersistedInterruptDescriptor,
+  binding: Extract<
+    NonNullable<ReturnType<typeof readInterruptBinding>>,
+    { kind: 'generic' }
+  >,
+  definition: Parameters<typeof rehydrateInterruptRequest>[0],
+): GenericResumeRecord['genericRequest'] {
+  const metadata = objectValue(descriptor.metadata)
+  const payload = metadata?.['tanstack:interruptPayload']
+  let request: GenericResumeRecord['genericRequest']
+  try {
+    request = rehydrateInterruptRequest(definition, {
+      key: binding.key,
+      reason: descriptor.reason,
+      message: descriptor.message,
+      ...(descriptor.expiresAt !== undefined
+        ? { expiresAt: descriptor.expiresAt }
+        : {}),
+      ...(payload !== undefined ? { payload } : {}),
     })
-    if (
-      emitted.descriptor.responseSchemaHash !== binding.responseSchemaHash ||
-      emitted.descriptor.payloadSchemaHash !== binding.payloadSchemaHash ||
-      binding.interruptId !== persisted.interruptId
-    ) {
-      throw durableGenericFailure(
-        ctx,
-        persisted,
-        `Persisted generic interrupt ${persisted.interruptId} is stale.`,
-      )
-    }
-    records.push({
+  } catch (error) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted generic interrupt ${persisted.interruptId} is invalid: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  const emitted = createInterruptBinding(request, {
+    batchIndex: binding.batchIndex,
+  })
+  if (
+    emitted.descriptor.responseSchemaHash !== binding.responseSchemaHash ||
+    emitted.descriptor.payloadSchemaHash !== binding.payloadSchemaHash ||
+    binding.interruptId !== persisted.interruptId
+  ) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted generic interrupt ${persisted.interruptId} is stale.`,
+    )
+  }
+  return request
+}
+
+function hydrateGenericPersistedInterrupt(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  descriptor: PersistedInterruptDescriptor,
+  binding: Extract<
+    NonNullable<ReturnType<typeof readInterruptBinding>>,
+    { kind: 'generic' }
+  >,
+  registry: InterruptDefinitionRegistry,
+): PendingInterruptResumeRecord {
+  if (
+    !binding.definitionId ||
+    !binding.key ||
+    binding.batchIndex === undefined
+  ) {
+    return {
       interruptId: persisted.interruptId,
       payload: descriptor,
       binding,
-      genericRequest: request,
-    })
+    }
   }
-
-  const firstRecord = records[0]
-  if (firstRecord === undefined) return undefined
-  const interruptedRunId = firstRecord.binding.interruptedRunId
-  const generation = firstRecord.binding.generation
-  const validated = await validateInterruptResumeBatch({
-    threadId: ctx.threadId,
-    interruptedRunId,
-    generation,
-    pending: records,
-    resume: resume.filter((entry) =>
-      records.some((record) => record.interruptId === entry.interruptId),
+  if (!registry) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted generic interrupt ${persisted.interruptId} cannot be restored because no interrupt registry is available.`,
+    )
+  }
+  const definition = registry.definitions.get(binding.definitionId)
+  if (!definition) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted generic interrupt definition ${binding.definitionId} is unavailable.`,
+    )
+  }
+  return {
+    interruptId: persisted.interruptId,
+    payload: descriptor,
+    binding,
+    genericRequest: rehydratePersistedGenericRequest(
+      ctx,
+      persisted,
+      descriptor,
+      binding,
+      definition,
     ),
-    tools,
-  })
-  if (validated.errors.length > 0 || !validated.resumeToolState) {
-    throw new InterruptResumeValidationError(validated.errors)
   }
-  type GenericRecord = PendingInterruptResumeRecord & {
-    binding: Extract<
-      PendingInterruptResumeRecord['binding'],
-      { kind: 'generic' }
-    >
-    genericRequest: GenericInterruptRequest<
-      InterruptDefinition<any, any, any, any>
-    >
+}
+
+function persistedInterruptResumeRecord(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  registry: InterruptDefinitionRegistry,
+): PendingInterruptResumeRecord | undefined {
+  const resolved = readPersistedInterruptBinding(ctx, persisted)
+  if (!resolved) return undefined
+  const { descriptor, binding } = resolved
+  assertPersistedInterruptCorrelation(ctx, persisted, descriptor, binding)
+  if (binding.kind !== 'generic') {
+    return {
+      interruptId: persisted.interruptId,
+      payload: descriptor,
+      binding,
+    }
   }
-  const isGenericRecord = (
-    record: PendingInterruptResumeRecord,
-  ): record is GenericRecord =>
+  return hydrateGenericPersistedInterrupt(
+    ctx,
+    persisted,
+    descriptor,
+    binding,
+    registry,
+  )
+}
+
+function isGenericResumeRecord(
+  record: PendingInterruptResumeRecord,
+): record is GenericResumeRecord {
+  return (
     record.binding.kind === 'generic' && record.genericRequest !== undefined
-  const genericRecords: Array<{ record: GenericRecord; batchIndex: number }> =
-    []
+  )
+}
+
+function collectGenericResumeRecords(
+  ctx: ChatMiddlewareContext,
+  records: Array<PendingInterruptResumeRecord>,
+  interruptedRunId: string,
+  generation: number,
+): Array<{ record: GenericResumeRecord; batchIndex: number }> {
+  const genericRecords: Array<{
+    record: GenericResumeRecord
+    batchIndex: number
+  }> = []
   const batchIndexes = new Set<number>()
   for (const record of records) {
-    if (!isGenericRecord(record)) continue
+    if (!isGenericResumeRecord(record)) continue
     const batchIndex = record.binding.batchIndex
     if (batchIndex === undefined || batchIndexes.has(batchIndex)) {
       throw new InterruptResumeValidationError([
@@ -811,6 +858,48 @@ async function durableGenericResumeState(
     genericRecords.push({ record, batchIndex })
   }
   genericRecords.sort((left, right) => left.batchIndex - right.batchIndex)
+  return genericRecords
+}
+
+async function durableGenericResumeState(
+  ctx: ChatMiddlewareContext,
+  pending: Array<InterruptRecord>,
+  resume: ReadonlyArray<RunAgentResumeItem>,
+  tools: Array<Tool>,
+): Promise<ChatResumeToolState | undefined> {
+  const registry = getGenericInterruptDefinitionRegistry(ctx, {
+    optional: true,
+  })
+  const records: Array<PendingInterruptResumeRecord> = []
+
+  for (const persisted of pending) {
+    const record = persistedInterruptResumeRecord(ctx, persisted, registry)
+    if (record) records.push(record)
+  }
+
+  const firstRecord = records[0]
+  if (firstRecord === undefined) return undefined
+  const interruptedRunId = firstRecord.binding.interruptedRunId
+  const generation = firstRecord.binding.generation
+  const validated = await validateInterruptResumeBatch({
+    threadId: ctx.threadId,
+    interruptedRunId,
+    generation,
+    pending: records,
+    resume: resume.filter((entry) =>
+      records.some((record) => record.interruptId === entry.interruptId),
+    ),
+    tools,
+  })
+  if (validated.errors.length > 0 || !validated.resumeToolState) {
+    throw new InterruptResumeValidationError(validated.errors)
+  }
+  const genericRecords = collectGenericResumeRecords(
+    ctx,
+    records,
+    interruptedRunId,
+    generation,
+  )
   return {
     ...validated.resumeToolState,
     genericInterruptRequests: new Map(
@@ -1062,6 +1151,132 @@ function generatedMediaDescriptor(args: {
   return undefined
 }
 
+function imageOutputDescriptors(
+  output: Record<string, unknown>,
+): Array<GenerationArtifactDescriptor> {
+  if (!Array.isArray(output.images)) return []
+  const descriptors: Array<GenerationArtifactDescriptor> = []
+  for (const [index, image] of output.images.entries()) {
+    const descriptor = generatedMediaDescriptor({
+      role: 'output',
+      path: `images.${index}`,
+      mediaType: 'image',
+      mimeType: 'image/png',
+      media: image,
+    })
+    if (descriptor) descriptors.push(descriptor)
+  }
+  return descriptors
+}
+
+function audioOutputDescriptors(
+  output: Record<string, unknown>,
+): Array<GenerationArtifactDescriptor> {
+  const descriptor = generatedMediaDescriptor({
+    role: 'output',
+    path: 'audio',
+    mediaType: 'audio',
+    mimeType: 'audio/mpeg',
+    media: output.audio,
+  })
+  return descriptor ? [descriptor] : []
+}
+
+function ttsOutputDescriptors(
+  output: Record<string, unknown>,
+): Array<GenerationArtifactDescriptor> {
+  const audio = stringField(output, 'audio')
+  if (!audio) return []
+  const format = stringField(output, 'format')
+  return [
+    {
+      role: 'output',
+      path: 'audio',
+      mediaType: 'audio',
+      mimeType:
+        stringField(output, 'contentType') ??
+        (format ? `audio/${format}` : 'audio/mpeg'),
+      bytes: base64ToUint8Array(audio),
+    },
+  ]
+}
+
+function videoOutputDescriptors(
+  output: Record<string, unknown>,
+): Array<GenerationArtifactDescriptor> {
+  if (typeof output.url !== 'string') return []
+  return [
+    {
+      role: 'output',
+      path: 'video',
+      mediaType: 'video',
+      mimeType: 'video/mp4',
+      url: output.url,
+      jobId: stringField(output, 'jobId'),
+      expiresAt:
+        output.expiresAt instanceof Date ? output.expiresAt : undefined,
+    },
+  ]
+}
+
+function transcriptionAudioDescriptors(
+  inputs: unknown,
+): Array<GenerationArtifactDescriptor> {
+  const audio = objectValue(inputs)?.audio
+  if (typeof audio === 'string') {
+    const data = parseDataUrl(audio)
+    return [
+      {
+        role: 'input',
+        path: 'audio',
+        mediaType: 'audio',
+        mimeType: data?.mimeType ?? 'audio/mpeg',
+        bytes: data?.bytes ?? base64ToUint8Array(audio),
+      },
+    ]
+  }
+  if (audio instanceof ArrayBuffer) {
+    return [
+      {
+        role: 'input',
+        path: 'audio',
+        mediaType: 'audio',
+        mimeType: 'audio/mpeg',
+        bytes: audio.slice(0),
+      },
+    ]
+  }
+  if (typeof Blob !== 'undefined' && audio instanceof Blob) {
+    return [
+      {
+        role: 'input',
+        path: 'audio',
+        mediaType: 'audio',
+        mimeType: audio.type || 'audio/mpeg',
+        bytes: audio,
+      },
+    ]
+  }
+  return []
+}
+
+function transcriptionOutputDescriptors(
+  output: Record<string, unknown>,
+): Array<GenerationArtifactDescriptor> {
+  if (!Array.isArray(output.segments) && !Array.isArray(output.words)) {
+    return []
+  }
+  return [
+    {
+      role: 'output',
+      path: 'transcription',
+      mediaType: 'json',
+      mimeType: 'application/json',
+      json: output,
+    },
+  ]
+}
+
 function builtInArtifactDescriptors(
   activity: PersistedArtifactActivity,
   inputs: unknown,
@@ -1071,96 +1286,17 @@ function builtInArtifactDescriptors(
   const output = objectValue(result)
   if (!output) return descriptors
 
-  if (activity === 'image' && Array.isArray(output.images)) {
-    output.images.forEach((image, index) => {
-      const descriptor = generatedMediaDescriptor({
-        role: 'output',
-        path: `images.${index}`,
-        mediaType: 'image',
-        mimeType: 'image/png',
-        media: image,
-      })
-      if (descriptor) descriptors.push(descriptor)
-    })
-  }
-
-  if (activity === 'audio') {
-    const descriptor = generatedMediaDescriptor({
-      role: 'output',
-      path: 'audio',
-      mediaType: 'audio',
-      mimeType: 'audio/mpeg',
-      media: output.audio,
-    })
-    if (descriptor) descriptors.push(descriptor)
-  }
-
-  if (activity === 'tts') {
-    const audio = stringField(output, 'audio')
-    if (audio) {
-      const format = stringField(output, 'format')
-      descriptors.push({
-        role: 'output',
-        path: 'audio',
-        mediaType: 'audio',
-        mimeType:
-          stringField(output, 'contentType') ??
-          (format ? `audio/${format}` : 'audio/mpeg'),
-        bytes: base64ToUint8Array(audio),
-      })
-    }
-  }
-
-  if (activity === 'video' && typeof output.url === 'string') {
-    descriptors.push({
-      role: 'output',
-      path: 'video',
-      mediaType: 'video',
-      mimeType: 'video/mp4',
-      url: output.url,
-      jobId: stringField(output, 'jobId'),
-      expiresAt:
-        output.expiresAt instanceof Date ? output.expiresAt : undefined,
-    })
-  }
-
-  if (activity === 'transcription') {
-    const audio = objectValue(inputs)?.audio
-    if (typeof audio === 'string') {
-      const data = parseDataUrl(audio)
-      descriptors.push({
-        role: 'input',
-        path: 'audio',
-        mediaType: 'audio',
-        mimeType: data?.mimeType ?? 'audio/mpeg',
-        bytes: data?.bytes ?? base64ToUint8Array(audio),
-      })
-    } else if (audio instanceof ArrayBuffer) {
-      descriptors.push({
-        role: 'input',
-        path: 'audio',
-        mediaType: 'audio',
-        mimeType: 'audio/mpeg',
-        bytes: audio.slice(0),
-      })
-    } else if (typeof Blob !== 'undefined' && audio instanceof Blob) {
-      descriptors.push({
-        role: 'input',
-        path: 'audio',
-        mediaType: 'audio',
-        mimeType: audio.type || 'audio/mpeg',
-        bytes: audio,
-      })
-    }
-    if (Array.isArray(output.segments) || Array.isArray(output.words)) {
-      descriptors.push({
-        role: 'output',
-        path: 'transcription',
-        mediaType: 'json',
-        mimeType: 'application/json',
-        json: output,
-      })
-    }
+  if (activity === 'image') {
+    descriptors.push(...imageOutputDescriptors(output))
+  } else if (activity === 'audio') {
+    descriptors.push(...audioOutputDescriptors(output))
+  } else if (activity === 'tts') {
+    descriptors.push(...ttsOutputDescriptors(output))
+  } else if (activity === 'video') {
+    descriptors.push(...videoOutputDescriptors(output))
+  } else if (activity === 'transcription') {
+    descriptors.push(...transcriptionAudioDescriptors(inputs))
+    descriptors.push(...transcriptionOutputDescriptors(output))
   }
 
   return descriptors
@@ -1177,23 +1313,18 @@ function builtInArtifactDescriptors(
  * This checks IP *literals*. A hostname that resolves to a private address
  * passes, which is why `allowInputUrl` is required rather than optional.
  */
-function isBlockedInputHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  if (host === 'localhost' || host.endsWith('.localhost')) return true
-
+function blockedIpv4Literal(host: string): boolean | undefined {
   const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
-    if (a === 127 || a === 0 || a === 10) return true
-    if (a === 169 && b === 254) return true // link-local + cloud metadata
-    if (a === 172 && b >= 16 && b <= 31) return true
-    if (a === 192 && b === 168) return true
-    return false
-  }
+  if (!ipv4) return undefined
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
+  if (a === 127 || a === 0 || a === 10) return true
+  if (a === 169 && b === 254) return true // link-local + cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  return false
+}
 
-  if (host === '::' || host === '::1') return true
-  if (host.startsWith('fe80:')) return true // link-local
-  if (/^f[cd][0-9a-f]{2}:/.test(host)) return true // unique-local
+function blockedIpv6MappedHost(host: string): boolean | undefined {
   // IPv4-mapped IPv6 — re-check the embedded address. `new URL()` normalizes
   // `::ffff:127.0.0.1` to the hex form `::ffff:7f00:1`, so accept both.
   const mappedDotted = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(
@@ -1208,7 +1339,20 @@ function isBlockedInputHost(hostname: string): boolean {
       `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`,
     )
   }
-  return false
+  return undefined
+}
+
+function isBlockedInputHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host.endsWith('.localhost')) return true
+
+  const ipv4Blocked = blockedIpv4Literal(host)
+  if (ipv4Blocked !== undefined) return ipv4Blocked
+
+  if (host === '::' || host === '::1') return true
+  if (host.startsWith('fe80:')) return true // link-local
+  if (/^f[cd][0-9a-f]{2}:/.test(host)) return true // unique-local
+  return blockedIpv6MappedHost(host) === true
 }
 
 /**
@@ -1246,6 +1390,227 @@ function capBodySize(
   )
 }
 
+type ResolvedDescriptorBody = {
+  body: BlobBody
+  size: number
+  /**
+   * Exact byte length of a streamed body, when the origin declared one
+   * that survives decoding — forwarded to `BlobStore.put` as
+   * `BlobPutOptions.expectedLength`. Undefined when unknown.
+   */
+  expectedLength?: number
+  mimeType: string
+  sourceUrl?: string
+}
+
+function descriptorJsonBody(
+  descriptor: GenerationArtifactDescriptor,
+): ResolvedDescriptorBody {
+  const body = JSON.stringify(descriptor.json)
+  return {
+    body,
+    size: new TextEncoder().encode(body).byteLength,
+    mimeType: descriptor.mimeType ?? 'application/json',
+  }
+}
+
+function descriptorBytesSize(body: BlobBody): number {
+  if (typeof body === 'string') {
+    return new TextEncoder().encode(body).byteLength
+  }
+  if (body instanceof ArrayBuffer) {
+    return body.byteLength
+  }
+  if (ArrayBuffer.isView(body)) {
+    return body.byteLength
+  }
+  if (typeof Blob !== 'undefined' && body instanceof Blob) {
+    return body.size
+  }
+  return 0
+}
+
+function descriptorBytesBody(
+  body: BlobBody,
+  mimeType: string | undefined,
+): ResolvedDescriptorBody {
+  return {
+    body,
+    size: descriptorBytesSize(body),
+    mimeType: mimeType ?? 'application/octet-stream',
+  }
+}
+
+function parseArtifactUrl(url: string): URL {
+  try {
+    return new URL(url)
+  } catch {
+    throw new Error(`Failed to persist artifact: ${url} is not a valid URL.`)
+  }
+}
+
+async function assertAllowedInputArtifactUrl(
+  target: URL,
+  descriptor: GenerationArtifactDescriptor,
+  opts: ArtifactPersistenceOptions | undefined,
+): Promise<void> {
+  if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+    throw new Error(
+      `Refusing to fetch artifact over ${target.protocol} (${descriptor.path}).`,
+    )
+  }
+  const isCallerSupplied = descriptor.role === 'input'
+  const allowInputUrl = opts?.allowInputUrl
+  if (!allowInputUrl || !isCallerSupplied) return
+  if (isBlockedInputHost(target.hostname)) {
+    throw new Error(
+      `Refusing to fetch input artifact from internal host ${target.hostname}.`,
+    )
+  }
+  if (!(await allowInputUrl({ url: target, descriptor }))) {
+    throw new Error(
+      `Refusing to fetch input artifact from ${target.hostname}: rejected by allowInputUrl.`,
+    )
+  }
+}
+
+function declaredContentLength(response: Response): number | undefined {
+  // `headers.get` returns null when the header is absent, and
+  // `Number(null) === 0` — parse only a present header, or a chunked reply
+  // would read as a declared length of 0 (harmless, but the early-reject
+  // below would silently never be reachable for it).
+  const contentLength = response.headers.get('content-length')
+  if (contentLength === null) return undefined
+  const declaredLength = Number(contentLength)
+  if (!Number.isFinite(declaredLength)) return undefined
+  return declaredLength
+}
+
+function assertWithinMaxArtifactBytes(
+  url: string,
+  byteLength: number,
+  maxBytes: number | false,
+): void {
+  if (maxBytes !== false && byteLength > maxBytes) {
+    throw new Error(
+      `Artifact at ${url} exceeds maxArtifactBytes (${maxBytes}).`,
+    )
+  }
+}
+
+function decodedExpectedLength(
+  response: Response,
+  declaredLength: number | undefined,
+): number | undefined {
+  // A declared length is the DECODED body's length only when the response is
+  // not content-encoded: fetch transparently decompresses, so on a gzipped
+  // reply `content-length` measures the compressed bytes and the decoded
+  // stream can be arbitrarily longer. Only trust it when it provably
+  // describes what the store will drain.
+  const encoding = response.headers.get('content-encoding')
+  if (declaredLength === undefined) return undefined
+  if (encoding !== null && encoding !== 'identity') return undefined
+  return declaredLength
+}
+
+async function artifactBodyFromResponse(
+  response: Response,
+  url: string,
+  descriptor: GenerationArtifactDescriptor,
+  maxBytes: number | false,
+): Promise<ResolvedDescriptorBody> {
+  const declaredLength = declaredContentLength(response)
+  if (declaredLength !== undefined) {
+    assertWithinMaxArtifactBytes(url, declaredLength, maxBytes)
+  }
+  const mimeType =
+    descriptor.mimeType ??
+    response.headers.get('content-type') ??
+    'application/octet-stream'
+  const expectedLength = decodedExpectedLength(response, declaredLength)
+  // Stream the body straight into the blob store instead of buffering the
+  // whole artifact in memory. `size` is left 0 (unknown up front); the store
+  // records the actual byte length as it drains the stream. Fall back to
+  // buffering only when the response has no body to stream.
+  if (response.body) {
+    return {
+      // Wrap ONLY when the response does not already bound itself. A
+      // trustworthy `content-length` was checked against the cap above, and
+      // HTTP framing holds the origin to it — a body cannot exceed a length
+      // it declared — so the counter would add nothing and cost everything:
+      // it is a TransformStream, whose readable side has no declared length,
+      // and that missing length is precisely what breaks `R2Bucket.put`.
+      // Unwrapped, the runtime's own length rides along and R2 single-shots
+      // the stream. What still needs the counter: a chunked reply (no
+      // declared length at all) and a content-encoded one (declared length
+      // measures the compressed bytes, so the decoded stream is a
+      // decompression bomb waiting to happen).
+      body:
+        maxBytes === false || expectedLength !== undefined
+          ? response.body
+          : capBodySize(response.body, maxBytes, url),
+      size: 0,
+      expectedLength,
+      mimeType,
+      sourceUrl: url,
+    }
+  }
+  const body = await response.arrayBuffer()
+  assertWithinMaxArtifactBytes(url, body.byteLength, maxBytes)
+  return {
+    body,
+    size: body.byteLength,
+    mimeType,
+    sourceUrl: url,
+  }
+}
+
+async function fetchArtifactUrlBody(
+  url: string,
+  descriptor: GenerationArtifactDescriptor,
+  opts: ArtifactPersistenceOptions | undefined,
+): Promise<ResolvedDescriptorBody | undefined> {
+  const data = parseDataUrl(url)
+  if (data) {
+    return {
+      body: data.bytes,
+      size: data.bytes.byteLength,
+      mimeType: descriptor.mimeType ?? data.mimeType,
+    }
+  }
+  // A caller-controlled input URL is never fetched unless the app opted in
+  // with a validating predicate. Skipped, not thrown: not mirroring someone
+  // else's URL is the intended default, and the run itself is fine.
+  const isCallerSupplied = descriptor.role === 'input'
+  const allowInputUrl = opts?.allowInputUrl
+  if (isCallerSupplied && !allowInputUrl) return undefined
+
+  const target = parseArtifactUrl(url)
+  await assertAllowedInputArtifactUrl(target, descriptor, opts)
+
+  const maxBytes = opts?.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES
+  const fetchArtifact = opts?.artifactFetch ?? globalThis.fetch
+  const response = await fetchArtifact(target, {
+    // Provider CDNs redirect routinely, so output fetches follow. An input
+    // fetch must not: a 302 would land on a host neither check ever saw.
+    redirect: isCallerSupplied ? 'manual' : 'follow',
+    signal: AbortSignal.timeout(
+      opts?.artifactFetchTimeoutMs ?? DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS,
+    ),
+  })
+  if (isCallerSupplied && response.status >= 300 && response.status < 400) {
+    throw new Error(
+      `Refusing to follow a redirect for input artifact ${descriptor.path}.`,
+    )
+  }
+  if (!response.ok) {
+    throw new Error(
+      `Failed to persist artifact from ${url}: HTTP ${response.status}`,
+    )
+  }
+  return artifactBodyFromResponse(response, url, descriptor, maxBytes)
+}
+
 /**
  * Resolve a descriptor to the bytes to store. Returns `undefined` when the
  * descriptor is deliberately not persisted — today that means a caller-supplied
@@ -1254,189 +1619,197 @@ function capBodySize(
 async function descriptorBody(
   descriptor: GenerationArtifactDescriptor,
   opts: ArtifactPersistenceOptions | undefined,
-): Promise<
-  | {
-      body: BlobBody
-      size: number
-      /**
-       * Exact byte length of a streamed body, when the origin declared one
-       * that survives decoding — forwarded to `BlobStore.put` as
-       * `BlobPutOptions.expectedLength`. Undefined when unknown.
-       */
-      expectedLength?: number
-      mimeType: string
-      sourceUrl?: string
-    }
-  | undefined
-> {
+): Promise<ResolvedDescriptorBody | undefined> {
   if (descriptor.json !== undefined) {
-    const body = JSON.stringify(descriptor.json)
-    return {
-      body,
-      size: new TextEncoder().encode(body).byteLength,
-      mimeType: descriptor.mimeType ?? 'application/json',
-    }
+    return descriptorJsonBody(descriptor)
   }
 
   if (descriptor.bytes !== undefined) {
-    const body = descriptor.bytes
-    let size: number
-    if (typeof body === 'string') {
-      size = new TextEncoder().encode(body).byteLength
-    } else if (body instanceof ArrayBuffer) {
-      size = body.byteLength
-    } else if (ArrayBuffer.isView(body)) {
-      size = body.byteLength
-    } else if (typeof Blob !== 'undefined' && body instanceof Blob) {
-      size = body.size
-    } else {
-      size = 0
-    }
-    return {
-      body,
-      size,
-      mimeType: descriptor.mimeType ?? 'application/octet-stream',
-    }
+    return descriptorBytesBody(descriptor.bytes, descriptor.mimeType)
   }
 
   if (descriptor.url) {
-    const data = parseDataUrl(descriptor.url)
-    if (data) {
-      return {
-        body: data.bytes,
-        size: data.bytes.byteLength,
-        mimeType: descriptor.mimeType ?? data.mimeType,
-      }
-    }
-    // A caller-controlled input URL is never fetched unless the app opted in
-    // with a validating predicate. Skipped, not thrown: not mirroring someone
-    // else's URL is the intended default, and the run itself is fine.
-    const isCallerSupplied = descriptor.role === 'input'
-    const allowInputUrl = opts?.allowInputUrl
-    if (isCallerSupplied && !allowInputUrl) return undefined
-
-    let target: URL
-    try {
-      target = new URL(descriptor.url)
-    } catch {
-      throw new Error(
-        `Failed to persist artifact: ${descriptor.url} is not a valid URL.`,
-      )
-    }
-    if (target.protocol !== 'https:' && target.protocol !== 'http:') {
-      throw new Error(
-        `Refusing to fetch artifact over ${target.protocol} (${descriptor.path}).`,
-      )
-    }
-    if (allowInputUrl && isCallerSupplied) {
-      if (isBlockedInputHost(target.hostname)) {
-        throw new Error(
-          `Refusing to fetch input artifact from internal host ${target.hostname}.`,
-        )
-      }
-      if (!(await allowInputUrl({ url: target, descriptor }))) {
-        throw new Error(
-          `Refusing to fetch input artifact from ${target.hostname}: rejected by allowInputUrl.`,
-        )
-      }
-    }
-
-    const maxBytes = opts?.maxArtifactBytes ?? DEFAULT_MAX_ARTIFACT_BYTES
-    const fetchArtifact = opts?.artifactFetch ?? globalThis.fetch
-    const response = await fetchArtifact(target, {
-      // Provider CDNs redirect routinely, so output fetches follow. An input
-      // fetch must not: a 302 would land on a host neither check ever saw.
-      redirect: isCallerSupplied ? 'manual' : 'follow',
-      signal: AbortSignal.timeout(
-        opts?.artifactFetchTimeoutMs ?? DEFAULT_ARTIFACT_FETCH_TIMEOUT_MS,
-      ),
-    })
-    if (isCallerSupplied && response.status >= 300 && response.status < 400) {
-      throw new Error(
-        `Refusing to follow a redirect for input artifact ${descriptor.path}.`,
-      )
-    }
-    if (!response.ok) {
-      throw new Error(
-        `Failed to persist artifact from ${descriptor.url}: HTTP ${response.status}`,
-      )
-    }
-    // `headers.get` returns null when the header is absent, and
-    // `Number(null) === 0` — parse only a present header, or a chunked reply
-    // would read as a declared length of 0 (harmless, but the early-reject
-    // below would silently never be reachable for it).
-    const contentLength = response.headers.get('content-length')
-    const declaredLength =
-      contentLength === null ? undefined : Number(contentLength)
-    if (
-      maxBytes !== false &&
-      declaredLength !== undefined &&
-      Number.isFinite(declaredLength) &&
-      declaredLength > maxBytes
-    ) {
-      throw new Error(
-        `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
-      )
-    }
-    const mimeType =
-      descriptor.mimeType ??
-      response.headers.get('content-type') ??
-      'application/octet-stream'
-    // A declared length is the DECODED body's length only when the response is
-    // not content-encoded: fetch transparently decompresses, so on a gzipped
-    // reply `content-length` measures the compressed bytes and the decoded
-    // stream can be arbitrarily longer. Only trust it when it provably
-    // describes what the store will drain.
-    const encoding = response.headers.get('content-encoding')
-    const decodedLengthIsKnown =
-      declaredLength !== undefined &&
-      Number.isFinite(declaredLength) &&
-      (encoding === null || encoding === 'identity')
-    const expectedLength = decodedLengthIsKnown ? declaredLength : undefined
-    // Stream the body straight into the blob store instead of buffering the
-    // whole artifact in memory. `size` is left 0 (unknown up front); the store
-    // records the actual byte length as it drains the stream. Fall back to
-    // buffering only when the response has no body to stream.
-    if (response.body) {
-      return {
-        // Wrap ONLY when the response does not already bound itself. A
-        // trustworthy `content-length` was checked against the cap above, and
-        // HTTP framing holds the origin to it — a body cannot exceed a length
-        // it declared — so the counter would add nothing and cost everything:
-        // it is a TransformStream, whose readable side has no declared length,
-        // and that missing length is precisely what breaks `R2Bucket.put`.
-        // Unwrapped, the runtime's own length rides along and R2 single-shots
-        // the stream. What still needs the counter: a chunked reply (no
-        // declared length at all) and a content-encoded one (declared length
-        // measures the compressed bytes, so the decoded stream is a
-        // decompression bomb waiting to happen).
-        body:
-          maxBytes === false || decodedLengthIsKnown
-            ? response.body
-            : capBodySize(response.body, maxBytes, descriptor.url),
-        size: 0,
-        expectedLength,
-        mimeType,
-        sourceUrl: descriptor.url,
-      }
-    }
-    const body = await response.arrayBuffer()
-    if (maxBytes !== false && body.byteLength > maxBytes) {
-      throw new Error(
-        `Artifact at ${descriptor.url} exceeds maxArtifactBytes (${maxBytes}).`,
-      )
-    }
-    return {
-      body,
-      size: body.byteLength,
-      mimeType,
-      sourceUrl: descriptor.url,
-    }
+    return fetchArtifactUrlBody(descriptor.url, descriptor, opts)
   }
 
   throw new Error(
     `Artifact descriptor ${descriptor.path} has no bytes, url, or json.`,
   )
+}
+
+function artifactNameForDescriptor(
+  opts: WithGenerationPersistenceOptions,
+  descriptor: GenerationArtifactDescriptor,
+  mimeType: string,
+  activity: PersistedArtifactActivity,
+  ctx: GenerationMiddlewareContext,
+  threadId: string,
+  runId: string,
+  index: number,
+): string {
+  return (
+    opts.nameArtifact?.({
+      descriptor: { ...descriptor, mimeType },
+      activity,
+      provider: ctx.provider,
+      model: ctx.model,
+      threadId,
+      runId,
+      index,
+    }) ??
+    descriptor.name ??
+    defaultArtifactName({ ...descriptor, mimeType }, activity, index)
+  )
+}
+
+function artifactStorageKey(
+  opts: WithGenerationPersistenceOptions,
+  input: {
+    artifactId: string
+    runId: string
+    threadId: string
+    descriptor: GenerationArtifactDescriptor
+    activity: PersistedArtifactActivity
+    mimeType: string
+    name: string
+  },
+): string {
+  return (
+    opts.storageKey?.({
+      artifactId: input.artifactId,
+      runId: input.runId,
+      threadId: input.threadId,
+      role: input.descriptor.role,
+      activity: input.activity,
+      path: input.descriptor.path,
+      mimeType: input.mimeType,
+      name: input.name,
+    }) ?? artifactBlobKey({ runId: input.runId, artifactId: input.artifactId })
+  )
+}
+
+function stampArtifactUrls(
+  refs: Array<PersistedArtifactRef>,
+  artifactUrl: ArtifactPersistenceOptions['artifactUrl'],
+): Array<PersistedArtifactRef> {
+  if (!artifactUrl) return refs
+  for (let i = 0; i < refs.length; i++) {
+    const ref = refs[i]
+    if (ref && !ref.url) {
+      const url = artifactUrl(ref)
+      if (url) refs[i] = { ...ref, url }
+    }
+  }
+  return refs
+}
+
+async function persistOneGenerationArtifact(input: {
+  persistence: AIPersistence
+  opts: WithGenerationPersistenceOptions
+  ctx: GenerationMiddlewareContext
+  activity: PersistedArtifactActivity
+  threadId: string
+  runId: string
+  index: number
+  descriptor: GenerationArtifactDescriptor
+}): Promise<PersistedArtifactRef | undefined> {
+  const {
+    persistence,
+    opts,
+    ctx,
+    activity,
+    threadId,
+    runId,
+    index,
+    descriptor,
+  } = input
+  const artifactId = ctx.createId('artifact')
+  const resolved = await descriptorBody(descriptor, opts)
+  // Deliberately not persisted (an input URL with no `allowInputUrl` opt-in):
+  // no blob, no record, no ref — the rest of the run is unaffected.
+  if (!resolved) return undefined
+  if (!persistence.stores.artifacts || !persistence.stores.blobs) {
+    throw new Error(
+      'Generation artifact persistence requires stores.artifacts and stores.blobs.',
+    )
+  }
+  const { body, size, expectedLength, mimeType, sourceUrl } = resolved
+  // Resolved before the blob write so `storageKey` can build a path from the
+  // final filename (extensions, slugs) rather than guessing at one.
+  const name = artifactNameForDescriptor(
+    opts,
+    descriptor,
+    mimeType,
+    activity,
+    ctx,
+    threadId,
+    runId,
+    index,
+  )
+  const key = artifactStorageKey(opts, {
+    artifactId,
+    runId,
+    threadId,
+    descriptor,
+    activity,
+    mimeType,
+    name,
+  })
+  const stored = await persistence.stores.blobs.put(key, body, {
+    contentType: mimeType,
+    // Exact decoded length when the origin declared one — lets a store
+    // single-shot the stream (e.g. R2 via FixedLengthStream) instead of
+    // buffering or going multipart. Absent when unknown.
+    ...(expectedLength !== undefined ? { expectedLength } : {}),
+    customMetadata: {
+      runId,
+      threadId,
+      role: descriptor.role,
+      activity,
+      path: descriptor.path,
+    },
+  })
+  // For streamed downloads the descriptor size is unknown (0); the store
+  // reports the real byte length once it has drained the stream.
+  const resolvedSize = size || stored.size || 0
+  const createdAtMs = Date.now()
+  const record: ArtifactRecord = {
+    artifactId,
+    runId,
+    threadId,
+    // Always recorded: with a custom `storageKey` the path is no longer
+    // derivable from the record, so the reader has to be told where it went.
+    blobKey: key,
+    name,
+    mimeType,
+    size: resolvedSize,
+    sourceUrl,
+    createdAt: createdAtMs,
+  }
+  await persistence.stores.artifacts.save(record)
+  return {
+    role: descriptor.role,
+    artifactId,
+    threadId,
+    runId,
+    name,
+    mimeType,
+    size: resolvedSize,
+    createdAt: new Date(createdAtMs).toISOString(),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    source: {
+      activity,
+      path: descriptor.path,
+      provider: ctx.provider,
+      model: ctx.model,
+      mediaType: descriptor.mediaType,
+      jobId: descriptor.jobId,
+      expiresAt:
+        descriptor.expiresAt instanceof Date
+          ? descriptor.expiresAt.toISOString()
+          : descriptor.expiresAt,
+    },
+  }
 }
 
 async function persistGenerationArtifacts(
@@ -1462,7 +1835,7 @@ async function persistGenerationArtifacts(
     result,
   }
   const extracted =
-    opts?.extractArtifacts !== undefined
+    opts.extractArtifacts !== undefined
       ? await opts.extractArtifacts(extractionInput)
       : builtInArtifactDescriptors(activity, ctx.artifactInputs, result)
 
@@ -1482,107 +1855,22 @@ async function persistGenerationArtifacts(
 
   const refs: Array<PersistedArtifactRef> = [...existingRefs]
   for (const [index, descriptor] of descriptors.entries()) {
-    const artifactId = ctx.createId('artifact')
-    const resolved = await descriptorBody(descriptor, opts)
-    // Deliberately not persisted (an input URL with no `allowInputUrl` opt-in):
-    // no blob, no record, no ref — the rest of the run is unaffected.
-    if (!resolved) continue
-    const { body, size, expectedLength, mimeType, sourceUrl } = resolved
-    // Resolved before the blob write so `storageKey` can build a path from the
-    // final filename (extensions, slugs) rather than guessing at one.
-    const name =
-      opts?.nameArtifact?.({
-        descriptor: { ...descriptor, mimeType },
-        activity,
-        provider: ctx.provider,
-        model: ctx.model,
-        threadId,
-        runId,
-        index,
-      }) ??
-      descriptor.name ??
-      defaultArtifactName({ ...descriptor, mimeType }, activity, index)
-    const key =
-      opts?.storageKey?.({
-        artifactId,
-        runId,
-        threadId,
-        role: descriptor.role,
-        activity,
-        path: descriptor.path,
-        mimeType,
-        name,
-      }) ?? artifactBlobKey({ runId, artifactId })
-    const stored = await persistence.stores.blobs.put(key, body, {
-      contentType: mimeType,
-      // Exact decoded length when the origin declared one — lets a store
-      // single-shot the stream (e.g. R2 via FixedLengthStream) instead of
-      // buffering or going multipart. Absent when unknown.
-      ...(expectedLength !== undefined ? { expectedLength } : {}),
-      customMetadata: {
-        runId,
-        threadId,
-        role: descriptor.role,
-        activity,
-        path: descriptor.path,
-      },
-    })
-    // For streamed downloads the descriptor size is unknown (0); the store
-    // reports the real byte length once it has drained the stream.
-    const resolvedSize = size || stored.size || 0
-    const createdAtMs = Date.now()
-    const record: ArtifactRecord = {
-      artifactId,
-      runId,
-      threadId,
-      // Always recorded: with a custom `storageKey` the path is no longer
-      // derivable from the record, so the reader has to be told where it went.
-      blobKey: key,
-      name,
-      mimeType,
-      size: resolvedSize,
-      sourceUrl,
-      createdAt: createdAtMs,
-    }
-    await persistence.stores.artifacts.save(record)
-    refs.push({
-      role: descriptor.role,
-      artifactId,
+    const ref = await persistOneGenerationArtifact({
+      persistence,
+      opts,
+      ctx,
+      activity,
       threadId,
       runId,
-      name,
-      mimeType,
-      size: resolvedSize,
-      createdAt: new Date(createdAtMs).toISOString(),
-      ...(sourceUrl ? { sourceUrl } : {}),
-      source: {
-        activity,
-        path: descriptor.path,
-        provider: ctx.provider,
-        model: ctx.model,
-        mediaType: descriptor.mediaType,
-        jobId: descriptor.jobId,
-        expiresAt:
-          descriptor.expiresAt instanceof Date
-            ? descriptor.expiresAt.toISOString()
-            : descriptor.expiresAt,
-      },
+      index,
+      descriptor,
     })
+    if (ref) refs.push(ref)
   }
 
   // Stamp the durable app-origin serve URL onto every ref that lacks one, so
   // clients render + restore media from your own origin, not the provider link.
-  if (opts?.artifactUrl) {
-    for (let i = 0; i < refs.length; i++) {
-      const ref = refs[i]
-      if (ref && !ref.url) {
-        const url = opts.artifactUrl(ref)
-        if (url) refs[i] = { ...ref, url }
-      }
-    }
-  }
-
-  return refs
+  return stampArtifactUrls(refs, opts.artifactUrl)
 }
 
 /**
@@ -1937,6 +2225,106 @@ export interface WithPersistenceOptions {
   snapshotIntervalMs?: number
 }
 
+function captureStreamingTurnIdentity(
+  state: RunStateEntry,
+  chunk: StreamChunk,
+): void {
+  if (chunk.type === 'TEXT_MESSAGE_START') {
+    // An empty/malformed messageId means "no identity" (matching the
+    // engine's convention), leaving room for the TOOL_CALL_START
+    // parentMessageId fallback below — but the per-turn accumulator
+    // still resets so snapshots never mix text across turns.
+    state.streamingMessageId =
+      typeof chunk.messageId === 'string' && chunk.messageId !== ''
+        ? chunk.messageId
+        : undefined
+    state.streamingMessageCreatedAt = new Date()
+    state.streamingText = ''
+    return
+  }
+  if (
+    chunk.type !== 'TOOL_CALL_START' ||
+    typeof chunk.parentMessageId !== 'string' ||
+    chunk.parentMessageId === '' ||
+    state.streamingMessageId !== undefined
+  ) {
+    return
+  }
+  state.streamingMessageId = chunk.parentMessageId
+  state.streamingMessageCreatedAt ??= new Date()
+}
+
+async function snapshotStreamingAssistant(
+  ctx: ChatMiddlewareContext,
+  chunk: StreamChunk,
+  state: RunStateEntry,
+  messageStore: NonNullable<ChatTranscriptStores['messages']>,
+  snapshotIntervalMs: number,
+): Promise<void> {
+  if (
+    chunk.type !== 'TEXT_MESSAGE_CONTENT' ||
+    typeof chunk.delta !== 'string'
+  ) {
+    return
+  }
+  state.streamingText = (state.streamingText ?? '') + chunk.delta
+  const now = Date.now()
+  if (now - (state.lastSnapshotAt ?? 0) < snapshotIntervalMs) return
+  state.lastSnapshotAt = now
+  try {
+    await messageStore.saveThread(ctx.threadId, [
+      ...ctx.messages,
+      {
+        role: 'assistant',
+        content: state.streamingText,
+        ...(state.streamingMessageId ? { id: state.streamingMessageId } : {}),
+        ...(state.streamingMessageCreatedAt
+          ? { createdAt: state.streamingMessageCreatedAt }
+          : {}),
+      },
+    ])
+  } catch {
+    // Streaming snapshots are best-effort; onFinish persists final.
+  }
+}
+
+async function persistInterruptBoundary(
+  ctx: ChatMiddlewareContext,
+  chunk: StreamChunk,
+  interrupts: ReadonlyArray<Interrupt>,
+  state: RunStateEntry,
+  wantsInterrupts: boolean,
+  persistence: AIPersistence,
+  runs: RunStore | undefined,
+  messageStore: NonNullable<ChatTranscriptStores['messages']>,
+): Promise<void> {
+  if (wantsInterrupts && persistence.stores.interrupts) {
+    // The run reached a new interrupt boundary, so the resumes it consumed
+    // are committed before the fresh interrupts are recorded.
+    await commitPendingResumes(state, persistence.stores.interrupts)
+    for (const interrupt of interrupts) {
+      await persistence.stores.interrupts.create({
+        interruptId: interrupt.id,
+        runId: ctx.runId,
+        threadId: ctx.threadId,
+        requestedAt: Date.now(),
+        payload: interruptPayload(interrupt),
+      })
+    }
+  }
+  // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
+  // arrive after it with the same usage already in state.
+  const chunkUsage = tokenUsageFromChunk(chunk)
+  const usage =
+    ctx.phase === 'modelStream' && chunkUsage
+      ? accumulateTokenUsage(state.usage, chunkUsage)
+      : (state.usage ?? chunkUsage)
+  state.usage = usage
+  await interruptRun(runs, ctx.runId, usage)
+  await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+  state.interrupted = true
+}
+
 /**
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at
@@ -2101,27 +2489,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // snapshots. Completed messages already live in `ctx.messages`.
       if (snapshotStreaming && ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
-        if (s && chunk.type === 'TEXT_MESSAGE_START') {
-          // An empty/malformed messageId means "no identity" (matching the
-          // engine's convention), leaving room for the TOOL_CALL_START
-          // parentMessageId fallback below — but the per-turn accumulator
-          // still resets so snapshots never mix text across turns.
-          s.streamingMessageId =
-            typeof chunk.messageId === 'string' && chunk.messageId !== ''
-              ? chunk.messageId
-              : undefined
-          s.streamingMessageCreatedAt = new Date()
-          s.streamingText = ''
-        } else if (
-          s &&
-          chunk.type === 'TOOL_CALL_START' &&
-          typeof chunk.parentMessageId === 'string' &&
-          chunk.parentMessageId !== '' &&
-          s.streamingMessageId === undefined
-        ) {
-          s.streamingMessageId = chunk.parentMessageId
-          s.streamingMessageCreatedAt ??= new Date()
-        }
+        if (s) captureStreamingTurnIdentity(s, chunk)
       }
 
       // (B) Optional throttled snapshot of the in-progress assistant reply, so
@@ -2129,36 +2497,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // `snapshotStreaming` is set. The completed turn enters `ctx.messages`
       // only after streaming ends, so accumulate its text here and persist
       // `ctx.messages` + that partial assistant message (tagged with its id).
-      if (
-        snapshotStreaming &&
-        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
-        typeof chunk.delta === 'string'
-      ) {
+      if (snapshotStreaming) {
         const snapshotState = runState.get(ctx)
         if (snapshotState) {
-          snapshotState.streamingText =
-            (snapshotState.streamingText ?? '') + chunk.delta
-          const now = Date.now()
-          if (now - (snapshotState.lastSnapshotAt ?? 0) >= snapshotIntervalMs) {
-            snapshotState.lastSnapshotAt = now
-            try {
-              await messageStore.saveThread(ctx.threadId, [
-                ...ctx.messages,
-                {
-                  role: 'assistant',
-                  content: snapshotState.streamingText,
-                  ...(snapshotState.streamingMessageId
-                    ? { id: snapshotState.streamingMessageId }
-                    : {}),
-                  ...(snapshotState.streamingMessageCreatedAt
-                    ? { createdAt: snapshotState.streamingMessageCreatedAt }
-                    : {}),
-                },
-              ])
-            } catch {
-              // Streaming snapshots are best-effort; onFinish persists final.
-            }
-          }
+          await snapshotStreamingAssistant(
+            ctx,
+            chunk,
+            snapshotState,
+            messageStore,
+            snapshotIntervalMs,
+          )
         }
       }
 
@@ -2173,32 +2521,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       }
       const state = runState.get(ctx)
       if (!state) return
-
-      if (wantsInterrupts && persistence.stores.interrupts) {
-        // The run reached a new interrupt boundary, so the resumes it consumed
-        // are committed before the fresh interrupts are recorded.
-        await commitPendingResumes(state, persistence.stores.interrupts)
-        for (const interrupt of chunk.outcome.interrupts) {
-          await persistence.stores.interrupts.create({
-            interruptId: interrupt.id,
-            runId: ctx.runId,
-            threadId: ctx.threadId,
-            requestedAt: Date.now(),
-            payload: interruptPayload(interrupt),
-          })
-        }
-      }
-      // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
-      // arrive after it with the same usage already in state.
-      const chunkUsage = tokenUsageFromChunk(chunk)
-      const usage =
-        ctx.phase === 'modelStream' && chunkUsage
-          ? accumulateTokenUsage(state.usage, chunkUsage)
-          : (state.usage ?? chunkUsage)
-      state.usage = usage
-      await interruptRun(runs, ctx.runId, usage)
-      await messageStore.saveThread(ctx.threadId, [...ctx.messages])
-      state.interrupted = true
+      await persistInterruptBoundary(
+        ctx,
+        chunk,
+        chunk.outcome.interrupts,
+        state,
+        wantsInterrupts,
+        persistence,
+        runs,
+        messageStore,
+      )
     },
 
     onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {

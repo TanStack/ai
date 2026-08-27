@@ -88,108 +88,138 @@ async function createWebSocketConnection(
     emit('mode_change', { mode: 'idle' })
   }
 
-  client.onReceiveResponse = (response: LiveResponse) => {
-    switch (response.type) {
-      case 'text':
-        message.parts.push({
-          type: 'text',
-          content: response.data,
-        })
-        break
-      case 'audio': {
-        // Decode once, then reuse for both the stored message part and playback.
-        const pcm = base64ToArrayBuffer(response.data.audioData)
-        message.parts.push({
-          type: 'audio',
-          transcript: response.data.transcript,
-          audioData: pcm,
-        })
-        if (currentMode !== 'speaking') {
-          currentMode = 'speaking'
-          emit('mode_change', { mode: 'speaking' })
-        }
-        audioPlayer.play(pcm).catch((error) => emit('error', { error }))
-        break
-      }
-      case 'go_away':
-        emit('go_away', { timeLeft: response.data.timeLeft })
-        break
-      case 'usage_metadata':
-        emit('usage', {
-          completionTokens: response.data.responseTokenCount ?? 0,
-          promptTokens: response.data.promptTokenCount ?? 0,
-          totalTokens: response.data.totalTokenCount ?? 0,
-        })
-        break
-      case 'input_transcription':
-        if (response.data.finished && currentMode !== 'thinking') {
-          currentMode = 'thinking'
-          emit('mode_change', { mode: 'thinking' })
-        }
-        emit('transcript', {
-          isFinal: response.data.finished,
-          transcript: response.data.text,
-          role: 'user',
-        })
-        break
-      case 'output_transcription':
-        pendingAssistantResponse += response.data.text
-        emit('transcript', {
-          isFinal: response.data.finished,
-          transcript: pendingAssistantResponse,
-          role: 'assistant',
-        })
-        break
-      case 'interrupted':
-        audioPlayer.interrupt()
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
-        emit('interrupted', { messageId: currentMessageId ?? undefined })
-        break
-      case 'tool_call':
-        for (const tool of response.data.functionCalls || []) {
-          if (tool.id && tool.name) {
-            emit('tool_call', {
-              toolCallId: tool.id,
-              input: tool.args,
-              toolName: tool.name,
-            })
-          }
-        }
-        break
-      case 'turn_complete':
-        currentMessageId = generateMessageId()
-        message.id = currentMessageId
-        message.timestamp = Date.now()
-        message.parts.push({
-          type: 'text',
-          content: pendingAssistantResponse,
-        })
-        emit('message_complete', { message })
+  function handleText(response: LiveResponse) {
+    if (response.type !== 'text') return
+    message.parts.push({
+      type: 'text',
+      content: response.data,
+    })
+  }
 
-        pendingAssistantResponse = ''
-        message = {
-          id: '',
-          role: 'assistant',
-          timestamp: 0,
-          parts: [],
-        }
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
-        break
-      case 'setup_complete':
-        emit('status_change', { status: 'connected' })
-        break
-      case 'error':
-        emit('error', {
-          error: new Error(response.data),
-        })
-        break
-      case 'thought':
-      case 'session_resumption_update':
-        // Handled internally by GeminiLiveClient; not surfaced to the client.
-        break
+  function handleAudio(response: LiveResponse) {
+    if (response.type !== 'audio') return
+    const pcm = base64ToArrayBuffer(response.data.audioData)
+    message.parts.push({
+      type: 'audio',
+      transcript: response.data.transcript,
+      audioData: pcm,
+    })
+    if (currentMode !== 'speaking') {
+      currentMode = 'speaking'
+      emit('mode_change', { mode: 'speaking' })
     }
+    audioPlayer.play(pcm).catch((error) => emit('error', { error }))
+  }
+
+  function handleGoAway(response: LiveResponse) {
+    if (response.type !== 'go_away') return
+    emit('go_away', { timeLeft: response.data.timeLeft })
+  }
+
+  function handleUsage(response: LiveResponse) {
+    if (response.type !== 'usage_metadata') return
+    emit('usage', {
+      completionTokens: response.data.responseTokenCount ?? 0,
+      promptTokens: response.data.promptTokenCount ?? 0,
+      totalTokens: response.data.totalTokenCount ?? 0,
+    })
+  }
+
+  function handleInputTranscription(response: LiveResponse) {
+    if (response.type !== 'input_transcription') return
+    if (response.data.finished && currentMode !== 'thinking') {
+      currentMode = 'thinking'
+      emit('mode_change', { mode: 'thinking' })
+    }
+    emit('transcript', {
+      isFinal: response.data.finished,
+      transcript: response.data.text,
+      role: 'user',
+    })
+  }
+
+  function handleOutputTranscription(response: LiveResponse) {
+    if (response.type !== 'output_transcription') return
+    pendingAssistantResponse += response.data.text
+    emit('transcript', {
+      isFinal: response.data.finished,
+      transcript: pendingAssistantResponse,
+      role: 'assistant',
+    })
+  }
+
+  function handleInterrupted() {
+    audioPlayer.interrupt()
+    currentMode = 'listening'
+    emit('mode_change', { mode: 'listening' })
+    emit('interrupted', { messageId: currentMessageId ?? undefined })
+  }
+
+  function handleToolCall(response: LiveResponse) {
+    if (response.type !== 'tool_call') return
+    for (const tool of response.data.functionCalls || []) {
+      if (tool.id && tool.name) {
+        emit('tool_call', {
+          toolCallId: tool.id,
+          input: tool.args,
+          toolName: tool.name,
+        })
+      }
+    }
+  }
+
+  function handleTurnComplete() {
+    currentMessageId = generateMessageId()
+    message.id = currentMessageId
+    message.timestamp = Date.now()
+    message.parts.push({
+      type: 'text',
+      content: pendingAssistantResponse,
+    })
+    emit('message_complete', { message })
+
+    pendingAssistantResponse = ''
+    message = {
+      id: '',
+      role: 'assistant',
+      timestamp: 0,
+      parts: [],
+    }
+    currentMode = 'listening'
+    emit('mode_change', { mode: 'listening' })
+  }
+
+  function handleSetupComplete() {
+    emit('status_change', { status: 'connected' })
+  }
+
+  function handleError(response: LiveResponse) {
+    if (response.type !== 'error') return
+    emit('error', {
+      error: new Error(response.data),
+    })
+  }
+
+  const liveResponseHandlers = new Map<
+    string,
+    (response: LiveResponse) => void
+  >([
+    ['text', handleText],
+    ['audio', handleAudio],
+    ['go_away', handleGoAway],
+    ['usage_metadata', handleUsage],
+    ['input_transcription', handleInputTranscription],
+    ['output_transcription', handleOutputTranscription],
+    ['interrupted', handleInterrupted],
+    ['tool_call', handleToolCall],
+    ['turn_complete', handleTurnComplete],
+    ['setup_complete', handleSetupComplete],
+    ['error', handleError],
+  ])
+
+  client.onReceiveResponse = (response: LiveResponse) => {
+    const handler = liveResponseHandlers.get(response.type)
+    if (handler) handler(response)
   }
 
   await client.connect()

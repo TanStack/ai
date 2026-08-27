@@ -164,12 +164,7 @@ interface StructuralInterruptFailure {
   errors: ReadonlyArray<InterruptSubmissionError>
 }
 
-function isInterruptSubmissionError(
-  value: unknown,
-): value is InterruptSubmissionError {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
+function hasInterruptErrorFields(value: object): boolean {
   if (
     !('scope' in value) ||
     !('code' in value) ||
@@ -178,32 +173,65 @@ function isInterruptSubmissionError(
     !('retryable' in value) ||
     !('threadId' in value) ||
     !('interruptedRunId' in value) ||
-    !('generation' in value) ||
-    typeof value.code !== 'string' ||
-    typeof value.message !== 'string' ||
-    typeof value.retryable !== 'boolean' ||
-    typeof value.threadId !== 'string' ||
-    typeof value.interruptedRunId !== 'string' ||
-    typeof value.generation !== 'number'
+    !('generation' in value)
   ) {
     return false
   }
-  if (value.scope === 'item') {
-    return (
-      'interruptId' in value &&
-      typeof value.interruptId === 'string' &&
-      (value.source === 'client' || value.source === 'server')
-    )
-  }
   return (
+    typeof value.code === 'string' &&
+    typeof value.message === 'string' &&
+    typeof value.retryable === 'boolean' &&
+    typeof value.threadId === 'string' &&
+    typeof value.interruptedRunId === 'string' &&
+    typeof value.generation === 'number'
+  )
+}
+
+function isItemInterruptSubmissionError(value: object): boolean {
+  return (
+    'scope' in value &&
+    value.scope === 'item' &&
+    'interruptId' in value &&
+    typeof value.interruptId === 'string' &&
+    'source' in value &&
+    (value.source === 'client' || value.source === 'server')
+  )
+}
+
+function isBatchInterruptSubmissionError(value: object): boolean {
+  return (
+    'scope' in value &&
     value.scope === 'batch' &&
     'interruptIds' in value &&
     Array.isArray(value.interruptIds) &&
     value.interruptIds.every((id) => typeof id === 'string') &&
+    'source' in value &&
     (value.source === 'client' ||
       value.source === 'server' ||
       value.source === 'transport')
   )
+}
+
+function isInterruptSubmissionError(
+  value: unknown,
+): value is InterruptSubmissionError {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  if (!hasInterruptErrorFields(value)) return false
+  if ('scope' in value && value.scope === 'item') {
+    return isItemInterruptSubmissionError(value)
+  }
+  return isBatchInterruptSubmissionError(value)
+}
+
+function parseEphemeralToolInput(toolCall: ToolCall): unknown {
+  try {
+    const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function structuralInterruptFailure(
@@ -1125,268 +1153,254 @@ class TextEngine<
     this.logger.agentLoop('run started', {
       threadId: this.middlewareCtx.threadId,
     })
-
     try {
-      // Provision capabilities before any consumer (onConfig onward) can read them
-      await this.middlewareRunner.runSetup(this.middlewareCtx)
-
-      // Run initial onConfig (phase = init)
-      this.middlewareCtx.phase = 'init'
-      const initialConfig = this.buildMiddlewareConfig()
-      const transformedConfig = await this.middlewareRunner.runOnConfig(
-        this.middlewareCtx,
-        initialConfig,
-      )
-      this.applyMiddlewareConfig(transformedConfig)
-      await this.applyEphemeralInterruptResume(transformedConfig)
-      await this.applyDurableGenericInterruptResolution()
-
-      // Run onStart (devtools middleware emits text:request:started and initial messages here)
-      await this.middlewareRunner.runOnStart(this.middlewareCtx)
-
-      if (this.earlyTermination) {
-        yield* this.emitSuccessfulEarlyTermination()
-        if (!this.terminalHookCalled) {
-          this.terminalHookCalled = true
-          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-            finishReason: this.lastFinishReason,
-            duration: Date.now() - this.streamStartTime,
-            content: this.accumulatedContent,
-            usage: rebuildTokenUsage(
-              this.finishedEvent?.usage,
-              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-            ),
-          })
-        }
-        return
-      }
-
-      const pendingPhase = yield* this.checkForPendingToolCalls()
-      if (pendingPhase === 'wait') {
-        return
-      }
-
-      // Skip the agent loop entirely when there are no tools AND a separate
-      // structured-output finalization will run. Without tools the model has
-      // nothing to do in the loop, so executing one iteration would burn an
-      // extra provider call before the finalization request.
-      //
-      // Native combined mode does NOT skip — the agent loop itself produces
-      // the schema-constrained final answer in one pass (model emits the
-      // schema-constrained text on its natural final turn). Even with zero
-      // tools, the single chatStream call IS the structured-output call.
-      const skipAgentLoop =
-        !!this.finalStructuredOutput &&
-        this.tools.length === 0 &&
-        this.finalStructuredOutput.nativeCombined !== true
-
-      if (!skipAgentLoop) {
-        do {
-          if (this.earlyTermination) break
-          if (this.isCancelled()) return
-
-          this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
-            iteration: this.middlewareCtx.iteration,
-          })
-
-          await this.beginCycle()
-
-          if (this.cyclePhase === 'processText') {
-            // Run onConfig before each model call (phase = beforeModel)
-            this.middlewareCtx.phase = 'beforeModel'
-            this.middlewareCtx.iteration = this.iterationCount
-            const iterConfig = this.buildMiddlewareConfig()
-            const iterTransformedConfig =
-              await this.middlewareRunner.runOnConfig(
-                this.middlewareCtx,
-                iterConfig,
-              )
-            this.applyMiddlewareConfig(iterTransformedConfig)
-
-            if (
-              yield* this.emitBoundaryInterrupts(
-                'beforeModel',
-                this.createSyntheticFinishedEvent(),
-              )
-            ) {
-              this.setToolPhase('wait')
-              return
-            }
-
-            yield* this.streamModelResponse()
-
-            if (this.earlyTermination) break
-
-            if (
-              yield* this.emitBoundaryInterrupts(
-                'afterModel',
-                this.finishedEvent ?? this.createSyntheticFinishedEvent(),
-              )
-            ) {
-              this.setToolPhase('wait')
-              return
-            }
-            if (this.shouldExecuteToolPhase()) {
-              this.deferredToolCallRunFinishedChunks.push(
-                ...this.deferredModelRunFinishedChunks,
-              )
-              this.deferredModelRunFinishedChunks = []
-            } else {
-              yield* this.flushDeferredModelRunFinishedChunks()
-            }
-          } else {
-            yield* this.processToolCalls()
-          }
-
-          this.endCycle()
-        } while (await this.shouldContinue())
-      }
-
-      this.logger.agentLoop('run finished', {
-        finishReason: this.lastFinishReason,
-      })
-
-      // After the agent loop ends, if a structured-output finalization was
-      // requested AND the run hasn't already errored/aborted, run it through
-      // the middleware pipeline. The terminal hook fires once at the very
-      // end (after finalization), not after the agent loop.
-      // Actionable waits already emitted a RUN_FINISHED interrupt terminal, so
-      // do not run finalization after `processToolCalls()` pauses the stream.
-      //
-      // Native combined mode takes a different path: the agent loop's final-
-      // turn text IS the schema-constrained JSON, so we harvest it from
-      // `accumulatedContent` instead of issuing a second provider call.
-      if (
-        this.finalStructuredOutput &&
-        this.toolPhase !== 'wait' &&
-        !this.isCancelled() &&
-        !this.finalizationError &&
-        !this.earlyTermination
-      ) {
-        if (this.finalStructuredOutput.nativeCombined === true) {
-          yield* this.harvestCombinedStructuredOutput()
-        } else {
-          yield* this.runStructuredFinalization()
-        }
-      }
-
-      // Call terminal hook (skip when waiting for client — stream is paused, not finished).
-      // Priority: finalizationError → onError; otherwise normal onFinish.
-      // Skip on cancellation — the finally block routes aborts to onAbort.
-      if (
-        !this.terminalHookCalled &&
-        this.toolPhase !== 'wait' &&
-        !this.isCancelled()
-      ) {
-        if (this.finalizationError) {
-          this.terminalHookCalled = true
-          const errForHook = new Error(
-            this.finalizationError.message,
-            this.finalizationError.cause !== undefined
-              ? { cause: this.finalizationError.cause }
-              : undefined,
-          )
-          if (this.finalizationError.code !== undefined) {
-            Object.defineProperty(errForHook, 'code', {
-              value: this.finalizationError.code,
-              enumerable: true,
-            })
-          }
-          await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error: errForHook,
-            duration: Date.now() - this.streamStartTime,
-          })
-        } else {
-          this.addTerminalAssistantMessages()
-          this.terminalHookCalled = true
-          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-            finishReason: this.lastFinishReason,
-            duration: Date.now() - this.streamStartTime,
-            content: this.accumulatedContent,
-            usage: rebuildTokenUsage(
-              this.finishedEvent?.usage,
-              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-            ),
-          })
-        }
-      }
+      yield* this.runPrepared()
     } catch (error: unknown) {
-      if (
-        error instanceof Error &&
-        error.name === 'InterruptReplaySignal' &&
-        'continuationRunId' in error &&
-        typeof error.continuationRunId === 'string'
-      ) {
+      yield* this.handleRunFailure(error)
+    } finally {
+      await this.cleanupRun()
+    }
+  }
+
+  private async *runPrepared(): AsyncGenerator<StreamChunk> {
+    await this.middlewareRunner.runSetup(this.middlewareCtx)
+    this.middlewareCtx.phase = 'init'
+    const initialConfig = this.buildMiddlewareConfig()
+    const transformedConfig = await this.middlewareRunner.runOnConfig(
+      this.middlewareCtx,
+      initialConfig,
+    )
+    this.applyMiddlewareConfig(transformedConfig)
+    await this.applyEphemeralInterruptResume(transformedConfig)
+    await this.applyDurableGenericInterruptResolution()
+    await this.middlewareRunner.runOnStart(this.middlewareCtx)
+
+    if (this.earlyTermination) {
+      yield* this.emitSuccessfulEarlyTermination()
+      if (!this.terminalHookCalled) {
         this.terminalHookCalled = true
-        yield* this.pipeThroughMiddleware({
-          type: EventType.RUN_FINISHED,
-          timestamp: Date.now(),
-          threadId: this.threadId,
-          runId: this.runIdOverride ?? this.requestId,
-          outcome: { type: 'success' },
-          result: {
-            replayed: true,
-            continuationRunId: error.continuationRunId,
-          },
+        await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+          finishReason: this.lastFinishReason,
+          duration: Date.now() - this.streamStartTime,
+          content: this.accumulatedContent,
+          usage: rebuildTokenUsage(
+            this.finishedEvent?.usage,
+            tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+          ),
         })
-        return
       }
-      const interruptFailure = structuralInterruptFailure(error)
-      if (interruptFailure) {
-        this.terminalHookCalled = true
-        this.logger.errors('chat interrupt resume failed', {
+      return
+    }
+
+    const pendingPhase = yield* this.checkForPendingToolCalls()
+    if (pendingPhase === 'wait') return
+
+    const skipAgentLoop =
+      !!this.finalStructuredOutput &&
+      this.tools.length === 0 &&
+      this.finalStructuredOutput.nativeCombined !== true
+    if (!skipAgentLoop) {
+      const loopOutcome = yield* this.runAgentLoop()
+      if (loopOutcome === 'return') return
+    }
+    yield* this.runAfterAgentLoop()
+  }
+
+  private async *runAgentLoop(): AsyncGenerator<
+    StreamChunk,
+    'return' | 'continue'
+  > {
+    do {
+      if (this.earlyTermination) break
+      if (this.isCancelled()) return 'return'
+      this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
+        iteration: this.middlewareCtx.iteration,
+      })
+      await this.beginCycle()
+      if (this.cyclePhase === 'processText') {
+        const outcome = yield* this.runProcessTextCycle()
+        if (outcome === 'wait') return 'return'
+        if (outcome === 'stop') break
+      } else {
+        yield* this.processToolCalls()
+      }
+      this.endCycle()
+    } while (await this.shouldContinue())
+    return 'continue'
+  }
+
+  private async *runProcessTextCycle(): AsyncGenerator<
+    StreamChunk,
+    'wait' | 'stop' | 'continue'
+  > {
+    this.middlewareCtx.phase = 'beforeModel'
+    this.middlewareCtx.iteration = this.iterationCount
+    const iterConfig = this.buildMiddlewareConfig()
+    const iterTransformedConfig = await this.middlewareRunner.runOnConfig(
+      this.middlewareCtx,
+      iterConfig,
+    )
+    this.applyMiddlewareConfig(iterTransformedConfig)
+    if (
+      yield* this.emitBoundaryInterrupts(
+        'beforeModel',
+        this.createSyntheticFinishedEvent(),
+      )
+    ) {
+      this.setToolPhase('wait')
+      return 'wait'
+    }
+    yield* this.streamModelResponse()
+    if (this.earlyTermination) return 'stop'
+    if (
+      yield* this.emitBoundaryInterrupts(
+        'afterModel',
+        this.finishedEvent ?? this.createSyntheticFinishedEvent(),
+      )
+    ) {
+      this.setToolPhase('wait')
+      return 'wait'
+    }
+    if (this.shouldExecuteToolPhase()) {
+      this.deferredToolCallRunFinishedChunks.push(
+        ...this.deferredModelRunFinishedChunks,
+      )
+      this.deferredModelRunFinishedChunks = []
+      return 'continue'
+    }
+    yield* this.flushDeferredModelRunFinishedChunks()
+    return 'continue'
+  }
+
+  private async *runAfterAgentLoop(): AsyncGenerator<StreamChunk> {
+    this.logger.agentLoop('run finished', {
+      finishReason: this.lastFinishReason,
+    })
+    if (
+      this.finalStructuredOutput &&
+      this.toolPhase !== 'wait' &&
+      !this.isCancelled() &&
+      !this.finalizationError &&
+      !this.earlyTermination
+    ) {
+      if (this.finalStructuredOutput.nativeCombined === true) {
+        yield* this.harvestCombinedStructuredOutput()
+      } else {
+        yield* this.runStructuredFinalization()
+      }
+    }
+    if (
+      this.terminalHookCalled ||
+      this.toolPhase === 'wait' ||
+      this.isCancelled()
+    ) {
+      return
+    }
+    if (this.finalizationError) {
+      this.terminalHookCalled = true
+      const errForHook = new Error(
+        this.finalizationError.message,
+        this.finalizationError.cause !== undefined
+          ? { cause: this.finalizationError.cause }
+          : undefined,
+      )
+      if (this.finalizationError.code !== undefined) {
+        Object.defineProperty(errForHook, 'code', {
+          value: this.finalizationError.code,
+          enumerable: true,
+        })
+      }
+      await this.middlewareRunner.runOnError(this.middlewareCtx, {
+        error: errForHook,
+        duration: Date.now() - this.streamStartTime,
+      })
+      return
+    }
+    this.addTerminalAssistantMessages()
+    this.terminalHookCalled = true
+    await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+      finishReason: this.lastFinishReason,
+      duration: Date.now() - this.streamStartTime,
+      content: this.accumulatedContent,
+      usage: rebuildTokenUsage(
+        this.finishedEvent?.usage,
+        tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+      ),
+    })
+  }
+
+  private async *handleRunFailure(error: unknown): AsyncGenerator<StreamChunk> {
+    if (
+      error instanceof Error &&
+      error.name === 'InterruptReplaySignal' &&
+      'continuationRunId' in error &&
+      typeof error.continuationRunId === 'string'
+    ) {
+      this.terminalHookCalled = true
+      yield* this.pipeThroughMiddleware({
+        type: EventType.RUN_FINISHED,
+        timestamp: Date.now(),
+        threadId: this.threadId,
+        runId: this.runIdOverride ?? this.requestId,
+        outcome: { type: 'success' },
+        result: {
+          replayed: true,
+          continuationRunId: error.continuationRunId,
+        },
+      })
+      return
+    }
+    const interruptFailure = structuralInterruptFailure(error)
+    if (interruptFailure) {
+      this.terminalHookCalled = true
+      this.logger.errors('chat interrupt resume failed', {
+        error,
+        threadId: this.middlewareCtx.threadId,
+      })
+      await this.middlewareRunner.runOnError(this.middlewareCtx, {
+        error: interruptFailure.error,
+        duration: Date.now() - this.streamStartTime,
+      })
+      yield this.buildInterruptRunErrorChunk(error)
+      return
+    }
+    if (!this.terminalHookCalled) {
+      this.terminalHookCalled = true
+      if (error instanceof MiddlewareAbortError) {
+        this.abortReason = error.message
+        await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+          reason: error.message,
+          duration: Date.now() - this.streamStartTime,
+          cancelRequested: isCancelRequestedReason(error.message),
+        })
+      } else {
+        this.logger.errors('chat run failed', {
           error,
           threadId: this.middlewareCtx.threadId,
         })
         await this.middlewareRunner.runOnError(this.middlewareCtx, {
-          error: interruptFailure.error,
+          error,
           duration: Date.now() - this.streamStartTime,
         })
-        yield this.buildInterruptRunErrorChunk(error)
-        return
       }
-      if (!this.terminalHookCalled) {
-        this.terminalHookCalled = true
-        if (error instanceof MiddlewareAbortError) {
-          // Middleware abort decision — call onAbort, not onError
-          this.abortReason = error.message
-          await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-            reason: error.message,
-            duration: Date.now() - this.streamStartTime,
-            cancelRequested: isCancelRequestedReason(error.message),
-          })
-        } else {
-          // Genuine error — call onError
-          this.logger.errors('chat run failed', {
-            error,
-            threadId: this.middlewareCtx.threadId,
-          })
-          await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error,
-            duration: Date.now() - this.streamStartTime,
-          })
-        }
-      }
-      // Don't rethrow middleware abort errors — the run just stops gracefully
-      if (!(error instanceof MiddlewareAbortError)) {
-        throw error
-      }
-    } finally {
-      // Check for abort terminal hook
-      if (!this.terminalHookCalled && this.isCancelled()) {
-        this.terminalHookCalled = true
-        const reason = this.resolveAbortReason()
-        await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-          reason,
-          duration: Date.now() - this.streamStartTime,
-          cancelRequested: isCancelRequestedReason(reason),
-        })
-      }
+    }
+    if (!(error instanceof MiddlewareAbortError)) {
+      throw error
+    }
+  }
 
-      // Await deferred promises (non-blocking side effects)
-      if (this.deferredPromises.length > 0) {
-        await Promise.allSettled(this.deferredPromises)
-      }
+  private async cleanupRun(): Promise<void> {
+    if (!this.terminalHookCalled && this.isCancelled()) {
+      this.terminalHookCalled = true
+      const reason = this.resolveAbortReason()
+      await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+        reason,
+        duration: Date.now() - this.streamStartTime,
+        cancelRequested: isCancelRequestedReason(reason),
+      })
+    }
+    if (this.deferredPromises.length > 0) {
+      await Promise.allSettled(this.deferredPromises)
     }
   }
 
@@ -1507,153 +1521,151 @@ class TextEngine<
       threadId: this.threadId,
       runId: this.runIdOverride,
       parentRunId: this.parentRunIdOverride,
-      // Expose provided capabilities (e.g. sandbox) to harness adapters.
       capabilities: this.middlewareCtx,
-      // Client approval decisions, for harness interactive-approval resolution.
       approvals: adapterApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
-      if (this.isCancelled()) {
-        break
-      }
-
-      this.totalChunkCount++
-
-      this.handleStreamChunk(raw)
-
-      // Native combined mode: synthesize `structured-output.start` BEFORE
-      // the first TEXT_MESSAGE_START so the client-side StreamProcessor
-      // routes the schema-constrained JSON deltas into a
-      // StructuredOutputPart. We delay synthesis until we actually see
-      // text starting — intermediate tool-call iterations don't need it,
-      // and emitting at run-start would wrap tool-call commentary into a
-      // structured-output part too.
-      if (
-        raw.type === EventType.CUSTOM &&
-        raw.name === 'structured-output.start'
-      ) {
-        this.combinedStartEmitted = true
-        const startValue = raw.value
-        if (
-          startValue &&
-          typeof startValue === 'object' &&
-          'messageId' in startValue &&
-          typeof startValue.messageId === 'string'
-        ) {
-          this.combinedStructuredMessageId = startValue.messageId
-          this.captureStructuredOutputMessageIdentity(startValue.messageId)
-        }
-      }
-
-      let outboundChunk: AdapterYieldChunk = raw
-      if (
-        this.finalStructuredOutput?.source === 'event' &&
-        raw.type === EventType.CUSTOM &&
-        raw.name === 'structured-output.complete'
-      ) {
-        const parsed = readStructuredOutputCompleteValue(raw.value)
-        if (parsed) {
-          const object = this.finalStructuredOutput.normalize
-            ? this.finalStructuredOutput.normalize(parsed.object)
-            : parsed.object
-          this.structuredOutputResult = { data: object, rawText: parsed.raw }
-          this.combinedCompleteEmitted = true
-          const value = raw.value
-          const completeMessageId = readCustomEventMessageId(value)
-          if (completeMessageId) {
-            this.combinedStructuredMessageId = completeMessageId
-            this.captureStructuredOutputMessageIdentity(completeMessageId)
-          }
-          if (object !== parsed.object && value && typeof value === 'object') {
-            outboundChunk = { ...raw, value: { ...value, object } }
-          }
-        }
-      }
-
-      if (
-        this.finalStructuredOutput?.nativeCombined === true &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.source !== 'event' &&
-        !this.combinedStartEmitted &&
-        raw.type === EventType.TEXT_MESSAGE_START
-      ) {
-        this.combinedStartEmitted = true
-        const messageId =
-          typeof raw.messageId === 'string' && raw.messageId !== ''
-            ? raw.messageId
-            : generateMessageId()
-        this.combinedStructuredMessageId = messageId
-        const synthStart: StreamChunk = {
-          type: EventType.CUSTOM,
-          name: 'structured-output.start',
-          value: { messageId },
-          timestamp: Date.now(),
-        }
-        const synthOutputs = await this.middlewareRunner.runOnChunk(
-          this.middlewareCtx,
-          synthStart,
-        )
-        yield* this.emitPublicChunks(synthOutputs)
-      }
-
-      const outputChunks = await this.middlewareRunner.runOnChunk(
-        this.middlewareCtx,
-        outboundChunk,
-      )
-      // When a streaming structured-output finalization step will run after
-      // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
-      // here — the finalization step emits the single outer lifecycle pair
-      // that reaches the consumer.
-      //
-      // Native combined mode does NOT issue a second adapter stream — the
-      // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
-        !!this.finalStructuredOutput &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.nativeCombined !== true
-      for (const outputChunk of outputChunks) {
-        for (const spec of normalizeStreamChunk(
-          outputChunk as AdapterYieldChunk,
-        )) {
-          restorePublicUsage(spec)
-          if (
-            suppressAgentLifecycle &&
-            (spec.type === EventType.RUN_STARTED ||
-              spec.type === EventType.RUN_FINISHED)
-          ) {
-            continue
-          }
-          if (spec.type === EventType.RUN_FINISHED) {
-            this.deferredModelRunFinishedChunks.push(spec)
-            continue
-          }
-          if (this.shouldDeferToolCallRunFinished(spec)) {
-            this.deferredToolCallRunFinishedChunks.push(spec)
-            continue
-          }
-          if (spec.type === EventType.RUN_STARTED) {
-            this.hasPublicRunStarted = true
-          }
-          this.logger.output(`type=${spec.type}`, { chunk: spec })
-          yield spec
-          this.middlewareCtx.chunkIndex++
-        }
-      }
-
-      if (raw.type === EventType.RUN_FINISHED) {
-        await this.runOnUsageFromChunk(raw)
-      }
-
-      // Drain any sandbox.file events emitted while processing this chunk.
-      yield* this.drainSandboxFileQueue()
-
-      if (this.earlyTermination) {
-        break
-      }
+      if (this.isCancelled()) break
+      const shouldStop = yield* this.handleModelStreamChunk(raw)
+      if (shouldStop) break
     }
 
-    // Drain any remaining sandbox.file events emitted after the stream ended.
     yield* this.drainSandboxFileQueue()
+  }
+
+  private noteCombinedStructuredStart(raw: AdapterYieldChunk): void {
+    if (
+      raw.type !== EventType.CUSTOM ||
+      raw.name !== 'structured-output.start'
+    ) {
+      return
+    }
+    this.combinedStartEmitted = true
+    const startValue = raw.value
+    if (
+      startValue &&
+      typeof startValue === 'object' &&
+      'messageId' in startValue &&
+      typeof startValue.messageId === 'string'
+    ) {
+      this.combinedStructuredMessageId = startValue.messageId
+      this.captureStructuredOutputMessageIdentity(startValue.messageId)
+    }
+  }
+
+  private applyEventSourcedComplete(raw: AdapterYieldChunk): AdapterYieldChunk {
+    if (
+      this.finalStructuredOutput?.source !== 'event' ||
+      raw.type !== EventType.CUSTOM ||
+      raw.name !== 'structured-output.complete'
+    ) {
+      return raw
+    }
+    const parsed = readStructuredOutputCompleteValue(raw.value)
+    if (!parsed || !this.finalStructuredOutput) return raw
+    const object = this.finalStructuredOutput.normalize
+      ? this.finalStructuredOutput.normalize(parsed.object)
+      : parsed.object
+    this.structuredOutputResult = { data: object, rawText: parsed.raw }
+    this.combinedCompleteEmitted = true
+    const value = raw.value
+    const completeMessageId = readCustomEventMessageId(value)
+    if (completeMessageId) {
+      this.combinedStructuredMessageId = completeMessageId
+      this.captureStructuredOutputMessageIdentity(completeMessageId)
+    }
+    if (object !== parsed.object && value && typeof value === 'object') {
+      return { ...raw, value: { ...value, object } }
+    }
+    return raw
+  }
+
+  private async *maybeSynthesizeCombinedStart(
+    raw: AdapterYieldChunk,
+  ): AsyncGenerator<StreamChunk> {
+    if (
+      this.finalStructuredOutput?.nativeCombined !== true ||
+      !this.finalStructuredOutput.yieldChunks ||
+      this.finalStructuredOutput.source === 'event' ||
+      this.combinedStartEmitted ||
+      raw.type !== EventType.TEXT_MESSAGE_START
+    ) {
+      return
+    }
+    this.combinedStartEmitted = true
+    const messageId =
+      typeof raw.messageId === 'string' && raw.messageId !== ''
+        ? raw.messageId
+        : generateMessageId()
+    this.combinedStructuredMessageId = messageId
+    const synthStart: StreamChunk = {
+      type: EventType.CUSTOM,
+      name: 'structured-output.start',
+      value: { messageId },
+      timestamp: Date.now(),
+    }
+    const synthOutputs = await this.middlewareRunner.runOnChunk(
+      this.middlewareCtx,
+      synthStart,
+    )
+    yield* this.emitPublicChunks(synthOutputs)
+  }
+
+  private async *emitModelOutputChunks(
+    outputChunks: Array<StreamChunk>,
+  ): AsyncGenerator<StreamChunk> {
+    const suppressAgentLifecycle =
+      !!this.finalStructuredOutput &&
+      this.finalStructuredOutput.yieldChunks &&
+      this.finalStructuredOutput.nativeCombined !== true
+    for (const outputChunk of outputChunks) {
+      for (const spec of normalizeStreamChunk(
+        outputChunk as AdapterYieldChunk,
+      )) {
+        restorePublicUsage(spec)
+        if (
+          suppressAgentLifecycle &&
+          (spec.type === EventType.RUN_STARTED ||
+            spec.type === EventType.RUN_FINISHED)
+        ) {
+          continue
+        }
+        if (spec.type === EventType.RUN_FINISHED) {
+          this.deferredModelRunFinishedChunks.push(spec)
+          continue
+        }
+        if (this.shouldDeferToolCallRunFinished(spec)) {
+          this.deferredToolCallRunFinishedChunks.push(spec)
+          continue
+        }
+        if (spec.type === EventType.RUN_STARTED) {
+          this.hasPublicRunStarted = true
+        }
+        this.logger.output(`type=${spec.type}`, { chunk: spec })
+        yield spec
+        this.middlewareCtx.chunkIndex++
+      }
+    }
+  }
+
+  private async *handleModelStreamChunk(
+    raw: AdapterYieldChunk,
+  ): AsyncGenerator<StreamChunk, boolean> {
+    this.totalChunkCount++
+    this.handleStreamChunk(raw)
+    this.noteCombinedStructuredStart(raw)
+    const outboundChunk = this.applyEventSourcedComplete(raw)
+    yield* this.maybeSynthesizeCombinedStart(raw)
+    const outputChunks = await this.middlewareRunner.runOnChunk(
+      this.middlewareCtx,
+      outboundChunk,
+    )
+    yield* this.emitModelOutputChunks(outputChunks)
+    if (raw.type === EventType.RUN_FINISHED) {
+      await this.runOnUsageFromChunk(raw)
+    }
+    yield* this.drainSandboxFileQueue()
+    return this.earlyTermination
   }
 
   private handleStreamChunk(chunk: AdapterYieldChunk): void {
@@ -2391,103 +2403,175 @@ class TextEngine<
 
   private addTerminalAssistantMessages(): void {
     this.finalizeCurrentThinkingStep()
-
     const structuredResult = this.structuredOutputResult
     const raw = structuredResult
       ? structuredResult.rawText || safeJsonStringify(structuredResult.data)
       : ''
-    const structuredOutput: StructuredOutputPart | undefined = structuredResult
-      ? {
-          type: 'structured-output',
-          status: 'complete',
-          data: structuredResult.data,
-          partial: structuredResult.data,
-          raw,
-          ...(structuredResult.reasoning !== undefined
-            ? { reasoning: structuredResult.reasoning }
-            : {}),
-        }
-      : undefined
-    const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
-    const eventSourced = this.finalStructuredOutput?.source === 'event'
+    const structuredOutput = this.terminalStructuredOutputPart(
+      structuredResult,
+      raw,
+    )
     const structuredId =
       this.structuredOutputMessageId ??
       this.combinedStructuredMessageId ??
       this.currentMessageId ??
       this.createId('msg')
-    // Codex, OpenCode, ACP, and grok-build reuse the last text messageId
-    // on structured-output.complete. Split only when the event uses a
-    // different id (Claude Code). Same-id output stays on one message.
+    const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
+    const eventSourced = this.finalStructuredOutput?.source === 'event'
     const splitStructuredMessage =
       Boolean(structuredOutput) &&
       (!nativeCombined || eventSourced) &&
       this.currentMessageId != null &&
       structuredId !== this.currentMessageId
     const messages = [...this.middlewareCtx.messages]
+    const startedLength = messages.length
+    const existingStructuredIndex = this.mergeTerminalMessages(messages, {
+      structuredOutput,
+      raw,
+      structuredId,
+      splitStructuredMessage,
+    })
+    if (messages.length === startedLength && existingStructuredIndex < 0) {
+      return
+    }
+    this.messages = messages
+    this.middlewareCtx.messages = this.messages
+  }
+
+  private terminalStructuredOutputPart(
+    structuredResult: {
+      data: unknown
+      rawText: string
+      reasoning?: string
+    } | null,
+    raw: string,
+  ): StructuredOutputPart | undefined {
+    if (!structuredResult) return undefined
+    return {
+      type: 'structured-output',
+      status: 'complete',
+      data: structuredResult.data,
+      partial: structuredResult.data,
+      raw,
+      ...(structuredResult.reasoning !== undefined
+        ? { reasoning: structuredResult.reasoning }
+        : {}),
+    }
+  }
+
+  private mergeTerminalMessages(
+    messages: Array<ModelMessage>,
+    input: {
+      structuredOutput: StructuredOutputPart | undefined
+      raw: string
+      structuredId: string
+      splitStructuredMessage: boolean
+    },
+  ): number {
     const existingStructuredIndex = messages.findIndex(
-      (message) => message.role === 'assistant' && message.id === structuredId,
+      (message) =>
+        message.role === 'assistant' && message.id === input.structuredId,
     )
     const currentTurnAlreadyRecorded = messages.some(
       (message) =>
         message.role === 'assistant' && message.id === this.currentMessageId,
     )
+    if (input.structuredOutput && existingStructuredIndex >= 0) {
+      this.patchExistingStructuredMessage(
+        messages,
+        existingStructuredIndex,
+        input.raw,
+        input.structuredOutput,
+      )
+      return existingStructuredIndex
+    }
+    if (input.structuredOutput && !input.splitStructuredMessage) {
+      this.appendCombinedStructuredMessage(
+        messages,
+        input,
+        currentTurnAlreadyRecorded,
+      )
+      return existingStructuredIndex
+    }
+    this.appendSplitTerminalMessages(
+      messages,
+      input,
+      currentTurnAlreadyRecorded,
+    )
+    return existingStructuredIndex
+  }
+
+  private patchExistingStructuredMessage(
+    messages: Array<ModelMessage>,
+    index: number,
+    raw: string,
+    structuredOutput: StructuredOutputPart,
+  ): void {
+    const existing = messages[index]
+    if (!existing) return
+    messages[index] = {
+      ...existing,
+      content: raw || existing.content,
+      structuredOutput,
+    }
+  }
+
+  private appendCombinedStructuredMessage(
+    messages: Array<ModelMessage>,
+    input: {
+      structuredOutput: StructuredOutputPart
+      raw: string
+      structuredId: string
+    },
+    currentTurnAlreadyRecorded: boolean,
+  ): void {
+    if (currentTurnAlreadyRecorded) return
     const thinking =
       this.accumulatedThinking.length > 0 ? this.accumulatedThinking : undefined
-    const startedLength = messages.length
+    messages.push({
+      role: 'assistant',
+      content: this.accumulatedContent || input.raw || null,
+      id: input.structuredId,
+      createdAt:
+        this.currentMessageCreatedAt ??
+        this.structuredOutputMessageCreatedAt ??
+        new Date(),
+      structuredOutput: input.structuredOutput,
+      ...(thinking ? { thinking } : {}),
+    })
+  }
 
-    if (structuredOutput && existingStructuredIndex >= 0) {
-      const existing = messages[existingStructuredIndex]
-      if (existing) {
-        messages[existingStructuredIndex] = {
-          ...existing,
-          content: raw || existing.content,
-          structuredOutput,
-        }
-      }
-    } else if (structuredOutput && !splitStructuredMessage) {
-      if (!currentTurnAlreadyRecorded) {
-        messages.push({
-          role: 'assistant',
-          content: this.accumulatedContent || raw || null,
-          id: structuredId,
-          createdAt:
-            this.currentMessageCreatedAt ??
-            this.structuredOutputMessageCreatedAt ??
-            new Date(),
-          structuredOutput,
-          ...(thinking ? { thinking } : {}),
-        })
-      }
-    } else {
-      if (
-        !currentTurnAlreadyRecorded &&
-        (this.accumulatedContent !== '' || thinking)
-      ) {
-        messages.push({
-          role: 'assistant',
-          content: this.accumulatedContent || null,
-          id: this.currentMessageId ?? this.createId('msg'),
-          createdAt: this.currentMessageCreatedAt ?? new Date(),
-          ...(thinking ? { thinking } : {}),
-        })
-      }
-      if (structuredOutput) {
-        messages.push({
-          role: 'assistant',
-          content: raw || null,
-          id: structuredId,
-          createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
-          structuredOutput,
-        })
-      }
+  private appendSplitTerminalMessages(
+    messages: Array<ModelMessage>,
+    input: {
+      structuredOutput: StructuredOutputPart | undefined
+      raw: string
+      structuredId: string
+    },
+    currentTurnAlreadyRecorded: boolean,
+  ): void {
+    const thinking =
+      this.accumulatedThinking.length > 0 ? this.accumulatedThinking : undefined
+    if (
+      !currentTurnAlreadyRecorded &&
+      (this.accumulatedContent !== '' || thinking)
+    ) {
+      messages.push({
+        role: 'assistant',
+        content: this.accumulatedContent || null,
+        id: this.currentMessageId ?? this.createId('msg'),
+        createdAt: this.currentMessageCreatedAt ?? new Date(),
+        ...(thinking ? { thinking } : {}),
+      })
     }
-
-    if (messages.length === startedLength && existingStructuredIndex < 0) {
-      return
-    }
-
-    this.messages = messages
-    this.middlewareCtx.messages = this.messages
+    if (!input.structuredOutput) return
+    messages.push({
+      role: 'assistant',
+      content: input.raw || null,
+      id: input.structuredId,
+      createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
+      structuredOutput: input.structuredOutput,
+    })
   }
 
   /**
@@ -2584,6 +2668,118 @@ class TextEngine<
     return this.createId('interrupt')
   }
 
+  private approvalInterrupt(approval: ApprovalRequest): Interrupt {
+    const tool = this.tools.find(
+      (candidate) => candidate.name === approval.toolName,
+    ) as RuntimeToolWithApproval | undefined
+    const normalized = normalizeApprovalSchema(
+      tool?.approvalSchema,
+      tool?.inputSchema,
+    )
+    return {
+      id: approval.approvalId,
+      reason: 'tool_call',
+      message: `Approval required to run ${approval.toolName}`,
+      toolCallId: approval.toolCallId,
+      responseSchema: normalized.responseSchema,
+      metadata: {
+        kind: 'approval',
+        toolName: approval.toolName,
+        input: approval.input,
+        [interruptBindingMetadataKey]: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'tool-approval',
+          interruptId: approval.approvalId,
+          toolName: approval.toolName,
+          toolCallId: approval.toolCallId,
+          originalArgs: approval.input,
+          inputSchemaHash: hashSchemaInput(tool?.inputSchema),
+          approvalSchemaHash: normalized.approvalSchemaHash,
+          responseSchemaHash: normalized.responseSchemaHash,
+        },
+      },
+    }
+  }
+
+  private clientToolInterrupt(clientTool: ClientToolRequest): Interrupt {
+    const tool = this.tools.find(
+      (candidate) => candidate.name === clientTool.toolName,
+    )
+    const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
+    return {
+      id: `client_tool_${clientTool.toolCallId}`,
+      reason: 'tanstack:client_tool_execution',
+      message: `Client tool ${clientTool.toolName} is ready to run`,
+      toolCallId: clientTool.toolCallId,
+      responseSchema,
+      metadata: {
+        kind: 'client_tool',
+        toolName: clientTool.toolName,
+        input: clientTool.input,
+        [interruptBindingMetadataKey]: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'client-tool-execution',
+          interruptId: `client_tool_${clientTool.toolCallId}`,
+          toolName: clientTool.toolName,
+          toolCallId: clientTool.toolCallId,
+          outputSchemaHash: hashSchemaInput(tool?.outputSchema),
+          responseSchemaHash: digestInterruptJson(
+            canonicalInterruptJson(responseSchema),
+          ),
+        },
+      },
+    }
+  }
+
+  private genericActionableInterrupt(
+    request: GenericInterruptRequest<InterruptDefinition<any, any, any, any>>,
+    id: string,
+    batchIndex: number,
+  ): Interrupt {
+    const preEmission = createInterruptBinding(request, { batchIndex })
+    return {
+      id,
+      reason: request.reason,
+      message: request.message,
+      ...(preEmission.descriptor.responseSchemaCanonicalJson !== undefined
+        ? {
+            responseSchema: JSON.parse(
+              preEmission.descriptor.responseSchemaCanonicalJson,
+            ),
+          }
+        : {}),
+      ...(request.expiresAt !== undefined
+        ? { expiresAt: request.expiresAt }
+        : {}),
+      metadata: {
+        [interruptBindingMetadataKey]: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId: id,
+          definitionId: preEmission.descriptor.definitionId,
+          key: preEmission.descriptor.key,
+          batchIndex,
+          ...(request.expiresAt !== undefined
+            ? { expiresAt: request.expiresAt }
+            : {}),
+          ...(preEmission.descriptor.payloadSchemaHash
+            ? {
+                payloadSchemaHash: preEmission.descriptor.payloadSchemaHash,
+              }
+            : {}),
+          ...(preEmission.descriptor.responseSchemaHash !== undefined
+            ? {
+                responseSchemaHash: preEmission.descriptor.responseSchemaHash,
+              }
+            : {}),
+        },
+        ...(preEmission.payload !== undefined
+          ? { [INTERRUPT_PAYLOAD_METADATA_KEY]: preEmission.payload }
+          : {}),
+      },
+    }
+  }
+
   private buildActionableInterrupts(
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
@@ -2593,121 +2789,19 @@ class TextEngine<
     genericInterruptIds: ReadonlyArray<string> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
-
     for (const approval of approvals) {
-      const tool = this.tools.find(
-        (candidate) => candidate.name === approval.toolName,
-      ) as RuntimeToolWithApproval | undefined
-      const normalized = normalizeApprovalSchema(
-        tool?.approvalSchema,
-        tool?.inputSchema,
-      )
-      interrupts.push({
-        id: approval.approvalId,
-        // Display hint only. `reason` is free-form AG-UI text that another
-        // producer can also spell `tool_call`, so it never decides ownership —
-        // the binding in `metadata` does.
-        reason: 'tool_call',
-        message: `Approval required to run ${approval.toolName}`,
-        toolCallId: approval.toolCallId,
-        responseSchema: normalized.responseSchema,
-        metadata: {
-          kind: 'approval',
-          toolName: approval.toolName,
-          input: approval.input,
-          [interruptBindingMetadataKey]: {
-            v: INTERRUPT_BINDING_VERSION,
-            kind: 'tool-approval',
-            interruptId: approval.approvalId,
-            toolName: approval.toolName,
-            toolCallId: approval.toolCallId,
-            originalArgs: approval.input,
-            inputSchemaHash: hashSchemaInput(tool?.inputSchema),
-            approvalSchemaHash: normalized.approvalSchemaHash,
-            responseSchemaHash: normalized.responseSchemaHash,
-          },
-        },
-      })
+      interrupts.push(this.approvalInterrupt(approval))
     }
-
     for (const clientTool of clientRequests) {
-      const tool = this.tools.find(
-        (candidate) => candidate.name === clientTool.toolName,
-      )
-      const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
-      interrupts.push({
-        id: `client_tool_${clientTool.toolCallId}`,
-        reason: 'tanstack:client_tool_execution',
-        message: `Client tool ${clientTool.toolName} is ready to run`,
-        toolCallId: clientTool.toolCallId,
-        responseSchema,
-        metadata: {
-          kind: 'client_tool',
-          toolName: clientTool.toolName,
-          input: clientTool.input,
-          [interruptBindingMetadataKey]: {
-            v: INTERRUPT_BINDING_VERSION,
-            kind: 'client-tool-execution',
-            interruptId: `client_tool_${clientTool.toolCallId}`,
-            toolName: clientTool.toolName,
-            toolCallId: clientTool.toolCallId,
-            outputSchemaHash: hashSchemaInput(tool?.outputSchema),
-            responseSchemaHash: digestInterruptJson(
-              canonicalInterruptJson(responseSchema),
-            ),
-          },
-        },
-      })
+      interrupts.push(this.clientToolInterrupt(clientTool))
     }
-
     for (const [index, request] of genericRequests.entries()) {
-      const batchIndex = interrupts.length
       const id = genericInterruptIds[index]
       if (!id) throw new Error('Generic interrupt id is unavailable.')
-      const preEmission = createInterruptBinding(request, { batchIndex })
-      interrupts.push({
-        id,
-        reason: request.reason,
-        message: request.message,
-        ...(preEmission.descriptor.responseSchemaCanonicalJson !== undefined
-          ? {
-              responseSchema: JSON.parse(
-                preEmission.descriptor.responseSchemaCanonicalJson,
-              ),
-            }
-          : {}),
-        ...(request.expiresAt !== undefined
-          ? { expiresAt: request.expiresAt }
-          : {}),
-        metadata: {
-          [interruptBindingMetadataKey]: {
-            v: INTERRUPT_BINDING_VERSION,
-            kind: 'generic',
-            interruptId: id,
-            definitionId: preEmission.descriptor.definitionId,
-            key: preEmission.descriptor.key,
-            batchIndex,
-            ...(request.expiresAt !== undefined
-              ? { expiresAt: request.expiresAt }
-              : {}),
-            ...(preEmission.descriptor.payloadSchemaHash
-              ? {
-                  payloadSchemaHash: preEmission.descriptor.payloadSchemaHash,
-                }
-              : {}),
-            ...(preEmission.descriptor.responseSchemaHash !== undefined
-              ? {
-                  responseSchemaHash: preEmission.descriptor.responseSchemaHash,
-                }
-              : {}),
-          },
-          ...(preEmission.payload !== undefined
-            ? { [INTERRUPT_PAYLOAD_METADATA_KEY]: preEmission.payload }
-            : {}),
-        },
-      })
+      interrupts.push(
+        this.genericActionableInterrupt(request, id, interrupts.length),
+      )
     }
-
     const ids = new Set<string>()
     for (const interrupt of interrupts) {
       if (ids.has(interrupt.id)) {
@@ -2717,7 +2811,6 @@ class TextEngine<
       }
       ids.add(interrupt.id)
     }
-
     return interrupts
   }
 
@@ -3511,8 +3604,11 @@ class TextEngine<
     // Synthesis fires before the FIRST TEXT_MESSAGE_* event from the inner
     // stream, OR before a pre-delta RUN_ERROR (so the client can construct
     // an errored structured-output placeholder).
-    let startEmitted = false
-    let structuredMessageId: string | null = null
+    const state = {
+      startEmitted: false,
+      structuredMessageId: null as string | null,
+      runErrorYielded: false,
+    }
 
     const extractMessageId = (c: StreamChunk): string | null => {
       if (
@@ -3527,11 +3623,9 @@ class TextEngine<
       return null
     }
 
-    // The synthetic event is inserted before its trigger, so share that
-    // trigger's timestamp rather than making the earlier event sort later.
     const buildSynthesizedStart = (timestamp = Date.now()): StreamChunk => {
-      const idForStart = structuredMessageId ?? generateMessageId()
-      structuredMessageId = idForStart
+      const idForStart = state.structuredMessageId ?? generateMessageId()
+      state.structuredMessageId = idForStart
       this.captureStructuredOutputMessageIdentity(idForStart)
       return {
         type: EventType.CUSTOM,
@@ -3546,236 +3640,172 @@ class TextEngine<
     ): Promise<Array<StreamChunk>> =>
       this.middlewareRunner.runOnChunk(this.middlewareCtx, synthChunk)
 
-    // Track whether a RUN_ERROR has been yielded to streaming consumers so
-    // we don't emit a duplicate synthetic one at the end.
-    let runErrorYielded = false
-
-    // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
-    for await (const raw of providerStream) {
-      // Honor cancellation between chunks (mirrors streamModelResponse).
-      if (this.isCancelled()) {
-        break
+    const noteAdapterStart = (chunk: StreamChunk): void => {
+      if (
+        !state.startEmitted &&
+        chunk.type === EventType.CUSTOM &&
+        chunk.name === 'structured-output.start'
+      ) {
+        state.startEmitted = true
       }
+      if (state.structuredMessageId) return
+      const extracted = extractMessageId(chunk)
+      if (!extracted) return
+      state.structuredMessageId = extracted
+      this.captureStructuredOutputMessageIdentity(extracted)
+    }
 
-      {
-        const chunk = raw
-        // Detect adapter-emitted structured-output.start so we don't duplicate
-        if (
-          !startEmitted &&
-          chunk.type === EventType.CUSTOM &&
-          chunk.name === 'structured-output.start'
-        ) {
-          startEmitted = true
-        }
+    const shouldSynthesizeStart = (chunk: StreamChunk): boolean => {
+      if (state.startEmitted || !this.finalStructuredOutput?.yieldChunks) {
+        return false
+      }
+      return (
+        chunk.type === EventType.TEXT_MESSAGE_START ||
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+        chunk.type === EventType.TEXT_MESSAGE_END ||
+        chunk.type === EventType.RUN_ERROR
+      )
+    }
 
-        // Capture the assistant messageId off any text-message event so the
-        // synthesized start (when needed) uses the SAME id the deltas carry
-        if (!structuredMessageId) {
-          const extracted = extractMessageId(chunk)
-          if (extracted) {
-            structuredMessageId = extracted
-            this.captureStructuredOutputMessageIdentity(extracted)
-          }
-        }
+    const normalizeCompleteChunk = (chunk: StreamChunk): StreamChunk => {
+      if (
+        chunk.type !== EventType.CUSTOM ||
+        chunk.name !== 'structured-output.complete' ||
+        !this.finalStructuredOutput
+      ) {
+        return chunk
+      }
+      const parsed = readStructuredOutputCompleteValue(chunk.value)
+      if (!parsed) return chunk
+      const object = this.finalStructuredOutput.normalize
+        ? this.finalStructuredOutput.normalize(parsed.object)
+        : parsed.object
+      this.structuredOutputResult = {
+        data: object,
+        rawText: parsed.raw,
+        ...(parsed.reasoning !== undefined
+          ? { reasoning: parsed.reasoning }
+          : {}),
+      }
+      const value = chunk.value
+      if (object !== parsed.object && value && typeof value === 'object') {
+        return { ...chunk, value: { ...value, object } }
+      }
+      return chunk
+    }
 
-        // Synthesis only matters for the streaming client path — the agentic
-        // Promise path consumes chunks internally and returns a Promise, so
-        // there's no client-side StreamProcessor to route deltas for.
-        if (this.finalStructuredOutput.yieldChunks) {
-          // Synthesize start before the FIRST TEXT_MESSAGE_* event
-          if (
-            !startEmitted &&
-            (chunk.type === EventType.TEXT_MESSAGE_START ||
-              chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
-              chunk.type === EventType.TEXT_MESSAGE_END)
-          ) {
-            startEmitted = true
-            const synthStart = buildSynthesizedStart(chunk.timestamp)
-            yield* this.emitPublicChunks(await runChunkMiddleware(synthStart))
-          }
+    const recordFinalizationError = (chunk: StreamChunk): void => {
+      if (chunk.type !== EventType.RUN_ERROR) return
+      this.finalizationError = {
+        message: chunk.message,
+        ...(chunk.code ? { code: chunk.code } : {}),
+        ...(fallbackAdapterError !== undefined
+          ? { cause: fallbackAdapterError }
+          : {}),
+      }
+    }
 
-          // Synthesize start before a pre-delta RUN_ERROR so the client can
-          // construct an errored placeholder structured-output part instead
-          // of a silent UI.
-          if (!startEmitted && chunk.type === EventType.RUN_ERROR) {
-            startEmitted = true
-            const synthStart = buildSynthesizedStart(chunk.timestamp)
-            yield* this.emitPublicChunks(await runChunkMiddleware(synthStart))
-          }
-        }
-
-        // 7a. Targeted state updates only.
-        // We deliberately do NOT call `handleStreamChunk(chunk)` here — that
-        // would mutate agent-loop state with finalization data:
-        //  - TEXT_MESSAGE_CONTENT deltas would pollute `accumulatedContent`
-        //    (raw JSON would leak into `info.content` on onFinish)
-        //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
-        //    (finalization's 'stop' would overwrite the agent-loop's real
-        //    finish reason)
-        //  - STEP_FINISHED would pollute `currentThinkingContent`
-        // Finalization is a separate phase from the agent loop; its state must
-        // not cross-contaminate. The explicit branches below capture the only
-        // bits we actually need from this stream.
-        // All narrowing below is via the discriminated-union `chunk.type`
-        // — no `as` casts.
-
-        // The chunk forwarded to middleware/consumers. Replaced below only for
-        // the structured-output.complete event, whose `object` we normalize
-        // (un-widen) so streaming consumers see the same cleaned payload the
-        // Promise<T> path validates and returns.
-        let outboundChunk: StreamChunk = chunk
-
-        if (
-          chunk.type === EventType.CUSTOM &&
-          chunk.name === 'structured-output.complete'
-        ) {
-          const parsed = readStructuredOutputCompleteValue(chunk.value)
-          if (parsed) {
-            const object = this.finalStructuredOutput.normalize
-              ? this.finalStructuredOutput.normalize(parsed.object)
-              : parsed.object
-            this.structuredOutputResult = {
-              data: object,
-              rawText: parsed.raw,
-              ...(parsed.reasoning !== undefined
-                ? { reasoning: parsed.reasoning }
-                : {}),
-            }
-            // Rewrite the outbound event so the yielded chunk carries the
-            // normalized object (the original `chunk.value` still holds the
-            // widened one). Preserve every other field — `raw`, `reasoning` —
-            // by spreading the original value.
-            const value = chunk.value
-            if (
-              object !== parsed.object &&
-              value &&
-              typeof value === 'object'
-            ) {
-              outboundChunk = { ...chunk, value: { ...value, object } }
-            }
-          }
-        }
-
-        if (chunk.type === EventType.RUN_FINISHED) {
-          await this.runOnUsageFromChunk(chunk)
-        }
-
-        if (chunk.type === EventType.RUN_ERROR) {
-          // RunErrorEvent already exposes `message` and `code` after narrowing.
-          this.finalizationError = {
-            message: chunk.message,
-            ...(chunk.code ? { code: chunk.code } : {}),
-            ...(fallbackAdapterError !== undefined
-              ? { cause: fallbackAdapterError }
-              : {}),
-          }
-        }
-
-        // 7b. Pipe through middleware
-        const outputChunks = await this.middlewareRunner.runOnChunk(
-          this.middlewareCtx,
-          outboundChunk,
+    async function* processFinalizationChunk(
+      this: TextEngine<TAdapter, TContext, TParams>,
+      chunk: StreamChunk,
+    ): AsyncGenerator<StreamChunk> {
+      noteAdapterStart(chunk)
+      if (shouldSynthesizeStart(chunk)) {
+        state.startEmitted = true
+        yield* this.emitPublicChunks(
+          await runChunkMiddleware(buildSynthesizedStart(chunk.timestamp)),
         )
-
-        // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
-        // We do NOT strip the finalization stream's RUN_STARTED/RUN_FINISHED:
-        // they are the single outer lifecycle pair the consumer sees (the
-        // agent-loop's pair was suppressed in streamModelResponse when
-        // finalStructuredOutput.yieldChunks is true).
-        if (this.finalStructuredOutput.yieldChunks) {
-          for (const spec of this.emitPublicChunks(outputChunks)) {
-            if (spec.type === EventType.RUN_ERROR) {
-              runErrorYielded = true
-            }
-            yield spec
-          }
-        }
-
-        // 7d. Terminate on error
-        if (this.finalizationError) {
-          break
-        }
       }
-
-      if (this.isCancelled() || this.finalizationError) {
-        break
+      const outboundChunk = normalizeCompleteChunk(chunk)
+      if (chunk.type === EventType.RUN_FINISHED) {
+        await this.runOnUsageFromChunk(chunk)
+      }
+      recordFinalizationError(chunk)
+      const outputChunks = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        outboundChunk,
+      )
+      if (!this.finalStructuredOutput?.yieldChunks) return
+      for (const spec of this.emitPublicChunks(outputChunks)) {
+        if (spec.type === EventType.RUN_ERROR) {
+          state.runErrorYielded = true
+        }
+        yield spec
       }
     }
 
-    // Mid-finalization abort: don't attribute a missing-result error.
-    // Let the engine's `finally` block in `run()` route to `onAbort` instead
-    // of mis-routing through `onError`.
-    if (this.isCancelled()) {
-      return
+    for await (const raw of providerStream) {
+      if (this.isCancelled()) break
+      yield* processFinalizationChunk.call(this, raw)
+      if (this.isCancelled() || this.finalizationError) break
     }
 
-    // Empty stream / missing complete event
+    if (this.isCancelled()) return
+    yield* this.finishStructuredFinalization(state, {
+      buildSynthesizedStart,
+      runChunkMiddleware,
+    })
+  }
+
+  private async *finishStructuredFinalization(
+    state: {
+      startEmitted: boolean
+      structuredMessageId: string | null
+      runErrorYielded: boolean
+    },
+    helpers: {
+      buildSynthesizedStart: (timestamp?: number) => StreamChunk
+      runChunkMiddleware: (chunk: StreamChunk) => Promise<Array<StreamChunk>>
+    },
+  ): AsyncGenerator<StreamChunk> {
     if (!this.structuredOutputResult && !this.finalizationError) {
       this.finalizationError = {
         message: 'missing structured result',
         code: 'structured-output-missing-result',
       }
     }
-
-    // Run schema validation INSIDE the engine — before the terminal hook
-    // chooser runs. Per spec §7.3, validation failures must route through
-    // `onError`, not `onFinish`. We do this by writing to `finalizationError`
-    // so the chooser in `run()` picks `onError`.
     if (
       this.structuredOutputResult &&
       !this.finalizationError &&
-      this.finalStructuredOutput.validate
+      this.finalStructuredOutput?.validate
     ) {
       try {
-        const validated = this.finalStructuredOutput.validate(
+        this.validatedStructuredOutput = this.finalStructuredOutput.validate(
           this.structuredOutputResult.data,
         )
-        this.validatedStructuredOutput = validated
         this.hasValidatedStructuredOutput = true
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
         this.finalizationError = {
-          message,
+          message: err instanceof Error ? err.message : String(err),
           code: 'structured-output-validation-failed',
           cause: err,
         }
       }
     }
-
-    // Streaming consumers must see a RUN_ERROR for finalization failures
-    // (missing-result, validation-failed, or a finalizationError set after
-    // a structured-output.complete already yielded). Without this synthetic
-    // emission, the `for await` on the engine ends silently for the client.
-    //
-    // Skip when a RUN_ERROR was already yielded from the inner stream
-    // (otherwise the consumer would see two error events for one failure).
     if (
-      this.finalizationError &&
-      this.finalStructuredOutput.yieldChunks &&
-      !runErrorYielded
+      !this.finalizationError ||
+      !this.finalStructuredOutput?.yieldChunks ||
+      state.runErrorYielded
     ) {
-      // Empty-stream case: no in-loop synthesis fired because no chunks
-      // arrived. Synthesize `structured-output.start` here so the client-side
-      // StreamProcessor can route the upcoming RUN_ERROR to a
-      // `StructuredOutputPart` instead of dropping it as an orphan error.
-      if (!startEmitted) {
-        const synthStart = buildSynthesizedStart()
-        yield* this.emitPublicChunks(await runChunkMiddleware(synthStart))
-        startEmitted = true
-      }
-
-      const errChunk: StreamChunk = {
-        type: EventType.RUN_ERROR,
-        timestamp: Date.now(),
-        message: this.finalizationError.message,
-        ...(this.finalizationError.code
-          ? { code: this.finalizationError.code }
-          : {}),
-      }
+      return
+    }
+    if (!state.startEmitted) {
+      state.startEmitted = true
       yield* this.emitPublicChunks(
-        await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
+        await helpers.runChunkMiddleware(helpers.buildSynthesizedStart()),
       )
     }
+    const errChunk: StreamChunk = {
+      type: EventType.RUN_ERROR,
+      timestamp: Date.now(),
+      message: this.finalizationError.message,
+      ...(this.finalizationError.code
+        ? { code: this.finalizationError.code }
+        : {}),
+    }
+    yield* this.emitPublicChunks(
+      await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
+    )
   }
 
   /**
@@ -3795,16 +3825,9 @@ class TextEngine<
    * this path — middleware sees the run through `beforeModel` / `modelStream`
    * as usual. See PR #605 / issue #605 for the design rationale.
    */
-  private async *harvestCombinedStructuredOutput(): AsyncGenerator<StreamChunk> {
-    if (!this.finalStructuredOutput) {
-      throw new Error(
-        'harvestCombinedStructuredOutput called without finalStructuredOutput config',
-      )
-    }
-
-    const yieldChunks = this.finalStructuredOutput.yieldChunks
+  private captureCombinedStructuredOutput(): void {
+    if (!this.finalStructuredOutput) return
     const source = this.finalStructuredOutput.source ?? 'text'
-
     if (source === 'event') {
       if (!this.structuredOutputResult) {
         this.finalizationError = {
@@ -3813,75 +3836,56 @@ class TextEngine<
         }
       }
     } else {
-      const rawText = this.accumulatedContent
-
-      // Empty final-turn text means the agent loop terminated without the
-      // model emitting any assistant content (e.g. early termination after
-      // tool calls). Mirror the fallback path's "missing structured result"
-      // error rather than silently returning undefined.
-      if (rawText.length === 0) {
-        this.finalizationError = {
-          message: 'missing structured result',
-          code: 'structured-output-missing-result',
-        }
-      } else {
-        try {
-          const parsed: unknown = JSON.parse(rawText)
-          // Normalize (un-widen) before storing so the synthesized
-          // structured-output.complete chunk and the Promise<T> result both
-          // carry the cleaned payload. JSON.parse preserves provider nulls, so
-          // this is where native-combined output gets its widening undone.
-          const data = this.finalStructuredOutput.normalize
-            ? this.finalStructuredOutput.normalize(parsed)
-            : parsed
-          this.structuredOutputResult = { data, rawText }
-        } catch (err: unknown) {
-          const detail =
-            rawText.slice(0, 200) + (rawText.length > 200 ? '...' : '')
-          this.finalizationError = {
-            message: `Failed to parse structured output as JSON. Content: ${detail}`,
-            code: 'structured-output-parse-failed',
-            cause: err,
-          }
-        }
-      }
+      this.parseCombinedStructuredText()
     }
-
-    // Validate against the Standard Schema (when supplied). Validation
-    // failures route through onError just like the fallback path.
     if (
-      this.structuredOutputResult &&
-      !this.finalizationError &&
-      this.finalStructuredOutput.validate
+      !this.structuredOutputResult ||
+      this.finalizationError ||
+      !this.finalStructuredOutput.validate
     ) {
-      try {
-        const validated = this.finalStructuredOutput.validate(
-          this.structuredOutputResult.data,
-        )
-        this.validatedStructuredOutput = validated
-        this.hasValidatedStructuredOutput = true
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
-        this.finalizationError = {
-          message,
-          code: 'structured-output-validation-failed',
-          cause: err,
-        }
-      }
-    }
-
-    if (!yieldChunks) {
-      // Promise<T> path: state is populated, nothing to yield. The
-      // activity-layer caller pulls `structuredOutputResult` /
-      // `validatedStructuredOutput` directly.
       return
     }
+    try {
+      this.validatedStructuredOutput = this.finalStructuredOutput.validate(
+        this.structuredOutputResult.data,
+      )
+      this.hasValidatedStructuredOutput = true
+    } catch (err: unknown) {
+      this.finalizationError = {
+        message: err instanceof Error ? err.message : String(err),
+        code: 'structured-output-validation-failed',
+        cause: err,
+      }
+    }
+  }
 
-    // Streaming path: emit a synthetic `structured-output.start` if the
-    // model produced no text at all (so the client snaps an errored
-    // StructuredOutputPart rather than nothing). The normal path already
-    // emitted start before the first TEXT_MESSAGE_START in
-    // `streamModelResponse`.
+  private parseCombinedStructuredText(): void {
+    if (!this.finalStructuredOutput) return
+    const rawText = this.accumulatedContent
+    if (rawText.length === 0) {
+      this.finalizationError = {
+        message: 'missing structured result',
+        code: 'structured-output-missing-result',
+      }
+      return
+    }
+    try {
+      const parsed: unknown = JSON.parse(rawText)
+      const data = this.finalStructuredOutput.normalize
+        ? this.finalStructuredOutput.normalize(parsed)
+        : parsed
+      this.structuredOutputResult = { data, rawText }
+    } catch (err: unknown) {
+      const detail = rawText.slice(0, 200) + (rawText.length > 200 ? '...' : '')
+      this.finalizationError = {
+        message: `Failed to parse structured output as JSON. Content: ${detail}`,
+        code: 'structured-output-parse-failed',
+        cause: err,
+      }
+    }
+  }
+
+  private async *emitCombinedStructuredChunks(): AsyncGenerator<StreamChunk> {
     if (!this.combinedStartEmitted) {
       this.combinedStartEmitted = true
       const messageId = this.combinedStructuredMessageId ?? generateMessageId()
@@ -3896,14 +3900,6 @@ class TextEngine<
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, synthStart),
       )
     }
-
-    // On success, emit the synthetic `structured-output.complete` carrying
-    // the parsed object + raw text. Pin the messageId so the client-side
-    // handler can target the right UIMessage even when the agent loop's
-    // terminal RUN_FINISHED has already cleared `activeMessageIds` (the
-    // complete event yields AFTER the loop ends, by which point
-    // `getActiveAssistantMessageId()` returns null and would otherwise drop
-    // the event silently).
     if (
       this.structuredOutputResult &&
       !this.finalizationError &&
@@ -3928,22 +3924,29 @@ class TextEngine<
         ),
       )
     }
+    if (!this.finalizationError) return
+    const errChunk: StreamChunk = {
+      type: EventType.RUN_ERROR,
+      timestamp: Date.now(),
+      message: this.finalizationError.message,
+      ...(this.finalizationError.code
+        ? { code: this.finalizationError.code }
+        : {}),
+    }
+    yield* this.emitPublicChunks(
+      await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
+    )
+  }
 
-    // On failure, emit a synthetic RUN_ERROR so the streaming consumer's
-    // `for await` doesn't end silently. Mirrors the fallback path.
-    if (this.finalizationError) {
-      const errChunk: StreamChunk = {
-        type: EventType.RUN_ERROR,
-        timestamp: Date.now(),
-        message: this.finalizationError.message,
-        ...(this.finalizationError.code
-          ? { code: this.finalizationError.code }
-          : {}),
-      }
-      yield* this.emitPublicChunks(
-        await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
+  private async *harvestCombinedStructuredOutput(): AsyncGenerator<StreamChunk> {
+    if (!this.finalStructuredOutput) {
+      throw new Error(
+        'harvestCombinedStructuredOutput called without finalStructuredOutput config',
       )
     }
+    this.captureCombinedStructuredOutput()
+    if (!this.finalStructuredOutput.yieldChunks) return
+    yield* this.emitCombinedStructuredChunks()
   }
 
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
@@ -3988,70 +3991,9 @@ class TextEngine<
       ])
     }
 
-    const approvalRequests: Array<ApprovalRequest> = []
-    const clientRequests: Array<ClientToolRequest> = []
-    // Prefer resume-aware reconstruction so client-tool outputs already written
-    // into history for UI still validate against the resume batch.
     const pendingToolCalls = this.getToolCallsForEphemeralResume(config.resume)
-    const resumeInterruptIds = new Set(
-      config.resume?.map((entry) => entry.interruptId),
-    )
-    const toolInputs = new Map<string, unknown>()
-    const toolsByCallId = new Map<string, AnyRuntimeTool>()
-    const clientExecutionCallIds = new Set<string>()
-
-    for (const toolCall of pendingToolCalls) {
-      const tool = this.tools.find(
-        (candidate) => candidate.name === toolCall.function.name,
-      )
-      if (!tool) continue
-      toolsByCallId.set(toolCall.id, tool)
-      let input: unknown = {}
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        input = {}
-      }
-      toolInputs.set(toolCall.id, input)
-      if (
-        !tool.execute &&
-        resumeInterruptIds.has(`client_tool_${toolCall.id}`)
-      ) {
-        clientExecutionCallIds.add(toolCall.id)
-      }
-    }
-
-    // Mirror executeToolCalls' scheduling boundary. Server execution remains
-    // gated while any approval is outstanding, but plain client tools are
-    // represented in the same interrupt batch because requesting their output
-    // does not execute a server-side effect.
-    for (const toolCall of pendingToolCalls) {
-      const tool = toolsByCallId.get(toolCall.id)
-      if (tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)) {
-        approvalRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
-          approvalId: `approval_${toolCall.id}`,
-        })
-      }
-    }
-
-    for (const toolCall of pendingToolCalls) {
-      const tool = toolsByCallId.get(toolCall.id)
-      if (
-        tool !== undefined &&
-        !tool.execute &&
-        (!tool.needsApproval || clientExecutionCallIds.has(toolCall.id))
-      ) {
-        clientRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
-        })
-      }
-    }
+    const { approvalRequests, clientRequests, toolsByCallId } =
+      this.collectEphemeralResumeRequests(pendingToolCalls, config.resume)
 
     const genericPending = this.getGenericContinuationPending(interruptedRunId)
     const pending: Array<{
@@ -4109,59 +4051,131 @@ class TextEngine<
       approvals,
     })
 
-    const genericResolutions = validated.resumeToolState.genericInterrupts
-    if (genericPending.length > 0 && genericResolutions) {
-      const resolutions = genericPending
-        .sort((left, right) => {
-          const leftIndex =
-            left.binding.kind === 'generic' ? (left.binding.batchIndex ?? 0) : 0
-          const rightIndex =
-            right.binding.kind === 'generic'
-              ? (right.binding.batchIndex ?? 0)
-              : 0
-          return leftIndex - rightIndex
-        })
-        .flatMap((record) => {
-          const resolution = genericResolutions.get(record.interruptId)
-          if (!resolution || !record.genericRequest) return []
-          return [
-            resolution.status === 'resolved'
-              ? {
-                  request: record.genericRequest,
-                  status: 'resolved' as const,
-                  response: resolution.payload,
-                }
-              : {
-                  request: record.genericRequest,
-                  status: 'cancelled' as const,
-                },
-          ]
-        })
-      const collection: InterruptResolutionCollection = {
-        for: (definition) =>
-          resolutions.filter(
-            (resolution) => resolution.request.definition === definition,
-          ) as never,
-        all: (
-          ...definitions: Array<InterruptDefinition<any, any, any, any>>
-        ) =>
-          definitions.length === 0
-            ? resolutions
-            : resolutions.filter((resolution) =>
-                definitions.includes(resolution.request.definition),
-              ),
-      }
-      const policy = await this.middlewareRunner.runOnInterruptResolution(
-        this.middlewareCtx,
-        collection,
+    await this.applyEphemeralGenericResolutions(
+      genericPending,
+      validated.resumeToolState.genericInterrupts,
+      pendingToolCalls,
+    )
+  }
+
+  private collectEphemeralResumeRequests(
+    pendingToolCalls: Array<ToolCall>,
+    resume: ChatMiddlewareConfig['resume'],
+  ): {
+    approvalRequests: Array<ApprovalRequest>
+    clientRequests: Array<ClientToolRequest>
+    toolsByCallId: Map<string, AnyRuntimeTool>
+  } {
+    const approvalRequests: Array<ApprovalRequest> = []
+    const clientRequests: Array<ClientToolRequest> = []
+    const resumeInterruptIds = new Set(
+      resume?.map((entry) => entry.interruptId),
+    )
+    const toolInputs = new Map<string, unknown>()
+    const toolsByCallId = new Map<string, AnyRuntimeTool>()
+    const clientExecutionCallIds = new Set<string>()
+    for (const toolCall of pendingToolCalls) {
+      const tool = this.tools.find(
+        (candidate) => candidate.name === toolCall.function.name,
       )
-      if (policy.toolResume === 'stop') {
-        this.earlyTermination = true
-      } else if (policy.toolResume === 'cancel') {
-        for (const request of pendingToolCalls) {
-          this.resumeCancelledToolCallIds.add(request.id)
-        }
+      if (!tool) continue
+      toolsByCallId.set(toolCall.id, tool)
+      toolInputs.set(toolCall.id, parseEphemeralToolInput(toolCall))
+      if (
+        !tool.execute &&
+        resumeInterruptIds.has(`client_tool_${toolCall.id}`)
+      ) {
+        clientExecutionCallIds.add(toolCall.id)
       }
+    }
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)) {
+        approvalRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+          approvalId: `approval_${toolCall.id}`,
+        })
+      }
+    }
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (
+        tool !== undefined &&
+        !tool.execute &&
+        (!tool.needsApproval || clientExecutionCallIds.has(toolCall.id))
+      ) {
+        clientRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+        })
+      }
+    }
+    return { approvalRequests, clientRequests, toolsByCallId }
+  }
+
+  private async applyEphemeralGenericResolutions(
+    genericPending: Array<{
+      interruptId: string
+      payload: unknown
+      binding: InterruptBinding
+      genericRequest?: GenericInterruptRequest<
+        InterruptDefinition<any, any, any, any>
+      >
+    }>,
+    genericResolutions: ChatResumeToolState['genericInterrupts'] | undefined,
+    pendingToolCalls: Array<ToolCall>,
+  ): Promise<void> {
+    if (genericPending.length === 0 || !genericResolutions) return
+    const resolutions = genericPending
+      .sort((left, right) => {
+        const leftIndex =
+          left.binding.kind === 'generic' ? (left.binding.batchIndex ?? 0) : 0
+        const rightIndex =
+          right.binding.kind === 'generic' ? (right.binding.batchIndex ?? 0) : 0
+        return leftIndex - rightIndex
+      })
+      .flatMap((record) => {
+        const resolution = genericResolutions.get(record.interruptId)
+        if (!resolution || !record.genericRequest) return []
+        return [
+          resolution.status === 'resolved'
+            ? {
+                request: record.genericRequest,
+                status: 'resolved' as const,
+                response: resolution.payload,
+              }
+            : {
+                request: record.genericRequest,
+                status: 'cancelled' as const,
+              },
+        ]
+      })
+    const collection: InterruptResolutionCollection = {
+      for: (definition) =>
+        resolutions.filter(
+          (resolution) => resolution.request.definition === definition,
+        ) as never,
+      all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
+        definitions.length === 0
+          ? resolutions
+          : resolutions.filter((resolution) =>
+              definitions.includes(resolution.request.definition),
+            ),
+    }
+    const policy = await this.middlewareRunner.runOnInterruptResolution(
+      this.middlewareCtx,
+      collection,
+    )
+    if (policy.toolResume === 'stop') {
+      this.earlyTermination = true
+      return
+    }
+    if (policy.toolResume !== 'cancel') return
+    for (const request of pendingToolCalls) {
+      this.resumeCancelledToolCallIds.add(request.id)
     }
   }
 

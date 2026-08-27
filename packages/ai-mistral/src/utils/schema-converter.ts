@@ -165,6 +165,144 @@ function acceptsNull(schema: unknown): boolean {
   return true
 }
 
+function coerceNestedProperty(prop: unknown): {
+  prop: unknown
+  childMap: NullWideningMap | undefined
+  hasUntrackableAnyOfWidening: boolean
+} {
+  if (
+    isSchemaObject(prop) &&
+    schemaTypeIncludes(prop, 'object') &&
+    prop.properties
+  ) {
+    const converted = coerceMistralStrictSchema(prop, prop.required || [])
+    return {
+      prop: converted.schema,
+      childMap: converted.nullWideningMap,
+      hasUntrackableAnyOfWidening: converted.hasUntrackableAnyOfWidening,
+    }
+  }
+
+  if (
+    isSchemaObject(prop) &&
+    schemaTypeIncludes(prop, 'array') &&
+    prop.items != null
+  ) {
+    const convertedItems = coerceArrayItems(prop.items)
+    return {
+      prop: { ...prop, items: convertedItems.schema },
+      childMap: convertedItems.itemMap
+        ? { items: convertedItems.itemMap }
+        : undefined,
+      hasUntrackableAnyOfWidening: convertedItems.hasUntrackableAnyOfWidening,
+    }
+  }
+
+  if (isSchemaObject(prop) && Array.isArray(prop.anyOf)) {
+    const converted = coerceMistralStrictSchema(prop, prop.required || [])
+    return {
+      prop: converted.schema,
+      childMap: converted.nullWideningMap,
+      hasUntrackableAnyOfWidening: converted.hasUntrackableAnyOfWidening,
+    }
+  }
+
+  return {
+    prop,
+    childMap: undefined,
+    hasUntrackableAnyOfWidening: false,
+  }
+}
+
+function widenOptionalProperty(
+  prop: unknown,
+  wasOptional: boolean,
+): { prop: unknown; widenedHere: boolean } {
+  if (acceptsNull(prop)) return { prop, widenedHere: false }
+
+  if (wasOptional) {
+    let next = prop
+    if (isSchemaObject(next)) {
+      next = admitNullInEnumOrConst(next)
+    }
+
+    if (isSchemaObject(next) && next.type && !Array.isArray(next.type)) {
+      next = { ...next, type: [next.type, 'null'] }
+    } else if (
+      isSchemaObject(next) &&
+      Array.isArray(next.type) &&
+      !next.type.includes('null')
+    ) {
+      next = { ...next, type: [...next.type, 'null'] }
+    } else if (!isSchemaObject(next) || !next.type) {
+      next = { anyOf: [next, { type: 'null' }] }
+    }
+
+    return { prop: next, widenedHere: true }
+  }
+
+  if (isSchemaObject(prop) && schemaTypeIncludes(prop, 'null')) {
+    return { prop: admitNullInEnumOrConst(prop), widenedHere: false }
+  }
+
+  return { prop, widenedHere: false }
+}
+
+function coerceObjectProperties(
+  rawProperties: Record<string, unknown>,
+  originalRequired: Array<string>,
+): {
+  properties: Record<string, unknown>
+  propertyMaps: Record<string, NullWideningMap>
+  hasUntrackableAnyOfWidening: boolean
+} {
+  const properties = { ...rawProperties }
+  const propertyMaps: Record<string, NullWideningMap> = {}
+  let hasUntrackableAnyOfWidening = false
+
+  for (const propName of Object.keys(properties)) {
+    const nested = coerceNestedProperty(properties[propName])
+    const widened = widenOptionalProperty(
+      nested.prop,
+      !originalRequired.includes(propName),
+    )
+    hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
+    properties[propName] = widened.prop
+    if (nested.childMap || widened.widenedHere) {
+      propertyMaps[propName] = {
+        ...(nested.childMap ?? {}),
+        ...(widened.widenedHere ? { widened: true } : {}),
+      }
+    }
+  }
+
+  return { properties, propertyMaps, hasUntrackableAnyOfWidening }
+}
+
+function coerceAnyOfVariants(anyOf: Array<unknown>): {
+  schemas: Array<unknown>
+  hasUntrackableAnyOfWidening: boolean
+} {
+  const variants = anyOf.map((variant: unknown) => {
+    if (!isSchemaObject(variant)) {
+      return {
+        schema: variant,
+        nullWideningMap: undefined,
+        hasUntrackableAnyOfWidening: false,
+      }
+    }
+    return coerceMistralStrictSchema(variant, variant.required || [])
+  })
+  return {
+    schemas: variants.map((variant) => variant.schema),
+    hasUntrackableAnyOfWidening: variants.some(
+      (variant) =>
+        variant.nullWideningMap !== undefined ||
+        variant.hasUntrackableAnyOfWidening,
+    ),
+  }
+}
+
 function coerceMistralStrictSchema(
   schema: Record<string, any>,
   originalRequired: Array<string>,
@@ -177,89 +315,20 @@ function coerceMistralStrictSchema(
     if (!result.properties) {
       result.properties = {}
     }
-    const properties = { ...result.properties }
-    const allPropertyNames = Object.keys(properties)
-    const propertyMaps: Record<string, NullWideningMap> = {}
-
-    for (const propName of allPropertyNames) {
-      let prop = properties[propName]
-      const wasOptional = !originalRequired.includes(propName)
-      let childMap: NullWideningMap | undefined
-      let widenedHere = false
-
-      if (
-        isSchemaObject(prop) &&
-        schemaTypeIncludes(prop, 'object') &&
-        prop.properties
-      ) {
-        const converted = coerceMistralStrictSchema(prop, prop.required || [])
-        prop = converted.schema
-        childMap = converted.nullWideningMap
-        hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
-      } else if (
-        isSchemaObject(prop) &&
-        schemaTypeIncludes(prop, 'array') &&
-        prop.items != null
-      ) {
-        const convertedItems = coerceArrayItems(prop.items)
-        prop = {
-          ...prop,
-          items: convertedItems.schema,
-        }
-        if (convertedItems.itemMap) {
-          childMap = { items: convertedItems.itemMap }
-        }
-        hasUntrackableAnyOfWidening ||=
-          convertedItems.hasUntrackableAnyOfWidening
-      } else if (isSchemaObject(prop) && Array.isArray(prop.anyOf)) {
-        const converted = coerceMistralStrictSchema(prop, prop.required || [])
-        prop = converted.schema
-        childMap = converted.nullWideningMap
-        hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
-      }
-
-      if (!acceptsNull(prop)) {
-        if (wasOptional) {
-          if (isSchemaObject(prop)) {
-            prop = admitNullInEnumOrConst(prop)
-          }
-
-          if (isSchemaObject(prop) && prop.type && !Array.isArray(prop.type)) {
-            prop = { ...prop, type: [prop.type, 'null'] }
-          } else if (
-            isSchemaObject(prop) &&
-            Array.isArray(prop.type) &&
-            !prop.type.includes('null')
-          ) {
-            prop = { ...prop, type: [...prop.type, 'null'] }
-          } else if (!isSchemaObject(prop) || !prop.type) {
-            prop = { anyOf: [prop, { type: 'null' }] }
-          }
-
-          widenedHere = true
-        } else if (isSchemaObject(prop) && schemaTypeIncludes(prop, 'null')) {
-          prop = admitNullInEnumOrConst(prop)
-        }
-      }
-
-      properties[propName] = prop
-      if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
-      }
-    }
-
-    result.properties = properties
-    if (allPropertyNames.length > 0) {
-      result.required = allPropertyNames
+    const converted = coerceObjectProperties(
+      result.properties,
+      originalRequired,
+    )
+    result.properties = converted.properties
+    hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
+    if (Object.keys(converted.properties).length > 0) {
+      result.required = Object.keys(converted.properties)
     } else {
       delete result.required
     }
     result.additionalProperties = false
-    if (Object.keys(propertyMaps).length > 0) {
-      nullWideningMap.properties = propertyMaps
+    if (Object.keys(converted.propertyMaps).length > 0) {
+      nullWideningMap.properties = converted.propertyMaps
     }
   }
 
@@ -273,22 +342,9 @@ function coerceMistralStrictSchema(
   }
 
   if (Array.isArray(result.anyOf)) {
-    const variants = result.anyOf.map((variant: unknown) => {
-      if (!isSchemaObject(variant)) {
-        return {
-          schema: variant,
-          nullWideningMap: undefined,
-          hasUntrackableAnyOfWidening: false,
-        }
-      }
-      return coerceMistralStrictSchema(variant, variant.required || [])
-    })
-    result.anyOf = variants.map((variant) => variant.schema)
-    hasUntrackableAnyOfWidening ||= variants.some(
-      (variant) =>
-        variant.nullWideningMap !== undefined ||
-        variant.hasUntrackableAnyOfWidening,
-    )
+    const converted = coerceAnyOfVariants(result.anyOf)
+    result.anyOf = converted.schemas
+    hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
   }
 
   return {

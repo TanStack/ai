@@ -199,139 +199,27 @@ export function createCodeModeTool(
       })
 
       try {
-        // Step 1: Strip TypeScript (also serves as syntax validation via the
-        // transpiler — sucrase by default, or a user-supplied `transpile`)
-        let strippedCode: string
-        try {
-          strippedCode = await transpile(typescriptCode)
-        } catch (error) {
-          // Type/syntax error from the transpiler
-          return finish(
-            {
-              success: false,
-              error: {
-                message: error instanceof Error ? error.message : String(error),
-                name: 'TypeScriptError',
-                ...(error instanceof Error &&
-                  error.stack !== undefined && { stack: error.stack }),
-              },
-            },
-            'transpile',
-          )
-        }
-
-        // Step 2: Get dynamic snippet bindings if available
-        const snippetBindings = getSnippetBindings
-          ? await getSnippetBindings()
-          : {}
-
-        // Scan dynamic bindings too — their schemas are equally in-scope for
-        // the same exfiltration threat. Dedup cache prevents repeat warnings
-        // when the same binding reappears across executions.
-        const snippetBindingValues = Object.values(snippetBindings)
-        if (snippetBindingValues.length > 0) {
-          warnIfBindingsExposeSecrets(snippetBindingValues, {
-            handler: onSecretParameter,
-            dedupCache: secretDedupCache,
-          })
-        }
-
-        // Step 3: Merge static and dynamic bindings, then wrap with event awareness
-        const allBindings = { ...staticBindings, ...snippetBindings }
-        const eventAwareBindings = createEventAwareBindings(
-          allBindings,
+        return await runCodeModeExecution({
+          typescriptCode,
+          transpile,
+          getSnippetBindings,
+          onSecretParameter,
+          secretDedupCache,
+          staticBindings,
           emitCustomEvent,
-        )
-
-        // Step 4: Create sandbox context with event-aware bindings
-        try {
-          isolateContext = await driver.createContext({
-            bindings: eventAwareBindings,
-            timeout,
-            memoryLimit,
-          })
-        } catch (error) {
-          return finish(
-            {
-              success: false,
-              error: {
-                message: error instanceof Error ? error.message : String(error),
-                name:
-                  error instanceof Error ? error.name : 'CreateContextError',
-                ...(error instanceof Error &&
-                  error.stack !== undefined && { stack: error.stack }),
-              },
-            },
-            'create-context',
-          )
-        }
-
-        // Step 5: Execute the code in the sandbox
-        const executionResult = await isolateContext.execute(strippedCode)
-
-        // Emit console logs as custom events
-        if (executionResult.logs && executionResult.logs.length > 0) {
-          for (const log of executionResult.logs) {
-            // Parse log level from prefix (added by sandbox console implementation)
-            let level: 'log' | 'warn' | 'error' | 'info' = 'log'
-            let message = log
-
-            if (log.startsWith('ERROR: ')) {
-              level = 'error'
-              message = log.slice(7)
-            } else if (log.startsWith('WARN: ')) {
-              level = 'warn'
-              message = log.slice(6)
-            } else if (log.startsWith('INFO: ')) {
-              level = 'info'
-              message = log.slice(6)
-            }
-
-            emitCustomEvent('code_mode:console', {
-              level,
-              message,
-              timestamp: Date.now(),
-            })
-          }
-        }
-
-        if (executionResult.success) {
-          return finish(
-            {
-              success: true,
-              result: executionResult.value,
-              logs: executionResult.logs,
-            },
-            'execute',
-          )
-        }
-
-        return finish(
-          {
-            success: false,
-            error: executionResult.error
-              ? {
-                  message: executionResult.error.message,
-                  name: executionResult.error.name,
-                  ...(executionResult.error.stack !== undefined && {
-                    stack: executionResult.error.stack,
-                  }),
-                }
-              : { message: 'Unknown execution error', name: 'UnknownError' },
-            logs: executionResult.logs,
+          driver,
+          timeout,
+          memoryLimit,
+          setIsolateContext: (next) => {
+            isolateContext = next
           },
-          'execute',
-        )
+          finish,
+        })
       } catch (error) {
         return finish(
           {
             success: false,
-            error: {
-              message: error instanceof Error ? error.message : String(error),
-              name: error instanceof Error ? error.name : 'Error',
-              ...(error instanceof Error &&
-                error.stack !== undefined && { stack: error.stack }),
-            },
+            error: codeModeCaughtError(error),
           },
           'unhandled',
         )
@@ -348,6 +236,142 @@ export function createCodeModeTool(
 /**
  * Build the tool description including available external functions
  */
+function codeModeCaughtError(
+  error: unknown,
+): NonNullable<CodeModeToolResult['error']> {
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    name: error instanceof Error ? error.name : 'Error',
+    ...(error instanceof Error &&
+      error.stack !== undefined && { stack: error.stack }),
+  }
+}
+
+function emitCodeModeConsoleLogs(
+  logs: Array<string> | undefined,
+  emitCustomEvent: (name: string, payload: unknown) => void,
+): void {
+  if (!logs || logs.length === 0) return
+  for (const log of logs) {
+    const parsed = parseCodeModeLog(log)
+    emitCustomEvent('code_mode:console', {
+      ...parsed,
+      timestamp: Date.now(),
+    })
+  }
+}
+
+function parseCodeModeLog(log: string): {
+  level: 'log' | 'warn' | 'error' | 'info'
+  message: string
+} {
+  if (log.startsWith('ERROR: '))
+    return { level: 'error', message: log.slice(7) }
+  if (log.startsWith('WARN: ')) return { level: 'warn', message: log.slice(6) }
+  if (log.startsWith('INFO: ')) return { level: 'info', message: log.slice(6) }
+  return { level: 'log', message: log }
+}
+
+async function runCodeModeExecution(args: {
+  typescriptCode: string
+  transpile: (code: string) => Promise<string> | string
+  getSnippetBindings: CodeModeToolConfig['getSnippetBindings']
+  onSecretParameter: CodeModeToolConfig['onSecretParameter']
+  secretDedupCache: Set<string>
+  staticBindings: ReturnType<typeof toolsToBindings>
+  emitCustomEvent: (name: string, payload: unknown) => void
+  driver: CodeModeToolConfig['driver']
+  timeout: number
+  memoryLimit: number
+  setIsolateContext: (context: IsolateContext) => void
+  finish: (result: CodeModeToolResult, phase: string) => CodeModeToolResult
+}): Promise<CodeModeToolResult> {
+  let strippedCode: string
+  try {
+    strippedCode = await args.transpile(args.typescriptCode)
+  } catch (error) {
+    return args.finish(
+      {
+        success: false,
+        error: {
+          ...codeModeCaughtError(error),
+          name: 'TypeScriptError',
+        },
+      },
+      'transpile',
+    )
+  }
+
+  const snippetBindings = args.getSnippetBindings
+    ? await args.getSnippetBindings()
+    : {}
+  const snippetBindingValues = Object.values(snippetBindings)
+  if (snippetBindingValues.length > 0) {
+    warnIfBindingsExposeSecrets(snippetBindingValues, {
+      handler: args.onSecretParameter,
+      dedupCache: args.secretDedupCache,
+    })
+  }
+
+  const eventAwareBindings = createEventAwareBindings(
+    { ...args.staticBindings, ...snippetBindings },
+    args.emitCustomEvent,
+  )
+
+  let isolateContext: IsolateContext
+  try {
+    isolateContext = await args.driver.createContext({
+      bindings: eventAwareBindings,
+      timeout: args.timeout,
+      memoryLimit: args.memoryLimit,
+    })
+  } catch (error) {
+    const caught = codeModeCaughtError(error)
+    return args.finish(
+      {
+        success: false,
+        error: {
+          ...caught,
+          name: error instanceof Error ? error.name : 'CreateContextError',
+        },
+      },
+      'create-context',
+    )
+  }
+  args.setIsolateContext(isolateContext)
+
+  const executionResult = await isolateContext.execute(strippedCode)
+  emitCodeModeConsoleLogs(executionResult.logs, args.emitCustomEvent)
+
+  if (executionResult.success) {
+    return args.finish(
+      {
+        success: true,
+        result: executionResult.value,
+        logs: executionResult.logs,
+      },
+      'execute',
+    )
+  }
+
+  return args.finish(
+    {
+      success: false,
+      error: executionResult.error
+        ? {
+            message: executionResult.error.message,
+            name: executionResult.error.name,
+            ...(executionResult.error.stack !== undefined && {
+              stack: executionResult.error.stack,
+            }),
+          }
+        : { message: 'Unknown execution error', name: 'UnknownError' },
+      logs: executionResult.logs,
+    },
+    'execute',
+  )
+}
+
 function buildToolDescription(tools: Array<CodeModeTool>): string {
   const eager = tools.filter((t) => !t.lazy)
   const hasLazy = tools.some((t) => t.lazy)

@@ -32,6 +32,70 @@ function isDiarizeModel(model: string): model is DiarizeModel {
   return DIARIZE_MODELS.includes(model as DiarizeModel)
 }
 
+function hasDiarizationOnlyOptions(
+  responseFormat: OpenAITranscriptionResponseFormat | undefined,
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): boolean {
+  return (
+    responseFormat === 'diarized_json' ||
+    modelOptions?.response_format === 'diarized_json' ||
+    modelOptions?.known_speaker_names !== undefined ||
+    modelOptions?.known_speaker_references !== undefined
+  )
+}
+
+function assertDiarizeUnsupportedOptions(
+  prompt: string | undefined,
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): void {
+  if (prompt !== undefined || modelOptions?.prompt !== undefined) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support prompts.',
+    )
+  }
+  if (modelOptions?.include !== undefined) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support the include option.',
+    )
+  }
+  if (modelOptions?.timestamp_granularities !== undefined) {
+    throw new Error(
+      'OpenAI diarization transcription models do not support timestamp_granularities.',
+    )
+  }
+}
+
+function assertDiarizeKnownSpeakers(
+  modelOptions: OpenAITranscriptionProviderOptions | undefined,
+): void {
+  const names = modelOptions?.known_speaker_names
+  const references = modelOptions?.known_speaker_references
+  if ((names === undefined) !== (references === undefined)) {
+    throw new Error(
+      'OpenAI diarization known_speaker_names and known_speaker_references must both be provided together.',
+    )
+  }
+  if (names !== undefined && names.length > 4) {
+    throw new Error(
+      'OpenAI diarization transcription models support at most 4 known speaker names.',
+    )
+  }
+  if (references !== undefined && references.length > 4) {
+    throw new Error(
+      'OpenAI diarization transcription models support at most 4 known speaker references.',
+    )
+  }
+  if (
+    names !== undefined &&
+    references !== undefined &&
+    names.length !== references.length
+  ) {
+    throw new Error(
+      `OpenAI diarization known_speaker_names and known_speaker_references must have matching lengths; received ${names.length} names and ${references.length} references.`,
+    )
+  }
+}
+
 // OpenAI diarized segments carry string ids like `seg_0`, but the shared
 // TranscriptionSegment.id is numeric: parse the numeric suffix (or a plain
 // numeric string) and fall back to the array index otherwise. The empty-string
@@ -443,10 +507,7 @@ export class OpenAITranscriptionAdapter<
     // *required* for gpt-4o-transcribe-diarize inputs longer than 30s).
     if (
       !isDiarizeTranscriptionModel &&
-      (responseFormat === 'diarized_json' ||
-        modelOptionsResponseFormat === 'diarized_json' ||
-        modelOptions?.known_speaker_names !== undefined ||
-        modelOptions?.known_speaker_references !== undefined)
+      hasDiarizationOnlyOptions(responseFormat, modelOptions)
     ) {
       throw new Error(
         `OpenAI speaker diarization options (response_format: 'diarized_json', known_speaker_names, known_speaker_references) are only supported with OpenAI diarization transcription models; model is "${model}".`,
@@ -455,6 +516,18 @@ export class OpenAITranscriptionAdapter<
 
     if (!isDiarizeTranscriptionModel) return
 
+    this.assertDiarizeResponseFormats(
+      responseFormat,
+      modelOptionsResponseFormat,
+    )
+    assertDiarizeUnsupportedOptions(prompt, modelOptions)
+    assertDiarizeKnownSpeakers(modelOptions)
+  }
+
+  private assertDiarizeResponseFormats(
+    responseFormat: OpenAITranscriptionResponseFormat | undefined,
+    modelOptionsResponseFormat: OpenAITranscriptionResponseFormat | undefined,
+  ): void {
     const requestedResponseFormats = [
       this.mapResponseFormat(responseFormat),
       ...(modelOptionsResponseFormat !== undefined
@@ -470,63 +543,6 @@ export class OpenAITranscriptionAdapter<
     if (unsupportedResponseFormat !== undefined) {
       throw new Error(
         `OpenAI diarization transcription models only support json, text, and diarized_json response formats; received "${unsupportedResponseFormat}".`,
-      )
-    }
-
-    if (prompt !== undefined || modelOptions?.prompt !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support prompts.',
-      )
-    }
-
-    if (modelOptions?.include !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support the include option.',
-      )
-    }
-
-    if (modelOptions?.timestamp_granularities !== undefined) {
-      throw new Error(
-        'OpenAI diarization transcription models do not support timestamp_granularities.',
-      )
-    }
-
-    if (
-      (modelOptions?.known_speaker_names === undefined) !==
-      (modelOptions?.known_speaker_references === undefined)
-    ) {
-      throw new Error(
-        'OpenAI diarization known_speaker_names and known_speaker_references must both be provided together.',
-      )
-    }
-
-    if (modelOptions?.known_speaker_names !== undefined) {
-      const knownSpeakerCount = modelOptions.known_speaker_names.length
-      if (knownSpeakerCount > 4) {
-        throw new Error(
-          'OpenAI diarization transcription models support at most 4 known speaker names.',
-        )
-      }
-    }
-
-    if (modelOptions?.known_speaker_references !== undefined) {
-      const knownSpeakerReferenceCount =
-        modelOptions.known_speaker_references.length
-      if (knownSpeakerReferenceCount > 4) {
-        throw new Error(
-          'OpenAI diarization transcription models support at most 4 known speaker references.',
-        )
-      }
-    }
-
-    if (
-      modelOptions?.known_speaker_names !== undefined &&
-      modelOptions.known_speaker_references !== undefined &&
-      modelOptions.known_speaker_names.length !==
-        modelOptions.known_speaker_references.length
-    ) {
-      throw new Error(
-        `OpenAI diarization known_speaker_names and known_speaker_references must have matching lengths; received ${modelOptions.known_speaker_names.length} names and ${modelOptions.known_speaker_references.length} references.`,
       )
     }
   }

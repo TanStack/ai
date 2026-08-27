@@ -32,6 +32,32 @@ import type {
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
+function persistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TSchema extends SchemaInput | undefined,
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+>(
+  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+):
+  | { persistence: NonNullable<typeof options.persistence>; threadId: string }
+  | { threadId?: typeof options.threadId } {
+  if (typeof options.threadId === 'string' && options.persistence) {
+    return { persistence: options.persistence, threadId: options.threadId }
+  }
+  return options.threadId !== undefined ? { threadId: options.threadId } : {}
+}
+
+function definedFields(
+  fields: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) out[key] = value
+  }
+  return out
+}
+
 /**
  * Creates a reactive chat instance for Svelte 5.
  *
@@ -116,34 +142,9 @@ export function createChat<
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    ...(options.initialMessages !== undefined && {
-      initialMessages: options.initialMessages,
-    }),
-    ...(typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
-    }),
-    ...(options.body !== undefined && { body: options.body }),
-    ...(options.forwardedProps !== undefined && {
-      forwardedProps: options.forwardedProps,
-    }),
-    ...(options.byok !== undefined && { byok: options.byok }),
+    ...persistenceOptions(options),
     byokProvider: () => options.byokProvider?.(),
-    ...(options.context !== undefined && { context: options.context }),
-    devtools: {
-      ...options.devtools,
-      framework: 'svelte',
-      hookName: 'useChat',
-      outputKind: options.outputSchema ? 'structured' : 'chat',
-    },
-    ...(options.onResponse !== undefined && { onResponse: options.onResponse }),
+    tools: options.tools,
     onChunk: (chunk: StreamChunk) => {
       options.onChunk?.(chunk)
     },
@@ -153,16 +154,6 @@ export function createChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    tools: options.tools,
-    ...(options.interrupts !== undefined && {
-      interrupts: options.interrupts,
-    }),
-    ...(options.onCustomEvent !== undefined && {
-      onCustomEvent: options.onCustomEvent,
-    }),
-    ...(options.streamProcessor !== undefined && {
-      streamProcessor: options.streamProcessor,
-    }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
     },
@@ -185,7 +176,6 @@ export function createChat<
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
-    ...(options.queue !== undefined && { queue: options.queue }),
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
     },
@@ -196,6 +186,25 @@ export function createChat<
       interruptState = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
+    devtools: {
+      ...options.devtools,
+      framework: 'svelte',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    ...definedFields({
+      initialMessages: options.initialMessages,
+      initialResumeSnapshot: options.initialResumeSnapshot,
+      body: options.body,
+      forwardedProps: options.forwardedProps,
+      byok: options.byok,
+      context: options.context,
+      onResponse: options.onResponse,
+      interrupts: options.interrupts,
+      onCustomEvent: options.onCustomEvent,
+      streamProcessor: options.streamProcessor,
+      queue: options.queue,
+    }),
   })
 
   function syncResumeState() {

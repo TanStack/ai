@@ -114,93 +114,109 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
  * @param originalRequired - Original required array (to know which fields were optional)
  * @returns Transformed schema + the null-widening map for the round trip
  */
+function widenOptionalScalar(prop: JSONSchema): JSONSchema | undefined {
+  if (prop.type && !Array.isArray(prop.type)) {
+    return { ...prop, type: [prop.type, 'null'] }
+  }
+  if (Array.isArray(prop.type) && !prop.type.includes('null')) {
+    return { ...prop, type: [...prop.type, 'null'] }
+  }
+  return undefined
+}
+
+function transformStructuredProperty(
+  prop: JSONSchema,
+  wasOptional: boolean,
+): { schema: JSONSchema; widenedHere: boolean; childMap?: NullWideningMap } {
+  if (prop.type === 'object' && prop.properties) {
+    const nested = makeStructuredOutputCompatible(prop, prop.required || [])
+    return {
+      schema: wasOptional
+        ? { ...nested.schema, type: ['object', 'null'] }
+        : nested.schema,
+      widenedHere: wasOptional,
+      childMap: nested.nullWidening,
+    }
+  }
+  if (prop.type === 'array' && prop.items) {
+    const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
+    const nestedItems = items
+      ? makeStructuredOutputCompatible(items, items.required || [])
+      : undefined
+    return {
+      schema: {
+        ...prop,
+        items: nestedItems ? nestedItems.schema : prop.items,
+        ...(wasOptional ? { type: ['array', 'null'] } : {}),
+      },
+      widenedHere: wasOptional,
+      childMap: nestedItems?.nullWidening
+        ? { items: nestedItems.nullWidening }
+        : undefined,
+    }
+  }
+  if (wasOptional) {
+    const widened = widenOptionalScalar(prop)
+    if (widened) return { schema: widened, widenedHere: true }
+  }
+  return { schema: prop, widenedHere: false }
+}
+
+function transformStructuredObject(
+  result: JSONSchema,
+  originalRequired: Array<string>,
+  map: NullWideningMap,
+): void {
+  if (result.type !== 'object' || !result.properties) return
+  const properties: Record<string, JSONSchema> = { ...result.properties }
+  const allPropertyNames = Object.keys(properties)
+  const propertyMaps: Record<string, NullWideningMap> = {}
+
+  for (const propName of allPropertyNames) {
+    const prop = properties[propName]
+    if (!prop) continue
+    const transformed = transformStructuredProperty(
+      prop,
+      !originalRequired.includes(propName),
+    )
+    properties[propName] = transformed.schema
+    if (transformed.widenedHere || transformed.childMap) {
+      propertyMaps[propName] = {
+        ...(transformed.childMap ?? {}),
+        ...(transformed.widenedHere ? { widened: true } : {}),
+      }
+    }
+  }
+
+  result.properties = properties
+  result.required = allPropertyNames
+  result.additionalProperties = false
+  if (Object.keys(propertyMaps).length > 0) map.properties = propertyMaps
+}
+
+function transformStructuredArray(
+  result: JSONSchema,
+  map: NullWideningMap,
+): void {
+  if (result.type !== 'array' || !result.items) return
+  const items = Array.isArray(result.items) ? result.items[0] : result.items
+  if (!items) return
+  const nestedItems = makeStructuredOutputCompatible(
+    items,
+    items.required || [],
+  )
+  result.items = nestedItems.schema
+  if (nestedItems.nullWidening) map.items = nestedItems.nullWidening
+}
+
 function makeStructuredOutputCompatible(
   schema: JSONSchema,
   originalRequired: Array<string> = [],
 ): StructuredOutputConversion {
   const result: JSONSchema = { ...schema }
   const map: NullWideningMap = {}
-
-  // Handle object types
-  if (result.type === 'object' && result.properties) {
-    const properties: Record<string, JSONSchema> = { ...result.properties }
-    const allPropertyNames = Object.keys(properties)
-    const propertyMaps: Record<string, NullWideningMap> = {}
-
-    // Transform each property
-    for (const propName of allPropertyNames) {
-      const prop = properties[propName]
-      if (!prop) continue
-      const wasOptional = !originalRequired.includes(propName)
-      // `null` synthesized AT this property (the field itself can come back null).
-      let widenedHere = false
-      // Map describing widened positions INSIDE this property.
-      let childMap: NullWideningMap | undefined
-
-      // Recursively transform nested objects/arrays
-      if (prop.type === 'object' && prop.properties) {
-        const nested = makeStructuredOutputCompatible(prop, prop.required || [])
-        properties[propName] = wasOptional
-          ? { ...nested.schema, type: ['object', 'null'] }
-          : nested.schema
-        widenedHere = wasOptional
-        childMap = nested.nullWidening
-      } else if (prop.type === 'array' && prop.items) {
-        const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
-        const nestedItems = items
-          ? makeStructuredOutputCompatible(items, items.required || [])
-          : undefined
-        properties[propName] = {
-          ...prop,
-          items: nestedItems ? nestedItems.schema : prop.items,
-          ...(wasOptional ? { type: ['array', 'null'] } : {}),
-        }
-        widenedHere = wasOptional
-        childMap = nestedItems?.nullWidening
-          ? { items: nestedItems.nullWidening }
-          : undefined
-      } else if (wasOptional) {
-        // Make optional fields nullable by adding null to the type. Mark
-        // `widenedHere` only where we actually add `null`; a field already
-        // typed nullable (`.nullish()`) is left as-is and keeps its null.
-        if (prop.type && !Array.isArray(prop.type)) {
-          properties[propName] = { ...prop, type: [prop.type, 'null'] }
-          widenedHere = true
-        } else if (Array.isArray(prop.type) && !prop.type.includes('null')) {
-          properties[propName] = { ...prop, type: [...prop.type, 'null'] }
-          widenedHere = true
-        }
-      }
-
-      if (widenedHere || childMap) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
-      }
-    }
-
-    result.properties = properties
-    // ALL properties must be required for OpenAI structured output
-    result.required = allPropertyNames
-    // additionalProperties must be false
-    result.additionalProperties = false
-    if (Object.keys(propertyMaps).length > 0) map.properties = propertyMaps
-  }
-
-  // Handle array types with object items
-  if (result.type === 'array' && result.items) {
-    const items = Array.isArray(result.items) ? result.items[0] : result.items
-    if (items) {
-      const nestedItems = makeStructuredOutputCompatible(
-        items,
-        items.required || [],
-      )
-      result.items = nestedItems.schema
-      if (nestedItems.nullWidening) map.items = nestedItems.nullWidening
-    }
-  }
-
+  transformStructuredObject(result, originalRequired, map)
+  transformStructuredArray(result, map)
   return { schema: result, nullWidening: pruneMap(map) }
 }
 

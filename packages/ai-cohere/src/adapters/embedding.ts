@@ -56,6 +56,24 @@ function isPrivateOrInternalUrl(url: string): boolean {
   return false
 }
 
+async function readCohereErrorMessage(response: Response): Promise<string> {
+  const bodyText = await response.text()
+  try {
+    const parsed: unknown = JSON.parse(bodyText)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'message' in parsed &&
+      typeof parsed.message === 'string'
+    ) {
+      return parsed.message
+    }
+  } catch {
+    // Not JSON — fall back to the raw body text.
+  }
+  return bodyText
+}
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit | undefined,
@@ -146,20 +164,8 @@ export class CohereEmbeddingAdapter<
         )
       }
 
-      const resolved = resolveEmbeddingInput(options.input)
-      const inputs = await Promise.all(
-        resolved.map(async (item) => {
-          const content: Array<CohereEmbedContentPart> = item.texts.map(
-            (text) => ({ type: 'text', text }),
-          )
-          for (const image of item.images) {
-            content.push({
-              type: 'image_url',
-              image_url: { url: await this.resolveImageUrl(image) },
-            })
-          }
-          return { content }
-        }),
+      const inputs = await this.toCohereInputs(
+        resolveEmbeddingInput(options.input),
       )
 
       // embedding_types is pinned to ['float'] (overriding any disagreeing
@@ -199,22 +205,9 @@ export class CohereEmbeddingAdapter<
       )
 
       if (!response.ok) {
-        const bodyText = await response.text()
-        let message = bodyText
-        try {
-          const parsed: unknown = JSON.parse(bodyText)
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            'message' in parsed &&
-            typeof parsed.message === 'string'
-          ) {
-            message = parsed.message
-          }
-        } catch {
-          // Not JSON — fall back to the raw body text.
-        }
-        throw new Error(`Cohere embed failed (${response.status}): ${message}`)
+        throw new Error(
+          `Cohere embed failed (${response.status}): ${await readCohereErrorMessage(response)}`,
+        )
       }
 
       const data = (await response.json()) as CohereEmbedResponse
@@ -255,6 +248,25 @@ export class CohereEmbeddingAdapter<
       })
       throw error
     }
+  }
+
+  private async toCohereInputs(
+    resolved: ReturnType<typeof resolveEmbeddingInput>,
+  ): Promise<Array<{ content: Array<CohereEmbedContentPart> }>> {
+    return Promise.all(
+      resolved.map(async (item) => {
+        const content: Array<CohereEmbedContentPart> = item.texts.map(
+          (text) => ({ type: 'text', text }),
+        )
+        for (const image of item.images) {
+          content.push({
+            type: 'image_url',
+            image_url: { url: await this.resolveImageUrl(image) },
+          })
+        }
+        return { content }
+      }),
+    )
   }
 
   /**
