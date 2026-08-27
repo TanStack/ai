@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
 
 const { mockComplete } = vi.hoisted(() => ({
   mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
@@ -85,10 +84,15 @@ describe('chat({ outputSchema }) with Mistral', () => {
     const result = await chat({
       adapter,
       messages: [{ role: 'user', content: 'Return structured output' }],
-      outputSchema: z.object({
-        mode: z.enum(['canary']).optional(),
-        note: z.string().nullable(),
-      }),
+      outputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          note: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        },
+        required: ['note'],
+        additionalProperties: false,
+      },
     })
 
     expect(mockComplete).toHaveBeenCalledWith(

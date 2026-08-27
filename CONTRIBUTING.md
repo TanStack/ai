@@ -51,7 +51,7 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 `pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
 
-1. Fetches OpenRouter and Vercel AI Gateway catalogs.
+1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs.
 2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
 3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
 4. Writes a patch changeset for the packages that changed.

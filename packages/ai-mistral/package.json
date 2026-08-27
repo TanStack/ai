@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-mistral",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "Mistral adapter for TanStack AI",
   "author": "",
@@ -62,8 +62,7 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "google-auth-library": "^10.5.0",
-    "zod": "^4.0.0"
+    "google-auth-library": "^10.5.0"
   },
   "peerDependenciesMeta": {
     "google-auth-library": {

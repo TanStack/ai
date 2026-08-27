@@ -1,0 +1,2504 @@
+[
+  {
+    "id": "google/gemini-2.5-flash",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1742428800,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Flash",
+    "description": "Fast and efficient multimodal model for high-volume tasks.",
+    "context_window": 1000000,
+    "max_tokens": 65536,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000001",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000003",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000003",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000003",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-flash-image",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1756166400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Flash Image",
+    "description": "Image generation and editing model for text and image prompts.",
+    "context_window": 32768,
+    "max_tokens": 65536,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text", "image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000003",
+              "min": 0
+            }
+          ]
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000003",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-flash-lite",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1750118400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Flash Lite",
+    "description": "Lightweight version of Gemini Flash for cost-effective processing.",
+    "context_window": 1048576,
+    "max_tokens": 65536,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000003",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000001",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000001",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000001",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000004",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-flash-lite-preview-tts",
+    "object": "model",
+    "created": 1783382400,
+    "released": 1765411200,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Flash Lite Preview TTS",
+    "description": "Lightweight preview Gemini text-to-speech model for high-volume audio.",
+    "context_window": 8192,
+    "max_tokens": 16384,
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-flash-tts",
+    "object": "model",
+    "created": 1783382400,
+    "released": 1759190400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Flash TTS",
+    "description": "Fast, cost-efficient Gemini text-to-speech model for natural audio output.",
+    "context_window": 32768,
+    "max_tokens": 16384,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-pro",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1742428800,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Pro",
+    "description": "Google's strongest Gemini 2.5 model for complex reasoning and multimodal tasks.",
+    "context_window": 1048576,
+    "max_tokens": 65536,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.0000025",
+              "min": 200000
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.0000025",
+              "min": 200000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000125",
+                "min": 0,
+                "max": 200000
+              },
+              {
+                "cost": "0.00000025",
+                "min": 200000
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.0000025",
+              "min": 200000
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.000015",
+              "min": 200000
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-2.5-pro-tts",
+    "object": "model",
+    "created": 1783382400,
+    "released": 1759190400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 2.5 Pro TTS",
+    "description": "Highest-quality Gemini text-to-speech model for expressive audio.",
+    "context_window": 32768,
+    "max_tokens": 16384,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000001",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3-flash-preview",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1765929600,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3 Flash Preview",
+    "description": "Fast chat model with a strong balance of speed, capability, and cost.",
+    "context_window": 1000000,
+    "max_tokens": 65000,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000001",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000005",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000003",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3-pro-image",
+    "object": "model",
+    "created": 1782086400,
+    "released": 1779926400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3 Pro Image",
+    "description": "Next-generation image generation model with higher quality output.",
+    "context_window": 65536,
+    "max_tokens": 32768,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text", "image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000002",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00012",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-image",
+    "object": "model",
+    "created": 1782086400,
+    "released": 1779926400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.1 Flash Image",
+    "description": "Fast image generation and editing model with pro-level quality.",
+    "context_window": 131072,
+    "max_tokens": 32768,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text", "image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000005",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00006",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000003",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-lite",
+    "object": "model",
+    "created": 1781654400,
+    "released": 1778112000,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.1 Flash Lite",
+    "description": "Cost-efficient Gemini 3.1 model for high-volume chat and extraction tasks.",
+    "context_window": 1000000,
+    "max_tokens": 65000,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000005",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000025",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-lite-image",
+    "object": "model",
+    "created": 1783296000,
+    "released": 1782777600,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.1 Flash Lite Image",
+    "description": "Cost-efficient image generation and editing model.",
+    "context_window": 65536,
+    "max_tokens": 4096,
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text", "image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000025",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-tts-preview",
+    "object": "model",
+    "created": 1783382400,
+    "released": 1776211200,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.1 Flash TTS Preview",
+    "description": "Preview of the latest-generation Gemini text-to-speech model.",
+    "context_window": 8192,
+    "max_tokens": 16384,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000001",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.1-pro-preview",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1771459200,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.1 Pro Preview",
+    "description": "Latest preview of Google's next-generation reasoning model.",
+    "context_window": 1000000,
+    "max_tokens": 64000,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.000004",
+              "min": 200000
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.000004",
+              "min": 200000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000002",
+                "min": 0,
+                "max": 200000
+              },
+              {
+                "cost": "0.0000004",
+                "min": 200000
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.000004",
+              "min": 200000
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0,
+              "max": 200000
+            },
+            {
+              "cost": "0.000018",
+              "min": 200000
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.5-flash",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1779148800,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.5 Flash",
+    "description": "High-efficiency Gemini 3.5 model for fast coding, reasoning, and agentic workflows.",
+    "context_window": 1000000,
+    "max_tokens": 64000,
+    "knowledge": "2025-01",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000015",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000009",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.6-flash",
+    "object": "model",
+    "created": 1784505600,
+    "released": 1784592000,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini 3.6 Flash",
+    "description": "Latest-generation Gemini Flash model for fast coding, reasoning, and agentic workflows.",
+    "context_window": 1000000,
+    "max_tokens": 64000,
+    "knowledge": "2026-03",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000075",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000375",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-embedding-001",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1747699200,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini Embedding 001",
+    "description": "Legacy text-only predecessor; only for existing tables that already store its vectors.",
+    "context_window": 2048,
+    "max_tokens": 0,
+    "knowledge": "2025-05",
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000015",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-embedding-2",
+    "object": "model",
+    "created": 1781136000,
+    "released": 1776816000,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Gemini Embedding 2",
+    "description": "Default embedding model for semantic search, recommendations, and RAG; multimodal (text, image, audio, and video inputs).",
+    "context_window": 8192,
+    "max_tokens": 0,
+    "knowledge": "2025-11",
+    "modalities": {
+      "input": ["text", "image", "audio", "video"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000065",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00000045",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000002",
+              "min": 0
+            }
+          ]
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "google/veo-3.1",
+    "object": "model",
+    "created": 1785715200,
+    "released": 1760486400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Veo 3.1",
+    "description": "Highest-quality Veo model for video generation.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["video"]
+    },
+    "pricing": {
+      "video_duration": {
+        "1080p": {
+          "cost_per_second": "0.4"
+        },
+        "4k": {
+          "cost_per_second": "0.6"
+        },
+        "720p": {
+          "cost_per_second": "0.4"
+        }
+      }
+    }
+  },
+  {
+    "id": "google/veo-3.1-fast",
+    "object": "model",
+    "created": 1785715200,
+    "released": 1760486400,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Veo 3.1 Fast",
+    "description": "Higher-quality video generation at moderate cost.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["video"]
+    },
+    "pricing": {
+      "video_duration": {
+        "1080p": {
+          "cost_per_second": "0.12"
+        },
+        "4k": {
+          "cost_per_second": "0.3"
+        },
+        "720p": {
+          "cost_per_second": "0.1"
+        }
+      }
+    }
+  },
+  {
+    "id": "google/veo-3.1-lite",
+    "object": "model",
+    "created": 1785715200,
+    "released": 1775088000,
+    "expiration_date": null,
+    "owned_by": "google",
+    "name": "Veo 3.1 Lite",
+    "description": "Cost-efficient video generation from a text prompt or an image.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["video"]
+    },
+    "pricing": {
+      "video_duration": {
+        "1080p": {
+          "cost_per_second": "0.08"
+        },
+        "720p": {
+          "cost_per_second": "0.05"
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-4o-mini-transcribe",
+    "object": "model",
+    "created": 1781568000,
+    "released": 1742428800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-4o mini Transcribe",
+    "description": "Default speech-to-text model for fast, cost-efficient audio transcription.",
+    "context_window": 16000,
+    "max_tokens": 2000,
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-4o-mini-tts",
+    "object": "model",
+    "created": 1781568000,
+    "released": 1742428800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-4o mini TTS",
+    "description": "Text-to-speech model that turns text into natural-sounding audio.",
+    "context_window": 2000,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000006",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-4o-transcribe",
+    "object": "model",
+    "created": 1781654400,
+    "released": 1742428800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-4o Transcribe",
+    "description": "Higher-accuracy speech-to-text model for demanding transcription tasks.",
+    "context_window": 16000,
+    "max_tokens": 2000,
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1754524800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5",
+    "description": "Powerful all-rounder for reasoning, long-context, and multimodal tasks.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2024-09-30",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000125",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000025",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000025",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00002",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5-mini",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1754524800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5 mini",
+    "description": "Smaller, faster GPT-5 model for efficient tasks.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2024-05-30",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000025",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000025",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000045",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000045",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000036",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5-nano",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1754524800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5 nano",
+    "description": "Most compact GPT-5 model for speed and cost efficiency.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2024-05-30",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000005",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000005",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000004",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.2",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1765411200,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.2",
+    "description": "OpenAI reasoning model for complex problem-solving tasks.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2024-10",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000175",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000175",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000014",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000035",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000035",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000028",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.4",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1772668800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.4",
+    "description": "Advanced GPT-5.4 reasoning model for complex analysis and code generation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2025-08-31",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000005",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000025",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.0000005",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000015",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000225",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000005",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.0000005",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00003",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-mini",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1773705600,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.4 Mini",
+    "description": "Smaller, faster GPT-5.4 variant balancing reasoning quality and cost.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2025-08-31",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000075",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000045",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000015",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000015",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000009",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-nano",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1773705600,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.4 Nano",
+    "description": "Fastest and lowest-cost GPT-5.4 variant for high-volume tasks.",
+    "context_window": 400000,
+    "max_tokens": 128000,
+    "knowledge": "2025-08-31",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000002",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000002",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000125",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-pro",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1772668800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.4 Pro",
+    "description": "Premium GPT-5.4 variant with enhanced reasoning for complex tasks.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2025-08-31",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00006",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000003",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.000006",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00018",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00027",
+              "min": 272000
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.5",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1776988800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.5",
+    "description": "OpenAI's most capable GPT-5.5 model for demanding reasoning and coding tasks.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "knowledge": "2025-12-01",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00001",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000005",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.000001",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000045",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000125",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000125",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000075",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.5-pro",
+    "object": "model",
+    "created": 1783382400,
+    "released": 1776988800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.5 Pro",
+    "description": "Premium GPT-5.5 variant with extended reasoning for the hardest problems.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "knowledge": "2025-12-01",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00006",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000003",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.000006",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00018",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00027",
+              "min": 272000
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-luna",
+    "object": "model",
+    "created": 1784073600,
+    "released": 1783555200,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.6 Luna",
+    "description": "Fast, low-cost GPT-5.6 model for simple or high-volume tasks.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2026-02-16",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000002",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000004",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.00000002",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.00000004",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000012",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.0000018",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000004",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000004",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000024",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-sol",
+    "object": "model",
+    "created": 1783987200,
+    "released": 1783555200,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.6 Sol",
+    "description": "OpenAI's flagship GPT-5.6 model for the hardest reasoning, coding, and agentic tasks.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2026-02-16",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000008",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000004",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.0000008",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00003",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000008",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.0000008",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00004",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-terra",
+    "object": "model",
+    "created": 1784073600,
+    "released": 1783555200,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT-5.6 Terra",
+    "description": "Balanced GPT-5.6 model for everyday work at lower cost.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2026-02-16",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000004",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000002",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.0000004",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000018",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000004",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.0000004",
+                    "min": 0
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000024",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-image-1-mini",
+    "object": "model",
+    "created": 1779753600,
+    "released": 1759708800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT Image 1 Mini",
+    "description": "Cost-efficient OpenAI image generation model.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.0000025",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.000008",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-image-2",
+    "object": "model",
+    "created": 1779753600,
+    "released": 1776729600,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "GPT Image 2",
+    "description": "State-of-the-art OpenAI image generation model.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.000008",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/text-embedding-3-large",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1706140800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "text-embedding-3-large",
+    "description": "Higher-quality OpenAI embedding model when retrieval precision matters.",
+    "context_window": 8191,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000013",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/text-embedding-3-small",
+    "object": "model",
+    "created": 1779667200,
+    "released": 1706140800,
+    "expiration_date": null,
+    "owned_by": "openai",
+    "name": "text-embedding-3-small",
+    "description": "Cost-efficient OpenAI embedding model for high-volume retrieval workloads.",
+    "context_window": 8191,
+    "max_tokens": 0,
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000002",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  }
+]

@@ -1,5 +1,25 @@
 # @tanstack/ai-client
 
+## 0.29.0
+
+### Minor Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve tool-result identity, metadata, multimodal content, and timestamps across message conversions and hydration.
+
+  Correct the public `WireMessage` type. System and user messages now require content, and the union no longer includes outbound activity messages.
+
+  Keep structured multimodal content compatible with the AI devtools message store.
+
+### Patch Changes
+
+- [#1220](https://github.com/TanStack/ai/pull/1220) [`4e9c5d2`](https://github.com/TanStack/ai/commit/4e9c5d2887dc9a3d64fce6ed424aa68f451e20f6) - Prevent pending client tools and a post-stop `addToolResult()` from continuing a chat after `ChatClient.stop()`.
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve AG-UI message fields and UI state across serialization, snapshots, and persistence.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/ai-event-client@0.11.0
+
 ## 0.28.0
 
 ### Minor Changes

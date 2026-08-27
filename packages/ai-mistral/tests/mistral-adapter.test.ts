@@ -19,7 +19,6 @@ vi.mock('@mistralai/mistralai', () => {
 })
 
 import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
-import { z } from 'zod'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 
 const { chat, createChatOptions, maxIterations, toolDefinition } =
@@ -630,11 +629,18 @@ describe('Mistral AG-UI event emission', () => {
     const askUser = toolDefinition({
       name: 'ask_user',
       description: 'Ask the user to choose an option',
-      inputSchema: z.object({
-        mode: z.enum(['canary']).optional(),
-        question: z.string(),
-        nullableNote: z.string().nullable(),
-      }),
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          question: { type: 'string' },
+          nullableNote: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: ['question', 'nullableNote'],
+        additionalProperties: false,
+      },
     }).server((input) => {
       executedInput = input
       return { accepted: true }

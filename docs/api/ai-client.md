@@ -176,6 +176,8 @@ export async function POST(request: Request) {
 
 Appends a message to the conversation. If you pass a `UIMessage`, `append` copies `uiMessage.metadata` onto the stored message.
 
+`append()` resolves after the full HTTP response is processed when this call starts the stream. If a stream is already in progress, this call queues the send and the returned promise can resolve before that queued response is processed. A `RUN_FINISHED` with `finishReason: "tool_calls"` does not end the wait when the agent loop continues in that response.
+
 ```typescript
 import { client } from "./client";
 import type { UIMessage } from "@tanstack/ai-client";
