@@ -120,7 +120,10 @@ export const HookDetails: Component = () => {
 
   const hook = createMemo((): HookRecord | undefined => {
     const id = state.hooks.activeHookId
-    return id ? state.hooks.hooks[id] : undefined
+    // `''` is a legal registry key (a hook that mounted before it minted a
+    // thread id). Only `null` means "no selection".
+    if (id === null) return undefined
+    return state.hooks.hooks[id]
   })
 
   const conversation = createMemo(() => {

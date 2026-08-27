@@ -250,6 +250,40 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
   })
 
+  it('registers a generated hookId when construct had no threadId', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter(),
+      devtools: {
+        framework: 'react',
+        hookName: 'useChat',
+        name: 'Skills',
+      },
+    })
+    client.mountDevtools()
+
+    expect(eventClientMock.emitted('hook:registered')).toEqual([
+      [
+        'hook:registered',
+        expect.objectContaining({
+          hookId: expect.stringMatching(/^thread-/),
+          displayName: 'Skills',
+          lifecycle: 'mounted',
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('client:created')).toEqual([
+      [
+        'client:created',
+        expect.objectContaining({
+          clientId: expect.stringMatching(/^thread-/),
+          hookId: expect.stringMatching(/^thread-/),
+        }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('can register again after a mount cleanup cycle', () => {
     const client = createClient({ mountDevtools: false })
 
