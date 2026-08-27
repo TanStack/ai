@@ -38,6 +38,7 @@ const context: ChatMiddlewareContext = {
   iteration: 0,
   chunkIndex: 0,
   abort() {},
+  emitCustomEvent() {},
   context: undefined,
   defer() {},
   activity: 'chat',

@@ -213,6 +213,12 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
+  /**
+   * Push a `CUSTOM` chunk onto the chat stream immediately.
+   * The engine yields it as soon as it can (including while `onConfig`
+   * is still awaiting work such as a summarize call).
+   */
+  emitCustomEvent: (name: string, value: Record<string, any>) => void
   /** Runtime context provided by chat() options */
   context: TContext
   /**

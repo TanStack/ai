@@ -4,10 +4,9 @@ import type {
   ChatMiddlewareContext,
   MetadataStore,
   ModelMessage,
-  StreamChunk,
   ToolCall,
 } from '@tanstack/ai'
-import { EventType, provideMetadata } from '@tanstack/ai'
+import { provideMetadata } from '@tanstack/ai'
 import {
   COMPACTION_ENDED_EVENT,
   COMPACTION_STARTED_EVENT,
@@ -20,13 +19,31 @@ import {
   withCompaction,
 } from './index'
 
-// Minimal onConfig driver. The middleware ignores ctx, so a bare stub is fine.
-// oxlint-disable-next-line eslint-js/no-restricted-syntax -- test stub; onConfig never reads ctx
-const CTX = {} as unknown as ChatMiddlewareContext
+interface RecordedCustom {
+  name: string
+  value: Record<string, unknown>
+}
+
+function recordingContext(
+  phase: ChatMiddlewareContext['phase'] = 'beforeModel',
+  extras: Partial<ChatMiddlewareContext> = {},
+): { ctx: ChatMiddlewareContext; events: Array<RecordedCustom> } {
+  const events: Array<RecordedCustom> = []
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub
+  const ctx = {
+    phase,
+    emitCustomEvent: (name: string, value: Record<string, unknown>) => {
+      events.push({ name, value })
+    },
+    ...extras,
+  } as unknown as ChatMiddlewareContext
+  return { ctx, events }
+}
+
 function runOnConfig(
   mw: ReturnType<typeof withCompaction>,
   messages: Array<ModelMessage>,
-  ctx = CTX,
+  ctx: ChatMiddlewareContext = recordingContext().ctx,
 ) {
   const config: ChatMiddlewareConfig = {
     messages,
@@ -40,10 +57,11 @@ function checkpointContext(
   store: MetadataStore,
   options: { aborted?: boolean; phase?: ChatMiddlewareContext['phase'] } = {},
 ): ChatMiddlewareContext {
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; only capability identity, threadId, signal, and phase are read
+  const recorded = recordingContext(options.phase)
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub
   const ctx = {
+    ...recorded.ctx,
     threadId: 'thread-1',
-    phase: options.phase,
     signal: options.aborted ? AbortSignal.abort() : undefined,
     capabilities: { markProvided: () => undefined },
   } as unknown as ChatMiddlewareContext
@@ -67,8 +85,7 @@ function memoryStore(): MetadataStore {
 function phaseContext(
   phase: ChatMiddlewareContext['phase'],
 ): ChatMiddlewareContext {
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; onConfig only reads phase here
-  return { phase } as unknown as ChatMiddlewareContext
+  return recordingContext(phase).ctx
 }
 
 const text = (role: ModelMessage['role'], content: string): ModelMessage => ({
@@ -118,82 +135,63 @@ describe('withCompaction', () => {
     expect(info.messagesAfter).toBeLessThan(info.messagesBefore)
   })
 
-  it('injects started, state, and ended CUSTOM chunks after compacting', async () => {
+  it('emits started, state, and ended custom events when compacting', async () => {
     const mw = withCompaction({ maxTokens: 100 })
-    const ctx = phaseContext('beforeModel')
+    const { ctx, events } = recordingContext('beforeModel')
     const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
     await runOnConfig(mw, msgs, ctx)
-    const chunk: StreamChunk = {
-      type: EventType.RUN_STARTED,
-      timestamp: Date.now(),
-      threadId: 't',
-      runId: 'r',
-    }
-    const out = await mw.onChunk?.(ctx, chunk)
-    expect(Array.isArray(out)).toBe(true)
-    if (!Array.isArray(out)) return
-    expect(out[0]).toBe(chunk)
-    expect(out[1]).toMatchObject({
-      type: 'CUSTOM',
-      name: COMPACTION_STARTED_EVENT,
+    expect(events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+      COMPACTION_STATE_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+    const stateValue = events[1]?.value
+    expect(stateValue).toMatchObject({
+      reusedCheckpoint: false,
+      maxTokens: 100,
     })
-    expect(out[2]).toMatchObject({
-      type: 'CUSTOM',
-      name: COMPACTION_STATE_EVENT,
-    })
-    expect(out[3]).toMatchObject({
-      type: 'CUSTOM',
-      name: COMPACTION_ENDED_EVENT,
-    })
-    const stateChunk = out[2]
-    if (stateChunk && stateChunk.type === 'CUSTOM') {
-      expect(stateChunk.value).toMatchObject({
-        reusedCheckpoint: false,
-        maxTokens: 100,
-      })
-      if (
-        stateChunk.value &&
-        typeof stateChunk.value === 'object' &&
-        'dropped' in stateChunk.value &&
-        'result' in stateChunk.value &&
-        Array.isArray(stateChunk.value.dropped) &&
-        Array.isArray(stateChunk.value.result)
-      ) {
-        expect(stateChunk.value.dropped.length).toBeGreaterThan(0)
-        expect(stateChunk.value.result.length).toBeGreaterThan(0)
-      } else {
-        expect.fail('compaction:state is missing dropped/result previews')
-      }
-    }
-    const endedChunk = out[3]
-    if (endedChunk && endedChunk.type === 'CUSTOM') {
-      expect(endedChunk.value).toMatchObject({
-        maxTokens: 100,
-        reusedCheckpoint: false,
-      })
-      if (
-        endedChunk.value &&
-        typeof endedChunk.value === 'object' &&
-        'durationMs' in endedChunk.value
-      ) {
-        expect(typeof endedChunk.value.durationMs).toBe('number')
-      } else {
-        expect.fail('compaction:ended is missing durationMs')
-      }
-    }
+    expect(Array.isArray(stateValue?.dropped)).toBe(true)
+    expect(Array.isArray(stateValue?.result)).toBe(true)
+    expect(
+      Array.isArray(stateValue?.dropped) ? stateValue.dropped.length : 0,
+    ).toBeGreaterThan(0)
+    expect(typeof events[2]?.value.durationMs).toBe('number')
   })
 
-  it('does not inject a CUSTOM chunk when under the token budget', async () => {
+  it('emits started before summarizeOldest finishes', async () => {
+    let release!: (summary: string) => void
+    const gate = new Promise<string>((resolve) => {
+      release = resolve
+    })
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize: () => gate }),
+    })
+    const { ctx, events } = recordingContext('beforeModel')
+    const pending = runOnConfig(
+      mw,
+      [big('user'), big('assistant'), big('user'), big('assistant')],
+      ctx,
+    )
+    await vi.waitFor(() => {
+      expect(events.map((event) => event.name)).toEqual([
+        COMPACTION_STARTED_EVENT,
+      ])
+    })
+    release('the gist')
+    await pending
+    expect(events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+      COMPACTION_STATE_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+  })
+
+  it('does not emit custom events when under the token budget', async () => {
     const mw = withCompaction({ maxTokens: 1000 })
-    const ctx = phaseContext('beforeModel')
+    const { ctx, events } = recordingContext('beforeModel')
     await runOnConfig(mw, [text('user', 'hi')], ctx)
-    const chunk: StreamChunk = {
-      type: EventType.RUN_STARTED,
-      timestamp: Date.now(),
-      threadId: 't',
-      runId: 'r',
-    }
-    expect(await mw.onChunk?.(ctx, chunk)).toBeUndefined()
+    expect(events).toEqual([])
   })
 
   it('does not compact during init', async () => {

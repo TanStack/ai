@@ -197,6 +197,9 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 
 After a compaction, the chat stream includes three CUSTOM events in order:
 `compaction:started`, `compaction:state`, then `compaction:ended`.
+`compaction:started` is sent before the strategy runs, so a slow
+`summarizeOldest` call still shows up as started on the client. The state and
+ended events follow when the strategy returns.
 TanStack AI DevTools has a Compaction tab on the hook. Each compact shows:
 
 - started, state, and ended rows

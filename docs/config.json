@@ -370,7 +370,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-08-27"
         }
       ]
     },
@@ -537,7 +537,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-08-27"
         },
         {
           "label": "Built-in Middleware",

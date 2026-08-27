@@ -114,8 +114,10 @@ Read them with the same `chunk.type === "CUSTOM" && chunk.name === "..."` branch
 
 ## Your own custom events aren't in this union
 
-Tools can emit arbitrary, application-defined events through the
-`emitCustomEvent` context API:
+Tools and chat middleware can emit application-defined events through
+`emitCustomEvent`.
+
+A server tool receives `emitCustomEvent` on its execution context:
 
 ```ts
 import { toolDefinition } from "@tanstack/ai";
@@ -134,6 +136,30 @@ const importRows = toolDefinition({
   }
   return { imported: rows.length };
 });
+```
+
+Chat middleware calls the same helper on `ChatMiddlewareContext`. The engine
+yields the chunk while the hook is still running, so a long `onConfig` can
+send `started` before the work finishes:
+
+```ts
+import { type ChatMiddleware } from "@tanstack/ai";
+
+async function prepare() {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 1);
+  });
+}
+
+const progress: ChatMiddleware = {
+  name: "progress",
+  async onConfig(ctx) {
+    if (ctx.phase !== "beforeModel") return;
+    ctx.emitCustomEvent("my-app:progress", { step: "prepare" });
+    await prepare();
+    ctx.emitCustomEvent("my-app:progress", { step: "ready" });
+  },
+};
 ```
 
 These flow over the wire exactly like the built-in events: same `CUSTOM`

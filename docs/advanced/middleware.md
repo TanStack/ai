@@ -692,6 +692,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
+| `emitCustomEvent(name, value)` | `function` | Push a `CUSTOM` chunk onto the chat stream now. The engine yields it while the current hook is still running, including during `onConfig`. |
 | `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
 
@@ -973,6 +974,32 @@ TanStack AI ships ready-made middleware for common cases — caching tool result
 See [Built-in Middleware](./built-in-middleware) for full options and examples for each. The recipes below show how to build your own.
 
 ## Recipes
+
+### Live custom events
+
+A long `onConfig` hook can send progress to the client while it waits. Call `ctx.emitCustomEvent` when the work starts, then again when it finishes:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+async function prepare() {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 1);
+  });
+}
+
+const progress: ChatMiddleware = {
+  name: "progress",
+  async onConfig(ctx) {
+    if (ctx.phase !== "beforeModel") return;
+    ctx.emitCustomEvent("job:started", { step: "prepare" });
+    await prepare();
+    ctx.emitCustomEvent("job:ended", { step: "prepare" });
+  },
+};
+```
+
+The engine yields each `CUSTOM` chunk as soon as you call `emitCustomEvent`. If `RUN_STARTED` is not on the wire yet, the engine sends it first. Read these events on the client the same way as tool `emitCustomEvent` calls. See [Custom Events](../protocol/custom-events).
 
 ### Rate Limiting
 

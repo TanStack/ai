@@ -165,6 +165,84 @@ describe('chat() middleware', () => {
       expect(onFinish).not.toHaveBeenCalled()
     })
 
+    it('yields emitCustomEvent chunks during onConfig before adapter chunks', async () => {
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hello'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'live-emit',
+        async onConfig(ctx) {
+          if (ctx.phase !== 'beforeModel') return
+          ctx.emitCustomEvent('test:started', { ok: true })
+          await gate
+          ctx.emitCustomEvent('test:ended', { ok: true })
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      }) as AsyncIterable<StreamChunk>
+      const iter = stream[Symbol.asyncIterator]()
+
+      const beforeText: Array<StreamChunk> = []
+      while (true) {
+        const next = await iter.next()
+        expect(next.done).toBe(false)
+        const chunk = next.value
+        expect(chunk).toBeDefined()
+        if (!chunk) break
+        expect(chunk.type).not.toBe(EventType.TEXT_MESSAGE_CONTENT)
+        beforeText.push(chunk)
+        if (chunk.type === EventType.CUSTOM && chunk.name === 'test:started') {
+          break
+        }
+      }
+
+      expect(
+        beforeText.some((chunk) => chunk.type === EventType.RUN_STARTED),
+      ).toBe(true)
+
+      release()
+
+      const rest: Array<StreamChunk> = []
+      while (true) {
+        const next = await iter.next()
+        if (next.done) break
+        rest.push(next.value)
+      }
+
+      const endedIndex = rest.findIndex(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM && chunk.name === 'test:ended',
+      )
+      const textIndex = rest.findIndex(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(endedIndex).toBeGreaterThanOrEqual(0)
+      expect(textIndex).toBeGreaterThan(endedIndex)
+
+      const started = [...beforeText, ...rest].filter(
+        (chunk) => chunk.type === EventType.RUN_STARTED,
+      )
+      expect(started).toHaveLength(1)
+    })
+
     it('should call exactly one terminal hook per run', async () => {
       const onStart = vi.fn()
       const onFinish = vi.fn()
