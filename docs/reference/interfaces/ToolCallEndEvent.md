@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [packages/ai/src/types.ts:1279](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1279)
+Defined in: [packages/ai/src/types.ts:1297](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1297)
 
 Emitted when a tool call completes.
 
@@ -25,7 +25,7 @@ Same `Pick` (not `extends`) rationale as [ToolCallStartEvent](ToolCallStartEvent
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1285](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1285)
+Defined in: [packages/ai/src/types.ts:1303](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1303)
 
 Parsed tool arguments when the adapter already parsed them.
 
@@ -37,7 +37,7 @@ Parsed tool arguments when the adapter already parsed them.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1286](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1286)
+Defined in: [packages/ai/src/types.ts:1304](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1304)
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [packages/ai/src/types.ts:1286](https://github.com/TanStack/ai/blob/
 type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/ai/src/types.ts:1283](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1283)
+Defined in: [packages/ai/src/types.ts:1301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1301)

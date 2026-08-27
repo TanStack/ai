@@ -9,7 +9,7 @@ title: TranscriptionResponseFormat
 type TranscriptionResponseFormat = "json" | "text" | "srt" | "verbose_json" | "vtt";
 ```
 
-Defined in: [packages/ai/src/types.ts:2268](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2268)
+Defined in: [packages/ai/src/types.ts:2286](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2286)
 
 Options for audio transcription.
 These are the common options supported across providers.

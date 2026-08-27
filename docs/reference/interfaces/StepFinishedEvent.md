@@ -5,7 +5,7 @@ title: StepFinishedEvent
 
 # Interface: StepFinishedEvent
 
-Defined in: [packages/ai/src/types.ts:1308](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1308)
+Defined in: [packages/ai/src/types.ts:1326](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1326)
 
 Emitted when a thinking/reasoning step finishes.
 

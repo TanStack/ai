@@ -9,7 +9,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:4549](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4549)
+Defined in: [packages/ai/src/activities/chat/index.ts:4548](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4548)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
