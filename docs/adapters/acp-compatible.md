@@ -47,9 +47,18 @@ Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema t
 
 `acpCompatible` ships in `@tanstack/ai-acp`. You drive it inside a sandbox, so install the sandbox package and a provider too:
 
-```bash
-npm install @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai-acp @tanstack/ai @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

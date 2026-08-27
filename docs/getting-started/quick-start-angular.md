@@ -19,13 +19,11 @@ You have an Angular app and want to add AI chat. By the end of this guide, you'l
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-# or
-yarn add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Server Setup
 

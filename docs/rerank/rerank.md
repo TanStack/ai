@@ -36,17 +36,50 @@ Both implement the same `rerank()` activity — swap the adapter, keep the call.
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-cohere
-# or, to rerank through OpenRouter:
-npm install @tanstack/ai-openrouter
-```
+Cohere:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-cohere
+vue: @tanstack/ai-cohere
+solid: @tanstack/ai-cohere
+svelte: @tanstack/ai-cohere
+preact: @tanstack/ai-cohere
+angular: @tanstack/ai-cohere
+vanilla: @tanstack/ai-cohere
+octane: @tanstack/ai-cohere
+
+<!-- ::end:tabs -->
+
+OpenRouter:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openrouter
+vue: @tanstack/ai-openrouter
+solid: @tanstack/ai-openrouter
+svelte: @tanstack/ai-openrouter
+preact: @tanstack/ai-openrouter
+angular: @tanstack/ai-openrouter
+vanilla: @tanstack/ai-openrouter
+octane: @tanstack/ai-openrouter
+
+<!-- ::end:tabs -->
 
 Peer dependency:
 
-```bash
-npm install @tanstack/ai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai
+vue: @tanstack/ai
+solid: @tanstack/ai
+svelte: @tanstack/ai
+preact: @tanstack/ai
+angular: @tanstack/ai
+vanilla: @tanstack/ai
+octane: @tanstack/ai
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

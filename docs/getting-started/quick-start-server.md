@@ -20,13 +20,18 @@ You have a Node.js backend and want to add AI capabilities. By the end of this g
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-openai
-# or
-yarn add @tanstack/ai @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Basic Chat
 

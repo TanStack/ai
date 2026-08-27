@@ -22,9 +22,11 @@ For a complete native journey, see
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-react
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-react
+
+<!-- ::end:tabs -->
 
 ## `useChat(options?)`
 

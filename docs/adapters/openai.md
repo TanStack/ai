@@ -21,9 +21,18 @@ The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

@@ -17,9 +17,11 @@ Svelte 5 bindings for TanStack AI, providing reactive factory functions for the 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-svelte
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+svelte: @tanstack/ai-svelte
+
+<!-- ::end:tabs -->
 
 ## `createChat(options)`
 

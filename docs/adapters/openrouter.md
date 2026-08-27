@@ -16,9 +16,18 @@ OpenRouter is TanStack AI's first official AI partner and the recommended starti
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-openrouter
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openrouter
+vue: @tanstack/ai-openrouter
+solid: @tanstack/ai-openrouter
+svelte: @tanstack/ai-openrouter
+preact: @tanstack/ai-openrouter
+angular: @tanstack/ai-openrouter
+vanilla: @tanstack/ai-openrouter
+octane: @tanstack/ai-openrouter
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

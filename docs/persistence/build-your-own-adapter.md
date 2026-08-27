@@ -113,10 +113,31 @@ retrying them safe.
 turn this into a recipe against your stack: your ORM config, your schema file, your
 database handle.
 
-```bash
-pnpm add @tanstack/ai-persistence
-npx @tanstack/intent@latest install
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
+
+<!-- ::start:tabs variant="package-manager" mode="local-install" -->
+
+react: @tanstack/intent@latest install
+vue: @tanstack/intent@latest install
+solid: @tanstack/intent@latest install
+svelte: @tanstack/intent@latest install
+preact: @tanstack/intent@latest install
+angular: @tanstack/intent@latest install
+vanilla: @tanstack/intent@latest install
+octane: @tanstack/intent@latest install
+
+<!-- ::end:tabs -->
 
 Then ask for "add chat persistence to this app". There are recipes for Drizzle,
 Prisma, Cloudflare D1, and anything else (raw `pg`, Kysely, SQLite, Mongo, Supabase).

@@ -93,7 +93,7 @@ const inputSchema: JSONSchema = {
 
 > **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
 
-> **Tip:** Type safety from Zod schemas extends beyond tool execution — when you iterate over the stream returned by `chat()`, tool call events have typed `toolName` and `input` fields too. See [Type-Safe Tool Call Events](../chat/streaming#type-safe-tool-call-events).
+> **Tip:** Type safety from Zod schemas extends beyond tool execution. When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
 ## Tool Definition
 

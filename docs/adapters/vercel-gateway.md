@@ -19,9 +19,18 @@ Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGat
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-vercel-gateway
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-vercel-gateway
+vue: @tanstack/ai-vercel-gateway
+solid: @tanstack/ai-vercel-gateway
+svelte: @tanstack/ai-vercel-gateway
+preact: @tanstack/ai-vercel-gateway
+angular: @tanstack/ai-vercel-gateway
+vanilla: @tanstack/ai-vercel-gateway
+octane: @tanstack/ai-vercel-gateway
+
+<!-- ::end:tabs -->
 
 ## Auth
 

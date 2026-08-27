@@ -20,13 +20,11 @@ You have a Vue 3 app and want to add AI chat. By the end of this guide, you'll h
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
-# or
-yarn add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Server Setup
 

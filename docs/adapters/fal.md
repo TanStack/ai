@@ -19,9 +19,18 @@ For a full working example, see the [fal.ai example app](https://github.com/TanS
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-fal
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-fal
+vue: @tanstack/ai-fal
+solid: @tanstack/ai-fal
+svelte: @tanstack/ai-fal
+preact: @tanstack/ai-fal
+angular: @tanstack/ai-fal
+vanilla: @tanstack/ai-fal
+octane: @tanstack/ai-fal
+
+<!-- ::end:tabs -->
 
 ## Type Safety with String Literals
 

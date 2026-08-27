@@ -16,9 +16,11 @@ Install `@tanstack/ai-octane`, then call `useChat` the same way you would in Rea
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-octane octane
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+octane: @tanstack/ai-octane octane
+
+<!-- ::end:tabs -->
 
 `octane` is a required peer. This package publishes uncompiled source, like Svelte packages that ship `.svelte`.
 

@@ -104,4 +104,4 @@ Add these when you use the matching feature:
 
 A TanStack `chat()` server already writes this bag. Use this page when you emit AG-UI events yourself.
 
-See [Streaming](../chat/streaming) for the event table, and [AG-UI Client Compliance](../migration/ag-ui-compliance) for the request body.
+See [Stream Events](../chat/stream-events) for the event table, and [AG-UI Client Compliance](../migration/ag-ui-compliance) for the request body.

@@ -29,9 +29,18 @@ the same persistence object with
 
 ## Install
 
-```bash
-pnpm add @tanstack/ai-persistence
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
 
 The client half needs no install. It ships in the framework package you already use
 (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-angular`, or

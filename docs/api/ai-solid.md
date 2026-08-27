@@ -17,9 +17,11 @@ SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for th
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-solid
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+solid: @tanstack/ai-solid
+
+<!-- ::end:tabs -->
 
 ## `useChat(options?)`
 

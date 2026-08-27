@@ -25,9 +25,18 @@ It does not support `chat()`, `summarize()`, or media generation. Use OpenAI, An
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-cohere
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-cohere
+vue: @tanstack/ai @tanstack/ai-cohere
+solid: @tanstack/ai @tanstack/ai-cohere
+svelte: @tanstack/ai @tanstack/ai-cohere
+preact: @tanstack/ai @tanstack/ai-cohere
+angular: @tanstack/ai @tanstack/ai-cohere
+vanilla: @tanstack/ai @tanstack/ai-cohere
+octane: @tanstack/ai @tanstack/ai-cohere
+
+<!-- ::end:tabs -->
 
 ## Embeddings
 

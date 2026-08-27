@@ -17,9 +17,11 @@ Vue composables for TanStack AI, providing convenient Vue 3 bindings for the hea
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-vue
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+vue: @tanstack/ai-vue
+
+<!-- ::end:tabs -->
 
 ## `useChat(options?)`
 

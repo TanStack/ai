@@ -19,11 +19,11 @@ You have an Octane app and want AI chat. At the end of this page you have a stre
 
 ## 1. Install
 
-```bash
-npm install @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
-# or
-pnpm add @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
+
+<!-- ::end:tabs -->
 
 `@tanstack/ai-octane` publishes uncompiled `.tsrx` source. Your Octane plugin compiles it. Add `octane/compiler/vite` (or the rspack / rspeedy equivalent) to the app build.
 
