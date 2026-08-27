@@ -41,15 +41,17 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox, sbxSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
 const microvm = sbxSandbox() // Docker Sandboxes microVM
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
+const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY }) // managed Upstash Box
 ```
 
-> Cloud providers (Daytona, Vercel) run as remote VMs. When you drive them from
+> Cloud providers (Daytona, Vercel, Upstash Box) run as remote VMs. When you drive them from
 > your laptop, [tools](./tools) bridged from `chat()` can't dial your machine's
 > `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
 > ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
@@ -356,7 +358,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, and Upstash Box. `false` for Docker Sandboxes (`sbx`), Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, and Upstash Box. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
