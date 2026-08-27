@@ -17,29 +17,10 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<GroqChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-/**
- * Configuration for Groq text adapter
- */
 export interface GroqTextConfig extends GroqClientConfig {}
 
-/**
- * Re-export of the public provider options type
- */
 export type { ExternalTextProviderOptions as GroqTextProviderOptions } from '../text/text-provider-options'
 
-/**
- * Groq Text (Chat) Adapter
- *
- * Tree-shakeable adapter for Groq chat/text completion. Groq exposes an
- * OpenAI-compatible Chat Completions endpoint at `/openai/v1`, so we drive
- * it with the OpenAI SDK via a `baseURL` override (the same pattern as
- * `ai-grok`).
- *
- * Quirk: when usage is present on a stream, Groq historically delivered it
- * under `chunk.x_groq.usage` rather than `chunk.usage`. The override below
- * promotes it to the standard location so the base's RUN_FINISHED usage
- * accounting works unchanged.
- */
 export class GroqTextAdapter<
   TModel extends (typeof GROQ_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -72,13 +53,9 @@ export class GroqTextAdapter<
         error: string
       }
     | undefined {
-    if (
-      !isRecord(rawEvent) ||
-      rawEvent.code !== 'tool_use_failed' ||
-      typeof rawEvent.failed_generation !== 'string'
-    ) {
-      return undefined
-    }
+    if (!isRecord(rawEvent)) return undefined
+    if (rawEvent.code !== 'tool_use_failed') return undefined
+    if (typeof rawEvent.failed_generation !== 'string') return undefined
 
     let failedGeneration: unknown
     try {
@@ -86,13 +63,9 @@ export class GroqTextAdapter<
     } catch {
       return undefined
     }
-    if (
-      !isRecord(failedGeneration) ||
-      typeof failedGeneration.name !== 'string' ||
-      failedGeneration.name.trim().length === 0
-    ) {
-      return undefined
-    }
+    if (!isRecord(failedGeneration)) return undefined
+    if (typeof failedGeneration.name !== 'string') return undefined
+    if (failedGeneration.name.trim().length === 0) return undefined
 
     const rawArguments = failedGeneration.arguments
     let argumentsJson: string
@@ -147,13 +120,6 @@ export class GroqTextAdapter<
     )
   }
 
-  /**
-   * Surfaces Groq's reasoning deltas during streaming structured output.
-   * Groq emits `delta.reasoning` (or legacy `delta.reasoning_content`) on
-   * reasoning models when the caller sets `reasoning_format: 'parsed'` in
-   * modelOptions. The base's chatStream and structuredOutputStream both
-   * route reasoning through this hook.
-   */
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
@@ -167,13 +133,6 @@ export class GroqTextAdapter<
     return undefined
   }
 
-  /**
-   * Groq's API rejects `response_format: json_schema` together with `tools`
-   * + `stream` (returns 400 — see Groq Structured Outputs docs:
-   * "Streaming and tool use are not currently supported with Structured
-   * Outputs."). Force the engine onto the legacy finalization path even
-   * though the OpenAI Chat Completions base would otherwise opt in.
-   */
   override supportsCombinedToolsAndSchema(): boolean {
     return false
   }
@@ -183,11 +142,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/**
- * Promotes Groq's non-standard `x_groq.usage` to the standard `chunk.usage`
- * slot the base reads. Pass-through for chunks that already carry usage at
- * the documented location.
- */
 async function* promoteGroqUsage(
   stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
 ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
@@ -203,14 +157,6 @@ async function* promoteGroqUsage(
   }
 }
 
-/**
- * Creates a Groq text adapter with explicit API key.
- *
- * @example
- * ```typescript
- * const adapter = createGroqText('llama-3.3-70b-versatile', "gsk_...");
- * ```
- */
 export function createGroqText<
   TModel extends (typeof GROQ_CHAT_MODELS)[number],
 >(
@@ -221,14 +167,6 @@ export function createGroqText<
   return new GroqTextAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Groq text adapter with API key from `GROQ_API_KEY`.
- *
- * @example
- * ```typescript
- * const adapter = groqText('llama-3.3-70b-versatile');
- * ```
- */
 export function groqText<TModel extends (typeof GROQ_CHAT_MODELS)[number]>(
   model: TModel,
   config?: Omit<GroqTextConfig, 'apiKey'>,

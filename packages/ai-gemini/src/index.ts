@@ -1,7 +1,3 @@
-// ===========================
-// New tree-shakeable adapters
-// ===========================
-
 // Text/Chat adapter
 export {
   GeminiTextAdapter,
@@ -33,10 +29,6 @@ export type {
   GeminiAnyImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiAspectRatio,
-  // Per-model size narrowing. `GeminiImageModelSizeByName` is the map
-  // `generateImage()` applies at the call site; the per-model aliases let you
-  // name a single model's set directly. `GeminiNativeImageSize` is the widest
-  // union across all native models — prefer the narrower types above it.
   GeminiImageModelSizeByName,
   GeminiStandardImageAspectRatio,
   GeminiExtendedImageAspectRatio,
@@ -54,10 +46,6 @@ export type {
   ImageConfig,
   ContentUnion,
 } from './image/image-provider-options'
-// `SafetySetting` is built from two SDK enums, and enums are values — they
-// cannot travel through `export type`. Re-exported here so `safetySettings`
-// is usable with only `@tanstack/ai-gemini` installed, without the consumer
-// having to add `@google/genai` to their own dependencies.
 export { HarmBlockThreshold, HarmCategory } from '@google/genai'
 
 // Embedding adapter - for embedding vectors
@@ -70,9 +58,6 @@ export {
 export type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
 // TTS adapter (experimental)
-/**
- * @experimental Gemini TTS is an experimental feature and may change.
- */
 export {
   GeminiTTSAdapter,
   createGeminiSpeech,
@@ -82,9 +67,6 @@ export {
 } from './adapters/tts'
 
 // Audio / Lyria music generation adapter (experimental)
-/**
- * @experimental Gemini Lyria music generation is an experimental feature and may change.
- */
 export {
   GeminiAudioAdapter,
   createGeminiAudio,
@@ -95,9 +77,6 @@ export {
 } from './adapters/audio'
 
 // Video generation adapter — Veo + Gemini Omni Flash (experimental)
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export {
   GeminiVideoAdapter,
   createGeminiVideo,
@@ -142,10 +121,6 @@ export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'
 
-// ===========================
-// Type Exports
-// ===========================
-
 export type { GeminiClientConfig } from './utils/client'
 export type {
   GeminiChatModelProviderOptionsByName,
@@ -171,10 +146,6 @@ export type {
 
 // Export provider usage types
 export type { GeminiProviderUsageDetails } from './usage'
-
-// ============================================================================
-// Realtime (Voice) Adapters
-// ============================================================================
 
 export { geminiRealtime, geminiRealtimeToken } from './realtime/index'
 

@@ -1,12 +1,3 @@
-/**
- * Honcho memory adapter. Honcho models memory as peers exchanging messages in a
- * session and answers recall via a "dialectic" query over the user peer's
- * representation — so `recall` returns a synthesized answer (no discrete
- * fragments) and `save` appends the turn's messages to the session.
- *
- * `@honcho-ai/sdk` is an OPTIONAL peer dependency, loaded lazily on first use.
- */
-
 import type { Peer, Session } from '@honcho-ai/sdk'
 import type {
   MemoryAdapter,
@@ -146,10 +137,6 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     return `${tenant}__${scope.threadId}`
   }
 
-  /**
-   * Honcho peer id. When `tenantId` is set, prefix the durable user so peers
-   * cannot collide across tenants.
-   */
   function userIdFor(scope: MemoryScope): string {
     const user = options.user ?? scope.userId ?? 'demo-user'
     if (scope.tenantId != null && scope.tenantId !== '') {

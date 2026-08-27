@@ -3,28 +3,6 @@ import { toolsToBindings } from './bindings/tool-to-binding'
 import { generateTypeStubs } from './type-generator/json-schema-to-ts'
 import type { CodeModeToolConfig } from './types'
 
-/**
- * Create a system prompt snippet that documents the execute_typescript tool
- * and all available external_* functions.
- *
- * Add this to your system prompts array when using createCodeModeTool.
- *
- * @example
- * ```typescript
- * import { createCodeMode } from '@tanstack/ai-code-mode'
- * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
- *
- * const { tool, systemPrompt } = createCodeMode({
- *   driver: createNodeIsolateDriver(),
- *   tools: [weatherTool, dbTool],
- * })
- *
- * chat({
- *   systemPrompts: ['You are a helpful assistant.', systemPrompt],
- *   tools: [tool, ...otherTools],
- * })
- * ```
- */
 export function createCodeModeSystemPrompt(config: CodeModeToolConfig): string {
   const { tools } = config
   const include = config.lazyToolsConfig?.includeDescription ?? 'none'

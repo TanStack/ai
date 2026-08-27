@@ -52,31 +52,24 @@ export class SkillLimitError extends Error {
 export function errorMessage(err: unknown): string | undefined {
   if (err instanceof Error) return err.message
   if (typeof err === 'string') return err
-  if (err && typeof err === 'object' && 'message' in err) {
+  const hasMessage = err && typeof err === 'object' && 'message' in err
+  if (hasMessage) {
     const m = (err as { message?: unknown }).message
     if (typeof m === 'string') return m
   }
   return undefined
 }
 
-/**
- * Best-effort extraction of an error's type name (used for the `error.type`
- * metric attribute), falling back to `'Error'` when no name is available.
- */
 export function errorTypeName(err: unknown): string {
   if (err instanceof Error) return err.name || 'Error'
-  if (err && typeof err === 'object' && 'name' in err) {
+  const hasName = err && typeof err === 'object' && 'name' in err
+  if (hasName) {
     const n = (err as { name?: unknown }).name
     if (typeof n === 'string') return n
   }
   return 'Error'
 }
 
-/**
- * Convert an AG-UI RUN_ERROR event to the Error shape exposed to consumers.
- * Preserves the provider code and sanitized raw event when available, while
- * accepting the deprecated nested error payload for backward compatibility.
- */
 export function runErrorEventToError(
   chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
 ): Error {

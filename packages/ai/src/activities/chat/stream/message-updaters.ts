@@ -1,10 +1,3 @@
-/**
- * Message Updaters (Internal)
- *
- * Internal helper functions for updating UIMessage parts.
- * These are used by StreamProcessor to manage the message array.
- */
-
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -16,12 +9,6 @@ import type {
 } from '../../../types'
 import type { ToolCallState, ToolResultState } from './types'
 
-/**
- * Update or add a text part to a message.
- *
- * If the last part is a text part, update it (continuing the same text segment).
- * Otherwise, create a new text part (starting a new text segment after tool calls).
- */
 export function updateTextPart(
   messages: Array<UIMessage>,
   messageId: string,
@@ -35,7 +22,8 @@ export function updateTextPart(
     const parts = [...msg.parts]
     const lastPart = parts.length > 0 ? parts[parts.length - 1] : null
 
-    if (lastPart && lastPart.type === 'text') {
+    const isText = lastPart && lastPart.type === 'text'
+    if (isText) {
       // Update the last text part (continuing same text segment)
       parts[parts.length - 1] = { type: 'text', content }
     } else {
@@ -47,9 +35,6 @@ export function updateTextPart(
   })
 }
 
-/**
- * Update or add a tool call part to a message.
- */
 export function updateToolCallPart(
   messages: Array<UIMessage>,
   messageId: string,
@@ -73,10 +58,6 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
-    // Carry forward metadata from either the new toolCall or the existing
-    // part. Once the adapter has emitted metadata for a tool call (e.g.
-    // Gemini's thoughtSignature on TOOL_CALL_START) we must not lose it on
-    // subsequent updates that don't re-supply it.
     const metadata = toolCall.metadata ?? existing?.metadata
     // Same for the parsed input: it's supplied once at completion, so
     // subsequent arg-less updates (approval, etc.) must not drop it.
@@ -107,9 +88,6 @@ export function updateToolCallPart(
   })
 }
 
-/**
- * Update or add a tool result part to a message.
- */
 export function updateToolResultPart(
   messages: Array<UIMessage>,
   messageId: string,
@@ -147,9 +125,6 @@ export function updateToolResultPart(
   })
 }
 
-/**
- * Update a tool call part with approval request metadata.
- */
 export function updateToolCallApproval(
   messages: Array<UIMessage>,
   messageId: string,
@@ -182,9 +157,6 @@ export function updateToolCallApproval(
   })
 }
 
-/**
- * Update a tool call part's state (e.g., to "input-complete").
- */
 export function updateToolCallState(
   messages: Array<UIMessage>,
   messageId: string,
@@ -210,10 +182,6 @@ export function updateToolCallState(
   })
 }
 
-/**
- * Update a tool call part with output.
- * Searches all messages to find the tool call by ID.
- */
 export function updateToolCallWithOutput(
   messages: Array<UIMessage>,
   toolCallId: string,
@@ -240,10 +208,6 @@ export function updateToolCallWithOutput(
   })
 }
 
-/**
- * Update a tool call part with approval response.
- * Searches all messages to find the tool call by approval ID.
- */
 export function updateToolCallApprovalResponse(
   messages: Array<UIMessage>,
   approvalId: string,
@@ -256,7 +220,8 @@ export function updateToolCallApprovalResponse(
         p.type === 'tool-call' && p.approval?.id === approvalId,
     )
 
-    if (toolCallPart && toolCallPart.approval) {
+    const hasToolCallPart = toolCallPart && toolCallPart.approval
+    if (hasToolCallPart) {
       const index = parts.indexOf(toolCallPart)
       parts[index] = {
         ...toolCallPart,
@@ -269,20 +234,6 @@ export function updateToolCallApprovalResponse(
   })
 }
 
-/**
- * Append a delta to the structured-output part on `messageId`, or create one
- * if absent. Progressive parse of the accumulated buffer fills `partial`.
- *
- * Callers must only invoke this while the part is still in flight — the
- * helper unconditionally writes `status: 'streaming'`, so feeding it a delta
- * after a `complete`/`error` terminal would regress the part. In practice the
- * processor gates calls via `structuredMessageIds`, which is dropped on
- * terminal events.
- *
- * If the progressive parse returns null/undefined (the buffer is not yet a
- * parseable JSON prefix), the previously-good `partial` is preserved so the
- * UI doesn't flicker back to empty for a single render.
- */
 export function appendStructuredOutputDelta(
   messages: Array<UIMessage>,
   messageId: string,
@@ -327,17 +278,6 @@ export function appendStructuredOutputDelta(
   })
 }
 
-/**
- * Snap the structured-output part on `messageId` to `complete` with the
- * validated `data`. Picks the freshest available `raw` so the wire
- * round-trip stays internally consistent:
- *
- *   1. Caller-supplied `raw` (the original streamed bytes from the model).
- *   2. The existing part's `raw` (deltas accumulated before this terminal).
- *   3. `JSON.stringify(data)` as a defensive fallback for terminal-only
- *      completes that never shipped raw — keeps the part self-consistent
- *      so downstream consumers never see a complete part with empty raw.
- */
 export function completeStructuredOutputPart(
   messages: Array<UIMessage>,
   messageId: string,
@@ -360,18 +300,11 @@ export function completeStructuredOutputPart(
         ? (parts[existingIndex] as StructuredOutputPart).raw
         : ''
     let resolvedRaw = raw || existingRaw
-    if (resolvedRaw === '' && data !== undefined) {
+    const hasResolvedRaw = resolvedRaw === '' && data !== undefined
+    if (hasResolvedRaw) {
       try {
         resolvedRaw = JSON.stringify(data)
-      } catch {
-        // Unserializable (circular, BigInt, throwing toJSON). Leave raw
-        // empty. Both downstream paths handle this: `ag-ui-wire.ts`
-        // `collectText` skips complete parts with empty raw entirely, and
-        // `uiMessageToModelMessages` falls back to a defensive
-        // `safeJsonStringify(data)` which itself returns `''` for the same
-        // unserializable inputs — so the turn is silently dropped from the
-        // next request rather than shipping garbage or crashing the stream.
-      }
+      } catch {}
     }
 
     const nextPart: StructuredOutputPart = {
@@ -393,13 +326,6 @@ export function completeStructuredOutputPart(
   })
 }
 
-/**
- * Mark the structured-output part on `messageId` as errored. If no part
- * exists yet — RUN_ERROR fired after `structured-output.start` but before
- * any delta — create an empty errored placeholder so consumers have
- * something renderable. Existing complete parts are left alone (an error
- * after a successful complete should not retroactively un-complete it).
- */
 export function errorStructuredOutputPart(
   messages: Array<UIMessage>,
   messageId: string,
@@ -438,10 +364,6 @@ export function errorStructuredOutputPart(
   })
 }
 
-/**
- * Update or add a thinking part to a message, keyed by stepId.
- * Each distinct stepId produces its own ThinkingPart.
- */
 export function updateThinkingPart(
   messages: Array<UIMessage>,
   messageId: string,

@@ -8,7 +8,8 @@ import { normalizeStreamChunk } from './normalize-stream-chunk'
 import { isSpecTopLevelKey } from './spec-event-keys'
 
 function assertSpec(chunk: { type: string }) {
-  for (const key of Object.keys(chunk)) {
+  const keys = Object.keys(chunk)
+  for (const key of keys) {
     expect(isSpecTopLevelKey(chunk.type, key), key).toBe(true)
   }
 }

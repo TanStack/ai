@@ -1,15 +1,3 @@
-/**
- * Catalog of well-known AG-UI `CUSTOM` event names used by the sandbox/agent
- * layers, plus their payload shapes.
- *
- * The persisted run log is the AG-UI `StreamChunk` stream itself — there is no
- * separate `RunEvent` type. Agent activity that has no first-class AG-UI event
- * (process output, file diffs, ports, approvals, artifacts, sandbox lifecycle)
- * rides on `CUSTOM` events carrying one of these names. Centralizing the names +
- * payloads here keeps emitters (harness adapters, sandbox) and consumers
- * (persistence projections, devtools, diff/terminal panels) in agreement without
- * inventing a parallel event union.
- */
 import { EventType } from './types'
 import type { CustomEvent, StreamChunk } from './types'
 
@@ -95,10 +83,6 @@ export interface CustomEventPayloads {
 export type WellKnownCustomEvent<TName extends WellKnownCustomEventName> =
   CustomEvent & { name: TName; value: CustomEventPayloads[TName] }
 
-/**
- * Type guard: is `chunk` a CUSTOM event with the given well-known `name`?
- * Narrows the payload type when true, so consumers read `chunk.value` typed.
- */
 export function isCustomEvent<TName extends WellKnownCustomEventName>(
   chunk: StreamChunk,
   name: TName,

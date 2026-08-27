@@ -20,20 +20,8 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<BedrockChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-/**
- * Bedrock Responses adapter. Drives mantle's OpenAI-compatible `/responses`
- * endpoint via the OpenAI SDK (`client.responses.create`) — the same base
- * class ai-openai's `openaiText` uses. Responses is mantle-only, so the
- * constructor forces the mantle baseURL.
- */
 export class BedrockResponsesTextAdapter<
   TModel extends BedrockResponsesModels,
-  // Constraint mirrors the chat adapter (and ai-groq / ai-openai) and the base,
-  // which parameterises `TProviderOptions extends Record<string, any>`. Our
-  // default `ExternalResponsesProviderOptions` is an interface that (lacking an
-  // implicit index signature) `Record<string, unknown>` would reject but
-  // `Record<string, any>` accepts. This `any` is confined to the generic
-  // constraint — no value/shape `as` cast is introduced.
   TProviderOptions extends Record<string, any> =
     ExternalResponsesProviderOptions,
   TInputModalities extends ReadonlyArray<Modality> =

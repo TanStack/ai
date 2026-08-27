@@ -51,11 +51,11 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function isByokCeremonyCancel(error: unknown): boolean {
-  if (
+  const isTypeofDOMExceptionIsNotUndefinedAndErrorIsDOMException =
     typeof DOMException !== 'undefined' &&
     error instanceof DOMException &&
     error.name === 'NotAllowedError'
-  ) {
+  if (isTypeofDOMExceptionIsNotUndefinedAndErrorIsDOMException) {
     return true
   }
   if (error instanceof Error) {
@@ -67,10 +67,15 @@ function isByokCeremonyCancel(error: unknown): boolean {
 }
 
 function sanitizeKeyring(value: unknown): Keyring {
-  if (typeof value !== 'object' || value === null) return {}
+  const isTypeofValueIsNotObjectOrMissingValue =
+    typeof value !== 'object' || value === null
+  if (isTypeofValueIsNotObjectOrMissingValue) return {}
   const keys: Keyring = {}
-  for (const [provider, key] of Object.entries(value)) {
-    if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
+  const objectEntries = Object.entries(value)
+  for (const [provider, key] of objectEntries) {
+    const isProviderIdAndTypeofKeyIsStringAndNonemptyKey =
+      isProviderId(provider) && typeof key === 'string' && key.length > 0
+    if (isProviderIdAndTypeofKeyIsStringAndNonemptyKey) {
       keys[provider] = key
     }
   }
@@ -127,11 +132,6 @@ export class ByokClient {
     this.#emit()
   }
 
-  /**
-   * `true` — the server can fill any slug from env.
-   * `false` — no env coverage.
-   * A record merges per-id flags and clears the all/none boolean.
-   */
   setServerCoverage(flags: boolean | Readonly<Record<string, boolean>>): void {
     if (typeof flags === 'boolean') {
       this.#coverageAll = flags
@@ -154,7 +154,8 @@ export class ByokClient {
       if (key) headers[byokHeaderName(provider)] = key
       return headers
     }
-    for (const [id, key] of Object.entries(this.#keys)) {
+    const objectEntries = Object.entries(this.#keys)
+    for (const [id, key] of objectEntries) {
       if (key) headers[byokHeaderName(id)] = key
     }
     return headers
@@ -162,7 +163,8 @@ export class ByokClient {
 
   async prepare(provider?: ProviderId): Promise<void> {
     await this.#ready
-    if (this.storage.unlockable && this.#locked) {
+    const isUnlockableAndLocked = this.storage.unlockable && this.#locked
+    if (isUnlockableAndLocked) {
       await this.unlock()
     }
     if (!provider) return
@@ -194,7 +196,8 @@ export class ByokClient {
     if (nextKey.length === 0) {
       throw new Error('BYOK key must be non-empty')
     }
-    if (this.storage.unlockable && this.#locked) {
+    const isUnlockableAndLocked = this.storage.unlockable && this.#locked
+    if (isUnlockableAndLocked) {
       await this.unlock()
     }
     const previousKeys = this.#keys
@@ -231,7 +234,8 @@ export class ByokClient {
     await this.#ready
     if (provider) {
       requireProviderId(provider)
-      if (this.storage.unlockable && this.#locked) {
+      const isUnlockableAndLocked = this.storage.unlockable && this.#locked
+      if (isUnlockableAndLocked) {
         await this.unlock()
       }
       const previousKeys = this.#keys
@@ -279,10 +283,14 @@ export class ByokClient {
     try {
       const loaded = sanitizeKeyring(await this.storage.load())
       this.#keys = { ...loaded, ...this.#keys }
-      for (const [id, value] of Object.entries(loaded)) {
-        if (!isProviderId(id) || !value) continue
+      const objectEntries = Object.entries(loaded)
+      for (const [id, value] of objectEntries) {
+        const isNotIsProviderIdOrNotValue = !isProviderId(id) || !value
+        if (isNotIsProviderIdOrNotValue) continue
         const existing = this.#statuses[id]
-        if (!existing || existing.state === 'locked') {
+        const isNotExistingOrStateIsLocked =
+          !existing || existing.state === 'locked'
+        if (isNotExistingOrStateIsLocked) {
           this.#statuses[id] = { state: 'set', masked: maskKey(value) }
         }
       }
@@ -304,11 +312,16 @@ export class ByokClient {
   }
 
   #lockedProvider(): ProviderId | undefined {
-    if (this.#prompt && isProviderId(this.#prompt.provider)) {
+    const isPromptAndIsProviderId =
+      this.#prompt && isProviderId(this.#prompt.provider)
+    if (isPromptAndIsProviderId) {
       return this.#prompt.provider
     }
-    for (const [id, status] of Object.entries(this.#statuses)) {
-      if (status?.state === 'locked' && isProviderId(id)) return id
+    const objectEntries = Object.entries(this.#statuses)
+    for (const [id, status] of objectEntries) {
+      const isStateIsLockedAndIsProviderId =
+        status?.state === 'locked' && isProviderId(id)
+      if (isStateIsLockedAndIsProviderId) return id
     }
     return undefined
   }
@@ -318,8 +331,11 @@ export class ByokClient {
       if (!this.storage.peek) return
       try {
         const preview = await this.storage.peek()
-        for (const [id, last4] of Object.entries(preview)) {
-          if (!isProviderId(id) || this.#statuses[id]) continue
+        const objectEntries = Object.entries(preview)
+        for (const [id, last4] of objectEntries) {
+          const isNotIsProviderIdOrCondition =
+            !isProviderId(id) || this.#statuses[id]
+          if (isNotIsProviderIdOrCondition) continue
           this.#statuses[id] = {
             state: 'locked',
             masked: last4 ? last4 : '••',
@@ -337,8 +353,10 @@ export class ByokClient {
     try {
       const loaded = sanitizeKeyring(await this.storage.load())
       this.#keys = { ...loaded, ...this.#keys }
-      for (const [id, value] of Object.entries(loaded)) {
-        if (!isProviderId(id) || !value) continue
+      const objectEntries2 = Object.entries(loaded)
+      for (const [id, value] of objectEntries2) {
+        const isNotIsProviderIdOrNotValue = !isProviderId(id) || !value
+        if (isNotIsProviderIdOrNotValue) continue
         this.#statuses[id] = { state: 'set', masked: maskKey(value) }
       }
       this.#storageError = null

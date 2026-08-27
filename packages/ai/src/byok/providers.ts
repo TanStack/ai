@@ -1,7 +1,3 @@
-/**
- * Provider ids are open slugs, not a closed catalog. `@tanstack/ai` does not
- * list adapters. Any matching string is a valid id and becomes `x-byok-<id>`.
- */
 export type ProviderId = string
 
 /** `[a-z][a-z0-9-]{0,63}` — lowercase, no underscores, max 64 chars. */

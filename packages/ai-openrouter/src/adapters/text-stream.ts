@@ -66,10 +66,12 @@ function currentModel(lastModel: string | undefined, fallback: string): string {
 }
 
 function isAbortError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null || !('name' in error)) {
+  const isNotNamedError =
+    typeof error !== 'object' || error === null || !('name' in error)
+  if (isNotNamedError) {
     return false
   }
-  const errName = error.name
+  const errName = (error as { name: unknown }).name
   return errName === 'AbortError' || errName === 'RequestAbortedError'
 }
 
@@ -108,10 +110,9 @@ function mapChatFinishReason(
   if (emittedAnyToolCallEnd) return 'tool_calls'
   if (pendingFinishReason === 'tool_calls') return 'stop'
   if (pendingFinishReason === 'length') return 'length'
-  if (
-    pendingFinishReason === 'content_filter' ||
-    pendingFinishReason === 'error'
-  ) {
+  const isContentFilterOrError =
+    pendingFinishReason === 'content_filter' || pendingFinishReason === 'error'
+  if (isContentFilterOrError) {
     return 'content_filter'
   }
   return 'stop'
@@ -144,17 +145,20 @@ function* closeChatReasoning(
   model: string,
   reset: boolean,
 ): Generator<AdapterYieldChunk> {
-  if (!state.reasoningMessageId || state.hasClosedReasoning) return
+  const reasoningMessageId = state.reasoningMessageId
+  const shouldSkipCloseReasoning =
+    !reasoningMessageId || state.hasClosedReasoning
+  if (shouldSkipCloseReasoning) return
   state.hasClosedReasoning = true
   yield {
     type: EventType.REASONING_MESSAGE_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model,
     timestamp: Date.now(),
   }
   yield {
     type: EventType.REASONING_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model,
     timestamp: Date.now(),
   }
@@ -346,10 +350,9 @@ function* emitChatFinishReason(
   state: ChatStreamState,
 ): Generator<AdapterYieldChunk> {
   const model = chunk.model || options.model
-  if (
-    choice.finishReason === 'tool_calls' ||
-    state.toolCallsInProgress.size > 0
-  ) {
+  const hasPendingToolCalls =
+    choice.finishReason === 'tool_calls' || state.toolCallsInProgress.size > 0
+  if (hasPendingToolCalls) {
     yield* endInProgressToolCalls(state, options, model, '')
     state.toolCallsInProgress.clear()
   }
@@ -690,12 +693,6 @@ export function* emitChatStructuredStreamError(
   )
 }
 
-/**
- * Flatten any reasoning deltas in a stream chunk into a single string.
- * OpenRouter emits reasoning content via `delta.reasoningDetails`, a union of
- * variants including `{ type: 'reasoning.text', text }` and
- * `{ type: 'reasoning.summary', summary }`.
- */
 function extractReasoningText(chunk: ChatStreamChunk): string {
   let text = ''
   for (const choice of chunk.choices) {

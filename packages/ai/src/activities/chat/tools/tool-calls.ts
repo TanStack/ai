@@ -37,22 +37,6 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
-/**
- * MCP Apps metadata attached to a server tool at discovery (see
- * `@tanstack/ai-mcp` discovery + `MCPManager.discover()`).
- *
- * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
- * - `readResource` is bound by `MCPManager.discover()` (the one site that has
- *   both the tool and its originating source) so the resource can be eagerly
- *   read at the emit site. Under `chat()`-managed MCP lifecycle
- *   (`connection:'close'`), the MCP source is not disposed until the run
- *   drains, so `readResource` is still live at this emit point. Note: a caller
- *   who closes the MCP source early (outside `chat()`'s managed lifecycle)
- *   degrades fail-soft — `readResource` may reject, the widget is absent, but
- *   the tool result still flows to the model.
- *   `@tanstack/ai` never imports `@tanstack/ai-mcp`; this travels structurally
- *   on the tool.
- */
 interface McpToolAppMeta {
   uiResourceUri?: string
   serverId?: string
@@ -66,33 +50,20 @@ function readMcpAppMeta(tool: AnyTool): McpToolAppMeta | undefined {
   return meta
 }
 
-/**
- * Eagerly read a tool's linked `ui://` resource (MCP Apps) and emit a
- * `ui-resource` CUSTOM event so the client can render the widget. The model
- * still receives the normal text tool-result; the widget rides alongside and
- * never enters model input.
- *
- * Fail-soft: any read error logs a warning and emits nothing — it never throws,
- * so the normal tool-result still flows and a broken widget cannot break the run.
- */
 async function emitUiResourceIfLinked<TContext>(
   tool: AnyTool,
   context: ToolExecutionContext<TContext>,
 ): Promise<void> {
   const mcp = readMcpAppMeta(tool)
   const uiUri = mcp?.uiResourceUri
-  if (!uiUri || !mcp.readResource) return
+  const shouldSkipUiUri = !uiUri || !mcp.readResource
+  if (shouldSkipUiUri) return
 
   // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
   // an exception from the emit path can't be mislabeled as a read failure.
   let matched: McpResourceReadResult['contents'][number] | undefined
   try {
     const res = await mcp.readResource(uiUri)
-    // Emit ONLY the content whose uri matches the requested `uiUri`. A source
-    // can return unrelated contents; falling back to `contents[0]` would risk
-    // rendering a widget that doesn't correspond to the linked resource. This
-    // is a display widget — a mismatched resource is worse than none, so if no
-    // content matches we fail-soft (warn + return) rather than emit.
     matched = res.contents.find((c) => c.uri === uiUri)
   } catch (err) {
     // fail-soft — the text tool-result already flows; a broken widget must
@@ -106,10 +77,6 @@ async function emitUiResourceIfLinked<TContext>(
     )
     return
   }
-  // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
-  // every emitted event by the `executeToolCalls` context wrapper, so the
-  // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
-  // still satisfied downstream.
   context.emitCustomEvent('ui-resource', {
     resource: {
       uri: matched.uri,
@@ -123,10 +90,6 @@ async function emitUiResourceIfLinked<TContext>(
   })
 }
 
-/**
- * Optional middleware hooks for tool execution.
- * When provided, these callbacks are invoked before/after each tool execution.
- */
 export interface ToolExecutionMiddlewareHooks {
   onBeforeToolCall?: (
     toolCall: ToolCall,
@@ -136,9 +99,6 @@ export interface ToolExecutionMiddlewareHooks {
   onAfterToolCall?: (info: AfterToolCallInfo) => Promise<void>
 }
 
-/**
- * Error thrown when middleware decides to abort the chat run during tool execution.
- */
 export class MiddlewareAbortError extends Error {
   constructor(reason: string) {
     super(reason)
@@ -146,9 +106,6 @@ export class MiddlewareAbortError extends Error {
   }
 }
 
-// The leaf context-inference primitives (ContextFromTool, MergeContext,
-// UnionToIntersection, DefinedContext) are shared with the chat activity
-// options layer — see ../runtime-context-types.
 type RequiredContextFromToolUnion<T> = T extends unknown
   ? undefined extends ContextFromTool<T>
     ? never
@@ -187,7 +144,9 @@ function parseManagedToolArgs(tool: AnyTool, toolCall: ToolCall): unknown {
       `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
     )
   }
-  if (!tool.inputSchema || !isStandardSchema(tool.inputSchema)) return args
+  const shouldSkipTool =
+    !tool.inputSchema || !isStandardSchema(tool.inputSchema)
+  if (shouldSkipTool) return args
   try {
     return parseWithStandardSchema(tool.inputSchema, args)
   } catch (validationError: unknown) {
@@ -200,7 +159,9 @@ function parseManagedToolArgs(tool: AnyTool, toolCall: ToolCall): unknown {
 }
 
 function validateManagedToolOutput(tool: AnyTool, result: unknown): unknown {
-  if (!tool.outputSchema || !isStandardSchema(tool.outputSchema)) return result
+  const shouldSkipTool =
+    !tool.outputSchema || !isStandardSchema(tool.outputSchema)
+  if (shouldSkipTool) return result
   try {
     return parseWithStandardSchema(tool.outputSchema, result)
   } catch (validationError: unknown) {
@@ -250,40 +211,6 @@ async function executeManagedToolCall<TContext>(
   }
 }
 
-/**
- * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
- *
- * Responsibilities:
- * - Accumulates streaming tool call events (ID, name, arguments)
- * - Validates tool calls (filters out incomplete ones)
- * - Executes tool `execute` functions with parsed arguments
- * - Emits `TOOL_CALL_END` events for client visibility
- * - Returns tool result messages for conversation history
- *
- * This class is used internally by the AI.chat() method to handle the automatic
- * tool execution loop. It can also be used independently for custom tool execution logic.
- *
- * @example
- * ```typescript
- * const manager = new ToolCallManager(tools);
- *
- * // During streaming, accumulate tool calls
- * for await (const chunk of stream) {
- *   if (chunk.type === 'TOOL_CALL_START') {
- *     manager.addToolCallStartEvent(chunk);
- *   } else if (chunk.type === 'TOOL_CALL_ARGS') {
- *     manager.addToolCallArgsEvent(chunk);
- *   }
- * }
- *
- * // After stream completes, execute tools
- * if (manager.hasToolCalls()) {
- *   const toolResults = yield* manager.executeTools(finishEvent);
- *   messages = [...messages, ...toolResults];
- *   manager.clear();
- * }
- * ```
- */
 export class ToolCallManager<
   TToolsOrContext = ReadonlyArray<AnyTool>,
   TContext = TToolsOrContext extends ReadonlyArray<AnyTool>
@@ -303,9 +230,6 @@ export class ToolCallManager<
     this.tools = tools
   }
 
-  /**
-   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
-   */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
     const name = event.toolCallName ?? event.toolName
@@ -320,14 +244,14 @@ export class ToolCallManager<
     })
   }
 
-  /**
-   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
-   */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
     const extra = event as AdapterYieldChunk
-    for (const [, toolCall] of this.toolCallsMap.entries()) {
+    const toolCallsMapEntries = this.toolCallsMap.entries()
+    for (const [, toolCall] of toolCallsMapEntries) {
       if (toolCall.id === event.toolCallId) {
-        if (typeof extra.args === 'string' && extra.args !== '') {
+        const isInvalidExtra =
+          typeof extra.args === 'string' && extra.args !== ''
+        if (isInvalidExtra) {
           toolCall.function.arguments = extra.args
         } else {
           toolCall.function.arguments += event.delta
@@ -337,12 +261,9 @@ export class ToolCallManager<
     }
   }
 
-  /**
-   * Complete a tool call with its final input
-   * Called when TOOL_CALL_END is received
-   */
   completeToolCall(event: ToolCallEndEvent): void {
-    for (const toolCall of this.toolCallsMap.values()) {
+    const toolCallsMap = this.toolCallsMap.values()
+    for (const toolCall of toolCallsMap) {
       if (toolCall.id !== event.toolCallId) continue
       if (event.input === undefined) return
       const normalized =
@@ -352,27 +273,16 @@ export class ToolCallManager<
     }
   }
 
-  /**
-   * Check if there are any complete tool calls to execute
-   */
   hasToolCalls(): boolean {
     return this.getToolCalls().length > 0
   }
 
-  /**
-   * Get all complete tool calls (filtered for valid ID and name)
-   */
   getToolCalls(): Array<ToolCall> {
     return Array.from(this.toolCallsMap.values()).filter(
       (tc) => tc.id && tc.function.name && tc.function.name.trim().length > 0,
     )
   }
 
-  /**
-   * Execute all tool calls and return tool result messages
-   * Yields TOOL_CALL_END events for streaming
-   * @param finishEvent - RUN_FINISHED event from the stream
-   */
   async *executeTools(
     finishEvent: RunFinishedEvent,
     ...contextArgs: ExecuteToolsContextArgs<TContext>
@@ -423,9 +333,6 @@ export class ToolCallManager<
     return toolResults
   }
 
-  /**
-   * Clear the tool calls map for the next iteration
-   */
   clear(): void {
     this.toolCallsMap.clear()
   }
@@ -438,16 +345,7 @@ export interface ToolResult {
   state?: 'output-available' | 'output-error'
   /** Duration of tool execution in milliseconds (only for server-executed tools) */
   duration?: number
-  /**
-   * Parsed tool input (after JSON parse + optional Standard Schema validation).
-   * Parsed tool input after JSON parse + optional Standard Schema validation.
-   */
   input?: unknown
-  /**
-   * Parsed tool output before wire serialization. Surfaced on engine-emitted
-   * `TOOL_CALL_END` events so consumers can read typed `output` without
-   * re-parsing `result`. Undefined on error paths and when execution is skipped.
-   */
   output?: unknown
 }
 
@@ -503,11 +401,6 @@ interface ExecuteToolCallsResult {
   needsClientExecution: Array<ClientToolRequest>
 }
 
-/**
- * Helper that runs a tool execution promise while polling for pending custom events.
- * Yields any custom events that are emitted during execution, then returns the
- * execution result.
- */
 async function* executeWithEventPolling<T>(
   executionPromise: Promise<T>,
   pendingEvents: Array<CustomEvent>,
@@ -543,12 +436,6 @@ async function* executeWithEventPolling<T>(
   return state.result
 }
 
-/**
- * Apply a middleware onBeforeToolCall decision.
- * Returns the (possibly transformed) input if execution should proceed,
- * or undefined if the tool call was skipped (result already pushed).
- * Throws MiddlewareAbortError if the decision is 'abort'.
- */
 async function applyBeforeToolCallDecision(
   toolCall: ToolCall,
   tool: Tool,
@@ -598,10 +485,6 @@ async function applyBeforeToolCallDecision(
   return { proceed: true, input: decision.args }
 }
 
-/**
- * Execute a server-side tool with event polling, output validation, and middleware hooks.
- * Yields CustomEvent chunks during execution and pushes the result to the results array.
- */
 export async function* executeServerTool<TContext = unknown>(
   toolCall: ToolCall,
   tool: AnyTool,
@@ -621,11 +504,6 @@ export async function* executeServerTool<TContext = unknown>(
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
-    // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
-    // a `ui-resource` CUSTOM event. The MCP source stays live until the run
-    // drains (MCPManager's `connection:'close'` policy disposes on completion),
-    // so `readResource` is callable here. Fail-soft: a read error warns and
-    // emits nothing — the text result still flows.
     await emitUiResourceIfLinked(tool, context)
 
     // Flush remaining events (including any queued ui-resource event)
@@ -636,7 +514,8 @@ export async function* executeServerTool<TContext = unknown>(
 
     // Validate output against outputSchema if provided. Validates
     // `undefined`/`null` too — the schema decides whether they're valid.
-    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+    const hasTool = tool.outputSchema && isStandardSchema(tool.outputSchema)
+    if (hasTool) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
@@ -709,7 +588,8 @@ function buildClientToolResult(
 ): ToolResult {
   try {
     let result = rawResult
-    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+    const hasTool = tool.outputSchema && isStandardSchema(tool.outputSchema)
+    if (hasTool) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
@@ -734,21 +614,6 @@ function buildClientToolResult(
   }
 }
 
-/**
- * Execute tool calls based on their configuration.
- * Yields CustomEvent chunks during tool execution for real-time progress updates.
- *
- * Handles three cases:
- * 1. Client tools (no execute) - request client to execute
- * 2. Server tools with approval - check approval before executing
- * 3. Normal server tools - execute immediately
- *
- * @param toolCalls - Tool calls from the LLM
- * @param tools - Available tools with their configurations
- * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
- * @param clientResults - Map of client-side execution results (toolCallId -> result)
- * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
- */
 function parseExecuteToolCallInput(
   tool: AnyTool,
   toolCall: ToolCall,
@@ -775,7 +640,9 @@ function parseExecuteToolCallInput(
       }
     }
   }
-  if (!tool.inputSchema || !isStandardSchema(tool.inputSchema)) {
+  const shouldSkipTool =
+    !tool.inputSchema || !isStandardSchema(tool.inputSchema)
+  if (shouldSkipTool) {
     return { ok: true, input }
   }
   try {

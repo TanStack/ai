@@ -1,26 +1,3 @@
-/**
- * Map a portable {@link SandboxPolicy} onto Codex CLI settings.
- *
- * **Best-effort, coarse mapping.** `codex exec --experimental-json` runs
- * non-interactively: there is no per-action host callback (unlike Claude Code's
- * `--permission-prompt-tool`), so the fine-grained, resume-based interactive
- * approval flow (`deny` + `approval-requested` + re-run) is NOT available for
- * Codex. Instead the policy collapses onto Codex's coarse knobs:
- *
- * - `capabilities.fileWrite === 'deny'` → `--sandbox read-only`
- *   (otherwise `workspace-write`).
- * - `capabilities.network` → `sandbox_workspace_write.network_access`
- *   (`'allow'` → true, `'deny'` → false; unset leaves Codex's default).
- * - `approval_policy`: a fully-permissive policy (`default: 'allow'` with no
- *   `ask` rules) → `never`; a `default: 'deny'` policy → `untrusted`;
- *   `default: 'ask'` or any `commands.ask` rules → `on-request`. A deny list
- *   alone is a hard block, not a human prompt, so it does not flip
- *   `on-request`. In `exec` mode Codex will refuse (rather than prompt for)
- *   actions that need approval.
- *
- * Returns only the knobs the policy actually constrains; the adapter merges
- * these with its own config (config/modelOptions still take precedence).
- */
 import type { SandboxPolicy } from '@tanstack/ai-sandbox'
 import type { CodexApprovalMode, CodexSandboxMode } from './text'
 
@@ -46,7 +23,8 @@ export function mapPolicyToCodexFlags(
   }
 
   const hasAsk = (policy.commands?.ask?.length ?? 0) > 0
-  if (hasAsk || policy.default === 'ask') {
+  const needsOnRequest = hasAsk || policy.default === 'ask'
+  if (needsOnRequest) {
     flags.approvalPolicy = 'on-request'
   } else if (policy.default === 'deny') {
     flags.approvalPolicy = 'untrusted'

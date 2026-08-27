@@ -1,8 +1,5 @@
 import type { GeminiLiveClient } from './client'
 
-/**
- * Audio Worklet Processor for capturing and processing audio
- */
 const captureWorkletCode = `
 class AudioCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -44,11 +41,6 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 // Register the processor
 registerProcessor("audio-capture-processor", AudioCaptureProcessor);`
 
-/**
- * Audio Playback Worklet Processor for playing PCM audio.
- * Uses an offset tracker instead of slice() to avoid allocations
- * on the real-time audio thread.
- */
 const playbackWorkletCode = `
 class PCMProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -126,9 +118,6 @@ function calculateLevel(analyser: AnalyserNode): number {
     }
   }
 
-  // Normalize to 0-1 range (max deviation is 128)
-  // Scale by 1.5x so that ~66% amplitude reads as full scale
-  // This provides good visual feedback without pegging too early
   const normalized = maxDeviation / 128
   return Math.min(1, normalized * 1.5)
 }
@@ -283,7 +272,8 @@ export class AudioStreamer {
 
   startAudioCapture() {
     if (this.mediaStream) {
-      for (const track of this.mediaStream.getAudioTracks()) {
+      const audioTracks = this.mediaStream.getAudioTracks()
+      for (const track of audioTracks) {
         track.enabled = true
       }
     }
@@ -293,7 +283,8 @@ export class AudioStreamer {
   stopAudioCapture() {
     if (this.mediaStream) {
       // Disable tracks rather than stopping them to allow re-enabling
-      for (const track of this.mediaStream.getAudioTracks()) {
+      const audioTracks = this.mediaStream.getAudioTracks()
+      for (const track of audioTracks) {
         track.enabled = false
       }
     }

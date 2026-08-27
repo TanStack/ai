@@ -18,12 +18,6 @@ export interface AcpTranslateLabels {
   sessionIdEvent: string
   planEvent?: string
   refusalMessage?: string
-  /**
-   * When set, non-text agent message content (image / audio / resource /
-   * resource_link blocks) is surfaced as a CUSTOM event under this name instead
-   * of being dropped. Each event's `value` is `{ content: <ACP content block> }`.
-   * Omit to keep the text-only behavior.
-   */
   contentEvent?: string
 }
 
@@ -42,7 +36,8 @@ export function matchBridgedToolName(
   title: string | null | undefined,
   bridgedToolNames: ReadonlySet<string> | undefined,
 ): string | undefined {
-  if (!title || !bridgedToolNames) return undefined
+  if (!title) return undefined
+  if (!bridgedToolNames) return undefined
   if (bridgedToolNames.has(title)) return title
   for (const name of bridgedToolNames) {
     if (title.startsWith(`${name} (`)) return name
@@ -318,7 +313,9 @@ export async function* translateAcpStream(
     yield* closeText()
     yield* closeReasoning()
     yield* openToolCall(update)
-    if (update.status === 'completed' || update.status === 'failed') {
+    const isTerminal =
+      update.status === 'completed' || update.status === 'failed'
+    if (isTerminal) {
       yield* resolveToolCall(update)
     }
   }
@@ -352,7 +349,9 @@ export async function* translateAcpStream(
   function* handleToolCallUpdate(
     update: Extract<AcpSessionUpdate, { sessionUpdate: 'tool_call_update' }>,
   ): Generator<AdapterYieldChunk> {
-    if (update.status === 'completed' || update.status === 'failed') {
+    const isTerminal =
+      update.status === 'completed' || update.status === 'failed'
+    if (isTerminal) {
       yield* resolveToolCall(update)
       return
     }

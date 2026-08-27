@@ -42,11 +42,6 @@ interface ResponsesAguiState {
   hasEmittedRunStarted: boolean
 }
 
-/**
- * Normalised event shape we read off each OpenRouter SDK stream event after
- * camel-case translation. Models the loose superset of fields we consult
- * across all event-type branches; specific branches narrow further inline.
- */
 interface NormalizedStreamEvent {
   type: string
   itemId?: string
@@ -63,9 +58,6 @@ interface NormalizedStreamEvent {
   response?: Partial<OpenResponsesResult>
   /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
   item?: OutputItems
-  /** SDK discriminated union — narrow with `part.type === '<variant>'`.
-   *  Shared by `response.content_part.added` and `response.content_part.done`
-   *  (`ContentPartDoneEventPart` is structurally identical). */
   part?: ContentPartAddedEventPart
 }
 
@@ -131,10 +123,12 @@ function streamDeltaToString(
 }
 
 function isAbortError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null || !('name' in error)) {
+  const isNotNamedError =
+    typeof error !== 'object' || error === null || !('name' in error)
+  if (isNotNamedError) {
     return false
   }
-  const errName = error.name
+  const errName = (error as { name: unknown }).name
   return errName === 'AbortError' || errName === 'RequestAbortedError'
 }
 
@@ -189,19 +183,22 @@ function* openReasoning(
 function* closeReasoning(
   state: ResponsesStreamState,
 ): Generator<AdapterYieldChunk> {
-  if (!state.reasoningMessageId || state.hasClosedReasoning) return
+  const reasoningMessageId = state.reasoningMessageId
+  const shouldSkipCloseReasoning =
+    !reasoningMessageId || state.hasClosedReasoning
+  if (shouldSkipCloseReasoning) return
   state.hasClosedReasoning = true
   const timestamp = Date.now()
   const currentModel = emitModel(state)
   yield {
     type: EventType.REASONING_MESSAGE_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: currentModel,
     timestamp,
   }
   yield {
     type: EventType.REASONING_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: currentModel,
     timestamp,
   }
@@ -320,12 +317,14 @@ function* maybeStartFunctionCall(
   metadata: StreamedFunctionCallMetadata,
   index: number,
 ): Generator<AdapterYieldChunk> {
-  if (metadata.started || !metadata.name) return
+  const toolName = metadata.name
+  const alreadyStartedOrUnnamed = metadata.started || !toolName
+  if (alreadyStartedOrUnnamed) return
   yield {
     type: EventType.TOOL_CALL_START,
     toolCallId: metadata.callId,
-    toolCallName: metadata.name,
-    toolName: metadata.name,
+    toolCallName: toolName,
+    toolName: toolName,
     parentMessageId: state.aguiState.messageId,
     model: emitModel(state),
     timestamp: Date.now(),
@@ -497,7 +496,9 @@ function* handleOutputTextDone(
   state: ResponsesStreamState,
   chunk: NormalizedStreamEvent,
 ): Generator<AdapterYieldChunk> {
-  if (!chunk.text || state.accumulatedContent.length !== 0) return
+  const completedText = chunk.text
+  if (!completedText) return
+  if (state.accumulatedContent.length !== 0) return
   if (!state.hasEmittedTextMessageStart) {
     state.hasEmittedTextMessageStart = true
     yield {
@@ -508,14 +509,14 @@ function* handleOutputTextDone(
       role: 'assistant',
     }
   }
-  state.accumulatedContent = chunk.text
+  state.accumulatedContent = completedText
   state.hasStreamedContentDeltas = true
   yield {
     type: EventType.TEXT_MESSAGE_CONTENT,
     messageId: state.aguiState.messageId,
     model: emitModel(state),
     timestamp: Date.now(),
-    delta: chunk.text,
+    delta: completedText,
     content: state.accumulatedContent,
   }
 }
@@ -558,11 +559,11 @@ function* handleContentPartAdded(
 ): Generator<AdapterYieldChunk> {
   if (!chunk.part) return
   const contentPart = chunk.part
-  if (
+  const isEmptyStreamableText =
     (contentPart.type === 'output_text' ||
       contentPart.type === 'reasoning_text') &&
     !contentPart.text
-  ) {
+  if (isEmptyStreamableText) {
     return
   }
   if (contentPart.type === 'reasoning_text') {
@@ -587,13 +588,14 @@ function* handleContentPartDone(
 ): Generator<AdapterYieldChunk> {
   if (!chunk.part) return
   const contentPart = chunk.part
-  if (contentPart.type === 'output_text' && state.hasStreamedContentDeltas) {
+  const alreadyStreamedOutputText =
+    contentPart.type === 'output_text' && state.hasStreamedContentDeltas
+  if (alreadyStreamedOutputText) {
     return
   }
-  if (
-    contentPart.type === 'reasoning_text' &&
-    state.hasStreamedReasoningDeltas
-  ) {
+  const alreadyStreamedReasoningText =
+    contentPart.type === 'reasoning_text' && state.hasStreamedReasoningDeltas
+  if (alreadyStreamedReasoningText) {
     return
   }
   if (contentPart.type === 'reasoning_text') {
@@ -616,10 +618,11 @@ function* handleOutputItemAdded(
   chunk: NormalizedStreamEvent,
 ): Generator<AdapterYieldChunk> {
   const item = chunk.item
-  if (item?.type !== 'function_call' || !item.id) return
+  if (item?.type !== 'function_call') return
+  if (!item.id) return
   const metadata = getOrCreateFunctionCallMeta(
     state,
-    item,
+    item as FunctionCallItem,
     chunk.outputIndex ?? 0,
   )
   yield* maybeStartFunctionCall(state, metadata, chunk.outputIndex ?? 0)
@@ -682,20 +685,22 @@ function* handleOutputItemDone(
   chunk: NormalizedStreamEvent,
 ): Generator<AdapterYieldChunk> {
   const item = chunk.item
-  if (item?.type !== 'function_call' || !item.id) return
+  if (item?.type !== 'function_call') return
+  const itemId = item.id
+  if (!itemId) return
   const metadata = getOrCreateFunctionCallMeta(
     state,
-    item,
+    item as FunctionCallItem,
     chunk.outputIndex ?? 0,
   )
   yield* maybeStartFunctionCall(state, metadata, metadata.index)
-  const rawArgs = functionCallRawArgs(item, metadata)
+  const rawArgs = functionCallRawArgs(item as FunctionCallItem, metadata)
   if (metadata.started && !metadata.ended && rawArgs !== undefined) {
     yield* endFunctionCall(
       state,
       metadata,
       rawArgs,
-      item.id,
+      itemId,
       ' (output_item.done backfill)',
     )
   }
@@ -727,7 +732,9 @@ function* backfillCompletedText(
   state: ResponsesStreamState,
   completedText: string,
 ): Generator<AdapterYieldChunk> {
-  if (state.accumulatedContent.length !== 0 || completedText.length === 0) {
+  const hasStreamedOrEmptyCompletedText =
+    state.accumulatedContent.length !== 0 || completedText.length === 0
+  if (hasStreamedOrEmptyCompletedText) {
     return
   }
   if (!state.hasEmittedTextMessageStart) {
@@ -757,16 +764,22 @@ function* backfillCompletedFunctionCalls(
   outputItems: Array<OutputItems>,
 ): Generator<AdapterYieldChunk> {
   for (const item of outputItems) {
-    if (item.type !== 'function_call' || !item.id) continue
-    const metadata = getOrCreateFunctionCallMeta(state, item, 0)
+    if (item.type !== 'function_call') continue
+    const itemId = item.id
+    if (!itemId) continue
+    const metadata = getOrCreateFunctionCallMeta(
+      state,
+      item as FunctionCallItem,
+      0,
+    )
     yield* maybeStartFunctionCall(state, metadata, metadata.index)
-    const rawArgs = functionCallRawArgs(item, metadata)
+    const rawArgs = functionCallRawArgs(item as FunctionCallItem, metadata)
     if (metadata.started && !metadata.ended) {
       yield* endFunctionCall(
         state,
         metadata,
         rawArgs,
-        item.id,
+        itemId,
         ' (response.completed backfill)',
       )
     }
@@ -862,7 +875,9 @@ const STREAM_HANDLERS: Record<string, StreamHandler> = {
 function* finishIfNeeded(
   state: ResponsesStreamState,
 ): Generator<AdapterYieldChunk> {
-  if (state.runFinishedEmitted || !state.aguiState.hasEmittedRunStarted) return
+  const shouldSkipFinish =
+    state.runFinishedEmitted || !state.aguiState.hasEmittedRunStarted
+  if (shouldSkipFinish) return
   yield* closeReasoning(state)
   yield* emitTextMessageEnd(state, false)
   yield {
@@ -985,17 +1000,20 @@ function* openStructuredReasoning(
 function* closeStructuredReasoning(
   state: ResponsesStructuredState,
 ): Generator<AdapterYieldChunk> {
-  if (!state.reasoningMessageId || state.hasClosedReasoning) return
+  const reasoningMessageId = state.reasoningMessageId
+  const shouldSkipCloseReasoning =
+    !reasoningMessageId || state.hasClosedReasoning
+  if (shouldSkipCloseReasoning) return
   state.hasClosedReasoning = true
   yield {
     type: EventType.REASONING_MESSAGE_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: state.model,
     timestamp: Date.now(),
   }
   yield {
     type: EventType.REASONING_END,
-    messageId: state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: state.model,
     timestamp: Date.now(),
   }
@@ -1299,20 +1317,6 @@ export function* emitResponsesStructuredStreamError(
   )
 }
 
-/**
- * Translate the SDK's discriminated-union event into a uniform camelCase
- * shape our processor reads.
- *
- * The SDK's discriminated-union parser falls back to
- * `{ raw, type: 'UNKNOWN', isUnknown: true }` when an event's strict per-
- * variant schema rejects (missing optional-ish fields like `sequenceNumber`/
- * `logprobs` that some upstreams — including aimock — omit). The `raw`
- * payload is the original wire-shape event in snake_case. We translate
- * snake_case keys to camelCase for those unknown events so the rest of the
- * processor reads a uniform shape.
- *
- * Known events already have camelCase fields and are passed through.
- */
 function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
   const e = event as {
     isUnknown?: boolean
@@ -1375,11 +1379,9 @@ function camelCaseResponseShape(
   if ('incomplete_details' in src)
     out.incompleteDetails = src.incomplete_details
   if ('output_text' in src) out.outputText = src.output_text
-  if (
-    'input_tokens' in src ||
-    'output_tokens' in src ||
-    'total_tokens' in src
-  ) {
+  const hasTopLevelTokenCounts =
+    'input_tokens' in src || 'output_tokens' in src || 'total_tokens' in src
+  if (hasTopLevelTokenCounts) {
     // never mutate src; rewrite usage in place if present.
   }
   if (src.usage && typeof src.usage === 'object') {

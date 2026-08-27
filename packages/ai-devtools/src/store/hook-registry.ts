@@ -125,12 +125,6 @@ export interface HookRecord {
   activityRunIds: Array<string>
 }
 
-/**
- * Cap on the number of recently-seen event IDs we retain for dedupe. Once
- * exceeded, the oldest entries are evicted FIFO so the structure stays
- * bounded for the life of the session. Events older than this window may
- * dedupe-miss; consumers should not rely on perfect global dedupe.
- */
 export const SEEN_EVENT_IDS_CAP = 10_000
 
 export interface HookRegistryState {
@@ -237,10 +231,6 @@ export function markEventSeen(
     key = event.eventId
   } else {
     key = syntheticEventDedupeKey(eventName, event)
-    // If every identifying field fell back to its literal sentinel the synthesised
-    // key is just `eventName:unknown:unknown:no-runtime:...` — useful for very
-    // little. Warn so it's obvious in the console why deduplication may be
-    // collapsing distinct events together.
     if (eventHasNoDedupeIdentity(event)) {
       console.warn(
         `[ai-devtools] dedupe key for "${eventName}" has no identifying fields; events may collide.`,
@@ -301,22 +291,25 @@ function applyUnregisteredHookEvent(
 ): void {
   const unregistered = event as HookUnregisteredEvent
   const existing = state.hooks[unregistered.hookId]
-  if (
-    existing?.clientId &&
-    unregistered.clientId &&
-    existing.clientId !== unregistered.clientId
-  ) {
+  const hasDifferentClient =
+    Boolean(existing?.clientId) &&
+    Boolean(unregistered.clientId) &&
+    existing?.clientId !== unregistered.clientId
+  if (hasDifferentClient) {
     return
   }
-  if (
-    existing?.correlationId &&
-    unregistered.correlationId &&
-    existing.correlationId !== unregistered.correlationId
-  ) {
+  const hasDifferentCorrelation =
+    Boolean(existing?.correlationId) &&
+    Boolean(unregistered.correlationId) &&
+    existing?.correlationId !== unregistered.correlationId
+  if (hasDifferentCorrelation) {
     return
   }
-  if (existing && existing.registeredAt > unregistered.timestamp) {
-    return
+  if (existing) {
+    const isStaleUnregister = existing.registeredAt > unregistered.timestamp
+    if (isStaleUnregister) {
+      return
+    }
   }
   state.unregisteredHookIds[unregistered.hookId] = true
   removeHookRecord(state, unregistered.hookId)
@@ -344,10 +337,6 @@ function applyStateSnapshotHookEvent(
     hook.updatedAt = snapshot.timestamp
   }
   attachEventToHook(state, snapshot.hookId, timelineEvent.id)
-  // Generation hooks ship their run history inside the snapshot. When
-  // devtools is opened after a run has already completed, the run
-  // lifecycle events fired before mount are lost, so backfill the
-  // global runs map and the hook's runIds from the snapshot itself.
   syncRunsFromSnapshot(state, snapshot, timelineEvent.id)
 }
 
@@ -387,21 +376,23 @@ function applyRunLifecycleHookEvent(
   timelineEvent: TimelineEvent,
 ): void {
   const runEvent = event as RunLifecycleEvent
-  if (runEvent.hookId && state.unregisteredHookIds[runEvent.hookId]) {
-    return
-  }
-  if (
-    runEvent.hookId &&
-    isStaleHookInstanceEvent(state, runEvent.hookId, runEvent)
-  ) {
-    return
+  const hookId = runEvent.hookId
+  if (hookId) {
+    const isUnregisteredHook = Boolean(state.unregisteredHookIds[hookId])
+    if (isUnregisteredHook) {
+      return
+    }
+    const isStaleHook = isStaleHookInstanceEvent(state, hookId, runEvent)
+    if (isStaleHook) {
+      return
+    }
   }
   upsertRun(state, runEvent, timelineEvent.id)
-  if (runEvent.hookId) {
-    upsertUnknownHook(state, runEvent.hookId, runEvent)
-    attachRunToHook(state, runEvent.hookId, runEvent.runId)
-    attachActivityRunToHook(state, runEvent.hookId, runEvent.runId)
-    attachEventToHook(state, runEvent.hookId, timelineEvent.id)
+  if (hookId) {
+    upsertUnknownHook(state, hookId, runEvent)
+    attachRunToHook(state, hookId, runEvent.runId)
+    attachActivityRunToHook(state, hookId, runEvent.runId)
+    attachEventToHook(state, hookId, timelineEvent.id)
   }
 }
 
@@ -450,8 +441,12 @@ export function applyHookEvent(
   const apply = hookEventHandlers[eventName]
   if (apply) apply(state, event, timelineEvent)
 
-  if (state.activeHookId && !state.hooks[state.activeHookId]) {
-    state.activeHookId = null
+  const activeHookId = state.activeHookId
+  if (activeHookId) {
+    const isMissingActiveHook = !state.hooks[activeHookId]
+    if (isMissingActiveHook) {
+      state.activeHookId = null
+    }
   }
 
   if (state.activeHookId) {
@@ -673,15 +668,14 @@ function removeHookRecord(state: HookRegistryState, hookId: string): void {
   const hookRunIds = new Set(hook?.runIds ?? [])
   const hookEventIds = new Set(hook?.eventIds ?? [])
 
-  for (const [runId, run] of Object.entries(state.runs)) {
-    if (run.hookId === hookId || hookRunIds.has(runId)) {
+  const runEntries = Object.entries(state.runs)
+  for (const [runId, run] of runEntries) {
+    const shouldRemoveRun = run.hookId === hookId || hookRunIds.has(runId)
+    if (shouldRemoveRun) {
       delete state.runs[runId]
     }
   }
 
-  // Only remove events that were attached to the hook via attachEventToHook;
-  // the unregister event itself is intentionally not attached so it survives
-  // and can still be inspected on the global timeline.
   for (const eventId of hookEventIds) {
     delete state.events[eventId]
   }
@@ -742,7 +736,9 @@ function attachRunToHook(
   runId: string,
 ): void {
   const hook = state.hooks[hookId]
-  if (!hook || hook.runIds.includes(runId)) return
+  if (!hook) return
+  const hasRun = hook.runIds.includes(runId)
+  if (hasRun) return
   hook.runIds.push(runId)
 }
 
@@ -754,7 +750,8 @@ function syncRunsFromSnapshot(
   const rawRuns = (snapshot.state as { runs?: unknown }).runs
   if (!Array.isArray(rawRuns)) return
   for (const candidate of rawRuns) {
-    if (!candidate || typeof candidate !== 'object') continue
+    const isInvalidRun = !candidate || typeof candidate !== 'object'
+    if (isInvalidRun) continue
     const run = candidate as {
       id?: unknown
       status?: unknown
@@ -797,8 +794,12 @@ function syncRunsFromSnapshot(
       existing.updatedAt = updatedAt
       if (typeof run.completedAt === 'number') {
         existing.completedAt = run.completedAt
-      } else if (isTerminalRunStatus(status) && !existing.completedAt) {
-        existing.completedAt = updatedAt
+      } else {
+        const shouldSetCompletedAt =
+          isTerminalRunStatus(status) && !existing.completedAt
+        if (shouldSetCompletedAt) {
+          existing.completedAt = updatedAt
+        }
       }
       if (typeof run.error === 'string') existing.error = run.error
       if (!existing.eventIds.includes(eventId)) {
@@ -837,7 +838,9 @@ function attachActivityRunToHook(
   runId: string,
 ): void {
   const hook = state.hooks[hookId]
-  if (!hook || hook.activityRunIds.includes(runId)) return
+  if (!hook) return
+  const hasActivityRun = hook.activityRunIds.includes(runId)
+  if (hasActivityRun) return
   hook.activityRunIds.push(runId)
 }
 
@@ -848,17 +851,21 @@ function attachEventToHook(
 ): void {
   if (!hookId) return
   const hook = state.hooks[hookId]
-  if (!hook || hook.eventIds.includes(eventId)) return
+  if (!hook) return
+  const hasEvent = hook.eventIds.includes(eventId)
+  if (hasEvent) return
   hook.eventIds.push(eventId)
 }
 
 function inferLifecycleFromSnapshot(
   state: Record<string, unknown>,
 ): HookLifecycle {
-  if (state.status === 'error' || state.error) {
+  const isErrored = state.status === 'error' || Boolean(state.error)
+  if (isErrored) {
     return 'errored'
   }
-  if (state.isLoading || state.status === 'generating') {
+  const isStreaming = Boolean(state.isLoading) || state.status === 'generating'
+  if (isStreaming) {
     return 'streaming'
   }
   return 'active'

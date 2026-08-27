@@ -18,18 +18,6 @@ function extractText(content: ModelMessage['content']): string {
     .join('')
 }
 
-/**
- * Convert TanStack chat history into a harness prompt + resume inputs.
- *
- * With a `sessionId`, the harness already holds the conversation context, so
- * only the trailing user message is sent and the session is resumed. Without
- * one, prior user/assistant turns are flattened into a plain-text transcript
- * preamble (tool messages and tool-call-only assistant turns are
- * harness-internal noise and are skipped; prompts are text-only).
- *
- * Shared default for ACP harness adapters; pass a custom `buildPrompt` to
- * {@link acpCompatible} to override.
- */
 export function buildAcpPrompt(
   messages: Array<ModelMessage>,
   sessionId: string | undefined,

@@ -11,10 +11,6 @@ import type {
   LovableVideoSize,
 } from './video/video-provider-options'
 
-/**
- * Chat models listed on https://docs.lovable.dev/features/ai.
- * Ids use the `google/` and `openai/` form that the gateway accepts.
- */
 export const LOVABLE_CHAT_MODELS = [
   'google/gemini-3.7-flash',
   'google/gemini-3.6-flash',
@@ -42,9 +38,6 @@ export const LOVABLE_CHAT_MODELS = [
 
 export type LovableChatModel = (typeof LOVABLE_CHAT_MODELS)[number]
 
-/**
- * A curated chat model id from `LOVABLE_CHAT_MODELS`.
- */
 export type LovableModelId = LovableChatModel
 
 export type LovableChatModelProviderOptionsByName = {
@@ -92,18 +85,12 @@ export type LovableImageModelInputModalitiesByName = {
   [K in LovableImageModel]: readonly ['image']
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export const LOVABLE_VIDEO_MODELS = [
   'google/veo-3.1-lite',
   'google/veo-3.1-fast',
   'google/veo-3.1',
 ] as const
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export type LovableVideoModel = (typeof LOVABLE_VIDEO_MODELS)[number]
 
 export type LovableVideoModelProviderOptionsByName = {

@@ -15,10 +15,6 @@ export interface ChatProps {
   /** Client-side tools with execute functions */
   tools?: Array<any>
   /** Custom tool components registry for rendering */
-  // toolComponents?: Record<
-  //   string,
-  //   (props: { input: any; output?: any }) => JSX.Element
-  // >
 }
 
 export interface ChatInputProps {
@@ -94,10 +90,6 @@ export interface TextPartProps {
   remarkPlugins?: PluggableList
   /** Additional rehype plugins, appended after the defaults. */
   rehypePlugins?: PluggableList
-  /**
-   * Drop the built-in plugin defaults and disable the renderer's built-in
-   * sanitizer. The caller becomes responsible for sanitization.
-   */
   disableDefaultPlugins?: boolean
 }
 

@@ -18,7 +18,9 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       ? chunk.timestamp
       : undefined
 
-  if (typeof chunk.signature === 'string' && chunk.signature !== '') {
+  const isInvalidChunk =
+    typeof chunk.signature === 'string' && chunk.signature !== ''
+  if (isInvalidChunk) {
     const source = chunk as Record<string, unknown>
     const toolCallId = stringField(source.toolCallId)
     const entityId =
@@ -43,7 +45,9 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       (chunk.metadata as { thoughtSignature?: unknown } | undefined)
         ?.thoughtSignature,
     )
-    if (thoughtSignature !== undefined && chunk.toolCallId) {
+    const hasThoughtSignature =
+      thoughtSignature !== undefined && chunk.toolCallId
+    if (hasThoughtSignature) {
       extras.push(
         reasoningEncryptedValue({
           subtype: 'tool-call',
@@ -66,21 +70,27 @@ function copySpecFields(
   const specChunk: Record<string, unknown> & {
     metadata?: MetadataRecord | null
   } = {}
-  for (const key of Object.keys(chunk)) {
+  const keys = Object.keys(chunk)
+  for (const key of keys) {
     if (specKeys.has(key)) {
       specChunk[key] = source[key]
     }
   }
   if (chunk.type === EventType.TOOL_CALL_START) {
-    if (specChunk.toolCallName === undefined && chunk.toolName) {
+    const hasSpecChunk = specChunk.toolCallName === undefined && chunk.toolName
+    if (hasSpecChunk) {
       specChunk.toolCallName = chunk.toolName
     }
   }
-  if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
-    if (specChunk.message === undefined && chunk.error.message) {
+  const isChunk = chunk.type === EventType.RUN_ERROR && chunk.error != null
+  if (isChunk) {
+    const hasSpecChunk2 = specChunk.message === undefined && chunk.error.message
+    if (hasSpecChunk2) {
       specChunk.message = chunk.error.message
     }
-    if (specChunk.code === undefined && chunk.error.code !== undefined) {
+    const hasSpecChunk3 =
+      specChunk.code === undefined && chunk.error.code !== undefined
+    if (hasSpecChunk3) {
       specChunk.code = chunk.error.code
     }
   }
@@ -89,10 +99,10 @@ function copySpecFields(
 
 function leftoverSkipKeys(chunk: AdapterYieldChunk): Set<string> {
   const skipLeftover = new Set(['result', 'error', 'tanstack:interruptErrors'])
-  if (
+  const hasChunk =
     chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
     chunk.type === EventType.TOOL_CALL_ARGS
-  ) {
+  if (hasChunk) {
     skipLeftover.add('model')
     skipLeftover.add('content')
     skipLeftover.add('args')
@@ -109,11 +119,11 @@ function collectTanstackMetadata(
   specChunk: Record<string, unknown>,
 ): MetadataRecord {
   const tanstack: MetadataRecord = {}
-  if (
+  const hasChunk =
     chunk.model !== undefined &&
     chunk.type !== EventType.TEXT_MESSAGE_CONTENT &&
     chunk.type !== EventType.TOOL_CALL_ARGS
-  ) {
+  if (hasChunk) {
     tanstack.model = chunk.model
   }
   if (chunk.finishReason !== undefined) {
@@ -123,7 +133,9 @@ function collectTanstackMetadata(
   if (interruptErrors !== undefined) {
     tanstack.interruptErrors = interruptErrors
   }
-  if (chunk.type === EventType.CUSTOM || chunk.type === EventType.RUN_ERROR) {
+  const hasChunk2 =
+    chunk.type === EventType.CUSTOM || chunk.type === EventType.RUN_ERROR
+  if (hasChunk2) {
     if (chunk.threadId !== undefined) {
       tanstack.threadId = chunk.threadId
     }
@@ -133,19 +145,21 @@ function collectTanstackMetadata(
   }
   const specKeys = specKeysFor(chunk.type)
   const skipLeftover = leftoverSkipKeys(chunk)
-  for (const key of Object.keys(chunk)) {
-    if (specKeys.has(key) || skipLeftover.has(key)) continue
+  const keys = Object.keys(chunk)
+  for (const key of keys) {
+    const shouldSkipSpecKeys = specKeys.has(key) || skipLeftover.has(key)
+    if (shouldSkipSpecKeys) continue
     if (tanstack[key] !== undefined) continue
     const value = source[key]
     if (value !== undefined) {
       tanstack[key] = value
     }
   }
-  if (
+  const isChunk =
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
     isTanstackUsage(specChunk.usage)
-  ) {
+  if (isChunk) {
     const { usage, leftover } = toSpecTokenUsage(specChunk.usage, {
       model: typeof chunk.model === 'string' ? chunk.model : undefined,
     })
@@ -161,7 +175,9 @@ function toolCallEndResultChunks(
   chunk: AdapterYieldChunk,
   source: Record<string, unknown>,
 ): Array<StreamChunk> {
-  if (chunk.type !== EventType.TOOL_CALL_END || chunk.result === undefined) {
+  const isIncompleteChunk =
+    chunk.type !== EventType.TOOL_CALL_END || chunk.result === undefined
+  if (isIncompleteChunk) {
     return []
   }
   const parentMessageId = source.parentMessageId

@@ -12,63 +12,25 @@ type DurableStreamCursor = string & {
 export type DurableStreamOffset = DurableStreamCursor | '-1' | 'now'
 
 export interface DurableStreamOptions {
-  /**
-   * Base URL of the Durable Streams server (no trailing slash needed).
-   * Optional when `fetch` is supplied — e.g. a Cloudflare service binding that
-   * ignores the host and dispatches to the bound Worker by path — in which case
-   * an internal placeholder base is used and only the `/streams/...` path
-   * matters.
-   */
   server?: string
   /** Stream-name prefix. Defaults to `runs`. */
   streamPrefix?: string
   /** Fetch implementation. Defaults to the global fetch. */
   fetch?: typeof globalThis.fetch
-  /**
-   * Headers applied to every create, append, read, and close request. A
-   * resolver is called for every request so credentials can rotate.
-   */
   headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>)
-  /**
-   * Bounding for the read reconnect loop. After a response-body read failure
-   * mid-window, `read` retries from the last valid position; these cap
-   * consecutive retries and throttle them so a persistently failing backend
-   * surfaces the error instead of looping without end. Normal window
-   * advancement (long-poll) is never throttled.
-   */
   reconnect?: {
-    /**
-     * Consecutive body-read-failure retries before surfacing the underlying
-     * read error. Default 10.
-     */
     maxReadFailures?: number
     /** Delay between read retries, in ms. Default 250. */
     delayMs?: number
   }
-  /**
-   * Timeout (ms) for a single create / append / close request to the backend.
-   * A stalled backend would otherwise hang chunk delivery or terminalization
-   * indefinitely. Default 30000. Long-poll `read` window advancement is NOT
-   * bounded by this — a caught-up reader may legitimately wait. `snapshot`,
-   * which must always return, IS bounded by it.
-   */
   operationTimeoutMs?: number
-  /**
-   * Producer fencing epoch sent as `Producer-Epoch` on every append.
-   *
-   * A backend that fences producers rejects an append whose epoch is below the
-   * highest it has seen, so a zombie host that lost its claim cannot keep
-   * writing to a run a newer host took over. Callers that track a monotonic
-   * per-run driver epoch (`RunRecord.driverEpoch`) should pass it here; the
-   * default of `0` makes every producer look equally current to the backend,
-   * which leaves fencing entirely to the caller's own run claim.
-   */
   producerEpoch?: number
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0 || signal?.aborted) return Promise.resolve()
+  const skipDelay = ms <= 0 || Boolean(signal?.aborted)
+  if (skipDelay) return Promise.resolve()
   return new Promise((resolve) => {
     const onAbort = () => {
       clearTimeout(timer)
@@ -117,13 +79,6 @@ interface ControlFrame {
 const CURSOR_PREFIX = 'tanstack-ai-ds:v1:'
 const READ_ABORTED = Symbol('read aborted')
 
-/**
- * Hard ceiling on the SSE windows a single `snapshot` will pull before it gives
- * up. A snapshot stops at the first control frame that reports the reader caught
- * up (`upToDate`), so a conforming backend ends it in one or two windows. This
- * only fires for a backend that keeps handing out advancing windows without ever
- * reporting `upToDate`, where the alternative is a read that never returns.
- */
 const SNAPSHOT_MAX_WINDOWS = 1000
 
 class ResponseBodyReadFailure extends Error {
@@ -135,7 +90,8 @@ class ResponseBodyReadFailure extends Error {
 }
 
 function assertTransportField(value: string, name: string): string {
-  if (value.trim().length === 0 || /[\r\n]/.test(value)) {
+  const invalidField = value.trim().length === 0 || /[\r\n]/.test(value)
+  if (invalidField) {
     throw new DurableStreamError(
       `${name} must be non-empty and contain no CR/LF`,
     )
@@ -254,7 +210,8 @@ async function* readLines(
   } finally {
     try {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- readFailed is set in the catch before its throw; CFA can't see that from finally
-      if (!completed && !cancelled && !readFailed) await reader.cancel()
+      const stillOpen = !completed && !cancelled && !readFailed
+      if (stillOpen) await reader.cancel()
     } finally {
       reader.releaseLock()
     }
@@ -294,7 +251,8 @@ async function* parseSseEvents(
   let current: SseEvent = {}
   let hasField = false
 
-  for await (const line of readLines(body, signal)) {
+  const lines = readLines(body, signal)
+  for await (const line of lines) {
     if (line === '') {
       if (hasField) yield current
       current = {}
@@ -351,7 +309,8 @@ async function* consumeSseWindow(args: {
     deliveredThroughSeq,
     previousResponseSeq,
   } = args
-  for await (const event of parseSseEvents(args.body, args.signal)) {
+  const sseEvents = parseSseEvents(args.body, args.signal)
+  for await (const event of sseEvents) {
     if (args.signal?.aborted) {
       return {
         dataAwaitingControl,
@@ -365,7 +324,8 @@ async function* consumeSseWindow(args: {
     }
     if (event.event === 'data') {
       dataAwaitingControl = true
-      for (const record of parseDataRecords(event.data)) {
+      const dataRecords = parseDataRecords(event.data)
+      for (const record of dataRecords) {
         if (record.seq <= previousResponseSeq) {
           throw new DurableStreamError(
             'data records must have strictly increasing sequences',
@@ -394,10 +354,10 @@ async function* consumeSseWindow(args: {
       dataStartOffset = backendOffset
       sawControl = true
       dataAwaitingControl = false
-      if (
+      const endWindow =
         control.streamClosed === true ||
         (args.stopWhenUpToDate && control.upToDate === true)
-      ) {
+      if (endWindow) {
         return {
           dataAwaitingControl,
           sawControl,
@@ -459,15 +419,16 @@ function assertWindowAdvanced(state: {
   streamCursor: string | undefined
   requestCursor: string | undefined
 }): void {
-  if (state.dataAwaitingControl || !state.sawControl) {
+  const missingControl = state.dataAwaitingControl || !state.sawControl
+  if (missingControl) {
     throw new DurableStreamError(
       'read SSE window ended without a matching control event',
     )
   }
-  if (
+  const didNotAdvance =
     state.backendOffset === state.requestOffset &&
     state.streamCursor === state.requestCursor
-  ) {
+  if (didNotAdvance) {
     throw new DurableStreamError(
       'read SSE window ended without advancing offset or cursor',
     )
@@ -577,13 +538,18 @@ function parseControlFrame(data: string | undefined): ControlFrame {
   } catch {
     throw new DurableStreamError('control event contained invalid JSON')
   }
-  if (typeof parsed !== 'object' || parsed === null) {
+  if (typeof parsed !== 'object') {
     throw new DurableStreamError('control event payload must be an object')
   }
-  if (
-    !('streamNextOffset' in parsed) ||
-    typeof parsed.streamNextOffset !== 'string'
-  ) {
+  if (parsed === null) {
+    throw new DurableStreamError('control event payload must be an object')
+  }
+  if (!('streamNextOffset' in parsed)) {
+    throw new DurableStreamError(
+      'control event requires string streamNextOffset',
+    )
+  }
+  if (typeof parsed.streamNextOffset !== 'string') {
     throw new DurableStreamError(
       'control event requires string streamNextOffset',
     )
@@ -604,7 +570,8 @@ function parseControlFrame(data: string | undefined): ControlFrame {
   }
   const upToDate = optionalBoolean(parsed, 'upToDate')
   const streamClosed = optionalBoolean(parsed, 'streamClosed')
-  if (streamClosed !== true && streamCursor === undefined) {
+  const missingCursor = streamClosed !== true && streamCursor === undefined
+  if (missingCursor) {
     throw new DurableStreamError(
       'open control event requires string streamCursor',
     )
@@ -619,7 +586,12 @@ function parseControlFrame(data: string | undefined): ControlFrame {
 
 function requireNextOffset(response: Response, operation: string): string {
   const offset = response.headers.get('Stream-Next-Offset')
-  if (offset === null || offset.trim().length === 0) {
+  if (offset === null) {
+    throw new DurableStreamError(
+      `${operation} response missing non-empty Stream-Next-Offset`,
+    )
+  }
+  if (offset.trim().length === 0) {
     throw new DurableStreamError(
       `${operation} response missing non-empty Stream-Next-Offset`,
     )
@@ -636,27 +608,14 @@ function httpFailure(
   )
 }
 
-/**
- * External-URL Durable Streams protocol adapter.
- *
- * `request` must name a run — `X-Run-Id` header (what a `@tanstack/ai-client`
- * POST sends) or `?runId` (what a GET attach sends), resolved by core's
- * `resolveResumeRunId`. A request that names neither throws rather than
- * silently producing into an unaddressable stream.
- *
- * Returns a plain `StreamDurability`, not an `UpsertableStreamDurability`.
- * This adapter's offsets embed a backend-assigned Next-Offset cursor, so a
- * caller cannot choose them; there is no `upsert` implementation to supply.
- * Omitting `upsert` is the type-level statement that this adapter does not
- * support caller-supplied offsets, so a consumer requiring that capability
- * gets a compile error at the wiring site instead of a runtime failure.
- */
 export function durableStream(
   request: Request,
   options: DurableStreamOptions,
 ): StreamDurability<DurableStreamOffset> {
   const fetchFn = options.fetch ?? globalThis.fetch
-  if (options.server === undefined && options.fetch === undefined) {
+  const missingServer =
+    options.server === undefined && options.fetch === undefined
+  if (missingServer) {
     throw new DurableStreamError(
       'server is required unless a fetch implementation is provided',
     )
@@ -677,9 +636,6 @@ export function durableStream(
   const readRetryDelayMs = options.reconnect?.delayMs ?? 250
   const operationTimeoutMs = options.operationTimeoutMs ?? 30_000
 
-  // create / append / close go through this so a stalled backend can't hang the
-  // operation forever. Each call gets a fresh timeout; long-poll `read` calls
-  // deliberately do NOT use it (they may wait for the producer to advance).
   const fetchWithTimeout = async (
     url: string | URL,
     init: RequestInit,
@@ -705,20 +661,8 @@ export function durableStream(
   const rawResumeOffset =
     request.headers.get('Last-Event-ID') ?? safeSearchParam(request, 'offset')
   const resumeOffset = parseResumeOffset(rawResumeOffset)
-  // Resolved through core's `resolveResumeRunId` — `X-Run-Id` header first,
-  // then `?runId` — the same single implementation `memoryStream` and the
-  // resume response helpers use, so no two durability adapters can disagree
-  // about which run a request names. It has to be the header first: a
-  // `@tanstack/ai-client` POST keeps its URL byte-identical to a plain chat
-  // request and carries the run id in `X-Run-Id`, so a query-only adapter
-  // would name a different stream than the GET attach route addresses.
   const requestedRunId = resolveResumeRunId(request)
   if (requestedRunId === null) {
-    // Never mint a random id here. The backend stream name is derived from the
-    // run id, so a generated one addresses a stream no attach request could
-    // ever name: the producer would appear to work while writing where nobody
-    // can read. Refuse up front instead, matching `DurableRunIdRequiredError`
-    // in `@tanstack/ai-sandbox`.
     throw new DurableStreamError(
       resumeOffset === null
         ? 'a runId is required: send it as an X-Run-Id header or a ?runId query param'
@@ -729,20 +673,8 @@ export function durableStream(
 
   const streamUrl = `${server}/streams/${encodeURIComponent(`${prefix}/${runId}`)}`
   let createPromise: Promise<string> | undefined
-  // Set only when the create PUT answered `201 Created`, which RFC 9110 §9.3.4
-  // reserves for a PUT that brought the resource into existence: an existing
-  // stream is a replace/no-op and answers 200 or 204. A stream this instance
-  // created cannot already hold records, which is what makes the tail read below
-  // skippable. Defaulting to `false` keeps the conservative side: anything other
-  // than a proven creation still pays for the seeding read.
   let createdHere = false
   let appendTailOffset: string | undefined
-  // `seq` is a single per-run counter, not a per-instance one: the read side
-  // dedups and orders by it across every window and every producer. A takeover
-  // host therefore MUST continue the log's existing sequence instead of
-  // restarting at 1, or its records collide with the prefix an earlier host
-  // stored and get silently dropped by the reader's dedup. `seqSeeded` tracks
-  // whether this instance has learned where the log ends.
   let nextSeq = 1
   let seqSeeded = false
   let seedPromise: Promise<void> | undefined
@@ -756,13 +688,6 @@ export function durableStream(
   let producerSeq = 0
   let closePromise: Promise<void> | undefined
 
-  /**
-   * Raise the append counter past a sequence already present in the log.
-   *
-   * Called for every record any read observes — including records the reader
-   * then dedups away — so both `snapshot` (the alignment path a takeover
-   * already runs) and a plain `read` teach this instance the log's tail.
-   */
   const observeSeq = (seq: number): void => {
     if (seq >= nextSeq) nextSeq = seq + 1
   }
@@ -798,15 +723,6 @@ export function durableStream(
     return createPromise
   }
 
-  /**
-   * The one window-pulling loop behind both `read` and `snapshot`.
-   *
-   * `stopWhenUpToDate` is the only difference between them. The protocol's
-   * control frame carries `upToDate: true` when the backend has handed the
-   * reader everything the stream currently holds; a live `read` ignores that and
-   * keeps long-polling for more, while a `snapshot` returns there. That makes a
-   * snapshot bounded even on a stream nobody ever closed.
-   */
   const readWindows = async function* (
     offset: DurableStreamOffset,
     signal: AbortSignal | undefined,
@@ -814,7 +730,8 @@ export function durableStream(
   ): AsyncGenerator<{ offset: DurableStreamOffset; chunk: StreamChunk }> {
     let backendOffset: string
     let deliveredThroughSeq = 0
-    if (offset === '-1' || offset === 'now') {
+    const isLiveOffset = offset === '-1' || offset === 'now'
+    if (isLiveOffset) {
       backendOffset = offset
     } else {
       const cursor = decodeCursor(offset)
@@ -828,7 +745,9 @@ export function durableStream(
     for (;;) {
       if (signal?.aborted) return
       windowsPulled += 1
-      if (stopWhenUpToDate && windowsPulled > SNAPSHOT_MAX_WINDOWS) {
+      const snapshotStuck =
+        stopWhenUpToDate && windowsPulled > SNAPSHOT_MAX_WINDOWS
+      if (snapshotStuck) {
         throw new DurableStreamError(
           `snapshot read ${SNAPSHOT_MAX_WINDOWS} windows without the backend reporting upToDate`,
         )
@@ -906,33 +825,6 @@ export function durableStream(
     }
   }
 
-  /**
-   * One bounded pass over everything the log currently holds.
-   *
-   * Two things bound it. `readWindows(..., stopWhenUpToDate=true)` returns at
-   * the first control frame reporting the reader caught up, and
-   * `SNAPSHOT_MAX_WINDOWS` catches a backend that keeps handing out advancing
-   * windows without ever saying so. Neither covers a backend that simply never
-   * answers — `upToDate` is an optional protocol field, read windows
-   * deliberately skip `fetchWithTimeout` (a caught-up live reader may wait),
-   * and an empty still-open log has nothing to send. That shape would park the
-   * fetch forever, so the snapshot carries its own `operationTimeoutMs`
-   * deadline. Timing out is a loud failure, never a truncated result: an
-   * aborted `readWindows` ends its iteration quietly, so the flag is rechecked
-   * after the loop and thrown.
-   *
-   * `ensureCreated()` first, exactly as `append` and `read` do. A snapshot of a
-   * stream the backend does not hold yet must answer "nothing has been
-   * delivered", not reject: `sandboxRunDriver`'s `pipe` calls
-   * `awaitLogQuiescence` — two `snapshot()` reads — BEFORE the first append, so
-   * the very first producer of every durable run snapshots a stream no `PUT` has
-   * created. Reading straight through would surface that as
-   * `httpFailure('read', ...)` and fail the run at its first chunk. It also keeps
-   * this adapter's contract identical to core's `memoryStream`, which resolves to
-   * `[]` for an unknown run; two `StreamDurability` implementations must not
-   * disagree about so basic a case. `ensureCreated` is idempotent and memoised,
-   * so this costs nothing once the stream exists.
-   */
   const collectSnapshot = async (): Promise<
     Array<{ offset: DurableStreamOffset; chunk: StreamChunk }>
   > => {
@@ -952,7 +844,8 @@ export function durableStream(
         offset: DurableStreamOffset
         chunk: StreamChunk
       }> = []
-      for await (const entry of readWindows('-1', controller.signal, true)) {
+      const snapshotWindows = readWindows('-1', controller.signal, true)
+      for await (const entry of snapshotWindows) {
         entries.push(entry)
       }
       if (timedOut) {
@@ -969,24 +862,6 @@ export function durableStream(
     }
   }
 
-  /**
-   * Learn where the log ends before this instance appends to it for the first
-   * time.
-   *
-   * A takeover host is handed a fresh adapter for a run whose log already holds
-   * `seq 1..N`, and nothing in the protocol reports a record count, so the tail
-   * has to be read. One bounded read per instance, and the alignment `snapshot()`
-   * a takeover already performs satisfies it.
-   *
-   * A brand-new run pays nothing, and must not: the seeding read cannot be on the
-   * producer's critical path. `upToDate` is an optional protocol field and an
-   * empty still-open log has nothing to send, so on a backend that omits it the
-   * read has to run its `operationTimeoutMs` deadline out and then fail — the
-   * producer would wait on a reader that is waiting on the producer, and every
-   * fresh run on such a backend would die of a synthetic error. `createdHere`
-   * settles it without a request: a stream this instance brought into existence
-   * provably holds no records, so `nextSeq` is already correct at 1.
-   */
   const ensureSeqSeeded = (): Promise<void> => {
     if (seqSeeded) return Promise.resolve()
     if (seedPromise) return seedPromise

@@ -12,26 +12,9 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 export interface SpritesSandboxConfig {
-  /**
-   * Sprites API token (`org/projectNumber/tokenId/secret`). Falls back to the
-   * `SPRITES_API_KEY` env var when omitted.
-   */
   apiKey?: string
-  /**
-   * Sprites control-plane base URL. Falls back to `SPRITES_API_URL`, then
-   * `https://api.sprites.dev`.
-   */
   apiUrl?: string
-  /**
-   * Working directory inside the Sprite. The `/workspace` virtual root maps
-   * here. Defaults to `/home/sprite`.
-   */
   workdir?: string
-  /**
-   * URL auth mode for created Sprites. `'public'` (default) makes the Sprite's
-   * URL reachable without an org token — required to reach a service via
-   * `ports.connect()`. Use `'sprite'` to keep it org-token gated.
-   */
   urlAuth?: SpriteUrlAuth
   /** Internal port proxied to the public URL. Defaults to 8080. */
   httpPort?: number
@@ -88,10 +71,6 @@ class SpritesProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    // Honor the deterministic id ensure() supplies (see SandboxCreateInput.id).
-    // The sprite's preview URL is keyed by name, so a random name would strand
-    // an out-of-band reconnect (a preview iframe) on a different sprite than the
-    // one the agent edits. Fall back to a random name for direct/advanced use.
     const name =
       input.id ??
       `${NAME_PREFIX}-${randomUUID().replace(/-/g, '').slice(0, 12)}`
@@ -106,9 +85,6 @@ class SpritesProvider implements SandboxProvider {
       await this.client.setUrlAuth(sprite.name, this.urlAuth, input.signal)
     }
 
-    // Ensure the workspace dir exists before any cwd-bound command runs in it.
-    // Run from `/` (not the workdir, which does not exist yet) so the exec's own
-    // cwd resolution does not fail for a non-default `workdir`.
     const mkdir = this.client.exec(sprite.name, {
       argv: ['mkdir', '-p', this.workdir],
       cwd: '/',
@@ -141,11 +117,6 @@ class SpritesProvider implements SandboxProvider {
   }
 }
 
-/**
- * Sprites sandbox provider — runs harness adapters inside isolated Fly.io
- * Sprite stateful sandboxes. Requires a Sprites API token (`config.apiKey` or
- * the `SPRITES_API_KEY` env var).
- */
 export function spritesSandbox(
   config: SpritesSandboxConfig = {},
 ): SandboxProvider {

@@ -2,14 +2,6 @@ import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
-/**
- * Converse delivers server-side failures — throttling, request validation,
- * mid-stream model faults, and service-unavailable — as in-band stream events
- * rather than thrown exceptions. If they were ignored the iterator would simply
- * end and the run would look like a clean, truncated success. Throw the
- * underlying exception (these SDK members extend `Error`) so the adapter's
- * `chatStream` / `structuredOutputStream` catch converts it into a `RUN_ERROR`.
- */
 function usageFromMetadata(
   ev: ConverseStreamOutput,
 ):
@@ -52,36 +44,6 @@ export function throwIfConverseStreamError(ev: ConverseStreamOutput): void {
   }
 }
 
-/**
- * Maps a Bedrock Converse `ConverseStreamOutput` event stream to the TanStack
- * AG-UI `StreamChunk` lifecycle, following `openai-base`'s `processStreamChunks`
- * lifecycle shape so the activity layer / agent loop behave identically across
- * providers. (Reasoning surfaces only the message-level events —
- * `REASONING_MESSAGE_START/CONTENT/END` — which is all the core accumulator
- * consumes; the `REASONING_START`/`REASONING_END`/`STEP_*` boundary events
- * openai-base also emits are no-ops in the engine and are not reproduced here.)
- *
- * Lifecycle ownership matches openai-base: this processor emits the full
- * success-path lifecycle itself — `RUN_STARTED` lazily before the first event,
- * `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `REASONING_MESSAGE_*` for content, and a
- * single terminal `RUN_FINISHED` once the iterator is exhausted (so the trailing
- * `metadata` usage event is folded into the finish event regardless of arrival
- * order). The calling adapter only owns the catch/`RUN_ERROR` path — so any
- * in-band Converse error event (see `throwIfConverseStreamError`) is thrown to
- * surface there rather than ending the stream as a clean truncated success.
- *
- * Converse streams tool-call arguments as partial-JSON string fragments inside
- * `contentBlockDelta.delta.toolUse.input`; each fragment is emitted as a
- * `TOOL_CALL_ARGS` `delta`, mirroring OpenAI's `function.arguments` deltas.
- *
- * @param stream - The Converse event stream from `ConverseStreamCommand`.
- * @param newMessageId - Factory for fresh ids — run, thread, message, and
- *   tool-call ids (the adapter passes `() => this.generateId()`).
- * @param lifecycle - Incoming run lifecycle ids, threaded onto the emitted
- *   `RUN_STARTED`/`RUN_FINISHED` so the chat path matches every sibling adapter
- *   (openai-base reuses `options.threadId`/`parentRunId`). Defaults preserve the
- *   previous behaviour (fresh `threadId`, no `parentRunId`).
- */
 export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
   newMessageId: () => string,
@@ -102,17 +64,11 @@ export async function* processConverseStream(
   let reasoningMessageId: string | undefined
   let hasClosedReasoning = false
 
-  // Tool-call lifecycle, keyed by Converse contentBlockIndex. Converse opens a
-  // tool-use block with `contentBlockStart`, streams arg fragments via
-  // `contentBlockDelta`, and closes it with `contentBlockStop`.
   const toolCallsByIndex = new Map<
     number,
     { id: string; name: string; started: boolean }
   >()
 
-  // Usage + finish-reason are captured during iteration and folded into the
-  // single terminal RUN_FINISHED, matching openai-base's deferred-finish
-  // contract (usage may arrive after the finish signal).
   let usage:
     | { promptTokens: number; completionTokens: number; totalTokens: number }
     | undefined
@@ -150,7 +106,8 @@ export async function* processConverseStream(
   ): Generator<AdapterYieldChunk> {
     const start = ev.contentBlockStart
     const toolUse = start?.start?.toolUse
-    if (!start || !toolUse) return
+    if (!start) return
+    if (!toolUse) return
     yield* closeReasoning()
     const id = toolUse.toolUseId ?? newMessageId()
     const name = toolUse.name ?? ''

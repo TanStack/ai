@@ -51,10 +51,6 @@ function createRuntimeId(): string {
   return Math.random().toString(36).slice(2)
 }
 
-// Memoized after first resolution. Generation is deferred to first use rather
-// than computed at module scope so importing this module performs no random
-// value generation — edge runtimes (e.g. Cloudflare Workers) forbid that in
-// global scope and would crash on module evaluation. See issue #667.
 let memoizedRuntimeId: string | undefined
 
 function getRuntimeId(): string {
@@ -71,7 +67,9 @@ function getRuntimeId(): string {
 let eventCounter = 0
 
 function idPart(value: unknown): string {
-  if (value === undefined || value === null || value === '') return 'missing'
+  if (value === undefined) return 'missing'
+  if (value === null) return 'missing'
+  if (value === '') return 'missing'
   return `value-${encodeURIComponent(String(value))}`
 }
 

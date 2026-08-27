@@ -3,7 +3,15 @@
   "plugins": [],
   "jsPlugins": [
     "eslint-plugin-unused-imports",
-    { "name": "eslint-js", "specifier": "oxlint-plugin-eslint" }
+    { "name": "eslint-js", "specifier": "oxlint-plugin-eslint" },
+    {
+      "name": "comment-limits",
+      "specifier": "./scripts/oxlint-max-comment-lines.js"
+    },
+    {
+      "name": "named-if",
+      "specifier": "./scripts/oxlint-named-if.js"
+    }
   ],
   "categories": {
     "correctness": "off"
@@ -18,7 +26,8 @@
     "**/coverage/**",
     "**/dist/**",
     "**/snap/**",
-    "**/vite.config.*.timestamp-*.*"
+    "**/vite.config.*.timestamp-*.*",
+    "**/*.tsrx.d.ts"
   ],
   "rules": {
     "unused-imports/no-unused-imports": "warn"
@@ -242,6 +251,18 @@
           {
             "selector": "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
             "message": "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// oxlint-disable-next-line eslint-js/no-restricted-syntax -- <reason>`."
+          },
+          {
+            "selector": "ForOfStatement[right.type='CallExpression']",
+            "message": "Do not call a function in `for...of`. Assign the iterable to a name first."
+          },
+          {
+            "selector": "ForOfStatement[right.type='ParenthesizedExpression'][right.expression.type='CallExpression']",
+            "message": "Do not call a function in `for...of`. Assign the iterable to a name first."
+          },
+          {
+            "selector": "ForInStatement[right.type='CallExpression']",
+            "message": "Do not call a function in `for...in`. Assign the object to a name first."
           }
         ],
         "complexity": [
@@ -249,7 +270,9 @@
           {
             "max": 20
           }
-        ]
+        ],
+        "comment-limits/max-lines": "error",
+        "named-if/require-named-condition": "error"
       },
       "plugins": ["typescript"]
     }

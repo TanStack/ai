@@ -10,9 +10,6 @@ export type { ComputerUseToolConfig }
 /** @deprecated Renamed to `ComputerUseToolConfig`. Will be removed in a future release. */
 export type ComputerUseTool = ComputerUseToolConfig
 
-/**
- * Converts a standard Tool to OpenAI ComputerUseTool format
- */
 export function convertComputerUseToolToAdapterFormat(
   tool: Tool,
 ): ComputerUseToolConfig {
@@ -25,12 +22,6 @@ export function convertComputerUseToolToAdapterFormat(
   }
 }
 
-/**
- * Creates a standard Tool from ComputerUseTool parameters.
- *
- * Base (non-branded) factory. Providers that need branded return types should
- * re-wrap this in their own package.
- */
 export function computerUseTool(toolData: ComputerUseToolConfig): Tool {
   return openAIProviderTool(
     {

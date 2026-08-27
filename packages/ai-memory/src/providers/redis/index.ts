@@ -12,11 +12,6 @@ import type {
 } from '../../internal/store'
 import type { MemoryAdapter, MemoryScope } from '../../types'
 
-/**
- * Minimal subset of the Redis client API the adapter uses. Shaped to match
- * `ioredis` directly (lowercase method names). For node-redis v4+'s camelCase
- * API, wrap the client with {@link fromNodeRedis}.
- */
 export interface RedisLike {
   set: (key: string, value: string) => Promise<unknown>
   get: (key: string) => Promise<string | null>
@@ -38,11 +33,6 @@ export interface NodeRedisLike {
   mGet: (keys: Array<string>) => Promise<Array<string | null>>
 }
 
-/**
- * Wrap a node-redis v4+ default-mode client (camelCase API) into the lowercase
- * {@link RedisLike} shape this adapter expects. For `ioredis`, no wrapper is
- * needed — pass the client directly.
- */
 export function fromNodeRedis(client: NodeRedisLike): RedisLike {
   return {
     get: (key) => client.get(key),
@@ -62,13 +52,6 @@ export interface RedisOptions extends BuiltinOptions {
   prefix?: string
 }
 
-/**
- * Escape the `:` scope-key delimiter (and the `\` escape character itself) in a
- * scope value before composing the colon-joined key. Without this, a scope
- * value containing `:` could shift segment positions and collide two different
- * scopes' index buckets. `_` is escaped too so a literal `_` value can't collide
- * with the unset-key placeholder.
- */
 function escapeScopeValue(value: string): string {
   return value.replace(/[\\:_]/g, '\\$&')
 }
@@ -78,10 +61,9 @@ function escapeScopeValue(value: string): string {
 const warnedMalformedIds = new Set<string>()
 const MALFORMED_WARN_CAP = 100
 function warnMalformedRow(id: string, err: unknown): void {
-  if (
-    warnedMalformedIds.has(id) ||
-    warnedMalformedIds.size >= MALFORMED_WARN_CAP
-  ) {
+  const skipWarn =
+    warnedMalformedIds.has(id) || warnedMalformedIds.size >= MALFORMED_WARN_CAP
+  if (skipWarn) {
     return
   }
   warnedMalformedIds.add(id)
@@ -92,21 +74,6 @@ function warnMalformedRow(id: string, err: unknown): void {
   )
 }
 
-/**
- * Production memory adapter backed by plain Redis (no vector index required).
- * Ranks client-side (lexical + optional cosine + recency + importance), so it's
- * suited to up to ~10k records per scope. Bring your own client (`ioredis`, or
- * node-redis wrapped with {@link fromNodeRedis}).
- *
- * Storage model:
- * ```text
- * {prefix}:record:{id}                                          -> JSON MemoryRecord
- * {prefix}:index:{tenantId or _}:{userId or _}:{threadId}       -> Set<id>
- * ```
- * Segments are escaped (so `:`, `\\`, `_` in values cannot collide). Missing
- * optional dims become `_` (omit ≠ match any — same exact-match model as the
- * built-in `sameScope` helper). No dual-read of older index layouts.
- */
 export function redis(options: RedisOptions): MemoryAdapter {
   const client = options.redis
   const prefix = options.prefix ?? 'tanstack-ai:memory'

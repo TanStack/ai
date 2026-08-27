@@ -1,24 +1,9 @@
 import type { ToolBinding } from '../types'
 
-/**
- * Options for type stub generation
- */
 export interface TypeGeneratorOptions {
-  /**
-   * Include JSDoc comments with descriptions
-   * @default true
-   */
   includeDescriptions?: boolean
 }
 
-/**
- * Generate TypeScript type stubs for all tool bindings
- *
- * These stubs are included in the LLM system prompt so it knows
- * the exact type signatures of available tools.
- *
- * Tool names match the actual function names injected into the sandbox.
- */
 export function generateTypeStubs(
   bindings: Record<string, ToolBinding>,
   options: TypeGeneratorOptions = {},
@@ -27,7 +12,8 @@ export function generateTypeStubs(
 
   const declarations: Array<string> = []
 
-  for (const [name, binding] of Object.entries(bindings)) {
+  const toolBindings = Object.entries(bindings)
+  for (const [name, binding] of toolBindings) {
     const inputTypeName = `${capitalize(name)}Input`
     const outputTypeName = `${capitalize(name)}Output`
 
@@ -69,11 +55,6 @@ interface TypeResult {
   declaration: string
 }
 
-/**
- * Convert a JSON Schema to a TypeScript type
- *
- * Supports basic types: string, number, boolean, object, array
- */
 export function jsonSchemaToTypeScript(
   schema: Record<string, unknown>,
   typeName: string,
@@ -81,11 +62,11 @@ export function jsonSchemaToTypeScript(
   const type = schemaToType(schema)
 
   // For object schemas with properties, create a named interface
-  if (
+  const hasObjectProperties =
     schema.type === 'object' &&
-    schema.properties &&
-    Object.keys(schema.properties).length > 0
-  ) {
+    Boolean(schema.properties) &&
+    Object.keys(schema.properties as object).length > 0
+  if (hasObjectProperties) {
     return {
       name: typeName,
       declaration: `interface ${typeName} ${type}`,
@@ -99,9 +80,6 @@ export function jsonSchemaToTypeScript(
   }
 }
 
-/**
- * Convert a JSON Schema to a TypeScript type string
- */
 function schemaToType(schema: Record<string, unknown>): string {
   if (typeof schema !== 'object') {
     return 'unknown'
@@ -111,7 +89,8 @@ function schemaToType(schema: Record<string, unknown>): string {
 
   // Handle basic types
   if (schemaType === 'string') return 'string'
-  if (schemaType === 'number' || schemaType === 'integer') return 'number'
+  if (schemaType === 'number') return 'number'
+  if (schemaType === 'integer') return 'number'
   if (schemaType === 'boolean') return 'boolean'
   if (schemaType === 'null') return 'null'
 
@@ -166,7 +145,8 @@ function schemaToType(schema: Record<string, unknown>): string {
     return schemaType
       .map((t) => {
         if (t === 'string') return 'string'
-        if (t === 'number' || t === 'integer') return 'number'
+        if (t === 'number') return 'number'
+        if (t === 'integer') return 'number'
         if (t === 'boolean') return 'boolean'
         if (t === 'null') return 'null'
         if (t === 'array') return 'Array<unknown>'
@@ -180,9 +160,6 @@ function schemaToType(schema: Record<string, unknown>): string {
   return 'unknown'
 }
 
-/**
- * Capitalize the first letter of a string
- */
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }

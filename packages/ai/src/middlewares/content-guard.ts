@@ -4,16 +4,10 @@ import type {
 } from '../activities/chat/middleware/types'
 import type { StreamChunk } from '../types'
 
-/**
- * A content guard rule — either a regex pattern with replacement, or a transform function.
- */
 export type ContentGuardRule =
   | { pattern: RegExp; replacement: string }
   | { fn: (text: string) => string }
 
-/**
- * Information passed to the onFiltered callback.
- */
 export interface ContentFilteredInfo {
   /** The message ID being filtered */
   messageId: string
@@ -25,52 +19,18 @@ export interface ContentFilteredInfo {
   strategy: 'delta' | 'buffered'
 }
 
-/**
- * Options for the content guard middleware.
- */
 export interface ContentGuardMiddlewareOptions {
-  /**
-   * Rules to apply to text content. Each rule is either a regex pattern
-   * with a replacement string, or a custom transform function.
-   * Rules are applied in order. Each rule receives the output of the previous.
-   */
   rules: Array<ContentGuardRule>
 
-  /**
-   * Matching strategy:
-   * - 'delta': Apply rules to each delta as it arrives. Fast, real-time,
-   *   but patterns spanning chunk boundaries may be missed.
-   * - 'buffered': Accumulate content and apply rules to settled portions,
-   *   holding back a look-behind buffer to catch cross-boundary patterns.
-   *
-   * @default 'buffered'
-   */
   strategy?: 'delta' | 'buffered'
 
-  /**
-   * Number of characters to hold back before emitting (buffered strategy only).
-   * Should be at least as long as the longest pattern you expect to match.
-   * Buffer is flushed when the stream ends.
-   *
-   * @default 50
-   */
   bufferSize?: number
 
-  /**
-   * If true, drop the entire chunk when any rule changes the content.
-   * @default false
-   */
   blockOnMatch?: boolean
 
-  /**
-   * Callback when content is filtered by any rule.
-   */
   onFiltered?: (info: ContentFilteredInfo) => void
 }
 
-/**
- * Apply all rules to a string, returning the transformed result.
- */
 function applyRules(text: string, rules: Array<ContentGuardRule>): string {
   let result = text
   for (const rule of rules) {
@@ -83,21 +43,6 @@ function applyRules(text: string, rules: Array<ContentGuardRule>): string {
   return result
 }
 
-/**
- * Creates a middleware that filters or transforms streamed text content.
- *
- * @example
- * ```ts
- * import { contentGuardMiddleware } from '@tanstack/ai/middlewares'
- *
- * const guard = contentGuardMiddleware({
- *   rules: [
- *     { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: '[SSN REDACTED]' },
- *   ],
- *   strategy: 'buffered',
- * })
- * ```
- */
 export function contentGuardMiddleware(
   options: ContentGuardMiddlewareOptions,
 ): ChatMiddleware {
@@ -142,10 +87,6 @@ function createDeltaStrategy(
 
       if (blockOnMatch) return null // drop chunk
 
-      // Strip out the previous `content` field by destructuring it away — with
-      // `exactOptionalPropertyTypes` we can't assign `content: undefined`
-      // against `content?: string`. The replacement event carries only the
-      // filtered delta.
       const { content: _strippedContent, ...rest } = chunk
       void _strippedContent
       return {
@@ -177,7 +118,8 @@ function createBufferedStrategy(
 
     const filtered = applyRules(rawAccumulated, rules)
 
-    if (blockOnMatch && filtered !== rawAccumulated) {
+    const hasBlockOnMatch = blockOnMatch && filtered !== rawAccumulated
+    if (hasBlockOnMatch) {
       if (onFiltered) {
         onFiltered({
           messageId: lastMessageId,
@@ -192,7 +134,8 @@ function createBufferedStrategy(
 
     const remaining = filtered.slice(emittedFilteredLength)
     if (remaining.length > 0) {
-      if (filtered !== rawAccumulated && onFiltered) {
+      const hasFiltered = filtered !== rawAccumulated && onFiltered
+      if (hasFiltered) {
         onFiltered({
           messageId: lastMessageId,
           original: rawAccumulated,
@@ -226,7 +169,9 @@ function createBufferedStrategy(
 
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       // Flush buffer on stream end events
-      if (chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED') {
+      const isTEXTMESSAGEEND =
+        chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED'
+      if (isTEXTMESSAGEEND) {
         const flushed = flushBuffer()
         if (flushed) return [flushed, chunk]
         return // pass through end event
@@ -236,7 +181,9 @@ function createBufferedStrategy(
 
       // Flush buffer on message boundary change
       const pending: Array<StreamChunk> = []
-      if (lastMessageId && chunk.messageId !== lastMessageId) {
+      const hasLastMessageId =
+        lastMessageId && chunk.messageId !== lastMessageId
+      if (hasLastMessageId) {
         const flushed = flushBuffer()
         if (flushed) pending.push(flushed)
       }
@@ -252,7 +199,8 @@ function createBufferedStrategy(
         return pending.length > 0 ? pending : null
       }
 
-      if (blockOnMatch && filtered !== rawAccumulated) {
+      const hasBlockOnMatch = blockOnMatch && filtered !== rawAccumulated
+      if (hasBlockOnMatch) {
         if (onFiltered) {
           onFiltered({
             messageId: chunk.messageId,
@@ -266,7 +214,8 @@ function createBufferedStrategy(
 
       const newDelta = filtered.slice(emittedFilteredLength, safeFilteredEnd)
 
-      if (filtered !== rawAccumulated && onFiltered) {
+      const hasFiltered = filtered !== rawAccumulated && onFiltered
+      if (hasFiltered) {
         onFiltered({
           messageId: chunk.messageId,
           original: rawAccumulated,

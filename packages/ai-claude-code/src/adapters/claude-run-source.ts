@@ -1,17 +1,6 @@
 /** Placeholder swapped for the schema JSON after the runner reads the files. */
 export const CLAUDE_JSON_SCHEMA_PLACEHOLDER = '__TANSTACK_SCHEMA__'
 
-/**
- * Written into the sandbox and run with `node`.
- *
- * The shell only sees two filenames. The runner reads the argv array and the
- * schema JSON from those files, then spawn()s claude so `--json-schema` is a
- * real argv value (the CLI rejects a file path).
- *
- * On Windows, `claude` is often a `.cmd` shim. `spawn(cmd, args)` without a
- * shell cannot find that shim, so we go through `sh` with `"$0"` / `"$@"`
- * (git-bash is already on PATH in the local-process sandbox).
- */
 export const CLAUDE_RUNNER_SOURCE = `import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 

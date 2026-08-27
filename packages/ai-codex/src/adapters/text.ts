@@ -81,11 +81,6 @@ export type CodexApprovalMode =
 
 const DEFAULT_WORKDIR = '/workspace'
 
-/**
- * Providers that already isolate the agent in a VM or container where Codex
- * cannot create a nested bubblewrap user namespace. Isolation is then the
- * outer sandbox plus `defineSandboxPolicy`. Issue #1081 item 8.
- */
 const NESTED_BWRAP_UNSUPPORTED = new Set(['daytona', 'cloudflare'])
 
 function defaultSandboxMode(provider: string): CodexSandboxMode {
@@ -99,11 +94,6 @@ export type CodexAuthMode = 'host' | 'api-key'
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
-  /**
-   * Codex's own sandbox mode (`--sandbox`). Defaults to `'workspace-write'`
-   * so the agent can edit the workspace — the outer TanStack sandbox is the
-   * real isolation boundary.
-   */
   sandboxMode?: CodexSandboxMode
   /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
   approvalPolicy?: CodexApprovalMode
@@ -119,10 +109,6 @@ export interface CodexTextConfig {
   additionalDirectories?: Array<string>
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
-  /**
-   * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
-   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
-   */
   authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>
@@ -219,12 +205,6 @@ export class CodexTextAdapter<
 
     args.push('--model', q(this.model))
     args.push('--sandbox', q(sandboxMode))
-    // NOTE: do NOT pass `--cd <cwd>`. `cwd` is the VIRTUAL `/workspace` root; the
-    // provider handle already maps it to the sandbox's real workdir and runs the
-    // process there (e.g. Daytona's `/home/daytona/workspace`). Passing it as a
-    // literal `--cd` makes codex chdir to a path that doesn't exist on the real
-    // filesystem → "No such file or directory (os error 2)". Codex inherits the
-    // handle-set process cwd instead.
     this.pushCodexDirFlags(args, skipGitRepoCheck, config.additionalDirectories)
 
     const cfg = this.codexConfigFlags(
@@ -233,7 +213,8 @@ export class CodexTextAdapter<
       networkAccessEnabled,
       bridge,
     )
-    for (const [key, value] of Object.entries(cfg)) {
+    const configFlags = Object.entries(cfg)
+    for (const [key, value] of configFlags) {
       args.push('--config', q(`${key}=${value}`))
     }
 
@@ -277,12 +258,6 @@ export class CodexTextAdapter<
       ...(config.webSearchMode
         ? { web_search: `"${config.webSearchMode}"` }
         : {}),
-      // Bridge chat()-provided tools via a streamable-HTTP MCP server. A `url`
-      // makes codex use its streamable-HTTP transport, which authenticates via an
-      // `Authorization` header — codex REJECTS inline `bearer_token` for this
-      // transport ("bearer_token is not supported for streamable_http"; that field
-      // is only for the stdio transport). Pass the per-run bearer as an HTTP header
-      // instead; the host tool-bridge checks `Authorization: Bearer <token>`.
       ...(bridge
         ? {
             [`mcp_servers.${bridge.name}.url`]: `"${bridge.url}"`,
@@ -298,7 +273,8 @@ export class CodexTextAdapter<
     sandbox: SandboxHandle,
     channel: ReturnType<typeof createBridgeEventChannel>,
   ): Promise<HostToolBridge | undefined> {
-    if (!options.tools || options.tools.length === 0) return undefined
+    if (!options.tools) return undefined
+    if (options.tools.length === 0) return undefined
     const provisioner =
       (options.capabilities
         ? getToolBridgeProvisioner(options.capabilities, { optional: true })
@@ -350,14 +326,6 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
-    // Durability caveat: the journaled path below derives its journal file
-    // path from `runId` alone (see `journalPaths` in `@tanstack/ai-sandbox`),
-    // and a successor host must recompute that same path to resume this run.
-    // That is only possible when the caller supplies a stable `runId`.
-    // `resolveDurableRunId` enforces that when durability is wired (both
-    // `runs` and `durability.adapter` given to `withSandbox`) and preserves
-    // the generated fallback — `this.generateId()`, a fresh random id every
-    // call — when it is not, so a non-durable run's behavior is unchanged.
     const durability = options.capabilities
       ? getSandboxDurability(options.capabilities, { optional: true })
       : undefined
@@ -366,11 +334,6 @@ export class CodexTextAdapter<
       adapter: 'codex',
       fallback: () => this.generateId(),
     })
-    // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
-    // ATTACHING run that mints a fresh one replays a stream the stored log
-    // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-    // instead of letting alignment discover it mid-stream; a durable FRESH run
-    // and a non-durable run both keep the generated fallback untouched.
     const threadId = resolveDurableThreadId(options.threadId, {
       durable: durability !== undefined,
       attaching: durability?.attach === true,
@@ -389,9 +352,6 @@ export class CodexTextAdapter<
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
 
-      // Project declarative workspace inputs (MCP/skills) into codex's native
-      // format. Re-runs each call so rotated secrets re-apply; idempotent ops
-      // are marker-gated inside the projector.
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
         : undefined
@@ -430,11 +390,6 @@ export class CodexTextAdapter<
         { provider: 'codex', model: this.model },
       )
 
-      // Deliver the prompt. Default: over stdin. Providers without a writable
-      // host→process stdin can't accept that — Docker's hijacked exec severs
-      // stdout when stdin EOF is signalled (losing the agent's output), and
-      // Cloudflare can't write stdin at all — so feed the prompt from a file
-      // (`codex exec … < file`) instead.
       const prepared = await this.prepareCodexStdin(
         sandbox,
         command,
@@ -443,12 +398,6 @@ export class CodexTextAdapter<
         tempFiles,
       )
 
-      // `undefined` whenever the run is not durable, so `spawnNdjson` takes its
-      // original, unjournaled path and behavior stays byte-identical to a
-      // pre-durability run. When durable, this also carries `attach`, which is
-      // how `spawnNdjson` decides to tail an EXISTING journal instead of
-      // starting a new agent — set by the attach route's `drive()` callback,
-      // never by an application's POST handler (see `SandboxDurabilityOptions.attach`).
       const journalOptions = journalOptionsFor(durability, runId)
 
       const rawEvents = spawnNdjson(sandbox, prepared.runCommand, {
@@ -471,29 +420,8 @@ export class CodexTextAdapter<
         for await (const event of rawEvents) yield event as CodexThreadEvent
       }
 
-      // Deterministic, run-scoped ids: journal replay re-translates the same
-      // journal bytes, and `this.generateId()` (Date.now() + Math.random())
-      // would mint different message ids on every replay. See
-      // chunk-identity.ts in `@tanstack/ai-sandbox` for why this is required.
       const genId = createRunScopedIdGen(runId)
 
-      // `mergeChunkStreams` below interleaves `translateThreadEvents`'s
-      // deterministic output with `channel.stream` (host-tool-bridge CUSTOM
-      // events from LIVE tool execution — see `createBridgeEventChannel`
-      // above). Those events do not occur on a replay, so a takeover's replay
-      // is NOT chunk-for-chunk identical to what the log holds.
-      // `alignedIfAttaching` handles it: alignment skips stored out-of-band
-      // CUSTOM entries within a bounded window (see `align.ts`), so a
-      // bridged-tool run can be taken over without a spurious
-      // `JournalReplayDivergedError`, while a genuine determinism regression
-      // still throws. It is a no-op (passes the stream through untouched)
-      // whenever the run is not durable or is not attaching, so a
-      // non-durable run's output is unaffected byte for byte.
-      //
-      // The wrap goes OUTSIDE `mergeChunkStreams`, never around the pre-merge
-      // translator alone: the stored log holds the previous host's MERGED
-      // output, so comparing against anything else would compare against a
-      // stream the log never contained.
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateThreadEvents(asEvents(), {
@@ -548,16 +476,6 @@ export class CodexTextAdapter<
   }
 }
 
-/**
- * Creates a Codex harness adapter that runs **inside a sandbox**.
- *
- * It declares `requires: [SandboxCapability]` and spawns
- * `codex exec --experimental-json` inside the sandbox (mirroring
- * `@openai/codex-sdk`'s own CLI invocation), feeding the prompt via stdin and
- * streaming its JSONL thread events back as AG-UI chunks. The sandbox image
- * must provide the `codex` executable and `CODEX_API_KEY` (or a `codex login`)
- * in its environment.
- */
 export function codexText<TModel extends CodexModel>(
   model: TModel,
   config: CodexTextConfig = {},

@@ -17,25 +17,6 @@ import type { OpenAIRealtimeOptions } from './types'
 
 const OPENAI_REALTIME_URL = 'https://api.openai.com/v1/realtime'
 
-/**
- * Creates an OpenAI realtime adapter for client-side use.
- *
- * Uses WebRTC for browser connections (default) or WebSocket for Node.js.
- *
- * @param options - Optional configuration
- * @returns A RealtimeAdapter for use with RealtimeClient
- *
- * @example
- * ```typescript
- * import { RealtimeClient } from '@tanstack/ai-client'
- * import { openaiRealtime } from '@tanstack/ai-openai'
- *
- * const client = new RealtimeClient({
- *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
- *   adapter: openaiRealtime(),
- * })
- * ```
- */
 export function openaiRealtime(
   options: OpenAIRealtimeOptions = {},
 ): RealtimeAdapter {
@@ -68,9 +49,6 @@ export function openaiRealtime(
   }
 }
 
-/**
- * Creates a WebRTC connection to OpenAI's realtime API
- */
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
@@ -116,10 +94,6 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up data channel for bidirectional communication. Captured into a const
-  // so closures see a non-nullable reference (teardown re-points the outer
-  // `dataChannel` to null, but in-flight closures still need to close their
-  // own channel).
   const channel = pc.createDataChannel('oai-events')
   dataChannel = channel
 
@@ -175,7 +149,8 @@ async function createWebRTCConnection(
     })
 
     // Add audio track to peer connection
-    for (const track of localStream.getAudioTracks()) {
+    const offerAudioTracks = localStream.getAudioTracks()
+    for (const track of offerAudioTracks) {
       pc.addTrack(track, localStream)
     }
   } catch (error) {
@@ -188,11 +163,6 @@ async function createWebRTCConnection(
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
-  // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
-  // so it must NOT be passed as a query param — GA rejects `?model=` with a
-  // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
-  // coerce to `null`, which `RequestInit.body` accepts.
   const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
     method: 'POST',
     headers: {
@@ -291,7 +261,8 @@ async function createWebRTCConnection(
       parts: [],
     }
     for (const item of output || []) {
-      if (item.type !== 'message' || !item.content) continue
+      const isNotMessageItem = item.type !== 'message' || !item.content
+      if (isNotMessageItem) continue
       const content = item.content as Array<Record<string, unknown>>
       for (const part of content) appendOpenAIRealtimePart(message, part)
     }
@@ -442,7 +413,8 @@ async function createWebRTCConnection(
   const connection: RealtimeConnection = {
     async disconnect() {
       if (localStream) {
-        for (const track of localStream.getTracks()) {
+        const mediaTracks = localStream.getTracks()
+        for (const track of mediaTracks) {
           track.stop()
         }
         localStream = null
@@ -473,7 +445,8 @@ async function createWebRTCConnection(
       // Audio capture is established during connection setup
       // This method enables the tracks and signals listening mode
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const captureTracks = localStream.getAudioTracks()
+        for (const track of captureTracks) {
           track.enabled = true
         }
       }
@@ -484,7 +457,8 @@ async function createWebRTCConnection(
     stopAudioCapture() {
       // Disable tracks rather than stopping them to allow re-enabling
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const captureTracks = localStream.getAudioTracks()
+        for (const track of captureTracks) {
           track.enabled = false
         }
       }
@@ -601,9 +575,6 @@ async function createWebRTCConnection(
           }
         }
 
-        // Normalize to 0-1 range (max deviation is 128)
-        // Scale by 1.5x so that ~66% amplitude reads as full scale
-        // This provides good visual feedback without pegging too early
         const normalized = maxDeviation / 128
         return Math.min(1, normalized * 1.5)
       }

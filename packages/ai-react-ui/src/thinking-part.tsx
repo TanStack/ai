@@ -9,38 +9,6 @@ export interface ThinkingPartProps {
   isComplete?: boolean
 }
 
-/**
- * ThinkingPart component - renders thinking/reasoning content
- *
- * This component displays the model's internal reasoning process,
- * typically shown in a collapsed or expandable format to distinguish
- * it from the final response. It automatically collapses when thinking
- * is complete.
- *
- * @example Standalone usage
- * ```tsx
- * <ThinkingPart
- *   content="Let me think about this step by step..."
- *   className="p-4 rounded bg-gray-100"
- * />
- * ```
- *
- * @example Usage in partRenderers
- * ```tsx
- * <ChatMessage
- *   message={message}
- *   partRenderers={{
- *     thinking: ({ content, isComplete }) => (
- *       <ThinkingPart
- *         content={content}
- *         isComplete={isComplete}
- *         className="px-5 py-3 rounded-2xl bg-gray-800/50"
- *       />
- *     )
- *   }}
- * />
- * ```
- */
 export function ThinkingPart({
   content,
   className = '',

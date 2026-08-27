@@ -3,13 +3,6 @@ import rehypeRaw from 'rehype-raw'
 import rehypeHighlight from 'rehype-highlight'
 import type { PluggableList as UnifiedPluggableList } from '@crazydos/vue-markdown'
 
-/**
- * @crazydos/vue-markdown applies `rehype-sanitize` automatically when its
- * `sanitize` prop is true. The helper therefore does NOT add `rehype-sanitize`
- * itself — instead, `<TextPart>` toggles the renderer's `sanitize` prop based
- * on `disableDefaultPlugins`.
- */
-
 export type PluggableList = UnifiedPluggableList
 
 export const DEFAULT_REMARK_PLUGINS: PluggableList = [remarkGfm]

@@ -44,9 +44,6 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TInterrupts> {
-  // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
@@ -103,10 +100,6 @@ export function useChat<
     const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
-    // Build options with conditional spreads for fields whose source
-    // type is `T | undefined` but the ChatClient target uses a strict
-    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
-    // assigning `undefined` to those, so we omit the key when absent.
     const initialOptions = optionsRef.current
     const transport = initialOptions.connection
       ? { connection: initialOptions.connection }
@@ -117,15 +110,12 @@ export function useChat<
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance) {
+      if (!currentInstance) return undefined
+      if (activeClientRef.current !== currentInstance) {
         return undefined
       }
       return currentInstance
     }
-    // ChatClient may publish while its constructor is running or while async
-    // persistence resolves before commit. Preserve those exact notifications
-    // until this render commits; invoking them here would run state setters and
-    // user callbacks for a render that may never mount.
     const initializationState = {
       ready: false,
       callbacks: [] as Array<() => void>,
@@ -136,8 +126,8 @@ export function useChat<
         return
       }
       const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance)
-        return
+      if (!currentInstance) return
+      if (activeClientRef.current !== currentInstance) return
       callback()
     }
     const instance = new ChatClient<TTools, TContext, TInterrupts>({
@@ -173,9 +163,6 @@ export function useChat<
         hookName: 'useChat',
         outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
       },
-      // Wrap every callback so the latest options are read at call time.
-      // Capturing the function reference directly would freeze it to whatever
-      // the parent passed on the first render.
       onResponse: (response) => {
         if (!getActiveInstance()) return
         return optionsRef.current.onResponse?.(response)
@@ -308,9 +295,6 @@ export function useChat<
     }
   }, [client])
 
-  // Sync body / forwardedProps changes to the client.
-  // Both populate the same wire payload; `forwardedProps` is preferred
-  // and `body` is deprecated but still supported.
   useEffect(() => {
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
@@ -338,15 +322,6 @@ export function useChat<
     }
   }, [client, options.live])
 
-  // ONLY THE VIEW ON SCREEN HOLDS A STREAM. See the same effect in
-  // `@tanstack/ai-react`. A page can own many chats and a browser allows only ~6
-  // connections per origin, so one long-lived stream per chat starves everything
-  // else once a handful of views have been open. `attach` is idempotent and
-  // `detach` keeps the transcript and the resume pointer, so a remount picks the
-  // run straight back up from the durable log.
-  //
-  // Immediate, unlike the deferred disposal below, which a remount can skip —
-  // correct for disposal, useless for a connection.
   useEffect(() => {
     client.attach()
     return () => {
@@ -354,10 +329,6 @@ export function useChat<
     }
   }, [client])
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: We only cleanup when client changes or component unmounts.
-  // DO NOT include isLoading in dependencies - that would cause the cleanup
-  // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
     if (cleanupDisposalRef.current?.client === client) {
       clearTimeout(cleanupDisposalRef.current.timeout)
@@ -368,9 +339,6 @@ export function useChat<
       cleanupInvalidationRef.current = null
     }
     client.mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
     syncResumeState(client)
 
     return () => {
@@ -380,10 +348,6 @@ export function useChat<
         }
         cleanupInvalidationRef.current = null
       }, 0)
-      // Subscribe/unsubscribe on `options.live` is owned by the dedicated
-      // effect above. This cleanup only fires on unmount or client swap,
-      // so read `live` through the ref to avoid disposing the client every
-      // time `live` toggles.
       if (optionsRef.current.live) {
         client.unsubscribe()
       } else {

@@ -11,10 +11,6 @@ export {
 
 export type OpenAIShellTool = ProviderTool<'openai', 'shell'>
 
-/**
- * Creates a standard Tool from ShellTool parameters, branded as an OpenAI
- * provider tool. Pass `environment` to attach a container + skills.
- */
 export function shellTool(
   config: ShellToolFactoryConfig = {},
 ): OpenAIShellTool {

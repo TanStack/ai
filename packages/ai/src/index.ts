@@ -216,12 +216,6 @@ export {
   INTERRUPT_TOOL_RESUMES,
 } from './activities/chat/middleware/index'
 
-// Interrupt protocol surface. Deliberately enumerated rather than
-// `export *`: the interrupt object is the seam between AI-domain pauses and
-// any future durable/workflow-owned approval model, so what we publish here is
-// a commitment. Only the ephemeral contract this release actually implements
-// is exported — no durable-recovery or persisted-state types, which would
-// pre-decide a question the orchestration RFC still owns.
 export {
   defineInterrupt,
   createInterruptBinding,
@@ -261,11 +255,6 @@ export type {
   UnopenedInterruptBinding,
 } from './interrupts'
 
-// Base, activity-agnostic middleware. The observe-only superset that media
-// activities accept via their `middleware` option; `ChatMiddleware` adds the
-// chat-only hooks on top. Pure types only — the `otelMiddleware` value lives at
-// `@tanstack/ai/middlewares/otel` so the root barrel never requires the
-// optional `@opentelemetry/api` peer dependency.
 export type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
@@ -311,17 +300,11 @@ export type {
   RunError,
   RunStore,
 } from './activities/chat/middleware/index'
-// The detachable-run marker is a coordination fact `@tanstack/ai-sandbox`
-// provides and `@tanstack/ai-persistence` reads, so core owns it and neither
-// consumer package has to depend on the other.
 export {
   DetachableRunCapability,
   getDetachableRun,
   provideDetachableRun,
 } from './activities/chat/middleware/run-store'
-// Its past-tense counterpart: the abort-path verdict that this run WAS detached.
-// `@tanstack/ai-sandbox`'s `onAbort` publishes it on its detach branch, and core's
-// durable delivery sink reads it to keep a detached run's log open for takeover.
 export {
   RunDetachedCapability,
   getRunDetached,

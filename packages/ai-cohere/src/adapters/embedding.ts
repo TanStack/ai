@@ -17,18 +17,11 @@ import type {
 import type { CohereEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type { CohereClientConfig } from '../utils/client'
 
-/**
- * Configuration for Cohere embedding adapter.
- */
 export interface CohereEmbeddingConfig extends CohereClientConfig {}
 
 const DEFAULT_BASE_URL = 'https://api.cohere.com'
 const DEFAULT_TIMEOUT_MS = 30_000
 
-/**
- * Returns true when `url` is malformed, non-http(s), or targets a private /
- * loopback / link-local host. Used to block SSRF via `allowUrlFetch`.
- */
 function isPrivateOrInternalUrl(url: string): boolean {
   let parsed: URL
   try {
@@ -36,11 +29,12 @@ function isPrivateOrInternalUrl(url: string): boolean {
   } catch {
     return true
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+  const notHttp = parsed.protocol !== 'http:' && parsed.protocol !== 'https:'
+  if (notHttp) {
     return true
   }
   const host = parsed.hostname.toLowerCase()
-  if (
+  const isPrivateHost =
     host === 'localhost' ||
     host.endsWith('.localhost') ||
     host === '::1' ||
@@ -50,7 +44,7 @@ function isPrivateOrInternalUrl(url: string): boolean {
     host.startsWith('192.168.') ||
     host.startsWith('169.254.') ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  ) {
+  if (isPrivateHost) {
     return true
   }
   return false
@@ -117,20 +111,6 @@ interface CohereEmbedResponse {
   }
 }
 
-/**
- * Cohere Embedding Adapter
- *
- * Tree-shakeable adapter for Cohere multimodal embeddings (embed-v4.0),
- * implemented with plain `fetch` against the v2/embed endpoint — no Cohere
- * SDK dependency.
- *
- * Features:
- * - Batch embedding (one request for the whole input array)
- * - Multimodal inputs: text, images, and fused text+image items (one vector
- *   per input item)
- * - Matryoshka dimension reduction via the top-level `dimensions` option
- *   (mapped to Cohere's `output_dimension`)
- */
 export class CohereEmbeddingAdapter<
   TModel extends CohereEmbeddingModel,
 > extends BaseEmbeddingAdapter<
@@ -269,11 +249,6 @@ export class CohereEmbeddingAdapter<
     )
   }
 
-  /**
-   * Resolves an image part to a URL Cohere accepts. Cohere does not fetch
-   * remote image URLs, so everything is normalized to a `data:` URI unless
-   * the caller already provided one.
-   */
   protected async resolveImageUrl(image: ImagePart): Promise<string> {
     const source = image.source
 
@@ -316,26 +291,6 @@ export class CohereEmbeddingAdapter<
   }
 }
 
-/**
- * Creates a Cohere embedding adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'embed-v4.0')
- * @param apiKey - Your Cohere API key
- * @param config - Optional additional configuration
- * @returns Configured Cohere embedding adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createCohereEmbedding('embed-v4.0', 'api_key');
- *
- * const result = await embed({
- *   adapter,
- *   input: 'a red guitar',
- *   modelOptions: { inputType: 'search_document' }
- * });
- * ```
- */
 export function createCohereEmbedding<TModel extends CohereEmbeddingModel>(
   model: TModel,
   apiKey: string,
@@ -344,34 +299,6 @@ export function createCohereEmbedding<TModel extends CohereEmbeddingModel>(
   return new CohereEmbeddingAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Cohere embedding adapter using the `COHERE_API_KEY` environment variable.
- * Type resolution happens here at the call site.
- *
- * Looks for `COHERE_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'embed-v4.0')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Cohere embedding adapter instance with resolved types
- * @throws Error if COHERE_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses COHERE_API_KEY from environment
- * const adapter = cohereEmbedding('embed-v4.0');
- *
- * const result = await embed({
- *   adapter,
- *   input: ['a red guitar', 'a blue drum kit'],
- *   modelOptions: { inputType: 'search_query' },
- *   dimensions: 1024
- * });
- *
- * console.log(result.embeddings[0].vector)
- * ```
- */
 export function cohereEmbedding<TModel extends CohereEmbeddingModel>(
   model: TModel,
   config?: Omit<CohereEmbeddingConfig, 'apiKey'>,

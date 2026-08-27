@@ -10,10 +10,6 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 export interface VercelSandboxConfig {
-  /**
-   * Vercel access token. Falls back to the `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN`
-   * env vars (read by the SDK) when omitted.
-   */
   token?: string
   /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
   teamId?: string
@@ -25,16 +21,7 @@ export interface VercelSandboxConfig {
   timeout?: number
   /** Ports to expose; reachable from the host via `ports.connect(port)`. */
   ports?: Array<number>
-  /**
-   * Create a persistent (named) sandbox that survives `stop()` and can be
-   * reconnected with `resume({ id })`. Defaults to false (ephemeral), in which
-   * case `resume` resolves null once the sandbox has stopped.
-   */
   persistent?: boolean
-  /**
-   * Working directory inside the sandbox. The `/workspace` virtual root maps
-   * here. Defaults to `/vercel/sandbox`.
-   */
   workdir?: string
 }
 
@@ -56,15 +43,9 @@ export function withSandboxUserAgent(
   }
 }
 
-/**
- * True when `error` is the Vercel SDK's "directory already exists" failure — an
- * {@link APIError} with HTTP 400 whose body reports an `EEXIST`-style message.
- * Used to make the non-idempotent native `mkDir` safe to call on a workdir that
- * may already exist (notably the default `/vercel/sandbox`).
- */
 export function isDirAlreadyExistsError(error: unknown): boolean {
-  if (!(error instanceof APIError) || error.response.status !== 400)
-    return false
+  if (!(error instanceof APIError)) return false
+  if (error.response.status !== 400) return false
   const json: unknown = error.json
   const detail =
     typeof json === 'object' &&
@@ -101,11 +82,6 @@ class VercelProvider implements SandboxProvider {
   /** Auth overrides shared by create/get/stop, omitting undefined fields. */
   private auth(): { token?: string; teamId?: string; projectId?: string } {
     const out: { token?: string; teamId?: string; projectId?: string } = {}
-    // Fall back to env when not set in config. We must resolve these ourselves:
-    // when given no explicit `token`, the Vercel SDK runs its OWN credential
-    // resolution, which PREFERS `VERCEL_OIDC_TOKEN` over the access-token path —
-    // so a stale/expired OIDC token wins and access-token auth never kicks in.
-    // Passing `token` explicitly forces access-token auth.
     const token = this.config.token ?? process.env.VERCEL_TOKEN
     const teamId = this.config.teamId ?? process.env.VERCEL_TEAM_ID
     const projectId = this.config.projectId ?? process.env.VERCEL_PROJECT_ID
@@ -129,14 +105,6 @@ class VercelProvider implements SandboxProvider {
         : {}),
       ...(input.env ? { env: input.env } : {}),
     })
-    // Ensure the workspace dir exists via the native (cwd-independent) mkDir —
-    // running a command with a not-yet-existing `cwd` would fail, so we must not
-    // route this through the handle (which runs every command in `workdir`).
-    //
-    // The SDK's `mkDir` is NOT idempotent: it returns HTTP 400 (`file_error` /
-    // "File exists") when the target already exists, and the default workdir
-    // `/vercel/sandbox` ships in the runtime image — so a fresh sandbox already
-    // has it. Treat an "already exists" failure as success; rethrow anything else.
     try {
       await sandbox.mkDir(this.workdir)
     } catch (error) {
@@ -181,11 +149,6 @@ class VercelProvider implements SandboxProvider {
   }
 }
 
-/**
- * Vercel Sandbox provider — runs harness adapters inside isolated Vercel
- * microVMs. Requires a Vercel access token (`config.token` or the
- * `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN` env var) plus team/project scope.
- */
 export function vercelSandbox(
   config: VercelSandboxConfig = {},
 ): SandboxProvider {

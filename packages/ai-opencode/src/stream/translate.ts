@@ -23,29 +23,21 @@ export interface TranslateContext {
   threadId: string
   parentRunId?: string
   genId: () => string
-  /**
-   * Names of bridged TanStack tools, used to surface the harness's MCP tool
-   * calls under the names the application registered.
-   */
   bridgedToolNames?: ReadonlySet<string>
   /** Called for each raw stream event, for logging. */
   onStreamEvent?: (event: OpencodeStreamEvent) => void
 }
 
-/**
- * Resolve the AG-UI tool-call name for an OpenCode tool part. OpenCode names
- * MCP tools `<server>_<tool>`, so bridged TanStack tools arrive as
- * `tanstack_<tool>` and are surfaced under the names the application
- * registered; everything else (built-in `read`, `edit`, `bash`, ... and
- * foreign MCP tools) uses the harness tool name verbatim.
- */
 export function resolveToolName(
   tool: string,
   bridgedToolNames: ReadonlySet<string> | undefined,
 ): string {
-  if (!bridgedToolNames || bridgedToolNames.size === 0) return tool
+  if (!bridgedToolNames) return tool
+  if (bridgedToolNames.size === 0) return tool
   if (bridgedToolNames.has(tool)) return tool
-  if (tool.startsWith('tanstack_') && bridgedToolNames.has(tool.slice(9))) {
+  const isPrefixedBridge =
+    tool.startsWith('tanstack_') && bridgedToolNames.has(tool.slice(9))
+  if (isPrefixedBridge) {
     return tool.slice(9)
   }
   return tool
@@ -89,26 +81,6 @@ function messageError(
   return { message: message.error.data?.message ?? message.error.name }
 }
 
-/**
- * Translate an OpenCode event stream into AG-UI StreamChunk events.
- *
- * The harness runs its own agent loop and executes its own tools, so the
- * translation always ends with `finishReason: 'stop'` (or `'length'` /
- * RUN_ERROR) — never `'tool_calls'`. Harness tool activity is emitted as
- * already-resolved TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so
- * UIs can render it, while the TanStack engine never tries to execute them.
- *
- * OpenCode delivers true token-level deltas for both assistant text and
- * reasoning via `message.part.updated` events (a `delta` string when
- * incremental, otherwise the full part text, from which the delta is
- * derived). The final assistant message — finish reason, token usage, and any
- * fatal error — arrives as the terminal `done` event.
- *
- * Invariant: every TOOL_CALL_START is eventually paired with a
- * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
- * ends or aborts before the harness reported one) so the engine's
- * pending-tool-call scan on the next request never force-executes them.
- */
 export async function* translateOpencodeStream(
   events: AsyncIterable<OpencodeStreamEvent>,
   ctx: TranslateContext,
@@ -313,7 +285,9 @@ export async function* translateOpencodeStream(
     yield* openToolCall(part)
 
     const state = part.state
-    if (state.status !== 'completed' && state.status !== 'error') return
+    const stillRunning =
+      state.status !== 'completed' && state.status !== 'error'
+    if (stillRunning) return
     if (resolvedToolCalls.has(part.callID)) return
     resolvedToolCalls.add(part.callID)
     unresolvedToolCalls.delete(part.callID)
@@ -409,10 +383,6 @@ export async function* translateOpencodeStream(
       }
     }
   } catch (error) {
-    // The run is dying (abort, server exit, or connection failure). Close any
-    // open message and pair started tool calls with a synthetic result first
-    // so the next request's pending-tool-call scan doesn't try to execute
-    // them, then let the adapter surface the error as RUN_ERROR.
     yield* closeText()
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()

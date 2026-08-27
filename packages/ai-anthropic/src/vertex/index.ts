@@ -15,11 +15,6 @@ export {
   type AnthropicVertexChatModel,
 } from '../model-meta'
 
-/**
- * Creates an Anthropic chat adapter that talks to Claude on Vertex AI.
- *
- * Install `@anthropic-ai/vertex-sdk` next to `@tanstack/ai-anthropic`.
- */
 export function anthropicVertexText<TModel extends AnthropicVertexChatModel>(
   model: TModel,
   config: AnthropicVertexConfig = {},

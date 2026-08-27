@@ -14,40 +14,17 @@ import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils/client'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
-/**
- * Resolve tool capabilities for a specific Grok model.
- */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GrokChatModelToolCapabilitiesByName
     ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-/**
- * Configuration for Grok text adapter
- */
 export interface GrokTextConfig extends GrokClientConfig {}
 
-/**
- * Alias for TextProviderOptions for external use
- */
 export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../text/text-provider-options'
 
-/**
- * Grok Text (Chat) Adapter
- *
- * Tree-shakeable adapter for Grok chat/text completion functionality.
- * Uses xAI's OpenAI-compatible Responses API.
- *
- * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter}
- * from `@tanstack/openai-base` and threads Grok-specific tool-capability
- * typing through the 5th generic of the base class.
- */
 export class GrokTextAdapter<
   TModel extends GrokTextAdapterModel,
-  // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
-  // adapter: the resolved Grok provider options are a type-alias intersection
-  // with no explicit index signature, which is assignable to
-  // `Record<string, any>` but not `Record<string, unknown>`. See issue #821.
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -76,7 +53,9 @@ export class GrokTextAdapter<
     })
     void _baseTools
 
-    if (this.model === 'grok-build-0.1' && request.reasoning !== undefined) {
+    const rejectsReasoningOnBuild =
+      this.model === 'grok-build-0.1' && request.reasoning !== undefined
+    if (rejectsReasoningOnBuild) {
       throw new Error(
         'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
       )
@@ -98,21 +77,6 @@ export class GrokTextAdapter<
   }
 }
 
-/**
- * Creates a Grok text adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'grok-build-0.1')
- * @param apiKey - Your xAI API key
- * @param config - Optional additional configuration
- * @returns Configured Grok text adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createGrokText('grok-build-0.1', "xai-...");
- * // adapter has type-safe providerOptions for grok-build-0.1
- * ```
- */
 export function createGrokText<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
 >(
@@ -123,30 +87,6 @@ export function createGrokText<
   return new GrokTextAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Grok text adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
- *
- * Looks for `XAI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'grok-build-0.1')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Grok text adapter instance with resolved types
- * @throws Error if XAI_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses XAI_API_KEY from environment
- * const adapter = grokText('grok-build-0.1');
- *
- * const stream = chat({
- *   adapter,
- *   messages: [{ role: "user", content: "Hello!" }]
- * });
- * ```
- */
 export function grokText<TModel extends (typeof GROK_CHAT_MODELS)[number]>(
   model: TModel,
   config?: Omit<GrokTextConfig, 'apiKey'>,

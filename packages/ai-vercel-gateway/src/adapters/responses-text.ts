@@ -27,12 +27,6 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<VercelGatewayChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-/**
- * Vercel AI Gateway Responses text adapter.
- *
- * Talks to the public OpenAI-compatible Responses API at
- * `https://ai-gateway.vercel.sh/v1`.
- */
 export class VercelGatewayResponsesTextAdapter<
   TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,

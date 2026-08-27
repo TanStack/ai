@@ -1,9 +1,3 @@
-/**
- * Single words that on their own signal "this is a credential".
- * Matched after splitting a parameter name into camelCase/snake/kebab words.
- * So `accessToken` → `['access', 'token']` → matches `token`,
- * but `tokenizer` → `['tokenizer']` → does NOT match `token`.
- */
 const DANGEROUS_WORDS = new Set<string>([
   'password',
   'passwd',
@@ -18,11 +12,6 @@ const DANGEROUS_WORDS = new Set<string>([
   'bearer',
 ])
 
-/**
- * Compound patterns matched as substrings of the normalized (lowercased,
- * separator-stripped) parameter name. Catches forms like `openai_api_key`,
- * `x-api-key`, and `webhookSecret`.
- */
 const COMPOUND_PATTERNS = [
   'apikey',
   'accesskey',
@@ -96,11 +85,14 @@ function findSecretParams(
   path: Array<string>,
   found: Array<{ path: Array<string>; name: string }>,
 ): void {
-  if (!schema || typeof schema !== 'object' || seen.has(schema)) return
+  if (!schema) return
+  if (typeof schema !== 'object') return
+  if (seen.has(schema)) return
   seen.add(schema)
 
   if (schema.properties && typeof schema.properties === 'object') {
-    for (const [paramName, sub] of Object.entries(schema.properties)) {
+    const properties = Object.entries(schema.properties)
+    for (const [paramName, sub] of properties) {
       if (looksLikeSecret(paramName)) {
         found.push({ path: [...path, paramName], name: paramName })
       }
@@ -146,16 +138,6 @@ function buildMessage(toolName: string, paramPath: Array<string>): string {
   )
 }
 
-/**
- * Scan tool input schemas for parameter names that look like secrets.
- * Emits a warning (or invokes the configured handler) for each match.
- *
- * Recurses into nested object properties, array items, union branches
- * (anyOf/oneOf/allOf), additionalProperties, and `$ref` targets that
- * resolve within the same schema's `$defs`/`definitions`.
- *
- * Best-effort heuristic, not a security boundary.
- */
 export function warnIfBindingsExposeSecrets(
   tools: Array<ToolLike>,
   options: {

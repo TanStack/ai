@@ -9,44 +9,17 @@ import type { SnippetStorage } from './types'
 import type { TrustStrategy } from './trust-strategies'
 
 interface CreateSnippetManagementToolsOptions {
-  /**
-   * Storage implementation for snippets
-   */
   storage: SnippetStorage
 
-  /**
-   * Trust strategy for determining initial trust level.
-   * If not provided, uses the storage's trustStrategy or falls back to default.
-   */
   trustStrategy?: TrustStrategy
 
-  /**
-   * Tool registry for adding newly registered snippets immediately.
-   * When provided, register_snippet will add the new snippet to this registry
-   * so it's available as a direct tool in the current chat session.
-   */
   registry?: ToolRegistry
 
-  /**
-   * Code mode config for creating snippet tools.
-   * Required when registry is provided.
-   */
   config?: CodeModeToolConfig
 
-  /**
-   * Pre-computed bindings for external_* functions.
-   * Required when registry is provided.
-   */
   baseBindings?: Record<string, ToolBinding>
 }
 
-/**
- * Create tools for searching, retrieving, and registering snippets.
- * These tools allow the LLM to interact with the snippet library at runtime.
- *
- * When registry, config, and baseBindings are provided, newly registered snippets
- * will be immediately added to the registry and available as direct tools.
- */
 export function createSnippetManagementTools({
   storage,
   trustStrategy,

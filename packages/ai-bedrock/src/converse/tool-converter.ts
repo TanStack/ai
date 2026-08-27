@@ -40,7 +40,8 @@ export function toToolConfig(
 function mapChoice(
   choice: ToolChoiceInput | undefined,
 ): ToolChoice | undefined {
-  if (!choice || choice === 'auto') return { auto: {} }
+  if (!choice) return { auto: {} }
+  if (choice === 'auto') return { auto: {} }
   if (choice === 'required') return { any: {} }
   // `none` is handled earlier in toToolConfig (omits the tool config); this
   // branch keeps the string union narrowed so `choice.name` type-checks.

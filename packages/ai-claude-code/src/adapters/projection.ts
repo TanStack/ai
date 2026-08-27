@@ -1,31 +1,3 @@
-/**
- * Claude Code workspace projector — the reference implementation the other
- * harness projectors (codex, opencode) mirror.
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. Each harness
- * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Claude Code that means:
- *
- *   - MCP servers   → a project-scoped `.mcp.json` at the workspace root.
- *   - gitSkill repos → linked under `.claude/skills/<basename>`.
- *   - agentSkill     → no reliable claude primitive pulls a public skill by
- *                      bare name, so we warn and skip rather than invent one.
- *   - plugins        → `claude plugin install <name> --scope project`
- *                      (best-effort; project scope so the adapter's default
- *                      `--setting-sources project` loads it).
- *
- * The secret-bearing `.mcp.json` is (re)written on EVERY call, re-resolving
- * secrets each time, so claude always reads current values and a snapshot can
- * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
- * operations (gitSkill links, plugin installs, agentSkill handling) are guarded
- * by a one-time marker file under the workspace.
- *
- * External-convention caveat: the `.mcp.json` location/shape, the skills dir,
- * and the plugin-install command are verified against the installed `claude`
- * CLI. Where claude has no clean primitive (agentSkill by bare name) we no-op
- * with a warning instead of fabricating a command.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -54,11 +26,6 @@ function isBearerMarker(value: unknown): value is BearerRef {
   )
 }
 
-/**
- * Resolve a single MCP header value: a `SecretRef` resolves to its plaintext, a
- * `bearer(ref)` marker resolves to `Bearer <plaintext>`, and a plain string is
- * passed through unchanged.
- */
 function resolveHeaderValue(
   value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
@@ -75,11 +42,6 @@ interface ClaudeMcpServer {
   headers: Record<string, string>
 }
 
-/**
- * Build claude's project-scoped MCP config from the `{ kind: 'mcp' }` skills,
- * resolving every header value (SecretRef / bearer / string). Returns
- * `undefined` when there are no MCP skills so the caller can skip the write.
- */
 function buildMcpConfig(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
@@ -91,7 +53,8 @@ function buildMcpConfig(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']
@@ -101,14 +64,6 @@ function buildMcpConfig(
   return count > 0 ? { mcpServers } : undefined
 }
 
-/**
- * Write the project-scoped `.mcp.json`, re-resolving every secret. This runs on
- * EVERY projection call (never gated by the marker) so claude always reads the
- * current secret values and a snapshot can never serve a stale or rotated one.
- * With `snapshot:'after-run'` the file may still be captured in the image, so
- * secret-bearing MCP material is best used with the default `after-setup`
- * strategy. When there are no MCP skills the write is skipped.
- */
 async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -119,11 +74,6 @@ async function projectMcpServers(
   await handle.fs.write(target, JSON.stringify(config, null, 2))
 }
 
-/**
- * Ensure each cloned `gitSkill` repo is available under claude's project skills
- * dir (`<root>/.claude/skills/<basename>`) via a symlink, falling back to a
- * recursive copy on platforms without `ln -s`.
- */
 async function projectGitSkills(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -160,12 +110,6 @@ async function projectGitSkills(
   }
 }
 
-/**
- * `agentSkill` references a public skill by bare name. Claude Code has no
- * primitive to fetch a skill from a bare name (skills resolve from local
- * `.claude/skills/` dirs and plugin marketplaces), so we warn and skip rather
- * than fabricate a command.
- */
 function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
@@ -177,12 +121,6 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   }
 }
 
-/**
- * Install each declared plugin via `claude plugin install <name>` at project
- * scope (user scope is not read under the default `--setting-sources project`).
- * Plugin installs are best-effort: a failure (no marketplace, network, …) warns
- * but never throws, so a missing plugin can't break the run.
- */
 async function projectPlugins(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -205,18 +143,6 @@ async function projectPlugins(
   }
 }
 
-/**
- * Project a `WorkspaceProjection` into the Claude Code sandbox. Safe to call on
- * every `chatStream`. The secret-bearing `.mcp.json` is (re)written on every
- * call, re-resolving secrets, so claude always reads current values and a
- * snapshot can never serve a stale or rotated secret. The safe, idempotent,
- * non-secret operations (gitSkill links, plugin installs, agentSkill handling)
- * are guarded by a one-time marker so they run only on the first call after
- * create/restore.
- *
- * @param handle     - The sandbox handle (`fs` + `process`).
- * @param projection - The portable workspace inputs from `withSandbox`.
- */
 export async function projectClaudeWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

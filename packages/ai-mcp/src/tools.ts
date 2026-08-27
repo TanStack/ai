@@ -18,28 +18,10 @@ export function extractUiResourceUri(def: McpToolDef): string | undefined {
   return typeof uri === 'string' ? uri : undefined
 }
 
-/**
- * The human-readable display name for a tool, following the MCP spec's
- * precedence: the top-level `title` field wins, then the legacy
- * `annotations.title`, and finally the programmatic `name`.
- */
 function toolDisplayTitle(def: McpToolDef): string {
   return def.title ?? def.annotations?.title ?? def.name
 }
 
-/**
- * Build the `metadata.mcp` block stamped onto every discovered/bound tool.
- * Shared by auto-discovery (`toServerTools`) and the explicit `tools(defs)`
- * path in `client.ts` so the two cannot drift.
- *
- * `annotations` is the server's own object, forwarded verbatim. Per the MCP
- * spec its fields (including `title`) are **hints** — a host may use them for
- * display or to shape an approval UI, but never as a security boundary.
- *
- * Fields the server didn't declare are OMITTED rather than set to `undefined`:
- * the explicit path merges this over any `mcp` block the caller already put on
- * their tool definition, and an `undefined` value would blank out what they set.
- */
 export function toolMcpMetadata(
   def: McpToolDef,
   serverId: string | undefined,
@@ -62,8 +44,9 @@ export function mcpContentToTanstack(
   // against undefined/non-array before reading length/map.
   if (!Array.isArray(content)) return ''
   // Single text block → plain string (most common, best for the model).
-  if (content.length === 1 && content[0]?.type === 'text')
-    return content[0].text
+  if (content.length === 1) {
+    if (content[0]?.type === 'text') return content[0].text
+  }
   const parts = content
     .map((c): ContentPart => {
       switch (c.type) {
@@ -76,7 +59,9 @@ export function mcpContentToTanstack(
           }
         case 'resource': {
           const uri = c.resource?.uri
-          if (typeof uri === 'string' && uri.startsWith('ui://')) {
+          const isUiResource =
+            typeof uri === 'string' && uri.startsWith('ui://')
+          if (isUiResource) {
             // ui:// resources are surfaced via readResource (MCP Apps); omit from model text.
             return { type: 'text', content: '' }
           }
@@ -90,15 +75,6 @@ export function mcpContentToTanstack(
   return parts.length ? parts : ''
 }
 
-/**
- * Build the execute body that proxies a TanStack tool call to an MCP server's
- * `callTool`. Shared by auto-discovery and the definition path.
- *
- * @param preferStructured when true (i.e. the tool declares an outputSchema),
- *   return `result.structuredContent` if present so the existing output
- *   validation in `executeServerTool` validates MCP's typed payload rather than
- *   a JSON-in-text blob. Otherwise normalize `content[]` → string | ContentPart[].
- */
 export function makeMcpExecute(
   client: Client,
   mcpName: string,
@@ -136,21 +112,10 @@ export function makeMcpExecute(
   }
 }
 
-/**
- * A tool with `execution.taskSupport: 'required'` can only run through the
- * SDK's experimental task-based execution (`tasks/callToolStream`) — plain
- * `callTool` is rejected by the server with -32600. Until task execution is
- * supported, such tools must not be offered to the model.
- */
 export function requiresTaskExecution(def: McpToolDef): boolean {
   return def.execution?.taskSupport === 'required'
 }
 
-/**
- * Auto-discovery path: turn raw MCP tool defs into ServerTools (args typed
- * `unknown`). Task-required tools are excluded — they cannot be invoked via
- * plain `callTool` (see {@link requiresTaskExecution}).
- */
 export function toServerTools(
   client: Client,
   defs: Array<McpToolDef>,

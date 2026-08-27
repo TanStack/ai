@@ -11,11 +11,6 @@ export interface FunctionTool {
   }
 }
 
-/**
- * Converts a standard Tool to Vercel AI Gateway Chat Completions tool format.
- *
- * Tool schemas are already converted to JSON Schema in the ai layer.
- */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
   const inputSchema = (tool.inputSchema ?? {
     type: 'object',

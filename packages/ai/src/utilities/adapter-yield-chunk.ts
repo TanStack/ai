@@ -1,10 +1,6 @@
 import type { InterruptSubmissionError } from '../interrupts'
 import type { ContentPart, StreamChunk, ToolOutputState } from '../types'
 
-/**
- * Adapter / engine yield before normalize. Public StreamChunk is spec-only.
- * This type still allows the old extra fields.
- */
 export type AdapterYieldChunk = StreamChunk & {
   model?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null

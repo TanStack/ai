@@ -38,7 +38,10 @@ function build<TModel extends VercelGatewayChatModel>(
   model: TModel,
   config: VercelGatewayClientConfig & { api?: VercelGatewayTextApi },
 ): AnyVercelGatewayTextAdapter<TModel> {
-  if (config.api === 'chat' || config.api === 'chat-completions') {
+  if (config.api === 'chat') {
+    return new VercelGatewayTextAdapter(stripApi(config), model)
+  }
+  if (config.api === 'chat-completions') {
     return new VercelGatewayTextAdapter(stripApi(config), model)
   }
   return new VercelGatewayResponsesTextAdapter(stripApi(config), model)

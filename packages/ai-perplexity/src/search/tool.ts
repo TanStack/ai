@@ -52,22 +52,6 @@ const outputSchema = z.object({
   ),
 })
 
-/**
- * Build a TanStack AI tool that performs real-time web search via Perplexity.
- *
- * Returns `{ results: Array<{ title, url, snippet, date?, last_updated? }> }`
- * for citation/grounding in an LLM agent loop.
- *
- * @example
- * ```ts
- * import { chat } from '@tanstack/ai'
- * import { openaiText } from '@tanstack/ai-openai'
- * import { perplexitySearchTool } from '@tanstack/ai-perplexity'
- *
- * const search = perplexitySearchTool({ defaultMaxResults: 5 })
- * chat({ adapter: openaiText('gpt-5.2'), tools: [search], messages })
- * ```
- */
 export function perplexitySearchTool(
   config: PerplexitySearchClientConfig & {
     /** Override the tool name (defaults to `perplexity_search`). */
@@ -79,12 +63,12 @@ export function perplexitySearchTool(
   } = {},
 ) {
   const { name, description, defaultMaxResults, ...clientConfig } = config
-  if (
+  const invalidDefaultMaxResults =
     defaultMaxResults !== undefined &&
     (!Number.isInteger(defaultMaxResults) ||
       defaultMaxResults < 1 ||
       defaultMaxResults > 20)
-  ) {
+  if (invalidDefaultMaxResults) {
     throw new Error('defaultMaxResults must be an integer between 1 and 20.')
   }
 

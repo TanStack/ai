@@ -1,6 +1,3 @@
-/**
- * Model metadata interface for documentation and type inference
- */
 import type {
   GrokBuildProviderOptions,
   GrokTextProviderOptions,
@@ -149,16 +146,6 @@ const GROK_IMAGINE_IMAGE_2_0 = {
   },
 } as const satisfies ModelMeta
 
-// Imagine API video models. Pricing is per second of generated video
-// (output only); generated videos carry an audio track.
-//
-// Both models support text-to-video and image-to-video (a starting-frame
-// image is optional). grok-imagine-video-1.5 is the documented default: it
-// adds native 1080p for text-to-video / image-to-video plus
-// reference-to-video (`reference_images` / `reference_audios`; reference
-// output is capped at 720p). Source-video edit (`/v1/videos/edits`) and
-// extend (`/v1/videos/extensions`) are grok-imagine-video only — xAI's
-// 1.5 model page lists text+image input, not video.
 const GROK_IMAGINE_VIDEO = {
   name: 'grok-imagine-video',
   supports: {
@@ -279,9 +266,6 @@ const GROK_4_1_FAST_NON_REASONING = {
   },
 } as const satisfies ModelMeta
 
-/**
- * Grok chat models supported by the xAI Responses adapter.
- */
 export const GROK_CHAT_MODELS = [
   GROK_4_5.name,
   GROK_4_6.name,
@@ -289,10 +273,6 @@ export const GROK_CHAT_MODELS = [
   GROK_4_3.name,
 ] as const
 
-/**
- * Grok chat models on Vertex AI / Gemini Enterprise Agent Platform.
- * This list is the Google partner catalog, not the xAI API catalog.
- */
 export const GROK_VERTEX_CHAT_MODELS = [
   GROK_4_3.name,
   GROK_4_20_REASONING.name,
@@ -301,9 +281,6 @@ export const GROK_VERTEX_CHAT_MODELS = [
   GROK_4_1_FAST_NON_REASONING.name,
 ] as const
 
-/**
- * Grok Image Generation Models
- */
 export const GROK_IMAGE_MODELS = [
   GROK_2_IMAGE.name,
   GROK_IMAGINE_IMAGE.name,
@@ -311,19 +288,11 @@ export const GROK_IMAGE_MODELS = [
   GROK_IMAGINE_IMAGE_QUALITY.name,
 ] as const
 
-/**
- * Grok Video Generation Models (xAI Imagine API)
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export const GROK_VIDEO_MODELS = [
   GROK_IMAGINE_VIDEO.name,
   GROK_IMAGINE_VIDEO_1_5.name,
 ] as const
 
-// xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
-// parameter. This synthetic identifier satisfies the SDK's `TTSOptions.model`
-// contract and provides a stable value for logging and fixture matching.
 const GROK_TTS = {
   name: 'grok-tts',
   supports: {
@@ -332,9 +301,6 @@ const GROK_TTS = {
   },
 } as const satisfies ModelMeta
 
-// xAI's `/v1/stt` endpoint is endpoint-addressed and does not take a `model`
-// parameter. This synthetic identifier satisfies the SDK's
-// `TranscriptionOptions.model` contract.
 const GROK_STT = {
   name: 'grok-stt',
   supports: {
@@ -398,11 +364,6 @@ export const GROK_REALTIME_MODELS = [
   GROK_VOICE_THINK_FAST_1.name,
 ] as const
 
-/**
- * Default speech-to-speech model used by the realtime token issuer and the
- * realtime client adapter when no model is specified. Single source of truth
- * so a future default bump cannot leave the two sides disagreeing.
- */
 export const GROK_DEFAULT_REALTIME_MODEL: GrokRealtimeModel =
   'grok-voice-think-fast-2.0'
 
@@ -415,10 +376,6 @@ export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
 export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
 export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
 
-/**
- * Type-only map from Grok chat model name to its supported input modalities.
- * Used for type inference when constructing multimodal messages.
- */
 export type GrokModelInputModalitiesByName = {
   [GROK_4_3.name]: typeof GROK_4_3.supports.input
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.input
@@ -430,11 +387,6 @@ export type GrokModelInputModalitiesByName = {
   [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.input
 }
 
-/**
- * Type-only map from Grok chat model name to its supported provider tools.
- * Keeps Grok provider-tool factories type-checked against the models that
- * advertise xAI Responses server-side tools.
- */
 export type GrokChatModelToolCapabilitiesByName = {
   [GROK_4_3.name]: typeof GROK_4_3.supports.tools
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.tools
@@ -446,9 +398,6 @@ export type GrokChatModelToolCapabilitiesByName = {
 
 export type GrokProviderOptions = GrokTextProviderOptions
 
-/**
- * Type-only map from Grok chat model name to its provider options type.
- */
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
   [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
@@ -458,23 +407,11 @@ export type GrokChatModelProviderOptionsByName = {
   [GROK_4_1_FAST_NON_REASONING.name]: GrokProviderOptions
 }
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
-/**
- * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
- */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GrokChatModelProviderOptionsByName
     ? GrokChatModelProviderOptionsByName[TModel]
     : GrokProviderOptions
 
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use text only.
- */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GrokModelInputModalitiesByName
     ? GrokModelInputModalitiesByName[TModel]

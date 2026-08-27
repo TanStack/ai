@@ -52,9 +52,9 @@ class GrokVertexTextAdapter<
     const tools = request.tools
     if (tools !== undefined) {
       for (const tool of tools) {
-        if (tool === null || typeof tool !== 'object' || !('type' in tool)) {
-          continue
-        }
+        if (tool === null) continue
+        if (typeof tool !== 'object') continue
+        if (!('type' in tool)) continue
         if (VERTEX_UNSUPPORTED_GROK_SERVER_TOOLS.has(String(tool.type))) {
           throw new Error(
             'Grok Vertex does not support xAI server tools (web_search, x_search, file_search, mcp). Use a function tool.',
@@ -69,12 +69,6 @@ class GrokVertexTextAdapter<
   }
 }
 
-/**
- * Creates a Grok chat adapter that talks to xAI Grok on Vertex AI.
- *
- * Install `google-auth-library` next to `@tanstack/ai-grok` for Application
- * Default Credentials. Or pass `authClient` or `getAccessToken`.
- */
 export function grokVertexText<TModel extends GrokVertexChatModel>(
   model: TModel,
   config: GrokVertexConfig = {},
@@ -96,7 +90,8 @@ export function grokVertexText<TModel extends GrokVertexChatModel>(
         const headers = new Headers(init?.headers)
         headers.set('Authorization', `Bearer ${token}`)
         if (config.defaultHeaders) {
-          for (const [key, value] of Object.entries(config.defaultHeaders)) {
+          const defaultHeaders = Object.entries(config.defaultHeaders)
+          for (const [key, value] of defaultHeaders) {
             headers.set(key, value)
           }
         }
@@ -107,9 +102,6 @@ export function grokVertexText<TModel extends GrokVertexChatModel>(
   )
 }
 
-/**
- * Creates a Grok summarize adapter that talks to xAI Grok on Vertex AI.
- */
 export function grokVertexSummarize<TModel extends GrokVertexChatModel>(
   model: TModel,
   config: GrokVertexConfig = {},

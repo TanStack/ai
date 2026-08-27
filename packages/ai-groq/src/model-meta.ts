@@ -1,9 +1,6 @@
 import type { GroqTextProviderOptions } from './text/text-provider-options'
 import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
 
-/**
- * Internal metadata structure describing a Groq model's capabilities and pricing.
- */
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   context_window?: number
@@ -30,9 +27,6 @@ interface ModelMeta<TProviderOptions = unknown> {
     >
     tools?: ReadonlyArray<never>
   }
-  /**
-   * Type-level description of which provider options this model supports.
-   */
   providerOptions?: TProviderOptions
 }
 
@@ -317,9 +311,6 @@ const QWEN3_32B = {
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
-/**
- * All supported Groq chat model identifiers.
- */
 export const GROQ_CHAT_MODELS = [
   LLAMA_3_1_8B_INSTANT.name,
   LLAMA_3_3_70B_VERSATILE.name,
@@ -335,14 +326,8 @@ export const GROQ_CHAT_MODELS = [
   QWEN3_32B.name,
 ] as const
 
-/**
- * Union type of all supported Groq chat model names.
- */
 export type GroqChatModels = (typeof GROQ_CHAT_MODELS)[number]
 
-/**
- * Type-only map from Groq chat model name to its supported input modalities.
- */
 export type GroqModelInputModalitiesByName = {
   [LLAMA_3_1_8B_INSTANT.name]: typeof LLAMA_3_1_8B_INSTANT.supports.input
   [LLAMA_3_3_70B_VERSATILE.name]: typeof LLAMA_3_3_70B_VERSATILE.supports.input
@@ -358,19 +343,10 @@ export type GroqModelInputModalitiesByName = {
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.input
 }
 
-/**
- * Type-only map from Groq chat model name to its provider options type.
- */
 export type GroqChatModelProviderOptionsByName = {
   [K in (typeof GROQ_CHAT_MODELS)[number]]: GroqTextProviderOptions
 }
 
-/**
- * Type-only map from Groq chat model name to its supported provider tools.
- * Groq exposes no provider-specific tool factories, so every model gets an
- * empty tuple. This ensures that passing an Anthropic/OpenAI ProviderTool to
- * a Groq adapter produces a compile-time type error.
- */
 export type GroqChatModelToolCapabilitiesByName = {
   [LLAMA_3_1_8B_INSTANT.name]: typeof LLAMA_3_1_8B_INSTANT.supports.tools
   [LLAMA_3_3_70B_VERSATILE.name]: typeof LLAMA_3_3_70B_VERSATILE.supports.tools
@@ -386,17 +362,10 @@ export type GroqChatModelToolCapabilitiesByName = {
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.tools
 }
 
-/**
- * Type-only map from Groq TTS model name to its provider options type.
- */
 export type GroqTTSModelProviderOptionsByName = {
   [K in GroqTTSModel]: GroqTTSProviderOptions
 }
 
-/**
- * Resolves the provider options type for a specific Groq model.
- * Checks TTS models first, then chat models, then falls back to generic options.
- */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends GroqTTSModel
     ? GroqTTSProviderOptions
@@ -404,31 +373,17 @@ export type ResolveProviderOptions<TModel extends string> =
       ? GroqChatModelProviderOptionsByName[TModel]
       : GroqTextProviderOptions
 
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use text only.
- */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GroqModelInputModalitiesByName
     ? GroqModelInputModalitiesByName[TModel]
     : readonly ['text']
 
-/**
- * All supported Groq transcription model identifiers.
- */
 export const GROQ_TRANSCRIPTION_MODELS = [
   'whisper-large-v3-turbo',
   'whisper-large-v3',
 ] as const
 
-/**
- * Union type of all supported Groq transcription model names.
- */
 export type GroqTranscriptionModel = (typeof GROQ_TRANSCRIPTION_MODELS)[number]
-
-// ============================================================================
-// TTS Models
-// ============================================================================
 
 const ORPHEUS_V1_ENGLISH = {
   name: 'canopylabs/orpheus-v1-english',
@@ -460,15 +415,9 @@ const ORPHEUS_ARABIC_SAUDI = {
   },
 } as const satisfies ModelMeta<GroqTTSProviderOptions>
 
-/**
- * All supported Groq TTS model identifiers.
- */
 export const GROQ_TTS_MODELS = [
   ORPHEUS_V1_ENGLISH.name,
   ORPHEUS_ARABIC_SAUDI.name,
 ] as const
 
-/**
- * Union type of all supported Groq TTS model names.
- */
 export type GroqTTSModel = (typeof GROQ_TTS_MODELS)[number]

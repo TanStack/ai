@@ -23,12 +23,6 @@ function ensureFileSupport(): void {
   }
 }
 
-/**
- * Convert a TanStack `ImagePart` into an OpenAI-compatible `File`.
- *
- * HTTP(S) URLs are fetched only when `allowUrlFetch` is set. The gateway
- * edit and `input_reference` endpoints need uploaded bytes, not a URL.
- */
 export async function imagePartToFile(
   part: ImagePart<MediaInputMetadata>,
   fallbackName: string,
@@ -74,8 +68,10 @@ export async function imagePartToFile(
 
 function inferMimeFromUrl(url: string): string {
   const match = url.match(/\.(png|jpe?g|webp|gif)(?:\?|#|$)/i)
-  if (!match || !match[1]) return DEFAULT_MIME
+  if (!match) return DEFAULT_MIME
+  if (!match[1]) return DEFAULT_MIME
   const ext = match[1].toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+  if (ext === 'jpg') return 'image/jpeg'
+  if (ext === 'jpeg') return 'image/jpeg'
   return `image/${ext}`
 }

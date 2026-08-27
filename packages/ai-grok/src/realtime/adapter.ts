@@ -17,12 +17,6 @@ import type { GrokRealtimeOptions } from './types'
 
 const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'
 
-/**
- * Runtime-checked field readers for untyped server events. Replace the
- * drive-by `event.X as string` / `event.X as Record<string, unknown>` casts
- * with readers that return `undefined` when the shape doesn't match, so a
- * malformed frame can't throw a TypeError inside `handleServerEvent`.
- */
 function readString(
   obj: Record<string, unknown>,
   key: string,
@@ -102,10 +96,6 @@ function applyGrokTranscription(
   config: Partial<RealtimeSessionConfig>,
   hasSentInitialSessionUpdate: boolean,
 ): void {
-  // Let callers forward an explicit `input_audio_transcription` value
-  // through `providerOptions` — including `null` / `false` to disable
-  // the feature. Only apply our `grok-stt` default on the first
-  // session.update and only if the caller hasn't set it themselves.
   const providerOptions: Record<string, unknown> = config.providerOptions ?? {}
   const callerTranscription =
     'inputAudioTranscription' in providerOptions
@@ -123,24 +113,6 @@ function applyGrokTranscription(
   }
 }
 
-/**
- * Creates a Grok realtime adapter for client-side use.
- *
- * Uses WebRTC for browser connections (default). Mirrors the OpenAI realtime
- * adapter because xAI's Voice Agent API is OpenAI-realtime-compatible — the
- * only differences are the endpoint URL and default model.
- *
- * @example
- * ```typescript
- * import { RealtimeClient } from '@tanstack/ai-client'
- * import { grokRealtime } from '@tanstack/ai-grok'
- *
- * const client = new RealtimeClient({
- *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
- *   adapter: grokRealtime(),
- * })
- * ```
- */
 export function grokRealtime(
   options: GrokRealtimeOptions = {},
 ): RealtimeAdapter {
@@ -173,9 +145,6 @@ export function grokRealtime(
   }
 }
 
-/**
- * Creates a WebRTC connection to xAI's realtime API.
- */
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
@@ -194,36 +163,18 @@ async function createWebRTCConnection(
 
   let audioElement: HTMLAudioElement | null = null
 
-  // Captured into a const so closures see a non-nullable reference (teardown
-  // re-points the outer `dataChannel` to null, but in-flight closures still
-  // need to close their own channel).
   const channel = pc.createDataChannel('oai-events')
   let dataChannel: RTCDataChannel | null = channel
 
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
 
-  // Flipped by `teardownConnection`. Guards `sendEvent` so post-disconnect
-  // calls (e.g. a React `useEffect` cleanup flushing queued events) are
-  // logged and skipped instead of silently piling up in `pendingEvents`.
   let isTornDown = false
 
-  // Outbound events queued while the data channel isn't yet open. Declared
-  // here (rather than next to `sendEvent`) so `teardownConnection` — which
-  // lives higher up and can run from the SDP-path catch before `sendEvent`
-  // is defined — can drain it without hitting the TDZ.
   const pendingEvents: Array<Record<string, unknown>> = []
 
-  // Tracks whether we've sent the first session.update. On the first update
-  // we attach a default input_audio_transcription so the server will emit
-  // user transcripts unless the caller opts out via
-  // `providerOptions.inputAudioTranscription = null | false`.
   let hasSentInitialSessionUpdate = false
 
-  // Size hints for the fallback buffers returned when an analyser isn't yet
-  // populated. We return a *fresh* `Uint8Array` on each call so a caller
-  // that draws into it (e.g. a canvas visualiser zeroing the buffer) can't
-  // mutate a shared module-level instance for every other consumer.
   const FALLBACK_FREQUENCY_BIN_COUNT = 1024
   const FALLBACK_TIME_DOMAIN_SIZE = 2048
   const FALLBACK_TIME_DOMAIN_FILL = 128
@@ -303,20 +254,11 @@ async function createWebRTCConnection(
   }
 
   channel.onerror = (error) => {
-    // Closing the peer connection cascades into `onerror`/`onclose` on the
-    // data channel. Once teardown has started, re-surfacing those as
-    // `emit('error')` is noise that confuses consumers (they just called
-    // `disconnect()` — they don't want an error toast for it).
     if (isTornDown) return
     logger.errors('grok.realtime fatal', {
       error,
       source: 'grok.realtime',
     })
-    // RTCErrorEvent exposes a typed `.error`; fall back to the event type
-    // name, then to a string representation, so the emitted error message
-    // doesn't end up as "[object Event]".
-    // `onerror` always fires with an Event (often an RTCErrorEvent), so we
-    // can read it via the untyped helpers without first proving object-ness.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- RTCErrorEvent is a typed DOM class that does not structurally overlap Record<string, unknown>; we duck-type it via readObject/readString
     const errorRecord = error as unknown as Record<string, unknown>
     const rtcError = readObject(errorRecord, 'error')
@@ -330,9 +272,6 @@ async function createWebRTCConnection(
   }
 
   channel.onclose = () => {
-    // Same rationale as `onerror` above: `pc.close()` during teardown
-    // cascades to the data channel's `onclose`. If we've already started
-    // teardown, there's nothing to do here.
     if (isTornDown) return
     if (!dataChannelOpened) {
       rejectDataChannelReady?.(new Error('Data channel closed before opening'))
@@ -345,46 +284,28 @@ async function createWebRTCConnection(
     }
   }
 
-  // `status_change` has a single source of truth: `onconnectionstatechange`
-  // (the higher-level aggregate state). `oniceconnectionstatechange` is
-  // responsible only for rejecting `dataChannelReady` on ICE failures so we
-  // surface them without waiting for the 15s timeout.
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState
     logger.provider(`provider=grok pc.connectionState=${state}`, {
       state,
     })
-    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-      // Suppress the `status_change` emission when teardown is in progress:
-      // the user-facing `disconnect()` already emits `status_change: 'idle'`
-      // and then calls `teardownConnection()` → `pc.close()`, which fires
-      // `onconnectionstatechange` with state === 'closed'. Without this
-      // guard listeners would see two `idle` events per disconnect.
+    const isConnectionLost =
+      state === 'failed' || state === 'disconnected' || state === 'closed'
+    if (isConnectionLost) {
       if (!isTornDown) {
         emit('status_change', {
           status: state === 'failed' ? 'error' : 'idle',
         })
       }
       if (!dataChannelOpened) {
-        // Reject on any terminal-ish pre-open state so callers don't hang
-        // for the full 15s timeout. The reject is one-shot — subsequent
-        // state changes become no-ops via the null-out in
-        // `rejectDataChannelReady`.
         const message =
           state === 'failed'
             ? `PeerConnection failed before data channel opened`
             : `PeerConnection entered state '${state}' before data channel opened`
         rejectDataChannelReady?.(new Error(message))
       }
-      // Auto-teardown on `failed`: without this the mic track, pc, and
-      // AudioContext stay allocated after a fatal connection failure, so the
-      // browser's mic indicator stays on and the user sees a broken
-      // "connected mic" state. `closed` already means pc was torn down
-      // (usually by teardownConnection itself) so nothing extra to do.
-      // `disconnected` is transient per the WebRTC spec and may recover, so
-      // we leave resources in place. `teardownConnection` is idempotent so
-      // a subsequent consumer `disconnect()` remains safe.
-      if (state === 'failed' && !isTornDown) {
+      const shouldTeardownOnFailure = state === 'failed' && !isTornDown
+      if (shouldTeardownOnFailure) {
         void teardownConnection()
       }
     }
@@ -395,10 +316,10 @@ async function createWebRTCConnection(
     logger.provider(`provider=grok pc.iceConnectionState=${state}`, {
       state,
     })
-    if (
+    const iceFailedBeforeOpen =
       !dataChannelOpened &&
       (state === 'failed' || state === 'closed' || state === 'disconnected')
-    ) {
+    if (iceFailedBeforeOpen) {
       const message =
         state === 'failed'
           ? `ICE connection failed before data channel opened`
@@ -407,42 +328,18 @@ async function createWebRTCConnection(
     }
   }
 
-  /**
-   * Tear down every resource we may have allocated so the mic/pc/audio
-   * nodes/audio element don't leak on a failed connect. Safe to call from
-   * any point after `new RTCPeerConnection()`; each branch null-guards and
-   * swallows errors because cascading closes (e.g. `pc.close()` closing the
-   * data channel implicitly) are expected.
-   *
-   * Shared between the SDP-path catch, the post-SDP catch, and (implicitly
-   * via idempotency) the `disconnect()` entry point.
-   */
   async function teardownConnection() {
-    // Flip the teardown flag BEFORE any awaits so handlers that fire during
-    // `await audioContext.close()` (or any other async step below) can guard
-    // on it — otherwise a late `pc.onconnectionstatechange` or `pc.ontrack`
-    // can allocate new resources or re-emit `status_change: idle` after the
-    // user-facing `disconnect()` already emitted one.
     isTornDown = true
 
-    // Drop any queued events the caller sent before the data channel opened
-    // up front. Without this they'd accumulate across reconnect attempts
-    // (each connect allocates a fresh closure, but a caller holding the old
-    // `connection` reference could otherwise keep appending forever). Done
-    // at the top — before the awaits below — so `sendEvent` calls racing
-    // with teardown don't push into a list we're about to drain.
     pendingEvents.length = 0
 
-    // Clear the data-channel-open timeout / reject the readiness promise
-    // if it's still pending. `rejectDataChannelReady` is one-shot and nulls
-    // itself on first call, so calling it from `disconnect()` after a
-    // successful open is a no-op.
     rejectDataChannelReady?.(
       new Error('Connection torn down before data channel opened'),
     )
 
     if (localStream) {
-      for (const track of localStream.getTracks()) {
+      const tracks = localStream.getTracks()
+      for (const track of tracks) {
         track.stop()
       }
       localStream = null
@@ -519,14 +416,6 @@ async function createWebRTCConnection(
     }
   }
 
-  // xAI requires an audio track in the SDP offer, same as OpenAI realtime.
-  //
-  // This try/catch also covers `getUserMedia` failure (e.g. the user denies
-  // microphone permission). `pc` + `dataChannel` are already allocated above
-  // and the 15s `dataChannelReady` timeout is already armed, so we MUST
-  // teardown on failure here — otherwise they leak until the tab closes.
-  // `teardownConnection` is idempotent and null-safe (runs fine even if the
-  // mic was never acquired).
   try {
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
@@ -548,7 +437,8 @@ async function createWebRTCConnection(
       )
     }
 
-    for (const track of localStream.getAudioTracks()) {
+    const captureTracks = localStream.getAudioTracks()
+    for (const track of captureTracks) {
       pc.addTrack(track, localStream)
     }
 
@@ -584,11 +474,6 @@ async function createWebRTCConnection(
     throw err
   }
 
-  // Second cleanup scope: after SDP succeeds we still have to set up input
-  // audio analysis and wait for the data channel to open. Both can fail
-  // (AudioContext allocation, 15s timeout, ICE failure, pc.close from the
-  // other end, etc.) and those failures must NOT leave the mic/pc/audio
-  // nodes running.
   try {
     setupInputAudioAnalysis(localStream)
     await dataChannelReady
@@ -613,17 +498,13 @@ async function createWebRTCConnection(
 
   function handleOutputItemAdded(event: Record<string, unknown>) {
     const item = readObject(event, 'item')
-    if (!item || readString(item, 'type') !== 'message') return
+    if (!item) return
+    if (readString(item, 'type') !== 'message') return
     const id = readString(item, 'id')
     if (id !== undefined) currentMessageId = id
   }
 
   function handleFunctionCallDone(event: Record<string, unknown>) {
-    // Only `call_id` is valid for `sendToolResult` correlation. Falling
-    // back to `item_id` would produce a tool-call id the server doesn't
-    // recognise when the result is posted back, silently dropping the
-    // tool execution. If `call_id` is missing we surface an error event
-    // so the UI can react instead of pretending the tool call succeeded.
     const callId = readString(event, 'call_id')
     const name = readString(event, 'name') ?? ''
     const args = readString(event, 'arguments') ?? ''
@@ -694,10 +575,6 @@ async function createWebRTCConnection(
   }
 
   function handleTruncated() {
-    // Assistant playback was interrupted — flip mode back to `listening`
-    // unless the user already called `stopAudioCapture()` (idle). Without
-    // this the visualisation would stay stuck on `speaking` even though
-    // no audio is playing.
     listenUnlessIdle()
     emit('interrupted', {
       ...(currentMessageId !== null && { messageId: currentMessageId }),
@@ -705,11 +582,6 @@ async function createWebRTCConnection(
   }
 
   function handleServerError(event: Record<string, unknown>) {
-    // The realtime server's `error` envelope isn't guaranteed to carry
-    // an `error` object at all (network-layer corruption, protocol
-    // drift, etc.). Validate shape before dereferencing so a malformed
-    // payload can't throw a TypeError inside this handler and stop the
-    // dispatcher from running for the rest of the session.
     const errorObj = readObject(event, 'error') ?? {}
     const message =
       readString(errorObj, 'message') ?? 'Unknown realtime server error'
@@ -742,16 +614,10 @@ async function createWebRTCConnection(
       emit('transcript', { role: 'user', transcript, isFinal: true })
     },
     'response.created': () => {
-      // Reset message id so a tool-only response (which never emits
-      // response.output_item.added for a message) can't reuse the previous
-      // turn's id when `response.done` later inspects this flag.
       currentMessageId = null
       setRealtimeMode('thinking')
     },
     'response.output_item.added': handleOutputItemAdded,
-    // xAI realtime per docs uses `response.output_audio_transcript.*`;
-    // accept the legacy OpenAI-realtime `response.audio_transcript.*` as
-    // an alias so this adapter stays compatible across protocol versions.
     'response.output_audio_transcript.delta': (event) =>
       emitAssistantTranscript(readString(event, 'delta'), false),
     'response.audio_transcript.delta': (event) =>
@@ -794,27 +660,14 @@ async function createWebRTCConnection(
       handler(event)
       return
     }
-    // The xAI realtime protocol is a moving target; log unhandled event
-    // types at provider level so they're visible during debugging without
-    // emitting a user-visible error. `undefined` shares the bucket because
-    // a malformed event without a `type` field is just as unhandleable.
     logger.provider('grok.realtime unhandled server event', {
       type: event.type,
     })
   }
 
   function setupOutputAudioAnalysis(stream: MediaStream) {
-    // Bail out if teardown has already started. `pc.ontrack` can fire
-    // asynchronously after `teardownConnection()` has flipped `isTornDown`
-    // (e.g. a remote track arriving mid-close); without this guard we'd
-    // allocate a fresh AudioContext / audio element that nothing would ever
-    // clean up.
     if (isTornDown) return
 
-    // Tear down any prior output audio before allocating new resources.
-    // `pc.ontrack` can fire multiple times over the lifetime of a session
-    // (e.g. after renegotiation), and without this we'd leak audio elements
-    // and analyser nodes.
     if (audioElement) {
       try {
         audioElement.pause()
@@ -845,11 +698,6 @@ async function createWebRTCConnection(
     audioElement.srcObject = stream
     audioElement.autoplay = true
     audioElement.play().catch((e) => {
-      // Autoplay is commonly blocked until the user interacts with the page
-      // (browser gesture requirement). Surfacing this as a fatal `error`
-      // event makes the UI render a red/error state even though the
-      // connection is healthy — the page just needs a click. Log at a
-      // dedicated source tag so it's debuggable, but don't emit `error`.
       logger.errors('grok.realtime audio autoplay blocked', {
         error: e,
         source: 'grok.realtime.audio_permission_required',
@@ -862,10 +710,6 @@ async function createWebRTCConnection(
 
     if (audioContext.state === 'suspended') {
       audioContext.resume().catch((err) => {
-        // Same rationale as the autoplay catch: `resume()` failure usually
-        // means the user hasn't interacted yet. Logging only — no error
-        // emit — so the UI doesn't go into a fatal state for a recoverable
-        // condition.
         logger.errors('grok.realtime audioContext.resume failed', {
           error: err,
           source: 'grok.realtime',
@@ -882,10 +726,6 @@ async function createWebRTCConnection(
   }
 
   function setupInputAudioAnalysis(stream: MediaStream) {
-    // Defensive symmetry with `setupOutputAudioAnalysis`. Today this is
-    // only called inline after SDP negotiation, but keeping the guard
-    // means any future caller path (e.g. renegotiation) won't leak a fresh
-    // AudioContext after teardown.
     if (isTornDown) return
 
     if (!audioContext) {
@@ -894,10 +734,6 @@ async function createWebRTCConnection(
 
     if (audioContext.state === 'suspended') {
       audioContext.resume().catch((err) => {
-        // Same rationale as in setupOutputAudioAnalysis: a suspended
-        // AudioContext usually resumes after a user gesture. Log only —
-        // surfacing this as a fatal error makes the UI look broken for a
-        // recoverable condition.
         logger.errors('grok.realtime audioContext.resume failed', {
           error: err,
           source: 'grok.realtime',
@@ -915,11 +751,6 @@ async function createWebRTCConnection(
 
   function sendEvent(event: Record<string, unknown>) {
     if (isTornDown) {
-      // The caller is holding onto a `connection` object after `disconnect()`
-      // (or a failed connect). Silently queueing would leak memory and the
-      // events would never flush. Log + drop so the misuse is visible in
-      // debug mode without escalating to a throw — throwing from a React
-      // useEffect cleanup path can break teardown ordering in the UI.
       logger.errors('grok.realtime sendEvent after disconnect', {
         eventType: readString(event, 'type') ?? '<unknown>',
         source: 'grok.realtime',
@@ -931,12 +762,6 @@ async function createWebRTCConnection(
         `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
         { frame: event },
       )
-      // Mirror the try/catch in `flushPendingEvents` — `dataChannel.send`
-      // can synchronously throw if the channel flipped to `closing` between
-      // our readyState check and this call, or if `JSON.stringify` chokes
-      // on a caller-supplied payload. Log + emit error instead of letting
-      // the exception propagate up through public `sendText` / `sendImage`
-      // / `updateSession` call sites.
       try {
         dataChannel.send(JSON.stringify(event))
       } catch (error) {
@@ -965,12 +790,6 @@ async function createWebRTCConnection(
       }
       pendingEvents.length = 0
     } catch (error) {
-      // A send failure here (e.g. dataChannel went from 'open' back to
-      // 'closing' mid-flush, or JSON.stringify on a caller-provided event
-      // threw) would otherwise be silently swallowed. By the time we're
-      // called, `onopen` has already resolved `dataChannelReady`, so the
-      // consumer-facing signal is `emit('error')` — try rejectDataChannelReady
-      // as a defensive belt-and-braces in case this ever runs pre-resolve.
       logger.errors('grok.realtime flushPendingEvents failed', {
         error,
         source: 'grok.realtime',
@@ -983,16 +802,14 @@ async function createWebRTCConnection(
 
   const connection: RealtimeConnection = {
     async disconnect() {
-      // Reuse the same teardown path as the failed-connect branches so
-      // every cleanup site stays in sync (input analyser, output analyser,
-      // output source, audio element, etc.).
       await teardownConnection()
       emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const audioTracks = localStream.getAudioTracks()
+        for (const track of audioTracks) {
           track.enabled = true
         }
       }
@@ -1002,7 +819,8 @@ async function createWebRTCConnection(
 
     stopAudioCapture() {
       if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
+        const audioTracks = localStream.getAudioTracks()
+        for (const track of audioTracks) {
           track.enabled = false
         }
       }
@@ -1023,20 +841,12 @@ async function createWebRTCConnection(
     },
 
     sendImage(imageData: string, mimeType: string) {
-      // Accept:
-      //  - http(s):// URLs → forward as-is
-      //  - data: URIs (e.g. from FileReader.readAsDataURL) → forward as-is
-      //    so we don't double-wrap into `data:image/png;base64,data:image/png;base64,…`
-      //  - bare base64 → wrap in `data:${mimeType};base64,…`
       const isAlreadyUrlOrDataUri =
         imageData.startsWith('http://') ||
         imageData.startsWith('https://') ||
         imageData.startsWith('data:')
       const imageContent = {
         type: 'input_image',
-        // The OpenAI-realtime content part (which this adapter mirrors) nests
-        // the URL under an `image_url: { url: ... }` object, not a bare
-        // string.
         image_url: {
           url: isAlreadyUrlOrDataUri
             ? imageData

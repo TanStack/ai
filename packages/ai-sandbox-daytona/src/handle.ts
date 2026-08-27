@@ -1,18 +1,3 @@
-/**
- * SandboxHandle backed by a Daytona cloud sandbox (via `@daytona/sdk`). Real
- * isolation: fs/exec/git operate inside the remote sandbox; paths are real
- * sandbox paths (default workdir `/home/daytona/workspace`).
- *
- * fs and git use the native Daytona SDK. Blocking exec sends env through
- * `executeCommand`'s env argument so secret values never enter the stored
- * command string. Spawn sources a workdir env file for the same reason.
- *
- * NOTE: Daytona's `executeCommand` returns a single combined `result` string
- * (stdout+stderr interleaved) plus an `exitCode`; there is no separate stderr
- * channel for blocking exec, so {@link ExecResult.stderr} is always empty for
- * this provider. Background processes (spawn) DO surface stdout/stderr
- * separately via Daytona sessions.
- */
 import { randomUUID } from 'node:crypto'
 import { UnsupportedCapabilityError } from '@tanstack/ai-sandbox'
 import type { Sandbox } from '@daytona/sdk'
@@ -35,30 +20,6 @@ export const DAYTONA_CAPS: SandboxCapabilities = {
   ports: true,
   backgroundProcesses: true,
   writableStdin: true,
-  // FALSE, and it must not be flipped back without a MEASUREMENT against a real
-  // Daytona sandbox. It read `true` on an asserted comment: that `kill()` "deletes
-  // the Daytona session via `deleteSession`, which terminates the session's running
-  // command". Nothing here establishes that, and three things argue against it:
-  //
-  //  1. What `kill()` actually does is `controller.abort()` — a CLIENT-side stop of
-  //     the poll loop. That is the same shape as the docker defect, where
-  //     `stream.destroy()` detached the client while the container-side process
-  //     kept running (measured: `sleep` survived `kill()`).
-  //  2. `kill()` does not await any termination. The `deleteSession` call lives in
-  //     the pump's `finally`, reached only after the status poll notices the abort
-  //     (up to one 400ms sleep plus an in-flight status round trip later). It is
-  //     also `.catch(() => {})`-swallowed, so a failed delete is indistinguishable
-  //     from a successful one.
-  //  3. `deleteSession`'s own SDK doc describes it as "Clean up a completed
-  //     session"; terminating a RUNNING async command is not a documented effect.
-  //
-  // Even if the session teardown does signal, the session command is a shell
-  // (`cd <cwd> && <command>`) and `journalFollowCommand` is a three-statement
-  // command, so the `tail -f` is necessarily a forked CHILD — the local-process
-  // defect, where killing the `sh` left the command alive. `journalReadStrategy`
-  // therefore takes the slower-but-correct `'poll'` path. A wrong `true` leaks a
-  // `tail -f` per run; see `tests/journal.conformance.test.ts`, which measures this
-  // as soon as `DAYTONA_API_KEY` is present.
   killableProcesses: false,
   snapshots: true,
   networkPolicy: true,
@@ -84,15 +45,15 @@ function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
   const size = fields?.groups?.size
-  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  if (!mode) throw new Error(`invalid lstat output: ${output}`)
+  if (!size) throw new Error(`invalid lstat output: ${output}`)
   const parsedMode = Number.parseInt(mode, 16)
   const parsedSize = Number(size)
-  if (
+  const invalidLstat =
     !Number.isSafeInteger(parsedMode) ||
     !Number.isSafeInteger(parsedSize) ||
     parsedSize < 0
-  )
-    throw new Error(`invalid lstat output: ${output}`)
+  if (invalidLstat) throw new Error(`invalid lstat output: ${output}`)
   const type = parsedMode & 0xf000
   if (type === 0x8000)
     return { type: 'file', mode: parsedMode, size: parsedSize }
@@ -105,10 +66,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * A push-driven async iterable. The streamer pushes decoded chunks and calls
- * `end()` once; consumers `for await` over it and terminate cleanly.
- */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -255,7 +212,8 @@ export class DaytonaHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    const pathIsMissing = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (pathIsMissing) return undefined
     if (r.exitCode !== 0) {
       const output = `${r.stdout}\n${r.stderr}`
       throw new Error(`lstat failed: ${output.trim()}`)
@@ -263,10 +221,6 @@ export class DaytonaHandle implements SandboxHandle {
     return parseLstatOutput(r.stdout)
   }
 
-  /**
-   * Session execute has no env field. Write values to a workdir file,
-   * then source that file so the stored command never contains secrets.
-   */
   private async persistSpawnEnvFile(
     env: Record<string, string>,
   ): Promise<string | undefined> {
@@ -382,10 +336,6 @@ export class DaytonaHandle implements SandboxHandle {
     const onAbort = (): void => controller.abort()
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
 
-    // Stream logs over the WebSocket form. Still poll command status so
-    // `kill()` can stop the client wait without waiting for the stream.
-    // Keep the promise so we can drain trailing chunks and so a dropped
-    // socket cannot become an unhandled rejection.
     const logStream = this.sandbox.process
       .getSessionCommandLogs(
         sessionId,
@@ -444,11 +394,6 @@ export class DaytonaHandle implements SandboxHandle {
       return { url: link.url }
     }
 
-    // Standard preview URLs need `x-daytona-preview-token` on every request —
-    // browsers cannot send that when the user clicks a link. Mint a signed URL
-    // (token embedded in the hostname) so preview links open without custom headers.
-    // Signed and standard tokens are not interchangeable; do not attach the
-    // standard token as headers when returning a signed URL.
     const signed = await this.sandbox.getSignedPreviewUrl(port, 3600)
     return { url: signed.url, token: signed.token }
   }

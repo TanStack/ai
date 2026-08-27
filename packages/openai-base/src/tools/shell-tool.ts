@@ -61,12 +61,6 @@ export function convertShellToolToAdapterFormat(tool: Tool): ShellToolConfig {
   }
 }
 
-/**
- * Creates a standard Tool from ShellTool parameters.
- *
- * Base (non-branded) factory. Providers that need branded return types should
- * re-wrap this in their own package.
- */
 export function shellTool(config: ShellToolFactoryConfig = {}): Tool {
   validateShellEnvironment(config.environment)
   return openAIProviderTool(

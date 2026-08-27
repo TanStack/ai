@@ -43,57 +43,25 @@ import type {
 } from '../message-types'
 import type { GeminiClientConfig } from '../utils/client'
 
-/**
- * Configuration for Gemini text adapter
- */
 export interface GeminiTextConfig extends GeminiClientConfig {}
 
-/**
- * Gemini-specific provider options for text/chat
- */
 export type GeminiTextProviderOptions = ExternalTextProviderOptions
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
-/**
- * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
- */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GeminiChatModelProviderOptionsByName
     ? GeminiChatModelProviderOptionsByName[TModel]
     : GeminiTextProviderOptions
 
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use all modalities.
- */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GeminiModelInputModalitiesByName
     ? GeminiModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio', 'video', 'document']
 
-/**
- * Resolve tool capabilities for a specific model.
- * If the model has explicit tools in the map, use those; otherwise use empty tuple.
- */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-// ===========================
-// Adapter Implementation
-// ===========================
-
-/**
- * Gemini Text (Chat) Adapter
- *
- * Tree-shakeable adapter for Gemini chat/text completion functionality.
- * Import only what you need for smaller bundle sizes.
- */
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -161,11 +129,6 @@ export class GeminiTextAdapter<
     }
   }
 
-  /**
-   * Generate structured output using Gemini's native JSON response format.
-   * Uses responseMimeType: 'application/json' and responseSchema for structured output.
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   */
   async structuredOutput(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -222,9 +185,6 @@ export class GeminiTextAdapter<
     }
   }
 
-  /**
-   * Extract text content from a non-streaming response
-   */
   private extractTextFromResponse(response: GenerateContentResponse): string {
     let textContent = ''
 
@@ -286,7 +246,8 @@ export class GeminiTextAdapter<
     }
 
     function* closeReasoningIfNeeded(): Generator<AdapterYieldChunk> {
-      if (!reasoningMessageId || hasClosedReasoning) return
+      if (!reasoningMessageId) return
+      if (hasClosedReasoning) return
       hasClosedReasoning = true
       yield {
         type: EventType.REASONING_MESSAGE_END,
@@ -480,7 +441,8 @@ export class GeminiTextAdapter<
       const finishReason = chunk.candidates?.[0]?.finishReason
       if (!finishReason) return
 
-      for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+      const toolCalls = toolCallMap.entries()
+      for (const [toolCallId, toolCallData] of toolCalls) {
         let parsedInput: unknown = {}
         try {
           const parsed = JSON.parse(toolCallData.args)
@@ -741,15 +703,6 @@ export class GeminiTextAdapter<
     return this.mergeConsecutiveSameRoleMessages(formatted)
   }
 
-  /**
-   * Merge consecutive messages of the same role into a single message.
-   * Gemini's API requires strictly alternating user/model roles.
-   * Tool results are mapped to role:'user', which can collide with actual
-   * user messages in multi-turn conversations.
-   *
-   * Also filters out empty model messages (e.g., from a previous failed request)
-   * and deduplicates functionResponse parts with the same name (tool call ID).
-   */
   private mergeConsecutiveSameRoleMessages(
     messages: Array<Content>,
   ): Array<Content> {
@@ -800,16 +753,7 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    // Separate `thinkingConfig` from the other model options so the loose
-    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
-    // into the SDK config object via the `...modelOpts` spread — we re-add a
-    // properly-typed `ThinkingConfig` below.
     const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
-    // Build the thinkingConfig payload only when the caller actually supplied
-    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
-    // (string union) so users can pass plain strings; the SDK target is the
-    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
-    // re-emit fields via conditional spreads.
     const mappedThinkingConfig = thinkingConfig
       ? {
           ...(thinkingConfig.includeThoughts !== undefined && {
@@ -832,15 +776,6 @@ export class GeminiTextAdapter<
         ? normalizedPrompts.map((p) => p.content).join('\n')
         : undefined
 
-    // Native combined mode (issue #605): when the engine threads
-    // `outputSchema` through TextOptions, the adapter declared
-    // `supportsCombinedToolsAndSchema` (Gemini 3.x only). The schema is
-    // already JSON Schema (pre-converted at the activity boundary). Wire
-    // it into `config.responseSchema` + `responseMimeType: 'application/json'`
-    // alongside any `tools` — the model emits function calls during the
-    // agent loop and the schema-constrained JSON on its natural final
-    // turn, so the engine can harvest it without the separate
-    // `structuredOutput` finalization round-trip.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -851,9 +786,6 @@ export class GeminiTextAdapter<
         }
       : undefined
 
-    // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
-    // under EOPT, so spread each common option only when present rather than
-    // emitting `field: undefined`s into the wire payload.
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
@@ -871,21 +803,11 @@ export class GeminiTextAdapter<
     return requestOptions
   }
 
-  /**
-   * Gemini 3.x natively combines `tools` + `responseSchema` in a single
-   * streaming `generateContentStream` call (issue #605). Gemini 2.x is
-   * documented as brittle for the combination and keeps the engine's
-   * legacy finalization path.
-   */
   supportsCombinedToolsAndSchema(): boolean {
     return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 }
 
-/**
- * Creates a Gemini text adapter with explicit API key.
- * Type resolution happens here at the call site.
- */
 export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
   apiKey: string,
@@ -899,10 +821,6 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
   return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Gemini text adapter with automatic API key detection.
- * Type resolution happens here at the call site.
- */
 export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,

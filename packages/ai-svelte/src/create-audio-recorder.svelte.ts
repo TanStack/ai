@@ -6,11 +6,6 @@ import type {
 } from '@tanstack/ai-client'
 
 export type CreateAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
-  /**
-   * Optional transform applied to the recording when `stop()` resolves. Its
-   * (awaited) return value becomes `recording` and the resolved value of
-   * `stop()`. Return nothing to keep the raw `AudioRecording`.
-   */
   onComplete?: TOnComplete
 }
 
@@ -24,29 +19,9 @@ export interface CreateAudioRecorderReturn<TOutput> {
   start: () => Promise<void>
   /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   stop: () => Promise<TOutput>
-  /**
-   * Discard the in-progress recording and release the mic. Svelte 5 runes
-   * can't register automatic teardown here (matching `createChat`), so call
-   * this from your component's cleanup if a recording may still be active.
-   */
   cancel: () => void
 }
 
-/**
- * Svelte 5 factory for recording an audio message. The resolved recording
- * carries `.part` (for `createChat.sendMessage`) and `.base64` (for the
- * generation factories).
- *
- * Errors are delivered via `onError`. `start()` and `stop()` also reject on
- * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
- * while a stop is in flight) — handle one channel, not both.
- */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`createAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function createAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(

@@ -13,25 +13,14 @@ export interface MistralClientConfig {
   /** Optional default headers to include with every request. */
   defaultHeaders?: Record<string, string>
 
-  /**
-   * Optional Google / Vertex access token. When set, it replaces
-   * `apiKey` on the Authorization header.
-   */
   getAccessToken?: () => Promise<string>
 
-  /**
-   * Optional chat completions URL. Vertex uses this for
-   * `:rawPredict` and `:streamRawPredict`.
-   */
   resolveRequestUrl?: (stream: boolean) => string
 
   /** Optional model id sent on the wire. Vertex uses publisher model ids. */
   requestModel?: string
 }
 
-/**
- * Creates a Mistral SDK client instance.
- */
 export function createMistralClient(config: MistralClientConfig): Mistral {
   const {
     apiKey,
@@ -55,7 +44,8 @@ export function createMistralClient(config: MistralClientConfig): Mistral {
         resolveRequestUrl === undefined ? req.url : resolveRequestUrl(false)
       const next = new Request(nextUrl, req)
       if (defaultHeaders) {
-        for (const [key, value] of Object.entries(defaultHeaders)) {
+        const headerEntries = Object.entries(defaultHeaders)
+        for (const [key, value] of headerEntries) {
           next.headers.set(key, value)
         }
       }
@@ -74,10 +64,6 @@ export function createMistralClient(config: MistralClientConfig): Mistral {
   })
 }
 
-/**
- * Gets Mistral API key from environment variables.
- * @throws Error if MISTRAL_API_KEY is not found
- */
 export function getMistralApiKeyFromEnv(): string {
   let key: string | undefined
 
@@ -97,9 +83,6 @@ export function getMistralApiKeyFromEnv(): string {
   return key
 }
 
-/**
- * Generates a unique ID with a prefix.
- */
 export function generateId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
 }

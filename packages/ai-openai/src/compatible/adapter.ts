@@ -6,11 +6,6 @@ import type OpenAI from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 
-/**
- * Generic OpenAI-compatible adapter over the Chat Completions API
- * (`{baseURL}/chat/completions`). Capability type-args are supplied by the
- * `openaiCompatible` factory from the user's `models` tuple.
- */
 export class OpenAICompatibleChatAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, any> = Record<string, any>,
@@ -30,11 +25,6 @@ export class OpenAICompatibleChatAdapter<
   }
 }
 
-/**
- * Generic OpenAI-compatible adapter over the Responses API
- * (`{baseURL}/responses`). For the rare compatible provider that implements
- * Responses (e.g. Azure OpenAI).
- */
 export class OpenAICompatibleResponsesAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, any> = Record<string, any>,

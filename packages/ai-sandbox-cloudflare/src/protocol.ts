@@ -1,47 +1,10 @@
-/**
- * The wire contract for the ONE request that crosses the DO → container boundary
- * to start a run: `POST /run` on the in-container runner.
- *
- * Defined ONCE here so both sides import the same shape AND the same narrowing
- * guard, with NO runtime-specific imports (no `cloudflare:*`, no `node:*`):
- *  - the `ContainerSandboxCoordinator` (Workers side) builds a
- *    {@link ContainerRunRequest} and POSTs it (re-exported from `/agent`);
- *  - the in-container `runInContainerHarness` (Node side) validates the body
- *    with {@link parseContainerRunRequest} before running `chat()` (imported
- *    from `/runner`).
- *
- * It carries the run identity + conversation + serialized host-tool descriptors
- * + the tool-exec callback, plus the `harness`/`model`/`workspace` the runner
- * needs to build the right adapter and sandbox.
- *
- * NOTE: the workspace's secret VALUES do NOT cross this boundary — `createSecrets`
- * stores them under a non-enumerable symbol, so JSON-serializing the workspace
- * carries only the secret NAMES. The runner reconstructs runtime secrets from
- * the container env (the DO injects them via `sandbox.setEnvVars`).
- */
 import type { ModelMessage } from '@tanstack/ai'
 import type { ToolDescriptor, WorkspaceDefinition } from '@tanstack/ai-sandbox'
 
-/**
- * The in-sandbox harnesses the runner can spawn. Single source of truth: the
- * {@link HarnessId} type is DERIVED from this list, and {@link isHarnessId}
- * validates against it — so the runtime guard and the compile-time type can
- * never drift.
- */
 const HARNESS_IDS = ['claude-code', 'codex', 'opencode'] as const
 
-/**
- * Identifier for the in-sandbox harness the runner spawns. The runner maps this
- * to the matching `*Text` adapter (via the caller's `resolveAdapter`); the DO
- * never imports the adapter packages.
- */
 export type HarnessId = (typeof HARNESS_IDS)[number]
 
-/**
- * The body of `POST /run`: the run identity + conversation + serialized
- * host-tool descriptors + the tool-exec callback, plus the harness/model/
- * workspace the runner needs to build the right adapter.
- */
 export interface ContainerRunRequest {
   runId: string
   threadId: string
@@ -83,11 +46,6 @@ function isWorkspaceDefinition(value: unknown): value is WorkspaceDefinition {
   )
 }
 
-/**
- * Assert enough of a message to fail fast on garbage (a non-empty `role` and a
- * `content` field). The chat engine validates the full shape downstream; this
- * narrows the array element to {@link ModelMessage} without a cast.
- */
 function isModelMessage(value: unknown): value is ModelMessage {
   return (
     value !== null &&
@@ -108,18 +66,12 @@ function requireNonEmptyString(
   key: string,
 ): string {
   const found = value[key]
-  if (typeof found !== 'string' || found === '') {
-    throw new Error(`run request: ${key} must be a non-empty string`)
+  if (typeof found === 'string' && found !== '') {
+    return found
   }
-  return found
+  throw new Error(`run request: ${key} must be a non-empty string`)
 }
 
-/**
- * Narrow an unknown `POST /run` body into a {@link ContainerRunRequest} (project
- * rule: no `as`). The message and descriptor shapes are validated downstream by
- * the chat engine and the tool bridge; here we only assert enough to fail fast
- * with a clear error on a malformed request.
- */
 export function parseContainerRunRequest(value: unknown): ContainerRunRequest {
   if (!isRecord(value)) {
     throw new Error('run request must be a JSON object')
@@ -132,40 +84,39 @@ export function parseContainerRunRequest(value: unknown): ContainerRunRequest {
 
   const messages = value['messages']
   if (
-    !Array.isArray(messages) ||
-    messages.length === 0 ||
-    !messages.every(isModelMessage)
+    Array.isArray(messages) &&
+    messages.length > 0 &&
+    messages.every(isModelMessage)
   ) {
-    throw new Error('run request: messages must be a non-empty ModelMessage[]')
-  }
+    const harness = value['harness']
+    if (!isHarnessId(harness)) {
+      throw new Error('run request: harness must be a known harness id')
+    }
 
-  const harness = value['harness']
-  if (!isHarnessId(harness)) {
-    throw new Error('run request: harness must be a known harness id')
-  }
+    const workspace = value['workspace']
+    if (!isWorkspaceDefinition(workspace)) {
+      throw new Error('run request: workspace must be a WorkspaceDefinition')
+    }
 
-  const workspace = value['workspace']
-  if (!isWorkspaceDefinition(workspace)) {
-    throw new Error('run request: workspace must be a WorkspaceDefinition')
-  }
-
-  const toolDescriptors = value['toolDescriptors']
-  if (
-    !Array.isArray(toolDescriptors) ||
-    !toolDescriptors.every(isToolDescriptor)
-  ) {
+    const toolDescriptors = value['toolDescriptors']
+    if (
+      Array.isArray(toolDescriptors) &&
+      toolDescriptors.every(isToolDescriptor)
+    ) {
+      return {
+        runId,
+        threadId,
+        messages,
+        harness,
+        model,
+        workspace,
+        toolDescriptors,
+        toolExecUrl,
+        toolExecToken,
+      }
+    }
     throw new Error('run request: toolDescriptors must be a ToolDescriptor[]')
   }
 
-  return {
-    runId,
-    threadId,
-    messages,
-    harness,
-    model,
-    workspace,
-    toolDescriptors,
-    toolExecUrl,
-    toolExecToken,
-  }
+  throw new Error('run request: messages must be a non-empty ModelMessage[]')
 }

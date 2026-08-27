@@ -22,20 +22,9 @@ export interface DockerSandboxConfig {
   keepAliveCommand?: Array<string>
   /** Container ports to publish to the host (for `ports.connect`). */
   publishPorts?: Array<number>
-  /**
-   * Add `host.docker.internal:host-gateway` so the container can reach the
-   * host (e.g. a host-side MCP tool-bridge). Defaults to true.
-   */
   hostGateway?: boolean
   /** Remove the container on destroy (vs. just stop). Defaults to true. */
   removeOnDestroy?: boolean
-  /**
-   * Sink for non-fatal teardown diagnostics — a container-side kill that was
-   * refused, or a process that survived it. Teardown never throws, so without a
-   * logger such a failure is silent and this provider's
-   * `killableProcesses: true` claim cannot be checked. `@tanstack/ai`'s
-   * `InternalLogger` satisfies this shape as-is.
-   */
   logger?: DockerLogger
 }
 
@@ -113,10 +102,6 @@ class DockerProvider implements SandboxProvider {
       },
     })
 
-    // If anything after createContainer fails (start, or the first exec to
-    // create the workspace dir), the container already exists and would leak as
-    // a stopped container — these accumulate and strain the daemon. Tear it down
-    // on any instantiation failure before propagating the error.
     try {
       await container.start()
       const handle = new DockerHandle({
@@ -181,7 +166,8 @@ class DockerProvider implements SandboxProvider {
     } catch {
       // already stopped / gone
     }
-    if (this.config.removeOnDestroy ?? true) {
+    const shouldRemoveOnDestroy = this.config.removeOnDestroy ?? true
+    if (shouldRemoveOnDestroy) {
       try {
         await container.remove({ force: true, v: true })
       } catch {
@@ -191,11 +177,6 @@ class DockerProvider implements SandboxProvider {
   }
 }
 
-/**
- * Docker sandbox provider — runs harness adapters inside isolated containers.
- * Requires a reachable Docker daemon (local socket by default; override via
- * `dockerodeOptions`).
- */
 export function dockerSandbox(config: DockerSandboxConfig): SandboxProvider {
   return new DockerProvider(config)
 }

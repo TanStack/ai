@@ -49,27 +49,13 @@ import type {
 } from '../model-meta'
 import type { BytePlusArkConfig } from '../utils/client'
 
-/**
- * Configuration for the BytePlus Seedance video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface BytePlusVideoConfig extends BytePlusArkConfig {}
 
 /** Path of the Seedance task API, relative to the Ark base URL. */
 const TASKS_PATH = '/contents/generations/tasks'
 
-/**
- * `content.video_url` and `content.last_frame_url` are deleted 24 hours after
- * the task produces them.
- */
 const VIDEO_URL_TTL_MS = 24 * 60 * 60 * 1000
 
-/**
- * Converts a media prompt part into the URL string Seedance's `content[]`
- * takes: public URLs pass through (BytePlus fetches them server-side), data
- * sources become base64 data URIs.
- */
 function mediaPartToUrl(
   part:
     | ImagePart<MediaInputMetadata>
@@ -207,7 +193,9 @@ function assertBytePlusModeRules(
 ): void {
   if (!gated) return
   const { firstFrames, lastFrames, visualReferences, audioReferences } = counts
-  if (firstFrames + lastFrames > 0 && visualReferences + audioReferences > 0) {
+  const mixesFramesAndReferences =
+    firstFrames + lastFrames > 0 && visualReferences + audioReferences > 0
+  if (mixesFramesAndReferences) {
     throw new Error(
       `byteplus: first/last frame inputs cannot be combined with reference ` +
         `media on model ${model}. Use either frame roles ('start_frame', ` +
@@ -228,10 +216,8 @@ function assertBytePlusModeRules(
         `${lastFrames} 'end_frame' images.`,
     )
   }
-  // Seedance treats a closing frame as the second half of first-and-last-
-  // frame mode: on its own it fails with "last frame image content cannot be
-  // mixed with first frame or reference image content".
-  if (lastFrames > 0 && firstFrames === 0) {
+  const closingWithoutOpening = lastFrames > 0 && firstFrames === 0
+  if (closingWithoutOpening) {
     throw new Error(
       `byteplus: a closing frame needs an opening frame alongside it on ` +
         `model ${model}. Add a 'start_frame' image, or drop the 'end_frame' role.`,
@@ -260,15 +246,6 @@ function toTokenCount(value: number | string | undefined): number | undefined {
   return undefined
 }
 
-/**
- * Maps a finished task's usage onto `TokenUsage`.
- *
- * Seedance bills output only. The API documents input tokens as always 0 and
- * `total_tokens` as equal to `completion_tokens`, so `promptTokens` is 0 and
- * the completion count is the billed quantity (`usage.billed` with
- * `unit: 'tokens'`). The deprecated `unitsBilled` is still populated for
- * backward compatibility.
- */
 function buildBytePlusVideoUsage(
   usage: BytePlusVideoTaskUsage | undefined,
 ): TokenUsage | undefined {
@@ -276,7 +253,9 @@ function buildBytePlusVideoUsage(
 
   const completionTokens = toTokenCount(usage.completion_tokens)
   const totalTokens = toTokenCount(usage.total_tokens)
-  if (completionTokens === undefined && totalTokens === undefined) {
+  const missingTokenCounts =
+    completionTokens === undefined && totalTokens === undefined
+  if (missingTokenCounts) {
     return undefined
   }
 
@@ -290,15 +269,6 @@ function buildBytePlusVideoUsage(
   }
 }
 
-/**
- * Formats a terminal task's error detail for a status / failure message.
- *
- * Always returns a string. Core surfaces a failed job as
- * `throw new Error(statusResult.error || 'Video generation failed')`, so
- * returning `undefined` for a failure Ark reported without an `error` block
- * would hand the caller an unattributable error. The final fallback is a
- * snapshot of the identifying fields instead.
- */
 function describeTaskFailure(task: BytePlusVideoTask): string {
   const { code, message } = task.error ?? {}
   if (code && message) return `${code}: ${message}`
@@ -315,45 +285,6 @@ function describeTaskFailure(task: BytePlusVideoTask): string {
   )
 }
 
-/**
- * BytePlus Seedance video generation adapter.
- *
- * Drives Ark's asynchronous task API — `POST /contents/generations/tasks` to
- * submit, `GET /contents/generations/tasks/{id}` to poll and to read the
- * finished video URL. Core owns the polling loop; this adapter implements the
- * three primitives plus the duration metadata.
- *
- * Prompt parts map onto Seedance's `content[]` roles, which the API sorts into
- * mutually exclusive task types:
- *
- * - `'start_frame'` (or a single un-roled image) → `first_frame` — the frame
- *   the video opens on (`i2v`).
- * - `'end_frame'` → `last_frame` — the frame it closes on (`flf2v`); Seedance
- *   requires a `first_frame` alongside it, and
- *   `seedance-1-0-pro-fast-251015` does not support it at all.
- * - `'reference'` / `'character'` → `reference_image`, video parts →
- *   `reference_video`, audio parts → `reference_audio` — subject and style
- *   references the model draws on (`r2v`, Seedance 2.5 and 2.0 family).
- *   Seedance 2.5 also accepts audio-only reference input; 2.0 does not.
- *
- * Frame roles and reference roles cannot be combined in one request, so the
- * adapter rejects a mix up front rather than surfacing a raw 400.
- *
- * @experimental Video generation is an experimental feature and may change.
- *
- * @example
- * ```typescript
- * const adapter = byteplusVideo('seedance-1-0-pro-fast-251015')
- *
- * const { jobId } = await generateVideo({
- *   adapter,
- *   prompt: 'a guitar being played in a store',
- *   size: '16:9_720p',
- *   duration: 4,
- *   modelOptions: { service_tier: 'flex' },
- * })
- * ```
- */
 export class BytePlusVideoAdapter<
   TModel extends BytePlusVideoModelOrString,
 > extends BaseVideoAdapter<
@@ -393,10 +324,6 @@ export class BytePlusVideoAdapter<
     return { response, body: await readJsonBody(response) }
   }
 
-  /**
-   * Builds the `content[]` array from the resolved prompt, enforcing
-   * Seedance's role vocabulary and mode exclusivity.
-   */
   private buildContent(
     resolved: ReturnType<typeof resolveMediaPrompt>,
   ): Array<BytePlusVideoContentPart> {
@@ -404,13 +331,6 @@ export class BytePlusVideoAdapter<
     const content: Array<BytePlusVideoContentPart> = []
     if (resolved.text) content.push({ type: 'text', text: resolved.text })
 
-    // Every rule below except the role vocabulary itself is a claim about a
-    // *specific* model's capabilities, drawn from the known Seedance catalog.
-    // None of it can be true of a model that does not exist yet, so for an
-    // unknown id the guards stand down and Ark rules — otherwise the escape
-    // hatch would block exactly the requests it exists to enable (see
-    // BytePlusVideoModelOrString). 'mask' / 'control' still throw: Seedance's
-    // wire format has no field to carry them on any model.
     const gated = isKnownBytePlusVideoModel(model)
     const counts = {
       firstFrames: 0,
@@ -450,14 +370,6 @@ export class BytePlusVideoAdapter<
     const parsedSize =
       size !== undefined ? resolveBytePlusVideoSize(model, size) : undefined
 
-    // Coerce the requested duration into the model's range rather than letting
-    // the API reject it. `modelOptions.duration` is deliberately not snapped:
-    // it is the escape hatch for `-1` (model picks the length).
-    //
-    // An unknown model's duration goes through verbatim. Snapping it would
-    // mean clamping against the ranges today's models happen to have, so a
-    // future model's legitimate 20-second request would silently become 15 —
-    // corrupting the request instead of protecting it.
     const duration =
       options.duration !== undefined
         ? isKnownBytePlusVideoModel(model)
@@ -479,9 +391,6 @@ export class BytePlusVideoAdapter<
       content,
     }
 
-    // Validate what actually ships, not just what `size` contributed: a
-    // `modelOptions.resolution` overriding an already-checked size would
-    // otherwise reach Ark unchecked.
     if (request.resolution !== undefined) {
       request.resolution = resolveBytePlusVideoResolution(
         model,
@@ -518,17 +427,6 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  /**
-   * Fetches a task, tagging the thrown error with the HTTP status.
-   *
-   * The 200 body is validated rather than cast. `readJsonBody` returns
-   * `undefined` for an empty body and the raw text for a non-JSON one — both
-   * documented failure modes of these hosts (an HTML error page from a proxy
-   * in front of the API). Casting either to `BytePlusVideoTask` yields a task
-   * whose `status` is `undefined`, which {@link mapStatus} would have to
-   * interpret; the honest answer is that the response was not a task at all,
-   * so say so while the body is still in hand.
-   */
   private async retrieveTask(jobId: string): Promise<BytePlusVideoTask> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
@@ -553,10 +451,6 @@ export class BytePlusVideoAdapter<
     try {
       task = await this.retrieveTask(jobId)
     } catch (error) {
-      // A task record lives 7 days from creation; past that the id 404s. Keep
-      // Ark's own code/message: a 404 from a wrong baseURL, a proxy, or a
-      // region mismatch is not an expired job id, and collapsing them all to
-      // "Job not found" sends the caller hunting the wrong thing.
       if ((error as { status?: number }).status === 404) {
         return {
           jobId,
@@ -605,13 +499,6 @@ export class BytePlusVideoAdapter<
       )
     }
 
-    // The 24-hour window runs from when the output was produced, which is the
-    // last status change on a succeeded task — `created_at` anchors the
-    // separate 7-day retention of the task record itself, and can be far
-    // earlier (a live `flex` task sat queued ~15 minutes). Corroborated by the
-    // signed TOS link itself, which carries `X-Tos-Expires=86400` from an
-    // `X-Tos-Date` matching `updated_at`. Fall back to `created_at` only when
-    // `updated_at` is missing.
     const anchorSeconds = task.updated_at ?? task.created_at
     const expiresAt =
       anchorSeconds !== undefined
@@ -627,18 +514,6 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  /**
-   * Maps Seedance task states onto the generic video status set. `expired`
-   * (the task outlived `execution_expires_after`) and `cancelled` are
-   * terminal non-successes, so both report as failed.
-   *
-   * An unrecognized state throws rather than defaulting to `processing`.
-   * Core's poll loop treats `processing` as "keep waiting", so mapping an
-   * unknown state — a missing `status`, or a terminal one Ark adds later such
-   * as `rejected` — onto it means polling until `maxDuration` and then
-   * reporting a generic timeout, with the state Ark actually sent never
-   * reaching the caller. Failing here names it.
-   */
   protected mapStatus(
     apiStatus: BytePlusVideoTaskStatus | string | undefined,
   ): VideoStatusResult['status'] {
@@ -663,49 +538,15 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  /**
-   * Seedance accepts any whole second inside a per-model range: 4–15s on the
-   * 2.0 family, 4–12s on 1.5-pro, 2–12s on the 1.0 models. An unknown model
-   * reports the union of those ranges as a UI hint — see
-   * `BYTEPLUS_VIDEO_FALLBACK_DURATIONS`, which `createVideoJob` does not snap
-   * against.
-   */
   override availableDurations(): DurationOptions<number> {
     return getBytePlusVideoDurationOptions(this.model)
   }
 
-  /**
-   * Coerce a raw seconds value to the closest duration this model accepts
-   * (clamped to its range and rounded to whole seconds).
-   */
   override snapDuration(seconds: number): number | undefined {
     return snapToDurationOption(seconds, this.availableDurations())
   }
 }
 
-/**
- * Creates a BytePlus Seedance video adapter with an explicit API key.
- * Type resolution happens here at the call site.
- *
- * @experimental Video generation is an experimental feature and may change.
- *
- * @param model - The model name (e.g., 'seedance-1-0-pro-fast-251015')
- * @param apiKey - Your BytePlus Ark API key
- * @param config - Optional additional configuration
- * @returns Configured BytePlus video adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createBytePlusVideo('seedance-1-5-pro-251215', 'ark-...')
- *
- * const { jobId } = await generateVideo({
- *   adapter,
- *   prompt: 'a guitar being played in a store',
- *   size: '16:9_1080p',
- *   duration: 5,
- * })
- * ```
- */
 export function createBytePlusVideo<TModel extends BytePlusVideoModelOrString>(
   model: TModel,
   apiKey: string,
@@ -714,59 +555,6 @@ export function createBytePlusVideo<TModel extends BytePlusVideoModelOrString>(
   return new BytePlusVideoAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a BytePlus Seedance video adapter, reading `ARK_API_KEY` from the
- * environment. Type resolution happens here at the call site.
- *
- * Note that Ark keys are region-isolated and Seedance is only served from the
- * Asia-Pacific endpoint — an EU key will not work here.
- *
- * @experimental Video generation is an experimental feature and may change.
- *
- * @param model - The model name (e.g., 'dreamina-seedance-2-0-260128')
- * @param config - Optional configuration (excluding apiKey, auto-detected)
- * @returns Configured BytePlus video adapter instance with resolved types
- * @throws Error if ARK_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * const adapter = byteplusVideo('dreamina-seedance-2-0-260128')
- *
- * // Image-to-video: an un-roled image is the opening frame.
- * const { jobId } = await generateVideo({
- *   adapter,
- *   prompt: [
- *     { type: 'text', content: 'the guitarist starts playing' },
- *     { type: 'image', source: { type: 'url', value: 'https://example.com/shop.jpg' } },
- *   ],
- * })
- *
- * const status = await getVideoJobStatus({ adapter, jobId })
- * ```
- *
- * ## Models this package does not know yet
- *
- * `model` also accepts any string, so a Seedance id BytePlus publishes after
- * this release works without upgrading. **Seedance 2.5 is the case this exists
- * for**: `dreamina-seedance-2-5-260628` is real and reachable, but its
- * capability cells could not be probed from this repo's account (Ark answers
- * 404 `ModelNotOpen` until the model is activated in the Ark Console), so it
- * is deliberately absent from the narrowed model tables. Passing it here works
- * for an account that has activated it.
- *
- * An unknown id relaxes both halves of the adapter: the `size` type widens to
- * any string, provider options are ungated, and the runtime guards that encode
- * per-model capabilities — resolution tiers, closing-frame and reference-media
- * support, frame cardinality and mode exclusivity, duration snapping — stand
- * down so Ark decides. Known ids are unaffected. See
- * {@link BytePlusVideoModelOrString} for how to discover and probe an id.
- *
- * @example
- * ```typescript
- * // Seedance 2.5, before this package ships probe-verified metadata for it:
- * const adapter = byteplusVideo('dreamina-seedance-2-5-260628')
- * ```
- */
 export function byteplusVideo<TModel extends BytePlusVideoModelOrString>(
   model: TModel,
   config?: Omit<BytePlusVideoConfig, 'apiKey'>,

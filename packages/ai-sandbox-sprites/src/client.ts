@@ -1,17 +1,3 @@
-/**
- * Thin client over the Sprites control plane. Sprites has no published SDK, so
- * this talks the REST + WebSocket API
- * directly: lifecycle (create/get/delete), URL auth, filesystem, and process
- * execution all go through the authenticated cloud endpoint at `baseUrl`.
- *
- * Dependency-free: uses the global `fetch` and `WebSocket` (undici). The exec
- * control socket needs an `Authorization` header on the upgrade request —
- * supported via undici's non-standard `headers` constructor option, which the
- * WHATWG `WebSocket` spec does not define — so this targets the Node runtime
- * (>= 22.4, where the global `WebSocket` is unflagged), not spec-compliant
- * `WebSocket` environments (browsers, Deno, edge).
- */
-
 export const SPRITES_DEFAULT_BASE_URL = 'https://api.sprites.dev'
 
 /** URL authentication mode for a Sprite's always-on public URL. */
@@ -53,11 +39,6 @@ export interface SpritesExecOptions {
   /** Extra environment variables, merged over the Sprite defaults. */
   env?: Record<string, string>
   signal?: AbortSignal
-  /**
-   * Max ms to wait for the control socket to open before failing. Bounds the
-   * `CONNECTING`-stall case (e.g. probing a Sprite that is still restarting) so
-   * `wait()` cannot hang forever when no `signal` is supplied. Defaults to 30s.
-   */
   connectTimeoutMs?: number
 }
 
@@ -115,10 +96,6 @@ type WsCtor = new (
   options: { headers: Record<string, string> },
 ) => WebSocket
 
-/**
- * A push-driven async iterable of decoded chunks. The producer pushes and calls
- * `end()` once; consumers `for await` and terminate cleanly.
- */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -319,20 +296,10 @@ export class SpritesClient implements SpritesClientLike {
     }))
   }
 
-  /**
-   * Create a checkpoint and return its new version id (e.g. `v3`). The create
-   * endpoint streams NDJSON progress; we drain it to completion, then resolve
-   * the new id as the highest sequential `vN` checkpoint (autos and the live
-   * `Current` pointer are ignored).
-   */
   async createCheckpoint(
     name: string,
     options: { comment?: string; signal?: AbortSignal } = {},
   ): Promise<string> {
-    // Snapshot the existing versions first so we can identify the one THIS call
-    // creates, rather than blindly returning the current max (which a concurrent
-    // create — e.g. handle.snapshot() racing an after-run snapshot — would make
-    // ambiguous, or an eventually-consistent list would make stale).
     const before = new Set(await this.checkpointVersions(name, options.signal))
 
     const url = this.spritePath(name, '/checkpoint')
@@ -378,17 +345,6 @@ export class SpritesClient implements SpritesClientLike {
       .map((m) => Number(m[1]))
   }
 
-  /**
-   * Restore a checkpoint in place. The Sprite's writable overlay is replaced and
-   * the environment restarts, so the agent is briefly unreachable.
-   *
-   * The restore endpoint streams progress but holds the connection open across
-   * the restart (it does not close cleanly), so we must NOT drain it — we cancel
-   * the body once the restore is accepted, then poll the filesystem until the
-   * Sprite is ready again (or `readyTimeoutMs`, default 600s, elapses). Restart
-   * can take minutes; raise `readyTimeoutMs` for large overlays. The caller's
-   * `signal` cancels the wait, not just the initial request.
-   */
   async restoreCheckpoint(
     name: string,
     id: string,
@@ -423,18 +379,6 @@ export class SpritesClient implements SpritesClientLike {
     )
   }
 
-  /**
-   * Poll the filesystem until the restored overlay actually serves reads, or
-   * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
-   * bounded by its abort signal — during a restart the socket can stall in
-   * CONNECTING without opening or closing.
-   *
-   * Probes a write→read round-trip of a sentinel under `probePath` rather than a
-   * directory listing: right after a restore the overlay becomes *listable
-   * before file reads work* (a transient I/O error), so listing alone reports
-   * ready too early. Two consecutive round-trips are required before the sentinel
-   * is removed and the Sprite is declared ready.
-   */
   private async waitUntilReady(
     name: string,
     timeoutMs: number,
@@ -536,7 +480,8 @@ export class SpritesClient implements SpritesClientLike {
     for (const arg of options.argv) query.append('cmd', arg)
     if (options.cwd !== undefined) query.set('dir', options.cwd)
     if (options.env) {
-      for (const [key, value] of Object.entries(options.env)) {
+      const envEntries = Object.entries(options.env)
+      for (const [key, value] of envEntries) {
         query.append('env', `${key}=${value}`)
       }
     }
@@ -563,17 +508,11 @@ export class SpritesClient implements SpritesClientLike {
     const closed = new Promise<void>((resolve) => {
       resolveClosed = resolve
     })
-    // Resolves when the session id is known (or the socket closes without one),
-    // so kill() can reach the server-side kill endpoint even if it is called
-    // before the `session_info` frame arrives.
     let resolveSession!: (id: string | undefined) => void
     const sessionReady = new Promise<string | undefined>((resolve) => {
       resolveSession = resolve
     })
 
-    // The global (undici) WebSocket accepts a `headers` constructor option at
-    // runtime, but the WHATWG type only declares `(url, protocols?)`, so the two
-    // constructor signatures don't structurally overlap — bridge via `unknown`.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- undici headers option not in the DOM WebSocket type
     const WebSocketCtor = WebSocket as unknown as WsCtor
     const ws = new WebSocketCtor(url, { headers: this.headers() })
@@ -619,9 +558,6 @@ export class SpritesClient implements SpritesClientLike {
     ws.addEventListener('message', (event: MessageEvent) => {
       const data: unknown = event.data
       if (typeof data === 'string') {
-        // Parse the small control JSON synchronously so the session id / exit
-        // code are set before any subsequent `close` runs `finish()` — an async
-        // parse here would let `finish()` read a stale (undefined) session id.
         const message = parseControlMessage(data)
         if (message === undefined) return
         if (message.type === 'session_info') {
@@ -661,9 +597,6 @@ export class SpritesClient implements SpritesClientLike {
 
     ws.addEventListener('close', () => finish())
 
-    // Resolve the session id if/when it is known, bounded by `ms`, so an early
-    // kill still reaches the server-side kill endpoint rather than only dropping
-    // the local socket (which would orphan the remote process).
     const waitForSessionId = (ms: number): Promise<string | undefined> => {
       if (sessionId !== undefined || settled) return Promise.resolve(sessionId)
       return new Promise((resolve) => {
@@ -798,11 +731,13 @@ function parseSprite(text: string): SpriteResource {
     url?: unknown
     url_settings?: { auth?: unknown }
   }
-  if (
-    typeof record.id !== 'string' ||
-    typeof record.name !== 'string' ||
-    typeof record.url !== 'string'
-  ) {
+  if (typeof record.id !== 'string') {
+    throw new Error(`Sprites API returned an unexpected sprite shape: ${text}`)
+  }
+  if (typeof record.name !== 'string') {
+    throw new Error(`Sprites API returned an unexpected sprite shape: ${text}`)
+  }
+  if (typeof record.url !== 'string') {
     throw new Error(`Sprites API returned an unexpected sprite shape: ${text}`)
   }
   const auth = record.url_settings?.auth

@@ -24,11 +24,6 @@ import type { VercelGatewayClientConfig } from '../utils/client'
 
 export interface VercelGatewayEmbeddingConfig extends VercelGatewayClientConfig {}
 
-/**
- * Vercel AI Gateway embedding adapter.
- *
- * Talks to `POST /v1/embeddings` on the public OpenAI-compatible Gateway API.
- */
 export class VercelGatewayEmbeddingAdapter<
   TModel extends VercelGatewayEmbeddingModel,
 > extends BaseEmbeddingAdapter<

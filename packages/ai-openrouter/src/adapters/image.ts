@@ -28,10 +28,6 @@ export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
 
 export type OpenRouterImageModel = (typeof OPENROUTER_IMAGE_MODELS)[number]
 
-/**
- * Mapping of standard image sizes to their aspect ratios
- * Used for Gemini and other models that support aspect ratio configuration
- */
 const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '1024x1024': '1:1', // default
   '832x1248': '2:3',
@@ -45,13 +41,6 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '1536x672': '21:9',
 }
 
-/**
- * Resolve a requested size to the aspect ratio OpenRouter's chat-completions
- * image pathway understands (`image_config.aspect_ratio`). The pathway has
- * no free-form size field, so a size outside the mapping table cannot be
- * expressed — throw rather than silently generating at the default 1:1.
- * Accepts the multiplication sign ('×') as a separator for tolerance.
- */
 function sizeToAspectRatio(size: string | undefined): string | undefined {
   if (!size) return undefined
   const normalized = size.replace('×', 'x')
@@ -64,11 +53,6 @@ function sizeToAspectRatio(size: string | undefined): string | undefined {
   return aspectRatio
 }
 
-/**
- * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
- * `image_url` content parts: public URLs pass through, data sources become
- * base64 data URIs.
- */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
@@ -102,17 +86,15 @@ export class OpenRouterImageAdapter<
   ): Promise<ImageGenerationResult> {
     const resolved = resolveMediaPrompt(options.prompt)
 
-    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+    const hasUnsupportedPromptMedia =
+      resolved.videos.length > 0 || resolved.audios.length > 0
+    if (hasUnsupportedPromptMedia) {
       throw new Error(
         `openrouter.generateImages does not support video / audio prompt parts on model ${this.model}.`,
       )
     }
 
     const { model, numberOfImages, size, modelOptions, logger } = options
-    // OpenRouter's chat-completions image pathway returns exactly one image
-    // per request and ignores any count key in image_config (verified
-    // against the live API), so reject multi-image requests instead of
-    // silently under-delivering.
     if (numberOfImages !== undefined && numberOfImages > 1) {
       throw new Error(
         `openrouter: the chat-completions image pathway generates one image per request (numberOfImages: ${numberOfImages}). Make multiple requests instead.`,
@@ -120,11 +102,6 @@ export class OpenRouterImageAdapter<
     }
     const aspectRatio = sizeToAspectRatio(size)
 
-    // Image-conditioned generation: map the prompt parts 1:1 onto
-    // chat-completions content parts, preserving the interleaved order —
-    // OpenRouter forwards them to the underlying image model (e.g. Gemini
-    // image models), where position is meaningful. Role hints carry no
-    // per-field semantics on this pathway.
     type ContentItem =
       | { type: 'text'; text: string }
       | { type: 'image_url'; imageUrl: { url: string } }
@@ -163,10 +140,6 @@ export class OpenRouterImageAdapter<
         ],
         modalities: ['image'],
         stream: false,
-        // The SDK serializes this record verbatim as `image_config`, so keys
-        // must match the HTTP API's documented snake_case fields — miskeyed
-        // entries are silently ignored by the gateway (verified live:
-        // `aspect_ratio` changes output dimensions, `aspectRatio` does not).
         imageConfig: {
           ...(aspectRatio
             ? {
@@ -236,9 +209,6 @@ export class OpenRouterImageAdapter<
       throw new Error('Image generation failed: response contained no images')
     }
 
-    // OpenRouter routes image generation through the chat surface, so the
-    // response carries the same `usage` shape as text. Surface it (with any
-    // detail breakdowns and provider-reported cost) when present.
     const baseUsage = buildOpenRouterUsage(response.usage)
     const usage = baseUsage && {
       ...baseUsage,

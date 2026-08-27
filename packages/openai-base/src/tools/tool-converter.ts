@@ -15,9 +15,6 @@ import type { OpenAITool } from './index'
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { Tool } from '@tanstack/ai'
 
-/**
- * Converts an array of standard Tools to OpenAI-specific format
- */
 export function convertToolsToProviderFormat(
   tools: Array<Tool>,
 ): Array<OpenAITool> {

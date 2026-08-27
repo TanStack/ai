@@ -349,9 +349,6 @@ export type {
   InferSchemaType,
 } from './types'
 
-// Enumerated, not `export *` — see the matching note in `index.ts`. The
-// interrupt protocol surface is a commitment, so it is published field by
-// field.
 export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,

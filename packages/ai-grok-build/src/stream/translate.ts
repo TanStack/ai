@@ -32,9 +32,6 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
-/**
- * Resolve the AG-UI tool-call name for a Grok Build thread item.
- */
 export function toolNameForItem(item: GrokBuildThreadItem): string {
   if (item.type === 'mcp_tool_call') {
     return item.server === BRIDGED_MCP_SERVER_NAME
@@ -383,21 +380,22 @@ export async function* translateThreadEvents(
     >,
   ): Generator<AdapterYieldChunk> {
     const item = event.item
-    if (
-      item.type !== 'agent_message' &&
-      item.type !== 'reasoning' &&
-      item.type !== 'command_execution' &&
-      item.type !== 'mcp_tool_call' &&
-      item.type !== 'file_change' &&
-      item.type !== 'web_search'
-    ) {
+    const isTrackedItem =
+      item.type === 'agent_message' ||
+      item.type === 'reasoning' ||
+      item.type === 'command_execution' ||
+      item.type === 'mcp_tool_call' ||
+      item.type === 'file_change' ||
+      item.type === 'web_search'
+    if (!isTrackedItem) {
       return
     }
     if (event.type === 'item.completed') {
       yield* handleItemCompleted(item)
       return
     }
-    if (event.type !== 'item.started' || !isToolItem(item)) return
+    if (event.type !== 'item.started') return
+    if (!isToolItem(item)) return
     if (openedToolItems.has(item.id)) return
     const tname = toolNameForItem(item)
     yield {
@@ -529,24 +527,26 @@ export async function* translateThreadEvents(
         model,
         timestamp: now(),
       }
-    } else if (
-      item.type === 'command_execution' ||
-      item.type === 'mcp_tool_call' ||
-      item.type === 'file_change' ||
-      item.type === 'web_search'
-    ) {
-      const toolItem = item as ToolItem // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
-      yield* openToolCall(toolItem)
-      unresolvedToolCalls.delete(item.id)
-      const { content, isError } = toolResultForItem(toolItem)
-      yield {
-        type: EventType.TOOL_CALL_RESULT,
-        toolCallId: item.id,
-        messageId: genId(),
-        model,
-        timestamp: now(),
-        content,
-        ...(isError && { state: 'output-error' }),
+    } else {
+      const isToolItemType =
+        item.type === 'command_execution' ||
+        item.type === 'mcp_tool_call' ||
+        item.type === 'file_change' ||
+        item.type === 'web_search'
+      if (isToolItemType) {
+        const toolItem = item as ToolItem // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+        yield* openToolCall(toolItem)
+        unresolvedToolCalls.delete(item.id)
+        const { content, isError } = toolResultForItem(toolItem)
+        yield {
+          type: EventType.TOOL_CALL_RESULT,
+          toolCallId: item.id,
+          messageId: genId(),
+          model,
+          timestamp: now(),
+          content,
+          ...(isError && { state: 'output-error' }),
+        }
       }
     }
   }

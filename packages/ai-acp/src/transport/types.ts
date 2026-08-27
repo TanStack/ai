@@ -4,10 +4,6 @@ import type { SpawnHandle } from '@tanstack/ai-sandbox'
 /** How JSON-RPC messages are framed on the wire. */
 export type AcpMessageFraming = 'ndjson' | 'frame'
 
-/**
- * Byte-level duplex transport consumed by {@link ndJsonStream} for stdio
- * harnesses.
- */
 export interface AcpByteTransport {
   writable: WritableStream<Uint8Array>
   readable: ReadableStream<Uint8Array>

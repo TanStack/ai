@@ -6,9 +6,6 @@ import {
 import { parseSseDataLine } from './sse-utils'
 import type { StreamChunk } from '@tanstack/ai/client'
 
-/**
- * Read lines from a stream (newline-delimited)
- */
 async function* readStreamLines(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   abortSignal?: AbortSignal,
@@ -41,12 +38,6 @@ async function* readStreamLines(
   }
 }
 
-/**
- * Parse a Response body as Server-Sent Events, yielding StreamChunks.
- *
- * Used by GenerationClient to parse SSE Responses returned from fetchers
- * (e.g., TanStack Start server functions using `toServerSentEventsResponse()`).
- */
 export async function* parseSSEResponse(
   response: Response,
   abortSignal?: AbortSignal,
@@ -68,7 +59,8 @@ export async function* parseSSEResponse(
 
   const reader = getResponseStreamReader(response)
 
-  for await (const line of readStreamLines(reader, abortSignal)) {
+  const streamLines = readStreamLines(reader, abortSignal)
+  for await (const line of streamLines) {
     const data = parseSseDataLine(line)
 
     if (data === '[DONE]') {

@@ -86,17 +86,20 @@ function* closeReasoning(
   ctx: ChatStreamContext,
   model: string,
 ): Generator<AdapterYieldChunk> {
-  if (!ctx.state.reasoningMessageId || ctx.state.hasClosedReasoning) return
+  const reasoningMessageId = ctx.state.reasoningMessageId
+  const shouldSkipCloseReasoning =
+    !reasoningMessageId || ctx.state.hasClosedReasoning
+  if (shouldSkipCloseReasoning) return
   ctx.state.hasClosedReasoning = true
   yield {
     type: EventType.REASONING_MESSAGE_END,
-    messageId: ctx.state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model,
     timestamp: Date.now(),
   }
   yield {
     type: EventType.REASONING_END,
-    messageId: ctx.state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model,
     timestamp: Date.now(),
   }
@@ -117,7 +120,9 @@ function* emitReasoning(
   chunk: ChatCompletionChunk,
 ): Generator<AdapterYieldChunk> {
   const reasoning = ctx.extractReasoning(chunk)
-  if (!reasoning || !reasoning.text) return
+  const reasoningText = reasoning?.text
+  const hasNoReasoningText = !reasoningText
+  if (hasNoReasoningText) return
   const model = chunkModel(ctx, chunk.model)
   if (!ctx.state.reasoningMessageId) {
     ctx.state.reasoningMessageId = generateId(ctx.adapterName)
@@ -144,11 +149,11 @@ function* emitReasoning(
       stepType: 'thinking',
     }
   }
-  ctx.state.accumulatedReasoning += reasoning.text
+  ctx.state.accumulatedReasoning += reasoningText
   yield {
     type: EventType.REASONING_MESSAGE_CONTENT,
     messageId: ctx.state.reasoningMessageId,
-    delta: reasoning.text,
+    delta: reasoningText,
     model,
     timestamp: Date.now(),
   }
@@ -269,7 +274,9 @@ function* handleFinishReason(
   >,
 ): Generator<AdapterYieldChunk> {
   const model = chunkModel(ctx, chunk.model)
-  if (finishReason === 'tool_calls' || ctx.state.toolCallsInProgress.size > 0) {
+  const hasPendingToolCalls =
+    finishReason === 'tool_calls' || ctx.state.toolCallsInProgress.size > 0
+  if (hasPendingToolCalls) {
     yield* emitStartedToolCallEnds(ctx, model, '')
   }
 

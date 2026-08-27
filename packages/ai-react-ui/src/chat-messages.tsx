@@ -22,16 +22,6 @@ export interface ChatMessagesProps {
   autoScroll?: boolean
 }
 
-/**
- * Messages container - renders all messages in the conversation
- *
- * @example
- * ```tsx
- * <Chat.Messages>
- *   {(message) => <Chat.Message message={message} />}
- * </Chat.Messages>
- * ```
- */
 export function ChatMessages({
   children,
   className,

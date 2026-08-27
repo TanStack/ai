@@ -40,55 +40,6 @@ export interface ChatMessageProps {
   }) => ReactNode
 }
 
-/**
- * Message component - renders a single message with all its parts
- *
- * This component natively understands TanStack AI's parts-based message format:
- * - thinking parts: rendered as collapsible thinking/reasoning sections (auto-collapses when complete)
- * - text parts: rendered as content
- * - tool-call parts: rendered with state, approvals, etc.
- * - tool-result parts: rendered with results
- *
- * @example Basic usage
- * ```tsx
- * <Chat.Message message={message} />
- * ```
- *
- * @example With role-based styling
- * ```tsx
- * <ChatMessage
- *   message={message}
- *   className="flex"
- *   userClassName="justify-end"
- *   assistantClassName="justify-start"
- * />
- * ```
- *
- * @example With custom thinking renderer
- * ```tsx
- * <ChatMessage
- *   message={message}
- *   thinkingPartRenderer={({ content, isComplete }) => (
- *     <details open={!isComplete}>
- *       <summary>💭 Thinking...</summary>
- *       <pre>{content}</pre>
- *     </details>
- *   )}
- * />
- * ```
- *
- * @example With named tool renderers
- * ```tsx
- * <ChatMessage
- *   message={message}
- *   toolsRenderer={{
- *     recommendGuitar: ({ id, arguments: args }) => <GuitarCard {...JSON.parse(args)} />,
- *     weatherLookup: ({ id, arguments: args }) => <WeatherWidget {...JSON.parse(args)} />,
- *   }}
- *   defaultToolRenderer={() => null}
- * />
- * ```
- */
 export function ChatMessage({
   message,
   className = '',

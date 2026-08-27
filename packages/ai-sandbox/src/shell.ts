@@ -1,29 +1,9 @@
-/**
- * Internal persistent bootstrap shell.
- *
- * Spawns a single `sh` process via {@link SandboxHandle.process.spawn} and
- * drives it over stdin/stdout with a sentinel-echo protocol. Commands run
- * sequentially inside the same shell so `cd`, exported variables, etc. persist
- * across calls — exactly the exec model the bootstrap setup plan needs.
- *
- * Providers WITHOUT a writable host→process stdin (`capabilities.writableStdin
- * === false`, e.g. Cloudflare / Daytona / Vercel) can't be driven over stdin, so
- * {@link createBootstrapShell} transparently falls back to an exec-backed shell
- * ({@link createExecBootstrapShell}) that threads `cwd`/env across `exec` calls
- * to reproduce the same persistent-shell semantics.
- *
- * This module is internal-only and must NOT be re-exported from
- * `packages/ai-sandbox/src/index.ts`.
- */
 import type { SandboxHandle } from './contracts'
 
-/**
- * Parse the output of `export -p` (or `declare -x`) into a plain env map.
- * Shared by the stdin shell's `forkState` and the exec-backed shell.
- */
 function parseExports(output: string): Record<string, string> {
   const env: Record<string, string> = {}
-  for (const line of output.split('\n')) {
+  const outputLines = output.split('\n')
+  for (const line of outputLines) {
     const trimmed = line.trim()
     // Match `declare -x KEY=...` or `export KEY=...` forms.
     const match =
@@ -46,10 +26,6 @@ function parseExports(output: string): Record<string, string> {
 export interface BootstrapShell {
   /** Run a shell command and capture its stdout + exit code. */
   run: (command: string) => Promise<{ exitCode: number; stdout: string }>
-  /**
-   * Snapshot the shell's current working directory and exported environment.
-   * Used to fork parallel exec calls that inherit the serial shell's state.
-   */
   forkState: () => Promise<{ cwd: string; env: Record<string, string> }>
   /** End the shell session (closes stdin, kills the process). */
   dispose: () => Promise<void>
@@ -59,13 +35,6 @@ export interface BootstrapShell {
 export interface BootstrapShellOptions {
   /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
   cwd?: string
-  /**
-   * Belt-and-braces deadline for a single `run()` to see its sentinel. The
-   * primary termination condition is the stdout stream ending (see
-   * {@link createBootstrapShell}); this only catches a shell that is alive,
-   * silent, and never going to answer. Generous by default because setup steps
-   * legitimately run for a long time (`npm install`, image pulls).
-   */
   commandTimeoutMs?: number
 }
 
@@ -76,16 +45,6 @@ const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
  *  literal stdout line (a line of text `'timeout'` would). */
 const TIMED_OUT = Symbol('bootstrap-shell-timeout')
 
-/**
- * Spawn one `sh` process and return a {@link BootstrapShell} that drives it
- * via the sentinel-echo protocol.
- *
- * Protocol: for each `run(cmd)` call, we write
- *   `<cmd>; printf "\n__BSSH_<N>__ $?\n"` to stdin, then read stdout lines
- * until we see a line matching `__BSSH_<N>__ <exitCode>`. Everything before
- * that line is the command's stdout; the trailing integer is the exit code.
- * The counter `N` is a module-level monotonic integer — no Date.now / random.
- */
 export async function createBootstrapShell(
   handle: SandboxHandle,
   opts: BootstrapShellOptions = {},
@@ -97,14 +56,7 @@ export async function createBootstrapShell(
   }
   const proc = await handle.process.spawn('sh', { cwd: opts.cwd })
 
-  /*
-   * We need to read stdout lines across multiple run() calls while keeping
-   * the iterator open. Buffer chunks into lines manually.
-   */
   const lineBuffer: Array<string> = []
-  // `null` means "the stdout stream ended" — distinct from an empty line, which
-  // `sh` emits constantly. Collapsing the two is what let a dead shell feed an
-  // infinite supply of `''` into a sentinel-hunting loop.
   let pending: Array<(line: string | null) => void> = []
   let streamDone = false
   let streamError: unknown
@@ -139,10 +91,6 @@ export async function createBootstrapShell(
         }
       }
     } catch (error) {
-      // A throw while iterating stdout (transport reset, provider stream error)
-      // must NOT leave waiters parked on a promise nobody resolves. Record it so
-      // `run()` can name the cause, and fall through to the `finally` that
-      // unblocks everyone.
       streamError = error
     } finally {
       streamDone = true
@@ -154,12 +102,6 @@ export async function createBootstrapShell(
     }
   }
 
-  /*
-   * Start draining immediately; do NOT await — runs concurrently. The `try/catch`
-   * inside `drainStdout` means this promise never rejects, so there is no
-   * unhandled rejection while nothing is awaiting it, and `dispose()` can await
-   * it unconditionally.
-   */
   const drainPromise = drainStdout()
 
   /** Read the next line from the shared queue, or `null` once stdout ended. */
@@ -185,27 +127,12 @@ export async function createBootstrapShell(
     counter += 1
     const sentinel = `__BSSH_${id}__`
 
-    // Write the command followed by a sentinel printf to stdin. Merge the
-    // command's stderr into stdout (`{ … ; } 2>&1`) so a failing setup step's
-    // error text is captured and can be surfaced — otherwise only the exit code
-    // is visible. `$?` after the group is still the command's own exit code.
     await proc.stdin.write(
       `{ ${command} ; } 2>&1; printf "\\n${sentinel} $?\\n"\n`,
     )
 
     const outputLines: Array<string> = []
 
-    /*
-     * Read lines until we find the sentinel — but the wait MUST be able to end
-     * without one. `sh` can exit before it ever prints the sentinel (a missing
-     * binary, an OOM kill, the provider reaping the sandbox mid-bootstrap), and
-     * a loop whose only exit is the sentinel then spins on end-of-stream
-     * forever, pushing into `outputLines` until the host process dies of memory
-     * exhaustion. Two independent terminators:
-     *   1. `nextLine()` yields `null` the moment stdout is done — the real fix,
-     *      it fires as soon as the shell is gone.
-     *   2. A deadline, for a shell that stays alive and simply never answers.
-     */
     let timer: ReturnType<typeof setTimeout> | undefined
     const deadline = new Promise<typeof TIMED_OUT>((resolve) => {
       timer = setTimeout(
@@ -266,15 +193,6 @@ export async function createBootstrapShell(
   return { run, forkState, dispose }
 }
 
-/**
- * Exec-backed {@link BootstrapShell} for providers WITHOUT a writable stdin.
- *
- * There is no persistent process to feed commands into, so persistence of `cd`
- * and exported variables is reproduced by threading state across discrete
- * {@link SandboxHandle.process.exec} calls: each `run()` executes the command in
- * the tracked cwd+env, then captures the resulting `pwd` and `export -p` (via
- * marker lines) so the NEXT command inherits any directory change or exports.
- */
 export function createExecBootstrapShell(
   handle: SandboxHandle,
   opts: BootstrapShellOptions = {},
@@ -290,10 +208,6 @@ export function createExecBootstrapShell(
     counter += 1
     const sentinel = `__BSSH_${id}__`
 
-    // Run the command, then emit its exit code, cwd and exported env behind
-    // marker lines so we can recover state even when the command itself fails
-    // (no `set -e`). Capturing `$?` immediately after the command keeps the
-    // reported exit code the command's own, not the trailing introspection's.
     const script = [
       command,
       `__bssh_rc=$?`,
@@ -312,7 +226,8 @@ export function createExecBootstrapShell(
     let exitCode = res.exitCode
     let phase: 'cmd' | 'await-cwd' | 'cwd' | 'env' = 'cmd'
 
-    for (const line of res.stdout.split('\n')) {
+    const stdoutLines = res.stdout.split('\n')
+    for (const line of stdoutLines) {
       if (phase === 'cmd') {
         if (line.startsWith(`${sentinel} `)) {
           const parsed = parseInt(line.slice(sentinel.length + 1).trim(), 10)

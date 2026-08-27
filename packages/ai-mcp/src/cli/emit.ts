@@ -1,11 +1,6 @@
 import { compile } from 'json-schema-to-typescript'
 import type { ServerSurface } from './introspect'
 
-/**
- * Convert an arbitrary server/tool name into a valid PascalCase identifier.
- * Falls back to `Generated` for names with no alphanumeric characters and
- * prefixes an underscore when the result would start with a digit.
- */
 function pascal(name: string): string {
   const base = name
     .replace(/[^a-zA-Z0-9]+/g, ' ')
@@ -22,17 +17,12 @@ function tsString(value: string): string {
   return JSON.stringify(value)
 }
 
-/**
- * Compile a JSON Schema into a TypeScript type via `json-schema-to-typescript`.
- * Returns `'unknown'` for absent/non-object schemas. The compiled output is an
- * `export interface <typeName> { ... }` declaration which callers inline via
- * {@link inlineBody}.
- */
 async function schemaToType(
   schema: unknown,
   typeName: string,
 ): Promise<string> {
-  if (!schema || typeof schema !== 'object') return 'unknown'
+  if (!schema) return 'unknown'
+  if (typeof schema !== 'object') return 'unknown'
   const compiled = await compile(schema, typeName, {
     bannerComment: '',
     additionalProperties: false,
@@ -53,11 +43,9 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   ]
   // Track config-key -> interface-name so we can emit the combined pool map.
   const mapEntries: Array<[string, string]> = []
-  // Distinct server keys can pascal-case to the same identifier
-  // (`foo-bar` vs `foo_bar`) — fail loudly rather than emit duplicate
-  // interface declarations.
   const seenIfaces = new Set<string>()
-  for (const [serverName, { prefix, surface }] of Object.entries(input)) {
+  const servers = Object.entries(input)
+  for (const [serverName, { prefix, surface }] of servers) {
     const iface = `${pascal(serverName)}Server`
     if (seenIfaces.has(iface)) {
       throw new Error(
@@ -94,9 +82,6 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
       '',
     )
   }
-  // Combined map for createMCPClients<MCPServers>(...). Keys = config keys
-  // verbatim (NOT pascal-cased) so they match the runtime config object and
-  // pool.clients access.
   blocks.push(
     'export interface MCPServers extends Record<string, ServerDescriptor> {',
     ...mapEntries.map(([key, iface]) => `  ${tsString(key)}: ${iface}`),
@@ -106,12 +91,6 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   return blocks.join('\n')
 }
 
-/**
- * Extract the `{ ... }` body from a compiled `export interface X { ... }`
- * declaration so it can be inlined as an anonymous object type. Collapses
- * newlines onto a single line. Falls back to `unknown` when no brace is found
- * (e.g. the compiled type is itself `unknown`).
- */
 function inlineBody(compiled: string): string {
   const brace = compiled.indexOf('{')
   return brace >= 0

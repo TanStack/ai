@@ -34,16 +34,6 @@ import type { BytePlusTranscriptionProviderOptions } from '../audio/transcriptio
 /** Path of the synchronous ("flash") Seed ASR endpoint. */
 const RECOGNIZE_FLASH_PATH = '/api/v3/auc/bigmodel/recognize/flash'
 
-/**
- * BytePlus-specific extension of `TranscriptionWord` carrying the per-word
- * confidence Seed ASR returns. The cross-provider contract has no field for
- * it, so callers who want it narrow the array — the same pattern the Grok
- * adapter uses:
- *
- * ```ts
- * const words = result.words as Array<BytePlusTranscriptionWord> | undefined
- * ```
- */
 export interface BytePlusTranscriptionWord extends TranscriptionWord {
   /** Model confidence for the word, when Seed ASR returns one. */
   confidence?: number
@@ -52,37 +42,6 @@ export interface BytePlusTranscriptionWord extends TranscriptionWord {
 /** Default `user.uid` echoed into BytePlus' request logs. */
 const DEFAULT_UID = 'tanstack-ai'
 
-/**
- * BytePlus Seed Speech transcription (ASR) adapter.
- *
- * Talks to `POST {baseURL}/api/v3/auc/bigmodel/recognize/flash` — the
- * synchronous "flash" endpoint, which returns the whole transcript in one
- * response rather than requiring a submit/poll cycle. It accepts audio up to
- * 2 hours long or 100 MB, either as a publicly reachable URL or as base64
- * bytes.
- *
- * Two BytePlus-specific details:
- *
- * - The model is selected by the `X-Api-Resource-Id` header
- *   (`volc.seedasr.auc_turbo`), not by a `model` field in the body. The
- *   package's `seed-asr` model id exists to satisfy the SDK contract and to
- *   give logs a stable value.
- * - Authentication uses `X-Api-Key` with the **Seed Speech** key, which is a
- *   different key from `ARK_API_KEY`.
- *
- * All timings on the wire are milliseconds; they are converted to seconds to
- * match the cross-provider `TranscriptionResult`.
- *
- * @example
- * ```ts
- * const adapter = byteplusTranscription('seed-asr')
- * const result = await generateTranscription({
- *   adapter,
- *   audio: 'https://example.com/interview.mp3',
- *   language: 'en-US',
- * })
- * ```
- */
 export class BytePlusTranscriptionAdapter<
   TModel extends BytePlusTranscriptionModel = BytePlusTranscriptionModel,
 > extends BaseTranscriptionAdapter<
@@ -130,9 +89,6 @@ export class BytePlusTranscriptionAdapter<
       )
     }
 
-    // The flash endpoint answers with one JSON shape and offers no format
-    // negotiation, so srt/vtt/text/verbose_json can't be honoured. `segments`
-    // on the result carry the timings a caller would have wanted from srt/vtt.
     if (responseFormat !== undefined && responseFormat !== 'json') {
       logger.warn(
         `BytePlus Seed ASR always returns JSON — the requested responseFormat "${responseFormat}" is ignored. Build srt/vtt from result.segments if you need them.`,
@@ -172,18 +128,12 @@ export class BytePlusTranscriptionAdapter<
       const data = payload as BytePlusASRRecognizeResponse
       const text = data.result?.text ?? data.transcript
 
-      // The flash endpoint can answer HTTP 200 while carrying the numeric
-      // error envelope, so an absent transcript is a failure rather than an
-      // empty result.
       if (typeof text !== 'string') {
         throw bytePlusVoiceError(response.status, payload, 'transcription')
       }
 
-      // An empty string is well-formed, so it isn't an error — silence is a
-      // legitimate transcription. But it is also what a 200-wrapped failure
-      // looks like, so say so rather than handing back a successful, empty
-      // result with no signal.
-      if (text === '' && !hasUtterances(data)) {
+      const emptyTranscript = text === '' && !hasUtterances(data)
+      if (emptyTranscript) {
         logger.warn(
           `byteplus: transcription returned an empty transcript with no ` +
             `utterances. This is a valid result for silent audio, and is also ` +
@@ -192,9 +142,6 @@ export class BytePlusTranscriptionAdapter<
         )
       }
 
-      // Seed ASR doesn't echo the language back, so report the one that was
-      // actually sent — which is `modelOptions.language` when it overrode the
-      // cross-provider hint.
       const requestedLanguage = modelOptions?.language ?? language
 
       return {
@@ -213,12 +160,6 @@ export class BytePlusTranscriptionAdapter<
   }
 }
 
-/**
- * Build the JSON body for `POST /api/v3/auc/bigmodel/recognize/flash`.
- *
- * `show_utterances` defaults to `true` so the response carries the
- * per-utterance breakdown that populates `segments` and `words`.
- */
 export function buildRecognizeRequestBody(options: {
   audio: BytePlusASRAudio
   language: string | undefined
@@ -251,11 +192,6 @@ export function buildRecognizeRequestBody(options: {
   }
 }
 
-/**
- * Turn a recognition response into the transcript-shaped half of a
- * `TranscriptionResult`. Wire timings are milliseconds; everything returned
- * here is seconds.
- */
 export function mapRecognizeResponse(
   data: BytePlusASRRecognizeResponse,
   text: string,
@@ -270,13 +206,9 @@ export function mapRecognizeResponse(
 
   const rawWords = utterances.flatMap((utterance) => utterance.words ?? [])
   const words = rawWords.flatMap((word) => {
-    if (
-      typeof word.text !== 'string' ||
-      typeof word.start_time !== 'number' ||
-      typeof word.end_time !== 'number'
-    ) {
-      return []
-    }
+    if (typeof word.text !== 'string') return []
+    if (typeof word.start_time !== 'number') return []
+    if (typeof word.end_time !== 'number') return []
     const mapped: BytePlusTranscriptionWord = {
       word: word.text,
       start: msToSeconds(word.start_time),
@@ -286,11 +218,6 @@ export function mapRecognizeResponse(
     return [mapped]
   })
 
-  // Untimed entries are dropped rather than emitted with NaN timings, but a
-  // silent drop leaves the caller unable to tell "the provider sent no
-  // timings" from "the adapter discarded them" — the two have very different
-  // fixes, and a field rename upstream (e.g. `text` → `word`) would empty
-  // these arrays without a single error anywhere.
   const droppedWords = rawWords.length - words.length
   if (droppedWords > 0) {
     logger?.warn(
@@ -314,10 +241,6 @@ export function mapRecognizeResponse(
       ? msToSeconds(durationMs)
       : undefined
 
-  // Seed ASR is duration-billed and reports no token counts, so `usage`
-  // carries only the audio length — the same shape the Grok and OpenAI
-  // whisper paths use. `durationSeconds` is deprecated but still populated
-  // alongside the self-describing `billed` pair.
   const usage: TokenUsage | undefined =
     duration !== undefined
       ? {
@@ -338,16 +261,6 @@ export function mapRecognizeResponse(
   }
 }
 
-/**
- * Convert one utterance into a segment, or nothing when it carries no
- * timings. The `id` is a placeholder — the caller renumbers after filtering.
- */
-/**
- * True when the response carries at least one utterance, in either envelope
- * form. Used to tell "silent audio" from a 200-wrapped failure: a genuinely
- * empty transcript usually still arrives with no utterances, so the pairing is
- * a hint rather than proof — hence a warning rather than a throw.
- */
 function hasUtterances(data: BytePlusASRRecognizeResponse): boolean {
   return (data.result?.utterances ?? data.utterances ?? []).length > 0
 }
@@ -355,12 +268,8 @@ function hasUtterances(data: BytePlusASRRecognizeResponse): boolean {
 function toSegment(
   utterance: BytePlusASRUtterance,
 ): Array<TranscriptionSegment> {
-  if (
-    typeof utterance.start_time !== 'number' ||
-    typeof utterance.end_time !== 'number'
-  ) {
-    return []
-  }
+  if (typeof utterance.start_time !== 'number') return []
+  if (typeof utterance.end_time !== 'number') return []
   const speaker = utterance.additions?.speaker
   return [
     {
@@ -373,27 +282,10 @@ function toSegment(
   ]
 }
 
-/**
- * **Must verify when the Seed Speech key lands.** Every timing this adapter
- * reads — `audio_info.duration`, and each utterance's and word's
- * `start_time` / `end_time` — is assumed to be milliseconds. That comes from
- * the Volcengine flash-recognition reference this endpoint derives from
- * (a 2.499 s clip reports `duration: 2499`), not from a BytePlus response we
- * have seen. If BytePlus reports seconds instead, every duration, segment and
- * word timing here is 1000× too small, and this is the only place to fix.
- */
 function msToSeconds(milliseconds: number): number {
   return milliseconds / 1000
 }
 
-/**
- * Turn the cross-provider `audio` input into the endpoint's `audio` block.
- *
- * URLs are passed through untouched — Seed ASR fetches them itself, which
- * avoids pulling large media through this process. Everything else is sent as
- * base64 `data`, with the container inferred from the input's MIME type or
- * filename when the caller didn't pin `audio_format`.
- */
 export async function normalizeAudioInput(
   audio: TranscriptionOptions['audio'],
   formatHint: string | undefined,
@@ -437,20 +329,15 @@ function extensionOf(pathOrName: string): string | undefined {
 }
 
 function formatFromMime(mime: string | undefined): string | undefined {
-  if (!mime || !mime.startsWith('audio/')) return undefined
+  if (!mime) return undefined
+  if (!mime.startsWith('audio/')) return undefined
   const subtype = mime.slice('audio/'.length).toLowerCase()
   if (subtype === 'mpeg') return 'mp3'
-  if (subtype === 'x-wav' || subtype === 'wave') return 'wav'
+  if (subtype === 'x-wav') return 'wav'
+  if (subtype === 'wave') return 'wav'
   return subtype.replace(/^x-/, '')
 }
 
-/**
- * Creates a BytePlus Seed Speech transcription adapter with an explicit API
- * key.
- *
- * The key is the **Seed Speech** key, not the Ark key used by the chat, image
- * and video adapters.
- */
 export function createBytePlusTranscription<
   TModel extends BytePlusTranscriptionModel = BytePlusTranscriptionModel,
 >(
@@ -461,12 +348,6 @@ export function createBytePlusTranscription<
   return new BytePlusTranscriptionAdapter(model, { ...config, apiKey })
 }
 
-/**
- * Creates a BytePlus Seed Speech transcription adapter, reading the API key
- * from `BYTEPLUS_VOICE_API_KEY`.
- *
- * @throws Error if `BYTEPLUS_VOICE_API_KEY` is not set.
- */
 export function byteplusTranscription<
   TModel extends BytePlusTranscriptionModel = BytePlusTranscriptionModel,
 >(

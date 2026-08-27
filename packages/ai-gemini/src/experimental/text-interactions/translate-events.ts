@@ -178,7 +178,9 @@ function* closeOpenState(state: TranslateState): Generator<AdapterYieldChunk> {
 function* openReasoningIfNeeded(
   state: TranslateState,
 ): Generator<AdapterYieldChunk> {
-  if (state.thinkingStepId !== null && state.reasoningMessageId !== null) {
+  const hasOpenReasoning =
+    state.thinkingStepId !== null && state.reasoningMessageId !== null
+  if (hasOpenReasoning) {
     return
   }
   state.thinkingStepId = generateId(state.adapterName)
@@ -210,7 +212,10 @@ function* emitReasoningContent(
   state: TranslateState,
   text: string,
 ): Generator<AdapterYieldChunk> {
-  if (state.reasoningMessageId === null || state.thinkingStepId === null) {
+  if (state.reasoningMessageId === null) {
+    return
+  }
+  if (state.thinkingStepId === null) {
     return
   }
   state.thinkingAccumulated += text
@@ -335,7 +340,8 @@ function* handleThoughtStart(
   if (event.step.type !== 'thought') return
   yield* openReasoningIfNeeded(state)
   for (const part of event.step.summary ?? []) {
-    if (part.type !== 'text' || !part.text) continue
+    if (part.type !== 'text') continue
+    if (!part.text) continue
     yield* emitReasoningContent(state, part.text)
   }
 }
@@ -348,7 +354,8 @@ function* handleModelOutputStart(
   if (event.step.type !== 'model_output') return
   yield* closeReasoningIfNeeded(state)
   for (const part of event.step.content ?? []) {
-    if (part.type !== 'text' || !part.text) continue
+    if (part.type !== 'text') continue
+    if (!part.text) continue
     yield* emitTextDelta(state, part.text)
   }
 }

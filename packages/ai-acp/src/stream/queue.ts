@@ -1,7 +1,3 @@
-/**
- * Minimal promise-based async queue bridging callback-style ACP notifications
- * into the async-iterable world the stream translator consumes.
- */
 export class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly values: Array<T> = []
   private readonly waiters: Array<{
@@ -13,7 +9,8 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   private failed = false
 
   push(value: T): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     const waiter = this.waiters.shift()
     if (waiter) {
       waiter.resolve({ value, done: false })
@@ -23,18 +20,22 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   }
 
   end(): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     this.ended = true
-    for (const waiter of this.waiters.splice(0)) {
+    const pendingWaiters = this.waiters.splice(0)
+    for (const waiter of pendingWaiters) {
       waiter.resolve({ value: undefined, done: true })
     }
   }
 
   fail(error: unknown): void {
-    if (this.ended || this.failed) return
+    const isClosed = this.ended || this.failed
+    if (isClosed) return
     this.failed = true
     this.error = error
-    for (const waiter of this.waiters.splice(0)) {
+    const pendingWaiters = this.waiters.splice(0)
+    for (const waiter of pendingWaiters) {
       waiter.reject(error)
     }
   }

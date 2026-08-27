@@ -1,11 +1,3 @@
-/**
- * `defineSandbox()` returns a LAZY controller — it never creates a sandbox at
- * definition time. `withSandbox()` (and advanced users) call `ensure()` to
- * resume-or-create, following: provider.resume → provider.restoreSnapshot →
- * create + bootstrap. The controller folds provider/workspace/policy/lifecycle
- * into a stable instance key and coordinates through the (optional) lock +
- * sandbox stores.
- */
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
@@ -26,10 +18,6 @@ import type { SandboxKeyInput } from './key'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 
-/**
- * Sandbox-scoped hooks declared on `defineSandbox`. File hooks fire for every
- * create/change/delete during a chat run; lifecycle hooks fire server-side.
- */
 export interface SandboxHooks {
   onFile?: (e: SandboxFileHookEvent) => void | Promise<void>
   onFileCreate?: (e: SandboxFileHookEvent) => void | Promise<void>
@@ -52,11 +40,6 @@ export interface SandboxLifecycle {
   keepAlive?: string
   /** Destroy the sandbox after the run completes. */
   destroyOnComplete?: boolean
-  /**
-   * Maximum age of a sandbox record before it is discarded and re-created
-   * instead of resumed. Accepts `'<n>h'` (hours) or `'<n>m'` (minutes),
-   * e.g. `'2h'` or `'30m'`.
-   */
   snapshotMaxAge?: string
 }
 
@@ -158,11 +141,6 @@ export function ensureSandboxWithOutcome(
   return fn(ctx)
 }
 
-/**
- * Parse a human-readable duration string into milliseconds.
- * Supports `'<n>h'` (hours) and `'<n>m'` (minutes).
- * Returns `undefined` when the input is undefined or the format is unrecognised.
- */
 function parseMaxAgeMs(value: string | undefined): number | undefined {
   if (value === undefined) return undefined
   const hourMatch = /^(\d+)h$/.exec(value)
@@ -172,11 +150,6 @@ function parseMaxAgeMs(value: string | undefined): number | undefined {
   return undefined
 }
 
-/**
- * Bound for the unfenced teardown `destroy` call (see `destroy` below). Long
- * enough that a slow provider API still completes, short enough that a wedged
- * one cannot pin the process forever.
- */
 const DESTROY_TIMEOUT_MS = 60 * 1000
 
 // Process-lifetime fallbacks shared across all definitions so concurrent
@@ -184,14 +157,6 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
-/**
- * Put workspace secrets onto a live handle. Resume and snapshot restore skip
- * bootstrap, so this is the only path that re-injects them after reconnect.
- * Create injects secrets via `provider.create({ env })`, but resume/restore
- * return a handle whose process env is empty unless we set it here. sbx in
- * particular has no Docker Env on resume, so this is the only way secrets
- * come back for that provider.
- */
 async function applyWorkspaceSecrets(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition | undefined,
@@ -237,11 +202,11 @@ async function tryReuseExistingSandbox(input: {
     })
     return { handle: resumed, outcome: 'resumed' }
   }
-  if (
+  const canRestoreSnapshot =
     existing.latestSnapshotId &&
     caps.snapshots &&
     config.provider.restoreSnapshot
-  ) {
+  if (canRestoreSnapshot) {
     const restored = await config.provider.restoreSnapshot({
       snapshotId: existing.latestSnapshotId,
       workspace: config.workspace,
@@ -285,20 +250,15 @@ async function createBootstrappedSandbox(input: {
         signal: ctx.signal,
       })
     } catch (error) {
-      // Bootstrap failed after the sandbox was created but before it was
-      // recorded — destroy the orphan so a failed/retried run doesn't leak
-      // a (billed) sandbox, then surface the original error.
       await created.destroy().catch(() => {})
       throw error
     }
   }
 
   let latestSnapshotId: string | undefined
-  if (
-    effectiveSnapshot === 'after-setup' &&
-    caps.snapshots &&
-    created.snapshot
-  ) {
+  const shouldSnapshotAfterSetup =
+    effectiveSnapshot === 'after-setup' && caps.snapshots && created.snapshot
+  if (shouldSnapshotAfterSetup) {
     latestSnapshotId = (await created.snapshot('after-setup')).id
   }
 
@@ -352,9 +312,6 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
           caps,
         })
         if (reused) return reused
-        // Fall through and re-create under the same identity
-        // (capability-aware degradation for ephemeral-disk providers, or
-        // snapshotMaxAge TTL exceeded).
       }
 
       // Deterministic id so consumers can reconstruct the provider sandbox
@@ -388,11 +345,10 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     return locks.withLock(`sandbox:${key}`, async () => {
       const existing = await store.get(key)
       const maxAgeMs = parseMaxAgeMs(snapshotMaxAge)
-      if (
+      const isExpiredOrMissing =
         !existing ||
         (maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs)
-      )
-        return null
+      if (isExpiredOrMissing) return null
       const resumed = await resume({
         id: existing.providerSandboxId,
         signal: ctx.signal,
@@ -417,21 +373,6 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const key = computeSandboxKey(keyInputFor(ctx))
     const existing = await store.get(key)
     if (!existing) return
-    /*
-     * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
-     *
-     * `destroy` runs on every teardown path INCLUDING the one caused by that
-     * very signal aborting, so forwarding it hands the provider a signal that is
-     * already aborted: a provider that honors it does nothing and returns
-     * successfully, and `store.delete` below then removes the only pointer to a
-     * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
-     * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
-     *
-     * Same reasoning as `close()` never being fenced by the run claim (see
-     * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
-     * the work. A fresh controller with its own bounded timeout keeps the call
-     * from hanging forever without letting the caller's abort cancel it.
-     */
     const teardown = new AbortController()
     const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
     try {

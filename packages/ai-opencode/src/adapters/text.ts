@@ -53,19 +53,9 @@ const DEFAULT_PORT = 4096
 export interface OpencodeTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   directory?: string
-  /**
-   * Port the in-sandbox `opencode serve` listens on. Defaults to 4096. For the
-   * Docker provider this port must also be published (`publishPorts: [4096]`)
-   * so the host can reach it.
-   */
   port?: number
   /** Hostname the in-sandbox server binds. Defaults to `0.0.0.0`. */
   hostname?: string
-  /**
-   * OpenCode permission mode driving the dynamic permission handler. Defaults
-   * to `'default'`; set `'acceptEdits'` / `'bypassPermissions'` to let the
-   * harness edit files and run commands autonomously inside the sandbox.
-   */
   permissionMode?: OpencodePermissionMode
   /** Custom permission handler; replaces the adapter's default policy. */
   onPermissionRequest?: PermissionHandler
@@ -130,7 +120,8 @@ async function* emitOpencodeStructuredOutput(
 
 function splitModel(model: string): { providerID: string; modelID: string } {
   const slash = model.indexOf('/')
-  if (slash <= 0 || slash === model.length - 1) {
+  const missingProviderOrModel = slash <= 0 || slash === model.length - 1
+  if (missingProviderOrModel) {
     throw new Error(
       `OpenCode models must be addressed as "provider/model" (e.g. "anthropic/claude-sonnet-4-5"); received "${model}".`,
     )
@@ -203,9 +194,6 @@ export class OpencodeTextAdapter<
     const externalSignal =
       options.abortController?.signal ?? options.request?.signal ?? undefined
     let onAbort: (() => void) | undefined
-    // This adapter does not journal yet, so a generated id is still fine.
-    // Routed through the helper anyway so journaling here inherits the
-    // caller-supplied-runId requirement instead of re-deriving it.
     const runId = resolveDurableRunId(options.runId, {
       durable: false,
       adapter: 'opencode',
@@ -260,25 +248,6 @@ export class OpencodeTextAdapter<
     options: TextOptions<OpencodeTextProviderOptions>,
     runId: string,
   ): void {
-    // Durability wired onto a path that cannot deliver it. Two outcomes, split
-    // by whether a first attempt has already run.
-    //
-    // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
-    // when a previous host was already streaming this run, so continuing past
-    // here reaches `startOpencodeServerInSandbox` + the session prompt and
-    // re-runs the agent from scratch against the workspace that attempt
-    // already mutated, appending its whole output to a log that still holds
-    // the first attempt's. This adapter has no journal to tail, no
-    // `awaitAttachableJournal` to refuse the attach up front, and no
-    // `alignedIfAttaching` to suppress the already-delivered prefix — so there
-    // is nothing between here and that corruption except this throw.
-    //
-    // A FRESH durable run only fails to be recoverable LATER, which an app may
-    // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
-    // the middleware level and still route some runs through this adapter). So
-    // that is a warn, not a throw: audible, not fatal. Once per run, not per
-    // chunk — a per-chunk warning would be worse than none. Mirrors
-    // `ai-grok-build`'s `chatStreamAcp`.
     const durability = options.capabilities
       ? getSandboxDurability(options.capabilities, { optional: true })
       : undefined
@@ -318,7 +287,8 @@ export class OpencodeTextAdapter<
     channel: ReturnType<typeof createBridgeEventChannel>,
     externalSignal: AbortSignal | undefined,
   ): Promise<HostToolBridge | undefined> {
-    if (!options.tools || options.tools.length === 0) return undefined
+    if (!options.tools) return undefined
+    if (options.tools.length === 0) return undefined
     const provisioner =
       (options.capabilities
         ? getToolBridgeProvisioner(options.capabilities, { optional: true })
@@ -451,13 +421,6 @@ export class OpencodeTextAdapter<
       // Forward the channel's auth headers (e.g. Daytona's preview token) so
       // the host client can reach a token-gated preview proxy.
       ...(server.headers !== undefined && { headers: server.headers }),
-      // NOTE: do NOT pass `directory` here. `directory` is the VIRTUAL sandbox
-      // path (e.g. `/workspace`); the server is already spawned with that as its
-      // cwd (the provider handle maps it to the real workdir — `/workspace`
-      // inside Docker, a host temp dir for local-process). Forwarding the
-      // virtual path to the host-side opencode HTTP API breaks local-process,
-      // where `/workspace` doesn't exist → the API stalls until the request
-      // times out. Omitting it makes opencode use the server's (correct) cwd.
       providerID,
       modelID,
       ...(sessionId !== undefined && { resumeSessionId: sessionId }),
@@ -527,7 +490,7 @@ export class OpencodeTextAdapter<
 
     let heldFinished: AdapterYieldChunk | undefined
     let lastTextMessageId: string | undefined
-    for await (const chunk of mergeChunkStreams(
+    const mergedChunks = mergeChunkStreams(
       translateOpencodeStream(args.queue, {
         model: this.model,
         runId: args.runId,
@@ -543,8 +506,11 @@ export class OpencodeTextAdapter<
           }),
       }),
       args.channel.stream,
-    )) {
-      if (options.outputSchema && chunk.type === EventType.RUN_FINISHED) {
+    )
+    for await (const chunk of mergedChunks) {
+      const holdFinished =
+        Boolean(options.outputSchema) && chunk.type === EventType.RUN_FINISHED
+      if (holdFinished) {
         heldFinished = chunk
         continue
       }
@@ -583,16 +549,6 @@ export class OpencodeTextAdapter<
   }
 }
 
-/**
- * Creates an OpenCode harness adapter that runs **inside a sandbox**.
- *
- * It declares `requires: [SandboxCapability]`, spawns `opencode serve` inside
- * the sandbox provided by `withSandbox(...)`, exposes its port, and connects
- * the `@opencode-ai/sdk` HTTP client to it. OpenCode owns the agent loop and
- * executes its native tools against the sandbox workspace. The sandbox image
- * must provide the `opencode` executable (Docker: also publish the server port
- * via `publishPorts`). chat()-provided tools aren't bridged yet.
- */
 export function opencodeText<TModel extends OpencodeModel>(
   model: TModel,
   config: OpencodeTextConfig = {},

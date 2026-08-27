@@ -63,9 +63,6 @@ interface ModelMeta<TProviderOptions = unknown> {
       normal: number
     }
   }
-  /**
-   * Type-level description of which provider options this model supports.
-   */
   providerOptions?: TProviderOptions
 }
 
@@ -477,10 +474,6 @@ const GPT5_CODEX = {
     OpenAIMetadataOptions
 >
 
-/**
- * Sora-2 video generation model.
- * @experimental Video generation is an experimental feature and may change.
- */
 const SORA2 = {
   name: 'sora-2',
   pricing: {
@@ -502,10 +495,6 @@ const SORA2 = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
-/**
- * Sora-2-Pro video generation model (higher quality).
- * @experimental Video generation is an experimental feature and may change.
- */
 const SORA2_PRO = {
   name: 'sora-2-pro',
   pricing: {
@@ -740,62 +729,6 @@ const GPT_AUDIO = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const GPT_REALTIME = {
-  name: 'gpt-realtime',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 4,
-      cached: 0.5,
-    },
-    output: {
-      normal: 16,
-    },
-  },
-  supports: {
-    input: ['text', 'audio', 'image'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
->
-
-const GPT_REALTIME_MINI = {
-  name: 'gpt-realtime-mini',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio and image tokens to input output
-    input: {
-      normal: 0.6,
-      cached: 0.06,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
-  supports: {
-    input: ['text', 'audio', 'image'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
-> */
 
 const GPT_AUDIO_MINI = {
   name: 'gpt-audio-mini',
@@ -1241,34 +1174,6 @@ const GPT_4O_MINI_AUDIO = {
     OpenAIMetadataOptions
 >
 
-/* const GPT_4O_MINI_REALTIME = {
-  name: 'gpt-4o-mini-realtime',
-  context_window: 16_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add audio tokens
-    input: {
-      normal: 0.6,
-      cached: 0.3,
-    },
-    output: {
-      normal: 2.4,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
->
- */
 const O1 = {
   name: 'o1',
   context_window: 200_000,
@@ -1298,26 +1203,6 @@ const O1 = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const OMNI_MODERATION = {
-  name: 'omni-moderation',
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    endpoints: ['batch', 'moderation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 const GPT_4O = {
   name: 'gpt-4o',
@@ -1442,34 +1327,6 @@ const GPT_4O_MINI = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const GPT__4O_REALTIME = {
-  name: 'gpt-4o-realtime',
-  context_window: 32_000,
-  max_output_tokens: 4_096,
-  knowledge_cutoff: '2023-10-01',
-  pricing: {
-    // todo add  audio tokens to input output
-    input: {
-      normal: 5,
-      cached: 2.5,
-    },
-    output: {
-      normal: 20,
-    },
-  },
-  supports: {
-    input: ['text', 'audio'],
-    output: ['text', 'audio'],
-    endpoints: ['realtime'],
-    features: ['function_calling'],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions &
-  OpenAIMetadataOptions
-> */
 
 const GPT_4_TURBO = {
   name: 'gpt-4-turbo',
@@ -1698,99 +1555,6 @@ const GPT_4 = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
-/*
-const GPT_4O_MINI_TRANSCRIBE = {
-  name: 'gpt-4o-mini-transcribe',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-01-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 1.25,
-    },
-    output: {
-      normal: 5,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['realtime', 'transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const GPT_4O_MINI_TTS = {
-  name: 'gpt-4o-mini-tts',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 0.6,
-    },
-    output: {
-      normal: 12,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const GPT_4O_TRANSCRIBE = {
-  name: 'gpt-4o-transcribe',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['realtime', 'transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
-/*
-const GPT_4O_TRANSCRIBE_DIARIZE = {
-  name: 'gpt-4o-transcribe-diarize',
-  context_window: 16_000,
-  max_output_tokens: 2_000,
-  knowledge_cutoff: '2024-06-01',
-  pricing: {
-    // todo audio tokens
-    input: {
-      normal: 2.5,
-    },
-    output: {
-      normal: 10,
-    },
-  },
-  supports: {
-    input: ['audio', 'text'],
-    output: ['text'],
-    endpoints: ['transcription'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 const GPT_5_1_CHAT = {
   name: 'gpt-5.1-chat-latest',
@@ -1865,48 +1629,6 @@ const GPT_5_CHAT = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
 >
-
-/* const TTS_1 = {
-  name: 'tts-1',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 15,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
->
-
-const TTS_1_HD = {
-  name: 'tts-1-hd',
-  pricing: {
-    // todo figure out pricing
-    input: {
-      normal: 30,
-    },
-    output: {
-      normal: 30,
-    },
-  },
-  supports: {
-    input: ['text'],
-    output: ['audio'],
-    endpoints: ['speech_generation'],
-    features: [],
-  },
-} as const satisfies ModelMeta<
-  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
-> */
 
 // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
 const GPT_5_4_MINI = {
@@ -2516,19 +2238,11 @@ export const OPENAI_CHAT_MODELS = [
 
 export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 
-/**
- * Whether a model rejects the `temperature` / `top_p` sampling knobs.
- *
- * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
- * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
- * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
- * still accept them, so those are excluded. Matching by name (rather than a
- * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
- * See the note in `text/text-provider-options.ts`.
- */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  const isGpt5SamplingBlocked =
+    model.startsWith('gpt-5') && !model.endsWith('-chat-latest')
+  if (isGpt5SamplingBlocked) return true
   if (model === 'codex-mini-latest') return true
   return false
 }
@@ -2545,40 +2259,12 @@ export const OPENAI_IMAGE_MODELS = [
 export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
-/* const OPENAI_AUDIO_MODELS = [
-  // Transcription models
-  GPT_4O_TRANSCRIBE.name,
-  GPT_4O_TRANSCRIBE_DIARIZE.name,
-  GPT_4O_MINI_TRANSCRIBE.name,
-  // Realtime models
-  GPT_REALTIME.name,
-  GPT_REALTIME_MINI.name,
-  GPT__4O_REALTIME.name,
-  GPT_4O_MINI_REALTIME.name,
-  // Text-to-speech models
-  GPT_4O_MINI_TTS.name,
-  TTS_1.name,
-  TTS_1_HD.name,
-] as const */
 
 // Transcription-only models (based on endpoints: "transcription")
-/* const OPENAI_TRANSCRIPTION_MODELS = [
-  GPT_4O_TRANSCRIBE.name,
-  GPT_4O_TRANSCRIBE_DIARIZE.name,
-  GPT_4O_MINI_TRANSCRIBE.name,
-] as const
-
-/**
- * Video generation models (based on endpoints: "video")
- * @experimental Video generation is an experimental feature and may change.
- */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
 export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
 
-/**
- * Text-to-speech models (based on endpoints: "speech_generation")
- */
 export const OPENAI_TTS_MODELS = [
   'tts-1',
   'tts-1-hd',
@@ -2587,9 +2273,6 @@ export const OPENAI_TTS_MODELS = [
 
 export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
-/**
- * Transcription models (based on endpoints: "transcription")
- */
 export const OPENAI_TRANSCRIPTION_MODELS = [
   'whisper-1',
   'gpt-4o-transcribe',
@@ -2600,9 +2283,6 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
 export type OpenAITranscriptionModel =
   (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
-/**
- * Embedding models (based on endpoints: "embeddings")
- */
 export const OPENAI_EMBEDDING_MODELS = [
   'text-embedding-3-small',
   'text-embedding-3-large',
@@ -2610,30 +2290,16 @@ export const OPENAI_EMBEDDING_MODELS = [
 
 export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
 
-/**
- * Type-only map from embedding model name to its provider options type.
- */
 export type OpenAIEmbeddingModelProviderOptionsByName = {
   'text-embedding-3-small': OpenAIEmbeddingProviderOptions
   'text-embedding-3-large': OpenAIEmbeddingProviderOptions
 }
 
-/**
- * Per-model input modalities for embedding models. OpenAI embedding models
- * are text-only, so image inputs fail at compile time.
- */
 export type OpenAIEmbeddingModelInputModalitiesByName = {
   'text-embedding-3-small': readonly ['text']
   'text-embedding-3-large': readonly ['text']
 }
 
-/**
- * Type-only map from chat model name to its provider options type.
- * Used by the core AI types (via the adapter) to narrow
- * `providerOptions` based on the selected model.
- *
- * Manually defined to ensure accurate type narrowing per model.
- */
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
@@ -2890,11 +2556,6 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIMetadataOptions
 }
 
-/**
- * Type-only map from chat model name to its supported provider tools.
- * Keyed on each model's `.name` field. Value is the `typeof supports.tools`
- * tuple from each model constant.
- */
 export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.tools
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.tools
@@ -2946,14 +2607,6 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
 }
 
-/**
- * Type-only map from chat model name to its supported input modalities.
- * Based on the 'supports.input' arrays defined for each model.
- * Used by the core AI types to constrain ContentPart types based on the selected model.
- * Note: These must be inlined as readonly arrays (not typeof) because the model
- * constants are not exported and typeof references don't work in .d.ts files
- * when consumed by external packages.
- */
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input

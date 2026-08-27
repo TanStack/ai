@@ -16,7 +16,9 @@ export function mergeMetadata(
   if (incoming == null) return current
   if (current == null) return { ...incoming }
   const merged: MetadataRecord = { ...current, ...incoming }
-  if (isPlainRecord(current.tanstack) && isPlainRecord(incoming.tanstack)) {
+  const bothTanstackRecords =
+    isPlainRecord(current.tanstack) && isPlainRecord(incoming.tanstack)
+  if (bothTanstackRecords) {
     merged.tanstack = { ...current.tanstack, ...incoming.tanstack }
   }
   return merged
@@ -33,11 +35,9 @@ export function tanstackMetadata(
       ? nested
       : (value as MetadataRecord)
   const tanstack = metadata.tanstack
-  if (
-    tanstack == null ||
-    typeof tanstack !== 'object' ||
-    Array.isArray(tanstack)
-  ) {
+  const isInvalidTanstack =
+    tanstack == null || typeof tanstack !== 'object' || Array.isArray(tanstack)
+  if (isInvalidTanstack) {
     return undefined
   }
   return tanstack as TanStackMetadata

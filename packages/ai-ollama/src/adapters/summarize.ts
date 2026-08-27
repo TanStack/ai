@@ -12,14 +12,6 @@ export interface OllamaSummarizeAdapterOptions {
   host?: string
 }
 
-/**
- * Creates an Ollama summarize adapter with explicit host and model.
- *
- * @example
- * ```typescript
- * const adapter = createOllamaSummarize('mistral', 'http://localhost:11434');
- * ```
- */
 export function createOllamaSummarize<TModel extends OllamaSummarizeModel>(
   model: TModel,
   host?: string,
@@ -35,16 +27,6 @@ export function createOllamaSummarize<TModel extends OllamaSummarizeModel>(
   )
 }
 
-/**
- * Creates an Ollama summarize adapter with host from `OLLAMA_HOST` env var
- * (falling back to the Ollama default).
- *
- * @example
- * ```typescript
- * const adapter = ollamaSummarize('mistral');
- * await summarize({ adapter, text: 'Long article text...' });
- * ```
- */
 export function ollamaSummarize<TModel extends OllamaSummarizeModel>(
   model: TModel,
   options?: OllamaSummarizeAdapterOptions,

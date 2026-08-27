@@ -9,13 +9,6 @@ import type {
 
 const DEFAULT_GROK_BASE_URL = 'https://api.x.ai/v1'
 
-/**
- * Configuration for the Grok TTS adapter.
- *
- * Unlike chat/image/summarize adapters, TTS does not use the OpenAI SDK
- * because xAI's `/v1/tts` endpoint is not OpenAI-compatible. This config
- * is a minimal subset suitable for direct `fetch` calls.
- */
 export interface GrokSpeechConfig {
   apiKey: string
   baseURL?: string
@@ -23,12 +16,6 @@ export interface GrokSpeechConfig {
   defaultHeaders?: Record<string, string>
 }
 
-/**
- * Grok Text-to-Speech Adapter.
- *
- * Talks to `POST {baseURL}/tts` per
- * https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
- */
 export class GrokSpeechAdapter<
   TModel extends GrokTTSModel,
 > extends BaseTTSAdapter<TModel, GrokTTSProviderOptions> {
@@ -67,9 +54,6 @@ export class GrokSpeechAdapter<
       const response = await fetch(`${this.baseURL}/tts`, {
         method: 'POST',
         headers: {
-          // `defaultHeaders` first so the adapter's Authorization / Content-Type
-          // always win — otherwise a caller-supplied `Authorization` header
-          // could silently clobber the bearer token.
           ...this.defaultHeaders,
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
@@ -104,13 +88,6 @@ export class GrokSpeechAdapter<
   }
 }
 
-/**
- * Build the JSON body for `POST /v1/tts`, resolving codec / sample-rate / voice
- * defaults in one place.
- *
- * Returns the request `body`, the resolved `codec`, and the `sampleRateForContentType`
- * used by the caller to label the response via `getContentType`.
- */
 export function buildTTSRequestBody(options: {
   text: string
   voice: string | undefined
@@ -125,15 +102,7 @@ export function buildTTSRequestBody(options: {
 
   const codec = pickCodec(modelOptions?.codec, format)
 
-  // Only forward `sample_rate` when either:
-  //   - the caller explicitly set `modelOptions.sample_rate`, or
-  //   - the codec's Content-Type carries the rate (pcm → audio/L16;rate=…).
-  // For mp3/wav/opus/aac/flac we leave sample_rate unset so xAI's server
-  // default applies.
   const callerSampleRate = modelOptions?.sample_rate
-  // Default sample rate documented in GrokTTSProviderOptions is 24000 Hz —
-  // used only when we MUST attach a rate to the contentType (pcm) and the
-  // caller didn't pick one.
   const pcmDefault = 24000
   const needsRateInContentType = codec === 'pcm'
 
@@ -147,9 +116,6 @@ export function buildTTSRequestBody(options: {
     outputFormat.bit_rate = modelOptions.bit_rate
   }
 
-  // pcm embeds the rate in `audio/L16;rate=…`; mulaw/alaw embed it in
-  // `audio/PCMU;rate=…` / `audio/PCMA;rate=…` when non-default. mp3/wav
-  // don't carry a rate parameter so the value is unused for those.
   const sampleRateForContentType = callerSampleRate ?? pcmDefault
 
   const body: Record<string, unknown> = {
@@ -168,12 +134,6 @@ export function buildTTSRequestBody(options: {
   return { body, codec, sampleRateForContentType }
 }
 
-/**
- * Maps the cross-provider `TTSOptions.format` onto Grok's supported codecs.
- * `opus`, `aac`, and `flac` are not supported by xAI TTS (which only exposes
- * mp3/wav/pcm/mulaw/alaw) — we fall back to mp3. An explicit
- * `modelOptions.codec` always wins.
- */
 function pickCodec(
   codecOverride: GrokTTSCodec | undefined,
   format: TTSOptions['format'] | undefined,
@@ -207,12 +167,6 @@ export function getContentType(
       // `audio/L16` requires a `rate` parameter per RFC 3551/3555.
       return `audio/L16;rate=${sampleRate}`
     case 'mulaw':
-      // `audio/basic` is 8 kHz mono by RFC 2046 registration. For non-8kHz
-      // streams xAI still produces mulaw-encoded bytes at the requested
-      // rate, but the registered MIME can't carry that rate — so we use
-      // the non-standard but commonly-supported `audio/PCMU;rate=…` (RFC 3551
-      // RTP payload name) whenever the caller asked for a rate other than
-      // 8000, and keep `audio/basic` for the standard 8kHz case.
       return sampleRate === 8000
         ? 'audio/basic'
         : `audio/PCMU;rate=${sampleRate}`
@@ -223,19 +177,6 @@ export function getContentType(
   }
 }
 
-/**
- * Creates a Grok speech (TTS) adapter with an explicit API key.
- *
- * @example
- * ```typescript
- * const adapter = createGrokSpeech('grok-tts', 'xai-...')
- * const result = await generateSpeech({
- *   adapter,
- *   text: 'Hello from Grok',
- *   voice: 'eve',
- * })
- * ```
- */
 export function createGrokSpeech<TModel extends GrokTTSModel>(
   model: TModel,
   apiKey: string,
@@ -244,12 +185,6 @@ export function createGrokSpeech<TModel extends GrokTTSModel>(
   return new GrokSpeechAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Grok speech (TTS) adapter, reading the API key from
- * `XAI_API_KEY` in the environment.
- *
- * @throws Error if `XAI_API_KEY` is not set.
- */
 export function grokSpeech<TModel extends GrokTTSModel>(
   model: TModel,
   config?: Omit<GrokSpeechConfig, 'apiKey'>,

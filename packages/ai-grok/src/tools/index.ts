@@ -85,24 +85,24 @@ function providerTool<TKind extends GrokProviderToolKind>(
 export function grokWebSearchTool(
   config: Omit<GrokWebSearchToolConfig, 'type'> = {},
 ): GrokProviderTool<'web_search'> {
-  if (
+  const hasBothDomainFilters =
     config.filters?.allowed_domains !== undefined &&
     config.filters.excluded_domains !== undefined
-  ) {
+  if (hasBothDomainFilters) {
     throw new Error(
       'allowed_domains and excluded_domains cannot both be provided.',
     )
   }
-  if (
+  const hasTooManyAllowedDomains =
     config.filters?.allowed_domains !== undefined &&
     config.filters.allowed_domains.length > 5
-  ) {
+  if (hasTooManyAllowedDomains) {
     throw new Error('allowed_domains supports at most 5 domains.')
   }
-  if (
+  const hasTooManyExcludedDomains =
     config.filters?.excluded_domains !== undefined &&
     config.filters.excluded_domains.length > 5
-  ) {
+  if (hasTooManyExcludedDomains) {
     throw new Error('excluded_domains supports at most 5 domains.')
   }
   return providerTool('web_search', 'Search the web', {
@@ -114,24 +114,24 @@ export function grokWebSearchTool(
 export function grokXSearchTool(
   config: Omit<GrokXSearchToolConfig, 'type'> = {},
 ): GrokProviderTool<'x_search'> {
-  if (
+  const hasBothHandleFilters =
     config.allowed_x_handles !== undefined &&
     config.excluded_x_handles !== undefined
-  ) {
+  if (hasBothHandleFilters) {
     throw new Error(
       'allowed_x_handles and excluded_x_handles cannot both be provided.',
     )
   }
-  if (
+  const hasTooManyAllowedHandles =
     config.allowed_x_handles !== undefined &&
     config.allowed_x_handles.length > 20
-  ) {
+  if (hasTooManyAllowedHandles) {
     throw new Error('allowed_x_handles supports at most 20 handles.')
   }
-  if (
+  const hasTooManyExcludedHandles =
     config.excluded_x_handles !== undefined &&
     config.excluded_x_handles.length > 20
-  ) {
+  if (hasTooManyExcludedHandles) {
     throw new Error('excluded_x_handles supports at most 20 handles.')
   }
   return providerTool('x_search', 'Search X posts', {
@@ -147,7 +147,9 @@ export function grokFileSearchTool(
     throw new Error('vector_store_ids must contain at least one collection id.')
   }
   if (config.max_num_results !== undefined) {
-    if (config.max_num_results < 1 || config.max_num_results > 50) {
+    const isOutOfRange =
+      config.max_num_results < 1 || config.max_num_results > 50
+    if (isOutOfRange) {
       throw new Error('max_num_results must be between 1 and 50.')
     }
   }

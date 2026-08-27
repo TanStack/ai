@@ -55,9 +55,6 @@ export function useChat<
     TInterrupts
   > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
-  // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
   const hookId = createUniqueId()
   const clientId = options.threadId ?? hookId
 
@@ -87,24 +84,10 @@ export function useChat<
     setInterruptState(client().getInterruptState())
   }
 
-  // Structured-output `partial` / `final` are derived from `messages` —
-  // specifically from the structured-output part on the latest assistant
-  // message (the one after the most recent user message). Per-turn parts
-  // keep history coherent without a separate reset signal.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Create ChatClient instance with callbacks to sync state.
-  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
-  // is read at call time. Direct assignment would freeze the callback to the
-  // reference we saw at creation; the wrapper lets reactive `options` or
-  // in-place mutations propagate. When the user clears a callback (sets it to
-  // undefined), `?.` no-ops.
   const client = createMemo(() => {
-    // Build options with conditional spreads for fields whose source
-    // type is `T | undefined` but the ChatClient target uses a strict
-    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
-    // assigning `undefined` to those, so we omit the key when absent.
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
@@ -207,9 +190,6 @@ export function useChat<
   setMessages(client().getMessages())
   syncResumeState()
 
-  // Sync body / forwardedProps changes to the client.
-  // Both populate the same wire payload; `forwardedProps` is preferred
-  // and `body` is deprecated but still supported.
   createEffect(() => {
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
@@ -239,23 +219,13 @@ export function useChat<
   })
 
   onMount(() => {
-    // START TAILING HERE, not in the constructor. A client is idle until a view
-    // attaches it, so a client that gets built and thrown away never opens a
-    // connection — an unreachable stream would hold one of the browser's ~6
-    // connections per origin until the page reloaded.
     client().attach()
     client().mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
     syncResumeState()
   })
 
   // Cleanup on unmount: stop any in-flight requests.
   onCleanup(() => {
-    // Release the connection first: `detach` is the counterpart of the `attach`
-    // above, and it keeps the transcript and resume pointer so a later mount can
-    // pick the run back up from the durable log.
     client().detach()
     if (options.live) {
       client().unsubscribe()
@@ -369,10 +339,6 @@ export function useChat<
   const interruptErrors = () => interruptState().interruptErrors
   const resuming = () => interruptState().resuming
 
-  // The "active" structured-output part is on the assistant message after
-  // the latest user message. When no user message exists yet, return null
-  // rather than scanning history — otherwise a stale `final` from
-  // `initialMessages` would leak into the value on first render.
   const activeStructuredPart = createMemo<StructuredOutputPart | null>(() => {
     const list = messages()
     let lastUserIndex = -1
@@ -403,7 +369,8 @@ export function useChat<
 
   const final = createMemo<Final | null>(() => {
     const part = activeStructuredPart()
-    if (!part || part.status !== 'complete') return null
+    if (!part) return null
+    if (part.status !== 'complete') return null
     return part.data as Final
   })
 

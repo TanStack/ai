@@ -153,12 +153,12 @@ export const HookDetails: Component = () => {
   createEffect(() => {
     // Tools and Memory are chat-only tabs; if a generation hook becomes active
     // while one of them is selected, fall back to the conversation view.
-    if (
-      isGenerationHook() &&
-      (activeTab() === 'tools' ||
-        activeTab() === 'memory' ||
-        activeTab() === 'skills')
-    ) {
+    const isChatOnlyTab =
+      activeTab() === 'tools' ||
+      activeTab() === 'memory' ||
+      activeTab() === 'skills'
+    const shouldResetTab = isGenerationHook() && isChatOnlyTab
+    if (shouldResetTab) {
       setActiveTab('conversation')
     }
   })
@@ -181,11 +181,10 @@ export const HookDetails: Component = () => {
     // Tools tab owns its own form/saved-fixtures layout that fills the
     // primary pane; the secondary "User View" preview squeezes the tool
     // detail column to zero width on narrower hookDetails widths.
-    if (
+    const hideSecondaryPane =
       (activeTab() === 'tools' || activeTab() === 'skills') &&
       !isGenerationHook()
-    )
-      return false
+    if (hideSecondaryPane) return false
     return isGenerationHook() || !hasStructuredOutputPreview(previewMessages())
   })
 
@@ -1186,7 +1185,8 @@ function findClosestHoverTargetElement(
     '[data-ai-devtools-hover-message-ids], [data-ai-devtools-hover-part-ids]',
   )
 
-  if (!element || !container.contains(element)) return undefined
+  if (!element) return undefined
+  if (!container.contains(element)) return undefined
   return element
 }
 
@@ -1356,10 +1356,9 @@ function findConversationForHook(
 function messageFromConversation(message: Message): PreviewMessage {
   const sourceMessage = toolFixtureMessageFromConversation(message)
 
-  if (
-    message.role === 'tool' &&
-    (!message.parts || message.parts.length === 0)
-  ) {
+  const hasNoParts = !message.parts || message.parts.length === 0
+  const isBareToolMessage = message.role === 'tool' && hasNoParts
+  if (isBareToolMessage) {
     return {
       id: message.id,
       role: message.role,
@@ -1384,7 +1383,8 @@ function messageFromUnknown(value: unknown): PreviewMessage | undefined {
   if (!isRecord(value)) return undefined
   const id = typeof value.id === 'string' ? value.id : undefined
   const role = typeof value.role === 'string' ? value.role : undefined
-  if (!id || !role) return undefined
+  if (!id) return undefined
+  if (!role) return undefined
   const sourceMessage = toolFixtureMessageFromUnknown(value)
 
   const content =
@@ -1554,7 +1554,8 @@ function previewPartFromRecord(
       kind: 'thinking',
     }
   }
-  if (type === 'image' || type === 'audio' || type === 'video') {
+  const isMediaType = type === 'image' || type === 'audio' || type === 'video'
+  if (isMediaType) {
     return {
       id: `${index}:${type}`,
       label: type,
@@ -1652,7 +1653,8 @@ function toolFixtureMessageFromUnknown(
 ): ToolFixtureMessage | undefined {
   const id = typeof value.id === 'string' ? value.id : undefined
   const role = typeof value.role === 'string' ? value.role : undefined
-  if (!id || !isToolFixtureMessageRole(role)) return undefined
+  if (!id) return undefined
+  if (!isToolFixtureMessageRole(role)) return undefined
 
   const parts = Array.isArray(value.parts)
     ? value.parts
@@ -1669,17 +1671,19 @@ function toolFixtureMessageFromUnknown(
 }
 
 function approvalStatusFromToolCall(tool: ToolCall): string | undefined {
-  if (tool.approvalApproved === true || tool.state === 'approved') {
+  const isApproved = tool.approvalApproved === true || tool.state === 'approved'
+  if (isApproved) {
     return 'approved'
   }
-  if (tool.approvalApproved === false || tool.state === 'denied') {
+  const isDenied = tool.approvalApproved === false || tool.state === 'denied'
+  if (isDenied) {
     return 'denied'
   }
-  if (
-    tool.approvalRequired ||
-    tool.approvalId ||
+  const isApprovalRequested =
+    Boolean(tool.approvalRequired) ||
+    Boolean(tool.approvalId) ||
     tool.state === 'approval-requested'
-  ) {
+  if (isApprovalRequested) {
     return 'approval requested'
   }
   if (tool.state === 'approval-responded') {
@@ -1767,7 +1771,8 @@ function toolResultPartFromContent(
 }
 
 function formatUnknown(value: unknown): string {
-  if (value === undefined || value === null) return ''
+  const isEmptyValue = value === undefined || value === null
+  if (isEmptyValue) return ''
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)

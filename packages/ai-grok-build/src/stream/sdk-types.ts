@@ -1,14 +1,3 @@
-/**
- * Structural event types emitted by the Grok Build harness CLI (NDJSON).
- *
- * The real `grok --output-format streaming-json` CLI emits the **native**
- * shapes (`thought`, `text`, `end`). Tool execution is narrated inside
- * `thought` — there are no separate tool-call events in this format (use
- * `grok agent stdio` / ACP for structured `tool_call` updates). The
- * **legacy** Codex-like shapes below are kept for fixture tests and backward
- * compatibility.
- */
-
 export interface GrokBuildUsage {
   input_tokens?: number
   output_tokens?: number

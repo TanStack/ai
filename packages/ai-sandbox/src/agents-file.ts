@@ -18,21 +18,6 @@ import type { WorkspaceSkill } from './workspace'
 /** CLI instruction-file names that should resolve to AGENTS.md. */
 const SYMLINK_NAMES: ReadonlyArray<string> = ['CLAUDE.md', 'GEMINI.md']
 
-/**
- * Resolve the directory a `gitSkill` repo is cloned into when no explicit
- * `into` override is provided. The convention is:
- *
- *   `<root>/.tanstack-skills/<basename>`
- *
- * where `basename` is derived from the `repo` field by taking the last
- * path segment and stripping a trailing `.git` suffix.
- *
- * Per-harness projectors (e.g. the Claude Code adapter) import this helper
- * so they can locate cloned skill repos consistently.
- *
- * @param root  - Workspace root inside the sandbox (e.g. `/workspace`).
- * @param skill - A `WorkspaceSkill` of `kind === 'git'`.
- */
 export function resolveGitSkillDir(
   root: string,
   skill: Extract<WorkspaceSkill, { kind: 'git' }>,
@@ -91,17 +76,14 @@ export function formatWorkspaceScriptsSection(
   return `## Workspace scripts\n\n${lines.join('\n')}`
 }
 
-/**
- * Merge base AGENTS.md content with an optional workspace scripts section.
- * Returns `undefined` when there is nothing to write.
- */
 export function mergeAgentsContent(
   base: string | undefined,
   scripts: Record<string, string> | undefined,
 ): string | undefined {
   const scriptsSection =
     scripts !== undefined ? formatWorkspaceScriptsSection(scripts) : ''
-  if (base === undefined && scriptsSection.length === 0) return undefined
+  const hasNoAgentsText = base === undefined && scriptsSection.length === 0
+  if (hasNoAgentsText) return undefined
   if (base === undefined) return scriptsSection
   if (scriptsSection.length === 0) return base
   return `${base.trimEnd()}\n\n${scriptsSection}`
@@ -112,14 +94,6 @@ function sqEscape(value: string): string {
   return value.replace(/'/g, `'\\''`)
 }
 
-/**
- * Write `AGENTS.md` under `root` and create per-CLI symlinks (or copies as a
- * fallback when `ln -s` is unavailable).
- *
- * @param handle - The sandbox handle providing `fs` and `process`.
- * @param root   - Absolute path inside the sandbox under which to write.
- * @param content - Markdown content for the instruction file.
- */
 export async function writeAgentsFile(
   handle: SandboxHandle,
   root: string,

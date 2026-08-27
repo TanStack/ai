@@ -40,10 +40,6 @@ export interface CompleteOpenRouterPkceFromUrlOptions {
   cleanUrl?: boolean
 }
 
-/**
- * Duck-typed BYOK store. `ByokClient.update` matches this. The slug is always
- * {@link openrouterByok.id}.
- */
 export interface OpenRouterByokStore {
   update: (provider: string, key: string) => void | Promise<void>
 }
@@ -112,12 +108,16 @@ export function loadOpenRouterPkcePending(): OpenRouterPkcePending | null {
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return null
-    if (!('codeVerifier' in parsed) || !('codeChallengeMethod' in parsed)) {
+    const isNotObject = typeof parsed !== 'object' || parsed === null
+    if (isNotObject) return null
+    const record = parsed as Record<string, unknown>
+    const isMissingPkceFields =
+      !('codeVerifier' in record) || !('codeChallengeMethod' in record)
+    if (isMissingPkceFields) {
       return null
     }
-    if (!('callbackUrl' in parsed)) return null
-    const { codeVerifier, codeChallengeMethod, callbackUrl } = parsed
+    if (!('callbackUrl' in record)) return null
+    const { codeVerifier, codeChallengeMethod, callbackUrl } = record
     if (typeof codeVerifier !== 'string') return null
     if (codeChallengeMethod !== 'S256') return null
     if (typeof callbackUrl !== 'string') return null
@@ -192,16 +192,16 @@ export async function exchangeOpenRouterCode(
     throw new Error(`OpenRouter PKCE exchange failed: ${detail}`)
   }
   const data: unknown = await response.json()
-  if (
+  const hasNoKey =
     typeof data !== 'object' ||
     data === null ||
     !('key' in data) ||
-    typeof data.key !== 'string' ||
-    data.key.length === 0
-  ) {
+    typeof (data as { key: unknown }).key !== 'string' ||
+    (data as { key: string }).key.length === 0
+  if (hasNoKey) {
     throw new Error('OpenRouter PKCE exchange returned no key')
   }
-  return data.key
+  return (data as { key: string }).key
 }
 
 export function stripOpenRouterCodeFromUrl(href?: string): void {
@@ -240,10 +240,6 @@ export async function completeOpenRouterPkceFromUrl(
   return key
 }
 
-/**
- * Finish the OpenRouter PKCE callback and save the key under
- * {@link openrouterByok.id}.
- */
 export async function completeOpenRouterPkceIntoByok(
   byok: OpenRouterByokStore,
   options: CompleteOpenRouterPkceFromUrlOptions = {},

@@ -1,19 +1,5 @@
-/**
- * Grok Image Generation Provider Options
- *
- * Provider-specific options for Grok image generation: the aspect-ratio
- * sized Imagine API models (grok-imagine-image, grok-imagine-image-2.0,
- * grok-imagine-image-quality) and the legacy pixel-sized grok-2-image-1212.
- */
-
-/**
- * Supported sizes for grok-2-image-1212 model
- */
 export type GrokImageSize = '1024x1024' | '1536x1024' | '1024x1536'
 
-/**
- * Aspect ratios accepted by the grok-imagine image models.
- */
 export type GrokImagineAspectRatio =
   | '1:1'
   | '3:4'
@@ -30,18 +16,8 @@ export type GrokImagineAspectRatio =
   | '2:1'
   | 'auto'
 
-/**
- * Resolution tiers for the grok-imagine image models.
- */
 export type GrokImagineResolution = '1k' | '2k'
 
-/**
- * Size strings for grok-imagine image models. The Imagine API is
- * aspect-ratio based rather than pixel-size based; like Gemini's native
- * image models, the generic `size` option uses an
- * `aspectRatio_resolution` template ("16:9_2k") — the resolution suffix is
- * optional ("16:9" uses the API default of 1k).
- */
 export type GrokImagineImageSize =
   | GrokImagineAspectRatio
   | `${GrokImagineAspectRatio}_${GrokImagineResolution}`
@@ -65,21 +41,10 @@ const GROK_IMAGINE_ASPECT_RATIOS: ReadonlyArray<string> = [
 
 const GROK_IMAGINE_RESOLUTIONS: ReadonlyArray<string> = ['1k', '2k']
 
-/**
- * Models served by xAI's Imagine API. They are aspect-ratio sized and
- * support image-conditioned generation via `/v1/images/edits`; the legacy
- * grok-2-image-1212 model is pixel-sized and text-to-image only.
- */
 export function isGrokImagineImageModel(model: string): boolean {
   return model.startsWith('grok-imagine-image')
 }
 
-/**
- * Parses a grok-imagine size string into its components.
- * Format: "aspectRatio" or "aspectRatio_resolution",
- * e.g. "16:9_2k" → { aspectRatio: "16:9", resolution: "2k" }.
- * Returns undefined when the string doesn't match the template.
- */
 export function parseGrokImagineSize(
   size: string,
 ): { aspectRatio: string; resolution?: string } | undefined {
@@ -89,74 +54,28 @@ export function parseGrokImagineSize(
   return { aspectRatio, ...(resolution !== undefined && { resolution }) }
 }
 
-/**
- * Base provider options for Grok image models
- */
 export interface GrokImageBaseProviderOptions {
-  /**
-   * A unique identifier representing your end-user.
-   * Can help xAI to monitor and detect abuse.
-   */
   user?: string
 }
 
-/**
- * Provider options for grok-2-image-1212 model
- */
 export interface GrokImageProviderOptions extends GrokImageBaseProviderOptions {
-  /**
-   * The quality of the image.
-   * @default 'standard'
-   */
   quality?: 'standard' | 'hd'
 
-  /**
-   * The format in which generated images are returned.
-   * URLs are only valid for 60 minutes after generation.
-   * @default 'url'
-   */
   response_format?: 'url' | 'b64_json'
 }
 
-/**
- * Provider options for the grok-imagine image models (generation and
- * image-conditioned editing via xAI's Imagine API).
- */
 export interface GrokImagineImageProviderOptions extends GrokImageBaseProviderOptions {
-  /**
-   * The format in which generated images are returned.
-   * @default 'url'
-   */
   response_format?: 'url' | 'b64_json'
 
-  /**
-   * Output resolution.
-   * @default '1k'
-   */
   resolution?: '1k' | '2k'
 
-  /**
-   * Processing tier for the request.
-   * @default 'default'
-   */
   service_tier?: 'default' | 'priority'
 }
 
-/**
- * Provider options for grok-imagine-image-2.0, which adds a generation
- * `quality` knob on top of the shared Imagine options.
- */
 export interface GrokImagineImage2ProviderOptions extends GrokImagineImageProviderOptions {
-  /**
-   * Generation quality. Only supported by grok-imagine-image-2.0.
-   * @default 'medium'
-   */
   quality?: 'low' | 'medium'
 }
 
-/**
- * Type-only map from model name to its specific provider options.
- */
 export type GrokImageModelProviderOptionsByName = {
   'grok-2-image-1212': GrokImageProviderOptions
   'grok-imagine-image': GrokImagineImageProviderOptions
@@ -164,9 +83,6 @@ export type GrokImageModelProviderOptionsByName = {
   'grok-imagine-image-quality': GrokImagineImageProviderOptions
 }
 
-/**
- * Type-only map from model name to its supported sizes.
- */
 export type GrokImageModelSizeByName = {
   'grok-2-image-1212': GrokImageSize
   'grok-imagine-image': GrokImagineImageSize
@@ -174,11 +90,6 @@ export type GrokImageModelSizeByName = {
   'grok-imagine-image-quality': GrokImagineImageSize
 }
 
-/**
- * Per-model prompt input modalities. Imagine API models accept image parts
- * in the prompt (routed to `/v1/images/edits`, up to 3 images, addressed by
- * xAI in request order); grok-2-image is text-to-image only.
- */
 export type GrokImageModelInputModalitiesByName = {
   'grok-2-image-1212': readonly []
   'grok-imagine-image': readonly ['image']
@@ -186,18 +97,11 @@ export type GrokImageModelInputModalitiesByName = {
   'grok-imagine-image-quality': readonly ['image']
 }
 
-/**
- * Internal options interface for validation
- */
 interface ImageValidationOptions {
   prompt: string
   model: string
 }
 
-/**
- * Validates that the provided size is supported by the model.
- * Throws a descriptive error if the size is not supported.
- */
 export function validateImageSize(
   model: string,
   size: string | undefined,
@@ -206,12 +110,12 @@ export function validateImageSize(
 
   if (isGrokImagineImageModel(model)) {
     const parsed = parseGrokImagineSize(size)
-    if (
+    const isUnsupportedImagineSize =
       !parsed ||
       !GROK_IMAGINE_ASPECT_RATIOS.includes(parsed.aspectRatio) ||
       (parsed.resolution !== undefined &&
         !GROK_IMAGINE_RESOLUTIONS.includes(parsed.resolution))
-    ) {
+    if (isUnsupportedImagineSize) {
       throw new Error(
         `Size "${size}" is not supported by model "${model}". ` +
           `Expected an aspect ratio (${GROK_IMAGINE_ASPECT_RATIOS.join(', ')}) ` +
@@ -238,9 +142,6 @@ export function validateImageSize(
   }
 }
 
-/**
- * Validates that the number of images is within bounds for the model.
- */
 export function validateNumberOfImages(
   _model: string,
   numberOfImages: number | undefined,
@@ -248,7 +149,8 @@ export function validateNumberOfImages(
   if (numberOfImages === undefined) return
 
   // grok-2-image-1212 supports 1-10 images per request
-  if (numberOfImages < 1 || numberOfImages > 10) {
+  const isOutOfRange = numberOfImages < 1 || numberOfImages > 10
+  if (isOutOfRange) {
     throw new Error(
       `Number of images must be between 1 and 10. Requested: ${numberOfImages}`,
     )

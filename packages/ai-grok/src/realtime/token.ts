@@ -13,25 +13,6 @@ const GROK_REALTIME_CLIENT_SECRETS_URL =
 
 const DEFAULT_TOKEN_FETCH_TIMEOUT_MS = 15_000
 
-/**
- * Creates a Grok realtime token adapter.
- *
- * Generates ephemeral client secrets for browser-side WebRTC connections to
- * the xAI Voice Agent API.
- *
- * @param options - Configuration options for the realtime session.
- * @returns A RealtimeTokenAdapter for use with `realtimeToken()`.
- *
- * @example
- * ```typescript
- * import { realtimeToken } from '@tanstack/ai'
- * import { grokRealtimeToken } from '@tanstack/ai-grok'
- *
- * const token = await realtimeToken({
- *   adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-2.0' }),
- * })
- * ```
- */
 export function grokRealtimeToken(
   options: GrokRealtimeTokenOptions = {},
 ): RealtimeTokenAdapter {
@@ -50,11 +31,6 @@ export function grokRealtimeToken(
         model,
       })
 
-      // xAI docs (docs.x.ai/developers/rest-api-reference/inference/voice)
-      // specify the body as `{ session: { model } }`. `expires_after` is
-      // available to shorten the default 600s TTL but we don't expose it
-      // yet — the caller can still call `generateToken()` more often if
-      // they want a shorter-lived session.
       const requestBody: Record<string, unknown> = {
         session: { model },
       }
@@ -93,21 +69,22 @@ export function grokRealtimeToken(
         // Validate shape before dereferencing — xAI could return an error
         // envelope with 200 status, or a partial response under protocol drift.
         const clientSecret = sessionData?.client_secret
-        if (
-          !clientSecret ||
-          typeof clientSecret.value !== 'string' ||
-          typeof clientSecret.expires_at !== 'number' ||
-          !Number.isFinite(clientSecret.expires_at)
-        ) {
-          throw new Error(
-            'Grok realtime session response missing or malformed `client_secret`',
-          )
+        const malformedSecret =
+          'Grok realtime session response missing or malformed `client_secret`'
+        if (!clientSecret) {
+          throw new Error(malformedSecret)
+        }
+        if (typeof clientSecret.value !== 'string') {
+          throw new Error(malformedSecret)
+        }
+        if (typeof clientSecret.expires_at !== 'number') {
+          throw new Error(malformedSecret)
+        }
+        if (!Number.isFinite(clientSecret.expires_at)) {
+          throw new Error(malformedSecret)
         }
         const sessionModel = sessionData.model ?? model
 
-        // xAI docs describe `expires_at` as a unix timestamp in seconds, but
-        // in practice different deployments have returned milliseconds. Treat
-        // any value that already looks like ms (>1e12 ≈ Sep 2001 in ms) as ms.
         const raw = clientSecret.expires_at
         const expiresAt = raw > 1e12 ? raw : raw * 1000
 

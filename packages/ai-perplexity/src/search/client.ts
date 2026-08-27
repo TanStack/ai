@@ -17,13 +17,6 @@ export interface PerplexitySearchRequest {
   max_results?: number
   /** Maximum tokens of content to return per page. */
   max_tokens_per_page?: number
-  /**
-   * Restrict (or exclude) results by domain (max 20 entries).
-   *
-   * Hostnames, optional paths, or TLDs. Use bare entries to allowlist
-   * (`["nytimes.com"]`) or `-` prefixed entries to denylist
-   * (`["-pinterest.com"]`). Allow and deny entries must NOT be mixed.
-   */
   search_domain_filter?: Array<string>
   /** Restrict results by recency: `hour | day | week | month | year`. */
   search_recency_filter?: 'hour' | 'day' | 'week' | 'month' | 'year'
@@ -50,11 +43,6 @@ const DEFAULT_BASE_URL = 'https://api.perplexity.ai'
 const MAX_QUERY_BATCH = 5
 const MAX_DOMAIN_FILTER = 20
 
-/**
- * Low-level HTTP client for the Perplexity Search API.
- *
- * Calls `POST {baseURL}/search` with bearer auth.
- */
 export class PerplexitySearchClient {
   private readonly apiKey: string
   private readonly baseURL: string
@@ -143,7 +131,12 @@ function normalizeQuery(
   }
 
   return query.map((entry) => {
-    if (typeof entry !== 'string' || entry.trim().length === 0) {
+    if (typeof entry !== 'string') {
+      throw new Error(
+        'PerplexitySearchClient.search requires a non-empty `query`.',
+      )
+    }
+    if (entry.trim().length === 0) {
       throw new Error(
         'PerplexitySearchClient.search requires a non-empty `query`.',
       )
@@ -153,14 +146,17 @@ function normalizeQuery(
 }
 
 function requireMaxResults(maxResults: number): number {
-  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 20) {
+  const invalidMaxResults =
+    !Number.isInteger(maxResults) || maxResults < 1 || maxResults > 20
+  if (invalidMaxResults) {
     throw new Error('max_results must be an integer between 1 and 20.')
   }
   return maxResults
 }
 
 function validateDomainFilter(filter: Array<string> | undefined): void {
-  if (!filter || filter.length === 0) return
+  if (!filter) return
+  if (filter.length === 0) return
   if (filter.length > MAX_DOMAIN_FILTER) {
     throw new Error(
       `search_domain_filter must contain at most ${MAX_DOMAIN_FILTER} entries.`,
@@ -169,11 +165,13 @@ function validateDomainFilter(filter: Array<string> | undefined): void {
   let hasAllow = false
   let hasDeny = false
   for (const entry of filter) {
-    if (typeof entry !== 'string' || entry.length === 0) continue
+    if (typeof entry !== 'string') continue
+    if (entry.length === 0) continue
     if (entry.startsWith('-')) hasDeny = true
     else hasAllow = true
   }
-  if (hasAllow && hasDeny) {
+  const mixesAllowAndDeny = hasAllow && hasDeny
+  if (mixesAllowAndDeny) {
     throw new Error(
       'search_domain_filter cannot mix allowlist and denylist entries. Use only `-domain.com` for negation, or only bare domains for allowlist.',
     )
@@ -181,7 +179,8 @@ function validateDomainFilter(filter: Array<string> | undefined): void {
 }
 
 function isSearchResult(value: unknown): value is PerplexitySearchResult {
-  if (typeof value !== 'object' || value === null) return false
+  if (typeof value !== 'object') return false
+  if (value === null) return false
   const result = value as {
     title?: unknown
     url?: unknown
@@ -203,11 +202,17 @@ function isSearchResult(value: unknown): value is PerplexitySearchResult {
 }
 
 function parseSearchResponse(value: unknown): PerplexitySearchResponse {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== 'object') {
+    throw new Error('Perplexity Search API returned an invalid response.')
+  }
+  if (value === null) {
     throw new Error('Perplexity Search API returned an invalid response.')
   }
   const data = value as { id?: unknown; results?: unknown }
-  if (!Array.isArray(data.results) || !data.results.every(isSearchResult)) {
+  if (!Array.isArray(data.results)) {
+    throw new Error('Perplexity Search API returned an invalid response.')
+  }
+  if (!data.results.every(isSearchResult)) {
     throw new Error('Perplexity Search API returned an invalid response.')
   }
   return {

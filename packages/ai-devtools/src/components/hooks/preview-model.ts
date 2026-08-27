@@ -42,7 +42,9 @@ export function createHoverTargetFromDataAttributes(input: {
     origin: input.origin,
   })
 
-  if (target.messageIds.length === 0 && target.partIds.length === 0) {
+  const hasNoHoverIds =
+    target.messageIds.length === 0 && target.partIds.length === 0
+  if (hasNoHoverIds) {
     return null
   }
 
@@ -122,7 +124,8 @@ export function parseJsonishValue(value: unknown): unknown {
 
   const trimmed = value.trim()
   if (!trimmed) return value
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value
+  const isPlainText = !trimmed.startsWith('{') && !trimmed.startsWith('[')
+  if (isPlainText) return value
 
   try {
     return JSON.parse(trimmed)
@@ -181,7 +184,8 @@ function uniqueStrings(
   const seen = new Set<string>()
 
   for (const value of values) {
-    if (!value || seen.has(value)) continue
+    const isDuplicate = !value || seen.has(value)
+    if (isDuplicate) continue
     seen.add(value)
     result.push(value)
   }

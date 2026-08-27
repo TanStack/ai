@@ -1,25 +1,9 @@
-/**
- * Conformance suite for a {@link SandboxInstanceStore} implementation.
- *
- * Run this against a fresh BYO store (or the in-memory reference) to prove it
- * satisfies the get / upsert / delete contract `@tanstack/ai-sandbox`'s ensure
- * algorithm relies on — including insert-vs-overwrite and optional-field
- * handling (full replace must clear omitted optionals).
- *
- * Vitest is an OPTIONAL peer dependency: this module is imported only from test
- * files, which already run under Vitest.
- */
 import { describe, expect, it } from 'vitest'
 import type {
   SandboxInstanceRecord,
   SandboxInstanceStore,
 } from '../instance-store'
 
-// The `./testkit` package.json subpath resolves to THIS module's build output
-// only (`dist/esm/testkit/conformance.js`), not a barrel over `src/testkit/`.
-// Re-export the journal, takeover, and reaper conformance suites here so they
-// are reachable from `@tanstack/ai-sandbox/testkit` without changing that
-// mapping.
 export { runJournalConformance } from './journal-conformance'
 export type { JournalConformanceConfig } from './journal-conformance'
 export { runTakeoverConformance } from './takeover-conformance'
@@ -50,11 +34,6 @@ function makeRecord(
   }
 }
 
-/**
- * Assert `makeStore()` produces a spec-compliant {@link SandboxInstanceStore}. Each
- * `it` gets a fresh store, so implementations may share process state across
- * calls without cross-test bleed only if `makeStore` returns an isolated store.
- */
 export function runSandboxInstanceStoreConformance(
   name: string,
   makeStore: () => SandboxInstanceStore | Promise<SandboxInstanceStore>,

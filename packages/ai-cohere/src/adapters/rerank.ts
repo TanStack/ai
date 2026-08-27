@@ -22,7 +22,8 @@ interface CohereRerankResponse {
 }
 
 function isCohereRerankResponse(value: unknown): value is CohereRerankResponse {
-  if (typeof value !== 'object' || value === null) return false
+  if (typeof value !== 'object') return false
+  if (value === null) return false
   const results = (value as { results?: unknown }).results
   return (
     Array.isArray(results) &&
@@ -37,13 +38,6 @@ function isCohereRerankResponse(value: unknown): value is CohereRerankResponse {
   )
 }
 
-/**
- * Cohere rerank adapter.
- *
- * Talks to Cohere's `/v2/rerank` endpoint over raw `fetch` — no SDK. Returns
- * scored indices into the submitted documents; the `rerank()` activity maps
- * those back to the caller's original documents.
- */
 export class CohereRerankAdapter<
   TModel extends CohereRerankModel,
 > extends BaseRerankAdapter<TModel, InferCohereRerankProviderOptions<TModel>> {
@@ -143,15 +137,6 @@ export class CohereRerankAdapter<
   }
 }
 
-/**
- * Creates a Cohere rerank adapter with an explicit API key. Type resolution
- * (per-model provider options) happens here at the call site.
- *
- * @example
- * ```typescript
- * const adapter = createCohereRerank('rerank-v3.5', 'co-...')
- * ```
- */
 export function createCohereRerank<TModel extends CohereRerankModel>(
   model: TModel,
   apiKey: string,
@@ -160,24 +145,6 @@ export function createCohereRerank<TModel extends CohereRerankModel>(
   return new CohereRerankAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Cohere rerank adapter, reading `COHERE_API_KEY` from the
- * environment.
- *
- * @throws Error if `COHERE_API_KEY` is not found.
- *
- * @example
- * ```typescript
- * import { rerank } from '@tanstack/ai'
- * import { cohereRerank } from '@tanstack/ai-cohere'
- *
- * const { rerankedDocuments } = await rerank({
- *   adapter: cohereRerank('rerank-v3.5'),
- *   query: 'talk about rain',
- *   documents: ['sunny day', 'rainy afternoon'],
- * })
- * ```
- */
 export function cohereRerank<TModel extends CohereRerankModel>(
   model: TModel,
   config?: Omit<CohereClientConfig, 'apiKey'>,

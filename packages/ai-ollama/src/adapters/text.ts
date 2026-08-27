@@ -33,10 +33,6 @@ export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]
   | (string & {})
 
-/**
- * Resolve model options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
- */
 type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
@@ -47,14 +43,8 @@ export interface OllamaTextAdapterOptions {
   host?: string
 }
 
-/**
- * Default input modalities for Ollama models
- */
 type OllamaInputModalities = readonly ['text', 'image']
 
-/**
- * Default message metadata for Ollama
- */
 type OllamaMessageMetadataByModality = {
   text: unknown
   image: unknown
@@ -63,13 +53,6 @@ type OllamaMessageMetadataByModality = {
   document: unknown
 }
 
-/**
- * Ollama Text/Chat Adapter
- * A tree-shakeable chat adapter for Ollama
- *
- * Note: Ollama supports any model name as a string since models are loaded dynamically.
- * The predefined OllamaTextModels are common models but any string is accepted.
- */
 export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
   ResolveModelOptions<TModel>,
@@ -140,11 +123,6 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     }
   }
 
-  /**
-   * Generate structured output using Ollama's JSON format option.
-   * Uses format: 'json' with the schema to ensure structured output.
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -217,7 +195,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     function* closeReasoningEvents(
       model: string,
     ): Generator<AdapterYieldChunk> {
-      if (!reasoningMessageId || hasClosedReasoning) return
+      if (!reasoningMessageId) return
+      if (hasClosedReasoning) return
       hasClosedReasoning = true
       yield {
         type: EventType.REASONING_MESSAGE_END,
@@ -371,7 +350,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     function* emitDone(chunk: ChatResponse): Generator<AdapterYieldChunk> {
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
         for (const toolCall of chunk.message.tool_calls) {
-          for (const event of handleToolCall(toolCall, chunk.model)) yield event
+          const toolEvents = handleToolCall(toolCall, chunk.model)
+          for (const event of toolEvents) yield event
         }
       }
       yield* closeReasoningEvents(chunk.model)
@@ -419,7 +399,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       }
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
         for (const toolCall of chunk.message.tool_calls) {
-          for (const event of handleToolCall(toolCall, chunk.model)) yield event
+          const toolEvents = handleToolCall(toolCall, chunk.model)
+          for (const event of toolEvents) yield event
         }
       }
       if (chunk.message.thinking) {
@@ -479,10 +460,6 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
                     parsedArguments = {}
                   }
                 } else {
-                  // ToolCall.function.arguments is typed as string; this
-                  // branch is a defensive runtime guard. Fall back to {} to
-                  // avoid an unsound cast that would let a non-record value
-                  // through.
                   parsedArguments = {}
                 }
 
@@ -522,16 +499,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     return {
       model,
       messages: formattedMessages,
-      // Sampling and runner params (temperature, top_p, num_predict, top_k,
-      // seed, penalties, etc.) live under the nested `options` key — the same
-      // shape the Ollama SDK's ChatRequest.options expects. Spreading a fresh
-      // object avoids aliasing the caller's modelOptions.options.
       options: { ...modelOptions?.options },
-      // Request-level fields the nested modelOptions surface exposes
-      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs, plus
-      // `think` for models whose options type includes OllamaChatRequestThinking.
-      // Read structurally and only forwarded when present. `stream` is set by
-      // the call sites (chatStream / structuredOutput), so it is not forwarded.
       ...(modelOptions?.format !== undefined && {
         format: modelOptions.format,
       }),
@@ -554,10 +522,6 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   }
 }
 
-/**
- * Creates an Ollama chat adapter with explicit host and optional config.
- * Type resolution happens here at the call site.
- */
 export function createOllamaChat<TModel extends string>(
   model: TModel,
   hostOrConfig?: string | OllamaClientConfig,
@@ -565,10 +529,6 @@ export function createOllamaChat<TModel extends string>(
   return new OllamaTextAdapter(hostOrConfig, model)
 }
 
-/**
- * Creates an Ollama text adapter with host from environment.
- * Type resolution happens here at the call site.
- */
 export function ollamaText<TModel extends string>(
   model: TModel,
 ): OllamaTextAdapter<TModel> {

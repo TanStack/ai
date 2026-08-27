@@ -1,7 +1,3 @@
-// ============================================================================
-// New Tree-Shakeable Adapters (Recommended)
-// ============================================================================
-
 // Text (Chat) adapter - for chat/text completion
 export {
   OpenRouterTextAdapter,
@@ -71,10 +67,6 @@ export type {
   OpenRouterVideoModelDurationByName,
 } from './video/video-provider-options'
 
-// ============================================================================
-// Type Exports
-// ============================================================================
-
 export type {
   OpenRouterModelOptionsByName,
   OpenRouterModelInputModalitiesByName,
@@ -105,20 +97,12 @@ export type {
   OpenRouterSystemPromptMetadata,
 } from './text/text-provider-options'
 
-// ============================================================================
-// Utils Exports
-// ============================================================================
-
 export {
   getOpenRouterApiKeyFromEnv,
   generateId,
   buildHeaders,
   type OpenRouterClientConfig,
 } from './utils/client'
-
-// ============================================================================
-// Tool Exports
-// ============================================================================
 
 export { convertToolsToProviderFormat } from './tools/tool-converter'
 

@@ -1,23 +1,3 @@
-/**
- * MCP tool-proxy bridge, shared by all harness adapters.
- *
- * Exposes chat()-provided server tools to an in-sandbox agent as an MCP server.
- * The agent (inside the sandbox) calls `mcp__tanstack__<tool>`; the call is
- * proxied OUT to a bridge endpoint, where the tool's `execute()` runs in the
- * orchestrator process (with its closures / DB / secrets), and the result is
- * returned into the sandbox.
- *
- * The bridge is split into a transport-agnostic CORE and a TRANSPORT:
- * - {@link createToolBridgeCore} owns tool dispatch + the permission resolver
- *   (no I/O). It is what makes the bridge portable.
- * - {@link startHostToolBridge} is the `node:http` transport for a long-running
- *   host (laptop / CI / Docker orchestrator). It binds loopback unless the
- *   sandbox must reach it via `host.docker.internal`, and authenticates with a
- *   constant-time bearer check.
- * - A serverless/edge orchestrator (e.g. a Durable Object) instead serves the
- *   SAME core from its own `fetch` handler — no raw TCP listener — see
- *   {@link handleBridgeJsonRpc} and the Cloudflare example.
- */
 import { createServer } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -29,11 +9,6 @@ import {
 import type { AddressInfo } from 'node:net'
 import type { AnyTool } from '@tanstack/ai'
 
-/**
- * Name of the bridged MCP server. The agent sees tools as
- * `mcp__tanstack__<tool>`; each adapter's stream translator strips this prefix
- * so tool-call events match the names the application registered.
- */
 export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 /** Hostname the sandbox uses to reach the bridge endpoint, per provider. */
@@ -63,20 +38,7 @@ export interface ToolBridgeCoreOptions {
   context?: unknown
   /** Abort signal forwarded to each tool's `execute()`. */
   signal?: AbortSignal
-  /**
-   * Forwarded to each tool's `execute()` so a bridged tool can stream progress /
-   * custom events back to the client mid-execution (e.g. code mode's
-   * `code_mode:console` logs). Without it those events are silently dropped — the
-   * bridge runs out-of-band from the main tool executor, so the executor's own
-   * `emitCustomEvent` never reaches a bridged tool. The harness adapter supplies
-   * one that injects a CUSTOM chunk into its live output stream.
-   */
   emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
-  /**
-   * Optional permission-prompt tool (e.g. for Claude Code's
-   * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool
-   * `<name>` whose handler returns the orchestrator's allow/deny decision.
-   */
   permission?: BridgePermission
 }
 
@@ -87,21 +49,16 @@ export interface ToolDescriptor {
   inputSchema: { type: 'object'; [key: string]: unknown }
 }
 
-/**
- * Coerce a tool's `inputSchema` into the object-schema shape MCP advertises,
- * substituting an empty object schema when it isn't already a JSON-schema object
- * (project rule: a guard, not an `as` cast).
- */
 function toObjectSchema(schema: unknown): {
   type: 'object'
   [key: string]: unknown
 } {
-  if (
+  const isObjectSchema =
     schema !== null &&
     typeof schema === 'object' &&
     'type' in schema &&
     schema.type === 'object'
-  ) {
+  if (isObjectSchema) {
     return { ...schema, type: 'object' }
   }
   return { type: 'object', properties: {} }
@@ -113,11 +70,6 @@ export interface ToolCallResult {
   isError?: boolean
 }
 
-/**
- * Transport-agnostic bridge logic: list tools, and dispatch a tool/permission
- * call. No sockets, no auth — a transport ({@link startHostToolBridge} or a
- * `fetch` handler) wraps this and owns I/O + the bearer check.
- */
 export interface ToolBridgeCore {
   listTools: () => Array<ToolDescriptor>
   callTool: (name: string, args: unknown) => Promise<ToolCallResult>
@@ -153,7 +105,8 @@ export function createToolBridgeCore(
     },
 
     async callTool(name, args) {
-      if (permission && name === permission.toolName) {
+      const isPermissionTool = permission && name === permission.toolName
+      if (isPermissionTool) {
         const result = await permission.resolve(args ?? {})
         return { content: [{ type: 'text', text: JSON.stringify(result) }] }
       }
@@ -183,17 +136,12 @@ export function createToolBridgeCore(
   }
 }
 
-/**
- * Minimal JSON-RPC dispatcher over a {@link ToolBridgeCore}, so a `fetch`-based
- * transport (Worker / Durable Object) can serve MCP `initialize` / `tools/list`
- * / `tools/call` without the node-specific HTTP transport. Returns the JSON-RPC
- * response object, or `null` for a notification (no `id`).
- */
 export async function handleBridgeJsonRpc(
   core: ToolBridgeCore,
   message: unknown,
 ): Promise<unknown> {
-  if (message === null || typeof message !== 'object') {
+  const isInvalidRpcMessage = message === null || typeof message !== 'object'
+  if (isInvalidRpcMessage) {
     return {
       jsonrpc: '2.0',
       id: null,
@@ -237,11 +185,6 @@ export async function handleBridgeJsonRpc(
   }
 }
 
-/**
- * Constant-time check of an `Authorization: Bearer <token>` header against the
- * expected token. Length mismatch returns false early (token length is not
- * secret); equal-length comparison is timing-safe.
- */
 export function timingSafeBearerEqual(
   header: string | undefined,
   token: string,
@@ -266,11 +209,6 @@ export interface HostToolBridge {
 export interface StartBridgeOptions extends ToolBridgeCoreOptions {
   /** Hostname the sandbox uses to reach the host (e.g. `host.docker.internal`). */
   hostForSandbox: string
-  /**
-   * Address to bind the listener to. Defaults to `127.0.0.1` (loopback) and is
-   * widened to `0.0.0.0` only when the sandbox reaches the host via
-   * `host.docker.internal` (a container can't reach the host's loopback).
-   */
   bindAddress?: string
 }
 
@@ -295,12 +233,6 @@ function buildMcpServer(core: ToolBridgeCore): McpServer {
   return server
 }
 
-/**
- * Start the `node:http` MCP tool-proxy bridge for the given tools. For a
- * long-running host (laptop / CI / Docker orchestrator). Serverless/edge
- * orchestrators serve {@link createToolBridgeCore} from their own `fetch`
- * handler instead.
- */
 export async function startHostToolBridge(
   tools: Array<AnyTool>,
   options: StartBridgeOptions,
@@ -373,15 +305,6 @@ export interface ToolBridgeProvisionOptions extends ToolBridgeCoreOptions {
   provider: string
 }
 
-/**
- * Stands up the tool-bridge endpoint for a run. The seam that makes the bridge
- * portable across runtimes: a harness adapter asks its capability context for a
- * provisioner and uses {@link nodeHttpBridgeProvisioner} as the default (host /
- * Docker). A serverless/edge orchestrator PROVIDES its own — e.g. a Durable
- * Object that mounts {@link createToolBridgeCore} / {@link handleBridgeJsonRpc}
- * on its `fetch` handler and returns a sandbox-reachable URL — so no raw TCP
- * listener is needed.
- */
 export interface ToolBridgeProvisioner {
   provision: (
     tools: Array<AnyTool>,

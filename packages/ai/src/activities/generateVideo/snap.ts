@@ -1,13 +1,5 @@
 import type { DurationOptions } from './adapter'
 
-/**
- * Extract a numeric seconds value from a `DurationOptions` entry. Returns
- * `null` for entries that don't parse as a number — e.g. `'auto'`.
- *
- * Handles the keyword-with-unit form FAL uses for Luma/Veo (`'8s'`, `'9s'`)
- * by stripping a trailing `s`. Pure-numeric strings (`'5'`, `'10'`) parse via
- * Number(). Numbers pass through.
- */
 function entryToSeconds(entry: string | number): number | null {
   if (typeof entry === 'number') {
     return Number.isFinite(entry) ? entry : null
@@ -17,18 +9,6 @@ function entryToSeconds(entry: string | number): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-/**
- * Snap a raw seconds value to the closest valid duration for a model's
- * `DurationOptions`.
- *
- * - `none`            → `undefined`
- * - `discrete`        → closest numeric-parseable entry; if none parse,
- *                       returns `values[0]` (keyword-only models like 'auto')
- * - `range`           → clamped to [min, max] and rounded to `step` (default 1)
- * - `mixed`           → closest of (discrete numerics ∪ range values)
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export function snapToDurationOption<T extends string | number | undefined>(
   seconds: number,
   options: DurationOptions<T>,

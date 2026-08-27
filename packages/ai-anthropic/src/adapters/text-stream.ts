@@ -84,16 +84,13 @@ function* handleServerToolResult(
   state: AnthropicStreamState,
 ): Generator<AdapterYieldChunk> {
   const block = event.content_block
-  if (
-    block.type !== 'web_fetch_tool_result' &&
-    block.type !== 'web_search_tool_result'
-  ) {
+  const isServerToolResult =
+    block.type === 'web_fetch_tool_result' ||
+    block.type === 'web_search_tool_result'
+  if (!isServerToolResult) {
     return
   }
 
-  // The result content arrives in full at content_block_start (no
-  // deltas). Surface error variants so a failed fetch/search isn't
-  // invisible to the consumer.
   const content = block.content as
     | { type?: string; error_code?: string }
     | Array<unknown>
@@ -115,10 +112,6 @@ function* handleServerToolResult(
     )
   }
 
-  // Emit the server tool as a single provider-executed tool call,
-  // carrying its raw result so the evidence (e.g. web_search sources)
-  // round-trips into the next turn's request. The agent loop skips
-  // provider-executed calls, so this never triggers client execution.
   const serverTool = state.completedServerTools.get(block.tool_use_id)
   if (!serverTool) return
 
@@ -186,10 +179,10 @@ function* handleContentBlockStart(
     }
     return
   }
-  if (
+  const isServerToolResult =
     event.content_block.type === 'web_fetch_tool_result' ||
     event.content_block.type === 'web_search_tool_result'
-  ) {
+  if (isServerToolResult) {
     yield* handleServerToolResult(event, state)
     return
   }
@@ -301,10 +294,6 @@ function* handleInputJsonDelta(
   }
 
   if (state.currentBlockType === 'server_tool_use' && state.currentServerTool) {
-    // Accumulate server tool input internally. We don't emit
-    // TOOL_CALL_* events: the call is executed by Anthropic, not
-    // by our agent loop, so surfacing it as a client tool call
-    // would cause downstream code to try (and fail) to run it.
     state.currentServerTool.input += event.delta.partial_json
   }
 }
@@ -434,19 +423,20 @@ function* handleContentBlockStop(
       )
     }
     state.currentServerTool = null
-  } else if (
-    state.currentBlockType === 'web_fetch_tool_result' ||
-    state.currentBlockType === 'web_search_tool_result'
-  ) {
-    // The model already consumed the result; error variants were
-    // already surfaced at content_block_start.
-  } else if (state.hasEmittedTextMessageStart && state.accumulatedContent) {
-    // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
-    yield {
-      type: EventType.TEXT_MESSAGE_END,
-      messageId: state.messageId,
-      model: state.model,
-      timestamp: Date.now(),
+  } else {
+    const isServerToolResult =
+      state.currentBlockType === 'web_fetch_tool_result' ||
+      state.currentBlockType === 'web_search_tool_result'
+    if (isServerToolResult) {
+      // The model already consumed the result; error variants were
+      // already surfaced at content_block_start.
+    } else if (state.hasEmittedTextMessageStart && state.accumulatedContent) {
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: state.messageId,
+        model: state.model,
+        timestamp: Date.now(),
+      }
     }
   }
   state.currentBlockType = null
@@ -461,9 +451,6 @@ function* handleMessageStop(
   // Close reasoning events if still open
   yield* closeReasoning(state)
 
-  // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
-  // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
-  // while message_stop is just a completion signal.
   if (!state.hasEmittedRunFinished) {
     yield {
       type: EventType.RUN_FINISHED,
@@ -479,11 +466,6 @@ function* handleMessageStop(
 function* handleMaxTokensStop(
   state: AnthropicStreamState,
 ): Generator<AdapterYieldChunk> {
-  // Surface a warning when the truncating cap was the
-  // adapter-supplied default (caller didn't pass `max_tokens`), so
-  // the truncation isn't silently attributed to the model "doing
-  // nothing" (issue #849). When the caller set `max_tokens`
-  // themselves, hitting it is their own deliberate ceiling.
   if (state.options.modelOptions?.max_tokens == null) {
     const defaultedMaxTokens = getAnthropicDefaultMaxTokens(state.model)
     state.logger.warn(
@@ -546,10 +528,6 @@ function* handleMessageDelta(
     case 'model_context_window_exceeded':
     case 'compaction':
     default: {
-      // All remaining Anthropic stop_reason variants map to the
-      // generic "stop" finish reason — they describe *why* the
-      // stream ended, but for AG-UI consumers the resulting event
-      // shape is identical.
       yield {
         type: EventType.RUN_FINISHED,
         runId: state.runId,

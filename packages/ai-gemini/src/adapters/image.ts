@@ -52,28 +52,11 @@ function assignDefined<T, K extends keyof T>(
   }
 }
 
-/**
- * Configuration for Gemini image adapter
- */
 export interface GeminiImageConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini Image */
 export type GeminiImageModel = GeminiImageModels
 
-/**
- * Gemini Image Generation Adapter
- *
- * Tree-shakeable adapter for Gemini image generation functionality.
- * Supports Imagen 3/4 models (via generateImages API) and Gemini native
- * image models like Nano Banana 2 (via generateContent API).
- *
- * Features:
- * - Aspect ratio-based image sizing
- * - Person generation controls
- * - Safety filtering
- * - Watermark options
- * - Extended resolution tiers (Nano Banana 2)
- */
 export class GeminiImageAdapter<
   TModel extends GeminiImageModel,
 > extends BaseImageAdapter<
@@ -176,21 +159,12 @@ export class GeminiImageAdapter<
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
 
-    // The portable `size` option is the baseline; modelOptions.imageConfig is
-    // the provider escape hatch and wins per field, so a caller passing only
-    // `imageConfig.imageSize` keeps the aspectRatio derived from `size`.
     const imageConfig: ImageConfig = {
       ...(parsedSize?.aspectRatio && { aspectRatio: parsedSize.aspectRatio }),
       ...(parsedSize?.resolution && { imageSize: parsedSize.resolution }),
       ...modelOptions?.imageConfig,
     }
 
-    // Named picks, never a wholesale spread: the Imagen-shaped fields of
-    // GeminiImageProviderOptions (personGeneration, safetyFilterLevel,
-    // addWatermark, outputMimeType, …) are only valid on GenerateImagesConfig
-    // and would be rejected by generateContent. Picking by name means no
-    // Imagen field can reach this path even if one slips past the per-model
-    // provider-options map.
     const nativeConfig: GenerateContentConfig = {
       ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
       ...(modelOptions?.safetySettings !== undefined && {
@@ -206,9 +180,6 @@ export class GeminiImageAdapter<
 
     const config: GenerateContentConfig = {
       ...nativeConfig,
-      // Include TEXT so the model can interleave descriptions between images.
-      // IMPORTANT: responseModalities is a protected default — set it AFTER
-      // nativeConfig so nothing can silently disable image output.
       responseModalities: ['TEXT', 'IMAGE'],
       ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
     }
@@ -224,16 +195,6 @@ export class GeminiImageAdapter<
     return this.transformGeminiResponse(model, response)
   }
 
-  /**
-   * Build the multimodal `contents` payload. Text-only prompts pass through
-   * as a plain string (the SDK accepts it directly); prompts with image
-   * parts become a single user `Content` whose `parts` mirror the prompt's
-   * interleaved order — position is meaningful to Gemini ("not like this
-   * *(image)*, more like this *(image)*").
-   *
-   * The generateContent API has no numberOfImages parameter, so when more
-   * than one image is requested a trailing instruction is appended.
-   */
   private buildContents(
     resolved: ResolvedMediaPrompt,
     numberOfImages: number | undefined,
@@ -276,11 +237,6 @@ export class GeminiImageAdapter<
         },
       }
     }
-    // URL sources (public HTTPS, Files API URIs, gs://) pass through as
-    // `fileData` and Gemini fetches them server-side — same as the chat
-    // adapter. Fetching locally and inlining as base64 double-buffers the
-    // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers).
     return {
       fileData: {
         fileUri: part.source.value,
@@ -309,10 +265,6 @@ export class GeminiImageAdapter<
       }
     }
 
-    // If the model returned only text parts (for example a safety refusal
-    // or a "can't do that" message), surface the text instead of silently
-    // resolving to an empty images array — otherwise callers can't tell a
-    // generation failure apart from a genuine empty response.
     if (images.length === 0) {
       const reason =
         textParts.length > 0
@@ -325,10 +277,6 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      // Surface token usage (with per-modality breakdown) when the model
-      // reports it (e.g. Nano Banana via generateContent). Conditionally spread
-      // to satisfy exactOptionalPropertyTypes — only include usage when
-      // present. See #330.
       ...(response.usageMetadata
         ? { usage: buildGeminiUsage(response.usageMetadata) }
         : {}),
@@ -393,28 +341,20 @@ export class GeminiImageAdapter<
         })
         continue
       }
-      // Imagen can drop individual entries with a raiFilteredReason when
-      // Responsible-AI filters fire. Preserve the reason so callers can
-      // surface it instead of silently getting back fewer images.
       const reason = (item as { raiFilteredReason?: string }).raiFilteredReason
       if (reason) {
         filterReasons.push(reason)
       }
     }
 
-    // Every entry was filtered — no usable images to return. Throw rather
-    // than resolve to an empty array so the caller is forced to handle the
-    // failure mode explicitly.
-    if (entries.length > 0 && images.length === 0) {
+    const allImagesFiltered = entries.length > 0 && images.length === 0
+    if (allImagesFiltered) {
       const joined = filterReasons.length > 0 ? filterReasons.join('; ') : ''
       throw new Error(
         `Imagen ${model} returned no images: all ${entries.length} generated image(s) were filtered by Responsible-AI${joined ? ` (${joined})` : ''}.`,
       )
     }
 
-    // Partial filter: surface via console.warn since ImageGenerationResult
-    // has no warnings field. Callers that care can still inspect the count
-    // mismatch between requested and returned images.
     if (filterReasons.length > 0 && typeof console !== 'undefined') {
       console.warn(
         `[gemini-image] ${filterReasons.length} of ${entries.length} images from ${model} were filtered by Responsible-AI: ${filterReasons.join('; ')}`,
@@ -441,25 +381,6 @@ export function createGeminiImage(
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
-/**
- * Creates a Gemini image adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'imagen-4.0-generate-001')
- * @param apiKey - Your Google API key
- * @param config - Optional additional configuration
- * @returns Configured Gemini image adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createGeminiImage('imagen-4.0-generate-001', "your-api-key");
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A cute baby sea otter'
- * });
- * ```
- */
 export function createGeminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   apiKey: string,
@@ -483,30 +404,6 @@ export function geminiImage(
   model: 'gemini-3-pro-image-preview',
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
-/**
- * Creates a Gemini image adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
- *
- * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'imagen-4.0-generate-001')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini image adapter instance with resolved types
- * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiImage('imagen-4.0-generate-001');
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A beautiful sunset over mountains'
- * });
- * ```
- */
 export function geminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,

@@ -23,11 +23,6 @@ export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const BRIDGED_MCP_PREFIX = `mcp__${BRIDGED_MCP_SERVER_NAME}__`
 
-/**
- * Claude Code `--json-schema` injects a fake tool named StructuredOutput.
- * The model "calls" it with the schema JSON. The result message may omit
- * `structured_output`; harvest the tool input in that case.
- */
 export const SYNTHETIC_STRUCTURED_OUTPUT_TOOL = 'StructuredOutput'
 
 /** Claude Code-specific usage details attached to RUN_FINISHED usage. */
@@ -50,11 +45,6 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
-/**
- * Strip the bridged MCP server prefix so tool-call events match the TanStack
- * tool names the application registered. Built-in harness tools (Bash, Read,
- * Edit, ...) and foreign MCP tools pass through verbatim.
- */
 export function stripMcpPrefix(name: string): string {
   return name.startsWith(BRIDGED_MCP_PREFIX)
     ? name.slice(BRIDGED_MCP_PREFIX.length)
@@ -111,21 +101,6 @@ function buildUsage(
   return result
 }
 
-/**
- * Translate a Claude Code Agent SDK message stream into AG-UI StreamChunk
- * events.
- *
- * The harness runs its own agent loop and executes its own tools, so the
- * translation always ends with `finishReason: 'stop'` (or `'length'` /
- * RUN_ERROR) — never `'tool_calls'`. Harness tool activity is emitted as
- * already-resolved TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so
- * UIs can render it, while the TanStack engine never tries to execute them.
- *
- * Invariant: every TOOL_CALL_START is eventually paired with a
- * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
- * ends or aborts before the harness reported one) so the engine's
- * pending-tool-call scan on the next request never force-executes them.
- */
 export async function* translateSdkStream(
   sdkMessages: AsyncIterable<AgentSdkMessage>,
   ctx: TranslateContext,
@@ -238,10 +213,10 @@ export async function* translateSdkStream(
     input: unknown
   }): Generator<AdapterYieldChunk> {
     const toolCallName = stripMcpPrefix(block.name)
-    if (
+    const isSyntheticStructured =
       ctx.expectStructuredOutput === true &&
       toolCallName === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
-    ) {
+    if (isSyntheticStructured) {
       capturedStructuredOutput = rememberStructuredOutput(
         capturedStructuredOutput,
         block.input,
@@ -399,7 +374,8 @@ export async function* translateSdkStream(
         ? capturedStructuredOutput
         : undefined
       let fromText: unknown
-      if (fromResult === undefined && fromTool === undefined) {
+      const harvestFromText = fromResult === undefined && fromTool === undefined
+      if (harvestFromText) {
         const raw = assistantTextForHarvest || message.result || ''
         if (raw.trim() !== '') {
           try {
@@ -555,7 +531,9 @@ export async function* translateSdkStream(
   }
 
   function* handleContentBlockStop(): Generator<AdapterYieldChunk> {
-    if (partialIsStructuredOutput && partialStructuredJson !== '') {
+    const hasPartialStructuredJson =
+      partialIsStructuredOutput && partialStructuredJson !== ''
+    if (hasPartialStructuredJson) {
       try {
         capturedStructuredOutput = rememberStructuredOutput(
           capturedStructuredOutput,
@@ -601,22 +579,24 @@ export async function* translateSdkStream(
     for await (const sdkMessage of sdkMessages) {
       ctx.onSdkMessage?.(sdkMessage)
 
-      if (sdkMessage.type === 'system' && sdkMessage.subtype === 'init') {
-        yield* startRun()
-        ctx.onSessionId?.(sdkMessage.session_id)
-        yield {
-          type: EventType.CUSTOM,
-          model,
-          timestamp: now(),
-          name: SESSION_ID_EVENT,
-          value: {
-            sessionId: sdkMessage.session_id,
-            model: sdkMessage.model,
-            tools: sdkMessage.tools,
-            skills: sdkMessage.skills ?? [],
-          },
+      if (sdkMessage.type === 'system') {
+        if (sdkMessage.subtype === 'init') {
+          yield* startRun()
+          ctx.onSessionId?.(sdkMessage.session_id)
+          yield {
+            type: EventType.CUSTOM,
+            model,
+            timestamp: now(),
+            name: SESSION_ID_EVENT,
+            value: {
+              sessionId: sdkMessage.session_id,
+              model: sdkMessage.model,
+              tools: sdkMessage.tools,
+              skills: sdkMessage.skills ?? [],
+            },
+          }
+          continue
         }
-        continue
       }
 
       // Anything before init still needs RUN_STARTED first.
@@ -638,10 +618,6 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
     yield* synthesizeUnresolvedResults()
     throw error
   }

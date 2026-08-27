@@ -112,7 +112,8 @@ export function fromSpecTokenUsage(
   leftover?: TokenUsageLeftover,
 ): TokenUsage | undefined {
   const spec = usage?.[0]
-  if (spec == null && leftover == null) {
+  const isMissingSpec = spec == null && leftover == null
+  if (isMissingSpec) {
     return undefined
   }
 

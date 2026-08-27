@@ -14,10 +14,6 @@ export function resolveByokProviderId(
   return undefined
 }
 
-/**
- * Prepare and stamp headers for one resolved slug. Throws instead of
- * attaching every stored key when the slug is missing.
- */
 export async function prepareResolvedByokHeaders(
   byok: ByokClient,
   provider: ProviderId | undefined,

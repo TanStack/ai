@@ -1,7 +1,3 @@
-// ============================================================================
-// New Tree-Shakeable Adapters (Recommended)
-// ============================================================================
-
 // Text (Chat) adapter - for chat/text completion
 export {
   AnthropicTextAdapter,
@@ -22,9 +18,6 @@ export {
   type AnthropicSummarizeConfig,
   type AnthropicSummarizeModel,
 } from './adapters/summarize'
-// ============================================================================
-// Type Exports
-// ============================================================================
 
 export type {
   AnthropicChatModel,

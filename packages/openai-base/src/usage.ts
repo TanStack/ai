@@ -2,16 +2,6 @@ import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
-/**
- * Build normalized {@link TokenUsage} from an OpenAI-compatible Chat
- * Completions `usage` object.
- *
- * Shared by every provider that routes through
- * {@link OpenAIBaseChatCompletionsTextAdapter} (OpenAI Chat Completions, Grok,
- * Groq). Surfaces cached prompt tokens and reasoning/audio detail tokens when
- * the provider reports them. Returns `undefined` when the provider reported no
- * usage object, so callers omit the field rather than fabricating zeroed totals.
- */
 export function buildChatCompletionsUsage(
   usage: OpenAI.Chat.Completions.ChatCompletion['usage'] | undefined | null,
 ): TokenUsage | undefined {
@@ -50,9 +40,6 @@ export function buildChatCompletionsUsage(
     result.promptTokensDetails = promptTokensDetails
   }
 
-  // Predicted Outputs accepted/rejected counts have no canonical TokenUsage
-  // slot but are still billed (rejected tokens included), so surface them under
-  // providerUsageDetails — matching how the OpenRouter adapter exposes them.
   const providerUsageDetails = {
     ...(completionDetails?.accepted_prediction_tokens
       ? {
@@ -74,16 +61,6 @@ export function buildChatCompletionsUsage(
   return result
 }
 
-/**
- * Build normalized {@link TokenUsage} from an OpenAI Responses API
- * `ResponseUsage` object.
- *
- * Shared by every provider that routes through
- * {@link OpenAIBaseResponsesTextAdapter}. Surfaces cached prompt tokens and
- * reasoning detail tokens when present. Returns `undefined` when the provider
- * reported no usage object, so callers omit the field rather than fabricating
- * zeroed totals.
- */
 export function buildResponsesUsage(
   usage: OpenAI.Responses.ResponseUsage | undefined | null,
 ): TokenUsage | undefined {
@@ -117,15 +94,6 @@ export function buildResponsesUsage(
   return result
 }
 
-/**
- * Build normalized {@link TokenUsage} from an OpenAI Images API `usage` object.
- *
- * Shared by every provider that generates images through the OpenAI Images SDK
- * (OpenAI, Grok). Token-billed image models (e.g. gpt-image-1) report an input
- * breakdown of text vs image tokens, which is surfaced on `promptTokensDetails`.
- * Models that don't return usage (e.g. DALL·E) yield `undefined` so callers can
- * omit the field rather than emit zeroed totals.
- */
 export function buildImagesUsage(
   usage: OpenAI.Images.ImagesResponse['usage'] | undefined | null,
 ): TokenUsage | undefined {
@@ -137,9 +105,6 @@ export function buildImagesUsage(
     totalTokens: usage.total_tokens || 0,
   })
 
-  // The SDK types input_tokens_details (and its numeric fields) as required, but
-  // real responses — e.g. from DALL·E or other non-token-billed models — can
-  // omit them, so treat the breakdown as optional.
   const inputDetails = usage.input_tokens_details as
     | { text_tokens?: number; image_tokens?: number }
     | undefined

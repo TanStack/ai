@@ -7,11 +7,6 @@ import type {
 } from '@tanstack/ai-client'
 
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
-  /**
-   * Optional transform applied to the recording when `stop()` resolves. Its
-   * (awaited) return value becomes `recording` and the resolved value of
-   * `stop()`. Return nothing to keep the raw `AudioRecording`.
-   */
   onComplete?: TOnComplete
 }
 
@@ -29,20 +24,6 @@ export interface UseAudioRecorderReturn<TOutput> {
   cancel: () => void
 }
 
-/**
- * Solid hook for recording an audio message. The resolved recording carries
- * `.part` (for `useChat.sendMessage`) and `.base64` (for generation hooks).
- *
- * Errors are delivered via `onError`. `start()` and `stop()` also reject on
- * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
- * while a stop is in flight, e.g. on unmount) — handle one channel, not both.
- */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`useAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(

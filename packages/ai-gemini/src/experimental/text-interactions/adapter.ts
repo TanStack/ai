@@ -53,13 +53,6 @@ type InteractionsTool = NonNullable<
 
 type ContentBlock = Interactions.Content
 
-// The Interactions API takes `input` as a list of *Steps* (not a list of
-// content blocks, and not a list of `Turn`s — the SDK's type union is
-// misleading on both counts). The live API enforces the Step envelope —
-// raw content arrays produce `invalid_request` / "value at top-level
-// must be a list". The wire discriminator is snake_case
-// (`user_input` / `function_result`); see
-// https://ai.google.dev/api/interactions-api for the full Step union.
 type UserInputStep = {
   type: 'user_input'
   content: Array<ContentBlock>
@@ -73,11 +66,6 @@ type FunctionResultStep = {
 type InteractionsStep = UserInputStep | FunctionResultStep
 type InteractionsRequestInput = Array<InteractionsStep>
 
-// Concrete wire shape we send to `client.interactions.create`. The SDK's
-// own param union types `input` as `string | Content[] | Turn[] | ...`
-// which is wrong for the live API (see the InteractionsRequestInput
-// comment above), so we type `input` ourselves and cast just once at the
-// SDK boundary instead of casting every field through.
 type GeminiInteractionsRequestBody = Omit<
   Interactions.CreateModelInteractionParamsStreaming,
   'input' | 'stream'
@@ -86,74 +74,18 @@ type GeminiInteractionsRequestBody = Omit<
   stream?: boolean
 }
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
-/**
- * Resolve provider options for a specific model. The Interactions API's
- * request shape is the same across all chat-capable Gemini models — the
- * SDK doesn't expose a per-model param union — so this currently falls
- * through to the flat `GeminiTextInteractionsProviderOptions` for every
- * model. The alias exists for parity with `GeminiTextAdapter`, so a
- * per-model map can be slotted in later without changing the adapter
- * signature.
- */
 type ResolveProviderOptions = GeminiTextInteractionsProviderOptions
 
-/**
- * Resolve input modalities for a specific model. Reuses the chat-model
- * modality map from `model-meta.ts`: passing a `document` content block
- * to a model that doesn't support it is a compile error, matching the
- * sibling `GeminiTextAdapter`.
- */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GeminiModelInputModalitiesByName
     ? GeminiModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio', 'video', 'document']
 
-/**
- * Resolve tool capabilities for a specific model. Reuses the chat-model
- * capability map: `google_maps` / `google_search_retrieval` are rejected at
- * runtime by `convertToolsToInteractionsFormat`, but per-model gating happens
- * here at compile time.
- */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-/**
- * Tree-shakeable adapter for Gemini's stateful Interactions API. Routes
- * through `client.interactions.create` and surfaces the server-assigned
- * `interactionId` via an AG-UI `CUSTOM` event with
- * `name: 'gemini.interactionId'` emitted just before `RUN_FINISHED`; pass
- * that id back on the next turn via `modelOptions.previous_interaction_id`
- * to continue the conversation without resending history.
- *
- * The Interactions API does NOT support stateless multi-turn replay —
- * passing more than one message in `messages` without a
- * `previous_interaction_id` throws. For a chat UI that maintains local
- * history (e.g. `useChat`), see the "Wiring with `useChat`" section of
- * `docs/adapters/gemini.md` for the canonical client/server pattern.
- *
- * Supports user-defined function tools and the built-in tools
- * `google_search`, `code_execution`, `url_context`, `file_search`, and
- * `computer_use`. Built-in tool *activity* for the four search/exec
- * variants is surfaced via `CUSTOM` events
- * (`gemini.googleSearchCall` / `gemini.googleSearchResult` and the
- * corresponding per-tool variants) carrying the raw Interactions delta;
- * see {@link GeminiInteractionsCustomEvent}. `computer_use` is accepted
- * in the request but the Interactions API does not currently stream
- * per-delta CUSTOM events for it. The `google_search_retrieval` and
- * `google_maps` provider-tool factories are not supported on this adapter and
- * throw a targeted error. There is no Gemini `mcp_server` factory, so a tool
- * merely *named* `mcp_server` is an ordinary function and is sent as a function
- * declaration like any other.
- *
- * @experimental Interactions API is in Beta per Google; shapes may change.
- * @see https://ai.google.dev/gemini-api/docs/interactions
- */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions,
@@ -172,20 +104,6 @@ export class GeminiTextInteractionsAdapter<
   override readonly name = 'gemini-text-interactions' as const
 
   private readonly client: GoogleGenAI
-  // Tracks the most recent server-assigned interaction id per threadId
-  // so the adapter can chain follow-up calls on the same thread without
-  // the caller having to thread the id manually. Two callers rely on
-  // this:
-  //   1. The agent loop's tool-call iterations (each iteration is a new
-  //      `chatStream` call with accumulated tool messages).
-  //   2. The agentic-structured composition: a `chatStream` run followed
-  //      by `structuredOutput` on the accumulated messages.
-  // Cross-request chaining is the caller's job via
-  // `modelOptions.previous_interaction_id`. To keep stale ids from
-  // chaining a brand-new turn, `chatStream` evicts at the START when
-  // the caller signals fresh-turn intent (no caller-provided id AND a
-  // single user message — anything else is a follow-up). Errors evict
-  // immediately so a failed turn never chains into the next one.
   private readonly interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
@@ -206,37 +124,21 @@ export class GeminiTextInteractionsAdapter<
       !options.modelOptions?.previous_interaction_id &&
       options.messages.length === 1 &&
       options.messages[0]?.role === 'user'
-    // Fresh-turn intent: caller didn't thread an id AND only a single
-    // user message is queued. Drop any stale captured id so we don't
-    // silently chain off a prior turn the caller doesn't know about.
-    // Multi-message inputs are follow-ups (agent-loop iteration or
-    // structuredOutput composition) and keep the Map entry.
     if (isFreshTurn) {
       interactionIdByThread.delete(threadId)
     }
 
-    // Resolve `previous_interaction_id`. Caller-provided wins; otherwise
-    // fall back to the id we captured during a prior iteration of this
-    // same agent-loop run (matched by threadId).
     const effectivePreviousInteractionId =
       options.modelOptions?.previous_interaction_id ??
       interactionIdByThread.get(threadId)
 
     let sawTerminalEvent = false
-    // Sentinel for the `.return()` abandonment path. Set to `true` only at
-    // the bottom of the `try` block — so a consumer-initiated close (via
-    // upstream `break` or abort) leaves it `false`, distinguishing
-    // abandonment from normal completion. This is the only signal that
-    // catches abandonment AFTER a `RUN_FINISHED(tool_calls)`, where
-    // `sawTerminalEvent` is `true` but the in-loop deliberately kept the
-    // map entry for an agent-loop iteration that will now never run.
     let completedTryBlock = false
 
     const captureInteractionId = (chunk: AdapterYieldChunk) => {
-      if (
-        chunk.type !== EventType.CUSTOM ||
-        chunk.name !== 'gemini.interactionId'
-      ) {
+      const isNotInteractionIdEvent =
+        chunk.type !== EventType.CUSTOM || chunk.name !== 'gemini.interactionId'
+      if (isNotInteractionIdEvent) {
         return
       }
       const value =
@@ -318,7 +220,7 @@ export class GeminiTextInteractionsAdapter<
         { signal: options.abortController?.signal },
       )) as AsyncIterable<InteractionSSEEvent>
 
-      for await (const chunk of translateInteractionEvents(
+      const translatedEvents = translateInteractionEvents(
         stream,
         options.model,
         runId,
@@ -327,7 +229,8 @@ export class GeminiTextInteractionsAdapter<
         timestamp,
         this.name,
         logger,
-      )) {
+      )
+      for await (const chunk of translatedEvents) {
         captureInteractionId(chunk)
         recordTerminal(chunk)
         yield chunk
@@ -353,12 +256,6 @@ export class GeminiTextInteractionsAdapter<
     const { logger } = chatOptions
     const threadId = chatOptions.threadId
 
-    // Mirror the chatStream fallback: the agentic-structured flow runs
-    // the chat loop first and then calls structuredOutput with the
-    // accumulated `messages`. If any tool ran during the loop, the
-    // messages include assistant/tool turns; without a chained
-    // previous_interaction_id those would throw "cannot send prior
-    // conversation history on a fresh interaction".
     const effectivePreviousInteractionId =
       chatOptions.modelOptions?.previous_interaction_id ??
       (threadId ? this.interactionIdByThread.get(threadId) : undefined)
@@ -371,10 +268,6 @@ export class GeminiTextInteractionsAdapter<
       },
     })
 
-    // SDK 2.x: `response_mime_type` has been removed and `response_format`
-    // is now polymorphic — each entry has a `type` discriminator and the
-    // mime type lives inside the entry. See:
-    // https://ai.google.dev/gemini-api/docs/interactions-breaking-changes-may-2026
     const request: GeminiInteractionsRequestBody = {
       ...baseRequest,
       response_format: {
@@ -494,22 +387,6 @@ function buildInteractionsRequest(
   }
 }
 
-// Google's Interactions API takes `input` as `Array<Step>`. Each Step
-// is `{type: 'user_input' | 'function_result' | ..., ...}` — content
-// blocks (text/image/etc.) live nested inside a Step's `content` array,
-// they are NOT valid at the top level. Sending raw `Array<Content>`
-// produces `invalid_request` / "value at top-level must be a list",
-// because the API is looking for a Step list at the top level and
-// gets content objects instead. The SDK's type union
-// (`string | Array<Content> | Array<Turn> | ...`) is misleading; see
-// https://ai.google.dev/api/interactions-api for the real Step union.
-//
-// When `hasPreviousInteraction` is true the server holds the transcript
-// up through the last assistant turn, so we only send the steps that
-// come after it (a new `user_input`, one or more `function_result`s
-// continuing a tool call, etc.). Otherwise the conversation is fresh
-// and only the latest user turn is supported — multi-turn replay
-// without `previous_interaction_id` is not part of the API contract.
 function convertMessagesToInteractionsInput(
   messages: Array<ModelMessage>,
   hasPreviousInteraction: boolean,
@@ -527,7 +404,9 @@ function convertMessagesToInteractionsInput(
     ? messagesAfterLastAssistant(messages)
     : messages
 
-  if (hasPreviousInteraction && source.length === 0) {
+  const isMissingFollowUpMessages =
+    hasPreviousInteraction && source.length === 0
+  if (isMissingFollowUpMessages) {
     throw new Error(
       'Gemini Interactions adapter: modelOptions.previous_interaction_id was provided but no new messages were found after the last assistant turn. Append at least one user or tool message before chaining.',
     )
@@ -557,10 +436,6 @@ function convertMessagesToInteractionsInput(
     return [{ type: 'user_input', content }]
   }
 
-  // Chained path: each post-assistant message becomes one Step. A user
-  // reply maps to `user_input`; a tool reply maps to `function_result`.
-  // Assistant turns shouldn't appear here (sliced off above) — if one
-  // somehow does we skip it rather than letting it shape the wire.
   const steps: Array<InteractionsStep> = []
   for (const msg of source) {
     if (msg.role === 'tool' && msg.toolCallId) {
@@ -586,17 +461,12 @@ function convertMessagesToInteractionsInput(
   return steps
 }
 
-// The Interactions API's `function_result.result` field is a string. We
-// fail loudly on non-string tool content rather than silently coercing
-// to `''` — silent coercion meant the model lost the entire tool
-// output for callers that returned content as an array (e.g. image +
-// text) or `null`. If you need to send structured tool output, encode
-// it yourself before passing.
 function serializeToolResultContent(
   content: ModelMessage['content'] | undefined,
 ): string {
   if (typeof content === 'string') return content
-  if (content === null || content === undefined) {
+  const isMissingContent = content === null || content === undefined
+  if (isMissingContent) {
     throw new Error(
       'Gemini Interactions adapter: tool message has no content. The Interactions API requires a string `result` on function_result steps — return a string from your tool implementation (encode JSON/multimodal output yourself).',
     )
@@ -606,9 +476,6 @@ function serializeToolResultContent(
   )
 }
 
-// Extracts the content blocks (text / image / audio / video / document)
-// from a single message. Tool calls and tool results live one level up
-// as Steps, not as content, so they are NOT emitted here.
 function messageToContentBlocks(msg: ModelMessage): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
@@ -638,9 +505,6 @@ function messagesAfterLastAssistant(
   return messages
 }
 
-// `satisfies` pins these arrays to the SDK's narrow mime-type unions: if
-// Google removes a format the build breaks, and if they add one ours keeps
-// working (we just won't accept the new one until added here).
 const IMAGE_MIME_TYPES = [
   'image/png',
   'image/jpeg',
@@ -857,7 +721,8 @@ function convertOneTool(tool: Tool): InteractionsTool | undefined {
 function convertToolsToInteractionsFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<InteractionsTool> | undefined {
-  if (!tools || tools.length === 0) return undefined
+  if (!tools) return undefined
+  if (tools.length === 0) return undefined
   assertUniqueToolNames(tools)
 
   const result: Array<InteractionsTool> = []
@@ -869,17 +734,13 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
 }
 
 function extractTextFromInteraction(interaction: Interaction): string {
-  // SDK 2.x: the response carries a `steps` array; `output_text` is a
-  // convenience the SDK derives from the last model output. Prefer the
-  // SDK sugar when it's populated, then fall back to walking
-  // model_output steps for adapters / responses that don't get the
-  // sugar (e.g. older SDK builds).
   if (typeof interaction.output_text === 'string' && interaction.output_text) {
     return interaction.output_text
   }
   let text = ''
   for (const step of interaction.steps ?? []) {
-    if (step.type !== 'model_output' || !step.content) continue
+    if (step.type !== 'model_output') continue
+    if (!step.content) continue
     for (const part of step.content) {
       if (part.type === 'text') {
         text += part.text
@@ -889,20 +750,15 @@ function extractTextFromInteraction(interaction: Interaction): string {
   return text
 }
 
-// The live Interactions API rejects tool parameter schemas that contain
-// an empty `required: []` array with the misleading top-level error
-// `"value at top-level must be a list"`. Empty `properties: {}` and
-// `parameters: {}` are both fine — only the empty `required` array is
-// poison. The Zod -> JSON Schema converter (and many hand-written
-// schemas) emit `required: []` whenever a tool has zero required
-// parameters, so we strip those instances recursively before sending.
-// Non-empty `required` arrays are passed through unchanged.
 function sanitizeToolParameters(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(schema)) {
-    if (key === 'required' && Array.isArray(value) && value.length === 0) {
+  const schemaEntries = Object.entries(schema)
+  for (const [key, value] of schemaEntries) {
+    const isEmptyRequired =
+      key === 'required' && Array.isArray(value) && value.length === 0
+    if (isEmptyRequired) {
       continue
     }
     out[key] = sanitizeToolParameters(value)
@@ -910,7 +766,4 @@ function sanitizeToolParameters(schema: unknown): unknown {
   return out
 }
 
-// Re-export the stream type so consumers can import it alongside the
-// adapter from a single path: `import type { GeminiInteractionsStream }
-// from '@tanstack/ai-gemini/experimental'`.
 export type { GeminiInteractionsStream }

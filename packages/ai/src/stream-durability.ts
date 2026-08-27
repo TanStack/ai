@@ -1,92 +1,21 @@
 import type { StreamChunk } from './types'
 
-/**
- * A pluggable delivery-durability backend.
- *
- * Offsets are owned by the adapter and opaque to the transport. The generic
- * parameter lets an adapter retain a branded string type across append, read,
- * and resume without requiring core to understand its cursor format.
- */
 export interface StreamDurability<TOffset extends string = string> {
   /** Return the adapter offset captured from the request, or null for a producer. */
   resumeFrom: () => TOffset | null
-  /**
-   * Persist a batch before it is delivered and return exactly one resumable
-   * offset for each chunk, in the same order.
-   */
   append: (chunks: Array<StreamChunk>) => Promise<Array<TOffset>>
   /** Replay chunks strictly after the supplied adapter-owned offset. */
   read: (
     offset: TOffset,
     signal?: AbortSignal,
   ) => AsyncIterable<{ offset: TOffset; chunk: StreamChunk }>
-  /**
-   * Terminalize the producer log and unblock live readers. Core awaits this
-   * for every producer exit, including completion, cancellation, and failure.
-   */
   close: () => Promise<void>
-  /**
-   * Everything stored for this run **at the moment of the call**, in append
-   * order, then resolve.
-   *
-   * This is the bounded counterpart to {@link StreamDurability.read}. `read`
-   * tails: it parks until the log is terminalized or the caller aborts, so it
-   * cannot be used to inspect a log whose producer died without calling
-   * `close` — that log stays open forever and a `for await` over it never
-   * finishes. `snapshot` exists for exactly that case: a producer resuming a
-   * run needs to see the prefix a previous host already stored so it can line
-   * its own output up against it, and it needs that read to *return*.
-   *
-   * Implementations MUST:
-   *
-   * - never wait for more entries — resolve with what is stored, including
-   *   while the log is still open and still being appended to;
-   * - resolve to an empty array for a run with nothing stored, rather than
-   *   throwing. In particular an implementation must not reuse the
-   *   unknown-run failure path a from-start `read` join takes (`read('-1')` on
-   *   an empty log is allowed to fail; `snapshot()` is not). A backend over a
-   *   network may of course still reject on a transport, protocol, or
-   *   authorization failure — that is a failed call, not an empty run;
-   * - return a fresh array the caller can keep or mutate without reaching the
-   *   stored log through it.
-   *
-   * The result is a point-in-time view and carries no lock: a concurrent
-   * `append` may land immediately after the snapshot is taken, so a caller
-   * must not treat the last returned offset as the permanent tail.
-   */
   snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
 }
 
-/**
- * A {@link StreamDurability} that can re-persist an already-stored range
- * idempotently.
- *
- * A run driver resuming after a crash re-derives the same offsets from its
- * source position, so replaying an overlapping range must be a no-op rather
- * than producing duplicates. That capability is deliberately a **separate,
- * optional method** instead of an optional parameter on `append`:
- *
- * - Only adapters that actually support it return this type, so a consumer
- *   requiring the capability asks for `UpsertableStreamDurability` and a
- *   mismatch is a compile error rather than a runtime failure buried in a
- *   run log.
- * - Pairing each chunk with its offset structurally makes a length mismatch
- *   and an unpaired chunk unrepresentable. A sparse hole is still
- *   representable, so implementations must reject one explicitly.
- *
- * Implementations MUST validate the entire batch before mutating any stored
- * state (so a rejected call never partially applies), MUST reject an offset
- * they did not mint themselves (every accepted offset is resumable by
- * definition), MUST reject an offset repeated within one batch, and MUST
- * reject a hole in the entries array.
- */
 export interface UpsertableStreamDurability<
   TOffset extends string = string,
 > extends StreamDurability<TOffset> {
-  /**
-   * Persist a batch at caller-supplied offsets, replacing any entry already
-   * stored at the same offset. Returns the offsets in the order supplied.
-   */
   upsert: (
     entries: Array<{ chunk: StreamChunk; offset: TOffset }>,
   ) => Promise<Array<TOffset>>
@@ -114,7 +43,8 @@ function decodeMemoryOffset(offset: string): MemoryOffset {
   }
   const runId = decodeURIComponent(encoded.slice(0, separator))
   const seq = Number(encoded.slice(separator + 1))
-  if (!Number.isSafeInteger(seq) || seq < 1) {
+  const shouldSkipIsSafeInteger = !Number.isSafeInteger(seq) || seq < 1
+  if (shouldSkipIsSafeInteger) {
     throw new Error(`Invalid memory stream offset: ${offset}`)
   }
   return { runId, seq }
@@ -130,19 +60,7 @@ function readResumeOffset(request: Request): string | null {
   }
 }
 
-/**
- * The run id a request names: `X-Run-Id` header first, then `?runId`.
- *
- * The single implementation of that precedence, shared by the durability
- * adapters below and by the resume response helpers' run driver
- * (`stream-to-response.ts`), so the helper and the adapter can never disagree
- * about which run a request is talking about.
- */
 export function resolveResumeRunId(request: Request): string | null {
-  // A POST producer carries its client-chosen run id in the X-Run-Id header so
-  // the request URL stays byte-identical to a plain, non-durable request; the
-  // GET join path carries it in the ?runId query instead. Prefer the header,
-  // fall back to the query.
   const header = request.headers.get('X-Run-Id')
   if (header) return header
   try {
@@ -153,7 +71,8 @@ export function resolveResumeRunId(request: Request): string | null {
 }
 
 function assertValidRunId(runId: string): string {
-  if (runId.length === 0 || /[\r\n]/.test(runId)) {
+  const isEmptyRunId = runId.length === 0 || /[\r\n]/.test(runId)
+  if (isEmptyRunId) {
     throw new Error(
       `Invalid runId (must be non-empty and contain no CR/LF): ${JSON.stringify(runId)}`,
     )
@@ -165,11 +84,9 @@ function resolveMemoryRunId(
   request: Request,
   resumeOffset: string | null,
 ): string {
-  if (
-    resumeOffset !== null &&
-    resumeOffset !== '-1' &&
-    resumeOffset !== 'now'
-  ) {
+  const isMissingResumeOffset =
+    resumeOffset !== null && resumeOffset !== '-1' && resumeOffset !== 'now'
+  if (isMissingResumeOffset) {
     return assertValidRunId(decodeMemoryOffset(resumeOffset).runId)
   }
   const requestedRunId = resolveResumeRunId(request)
@@ -196,11 +113,6 @@ interface MemoryEntry {
   chunk: StreamChunk
 }
 
-/**
- * One validated action from an `upsert` batch. Building the whole plan before
- * applying any of it is what keeps a rejected `upsert` from partially mutating
- * the log.
- */
 type UpsertStep =
   | { kind: 'replace'; existing: MemoryEntry; chunk: StreamChunk }
   | { kind: 'push'; seq: number; offset: string; chunk: StreamChunk }
@@ -213,55 +125,25 @@ interface MemoryLog {
   waiters: Array<() => void>
 }
 
-/**
- * Bounds for the in-process log store. `memoryStream` is the dev/single-process
- * backend; without eviction its module-global Map would grow without bound on a
- * long-lived server (one retained chunk buffer per run, forever). Completed logs
- * are swept after a grace window — late resumers/joiners still work briefly —
- * and a hard cap drops the oldest completed logs under pressure. Active
- * (incomplete) logs are never evicted, so an in-flight run is never dropped.
- */
 const MAX_MEMORY_RUNS = 1024
 const COMPLETED_LOG_TTL_MS = 5 * 60_000
 
-/**
- * How long a from-start join (`-1` / `now`) waits for a run's first chunk before
- * failing. Bounds the "joined a run that never produces" case so a consumer
- * gets a surfaced error instead of an indefinitely-open, event-less connection.
- *
- * Defaults short: the common from-start join is a reload rejoining a run whose
- * producer ran in a PRIOR request, so an in-flight run's log already holds
- * chunks (it streams immediately, deadline never applies) and an empty log means
- * the run is gone — failing fast lets the client re-enable input near-instantly
- * instead of hanging. Raise `firstChunkDeadlineMs` for backends where a producer
- * legitimately starts well after a joiner attaches (a queued/deferred job).
- */
 const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 100
 
 /** Options for the in-process delivery-durability backend. */
 export interface MemoryStreamOptions {
-  /**
-   * Milliseconds a from-start join waits for the run's first chunk before
-   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
-   * raise it if a producer can legitimately start long after a joiner attaches.
-   */
   firstChunkDeadlineMs?: number
 }
 
 const memoryLogs = new Map<string, MemoryLog>()
 
-/**
- * Evict completed logs past their grace window, then, if still over the cap,
- * drop the oldest completed logs (the Map preserves insertion order) until back
- * under the cap. Never touches an incomplete (in-flight) log.
- */
 function sweepMemoryLogs(now: number): void {
   for (const [id, log] of memoryLogs) {
-    if (
+    const hasLog =
       log.complete &&
       log.completedAt !== undefined &&
       now - log.completedAt > COMPLETED_LOG_TTL_MS
-    ) {
+    if (hasLog) {
       memoryLogs.delete(id)
     }
   }
@@ -295,39 +177,12 @@ function wakeWaiters(log: MemoryLog): void {
   for (const wake of waiters) wake()
 }
 
-/**
- * Explicit construction for {@link memoryStream}, for callers that don't have
- * the incoming `Request` — e.g. a TanStack Start server function implementing
- * a `joinRun` replay for a run id it received as call data:
- *
- * ```ts
- * const durability = memoryStream({ runId })
- * for await (const chunk of replayRunStream(durability)) yield chunk
- * ```
- */
 export interface MemoryStreamInit {
   /** The run this durability adapter attaches to. */
   runId: string
-  /**
-   * Resume offset captured by the consumer (`resumeFrom()` returns it).
-   * Defaults to `null` (a producer / from-start reader).
-   */
   offset?: string | null
 }
 
-/**
- * The zero-infrastructure delivery-durability backend. Its versioned cursor is
- * deliberately private: callers and core only pass the returned string back.
- *
- * Construct from the incoming `Request` (HTTP transports) or from an explicit
- * {@link MemoryStreamInit} (server functions / direct calls that already know
- * the run id).
- *
- * Logs live in a process-global map, so this backend is for development, tests,
- * and single-process deployments only. Completed runs are evicted after a grace
- * window (see {@link COMPLETED_LOG_TTL_MS}); a resume of an evicted or unknown
- * run fails loudly rather than hanging.
- */
 export function memoryStream(
   source: Request | MemoryStreamInit,
   options: MemoryStreamOptions = {},
@@ -345,9 +200,6 @@ export function memoryStream(
 
   return {
     resumeFrom: () => resumeOffset,
-    // `async` so every failure surfaces as a rejected promise rather than a
-    // synchronous throw at the call site — `append` is declared to return a
-    // Promise, so callers must be able to `.catch()` every failure mode.
     append: async (chunks) => {
       const log = getOrCreateLog(runId)
       const firstSeq = (log.entries.at(-1)?.seq ?? 0) + 1
@@ -366,18 +218,10 @@ export function memoryStream(
       const log = getOrCreateLog(runId)
       const tailSeq = log.entries.at(-1)?.seq ?? 0
 
-      // Validate the WHOLE batch before touching `log.entries`, so a rejected
-      // upsert never partially applies and a caller that catches and retries
-      // can be sure no prefix landed.
       const seen = new Set<string>()
       // Tail as it will stand once every push planned so far has been applied,
       // so intra-batch ordering is validated up front too.
       let plannedTailSeq = tailSeq
-      // `Array.from` rather than `entries.map`: `map` SKIPS holes in a sparse
-      // array, which would leave the plan short and make the apply loop below
-      // read `undefined` partway through, after earlier steps had already
-      // mutated the log. `Array.from` invokes this callback for every index,
-      // so a hole is rejected here, before anything is touched.
       const plan = Array.from(entries, (entry, index): UpsertStep => {
         if (entry === undefined) {
           throw new Error(
@@ -407,13 +251,6 @@ export function memoryStream(
         seen.add(offset)
         const existing = log.entries.find((stored) => stored.offset === offset)
         if (existing) return { kind: 'replace', existing, chunk }
-        // A not-yet-stored offset must sit strictly after the current tail.
-        // `read()` walks `entries` in array order and filters `seq > threshold`,
-        // so a pushed entry has to keep the seqs monotonically increasing;
-        // reusing the offset's own decoded seq also keeps a returned offset's
-        // threshold exactly consistent with the entry it names. Gaps are fine —
-        // nothing depends on seqs being contiguous, only on them increasing —
-        // so do NOT "fix" this to renumber densely.
         if (seq <= plannedTailSeq) {
           throw new Error(
             `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} is not stored yet but claims position ${seq}, at or before the tail ${plannedTailSeq}; a new offset must come after every stored and preceding entry`,
@@ -441,15 +278,8 @@ export function memoryStream(
       )
     },
     snapshot: () => {
-      // Peek, never getOrCreateLog: an unknown run must resolve to `[]`, and
-      // inserting an empty, never-completed log here would leave a permanent
-      // entry the sweep cannot reclaim (it only reclaims complete logs).
       const log = memoryLogs.get(runId)
       if (log === undefined) return Promise.resolve([])
-      // Fresh outer array AND fresh pair objects, so a caller that mutates the
-      // result cannot reach `log.entries` or the stored entries through it.
-      // Never touches `log.waiters` — a snapshot is a point-in-time read and
-      // returns even while the log is open and still being appended to.
       return Promise.resolve(
         log.entries.map((entry) => ({
           offset: entry.offset,
@@ -466,23 +296,15 @@ export function memoryStream(
     read: async function* (offset, signal) {
       const isFromStartJoin = offset === '-1' || offset === 'now'
 
-      // Peek, never getOrCreateLog. A concrete resume offset for an absent run
-      // means the run was evicted (or never lived in this process) and will not
-      // reappear — fail WITHOUT inserting a log. Inserting here would leave a
-      // permanent empty, never-completed log (sweep only reclaims complete
-      // ones), so client-supplied offsets could grow the map without bound and
-      // defeat the eviction this backend relies on.
       let log = memoryLogs.get(runId)
-      if (log === undefined || (log.entries.length === 0 && !log.complete)) {
+      const isEmptyLog =
+        log === undefined || (log.entries.length === 0 && !log.complete)
+      if (isEmptyLog) {
         if (!isFromStartJoin) {
           throw new Error(
             `Unknown or expired memory stream run: ${JSON.stringify(runId)}`,
           )
         }
-        // A from-start join may legitimately attach before the producer creates
-        // the log (second-tab race); create it so a later append reuses the
-        // same entry. If no producer ever arrives, the first-chunk deadline
-        // below deletes this phantom before rejecting.
         log = getOrCreateLog(runId)
       }
 
@@ -497,21 +319,14 @@ export function memoryStream(
         while (index < log.entries.length) {
           const entry = log.entries[index]
           index += 1
-          if (entry && entry.seq > threshold) {
+          const hasEntry = entry && entry.seq > threshold
+          if (hasEntry) {
             yield { offset: entry.offset, chunk: entry.chunk }
           }
         }
-        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
-        // agent-loop run emits one per iteration (finishReason "tool_calls" then
-        // "stop"), so stopping on the first would truncate a tool-calling run at
-        // its first tool call. The producer signals true completion by calling
-        // `close()` (it does so on every exit — see StreamDurability.close), which
-        // sets `log.complete`. Read tails until then, or until the caller aborts.
-        if (log.complete || signal?.aborted) return
+        const shouldSkipLog = log.complete || signal?.aborted
+        if (shouldSkipLog) return
 
-        // Bound only the wait for the very first chunk: once a run has produced
-        // anything, its producer owns termination and a caught-up reader may
-        // legitimately park indefinitely between chunks.
         const deadlineForFirstChunk =
           log.entries.length === 0 ? firstChunkDeadlineMs : undefined
 
@@ -536,14 +351,11 @@ export function memoryStream(
           if (deadlineForFirstChunk !== undefined) {
             timer = setTimeout(() => {
               cleanup()
-              // No producer ever created data for this joined run. Drop the
-              // phantom log we created above so it does not linger uncollected
-              // (it is empty and will never be marked complete).
-              if (
+              const isEmptyLog =
                 log.entries.length === 0 &&
                 !log.complete &&
                 memoryLogs.get(runId) === log
-              ) {
+              if (isEmptyLog) {
                 memoryLogs.delete(runId)
               }
               reject(
@@ -559,32 +371,6 @@ export function memoryStream(
   }
 }
 
-/**
- * Replay a run's delivery-durability log as a bare stream of chunks, for
- * callers that serve a `joinRun` handler without an HTTP `Response` — e.g. a
- * TanStack Start server function returning an async iterable:
- *
- * ```ts
- * async function* joinImageRun({ data: runId }: { data: string }) {
- *   yield* replayRunStream(memoryStream({ runId }))
- * }
- *
- * // Serve it from a server function whose handler is the generator above
- * // (`createServerFn({ method: 'GET' }).inputValidator(...)`).
- * ```
- *
- * NOTE: the example deliberately declares the generator separately instead of
- * inlining it into the server-fn builder chain. TanStack Start's server-fn
- * Vite plugin decides whether a module needs compiling by regex-matching the
- * SOURCE for a dotted `handler(` call, and JSDoc survives into `dist` — an
- * inlined chain here would make every Start app treat this package as a
- * server-fn module and try to resolve its framework's `@tanstack/*-start`
- * package, failing the build wherever that framework is not the one installed.
- *
- * Reads from `offset` (default `'-1'` — from the start) and tails until the
- * producer closes the log or `signal` aborts, exactly like the HTTP
- * `resumeServerSentEventsResponse` path.
- */
 export async function* replayRunStream<TOffset extends string>(
   durability: StreamDurability<TOffset>,
   offset?: TOffset,
@@ -592,7 +378,8 @@ export async function* replayRunStream<TOffset extends string>(
 ): AsyncGenerator<StreamChunk> {
   // '-1' is the from-start replay sentinel every shipped backend honors.
   const from = offset ?? ('-1' as TOffset)
-  for await (const { chunk } of durability.read(from, signal)) {
+  const records = durability.read(from, signal)
+  for await (const { chunk } of records) {
     yield chunk
   }
 }

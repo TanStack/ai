@@ -1,13 +1,3 @@
-/**
- * Hindsight memory adapter. Hindsight owns extraction/ranking server-side and
- * buckets memory into per-conversation "banks"
- * (`{tenantId|_}__{userId}__{threadId}`). Recall
- * returns a rendered prompt block AND a set of LLM tools (retain/recall/reflect)
- * that let the model take direct control of memory.
- *
- * `@vectorize-io/hindsight-client` is an OPTIONAL peer dependency, loaded lazily.
- */
-
 import { makeHindsightTools } from './tools'
 import type {
   MemoryAdapter,
@@ -25,10 +15,6 @@ export interface HindsightRecallResponse {
   results?: Array<{ text: string; type?: string; id: string }>
 }
 
-/**
- * Structural view of the hindsight client — only the methods this adapter uses.
- * Decouples the adapter from the SDK's exact type surface.
- */
 export interface HindsightClientLike {
   retain: (
     bankId: string,

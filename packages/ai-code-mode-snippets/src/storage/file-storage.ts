@@ -11,31 +11,11 @@ import type {
 import type { TrustStrategy } from '../trust-strategies'
 
 export interface FileSnippetStorageOptions {
-  /**
-   * Directory path for storing snippets
-   */
   directory: string
 
-  /**
-   * Trust strategy for determining snippet trust levels
-   * @default createDefaultTrustStrategy()
-   */
   trustStrategy?: TrustStrategy
 }
 
-/**
- * File-system based snippet storage
- *
- * Directory structure:
- *   .snippets/
- *     _index.json          # Fast catalog loading
- *     fetch_github_stats/
- *       meta.json          # Metadata (description, schemas, hints, stats)
- *       code.ts            # The actual TypeScript code
- *     deploy_to_prod/
- *       meta.json
- *       code.ts
- */
 export function createFileSnippetStorage(
   directoryOrOptions: string | FileSnippetStorageOptions,
 ): SnippetStorage {
@@ -49,10 +29,6 @@ export function createFileSnippetStorage(
 
   console.log('[FileSnippetStorage] Initialized with directory:', directory)
 
-  // Snippet names are used both as on-disk directory segments and as
-  // `snippet_<name>` sandbox tool names, so they must be a single safe
-  // identifier segment. Rejecting anything else keeps an LLM-supplied name
-  // (e.g. `../../etc`) from escaping `directory` during read/write/delete.
   const SAFE_SNIPPET_NAME = /^[A-Za-z0-9_-]+$/
 
   function isSafeSnippetName(name: string): boolean {

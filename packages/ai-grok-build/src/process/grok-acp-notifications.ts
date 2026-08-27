@@ -101,7 +101,17 @@ function applyGrokSessionUpdate(
     applyInteractionResolved(update, tools, onUpdate)
     return
   }
-  if (kind === 'agent_message_chunk' || kind === 'agent_thought_chunk') {
+  if (kind === 'agent_message_chunk') {
+    const content = asRecord(update.content)
+    const text = typeof content?.text === 'string' ? content.text : ''
+    if (text === '') return
+    onUpdate({
+      sessionUpdate: kind,
+      content: { type: 'text', text },
+    })
+    return
+  }
+  if (kind === 'agent_thought_chunk') {
     const content = asRecord(update.content)
     const text = typeof content?.text === 'string' ? content.text : ''
     if (text === '') return
@@ -121,10 +131,6 @@ function parseToolInput(args: string): unknown {
   }
 }
 
-/**
- * Bridge Grok Build's proprietary `_x.ai/session_notification` updates into the
- * shared ACP {@link AcpSessionUpdate} shape consumed by {@link translateAcpStream}.
- */
 export function createGrokAcpNotificationHandler(
   onUpdate: (update: AcpSessionUpdate) => void,
 ): (method: string, params: Record<string, unknown>) => void {

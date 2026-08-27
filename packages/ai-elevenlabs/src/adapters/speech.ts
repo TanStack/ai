@@ -11,11 +11,6 @@ import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { ElevenLabsClientConfig } from '../utils/client'
 import type { ElevenLabsOutputFormat, ElevenLabsTTSModel } from '../model-meta'
 
-/**
- * ElevenLabs voice settings overrides. All fields are optional — omitted
- * values fall back to the voice's stored defaults.
- * @see https://elevenlabs.io/docs/api-reference/text-to-speech/convert
- */
 export interface ElevenLabsVoiceSettings {
   /** Voice stability, 0..1. Default 0.5. */
   stability?: number
@@ -29,11 +24,6 @@ export interface ElevenLabsVoiceSettings {
   useSpeakerBoost?: boolean
 }
 
-/**
- * Provider-specific TTS options. `voice` on `generateSpeech()` takes priority
- * over `voiceId` here, but we expose the same field for callers that prefer
- * to keep voice configuration inside the adapter config.
- */
 export interface ElevenLabsSpeechProviderOptions {
   /** ElevenLabs voice ID to synthesize. Required if `generateSpeech().voice` is not set. */
   voiceId?: string
@@ -63,20 +53,6 @@ export interface ElevenLabsSpeechProviderOptions {
   enableLogging?: boolean
 }
 
-/**
- * ElevenLabs text-to-speech adapter built on the official
- * `@elevenlabs/elevenlabs-js` SDK.
- *
- * @example
- * ```ts
- * const adapter = elevenlabsSpeech('eleven_multilingual_v2')
- * const result = await generateSpeech({
- *   adapter,
- *   text: 'Hello, world!',
- *   voice: '21m00Tcm4TlvDq8ikWAM',
- * })
- * ```
- */
 export class ElevenLabsSpeechAdapter<
   TModel extends ElevenLabsTTSModel,
 > extends BaseTTSAdapter<TModel, ElevenLabsSpeechProviderOptions> {
@@ -194,11 +170,6 @@ function mapVoiceSettings(
   }
 }
 
-/**
- * Map the standard TTSOptions `format` (mp3/opus/aac/flac/wav/pcm) to a
- * reasonable ElevenLabs `outputFormat` so callers don't need to know the
- * full codec/samplerate string for the common case.
- */
 function inferOutputFormatFromResponseFormat(
   format: TTSOptions['format'] | undefined,
 ): ElevenLabsOutputFormat | undefined {
@@ -221,9 +192,6 @@ function inferOutputFormatFromResponseFormat(
   }
 }
 
-/**
- * Create an ElevenLabs speech adapter using `ELEVENLABS_API_KEY` from env.
- */
 export function elevenlabsSpeech<TModel extends ElevenLabsTTSModel>(
   model: TModel,
   config?: ElevenLabsClientConfig,
@@ -231,9 +199,6 @@ export function elevenlabsSpeech<TModel extends ElevenLabsTTSModel>(
   return new ElevenLabsSpeechAdapter(model, config)
 }
 
-/**
- * Create an ElevenLabs speech adapter with an explicit API key.
- */
 export function createElevenLabsSpeech<TModel extends ElevenLabsTTSModel>(
   model: TModel,
   apiKey: string,

@@ -1,9 +1,3 @@
-/**
- * Compound sandbox identity. We never key a resumable sandbox on `threadId`
- * alone — that would resume the WRONG environment when the provider,
- * workspace, image, or tenant changes. The key folds all of those in, so any
- * change busts the sandbox and forces a fresh create+bootstrap (safe default).
- */
 import type { WorkspaceDefinition } from './workspace'
 
 /** Inputs that, together, identify one resumable sandbox instance. */
@@ -34,7 +28,8 @@ function fnv1a(input: string): string {
 
 /** Canonical, key-sorted JSON so logically-equal inputs hash identically. */
 function canonical(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  const isNotObject = value === null || typeof value !== 'object'
+  if (isNotObject) return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   const keys = Object.keys(value).sort()
   return `{${keys
@@ -45,10 +40,6 @@ function canonical(value: unknown): string {
     .join(',')}}`
 }
 
-/**
- * Hash of the parts of a workspace that change what the agent sees. Secrets are
- * intentionally excluded (rotating a token must not orphan the sandbox).
- */
 export function computeWorkspaceHash(
   workspace: WorkspaceDefinition | undefined,
 ): string {

@@ -1,16 +1,3 @@
-// ============================================================================
-// Adapters
-// ============================================================================
-//
-// Tree-shakeable adapters live in ./adapters and are re-exported here, one
-// block per generation kind:
-//
-//   - text          → ./adapters/text          (Seed chat models on Ark)
-//   - video         → ./adapters/video         (Seedance task API)
-//   - image         → ./adapters/image         (Seedream)
-//   - speech        → ./adapters/tts           (Seed Speech TTS)
-//   - transcription → ./adapters/transcription (Seed Speech ASR)
-//
 export {
   BytePlusVideoAdapter,
   byteplusVideo,
@@ -142,10 +129,6 @@ export type {
   BytePlusVideoUrlContentPart,
 } from './message-types'
 
-// ============================================================================
-// Client configuration
-// ============================================================================
-
 export {
   BYTEPLUS_ARK_BASE_URL,
   BYTEPLUS_VOICE_BASE_URL,
@@ -160,10 +143,6 @@ export {
 } from './utils/client'
 export type { BytePlusArkConfig, BytePlusVoiceConfig } from './utils/client'
 
-// ============================================================================
-// Provider options
-// ============================================================================
-
 export type {
   BytePlusNamedToolChoice,
   BytePlusReasoningEffort,
@@ -172,10 +151,6 @@ export type {
   BytePlusThinkingOption,
   BytePlusToolChoice,
 } from './text/text-provider-options'
-
-// ============================================================================
-// Model metadata
-// ============================================================================
 
 export {
   BYTEPLUS_CHAT_MODELS,

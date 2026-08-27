@@ -4,11 +4,6 @@ export interface CapabilityGetOptions {
   optional?: boolean
 }
 
-/**
- * The minimal context shape a capability accessor needs. The full
- * `ChatMiddlewareContext` satisfies this (it has `capabilities`), so accessors
- * accept any middleware context without referencing `any`.
- */
 export interface CapabilityContext {
   capabilities: CapabilityRegistry
 }
@@ -25,14 +20,6 @@ export type CapabilityProvider<TValue> = (
   value: TValue,
 ) => void
 
-/**
- * A capability handle. It is BOTH a `[get, provide]` tuple (array-destructurable)
- * AND the identity used in middleware `requires`/`provides` declarations.
- *
- * Runtime identity is this object's reference. The `capabilityName` literal is
- * used for diagnostics and COMPILE-TIME tracking only — capability names MUST be
- * unique across an app or the type-level coverage check conflates them.
- */
 export type Capability<
   TValue = unknown,
   TName extends string = string,
@@ -45,19 +32,8 @@ export type Capability<
   has: (ctx: CapabilityContext) => boolean
 }
 
-/**
- * A capability handle with permissive value/name — for use as a constraint in
- * `requires`/`provides` arrays. Concentrates `any` in one named alias (same
- * convention as `AnyTextAdapter`/`AnyTool`); needed so `Capability<SpecificT>`
- * is assignable to the handle-array element type.
- */
 export type CapabilityHandle = Capability<any, string>
 
-/**
- * Per-request bookkeeping: which capabilities were provided, plus the
- * duplicate-provide notification. Capability VALUES live in per-capability
- * WeakMaps (see `createCapability`), not here — this only tracks presence.
- */
 export class CapabilityRegistry {
   private readonly provided = new Set<CapabilityHandle>()
   private onDuplicate?: (name: string) => void
@@ -78,39 +54,6 @@ export class CapabilityRegistry {
   }
 }
 
-/**
- * Create a capability. Returns a hybrid handle that destructures to
- * `[get, provide]` and is itself the identity for `requires`/`provides`.
- *
- * Curried so the value type is supplied explicitly while the name literal is
- * INFERRED from the argument: `createCapability<T>()('name')`. (A single call
- * `createCapability<T>('name')` cannot work — supplying `T` explicitly stops
- * TypeScript inferring the name, collapsing it to `string` and defeating the
- * compile-time coverage check that keys on the literal name.)
- *
- * @example Provider + consumer middleware
- * ```ts
- * const counterCapability = createCapability<{ value: number }>()('counter')
- * const [getCounter, provideCounter] = counterCapability
- *
- * const withCounter = defineChatMiddleware({
- *   name: 'counter',
- *   provides: [counterCapability],
- *   setup(ctx) { provideCounter(ctx, { value: 0 }) },
- * })
- *
- * const readsCounter = defineChatMiddleware({
- *   name: 'reads-counter',
- *   requires: [counterCapability],
- *   onChunk(ctx) { getCounter(ctx).value++ },
- * })
- *
- * chat({ adapter, messages, middleware: [withCounter, readsCounter] })
- * ```
- *
- * @remarks Capability `name`s must be unique across your app: compile-time
- * coverage tracking keys on the name literal (runtime keys on reference).
- */
 export function createCapability<TValue = unknown>(): <
   const TName extends string,
 >(

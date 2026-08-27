@@ -5,33 +5,16 @@ import type {
 import type { NullWideningMap } from '@tanstack/ai-utils'
 import type { JSONSchema, SchemaInput } from '../../../types'
 
-/**
- * Build a JSONSchema object from any plain key/value source. The `JSONSchema`
- * interface's `[key: string]: any` index signature makes every property
- * assignable through bracket access without a type cast — copying keys here
- * lets us narrow either `Record<string, unknown>` (returned by
- * `~standard.jsonSchema.input()`) or a `JSONSchema` (from the SchemaInput
- * pass-through arm) into the typed view used by the rest of this module.
- *
- * Accepts `object` so callers don't need a cast when narrowing from union
- * types like `SchemaInput`.
- */
 function toJsonSchema(obj: object): JSONSchema {
   const result: JSONSchema = {}
-  for (const [key, value] of Object.entries(obj)) {
+  const entries = Object.entries(obj)
+  for (const [key, value] of entries) {
     if (key === '$schema') continue // not needed by LLM providers
     result[key] = value
   }
   return result
 }
 
-/**
- * Whether a value can carry a `~standard` property. Most schema libraries
- * (Zod, Valibot) return plain objects, but ArkType's `type()` returns a
- * *callable function* with `~standard` attached — so `typeof` must accept
- * both `'object'` and `'function'` or ArkType schemas are missed entirely
- * (issue #276).
- */
 function isPropertyCarrier(schema: unknown): schema is Record<string, unknown> {
   return (
     (typeof schema === 'object' || typeof schema === 'function') &&
@@ -39,18 +22,15 @@ function isPropertyCarrier(schema: unknown): schema is Record<string, unknown> {
   )
 }
 
-/**
- * Check if a value is a Standard JSON Schema compliant schema.
- * Standard JSON Schema compliant libraries (Zod v4+, ArkType, Valibot with toStandardJsonSchema, etc.)
- * implement the '~standard' property with jsonSchema converter methods.
- */
 export function isStandardJSONSchema(
   schema: unknown,
 ): schema is StandardJSONSchemaV1 {
-  if (!isPropertyCarrier(schema) || !('~standard' in schema)) return false
+  const shouldSkipIsPropertyCarrier =
+    !isPropertyCarrier(schema) || !('~standard' in schema)
+  if (shouldSkipIsPropertyCarrier) return false
 
   const standard = schema['~standard']
-  if (
+  const hasVersion =
     typeof standard !== 'object' ||
     standard === null ||
     !('version' in standard) ||
@@ -59,17 +39,13 @@ export function isStandardJSONSchema(
     typeof standard.jsonSchema !== 'object' ||
     standard.jsonSchema === null ||
     !('input' in standard.jsonSchema)
-  ) {
+  if (hasVersion) {
     return false
   }
 
   return typeof standard.jsonSchema.input === 'function'
 }
 
-/**
- * Check if a value is a Standard Schema compliant schema (for validation).
- * Standard Schema compliant libraries implement the '~standard' property with a validate function.
- */
 export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
   return (
     isPropertyCarrier(schema) &&
@@ -83,12 +59,6 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
   )
 }
 
-/**
- * Result of {@link makeStructuredOutputCompatible}: the strict-ready schema plus
- * a {@link NullWideningMap} recording every position where a `null` was
- * synthesized, so the response can be un-widened before validation without
- * re-deriving (or guessing) which nulls were synthetic.
- */
 interface StructuredOutputConversion {
   schema: JSONSchema
   nullWidening: NullWideningMap | undefined
@@ -99,26 +69,13 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
   return Object.keys(map).length > 0 ? map : undefined
 }
 
-/**
- * Transform a JSON schema to be compatible with OpenAI's structured output requirements.
- * OpenAI requires:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for objects
- *
- * Alongside the transformed schema it returns a {@link NullWideningMap} marking
- * exactly the positions where `null` was added, so `undoNullWidening` can strip
- * those synthesized nulls (and only those) from the provider's response.
- *
- * @param schema - JSON schema to transform
- * @param originalRequired - Original required array (to know which fields were optional)
- * @returns Transformed schema + the null-widening map for the round trip
- */
 function widenOptionalScalar(prop: JSONSchema): JSONSchema | undefined {
-  if (prop.type && !Array.isArray(prop.type)) {
+  const isInvalidProp = prop.type && !Array.isArray(prop.type)
+  if (isInvalidProp) {
     return { ...prop, type: [prop.type, 'null'] }
   }
-  if (Array.isArray(prop.type) && !prop.type.includes('null')) {
+  const isInvalidProp2 = Array.isArray(prop.type) && !prop.type.includes('null')
+  if (isInvalidProp2) {
     return { ...prop, type: [...prop.type, 'null'] }
   }
   return undefined
@@ -128,7 +85,8 @@ function transformStructuredProperty(
   prop: JSONSchema,
   wasOptional: boolean,
 ): { schema: JSONSchema; widenedHere: boolean; childMap?: NullWideningMap } {
-  if (prop.type === 'object' && prop.properties) {
+  const isObject = prop.type === 'object' && prop.properties
+  if (isObject) {
     const nested = makeStructuredOutputCompatible(prop, prop.required || [])
     return {
       schema: wasOptional
@@ -138,7 +96,8 @@ function transformStructuredProperty(
       childMap: nested.nullWidening,
     }
   }
-  if (prop.type === 'array' && prop.items) {
+  const isArray = prop.type === 'array' && prop.items
+  if (isArray) {
     const items = Array.isArray(prop.items) ? prop.items[0] : prop.items
     const nestedItems = items
       ? makeStructuredOutputCompatible(items, items.required || [])
@@ -167,7 +126,8 @@ function transformStructuredObject(
   originalRequired: Array<string>,
   map: NullWideningMap,
 ): void {
-  if (result.type !== 'object' || !result.properties) return
+  const isInvalidResult = result.type !== 'object' || !result.properties
+  if (isInvalidResult) return
   const properties: Record<string, JSONSchema> = { ...result.properties }
   const allPropertyNames = Object.keys(properties)
   const propertyMaps: Record<string, NullWideningMap> = {}
@@ -180,7 +140,8 @@ function transformStructuredObject(
       !originalRequired.includes(propName),
     )
     properties[propName] = transformed.schema
-    if (transformed.widenedHere || transformed.childMap) {
+    const hasTransformed = transformed.widenedHere || transformed.childMap
+    if (hasTransformed) {
       propertyMaps[propName] = {
         ...(transformed.childMap ?? {}),
         ...(transformed.widenedHere ? { widened: true } : {}),
@@ -198,7 +159,8 @@ function transformStructuredArray(
   result: JSONSchema,
   map: NullWideningMap,
 ): void {
-  if (result.type !== 'array' || !result.items) return
+  const shouldSkipResult = result.type !== 'array' || !result.items
+  if (shouldSkipResult) return
   const items = Array.isArray(result.items) ? result.items[0] : result.items
   if (!items) return
   const nestedItems = makeStructuredOutputCompatible(
@@ -220,45 +182,24 @@ function makeStructuredOutputCompatible(
   return { schema: result, nullWidening: pruneMap(map) }
 }
 
-/**
- * Options for schema conversion
- */
 export interface ConvertSchemaOptions {
-  /**
-   * When true, transforms the schema to be compatible with OpenAI's structured output requirements:
-   * - All properties are added to the `required` array
-   * - Optional fields get null added to their type union
-   * - additionalProperties is set to false for all objects
-   *
-   * @default false
-   */
   forStructuredOutput?: boolean
 }
 
-/**
- * Normalize any supported schema input to a typed, UN-widened `JSONSchema` —
- * the shared first half of conversion, before any structured-output widening.
- *
- * - Standard JSON Schemas are rebuilt structurally (dropping `$schema`, which
- *   LLM providers ignore) and given the explicit `type`/`properties`/`required`
- *   defaults object shapes need downstream.
- * - Plain `JSONSchema` inputs are rebuilt into the typed view; non-object inputs
- *   are surfaced untouched (they can't be widened).
- * - Standard Schema validators lacking a `~standard.jsonSchema` converter throw
- *   with actionable guidance, rather than shipping `{ '~standard': … }` to the
- *   provider and producing an opaque downstream error.
- */
 function toTypedJsonSchema(schema: SchemaInput): JSONSchema | undefined {
   if (isStandardJSONSchema(schema)) {
     const jsonSchema = schema['~standard'].jsonSchema.input({
       target: 'draft-07',
     })
     const result: JSONSchema = toJsonSchema(jsonSchema)
-    if ('properties' in result && !result.type) result.type = 'object'
-    if (result.type === 'object' && !('properties' in result)) {
+    const hasProperties = 'properties' in result && !result.type
+    if (hasProperties) result.type = 'object'
+    const hasProperties2 = result.type === 'object' && !('properties' in result)
+    if (hasProperties2) {
       result.properties = {}
     }
-    if (result.type === 'object' && !('required' in result)) {
+    const hasRequired = result.type === 'object' && !('required' in result)
+    if (hasRequired) {
       result.required = []
     }
     return result
@@ -277,66 +218,6 @@ function toTypedJsonSchema(schema: SchemaInput): JSONSchema | undefined {
   return toJsonSchema(schema)
 }
 
-/**
- * Converts a Standard JSON Schema compliant schema or plain JSONSchema to JSON Schema format
- * compatible with LLM providers.
- *
- * Supports any schema library that implements the Standard JSON Schema spec (v1):
- * - Zod v4+ (natively supports StandardJSONSchemaV1)
- * - ArkType (natively supports StandardJSONSchemaV1)
- * - Valibot (via `toStandardJsonSchema()` from `@valibot/to-json-schema`)
- *
- * If the input is already a plain JSONSchema object, it is returned as-is.
- *
- * @param schema - Standard JSON Schema compliant schema or plain JSONSchema object to convert
- * @param options - Conversion options
- * @returns JSON Schema object that can be sent to LLM providers
- *
- * @example
- * ```typescript
- * // Using Zod v4+ (natively supports Standard JSON Schema)
- * import * as z from 'zod';
- *
- * const zodSchema = z.object({
- *   location: z.string().describe('City name'),
- *   unit: z.enum(['celsius', 'fahrenheit']).optional()
- * });
- *
- * const jsonSchema = convertSchemaToJsonSchema(zodSchema);
- *
- * @example
- * // Using ArkType (natively supports Standard JSON Schema)
- * import { type } from 'arktype';
- *
- * const arkSchema = type({
- *   location: 'string',
- *   unit: "'celsius' | 'fahrenheit'"
- * });
- *
- * const jsonSchema = convertSchemaToJsonSchema(arkSchema);
- *
- * @example
- * // Using Valibot (via toStandardJsonSchema)
- * import * as v from 'valibot';
- * import { toStandardJsonSchema } from '@valibot/to-json-schema';
- *
- * const valibotSchema = toStandardJsonSchema(v.object({
- *   location: v.string(),
- *   unit: v.optional(v.picklist(['celsius', 'fahrenheit']))
- * }));
- *
- * const jsonSchema = convertSchemaToJsonSchema(valibotSchema);
- *
- * @example
- * // Using JSONSchema directly (passes through unchanged)
- * const rawSchema = {
- *   type: 'object',
- *   properties: { location: { type: 'string' } },
- *   required: ['location']
- * };
- * const result = convertSchemaToJsonSchema(rawSchema);
- * ```
- */
 export function convertSchemaToJsonSchema(
   schema: SchemaInput | undefined,
   options: ConvertSchemaOptions = {},
@@ -345,32 +226,22 @@ export function convertSchemaToJsonSchema(
 
   const { forStructuredOutput = false } = options
 
-  // Plain-JSONSchema passthrough: with no widening requested, return the schema
-  // by reference so callers comparing via `===` keep identity. Only the widening
-  // path needs the rebuilt, normalized view from `toTypedJsonSchema`.
-  if (
+  const shouldSkipForStructuredOutput =
     !forStructuredOutput &&
     !isStandardJSONSchema(schema) &&
     !isStandardSchema(schema)
-  ) {
+  if (shouldSkipForStructuredOutput) {
     return schema
   }
 
   const base = toTypedJsonSchema(schema)
   // Non-object inputs can't be widened; surface them untouched.
-  if (!base || typeof base !== 'object') return base
+  const isInvalidBase = !base || typeof base !== 'object'
+  if (isInvalidBase) return base
   if (!forStructuredOutput) return base
   return makeStructuredOutputCompatible(base, base.required || []).schema
 }
 
-/**
- * Convert a schema for structured output AND capture the {@link NullWideningMap}
- * recording every `null` the strict-mode widening synthesized. The map lets the
- * caller undo that widening on the provider's response (via `undoNullWidening`)
- * before validating against the original schema — optional fields read back as
- * absent while genuine `.nullable()` nulls survive. The map is `undefined` when
- * the schema isn't a widenable object or when no field needed widening.
- */
 export function convertSchemaForStructuredOutput(
   schema: SchemaInput | undefined,
 ): {
@@ -379,7 +250,8 @@ export function convertSchemaForStructuredOutput(
 } {
   if (!schema) return { jsonSchema: undefined, nullWideningMap: undefined }
   const base = toTypedJsonSchema(schema)
-  if (!base || typeof base !== 'object') {
+  const isInvalidBase = !base || typeof base !== 'object'
+  if (isInvalidBase) {
     return { jsonSchema: base, nullWideningMap: undefined }
   }
   const { schema: jsonSchema, nullWidening } = makeStructuredOutputCompatible(
@@ -389,13 +261,6 @@ export function convertSchemaForStructuredOutput(
   return { jsonSchema, nullWideningMap: nullWidening }
 }
 
-/**
- * Validates data against a Standard Schema compliant schema.
- *
- * @param schema - Standard Schema compliant schema
- * @param data - Data to validate
- * @returns Validation result with success status, data or issues
- */
 export async function validateWithStandardSchema<T>(
   schema: unknown,
   data: unknown,
@@ -426,11 +291,6 @@ export async function validateWithStandardSchema<T>(
   }
 }
 
-/**
- * Error thrown when Standard Schema validation fails. Carries the original
- * `issues` array so consumers (middleware `onError`, callers catching from
- * `chat({ outputSchema })`) can programmatically inspect each failure.
- */
 export class StandardSchemaValidationError extends Error {
   override readonly name = 'StandardSchemaValidationError'
   readonly issues: ReadonlyArray<StandardSchemaV1.Issue>
@@ -445,17 +305,6 @@ export class StandardSchemaValidationError extends Error {
   }
 }
 
-/**
- * Synchronously validates data against a Standard Schema compliant schema.
- * Note: Some Standard Schema implementations may only support async validation.
- * In those cases, this function will throw.
- *
- * @param schema - Standard Schema compliant schema
- * @param data - Data to validate
- * @returns Parsed/validated data
- * @throws StandardSchemaValidationError if validation fails; Error if the
- *         schema only supports async validation.
- */
 export function parseWithStandardSchema<T>(schema: unknown, data: unknown): T {
   if (!isStandardSchema(schema)) {
     // If it's not a Standard Schema, just return the data as-is

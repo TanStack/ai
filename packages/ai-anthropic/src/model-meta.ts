@@ -49,17 +49,8 @@ interface ModelMeta<
       normal: number
     }
   }
-  /**
-   * Type-level description of which provider options this model supports.
-   */
   providerOptions?: TProviderOptions
-  /**
-   * Type-level description of which tool capabilities this model supports.
-   */
   toolCapabilities?: TToolCapabilities
-  /**
-   * Type-level description of which message/input capabilities this model supports.
-   */
   messageCapabilities?: TMessageCapabilities
 }
 
@@ -309,9 +300,6 @@ const CLAUDE_OPUS_4_1 = {
     AnthropicSamplingOptions
 >
 
-// Claude Opus 4.7 removed budget-based extended thinking and the sampling
-// parameters (`temperature`, `top_p`, `top_k`) — sending either returns a
-// 400. Use adaptive thinking with `output_config.effort` instead.
 const CLAUDE_OPUS_4_7 = {
   name: 'claude-opus-4-7',
   id: 'claude-opus-4-7',
@@ -398,11 +386,6 @@ const CLAUDE_OPUS_4_8 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Fable 5: thinking is always on — the only accepted explicit
-// `thinking` config is `{type: 'adaptive'}` (disabled/budget_tokens 400),
-// and the sampling parameters (`temperature`, `top_p`, `top_k`) are
-// rejected. Its provider options therefore use the adaptive-only thinking
-// shape and `max_tokens` without the sampling knobs.
 const CLAUDE_FABLE_5 = {
   name: 'claude-fable-5',
   id: 'claude-fable-5',
@@ -445,12 +428,6 @@ const CLAUDE_FABLE_5 = {
     AnthropicOutputConfigOptions
 >
 
-// Claude Sonnet 5: adaptive thinking is the default (omitting `thinking`
-// runs adaptive); `{type: 'disabled'}` opts out, but the manual
-// `{type: 'enabled', budget_tokens}` shape and non-default sampling
-// parameters (`temperature`, `top_p`, `top_k`) are rejected with a 400.
-// Pricing below is the sticker $3/$15 per MTok (an introductory $2/$10
-// applies through 2026-08-31).
 const CLAUDE_SONNET_5 = {
   name: 'claude-sonnet-5',
   id: 'claude-sonnet-5',
@@ -493,15 +470,6 @@ const CLAUDE_SONNET_5 = {
     AnthropicOutputConfigOptions
 >
 
-/**
- * Model ids accepted by the Anthropic text adapter.
- *
- * Every id here resolves against the first-party Anthropic API
- * (`GET /v1/models/{id}`). Retired models (Claude 3.x, Sonnet 3.7,
- * Opus 4 / Sonnet 4) and the `-fast` variant ids (fast mode is requested
- * via the `speed` parameter, not a model id) were removed after Anthropic
- * turned them off.
- */
 const CLAUDE_OPUS_5 = {
   name: 'claude-opus-5',
   id: 'claude-opus-5',
@@ -577,11 +545,6 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_SONNET_5.id,
 ] as const
 
-/**
- * Claude chat models on Vertex AI / Gemini Enterprise Agent Platform.
- * This list is the Google partner catalog, not the full Anthropic API catalog.
- * Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models
- */
 export const ANTHROPIC_VERTEX_CHAT_MODELS = [
   CLAUDE_OPUS_5.id,
   CLAUDE_SONNET_5.id,
@@ -599,30 +562,8 @@ export const ANTHROPIC_VERTEX_CHAT_MODELS = [
 export type AnthropicVertexChatModel =
   (typeof ANTHROPIC_VERTEX_CHAT_MODELS)[number]
 
-/**
- * Fallback `max_tokens` ceiling for a model whose metadata carries no
- * `max_output_tokens` (e.g. an unrecognized model id). Anthropic's Messages
- * API *requires* `max_tokens`, so the adapter must always send a value. 64K is
- * the output ceiling of the current mainstream Claude tier (Sonnet/Haiku 4.5),
- * so it's a sane default for an unknown — almost certainly modern — model and
- * avoids silently truncating long generations (issue #849). Recognized models
- * use their exact `max_output_tokens` from {@link ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS}
- * (e.g. 128K for Opus), so this fallback only ever applies to ids not in the
- * map.
- */
 export const ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS = 64_000
 
-/**
- * Runtime lookup of each model's maximum output-token ceiling, keyed by model
- * id. Lets the text adapter default the required `max_tokens` request field to
- * the model's real ceiling when the caller doesn't specify one, rather than a
- * low constant that truncates responses mid-stream (issue #849).
- *
- * Kept in sync with {@link ANTHROPIC_MODELS} by `scripts/sync-provider-models.ts`
- * — when that script adds a model it also inserts the model's `max_output_tokens`
- * here, so a freshly-synced model resolves to its real ceiling rather than the
- * fallback above.
- */
 const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.max_output_tokens,
   [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.max_output_tokens,
@@ -638,34 +579,8 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.max_output_tokens,
 }
 
-/**
- * Largest `max_tokens` the Anthropic SDK permits on a **non-streaming**
- * request. The SDK refuses to make a non-streaming call it estimates could
- * exceed its 10-minute timeout, computed as
- * `(60min * max_tokens) / 128_000 > 10min` — i.e. it throws
- * `"Streaming is required for operations that may take longer than 10 minutes"`
- * once `max_tokens > 128_000 * 10 / 60 ≈ 21_333`
- * (`@anthropic-ai/sdk`'s `calculateNonstreamingTimeout`). The text adapter's
- * only non-streaming call is the forced-tool `structuredOutput()` request, so
- * its defaulted ceiling must stay at or below this; the streaming chat path
- * keeps the model's full {@link getAnthropicDefaultMaxTokens} ceiling. We sit
- * just under the boundary (`21_333` would round-trip to exactly 10min). This
- * caps only the *default* — an explicit oversized `max_tokens` from the caller
- * still surfaces the SDK's "use streaming" error, which is the correct signal.
- */
 export const ANTHROPIC_MAX_NONSTREAMING_TOKENS = 21_000
 
-/**
- * Resolve the default `max_tokens` for a model: its known `max_output_tokens`
- * ceiling, or {@link ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS} for unknown models.
- * Callers that pass an explicit `max_tokens` bypass this entirely.
- *
- * Pass `stream: false` for non-streaming requests (the `structuredOutput()`
- * path): the result is then clamped to {@link ANTHROPIC_MAX_NONSTREAMING_TOKENS}
- * so the defaulted ceiling doesn't trip the SDK's non-streaming 10-minute guard
- * (issue #849). Streaming requests (the default) are unaffected and get the
- * model's full ceiling.
- */
 export function getAnthropicDefaultMaxTokens(
   model: string,
   { stream = true }: { stream?: boolean } = {},
@@ -676,13 +591,6 @@ export function getAnthropicDefaultMaxTokens(
   return stream ? ceiling : Math.min(ceiling, ANTHROPIC_MAX_NONSTREAMING_TOKENS)
 }
 
-/**
- * Anthropic models that support combining `tools` + JSON-Schema-constrained
- * output in a single streaming Messages request (per issue #605). GA'd
- * 2026-01-29 for Claude 4.5+ via `output_format` on the beta messages
- * endpoint. Older Claude models still need the forced-tool-use workaround
- * in `structuredOutput`.
- */
 export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_OPUS_4_5.id,
   CLAUDE_OPUS_4_6.id,
@@ -695,15 +603,7 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_HAIKU_4_5.id,
 ])
 
-// const ANTHROPIC_IMAGE_MODELS = [] as const
-// const ANTHROPIC_EMBEDDING_MODELS = [] as const
-// const ANTHROPIC_AUDIO_MODELS = [] as const
-// const ANTHROPIC_VIDEO_MODELS = [] as const
-
 export type AnthropicChatModel = (typeof ANTHROPIC_MODELS)[number]
-// Manual type map for per-model provider options
-// Models are differentiated by which thinking shapes and sampling
-// parameters the API accepts.
 export type AnthropicChatModelProviderOptionsByName = {
   // 4.6 generation: adaptive thinking plus the deprecated budget-based
   // shape; sampling parameters still accepted.
@@ -799,9 +699,6 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
-  // Claude Sonnet 5: adaptive thinking by default, explicit disable
-  // allowed; no budget_tokens, no sampling parameters — see the
-  // CLAUDE_SONNET_5 constant above.
   [CLAUDE_SONNET_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -845,17 +742,6 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.tools
 }
 
-/**
- * Type-only map from chat model name to its supported input modalities.
- * All Anthropic Claude models support text, image, and document (PDF) input.
- * Used by the core AI types to constrain ContentPart types based on the selected model.
- * Note: These must be inlined as readonly arrays (not typeof) because the model
- * constants are not exported and typeof references don't work in .d.ts files
- * when consumed by external packages.
- *
- * @see https://docs.anthropic.com/claude/docs/vision
- * @see https://docs.anthropic.com/claude/docs/pdf-support
- */
 export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.input
   [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input

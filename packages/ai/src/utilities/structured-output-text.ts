@@ -1,8 +1,3 @@
-/**
- * Parse JSON from a model/harness assistant string.
- * Strips a wrapping markdown fence when the whole payload is fenced.
- * If the model wrote prose first, take the last JSON object or array.
- */
 export function parseJsonFromAssistantText(raw: string): unknown {
   const trimmed = raw.trim()
   if (trimmed === '') {
@@ -35,10 +30,12 @@ export function parseJsonFromAssistantText(raw: string): unknown {
 
 function extractLastJsonSlice(text: string): string | undefined {
   for (let end = text.length - 1; end >= 0; end--) {
-    if (text[end] !== '}' && text[end] !== ']') continue
+    const hasText = text[end] !== '}' && text[end] !== ']'
+    if (hasText) continue
     for (let start = end; start >= 0; start--) {
       const opener = text[start]
-      if (opener !== '{' && opener !== '[') continue
+      const hasOpener = opener !== '{' && opener !== '['
+      if (hasOpener) continue
       const slice = text.slice(start, end + 1)
       try {
         JSON.parse(slice)

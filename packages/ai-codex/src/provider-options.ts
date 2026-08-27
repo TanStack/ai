@@ -1,14 +1,4 @@
-/**
- * Per-call provider options for the Codex adapter, passed via `modelOptions`
- * on `chat()`.
- */
 export interface CodexTextProviderOptions {
-  /**
-   * Resume an existing Codex thread. The adapter emits the thread id of
-   * every fresh run via a CUSTOM `codex.session-id` stream event; thread it
-   * back here to continue that session (only the latest user message is
-   * sent — the harness already holds the prior context).
-   */
   sessionId?: string
   /** Per-call override of the configured sandbox mode. */
   sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
@@ -20,10 +10,5 @@ export interface CodexTextProviderOptions {
   workingDirectory?: string
   /** Per-call override of the git-repo safety check (defaults to skipping). */
   skipGitRepoCheck?: boolean
-  /**
-   * `'api-key'` (default) expects `CODEX_API_KEY`.
-   * `'host'` uses `codex login`.
-   * Not inferred from the sandbox.
-   */
   authMode?: 'host' | 'api-key'
 }

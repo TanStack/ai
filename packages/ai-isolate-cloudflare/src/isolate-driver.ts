@@ -12,37 +12,16 @@ import type {
   ToolSchema,
 } from './types'
 
-/**
- * Configuration for the Cloudflare Workers isolate driver
- */
 export interface CloudflareIsolateDriverConfig {
-  /**
-   * URL of the deployed Cloudflare Worker
-   * For local development, use: http://localhost:8787
-   */
   workerUrl: string
 
-  /**
-   * Optional authorization header value
-   * Useful for protecting your Worker endpoint
-   */
   authorization?: string
 
-  /**
-   * Default execution timeout in ms (default: 30000)
-   */
   timeout?: number
 
-  /**
-   * Maximum number of tool callback rounds (default: 10)
-   * Prevents infinite loops
-   */
   maxToolRounds?: number
 }
 
-/**
- * Convert tool bindings to schemas for the Worker
- */
 function bindingsToSchemas(
   bindings: Record<string, ToolBinding>,
 ): Array<ToolSchema> {
@@ -53,9 +32,6 @@ function bindingsToSchemas(
   }))
 }
 
-/**
- * Normalize errors from various sources
- */
 function normalizeError(error: unknown): { name: string; message: string } {
   if (error instanceof Error) {
     return { name: error.name, message: error.message }
@@ -70,9 +46,6 @@ function normalizeError(error: unknown): { name: string; message: string } {
   return { name: 'Error', message: String(error) }
 }
 
-/**
- * IsolateContext implementation using Cloudflare Workers
- */
 class CloudflareIsolateContext implements IsolateContext {
   private readonly workerUrl: string
   private readonly authorization?: string
@@ -185,11 +158,6 @@ class CloudflareIsolateContext implements IsolateContext {
         // Collect logs from this round
         allLogs = [...allLogs, ...result.logs]
 
-        // Execute tool calls locally. Accumulate across rounds so prior-round
-        // results stay cached when the Worker re-executes user code.
-        // wrap-code uses sequential `tc_<idx>` ids re-derived every round; if
-        // we wipe the cache, multi-tool programs ping-pong between missing
-        // ids and exhaust `maxToolRounds` (MaxRoundsExceeded).
         toolResults = { ...(toolResults ?? {}) }
 
         for (const toolCall of result.toolCalls) {
@@ -249,52 +217,6 @@ class CloudflareIsolateContext implements IsolateContext {
   }
 }
 
-/**
- * Create a Cloudflare Workers isolate driver
- *
- * This driver executes code on Cloudflare's global edge network,
- * providing true distributed execution capabilities.
- *
- * Tool calls are handled via a request/response loop:
- * 1. Code is sent to the Worker
- * 2. Worker executes until it needs a tool
- * 3. Tool call is returned to the driver
- * 4. Driver executes the tool locally
- * 5. Result is sent back to the Worker
- * 6. Worker continues execution
- *
- * @example
- * ```typescript
- * import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
- *
- * // For local development with wrangler
- * const driver = createCloudflareIsolateDriver({
- *   workerUrl: 'http://localhost:8787',
- * })
- *
- * // For production
- * const driver = createCloudflareIsolateDriver({
- *   workerUrl: 'https://code-mode-worker.your-account.workers.dev',
- *   authorization: 'Bearer your-secret-token',
- * })
- *
- * const context = await driver.createContext({
- *   bindings: {
- *     readFile: {
- *       name: 'readFile',
- *       description: 'Read a file',
- *       inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
- *       execute: async ({ path }) => fs.readFile(path, 'utf-8'),
- *     },
- *   },
- * })
- *
- * const result = await context.execute(`
- *   const content = await readFile({ path: './data.json' })
- *   return JSON.parse(content)
- * `)
- * ```
- */
 export function createCloudflareIsolateDriver(
   config: CloudflareIsolateDriverConfig,
 ): IsolateDriver {

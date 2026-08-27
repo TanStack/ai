@@ -103,7 +103,9 @@ async function withWriterLease<T>(
   let stopped = false
 
   const scheduleRenewal = (): void => {
-    if (renewWriter === undefined || renewAfterMs === undefined) return
+    const isMissingRenewal =
+      renewWriter === undefined || renewAfterMs === undefined
+    if (isMissingRenewal) return
     renewalTimer = setTimeout(() => {
       renewalTimer = undefined
       renewalTask = (async () => {
@@ -114,7 +116,8 @@ async function withWriterLease<T>(
         } finally {
           renewalTask = undefined
         }
-        if (!stopped && renewalFailure === undefined) scheduleRenewal()
+        const shouldKeepRenewing = !stopped && renewalFailure === undefined
+        if (shouldKeepRenewing) scheduleRenewal()
       })()
     }, renewAfterMs)
   }
@@ -200,7 +203,9 @@ function requireSnapshotPersistence<TPersistence extends SnapshotPersistence>(
   persistence: TPersistence,
 ): TPersistence {
   const stores = persistence.stores
-  if (!stores?.messages || !stores.artifacts || !stores.blobs) {
+  const isMissingSnapshotStores =
+    !stores?.messages || !stores.artifacts || !stores.blobs
+  if (isMissingSnapshotStores) {
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_MISSING_PERSISTENCE_STORES',
       'Sandbox snapshots require persistence stores.messages, stores.artifacts, and stores.blobs',
@@ -528,10 +533,10 @@ async function resolveSnapshotArtifact(input: {
     )
   const arrayBuffer = blob.arrayBuffer.bind(blob)
   const bytes = new Uint8Array(await arrayBuffer())
-  if (
+  const isArtifactMismatch =
     bytes.byteLength !== artifact.size ||
     artifact.blobKey !== `sandbox-artifacts/sha256/${await sha256(bytes)}`
-  )
+  if (isArtifactMismatch)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_ARTIFACT_BYTES',
       'Snapshot artifact bytes do not match metadata',

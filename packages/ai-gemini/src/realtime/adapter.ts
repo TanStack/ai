@@ -13,25 +13,6 @@ import type {
 } from '@tanstack/ai'
 import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
 
-/**
- * Creates a Gemini realtime adapter for client-side use.
- *
- * @param options - Optional configuration
- * @returns A RealtimeAdapter for use with RealtimeClient
- *
- * @example
- * ```typescript
- * import { RealtimeClient } from '@tanstack/ai-client'
- * import { geminiRealtime } from '@tanstack/ai-gemini'
- *
- * const client = new RealtimeClient({
- *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
- *   adapter: geminiRealtime(),
- *   onGoAway: () => client.updateSession({ ... }) // Resume session with new config (available only for Gemini Live adapter)
- * })
- *
- * ```
- */
 export function geminiRealtime(
   options: GeminiRealtimeOptions = {},
 ): RealtimeAdapter {
@@ -47,9 +28,6 @@ export function geminiRealtime(
   }
 }
 
-/**
- * Creates a WebSocket connection to Gemini's realtime API
- */
 async function createWebSocketConnection(
   token: RealtimeToken,
   model: GeminiRealtimeModel = 'gemini-3.1-flash-live-preview',
@@ -127,7 +105,9 @@ async function createWebSocketConnection(
 
   function handleInputTranscription(response: LiveResponse) {
     if (response.type !== 'input_transcription') return
-    if (response.data.finished && currentMode !== 'thinking') {
+    const shouldEnterThinking =
+      response.data.finished && currentMode !== 'thinking'
+    if (shouldEnterThinking) {
       currentMode = 'thinking'
       emit('mode_change', { mode: 'thinking' })
     }

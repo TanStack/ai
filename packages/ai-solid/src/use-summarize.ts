@@ -16,11 +16,6 @@ import type {
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
-/**
- * Options for the useSummarize hook.
- *
- * @template TOutput - The transformed output type (defaults to SummarizationResult)
- */
 export interface UseSummarizeOptions<
   TOutput = SummarizationResult,
 > extends Pick<
@@ -40,13 +35,6 @@ export interface UseSummarizeOptions<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /**
-   * Callback when summarization is complete. Can optionally return a transformed value.
-   *
-   * - Return a non-null value to transform and store it as the result
-   * - Return `null` to keep the previous result unchanged
-   * - Return nothing (`void`) to store the raw result as-is
-   */
   onResult?: (result: SummarizationResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -56,11 +44,6 @@ export interface UseSummarizeOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
-/**
- * Return type for the useSummarize hook.
- *
- * @template TOutput - The transformed output type (defaults to SummarizationResult)
- */
 export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
   UseGenerationReturn<TOutput>,
   'generate'
@@ -77,35 +60,6 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
   status: Accessor<GenerationClientState>
 }
 
-/**
- * Solid hook for summarizing text using AI models.
- *
- * @example
- * ```tsx
- * import { useSummarize } from '@tanstack/ai-solid'
- * import { fetchServerSentEvents } from '@tanstack/ai-client'
- *
- * function Summarizer() {
- *   const { generate, result, isLoading } = useSummarize({
- *     connection: fetchServerSentEvents('/api/summarize'),
- *   })
- *
- *   return (
- *     <div>
- *       <button onClick={() => generate({
- *         text: 'Long article text...',
- *         style: 'bullet-points',
- *         maxLength: 200,
- *       })}>
- *         Summarize
- *       </button>
- *       {isLoading() && <p>Summarizing...</p>}
- *       {result() && <p>{result()!.summary}</p>}
- *     </div>
- *   )
- * }
- * ```
- */
 export function useSummarize<TTransformed = void>(
   options: Omit<
     UseSummarizeOptions,

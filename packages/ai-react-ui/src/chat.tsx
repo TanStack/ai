@@ -7,15 +7,8 @@ import type {
   UseChatReturn,
 } from '@tanstack/ai-react'
 
-/**
- * Chat context - provides chat state to all child components
- */
 const ChatContext = createContext<UseChatReturn | null>(null)
 
-/**
- * Hook to access chat context
- * @throws Error if used outside of Chat component
- */
 export function useChatContext() {
   const context = useContext(ChatContext)
   if (!context) {
@@ -51,17 +44,6 @@ export interface ChatProps {
   tools?: Record<string, React.ComponentType<{ input: any; output?: any }>>
 }
 
-/**
- * Root Chat component - provides context for all chat subcomponents
- *
- * @example
- * ```tsx
- * <Chat connection={fetchServerSentEvents("/api/chat")}>
- *   <Chat.Messages />
- *   <Chat.Input />
- * </Chat>
- * ```
- */
 export function Chat({
   children,
   className,

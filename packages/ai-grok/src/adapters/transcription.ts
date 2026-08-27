@@ -9,16 +9,6 @@ import type {
 import type { GrokTranscriptionModel } from '../model-meta'
 import type { GrokTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 
-/**
- * Grok-specific extension of `TranscriptionWord` that surfaces the extra
- * fields xAI returns when diarization / confidence are enabled. The base
- * cross-provider `TranscriptionWord` contract doesn't include these, so
- * callers who know they're using Grok can narrow with:
- *
- * ```ts
- * const words = result.words as Array<GrokTranscriptionWord> | undefined
- * ```
- */
 export interface GrokTranscriptionWord extends TranscriptionWord {
   /** Model confidence for the word, when xAI returns one. */
   confidence?: number
@@ -28,12 +18,6 @@ export interface GrokTranscriptionWord extends TranscriptionWord {
 
 const DEFAULT_GROK_BASE_URL = 'https://api.x.ai/v1'
 
-/**
- * Configuration for the Grok transcription adapter.
- *
- * Uses direct `fetch` rather than the OpenAI SDK because xAI's `/v1/stt`
- * endpoint is not OpenAI-compatible.
- */
 export interface GrokTranscriptionConfig {
   apiKey: string
   baseURL?: string
@@ -41,10 +25,6 @@ export interface GrokTranscriptionConfig {
   defaultHeaders?: Record<string, string>
 }
 
-/**
- * xAI STT response shape from `POST /v1/stt`.
- * Grok returns word-level timestamps only; no segment array.
- */
 interface GrokSTTWord {
   text: string
   start: number
@@ -61,12 +41,6 @@ interface GrokSTTResponse {
   channels?: Array<unknown>
 }
 
-/**
- * Grok Speech-to-Text Adapter.
- *
- * Talks to `POST {baseURL}/stt` per
- * https://docs.x.ai/developers/rest-api-reference/inference/voice
- */
 export class GrokTranscriptionAdapter<
   TModel extends GrokTranscriptionModel,
 > extends BaseTranscriptionAdapter<TModel, GrokTranscriptionProviderOptions> {
@@ -119,11 +93,6 @@ export class GrokTranscriptionAdapter<
 
       const words: Array<TranscriptionWord> | undefined = data.words?.map(
         (w) => {
-          // Construct a GrokTranscriptionWord so that `confidence` and
-          // `speaker` (when xAI returns them under `diarize` / confidence
-          // mode) are preserved on the result. The returned array is typed
-          // as `Array<TranscriptionWord>` per the cross-provider contract;
-          // callers who want the extras narrow via `as Array<GrokTranscriptionWord>`.
           const tw: GrokTranscriptionWord = {
             word: w.text,
             start: w.start,
@@ -136,9 +105,6 @@ export class GrokTranscriptionAdapter<
       )
 
       const resolvedLanguage = data.language ?? language
-      // xAI's /v1/stt response carries no token counts — STT is duration-billed —
-      // so surface the audio duration as the billed quantity, mirroring the
-      // whisper-1 path in the OpenAI transcription adapter.
       const usage: TokenUsage | undefined =
         data.duration !== undefined && data.duration > 0
           ? {
@@ -168,18 +134,6 @@ export class GrokTranscriptionAdapter<
   }
 }
 
-/**
- * Build the multipart/form-data body for `POST /v1/stt`, coercing SDK-level
- * model options into xAI's wire format (booleans as `'true'`/`'false'`
- * strings, numeric fields stringified, etc.).
- *
- * Wire-field mapping:
- *   - `modelOptions.inverse_text_normalization` → `format` (xAI's chosen
- *     wire-field name for the ITN boolean; the SDK surfaces it under the
- *     clearer `inverse_text_normalization` key).
- *   - `modelOptions.audio_format`, `sample_rate`, `multichannel`, `channels`,
- *     `diarize` map to same-named form fields.
- */
 export function buildTranscriptionFormData(options: {
   file: File
   language: string | undefined
@@ -213,19 +167,6 @@ export function buildTranscriptionFormData(options: {
   return form
 }
 
-/**
- * Creates a Grok transcription adapter with an explicit API key.
- *
- * @example
- * ```typescript
- * const adapter = createGrokTranscription('grok-stt', 'xai-...')
- * const result = await generateTranscription({
- *   adapter,
- *   audio: audioFile,
- *   language: 'en',
- * })
- * ```
- */
 export function createGrokTranscription<TModel extends GrokTranscriptionModel>(
   model: TModel,
   apiKey: string,
@@ -234,12 +175,6 @@ export function createGrokTranscription<TModel extends GrokTranscriptionModel>(
   return new GrokTranscriptionAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Grok transcription adapter, reading the API key from
- * `XAI_API_KEY` in the environment.
- *
- * @throws Error if `XAI_API_KEY` is not set.
- */
 export function grokTranscription<TModel extends GrokTranscriptionModel>(
   model: TModel,
   config?: Omit<GrokTranscriptionConfig, 'apiKey'>,

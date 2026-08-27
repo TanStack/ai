@@ -1,12 +1,3 @@
-/**
- * mem0 memory adapter — talks to a mem0 server over plain HTTP (no SDK, so no
- * peer dependency). mem0 owns extraction and ranking server-side; this adapter
- * maps the `recall`/`save` contract onto its `/memories` and `/search` endpoints.
- *
- * Requires a running mem0 server. Point it at one via `baseUrl` (or the
- * `MEM0_URL` env var); pass `apiKey` (or `MEM0_ADMIN_API_KEY`) when it's secured.
- */
-
 import type {
   MemoryAdapter,
   MemoryFact,
@@ -72,10 +63,6 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
     return options.user ?? scope.userId ?? 'demo-user'
   }
 
-  /**
-   * mem0 `run_id` — conversation/run isolation. Maps 1:1 to `scope.threadId` so
-   * same-user memories do not leak across threads.
-   */
   function runId(scope: MemoryScope): string {
     return scope.threadId
   }

@@ -72,34 +72,13 @@ export function useChat<
     resuming: false,
   })
 
-  // Structured-output `partial` / `final` are derived from `messages` —
-  // specifically from the structured-output part on the latest assistant
-  // message (the one after the most recent user message). This keeps
-  // history coherent: every assistant turn carries its own typed
-  // structured-output part, and the hook-level sugar always reflects the
-  // freshest turn without a separate reset signal.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Create ChatClient instance with callbacks to sync state.
-  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
-  // is read at call time. Direct assignment would freeze the callback to the
-  // reference we saw at setup time; the wrapper lets reactive `options` or
-  // in-place mutations propagate. When the user clears a callback (sets it to
-  // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
-  // skips undefined and leaves the old callback installed.
-  //
-  // Conditional spreads for `initialMessages`, `body`, `forwardedProps`, and
-  // `tools`: the ChatClient target declares those as strict-optional
-  // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
-  // the source value is `undefined` instead of assigning `undefined`.
   const transport = options.connection
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`. When no `threadId` is given the
-  // client mints one after mount, so an ephemeral chat still works but is not
-  // restored on reload.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
@@ -192,11 +171,6 @@ export function useChat<
   messages.value = client.getMessages()
   interruptState.value = client.getInterruptState()
 
-  // Sync body / forwardedProps changes to the client.
-  // Both populate the same wire payload; `forwardedProps` is preferred
-  // and `body` is deprecated but still supported.
-  // Conditional spread: `updateOptions` declares strict-optional fields and
-  // rejects explicit `undefined` under EOPT.
   watch(
     () =>
       [
@@ -230,15 +204,8 @@ export function useChat<
   )
 
   onMounted(() => {
-    // START TAILING HERE, not in the constructor. A client is idle until a view
-    // attaches it, so a client that gets built and thrown away never opens a
-    // connection — an unreachable stream would hold one of the browser's ~6
-    // connections per origin until the page reloaded.
     client.attach()
     client.mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
     syncResumeState()
   })
 
@@ -360,13 +327,6 @@ export function useChat<
     state?: ChatResumeState,
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
-  // The "active" structured-output part is the one on the assistant message
-  // that follows the latest user message. No such message exists between
-  // sendMessage() and the first chunk, so partial/final naturally read as
-  // cleared. If there is no user message yet (e.g. initialMessages only has
-  // a stale assistant turn), we return null rather than scanning history —
-  // otherwise a `final` from a previous session would leak into the value
-  // on first render.
   const activeStructuredPart = computed<StructuredOutputPart | null>(() => {
     const list = messages.value
     let lastUserIndex = -1
@@ -397,13 +357,11 @@ export function useChat<
 
   const final = computed<Final | null>(() => {
     const part = activeStructuredPart.value
-    if (!part || part.status !== 'complete') return null
+    if (!part) return null
+    if (part.status !== 'complete') return null
     return part.data as Final
   })
 
-  // partial / final are runtime-tracked unconditionally; the conditional
-  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
-  // didn't supply `outputSchema`.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- composable return shape diverges from conditional UseChatReturn<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final refs
   return {
     messages: readonly(messages),

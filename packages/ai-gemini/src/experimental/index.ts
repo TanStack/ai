@@ -1,7 +1,3 @@
-/**
- * @experimental Gemini's Interactions API is in Beta per Google. Shapes and
- * behavior may change between minor releases of `@tanstack/ai-gemini`.
- */
 export {
   GeminiTextInteractionsAdapter,
   createGeminiTextInteractions,

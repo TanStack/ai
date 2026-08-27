@@ -78,14 +78,6 @@ export type LiveResponse = {
   }
 }[MultimodalLiveResponseType]
 
-/**
- * Parses response messages from the Gemini Live API
- */
-/**
- * Parses ALL response types from a single server message.
- * The server can now bundle multiple fields (e.g. audio + transcription)
- * in the same message. Returns an array of response objects.
- */
 function pushSessionFields(
   data: LiveServerMessage,
   responses: Array<LiveResponse>,
@@ -257,9 +249,6 @@ export class GeminiLiveClient {
     return this.setupComplete
   }
 
-  /**
-   * Connection management
-   */
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const socket = new WebSocket(
@@ -267,9 +256,6 @@ export class GeminiLiveClient {
       )
       this.webSocket = socket
 
-      // The browser fires `onerror` then `onclose` on an abnormal close; this
-      // flag stops the close handler from overwriting the surfaced error with a
-      // benign "closed" signal.
       let errored = false
 
       socket.onclose = () => {
@@ -315,9 +301,6 @@ export class GeminiLiveClient {
     this.setupComplete = false
   }
 
-  /**
-   * Session management
-   */
   sendInitialSetupMessage(resume = false) {
     const tools = this.functionDeclarations
 
@@ -467,9 +450,6 @@ export class GeminiLiveClient {
     }
   }
 
-  /**
-   * Message transmission & receiving
-   */
   sendMessage(message: LiveClientMessage) {
     if (this.webSocket?.readyState === WebSocket.OPEN) {
       this.webSocket.send(JSON.stringify(message))
@@ -514,9 +494,11 @@ export class GeminiLiveClient {
   sendRealtimeInputMessage(data: string, mimeType: string) {
     const blob = { mimeType, data }
 
+    const isVisualInput =
+      mimeType.startsWith('image/') || mimeType.startsWith('video/')
     if (mimeType.startsWith('audio/')) {
       this.sendMessage({ realtimeInput: { audio: blob } })
-    } else if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
+    } else if (isVisualInput) {
       this.sendMessage({ realtimeInput: { video: blob } })
     }
   }

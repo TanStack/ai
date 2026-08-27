@@ -1,10 +1,5 @@
 import { makeStructuredOutputCompatibleWithMap } from '@tanstack/openai-base'
 
-/**
- * Recursively removes `required: []` from a schema object.
- * Groq rejects `required` when it is an empty array, even though
- * OpenAI-compatible schemas allow it.
- */
 function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
   const result = { ...schema }
 
@@ -14,9 +9,10 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
 
   if (result.properties && typeof result.properties === 'object') {
     const properties: Record<string, any> = {}
-    for (const [key, value] of Object.entries(
+    const propertyEntries = Object.entries(
       result.properties as Record<string, any>,
-    )) {
+    )
+    for (const [key, value] of propertyEntries) {
       properties[key] =
         typeof value === 'object' && value !== null && !Array.isArray(value)
           ? removeEmptyRequired(value)
@@ -56,14 +52,6 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
   return result
 }
 
-/**
- * Recursively normalise object schemas so any `{ type: 'object' }` node
- * without `properties` gets an empty `properties: {}` object. The
- * ai-openai-base transformer only descends into objects that already have
- * `properties` set, so a Zod `z.object({})` nested inside `properties`,
- * `items`, `additionalProperties`, or a combinator branch would otherwise
- * skip the strict-mode rewrite and fail Groq validation.
- */
 function normalizeObjectSchemas(
   schema: Record<string, any>,
 ): Record<string, any> {
@@ -117,22 +105,6 @@ function normalizeObjectSchemas(
   return result
 }
 
-/**
- * Transform a JSON schema to be compatible with Groq's structured output requirements.
- *
- * Groq requires:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for objects
- * - `required` must be omitted (not empty array) when there are no properties
- *
- * Delegates to the shared OpenAI-compatible transformer and applies the
- * Groq-specific quirk of removing empty `required` arrays.
- *
- * @param schema - JSON schema to transform
- * @param originalRequired - Original required array (to know which fields were optional)
- * @returns Transformed schema compatible with Groq structured output
- */
 export function makeGroqStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],

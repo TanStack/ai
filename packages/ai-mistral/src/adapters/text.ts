@@ -46,11 +46,6 @@ const asChunk = (chunk: Record<string, unknown>) =>
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
   chunk as unknown as AdapterYieldChunk
 
-/**
- * Parse the accumulated streaming arguments for a tool call. Throws a clear
- * error if the JSON is malformed — silently substituting `{}` would let a
- * tool fire with empty inputs, masking truncated streams or mis-shaped output.
- */
 function parseToolCallInput(
   toolCall: {
     id: string
@@ -72,19 +67,9 @@ function parseToolCallInput(
   }
 }
 
-/**
- * Configuration for Mistral text adapter.
- */
 export type MistralTextConfig = MistralClientConfig
 
-/**
- * Alias for TextProviderOptions for external use.
- */
 export type MistralTextProviderOptions = ExternalTextProviderOptions
-
-// ===========================
-// Type Resolution Helpers
-// ===========================
 
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MistralChatModelProviderOptionsByName
@@ -96,16 +81,6 @@ type ResolveInputModalities<TModel extends string> =
     ? MistralModelInputModalitiesByName[TModel]
     : readonly ['text']
 
-// ===========================
-// Wire-format chunk types
-// ===========================
-
-/**
- * Snake-case shape of a Mistral chat completion stream chunk as returned on the
- * wire. We bypass the SDK's `chat.stream` because its Zod validation rejects
- * tool-call argument deltas that omit `function.name` (only the first chunk in
- * a tool call carries the name).
- */
 interface MistralRawToolCall {
   id?: string
   type?: string
@@ -125,18 +100,9 @@ interface MistralRawChoice {
       | Array<{
           type: string
           text?: string
-          // Mistral magistral models stream reasoning as content parts of
-          // type 'thinking' whose `thinking` field is itself an array of
-          // text/reference chunks. See Mistral SDK ThinkChunk type.
           thinking?: Array<{ type: string; text?: string }>
         }>
       | null
-    // Some OpenAI-compatible deployments (DeepSeek, Groq for reasoning
-    // models, and aimock-based test environments) emit reasoning via a
-    // separate `reasoning_content` delta field rather than as a content
-    // part. Accept both shapes — they cannot collide because real Mistral
-    // never sets the OpenAI-compat field, and aimock never sets the
-    // thinking content part.
     reasoning_content?: string | null
     tool_calls?: Array<MistralRawToolCall>
   }
@@ -156,21 +122,22 @@ interface MistralRawChunk {
 
 function throwIfMistralStreamError(parsed: unknown): void {
   if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    !('error' in parsed) ||
-    'choices' in parsed
+    parsed &&
+    typeof parsed === 'object' &&
+    'error' in parsed &&
+    !('choices' in parsed)
   ) {
-    return
+    const errPayload = parsed.error
+    const message =
+      typeof errPayload === 'string'
+        ? errPayload
+        : errPayload &&
+            typeof errPayload === 'object' &&
+            'message' in errPayload
+          ? String(errPayload.message)
+          : JSON.stringify(errPayload)
+    throw new Error(`Mistral stream error: ${message}`)
   }
-  const errPayload = parsed.error
-  const message =
-    typeof errPayload === 'string'
-      ? errPayload
-      : errPayload && typeof errPayload === 'object' && 'message' in errPayload
-        ? String(errPayload.message)
-        : JSON.stringify(errPayload)
-  throw new Error(`Mistral stream error: ${message}`)
 }
 
 function parseMistralSseLine(line: string): MistralRawChunk | 'done' | 'skip' {
@@ -232,15 +199,6 @@ function applyMistralModelOptions(
   }
 }
 
-// ===========================
-// Adapter Implementation
-// ===========================
-
-/**
- * Mistral Text (Chat) Adapter.
- *
- * Tree-shakeable adapter for Mistral chat/text completion functionality.
- */
 export class MistralTextAdapter<
   TModel extends MistralTextAdapterModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -259,9 +217,6 @@ export class MistralTextAdapter<
 
   constructor(config: MistralTextConfig, model: TModel) {
     super(config, model)
-    // The SDK client is retained for `structuredOutput` (non-streaming). The
-    // streaming path bypasses the SDK and uses `fetchRawMistralStream` because
-    // the SDK's Zod schemas reject partial tool-call argument deltas.
     this.client = createMistralClient(config)
     this.rawConfig = config
   }
@@ -314,9 +269,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Generate structured output using Mistral's JSON Schema response format.
-   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -371,9 +323,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Processes streaming chunks from the Mistral API and yields AG-UI stream events.
-   */
   private async *processMistralStreamChunks(
     stream: AsyncIterable<MistralRawChunk>,
     options: TextOptions,
@@ -395,10 +344,6 @@ export class MistralTextAdapter<
     const normalizeToolInput = createToolInputNormalizer(options.tools)
     const adapterName = this.name
 
-    // Reasoning lifecycle (magistral-* models stream `thinking` content
-    // parts before any text). Mirrors the anthropic adapter's pattern:
-    // open REASONING_* events on the first thinking delta, close them when
-    // text/tool content begins or the run finishes.
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
 
@@ -414,20 +359,21 @@ export class MistralTextAdapter<
     >()
 
     function* closeReasoning(chunkModel: string): Generator<AdapterYieldChunk> {
-      if (reasoningMessageId === null || hasClosedReasoning) return
-      hasClosedReasoning = true
-      yield asChunk({
-        type: 'REASONING_MESSAGE_END',
-        messageId: reasoningMessageId,
-        model: chunkModel,
-        timestamp,
-      })
-      yield asChunk({
-        type: 'REASONING_END',
-        messageId: reasoningMessageId,
-        model: chunkModel,
-        timestamp,
-      })
+      if (reasoningMessageId !== null && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield asChunk({
+          type: 'REASONING_MESSAGE_END',
+          messageId: reasoningMessageId,
+          model: chunkModel,
+          timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_END',
+          messageId: reasoningMessageId,
+          model: chunkModel,
+          timestamp,
+        })
+      }
     }
 
     function* emitReasoning(
@@ -494,7 +440,8 @@ export class MistralTextAdapter<
         NonNullable<MistralRawChoice['delta']>['tool_calls']
       >,
     ): Generator<AdapterYieldChunk> {
-      for (const [i, toolCallDelta] of deltaToolCalls.entries()) {
+      const toolCallDeltas = deltaToolCalls.entries()
+      for (const [i, toolCallDelta] of toolCallDeltas) {
         const index = toolCallDelta.index ?? i
 
         let toolCall = toolCallsInProgress.get(index)
@@ -566,12 +513,9 @@ export class MistralTextAdapter<
       chunkModel: string,
     ): Generator<AdapterYieldChunk> {
       for (const [, toolCall] of toolCallsInProgress) {
-        if (
-          !toolCall.started ||
-          !toolCall.id ||
-          !toolCall.name ||
-          toolCall.ended
-        ) {
+        const isIncompleteToolCall =
+          !toolCall.started || !toolCall.id || !toolCall.name || toolCall.ended
+        if (isIncompleteToolCall) {
           continue
         }
 
@@ -592,7 +536,9 @@ export class MistralTextAdapter<
     }
 
     function* closeText(chunkModel: string): Generator<AdapterYieldChunk> {
-      if (!hasEmittedTextMessageStart || hasEmittedTextMessageEnd) return
+      const isTextAlreadyClosed =
+        !hasEmittedTextMessageStart || hasEmittedTextMessageEnd
+      if (isTextAlreadyClosed) return
       hasEmittedTextMessageEnd = true
       yield asChunk({
         type: 'TEXT_MESSAGE_END',
@@ -607,7 +553,9 @@ export class MistralTextAdapter<
       chunkModel: string,
       finishReason: string,
     ): Generator<AdapterYieldChunk> {
-      if (finishReason === 'tool_calls' || toolCallsInProgress.size > 0) {
+      const hasToolCalls =
+        finishReason === 'tool_calls' || toolCallsInProgress.size > 0
+      if (hasToolCalls) {
         yield* endOpenToolCalls(chunkModel)
       }
 
@@ -618,9 +566,6 @@ export class MistralTextAdapter<
             ? 'length'
             : 'stop'
 
-      // If the run finished while reasoning was still open (no text or
-      // tool output ever followed), close reasoning before TEXT/RUN
-      // finalization events.
       yield* closeReasoning(chunkModel)
       yield* closeText(chunkModel)
 
@@ -645,9 +590,6 @@ export class MistralTextAdapter<
 
     function* flushCleanEnd(): Generator<AdapterYieldChunk> {
       if (hasEmittedRunFinished) return
-      // Stream ended cleanly without finish_reason — flush any open
-      // lifecycle events so consumers don't see orphaned starts. This
-      // happens for abrupt `[DONE]` or upstream cuts.
       yield* closeReasoning(lastChunkModel)
       for (const [, toolCall] of toolCallsInProgress) {
         if (toolCall.started && !toolCall.ended) {
@@ -678,14 +620,11 @@ export class MistralTextAdapter<
     }
 
     function* cleanupOnError(): Generator<AdapterYieldChunk> {
-      // Lifecycle cleanup (TEXT_MESSAGE_END / TOOL_CALL_END / REASONING_END)
-      // on error path so consumers don't see orphaned starts. RUN_ERROR is
-      // emitted by the outer chatStream catch — emitting it here would
-      // duplicate the event.
       yield* closeReasoning(lastChunkModel)
       yield* closeText(lastChunkModel)
       for (const [, toolCall] of toolCallsInProgress) {
-        if (!toolCall.started || toolCall.ended) continue
+        const isClosedToolCall = !toolCall.started || toolCall.ended
+        if (isClosedToolCall) continue
         toolCall.ended = true
         // Best-effort parse for the partial args; if invalid, surface
         // empty input rather than throwing inside the cleanup path.
@@ -769,11 +708,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Makes a raw fetch request to the Mistral chat completions endpoint and
-   * parses the SSE stream manually, bypassing the SDK's Zod validation which
-   * rejects streaming tool call chunks that omit `name` in argument deltas.
-   */
   private async *fetchRawMistralStream(
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
@@ -841,10 +775,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Converts the SDK's camelCase `ChatCompletionStreamRequest` into the
-   * snake_case wire body, including converting messages.
-   */
   private toWireBody(
     params: ChatCompletionStreamRequest,
   ): Record<string, unknown> {
@@ -883,14 +813,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Splits a Mistral delta content payload into text and reasoning deltas.
-   * Mistral reasoning models (magistral-*) stream reasoning content as
-   * `{ type: 'thinking', thinking: [{ type: 'text', text }, ...] }` content
-   * parts. A single delta may contain text only, thinking only, or — rarely —
-   * both (when a step transitions); both fields are returned so the caller
-   * can sequence REASONING and TEXT lifecycle events in order.
-   */
   private extractDeltaParts(
     content:
       | string
@@ -921,9 +843,6 @@ export class MistralTextAdapter<
     return { text, thinking }
   }
 
-  /**
-   * Maps common TextOptions to Mistral Chat Completions request parameters.
-   */
   private mapTextOptionsToMistral(
     options: TextOptions<TProviderOptions>,
   ): ChatCompletionStreamRequest {
@@ -960,9 +879,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Converts a TanStack AI ModelMessage to a Mistral ChatCompletionMessageParam.
-   */
   private convertMessageToMistral(
     message: ModelMessage,
   ): ChatCompletionMessageParam {
@@ -1002,10 +918,11 @@ export class MistralTextAdapter<
 
     const contentParts = this.normalizeContent(message.content)
 
-    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
+    const textPart = contentParts.length === 1 ? contentParts[0] : undefined
+    if (textPart?.type === 'text') {
       return {
         role: 'user',
-        content: contentParts[0].content,
+        content: textPart.content,
       }
     }
 
@@ -1019,10 +936,6 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Converts a ContentPart to a Mistral content part. Returns undefined for
-   * unsupported part types.
-   */
   private convertContentPartToMistral(
     part: ContentPart,
   ): ChatCompletionContentPart {
@@ -1059,35 +972,30 @@ export class MistralTextAdapter<
     )
   }
 
-  /**
-   * Normalizes message content to an array of ContentPart.
-   */
   private normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null || content === undefined) return []
-    if (typeof content === 'string') return [{ type: 'text', content }]
-    return content
+    if (content !== null && content !== undefined) {
+      if (typeof content === 'string') return [{ type: 'text', content }]
+      return content
+    }
+    return []
   }
 
-  /**
-   * Extracts text content from a content value that may be string, null, or ContentPart array.
-   */
   private extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null || content === undefined) return ''
-    if (typeof content === 'string') return content
-    return content
-      .filter((p) => p.type === 'text')
-      .map((p) => p.content)
-      .join('')
+    if (content !== null && content !== undefined) {
+      if (typeof content === 'string') return content
+      return content
+        .filter((p) => p.type === 'text')
+        .map((p) => p.content)
+        .join('')
+    }
+    return ''
   }
 }
 
-/**
- * Snake-cases a Mistral SDK message into the wire format expected by the API.
- */
 function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   if (msg.role === 'tool') {
     return {
@@ -1129,19 +1037,6 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   return msg
 }
 
-/**
- * Creates a Mistral text adapter with explicit API key.
- *
- * @param model - The model name (e.g., 'mistral-large-latest')
- * @param apiKey - Your Mistral API key
- * @param config - Optional additional configuration
- * @returns Configured Mistral text adapter instance
- *
- * @example
- * ```typescript
- * const adapter = createMistralText('mistral-large-latest', 'api_key');
- * ```
- */
 export function createMistralText<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
 >(
@@ -1152,19 +1047,6 @@ export function createMistralText<
   return new MistralTextAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
- *
- * @param model - The model name (e.g., 'mistral-large-latest')
- * @param config - Optional configuration (excluding apiKey)
- * @returns Configured Mistral text adapter instance
- * @throws Error if MISTRAL_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * const adapter = mistralText('mistral-large-latest');
- * ```
- */
 export function mistralText<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
 >(

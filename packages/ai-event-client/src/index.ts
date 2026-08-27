@@ -16,11 +16,6 @@ export {
   getAIDevtoolsRuntimeId,
 } from './envelope.js'
 
-// ===========================
-// Types (locally defined to avoid circular dependency with @tanstack/ai)
-// These mirror the corresponding types in @tanstack/ai
-// ===========================
-
 export interface ContentPartDataSource {
   type: 'data'
   value: string
@@ -134,16 +129,9 @@ export interface ToolCall<TMetadata = unknown> {
     name: string
     arguments: string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle.
-   * Typed per-adapter via `TToolCallMetadata` (e.g. Gemini's
-   * `{ thoughtSignature?: string }`). */
   metadata?: TMetadata
 }
 
-/**
- * Detailed breakdown of prompt/input token usage.
- * Fields are populated based on provider support.
- */
 export interface PromptTokensDetails {
   /** Tokens read from cache */
   cachedTokens?: number
@@ -161,10 +149,6 @@ export interface PromptTokensDetails {
   documentTokens?: number
 }
 
-/**
- * Detailed breakdown of completion/output token usage.
- * Fields are populated based on provider support.
- */
 export interface CompletionTokensDetails {
   /** Reasoning/thinking tokens */
   reasoningTokens?: number
@@ -180,13 +164,6 @@ export interface CompletionTokensDetails {
   documentTokens?: number
 }
 
-/**
- * Provider-reported cost breakdown for a single request, normalized onto a
- * canonical shape so consumer code is portable across gateways. Each adapter's
- * extractor maps its provider-specific wire keys (e.g. OpenRouter's
- * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
- * fields at runtime.
- */
 export interface UsageCostBreakdown {
   /** Total cost the gateway paid the upstream provider. */
   upstreamCost?: number
@@ -196,12 +173,6 @@ export interface UsageCostBreakdown {
   upstreamOutputCost?: number
 }
 
-/**
- * Unit a billed quantity is counted in. The named members cover the units
- * TanStack AI adapters bill in today; the `(string & {})` member keeps the
- * union open for genuinely provider-specific units while preserving
- * autocompletion for the common ones.
- */
 export type BillingUnit =
   | 'tokens'
   | 'seconds'
@@ -213,12 +184,6 @@ export type BillingUnit =
   | 'units'
   | (string & {})
 
-/**
- * A billed quantity paired with the unit it is counted in, so consumers can
- * label and aggregate usage without out-of-band knowledge of the provider or
- * activity. `unit: 'units'` marks an opaque provider-defined unit (e.g. fal's
- * "fal units") whose price is only knowable from the provider's pricing page.
- */
 export interface BilledUsage {
   /** Number of units billed. */
   quantity: number
@@ -226,30 +191,8 @@ export interface BilledUsage {
   unit: BillingUnit
 }
 
-/**
- * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
- * does not supply a specific shape. Values are constrained to non-nullish
- * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
- * stays assignable across JSON-serialization boundaries — e.g. TanStack Start's
- * server-fn return types model serializable values as `{}` and reject `unknown`,
- * which permits `null`/`undefined`.
- */
 export type ProviderUsageDetails = Record<string, NonNullable<unknown>>
 
-/**
- * Canonical token usage for a run, with optional detailed breakdowns and
- * provider-reported cost. This is the single source of truth re-exported by
- * `@tanstack/ai`.
- *
- * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
- * present. Detail fields are provider-dependent and absent when not reported,
- * so consumers must treat them as optional.
- *
- * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
- * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
- * it defaults to {@link ProviderUsageDetails} (an open, serializable record) for
- * generic consumers.
- */
 export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   /** Total input/prompt tokens */
   promptTokens: number
@@ -262,28 +205,8 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   promptTokensDetails?: PromptTokensDetails
   /** Detailed breakdown of completion tokens by category */
   completionTokensDetails?: CompletionTokensDetails
-  /**
-   * The primary non-token billed quantity, self-describing via its unit —
-   * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
-   * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
-   * when the activity bills purely in tokens (the token fields above are
-   * already self-describing). When a provider bills tokens *on top of* a media
-   * unit, the tokens stay in the token fields and `billed` carries the media
-   * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
-   */
   billed?: BilledUsage
-  /**
-   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-   * duration with an explicit `unit: 'seconds'`. Still populated alongside
-   * `billed` for backward compatibility; will be removed in a future release.
-   */
   durationSeconds?: number
-  /**
-   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
-   * count with the unit it is denominated in (`seconds`, `units`, …) — this
-   * bare count is ambiguous across providers. Still populated alongside
-   * `billed` for backward compatibility; will be removed in a future release.
-   */
   unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
   providerUsageDetails?: TProviderDetails
@@ -293,39 +216,19 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   costDetails?: UsageCostBreakdown
 }
 
-/**
- * Tool call states - track the lifecycle of a tool call
- * Must match @tanstack/ai-client ToolCallState
- */
 export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'complete'
+  | 'error'
 
-/**
- * Tool result states - track the lifecycle of a tool result
- * Must match @tanstack/ai-client ToolResultState
- */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = 'streaming' | 'complete' | 'error'
 
-/**
- * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
- * shape. Kept as an alias for backward compatibility; will be removed in a
- * future release.
- */
 export type ImageUsage = TokenUsage
 
-// All optional fields explicitly allow `| undefined` so that callers
-// can spread shared-context builders (which set every field to a
-// possibly-undefined value) without `exactOptionalPropertyTypes`
-// rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
   eventId?: string
@@ -353,10 +256,6 @@ interface BaseEventContext {
   hasTools?: boolean
   streaming?: boolean
 }
-
-// ===========================
-// Text Events
-// ===========================
 
 /** Emitted when a text request starts execution. */
 export interface TextRequestStartedEvent extends BaseEventContext {
@@ -465,10 +364,6 @@ export interface TextUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Structured Output Events
-// ===========================
-
 export interface StructuredOutputStartedEvent extends BaseEventContext {
   requestId?: string
   streamId: string
@@ -508,10 +403,6 @@ export interface StructuredOutputErroredEvent extends BaseEventContext {
   errorMessage: string
 }
 
-// ===========================
-// Iteration Events
-// ===========================
-
 /** Emitted when a new agent loop iteration begins, with a config snapshot. */
 export interface TextIterationStartedEvent extends BaseEventContext {
   requestId: string
@@ -532,10 +423,6 @@ export interface TextIterationCompletedEvent extends BaseEventContext {
   finishReason?: string
   usage?: TokenUsage
 }
-
-// ===========================
-// Middleware Events
-// ===========================
 
 /** Emitted when a middleware hook completes execution. */
 export interface MiddlewareHookExecutedEvent extends BaseEventContext {
@@ -566,10 +453,6 @@ export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
   resultCount: number
   wasDropped: boolean
 }
-
-// ===========================
-// Tool Events
-// ===========================
 
 /** Emitted when tool approval is required. */
 export interface ToolsApprovalRequestedEvent extends BaseEventContext {
@@ -628,10 +511,6 @@ export interface ToolsCallUpdatedEvent extends BaseEventContext {
   arguments: string
 }
 
-// ===========================
-// Summarize Events
-// ===========================
-
 /** Emitted when summarize starts. */
 export interface SummarizeRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -656,10 +535,6 @@ export interface SummarizeUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Rerank Events
-// ===========================
 
 /** Emitted when a rerank request starts. */
 export interface RerankRequestStartedEvent extends BaseEventContext {
@@ -688,10 +563,6 @@ export interface RerankUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Image Events
-// ===========================
 
 /** Emitted when an image request starts. */
 export interface ImageRequestStartedEvent extends BaseEventContext {
@@ -730,10 +601,6 @@ export interface ImageUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
-
-// ===========================
-// Embedding Events
-// ===========================
 
 /** Emitted when an embedding request starts. Carries input counts only, never input content. */
 export interface EmbeddingRequestStartedEvent extends BaseEventContext {
@@ -783,10 +650,6 @@ export interface EmbeddingUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Speech Events
-// ===========================
-
 /** Emitted when a speech request starts. */
 export interface SpeechRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -823,10 +686,6 @@ export interface SpeechUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Transcription Events
-// ===========================
-
 /** Emitted when a transcription request starts. */
 export interface TranscriptionRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -860,10 +719,6 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Audio Events
-// ===========================
-
 /** Emitted when an audio generation request starts. */
 export interface AudioRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -875,11 +730,6 @@ export interface AudioRequestStartedEvent extends BaseEventContext {
   duration?: number
 }
 
-/**
- * Audio asset carried on completion events. Exactly one of `url` or `b64Json`
- * is present; this mirrors the `GeneratedAudio` contract from `@tanstack/ai`
- * and prevents consumers from reading both fields as present simultaneously.
- */
 export type AudioRequestCompletedAudio =
   | {
       url: string
@@ -947,10 +797,6 @@ export interface AudioUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ===========================
-// Video Events
-// ===========================
-
 /** Emitted when a video request starts. */
 export interface VideoRequestStartedEvent extends BaseEventContext {
   requestId: string
@@ -990,22 +836,6 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
-// ---------------------------------------------------------------------------
-// Memory events
-// ---------------------------------------------------------------------------
-
-/**
- * Wire/devtools payload for a **known** memory scope.
- *
- * Structural mirror of `Scope` from `@tanstack/ai` (`threadId` required when
- * present). Not an isolation authority — adapters use real `MemoryScope` /
- * `Scope`. Lives here so `@tanstack/ai-event-client` does not import
- * `@tanstack/ai` (dependency cycle).
- *
- * When identity is unknown (e.g. the scope resolver threw before producing a
- * scope), omit the field entirely on {@link MemoryErrorEvent} — do not send a
- * partial or empty-string scope.
- */
 export type MemoryScopeLite = {
   threadId: string
   userId?: string
@@ -1055,10 +885,6 @@ export interface MemoryPersistCompletedEvent extends BaseEventContext {
 
 /** Emitted when a `recall` or `save` throws. Memory failures are non-fatal. */
 export interface MemoryErrorEvent extends BaseEventContext {
-  /**
-   * Scope when it was already resolved before the failure. Omitted when the
-   * resolver itself failed or never ran — there is no fake empty scope.
-   */
   scope?: MemoryScopeLite
   adapter: string
   phase: 'recall' | 'save'
@@ -1073,13 +899,6 @@ export interface MemoryFactLite {
   createdAt?: string
 }
 
-/**
- * Emitted after a successful `save` when the adapter supports introspection
- * (`inspect`/`listFacts`), carrying the current stored state for the scope so
- * DevTools can render "what's in memory". Adapters without introspection never
- * emit this — DevTools then falls back to the metrics-only timeline. Structurally
- * decoupled from `@tanstack/ai-memory` (mirrors `MemorySnapshot` + `MemoryFact`).
- */
 export interface MemorySnapshotEvent extends BaseEventContext {
   scope: MemoryScopeLite
   adapter: string
@@ -1096,10 +915,6 @@ export interface SkillsSnapshotEvent extends BaseEventContext {
   catalog: Array<{ name: string; description: string }>
   activated: Array<string>
 }
-
-// ===========================
-// Client Events
-// ===========================
 
 /** Emitted when a client is created. */
 export interface ClientCreatedEvent extends BaseEventContext {
@@ -1384,13 +1199,9 @@ export function emitAIDevtoolsEvent<
 export function dispatchAIDevtoolsEvent<
   TEvent extends keyof AIDevtoolsEventMap & string,
 >(eventName: TEvent, payload: AIDevtoolsEventMap[TEvent]): void {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.dispatchEvent !== 'function' ||
-    typeof CustomEvent === 'undefined'
-  ) {
-    return
-  }
+  if (typeof window === 'undefined') return
+  if (typeof window.dispatchEvent !== 'function') return
+  if (typeof CustomEvent === 'undefined') return
 
   window.dispatchEvent(
     new CustomEvent('tanstack-dispatch-event', {

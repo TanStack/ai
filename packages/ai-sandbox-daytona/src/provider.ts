@@ -15,10 +15,6 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 export interface DaytonaSandboxConfig {
-  /**
-   * Daytona API key. Falls back to the `DAYTONA_API_KEY` env var (read by the
-   * SDK) when omitted.
-   */
   apiKey?: string
   /** Daytona API URL override (defaults to the SDK default / `DAYTONA_API_URL`). */
   apiUrl?: string
@@ -28,19 +24,8 @@ export interface DaytonaSandboxConfig {
   snapshot?: string
   /** Language preset for created sandboxes. Defaults to `typescript`. */
   language?: CreateSandboxFromSnapshotParams['language']
-  /**
-   * Working directory inside the sandbox. The `/workspace` virtual root maps
-   * here. Defaults to `/home/daytona/workspace`.
-   */
   workdir?: string
-  /**
-   * Minutes of idle time before Daytona stops the sandbox. `0` turns auto-stop
-   * off. Daytona defaults to 15 minutes when this is omitted.
-   */
   autoStopInterval?: number
-  /**
-   * When true, Daytona deletes the sandbox as soon as it stops.
-   */
   ephemeral?: boolean
 }
 
@@ -71,13 +56,6 @@ class DaytonaProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
-  /**
-   * A fresh Daytona sandbox has no workdir yet. Create it with the sandbox's
-   * DEFAULT cwd (the home dir) — `executeCommand` with a not-yet-existing
-   * `cwd` fails inside the toolbox ("fork/exec …: no such file or directory"),
-   * so we must NOT route this through the handle (which runs every command in
-   * `workdir`). After this, every cwd-bound command works.
-   */
   private async wrapCreated(
     sandbox: Awaited<ReturnType<Daytona['create']>>,
   ): Promise<SandboxHandle> {
@@ -141,7 +119,9 @@ class DaytonaProvider implements SandboxProvider {
       const sandbox = await this.daytona.get(input.id)
       // Idle sandboxes auto-stop. get() still returns them, but exec fails
       // until they are started again.
-      if (sandbox.state === 'stopped' || sandbox.state === 'archived') {
+      const needsStart =
+        sandbox.state === 'stopped' || sandbox.state === 'archived'
+      if (needsStart) {
         await sandbox.start()
       }
       return new DaytonaHandle({ sandbox, workdir: this.workdir })
@@ -161,11 +141,6 @@ class DaytonaProvider implements SandboxProvider {
   }
 }
 
-/**
- * Daytona sandbox provider — runs harness adapters inside isolated Daytona
- * cloud sandboxes. Requires a Daytona API key (`config.apiKey` or the
- * `DAYTONA_API_KEY` env var).
- */
 export function daytonaSandbox(
   config: DaytonaSandboxConfig = {},
 ): SandboxProvider {

@@ -2,28 +2,12 @@ import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { TransportConfig } from '../transport'
 
 export interface McpServerDescriptor {
-  /**
-   * The serializable connection config the call handler reconnects from.
-   * `undefined` for a client built from a ready-made `Transport` instance
-   * (single-use, not reconnectable) — the handler rejects such a call with a
-   * clear error.
-   */
   transport: TransportConfig | undefined
   prefix?: string
-  /**
-   * Options to rebuild the client with. Carried so a reconnect keeps a custom
-   * `jsonSchemaValidator` — an edge runtime cannot use the SDK's AJV default.
-   */
   clientOptions?: ClientOptions
 }
 
 export interface McpSessionStore {
-  /**
-   * Resolve the server descriptor for a thread+serverId, or null if unknown.
-   *
-   * `serverId` may be undefined when the widget omits it (single-server setups);
-   * implementations should default to the sole recorded server in that case.
-   */
   get: (
     threadId: string,
     serverId: string | undefined,
@@ -38,36 +22,12 @@ export interface McpSessionStore {
 /** Call-handler request shape; imported by call-handler.ts from this module. */
 export interface McpAppCallRequest {
   threadId: string
-  /**
-   * The server the widget targets. May be undefined when the widget omits it
-   * (single-server setups) — the handler defaults to the sole configured server.
-   */
   serverId?: string
   toolName: string
   args?: unknown
-  /**
-   * Reserved — forwarded by the bridge for correlation purposes but not
-   * consumed by the call handler. Mirrors the `meta` convention: accepted
-   * on the wire, carried through, but the handler does not read it.
-   */
   messageId?: string
 }
 
-/**
- * Creates a simple in-memory McpSessionStore.
- *
- * TTL is enforced on read (prune-on-read) and slides on each successful hit —
- * this is single-instance only. The `McpSessionStore` interface is the
- * extension point for persistent/SQL backends, which can drop in later with no
- * API change.
- *
- * Growth is bounded by an opportunistic sweep on `set()`: prune-on-read alone
- * never reclaims a thread that is recorded but never has a widget interaction
- * (the common case — most threads never touch a `ui://` widget), so without the
- * sweep the map would grow by one entry per chat thread for the process
- * lifetime. The sweep drops every entry older than the TTL whenever a new one is
- * written, keeping the map bounded to threads active within the TTL window.
- */
 export function inMemoryMcpSessionStore(
   opts: { ttlMs?: number } = {},
 ): McpSessionStore {
@@ -89,7 +49,11 @@ export function inMemoryMcpSessionStore(
     },
     async get(threadId, serverId) {
       const e = map.get(threadId)
-      if (!e || Date.now() - e.at > ttl) {
+      if (!e) {
+        map.delete(threadId)
+        return null
+      }
+      if (Date.now() - e.at > ttl) {
         map.delete(threadId)
         return null
       }

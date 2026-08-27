@@ -1,14 +1,3 @@
-/**
- * Shared internals for the built-in `inMemory()` and `redis()` adapters.
- *
- * NOT part of the public contract — nothing here is exported from the package
- * root. Both built-in adapters keep a set of scored, optionally-embedded
- * `MemoryRecord`s and expose only `recall`/`save`; this module holds the record
- * model, the scoring/rendering helpers, and the extract→store→score→render
- * pipeline they share. The only thing an adapter supplies is a {@link RecordStore}
- * (a Map for in-memory, Redis keys for redis).
- */
-
 import type {
   MemoryFact,
   MemoryFragment,
@@ -78,34 +67,15 @@ export interface MemoryHit {
   score: number
 }
 
-/**
- * Minimal storage backend the built-in adapters run on. `add` upserts by id;
- * `loadScope` returns the live (non-expired) records for exactly this scope.
- */
 export interface RecordStore {
   add: (records: Array<MemoryRecord>) => Promise<void>
   loadScope: (scope: MemoryScope) => Promise<Array<MemoryRecord>>
 }
 
-// ===========================
-// Scope
-// ===========================
-
-/**
- * Normalize an optional scope dimension: empty string is treated as unset so
- * `''` and `undefined` compare equal.
- */
 function scopeDimValue(value: string | undefined): string | undefined {
   return value != null && value !== '' ? value : undefined
 }
 
-/**
- * Exact scope match for built-in stores. `threadId` must match, and optional
- * `userId` / `tenantId` must match exactly on both sides (including both
- * unset). A query that omits `tenantId` does **not** match a record written
- * with a tenant — same isolation model as Redis composite index keys.
- * `namespace` is reserved and ignored until a subsystem keys on it.
- */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   if (record.threadId !== query.threadId) return false
   if (scopeDimValue(record.userId) !== scopeDimValue(query.userId)) return false
@@ -115,14 +85,13 @@ export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   return true
 }
 
-// ===========================
-// Scoring helpers
-// ===========================
-
 const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
 export function cosine(a?: Array<number>, b?: Array<number>): number {
-  if (!a || !b || a.length !== b.length || a.length === 0) return 0
+  if (!a) return 0
+  if (!b) return 0
+  if (a.length !== b.length) return 0
+  if (a.length === 0) return 0
   let dot = 0
   let aMag = 0
   let bMag = 0
@@ -133,7 +102,8 @@ export function cosine(a?: Array<number>, b?: Array<number>): number {
     aMag += av ** 2
     bMag += bv ** 2
   }
-  if (aMag === 0 || bMag === 0) return 0
+  const zeroMagnitude = aMag === 0 || bMag === 0
+  if (zeroMagnitude) return 0
   return dot / (Math.sqrt(aMag) * Math.sqrt(bMag))
 }
 
@@ -164,11 +134,6 @@ export function isExpired(
   return record.expiresAt !== undefined && record.expiresAt < now
 }
 
-/**
- * Reference ranking: weighted sum of semantic (0.55), lexical (0.20), recency
- * (0.15), and importance (0.10). Unset importance contributes 0 — no mid-range
- * fallback, so recent records don't automatically clear the `minScore` floor.
- */
 export function defaultScoreHit(args: {
   record: MemoryRecord
   queryText: string
@@ -200,10 +165,6 @@ export function defaultRenderMemory(hits: Array<MemoryHit>): string {
   ].join('\n')
 }
 
-// ===========================
-// Shared recall / save pipeline
-// ===========================
-
 /** Portable record id — real UUID where available, deterministic fallback otherwise. */
 export function newRecordId(): string {
   try {
@@ -213,11 +174,6 @@ export function newRecordId(): string {
   }
 }
 
-/**
- * Build the records for a completed turn: the raw user/assistant messages
- * (importance 0.4) plus anything the optional extractor returns, embedding each
- * when an embedder is configured.
- */
 export async function buildTurnRecords(
   scope: MemoryScope,
   turn: MemoryTurn,

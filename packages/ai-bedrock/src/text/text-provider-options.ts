@@ -1,10 +1,3 @@
-/**
- * Bedrock Chat Completions provider options. Bedrock accepts the standard
- * OpenAI Chat Completions request fields; we surface the commonly-used ones
- * plus `reasoning_effort` (supported by gpt-oss and reasoning models).
- *
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-openai.html
- */
 export interface BedrockTextProviderOptions {
   frequency_penalty?: number | null
   presence_penalty?: number | null

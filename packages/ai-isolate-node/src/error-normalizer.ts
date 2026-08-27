@@ -1,8 +1,5 @@
 import type { NormalizedError } from '@tanstack/ai-code-mode'
 
-/**
- * Normalize various error types into a consistent format
- */
 export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) {
     const code = (error as NodeJS.ErrnoException).code

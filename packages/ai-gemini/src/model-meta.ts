@@ -44,9 +44,6 @@ interface ModelMeta<TProviderOptions = unknown> {
       normal: number
     }
   }
-  /**
-   * Type-level description of which provider options this model supports.
-   */
   providerOptions?: TProviderOptions
 }
 
@@ -118,11 +115,6 @@ const GEMINI_3_FLASH = {
     GeminiThinkingOptions
 >
 
-/**
- * Gemini 3 Pro Image ("Nano Banana Pro") — GA. Accepts the ten standard
- * aspect ratios at 1K / 2K / 4K.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-image
- */
 const GEMINI_3_PRO_IMAGE = {
   name: 'gemini-3-pro-image',
   max_input_tokens: 65_536,
@@ -151,12 +143,6 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiThinkingOptions
 >
 
-/**
- * @deprecated `gemini-3-pro-image-preview` was shut down on 2026-06-25. Use
- * the GA id `gemini-3-pro-image` instead — the preview id now 404s.
- * Kept in the model union so existing code still compiles.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
 const GEMINI_3_PRO_IMAGE_PREVIEW = {
   name: 'gemini-3-pro-image-preview',
   max_input_tokens: 65_536,
@@ -185,12 +171,6 @@ const GEMINI_3_PRO_IMAGE_PREVIEW = {
     GeminiThinkingOptions
 >
 
-/**
- * Gemini 3.1 Flash Image ("Nano Banana 2") — GA. The only native image model
- * that accepts the four extreme banner ratios (1:4, 4:1, 1:8, 8:1) and the
- * 512 (0.5K) resolution tier.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image
- */
 const GEMINI_3_1_FLASH_IMAGE = {
   name: 'gemini-3.1-flash-image',
   max_input_tokens: 131_072,
@@ -218,12 +198,6 @@ const GEMINI_3_1_FLASH_IMAGE = {
     GeminiThinkingOptions
 >
 
-/**
- * @deprecated `gemini-3.1-flash-image-preview` was shut down on 2026-06-25.
- * Use the GA id `gemini-3.1-flash-image` instead — the preview id now 404s.
- * Kept in the model union so existing code still compiles.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
 const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
   name: 'gemini-3.1-flash-image-preview',
   max_input_tokens: 65_536,
@@ -252,10 +226,6 @@ const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
     GeminiThinkingOptions
 >
 
-/**
- * Gemini 3.1 Flash Lite Image ("Nano Banana 2 Lite") — GA. 1K output only.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image
- */
 const GEMINI_3_1_FLASH_LITE_IMAGE = {
   name: 'gemini-3.1-flash-lite-image',
   max_input_tokens: 65_536,
@@ -457,17 +427,6 @@ const GEMINI_2_5_FLASH = {
     GeminiThinkingOptions
 >
 
-/**
- * Gemini 2.5 Flash Image ("Nano Banana") — still GA, but documented as the
- * legacy member of the family. Google publishes no `image_size` value for it,
- * so its size type is a bare aspect ratio and the adapter sends no
- * `imageConfig.imageSize`.
- * @deprecated `gemini-2.5-flash-image` shuts down on 2026-10-02. Migrate to
- * `gemini-3.1-flash-lite-image` (cheapest successor) or
- * `gemini-3.1-flash-image`. Google's deprecations table still names the
- * already-dead `gemini-3.1-flash-image-preview` as the replacement.
- * @see https://ai.google.dev/gemini-api/docs/deprecations
- */
 const GEMINI_2_5_FLASH_IMAGE = {
   name: 'gemini-2.5-flash-image',
   max_input_tokens: 1_048_576,
@@ -493,41 +452,6 @@ const GEMINI_2_5_FLASH_IMAGE = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions
 >
-/**
-const GEMINI_2_5_FLASH_LIVE = {
-  name: 'gemini-2.5-flash-native-audio-preview-09-2025',
-  max_input_tokens: 141_072,
-  max_output_tokens: 8_192,
-  knowledge_cutoff: '2025-01-01',
-  supports: {
-    input: ['text', 'audio', 'video'],
-    output: ['text', 'audio'],
-    capabilities: [
-      'audio_generation',
-      'file_search',
-      'function_calling',
-      'live_api',
-      'search_grounding',
-      'thinking',
-    ],
-  },
-  pricing: {
-    // todo find this info
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-  GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions &
-  GeminiThinkingOptions
->
-*/
 const GEMINI_2_5_FLASH_TTS = {
   name: 'gemini-2.5-flash-preview-tts',
   max_input_tokens: 8_192,
@@ -553,11 +477,6 @@ const GEMINI_2_5_FLASH_TTS = {
     GeminiCachedContentOptions
 >
 
-/**
- * Gemini 3.1 Flash TTS Preview - latest expressive TTS model with
- * 200+ audio tags, 70+ languages, and multi-speaker dialogue support.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
- */
 const GEMINI_3_1_FLASH_TTS = {
   name: 'gemini-3.1-flash-tts-preview',
   max_input_tokens: 32_768,
@@ -583,12 +502,6 @@ const GEMINI_3_1_FLASH_TTS = {
     GeminiCachedContentOptions
 >
 
-/**
- * Lyria 3 Pro Preview — Google's flagship music generation model.
- * Generates full-length songs with multiple verses, choruses, and bridges.
- * Outputs MP3 or WAV at 48 kHz stereo.
- * @see https://ai.google.dev/gemini-api/docs/models/lyria-3-pro-preview
- */
 const LYRIA_3_PRO = {
   name: 'lyria-3-pro-preview',
   max_input_tokens: 131_072,
@@ -607,10 +520,6 @@ const LYRIA_3_PRO = {
   },
 } as const satisfies ModelMeta
 
-/**
- * Lyria 3 Clip Preview — 30-second music clips in MP3 format.
- * @see https://ai.google.dev/gemini-api/docs/music-generation
- */
 const LYRIA_3_CLIP = {
   name: 'lyria-3-clip-preview',
   max_input_tokens: 131_072,
@@ -732,11 +641,6 @@ const IMAGEN_4_GENERATE_FAST = {
     GeminiCachedContentOptions
 >
 
-/**
- * Veo video generation models. Pricing is per second of generated video
- * (audio+video rate where the model supports audio).
- * @experimental Veo video generation is an experimental feature and may change.
- */
 const VEO_3_1_PREVIEW = {
   name: 'veo-3.1-generate-preview',
   max_input_tokens: 1024,
@@ -806,14 +710,6 @@ const VEO_3_1_LITE_PREVIEW = {
     GeminiCachedContentOptions
 >
 
-/**
- * Gemini Omni Flash — multimodal video generation with conversational
- * editing. Serves only the Interactions API (`generateContent` rejects it),
- * so it routes through the interactions-based path of the video adapter,
- * not Veo's `:predictLongRunning` flow. Pricing is per second of generated
- * video ($0.10/sec). 720p / 24 FPS, 3–10 second clips (default 10s).
- * @experimental Omni video generation is an experimental feature and may change.
- */
 const GEMINI_OMNI_FLASH_PREVIEW = {
   name: 'gemini-omni-flash-preview',
   max_input_tokens: 1_048_576,
@@ -1019,13 +915,6 @@ export const GEMINI_MODELS = [
   GEMINI_2_5_FLASH_LITE.name,
 ] as const
 
-/**
- * Gemini models that support combining `tools` + `responseSchema` in a
- * single streaming `generateContent` call (per issue #605). Per the
- * provider matrix, Gemini 3.x natively interleaves the schema-constrained
- * answer with function-calling on one pass; Gemini 2.x is unsupported /
- * brittle and keeps the engine's legacy finalization fallback.
- */
 export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   GEMINI_3_7_FLASH.name,
   GEMINI_3_6_FLASH.name,
@@ -1039,14 +928,8 @@ export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
-/**
- * @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`.
- */
 type Gemini31FlashImagePreviewModel = 'gemini-3.1-flash-image-preview'
 
-/**
- * @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`.
- */
 type Gemini3ProImagePreviewModel = 'gemini-3-pro-image-preview'
 
 export type GeminiImageModels =
@@ -1057,11 +940,6 @@ export type GeminiImageModels =
   | Gemini31FlashImagePreviewModel
   | Gemini3ProImagePreviewModel
 
-/**
- * Image generation models. GA ids come first; the trailing `-preview` ids are
- * shut-down aliases kept only so existing code keeps compiling — new code
- * should use the GA id above its alias.
- */
 export const GEMINI_IMAGE_MODELS = [
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
@@ -1075,29 +953,17 @@ export const GEMINI_IMAGE_MODELS = [
   GEMINI_3_PRO_IMAGE_PREVIEW.name,
 ] as const
 
-/**
- * Text-to-speech models
- * @experimental Gemini TTS is an experimental feature and may change.
- */
 export const GEMINI_TTS_MODELS = [
   GEMINI_3_1_FLASH_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,
   GEMINI_2_5_PRO_TTS.name,
 ] as const
 
-/**
- * Audio generation models (Lyria music generation).
- * @experimental Lyria music generation is an experimental feature and may change.
- */
 export const GEMINI_AUDIO_MODELS = [
   LYRIA_3_PRO.name,
   LYRIA_3_CLIP.name,
 ] as const
 
-/**
- * Available voice names for Gemini TTS
- * @see https://ai.google.dev/gemini-api/docs/speech-generation
- */
 export const GEMINI_TTS_VOICES = [
   'Zephyr',
   'Puck',
@@ -1133,12 +999,6 @@ export const GEMINI_TTS_VOICES = [
 
 export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
 
-/**
- * Video generation models. Veo models run on the long-running
- * `:predictLongRunning` flow; Gemini Omni Flash runs on the Interactions
- * API — the video adapter routes by model.
- * @experimental Video generation is an experimental feature and may change.
- */
 export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
   VEO_3_1_FAST_PREVIEW.name,
@@ -1146,33 +1006,18 @@ export const GEMINI_VIDEO_MODELS = [
   GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
-/**
- * Video models served by the Interactions API rather than Veo's
- * `:predictLongRunning` operations flow.
- * @experimental Omni video generation is an experimental feature and may change.
- */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
-/**
- * Embedding models
- */
 export const GEMINI_EMBEDDING_MODELS = ['gemini-embedding-001'] as const
 
 export type GeminiEmbeddingModel = (typeof GEMINI_EMBEDDING_MODELS)[number]
 
-/**
- * Type-only map from embedding model name to its provider options type.
- */
 export type GeminiEmbeddingModelProviderOptionsByName = {
   'gemini-embedding-001': GeminiEmbeddingProviderOptions
 }
 
-/**
- * Per-model input modalities for embedding models. Gemini embedding models
- * are text-only, so image inputs fail at compile time.
- */
 export type GeminiEmbeddingModelInputModalitiesByName = {
   'gemini-embedding-001': readonly ['text']
 }
@@ -1248,10 +1093,6 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiThinkingOptions
 }
 
-/**
- * Type-only map from chat model name to its supported tool capabilities.
- * Based on the 'supports.tools' arrays defined for each model.
- */
 export type GeminiChatModelToolCapabilitiesByName = {
   [GEMINI_3_7_FLASH.name]: typeof GEMINI_3_7_FLASH.supports.tools
   [GEMINI_3_6_FLASH.name]: typeof GEMINI_3_6_FLASH.supports.tools
@@ -1266,19 +1107,6 @@ export type GeminiChatModelToolCapabilitiesByName = {
   [GEMINI_2_5_FLASH_LITE.name]: typeof GEMINI_2_5_FLASH_LITE.supports.tools
 }
 
-/**
- * Type-only map from chat model name to its supported input modalities.
- * Based on the 'supports.input' arrays defined for each model.
- * Note: 'document' in the model meta is mapped to 'document' modality.
- * Used by the core AI types to constrain ContentPart types based on the selected model.
- * Note: These must be inlined as readonly arrays (not typeof) because the model
- * constants are not exported and typeof references don't work in .d.ts files
- * when consumed by external packages.
- *
- * @see https://ai.google.dev/gemini-api/docs/vision
- * @see https://ai.google.dev/gemini-api/docs/audio
- * @see https://ai.google.dev/gemini-api/docs/document-processing
- */
 export type GeminiModelInputModalitiesByName = {
   // Models with full multimodal support (text, image, audio, video, document)
   [GEMINI_3_7_FLASH.name]: typeof GEMINI_3_7_FLASH.supports.input

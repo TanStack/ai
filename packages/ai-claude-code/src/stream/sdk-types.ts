@@ -1,13 +1,3 @@
-/**
- * Structural subset of the `@anthropic-ai/claude-agent-sdk` message types that
- * the stream translator consumes.
- *
- * These are intentionally defined structurally (rather than imported from the
- * agent SDK) so the translator stays a pure, fixture-testable state machine
- * and the package's public types don't depend on the agent SDK's bundled
- * `@anthropic-ai/sdk` type imports.
- */
-
 export interface SdkInitMessage {
   type: 'system'
   subtype: 'init'
@@ -110,11 +100,6 @@ export interface SdkResultMessage {
   structured_output?: unknown
 }
 
-/**
- * Harness-internal system messages the translator deliberately ignores.
- * (The real SDK union has many more members; unknown runtime types simply
- * fall through every branch.)
- */
 export interface SdkNoiseSystemMessage {
   type: 'system'
   subtype:

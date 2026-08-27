@@ -1,9 +1,3 @@
-/**
- * Bedrock Responses API provider options. Mantle's Responses endpoint adds
- * stateful conversation management on top of the OpenAI Responses fields.
- *
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
- */
 export interface BedrockResponsesProviderOptions {
   /** Continue a stored conversation from a prior response. */
   previous_response_id?: string | null

@@ -58,10 +58,6 @@ function convertImagePartToInput(
       detail: imageMetadata?.detail || 'auto',
     }
   }
-  // For base64 data, construct a data URI using the mimeType from
-  // source. Default to a generic octet-stream MIME if the source
-  // didn't supply one — letting `undefined` interpolate would produce
-  // an invalid URI like "data:undefined;base64,...".
   const imageMime = part.source.mimeType || 'application/octet-stream'
   return {
     type: 'input_image',
@@ -79,9 +75,6 @@ function convertAudioPartToInput(
       file_url: part.source.value,
     }
   }
-  // Wrap raw base64 in a data URL — `input_file` rejects bare base64
-  // payloads (matches the image branch above).
-  // Default the MIME if missing so we never interpolate `undefined`.
   const audioMime = part.source.mimeType || 'application/octet-stream'
   return {
     type: 'input_file',
@@ -101,25 +94,23 @@ function assertInlinePdf(
     )
   }
   // A pre-wrapped data URL carries its own media type — validate it too.
-  if (
+  const isNonPdfDataUrl =
     documentValue.startsWith('data:') &&
     !/^data:application\/pdf[;,]/i.test(documentValue)
-  ) {
+  if (isNonPdfDataUrl) {
     throw new Error(
       `${adapterName} document parts only support application/pdf ` +
         `(received data URL with non-PDF media type)`,
     )
   }
-  // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
-  // caught locally instead of by an opaque provider 400. Only base64
-  // payloads are checked; a rare `data:` URL without `;base64` is left
-  // to the server.
   const documentBase64 = documentValue.startsWith('data:')
     ? /;base64,/i.test(documentValue)
       ? documentValue.slice(documentValue.indexOf(',') + 1)
       : ''
     : documentValue
-  if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
+  const isNotPdfBytes =
+    Boolean(documentBase64) && !documentBase64.startsWith(PDF_BASE64_MAGIC)
+  if (isNotPdfBytes) {
     throw new Error(
       `${adapterName} document parts only support application/pdf ` +
         `(inline data does not start with the %PDF header)`,
@@ -134,11 +125,6 @@ function convertDocumentPartToInput(
   const documentMetadata = part.metadata as
     | { filename?: string; detail?: 'auto' | 'low' | 'high' }
     | undefined
-  // Spread `detail` only when provided so the API applies its own
-  // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
-  // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
-  // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
-  // pass through without a type error.
   const documentDetail =
     documentMetadata?.detail !== undefined
       ? { detail: documentMetadata.detail as 'low' | 'high' }
@@ -152,9 +138,6 @@ function convertDocumentPartToInput(
       ...documentDetail,
     }
   }
-  // This adapter supports only PDF documents; anything else is
-  // rejected. MIME types are case-insensitive and can carry
-  // ;parameters (RFC 2045), so the type is normalized before comparing.
   const documentValue = part.source.value
   const documentMime = (
     (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
@@ -173,24 +156,10 @@ function convertDocumentPartToInput(
   }
 }
 
-/**
- * Provider-specific metadata that preserves the Responses API output item ID.
- *
- * Responses function calls have two identifiers: `call_id` correlates the
- * function output with the call, while `id` identifies the output item itself.
- * TanStack AI uses `call_id` as the canonical tool-call ID and carries the
- * item ID here so stateless follow-up requests can replay both values.
- */
 export interface OpenAIResponsesToolCallMetadata {
   itemId: string
 }
 
-/**
- * Shared implementation of the OpenAI Responses API. Holds the stream-event
- * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
- * (today: ai-openai) construct an OpenAI client with their provider-specific
- * `baseURL` / headers and pass it in.
- */
 export abstract class OpenAIBaseResponsesTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
@@ -219,15 +188,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    // Key streamed state by output item ID because argument deltas reference
-    // `item_id`. The state separately retains `call_id`, which is the public
-    // tool-call ID and the correlation key for function_call_output.
     const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
-    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
-    // already does) so the emitted RUN_STARTED matches the id the caller keys
-    // durability by — e.g. a summarize run threading the client's runId through
-    // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
       threadId: options.threadId ?? generateId(this.name),
@@ -236,10 +198,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
 
     try {
-      // mapOptionsToRequest can throw on caller-side validation failures
-      // (empty user content, unsupported parts, webSearchTool() rejection in
-      // the OpenRouter override). Keep it inside the try so those failures
-      // surface as RUN_ERROR events instead of iterator throws.
       const requestParams = this.mapOptionsToRequest(options)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
@@ -281,10 +239,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
-      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
-      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
-      // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
@@ -307,18 +261,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
   }
 
-  /**
-   * Generate structured output using the provider's native JSON Schema response format.
-   * Uses stream: false to get the complete response in one call.
-   *
-   * OpenAI-compatible Responses APIs have strict requirements for structured output:
-   * - All properties must be in the `required` array
-   * - Optional fields should have null added to their type union
-   * - additionalProperties must be false for all objects
-   *
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply provider-specific transformations for structured output compatibility.
-   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -332,9 +274,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     )
 
     try {
-      // Strip streaming-only fields a subclass override of mapOptionsToRequest
-      // might have returned (parallel to chat-completions's structuredOutput
-      // cleanup) — sending stream_options to a non-streaming call is a 4xx.
       const {
         stream: _stream,
         stream_options: _streamOptions,
@@ -363,16 +302,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         extractRequestOptions(chatOptions.request),
       )
 
-      // Extract text content from the response. `stream: false` narrows the
-      // SDK return type to `Response`, but the explicit annotation makes
-      // that contract local rather than relying on inference through the
-      // overloaded `client.responses.create` signature.
       const rawText = this.extractTextFromResponse(response satisfies Response)
 
-      // Fail loud on empty content rather than letting it cascade into a
-      // confusing "Failed to parse JSON. Content: " error — the root cause
-      // (the model returned no text content for the structured request) is
-      // then visible in logs. Mirrors the chat-completions sibling.
       if (rawText.length === 0) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no content`,
@@ -412,20 +343,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
   }
 
-  /**
-   * Stream structured output via the Responses API: single request with
-   * `text.format: json_schema` + `stream: true`. Consumes Responses-API
-   * events (`response.output_text.delta`, `response.reasoning_text.delta`,
-   * `response.reasoning_summary_text.delta`, the legacy
-   * `response.reasoning.delta`, `response.refusal.delta`,
-   * `response.completed`, `response.failed`) and re-emits the standard AG-UI
-   * lifecycle ending with `CUSTOM 'structured-output.complete'`.
-   *
-   * Tools are stripped (structured output is mutually exclusive with tool
-   * calls in this path). Reasoning text is accumulated and surfaced both as
-   * REASONING_* lifecycle events during the stream and on the terminal
-   * CUSTOM event's `value.reasoning`.
-   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -522,12 +439,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     type StructuredChunk = ResponseStreamEvent | LegacyReasoningDeltaEvent
 
     const handleCreatedOrProgress = (chunk: StructuredChunk): void => {
-      if (
-        chunk.type !== 'response.created' &&
-        chunk.type !== 'response.in_progress'
-      ) {
+      const isCreatedOrProgress =
+        chunk.type === 'response.created' ||
+        chunk.type === 'response.in_progress'
+      if (!isCreatedOrProgress) {
         return
       }
+      if (!('response' in chunk)) return
       if (chunk.response.model) model = chunk.response.model
     }
 
@@ -815,12 +733,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
   }
 
-  /**
-   * Cross-SDK abort detection for `structuredOutputStream`. Mirrors the
-   * Chat Completions base; subclasses with proprietary error types override.
-   */
   protected isAbortError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') return false
+    const isNotErrorObject = !error || typeof error !== 'object'
+    if (isNotErrorObject) return false
     const e = error as { name?: unknown; code?: unknown }
     return (
       e.name === 'APIUserAbortError' ||
@@ -829,11 +744,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     )
   }
 
-  /**
-   * Strict conversion plus the inverse null-widening map for this request.
-   * Override this when schema conversion changes, so tool-input undo matches
-   * the wire schema.
-   */
   protected makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -841,11 +751,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
-  /**
-   * Applies provider-specific transformations for structured output compatibility.
-   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
-   * to match the wire schema.
-   */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -854,25 +759,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       .schema
   }
 
-  /**
-   * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default is a passthrough.
-   *
-   * Provider `null`s are no longer stripped here: strict-mode null-widening is
-   * now undone precisely by the engine (`undoNullWidening`, driven by the
-   * schema's null-widening map) the moment the result is captured, so a blind
-   * `transformNullsToUndefined` at the adapter would only destroy genuine
-   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
-   * provider's structured output.
-   */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
-  /**
-   * Extract text content from a non-streaming Responses API response.
-   * Override this in subclasses for provider-specific response shapes.
-   */
   protected extractTextFromResponse(response: Response): string {
     let textContent = ''
     let refusal: string | undefined
@@ -884,11 +774,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (item.type === 'message') {
         sawMessageItem = true
         for (const part of item.content) {
-          // Cast off the discriminated union before the type discrimination
-          // so future SDK variants (e.g. `output_audio`, `output_image`) hit
-          // the explicit error path rather than being misreported as refusals
-          // when they get added to the union. Mirrors the streaming side's
-          // handleContentPart.
           const partType = (part as { type: string }).type
           if (partType === 'output_text') {
             textContent += (part as { text?: string }).text ?? ''
@@ -904,20 +789,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     }
 
-    // Surface refusals as an explicit error so callers don't see a generic
-    // "Failed to parse structured output as JSON. Content: " when the model
-    // refused for safety / content-policy reasons.
     if (!textContent && refusal !== undefined) {
       const err = new Error(`Model refused to respond: ${refusal}`)
       ;(err as Error & { code?: string }).code = 'refusal'
       throw err
     }
 
-    // Response had items but none carried message text (e.g. only
-    // function_call or reasoning items). Surface that explicitly so a
-    // downstream structured-output caller doesn't see a misleading
-    // "Failed to parse JSON. Content: " from an empty string.
-    if (!textContent && response.output.length > 0 && !sawMessageItem) {
+    const hasNonTextOutput =
+      !textContent && response.output.length > 0 && !sawMessageItem
+    if (hasNonTextOutput) {
       throw new Error(
         `${this.name}.extractTextFromResponse: response.output contained items of type(s) [${[...observedItemTypes].sort().join(', ')}] but no message text — the model returned a non-text response`,
       )
@@ -926,22 +806,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return textContent
   }
 
-  /**
-   * Processes streamed chunks from the Responses API and yields AG-UI events.
-   * Override this in subclasses to handle provider-specific stream behavior.
-   *
-   * Handles the following event types:
-   * - response.created / response.incomplete / response.failed
-   * - response.output_text.delta
-   * - response.reasoning_text.delta
-   * - response.reasoning.delta (the legacy type used before response.reasoning_text.delta)
-   * - response.reasoning_summary_text.delta
-   * - response.content_part.added / response.content_part.done
-   * - response.output_item.added
-   * - response.function_call_arguments.delta / response.function_call_arguments.done
-   * - response.completed
-   * - error
-   */
   protected async *processStreamChunks(
     stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent>,
     toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
@@ -964,10 +828,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     })
   }
 
-  /**
-   * Maps common TextOptions to Responses API request format.
-   * Override this in subclasses to add provider-specific options.
-   */
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
@@ -982,12 +842,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     const modelOptions = options.modelOptions
 
-    // Native combined mode (issue #605): when the engine threads
-    // `outputSchema` through TextOptions, the adapter declared
-    // `supportsCombinedToolsAndSchema` and the schema is already JSON Schema
-    // (pre-converted at the activity boundary). Wire it into `text.format`
-    // alongside any `tools` — the Responses API supports both together and
-    // emits the schema-constrained text on the natural final turn.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -1009,12 +863,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       : undefined
 
-    // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
-    // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
-    // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
-    // `input`, `tools`, `textFormat`) are layered on top afterward so they
-    // always win over any same-named key a caller happened to put in
-    // `modelOptions`.
     return {
       ...modelOptions,
       model: options.model,
@@ -1032,25 +880,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
   }
 
-  /**
-   * The OpenAI Responses API supports `tools` and `text.format: json_schema`
-   * together in a single streaming request (per issue #605). Subclasses
-   * that route to providers without this capability should override.
-   */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
 
-  /**
-   * Converts ModelMessage[] to Responses API ResponseInput format.
-   * Override this in subclasses for provider-specific message format quirks.
-   *
-   * Key differences from Chat Completions:
-   * - Tool results use `function_call_output` type (not `tool` role)
-   * - Assistant tool calls are `function_call` objects (not nested in `tool_calls`)
-   * - User content uses `input_text`, `input_image`, `input_file` types
-   * - System prompts go in `instructions`, not as messages
-   */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
   ): ResponseInput {
@@ -1123,10 +956,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       if (inputContent.length === 0) {
-        // Fail loud rather than silently sending an empty user message —
-        // mirrors the chat-completions adapter, where a paid-but-empty
-        // request would mask the real intent (caller passed `null` content
-        // or a normalize step dropped everything).
         throw new Error(
           `User message for ${this.name} has no content parts. ` +
             `Empty user messages would produce a paid request with no input; ` +
@@ -1144,11 +973,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return result
   }
 
-  /**
-   * Converts a ContentPart to Responses API input content item.
-   * Handles text, image, audio, and document (PDF) content parts.
-   * Override this in subclasses for additional content types or provider-specific metadata.
-   */
   protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
     switch (part.type) {
       case 'text':
@@ -1164,21 +988,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         return convertDocumentPartToInput(part, this.name)
       case 'video':
       default:
-        // OpenAI Responses API doesn't accept native video parts on this
-        // path — surface as explicit unsupported error so callers see the
-        // same message regardless of which content type leaked through.
         throw new Error(`Unsupported content part type: ${part.type}`)
     }
   }
 
-  /**
-   * Normalizes message content to an array of ContentPart.
-   * Handles backward compatibility with string content.
-   */
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return []
     }
     if (typeof content === 'string') {
@@ -1187,13 +1005,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return content
   }
 
-  /**
-   * Extracts text content from a content value that may be string, null, or ContentPart array.
-   */
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return ''
     }
     if (typeof content === 'string') {

@@ -82,12 +82,12 @@ export function defaultSpawn(
 }
 
 export function mapSbxError(error: unknown, binary: string): Error {
-  if (
-    error &&
+  const isMissingBinary =
+    Boolean(error) &&
     typeof error === 'object' &&
     'code' in error &&
     (error as { code?: string }).code === 'ENOENT'
-  ) {
+  if (isMissingBinary) {
     return new Error(INSTALL_HELP)
   }
   if (error instanceof Error) return error
@@ -110,7 +110,9 @@ function throwIfFailed(
   const stderr = result.stderr.trim()
   // Guest exec can print "unauthorized" on stderr. Only host CLI
   // stderr on host commands is a login error. Never scan `exec`.
-  if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
+  const isHostLoginFailure =
+    isHostCliCommand(args) && isLoginError(stderr.toLowerCase())
+  if (isHostLoginFailure) {
     throw new Error(`${LOGIN_HELP}\n${stderr}`)
   }
   throw new Error(
@@ -152,7 +154,9 @@ export async function runSbx(
     // Guest exec can print "unauthorized" on stdout. Only host CLI
     // stderr on host commands is a login error. Never scan `exec`.
     const stderr = result.stderr.trim()
-    if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
+    const isHostLoginFailure =
+      isHostCliCommand(args) && isLoginError(stderr.toLowerCase())
+    if (isHostLoginFailure) {
       throw new Error(`${LOGIN_HELP}\n${stderr}`)
     }
     return result
@@ -232,10 +236,6 @@ function readEntry(value: unknown): SbxLsEntry | null {
   }
 }
 
-/**
- * Real CLI: `sbx exec [flags] SANDBOX COMMAND`. Flags after the name are
- * treated as the command, so `-w` / `-e` must come first.
- */
 export function sbxExecArgs(
   name: string,
   command: string,
@@ -243,23 +243,21 @@ export function sbxExecArgs(
 ): Array<string> {
   const args = ['exec']
   if (opts?.cwd) args.push('-w', opts.cwd)
-  for (const [key, value] of Object.entries(opts?.env ?? {})) {
+  const envEntries = Object.entries(opts?.env ?? {})
+  for (const [key, value] of envEntries) {
     args.push('-e', `${key}=${value}`)
   }
   args.push('--', name, 'sh', '-c', command)
   return args
 }
 
-/**
- * sandboxd may print a start banner before JSON (docker/sbx-releases#201).
- * Walk every `{` / `[` until one slice parses.
- */
 export function parseJsonAfterBanner(stdout: string): unknown {
   let lastError: unknown
   let sawStart = false
   for (let i = 0; i < stdout.length; i++) {
     const ch = stdout[i]
-    if (ch !== '{' && ch !== '[') continue
+    const isNotJsonStart = ch !== '{' && ch !== '['
+    if (isNotJsonStart) continue
     sawStart = true
     try {
       return JSON.parse(stdout.slice(i)) as unknown

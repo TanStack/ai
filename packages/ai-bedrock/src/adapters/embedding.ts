@@ -26,11 +26,6 @@ import type {
   ResolveEmbeddingProviderOptions,
 } from '../model-meta'
 
-/**
- * Config for the Bedrock embedding adapter — the same auth surface as the
- * other Bedrock adapters (apiKey → env → SigV4 via `resolveBedrockAuth`),
- * minus the OpenAI-compat client options that don't apply to `InvokeModel`.
- */
 export interface BedrockEmbeddingConfig extends Pick<
   BedrockClientConfig,
   'apiKey' | 'region' | 'auth' | 'baseURL'
@@ -49,31 +44,8 @@ const TITAN_IMAGE_DEFAULT_DIMENSIONS = 1024
 /** Cohere embed accepts at most 96 texts per InvokeModel call. */
 const COHERE_MAX_BATCH_SIZE = 96
 
-/**
- * Bedrock Embedding Adapter
- *
- * Tree-shakeable adapter for embeddings served through Bedrock's native
- * `InvokeModel` API (embedding models have no Converse surface). Each model
- * family has its own JSON body dialect:
- *
- * - `amazon.titan-embed-text-v2:0` — text-only, ONE text per call; the batch
- *   is fanned out with a small concurrency cap and per-call
- *   `inputTextTokenCount`s are summed into usage.
- * - `amazon.titan-embed-image-v1` — MULTIMODAL: text, image, or a fused
- *   text+image item embedded into a single vector; one item per call.
- * - `cohere.embed-english-v3` / `cohere.embed-multilingual-v3` — text-only,
- *   batched natively (chunked at 96 texts per call). `inputType` is required.
- *
- * The SDK call lives behind a protected `invokeModel` seam so tests can
- * subclass and inject canned response bodies without a real AWS request, and
- * the AWS SDK itself is imported lazily (it's Node/server-only).
- */
 export class BedrockEmbeddingAdapter<
   TModel extends BedrockEmbeddingModel,
-  // Same rationale as the text adapters: the base parameterises
-  // `TProviderOptions extends object`, and the per-model options interfaces
-  // lack implicit index signatures — `Record<string, any>` (not `unknown`)
-  // accepts them. Confined to the generic constraint; no value cast.
   TProviderOptions extends Record<string, any> =
     ResolveEmbeddingProviderOptions<TModel>,
 > extends BaseEmbeddingAdapter<
@@ -88,27 +60,14 @@ export class BedrockEmbeddingAdapter<
 
   constructor(config: BedrockEmbeddingConfig, model: TModel) {
     super(model, {})
-    // Defer client construction and auth resolution: the AWS SDK is Node/
-    // server-only, so we must not pull it into the static graph here. The
-    // client (and its dynamic import) is built lazily on first SDK call.
     this.clientConfig = config
   }
 
-  /**
-   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is
-   * held in a variable (not a string literal) so bundler dep scanners cannot
-   * statically discover the AWS SDK and try to pre-bundle it for the browser.
-   * Same pattern as the Converse text adapter.
-   */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
     return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
   }
 
-  /**
-   * Lazily construct the `BedrockRuntimeClient`, deferring
-   * `resolveBedrockAuth` until a real request is made.
-   */
   protected async getClient(): Promise<BedrockRuntimeClient> {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
@@ -135,11 +94,6 @@ export class BedrockEmbeddingAdapter<
     return this.clientPromise
   }
 
-  /**
-   * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`. Bearer
-   * auth needs `authSchemePreference` pinned or the SDK still tries SigV4
-   * first — same reasoning as the Converse text adapter.
-   */
   protected buildClientConfig(
     resolved: ResolvedBedrockAuth,
     region: string,
@@ -160,10 +114,6 @@ export class BedrockEmbeddingAdapter<
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SDK seam (overridden in tests so no real AWS call happens)
-  // ---------------------------------------------------------------------------
-
   /** Send one InvokeModel call and parse its JSON response body. */
   protected async invokeModel(
     modelId: string,
@@ -181,10 +131,6 @@ export class BedrockEmbeddingAdapter<
     )
     return JSON.parse(new TextDecoder().decode(response.body))
   }
-
-  // ---------------------------------------------------------------------------
-  // Public adapter surface
-  // ---------------------------------------------------------------------------
 
   async createEmbeddings(
     options: EmbeddingOptions<TProviderOptions>,
@@ -218,15 +164,6 @@ export class BedrockEmbeddingAdapter<
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Per-model request mapping
-  // ---------------------------------------------------------------------------
-
-  /**
-   * `amazon.titan-embed-text-v2:0` — one text per InvokeModel call, fanned
-   * out with a concurrency cap; result order matches input order and per-call
-   * `inputTextTokenCount`s are summed into usage.
-   */
   private async embedTitanText(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {
@@ -261,12 +198,6 @@ export class BedrockEmbeddingAdapter<
     return this.toTitanResult(model, responses)
   }
 
-  /**
-   * `amazon.titan-embed-image-v1` (Titan Multimodal) — one item per
-   * InvokeModel call. An item may carry text, an image, or both (a fused
-   * item embedded into a single vector). Titan accepts at most one image per
-   * request and never fetches remote URLs.
-   */
   private async embedTitanImage(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {
@@ -306,11 +237,6 @@ export class BedrockEmbeddingAdapter<
     return this.toTitanResult(model, responses)
   }
 
-  /**
-   * `cohere.embed-*-v3` — natively batched (chunked at 96 texts per call,
-   * order preserved across chunks). `inputType` is required by the Cohere
-   * API; output dimensionality is fixed, so `dimensions` is rejected.
-   */
   private async embedCohere(
     options: EmbeddingOptions<TProviderOptions>,
   ): Promise<EmbeddingResult> {
@@ -373,10 +299,6 @@ export class BedrockEmbeddingAdapter<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Response-body narrowing (SDK JSON boundary)
-// ---------------------------------------------------------------------------
-
 interface TitanEmbeddingBody {
   embedding: Array<number>
   /** 0 when the response omits it (e.g. image-only Titan Multimodal calls). */
@@ -421,15 +343,6 @@ function readCohereEmbeddingBody(
   return embeddings
 }
 
-// ---------------------------------------------------------------------------
-// Input mapping helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Map an ImagePart to Titan's `inputImage` (RAW base64, no data: prefix).
- * Accepts `data` sources as-is and `url` sources ONLY when the value is a
- * `data:` URI; Titan cannot fetch remote http(s) URLs.
- */
 function toTitanInputImage(image: ImagePart, model: string): string {
   const source = image.source
   if (source.type === 'data') {
@@ -456,11 +369,6 @@ function chunk<T>(items: Array<T>, size: number): Array<Array<T>> {
   return chunks
 }
 
-/**
- * Map `fn` over `items` with at most `limit` calls in flight, returning
- * results in input order (result[i] corresponds to items[i] regardless of
- * completion order). Rejects with the first error.
- */
 async function mapWithConcurrency<T, TResult>(
   items: ReadonlyArray<T>,
   limit: number,
@@ -481,32 +389,6 @@ async function mapWithConcurrency<T, TResult>(
   return results
 }
 
-// ---------------------------------------------------------------------------
-// Factories
-// ---------------------------------------------------------------------------
-
-/**
- * Creates a Bedrock embedding adapter with an explicit API key (bearer).
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'amazon.titan-embed-text-v2:0')
- * @param apiKey - Your Bedrock API key
- * @param config - Optional additional configuration (region, baseURL, ...)
- * @returns Configured Bedrock embedding adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createBedrockEmbedding(
- *   'amazon.titan-embed-text-v2:0',
- *   'bedrock-api-key',
- * );
- *
- * const result = await embed({
- *   adapter,
- *   input: 'a red guitar',
- * });
- * ```
- */
 export function createBedrockEmbedding<TModel extends BedrockEmbeddingModel>(
   model: TModel,
   apiKey: string,
@@ -516,29 +398,6 @@ export function createBedrockEmbedding<TModel extends BedrockEmbeddingModel>(
   return new BedrockEmbeddingAdapter({ ...config, apiKey }, model)
 }
 
-/**
- * Creates a Bedrock embedding adapter using the ambient auth cascade:
- * `config.apiKey` → `BEDROCK_API_KEY` → `AWS_BEARER_TOKEN_BEDROCK` → SigV4
- * (AWS credential provider chain). Auth resolves lazily on the first
- * request, so `auth: 'sigv4'` never requires an API key.
- *
- * @param model - The model name (e.g., 'cohere.embed-english-v3')
- * @param config - Optional configuration (region, auth, baseURL, ...)
- * @returns Configured Bedrock embedding adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = bedrockEmbedding('cohere.embed-english-v3');
- *
- * const result = await embed({
- *   adapter,
- *   input: ['a red guitar', 'a blue drum kit'],
- *   modelOptions: { inputType: 'search_document' },
- * });
- *
- * console.log(result.embeddings[0].vector)
- * ```
- */
 export function bedrockEmbedding<TModel extends BedrockEmbeddingModel>(
   model: TModel,
   config?: BedrockEmbeddingConfig,

@@ -1,13 +1,3 @@
-/**
- * Sandbox policy — a portable, harness-agnostic description of what the agent
- * may do. Each harness adapter MAPS this onto its native permission system
- * (Claude Code → canUseTool + allowedTools/disallowedTools/permissionMode).
- *
- * Command rules are matched as glob/prefix patterns against the command line.
- * Precedence is deny > ask > allow; unmatched commands fall to `default`.
- * `'ask'` surfaces the existing resume-based `approval-requested` flow.
- */
-
 export type PolicyDecision = 'allow' | 'ask' | 'deny'
 
 export interface CommandRules {
@@ -47,11 +37,6 @@ function patternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`)
 }
 
-/**
- * All equivalent forms of a command line when workspace scripts are defined:
- * the literal command, its expanded script value, and any script name that
- * expands to the same value.
- */
 export function commandAliases(
   command: string,
   scripts: Record<string, string> | undefined,
@@ -63,7 +48,8 @@ export function commandAliases(
   const expanded = scripts[trimmed]
   if (expanded !== undefined) aliases.add(expanded)
 
-  for (const [name, value] of Object.entries(scripts)) {
+  const scriptEntries = Object.entries(scripts)
+  for (const [name, value] of scriptEntries) {
     if (value === trimmed) aliases.add(name)
   }
   return [...aliases]
@@ -75,21 +61,14 @@ function patternMatchesCommand(
   scripts: Record<string, string> | undefined,
 ): boolean {
   const commandForms = commandAliases(command, scripts)
-  for (const patternForm of commandAliases(pattern, scripts)) {
+  const patternForms = commandAliases(pattern, scripts)
+  for (const patternForm of patternForms) {
     const re = patternToRegExp(patternForm)
     if (commandForms.some((form) => re.test(form))) return true
   }
   return false
 }
 
-/**
- * Resolve a command line against the policy. Precedence: deny > ask > allow,
- * then `default` (defaults to `'ask'`). Exported for adapter permission
- * mappers and unit tests.
- *
- * When `scripts` is provided, policy patterns may match either a script name
- * or its expanded command value (and vice versa for the command under test).
- */
 export function evaluateCommand(
   command: string,
   policy: SandboxPolicy | undefined,

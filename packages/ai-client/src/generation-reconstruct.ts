@@ -8,18 +8,6 @@ import type {
 } from '@tanstack/ai'
 import type { GenerationRestoredResult } from './generation-types'
 
-/**
- * Per-activity `reconstructResult` mappers. On mount restore the generic
- * `GenerationClient` hands each specialized hook a {@link GenerationRestoredResult}
- * (the metadata that survived persistence plus the durable artifact refs, each
- * carrying its serve `url`); the mapper rebuilds the concrete typed result so
- * `result` repaints as if the run had just finished, with media resolved to the
- * durable serve route rather than the provider's expired link.
- *
- * A mapper returns `null` when the snapshot cannot rebuild a valid result; then
- * `result` stays null while `status` / `error` / `resumeState` still repaint.
- */
-
 /** Output artifact refs of a given media type that carry a durable serve URL. */
 function mediaUrls(
   restored: GenerationRestoredResult,
@@ -49,16 +37,6 @@ export function reconstructImageResult(
   }
 }
 
-/**
- * tts → `{ id, model, audio: '', format, contentType, artifacts }`.
- *
- * Unlike {@link reconstructAudioResult}, `TTSResult.audio` is a bare base64
- * string with no URL slot, and server-driven persistence never stores the raw
- * bytes — only the durable serve URL on the artifact ref. So the restored
- * result surfaces the audio through `artifacts` (each carrying `url`); consumers
- * play the restored clip from `result.artifacts[0].url` and fall back to the
- * live base64 `audio` only for a just-finished (non-restored) run.
- */
 export function reconstructSpeechResult(
   restored: GenerationRestoredResult,
 ): TTSResult | null {
@@ -111,7 +89,9 @@ export function reconstructTranscriptionResult(
 export function reconstructSummarizeResult(
   restored: GenerationRestoredResult,
 ): SummarizationResult | null {
-  if (restored.text === undefined || restored.usage === undefined) return null
+  const isTextIsUndefinedOrUsageIsUndefined =
+    restored.text === undefined || restored.usage === undefined
+  if (isTextIsUndefinedOrUsageIsUndefined) return null
   return {
     id: restored.id ?? '',
     model: restored.model ?? '',

@@ -52,9 +52,6 @@ export type ChatClientStructuredOutputEventName =
   | 'structured-output:completed'
   | 'structured-output:errored'
 
-/**
- * Abstract base class for ChatClient event emission
- */
 export abstract class ChatClientEventEmitter {
   protected clientId: string
 
@@ -62,43 +59,27 @@ export abstract class ChatClientEventEmitter {
     this.clientId = clientId
   }
 
-  /**
-   * Protected abstract method for emitting events
-   * Implementations should handle adding clientId and timestamp
-   */
   protected abstract emitEvent(
     eventName: string,
     data?: Record<string, unknown>,
   ): void
 
-  /**
-   * Emit client created event
-   */
   clientCreated(initialMessageCount: number): void {
     this.emitEvent('client:created', {
       initialMessageCount,
     })
   }
 
-  /**
-   * Emit loading state changed event
-   */
   loadingChanged(isLoading: boolean): void {
     this.emitEvent('client:loading:changed', { isLoading })
   }
 
-  /**
-   * Emit error state changed event
-   */
   errorChanged(error: string | null): void {
     this.emitEvent('client:error:changed', {
       error,
     })
   }
 
-  /**
-   * Emit text update events (combines processor and client events)
-   */
   textUpdated(
     streamId: string,
     messageId: string,
@@ -113,9 +94,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit tool call state change events (combines processor and client events)
-   */
   toolCallStateChanged(
     streamId: string,
     messageId: string,
@@ -136,12 +114,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit tool result state change event
-   */
-  /**
-   * Emit thinking update event
-   */
   thinkingUpdated(
     streamId: string,
     messageId: string,
@@ -173,9 +145,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit approval requested event
-   */
   approvalRequested(
     streamId: string,
     messageId: string,
@@ -196,9 +165,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit message appended event
-   */
   messageAppended(
     uiMessage: UIMessage,
     streamId?: string,
@@ -219,13 +185,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit message sent event.
-   * Supports both simple string content and multimodal content arrays.
-   *
-   * @param messageId - The ID of the sent message
-   * @param content - The message content (string or array of ContentPart for multimodal)
-   */
   messageSent(messageId: string, content: string | Array<ContentPart>): void {
     // For text content, extract it; for multimodal, provide the array
     const textContent =
@@ -253,31 +212,19 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit reloaded event
-   */
   reloaded(fromMessageIndex: number): void {
     this.emitEvent('client:reloaded', {
       fromMessageIndex,
     })
   }
-  /**
-   * Emit stopped event
-   */
   stopped(): void {
     this.emitEvent('client:stopped')
   }
 
-  /**
-   * Emit messages cleared event
-   */
   messagesCleared(): void {
     this.emitEvent('client:messages:cleared')
   }
 
-  /**
-   * Emit tool result added event
-   */
   toolResultAdded(
     toolCallId: string,
     toolName: string,
@@ -294,9 +241,6 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit tool approval responded event
-   */
   toolApprovalResponded(
     approvalId: string,
     toolCallId: string,
@@ -311,21 +255,12 @@ export abstract class ChatClientEventEmitter {
     })
   }
 
-  /**
-   * Emit tool fixture applied event.
-   */
   toolFixtureApplied(fixture: ChatClientToolFixtureAppliedEvent): void {
     this.emitEvent('devtools:tool-fixture:applied', { ...fixture })
   }
 }
 
-/**
- * Default implementation of ChatClientEventEmitter
- */
 export class DefaultChatClientEventEmitter extends ChatClientEventEmitter {
-  /**
-   * Emit an event with automatic clientId and timestamp for client/tool events
-   */
   protected emitEvent(eventName: string, data?: Record<string, any>): void {
     const timestamp = Date.now()
     const isUserVisibleEvent =

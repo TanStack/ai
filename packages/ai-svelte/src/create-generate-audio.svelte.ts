@@ -15,11 +15,6 @@ import type {
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
-/**
- * Options for the createGenerateAudio function.
- *
- * @template TOutput - The output type after optional transform (defaults to AudioGenerationResult)
- */
 export interface CreateGenerateAudioOptions<
   TOutput = AudioGenerationResult,
 > extends Pick<
@@ -39,13 +34,6 @@ export interface CreateGenerateAudioOptions<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /**
-   * Callback when audio is generated. Can optionally return a transformed value.
-   *
-   * - Return a non-null value to transform and store it as the result
-   * - Return `null` to keep the previous result unchanged
-   * - Return nothing (`void`) to store the raw result as-is
-   */
   onResult?: (result: AudioGenerationResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -55,11 +43,6 @@ export interface CreateGenerateAudioOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
-/**
- * Return type for the createGenerateAudio function.
- *
- * @template TOutput - The output type (after optional transform)
- */
 export interface CreateGenerateAudioReturn<
   TOutput = AudioGenerationResult,
 > extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
@@ -75,32 +58,6 @@ export interface CreateGenerateAudioReturn<
   generate: (input: AudioGenerateInput) => Promise<void>
 }
 
-/**
- * Creates a reactive audio generation instance for Svelte 5.
- *
- * @example
- * ```svelte
- * <script>
- *   import { createGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-svelte'
- *
- *   const audio = createGenerateAudio({
- *     connection: fetchServerSentEvents('/api/generate/audio'),
- *   })
- * </script>
- *
- * <div>
- *   <button onclick={() => audio.generate({ prompt: 'An upbeat electronic track', duration: 10 })}>
- *     Generate
- *   </button>
- *   {#if audio.isLoading}
- *     <p>Generating...</p>
- *   {/if}
- *   {#if audio.result?.audio.url}
- *     <audio src={audio.result.audio.url} controls></audio>
- *   {/if}
- * </div>
- * ```
- */
 export function createGenerateAudio<TTransformed = void>(
   options: Omit<
     CreateGenerateAudioOptions,

@@ -1,15 +1,3 @@
-/**
- * Helpers that let a harness adapter surface custom events emitted by BRIDGED
- * tools (via {@link ToolBridgeCoreOptions.emitCustomEvent}) on its live output
- * stream.
- *
- * The bridge runs out-of-band from the harness's own event stream, so a bridged
- * tool's progress/console events have no path to the client on their own. An
- * adapter creates a {@link BridgeEventChannel}, hands its `emitCustomEvent` to
- * the bridge provisioner, and {@link mergeChunkStreams | merges} the channel's
- * stream into its translated output — so events interleave live while the agent
- * runs (e.g. code mode's `code_mode:console` logs during a long execution).
- */
 import { EventType, withTanstackMetadata } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -75,11 +63,6 @@ export function createBridgeEventChannel(meta: {
   }
 }
 
-/**
- * Merge a `side` chunk stream into a `base` chunk stream, yielding from whichever
- * settles first. Terminates when `base` ends (the run is over), then releases the
- * side iterator — so a never-ending channel (until closed) doesn't hang the merge.
- */
 export async function* mergeChunkStreams(
   base: AsyncIterable<StreamChunk>,
   side: AsyncIterable<StreamChunk>,
@@ -106,10 +89,6 @@ export async function* mergeChunkStreams(
       }
     }
   } finally {
-    // Fire-and-forget: do NOT await the side return. The channel generator is
-    // suspended on a promise that only `close()` resolves, and `close()` runs in
-    // the adapter's `finally` AFTER this merge completes — awaiting here would
-    // deadlock. The adapter's `close()` lets the generator unwind afterwards.
     const baseReturn = baseIt.return?.(undefined)
     if (baseReturn) void baseReturn.catch(() => {})
     const sideReturn = sideIt.return?.(undefined)

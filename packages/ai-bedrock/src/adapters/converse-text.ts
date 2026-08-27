@@ -67,7 +67,8 @@ function structuredFragmentFromDelta(
 ): string | undefined {
   if (!('contentBlockDelta' in ev)) return undefined
   const delta = ev.contentBlockDelta?.delta
-  if (!delta || !('toolUse' in delta)) return undefined
+  if (!delta) return undefined
+  if (!('toolUse' in delta)) return undefined
   return delta.toolUse?.input
 }
 
@@ -169,28 +170,8 @@ function* finishStructuredOutputStream(args: {
   }
 }
 
-/**
- * Bedrock Converse text adapter. Wires the Converse translation modules (message
- * converter, tool converter, stream processor, structured-output forced-tool
- * builder) onto `@tanstack/ai`'s `BaseTextAdapter` and the
- * `@aws-sdk/client-bedrock-runtime` `BedrockRuntimeClient`.
- *
- * The success-path AG-UI lifecycle (`RUN_STARTED`..`RUN_FINISHED`) is owned by
- * `processConverseStream`; this adapter only owns the catch/`RUN_ERROR` path,
- * mirroring openai-base's `chatStream`.
- *
- * The actual SDK calls live behind two protected seams (`sendStream` / `send`)
- * so tests can subclass and inject canned Converse SDK shapes without a real
- * AWS request.
- */
 export class BedrockConverseTextAdapter<
   TModel extends BedrockConverseModels,
-  // Constraint mirrors the chat adapter (text.ts): the base parameterises
-  // `TProviderOptions extends Record<string, any>`, and our default
-  // `ResolveConverseProviderOptions<TModel>` resolves to an interface lacking an
-  // implicit index signature — which `Record<string, unknown>` would reject but
-  // `Record<string, any>` accepts. Confined to the generic constraint (the
-  // established adapter pattern) — no value `as` cast is introduced.
   TProviderOptions extends Record<string, any> =
     ResolveConverseProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
@@ -208,31 +189,14 @@ export class BedrockConverseTextAdapter<
 
   constructor(config: BedrockConverseConfig, model: TModel) {
     super({}, model)
-    // Defer client construction and auth resolution: the AWS SDK is Node/
-    // server-only, so we must not pull it into the static graph here. The
-    // client (and its dynamic import) is built lazily on first SDK call.
     this.clientConfig = config
   }
 
-  /**
-   * Dynamically import `@aws-sdk/client-bedrock-runtime`. The specifier is held
-   * in a variable (not a string literal) so bundler dep scanners (e.g. Vite/
-   * esbuild optimizeDeps) cannot statically discover the AWS SDK and try to
-   * pre-bundle it for the browser — it would fail on the SDK's Node-only
-   * `fromTokenFile` export chain. The SDK is Node/server-only and is only
-   * reached on a real request. `typeof import(...)` is a type-only reference
-   * (erased at emit) so the imported members keep full typing.
-   */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
     return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
   }
 
-  /**
-   * Lazily construct the `BedrockRuntimeClient`. The dynamic import keeps
-   * `@aws-sdk/client-bedrock-runtime` out of the static/browser graph and
-   * defers `resolveBedrockAuth` until a real request is made.
-   */
   protected async getClient(): Promise<BedrockRuntimeClient> {
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
@@ -259,17 +223,6 @@ export class BedrockConverseTextAdapter<
     return this.clientPromise
   }
 
-  /**
-   * Map resolved auth + endpoint to a `BedrockRuntimeClientConfig`.
-   *
-   * Recent `@aws-sdk/client-bedrock-runtime` exposes a first-class `token`
-   * config field for Bedrock API-key bearer auth. But the client's default
-   * auth-scheme order is SigV4 first, then bearer — so passing `token` alone is
-   * not enough: the SDK still resolves SigV4 and throws "Could not load
-   * credentials from any providers". Pinning `authSchemePreference` to the
-   * bearer scheme makes the API key actually get used. SigV4 uses the AWS
-   * credential provider chain and the default scheme order.
-   */
   protected buildClientConfig(
     resolved: ResolvedBedrockAuth,
     region: string,
@@ -290,10 +243,6 @@ export class BedrockConverseTextAdapter<
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SDK seams (overridden in tests so no real AWS call happens)
-  // ---------------------------------------------------------------------------
-
   protected async sendStream(
     input: ConverseStreamCommandInput,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
@@ -313,10 +262,6 @@ export class BedrockConverseTextAdapter<
     const client = await this.getClient()
     return client.send(new ConverseCommand(input))
   }
-
-  // ---------------------------------------------------------------------------
-  // Public adapter surface
-  // ---------------------------------------------------------------------------
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
@@ -358,12 +303,6 @@ export class BedrockConverseTextAdapter<
     }
   }
 
-  /**
-   * Structured output via the forced-tool strategy. Converse has no native
-   * json_schema response_format, so we force a single tool whose input schema
-   * is the requested output schema and read the model's `toolUse.input` back as
-   * the structured result.
-   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -405,13 +344,6 @@ export class BedrockConverseTextAdapter<
     }
   }
 
-  /**
-   * Streaming structured output. Same forced-tool strategy as
-   * `structuredOutput`, but streamed: the forced tool's `toolUse.input` JSON
-   * fragments are accumulated from the Converse stream and a terminal
-   * `CUSTOM 'structured-output.complete'` event carries `{ object, raw }`,
-   * mirroring openai-base's `structuredOutputStream` contract exactly.
-   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -436,10 +368,6 @@ export class BedrockConverseTextAdapter<
       }
       const stream = await this.sendStream(input)
 
-      // The forced tool streams its `input` as partial-JSON fragments inside
-      // `contentBlockDelta.delta.toolUse.input`. We surface them as
-      // TEXT_MESSAGE_CONTENT deltas (raw JSON text), matching openai-base which
-      // carries the structured JSON as text deltas.
       for await (const ev of stream) {
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
@@ -542,25 +470,10 @@ export class BedrockConverseTextAdapter<
     }
   }
 
-  /**
-   * Converse sends `tools` and a forced structured-output tool via two separate
-   * mechanisms, never together. Declaring `false` makes the engine run the
-   * agent loop without `outputSchema` and finalize via `structuredOutput` /
-   * `structuredOutputStream`.
-   */
   supportsCombinedToolsAndSchema(): boolean {
     return false
   }
 
-  // ---------------------------------------------------------------------------
-  // Request construction
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Translate `TextOptions` into a `ConverseCommandInput`. Shared by chatStream,
-   * structuredOutput, and structuredOutputStream (the latter two override
-   * `toolConfig` with the forced structured tool afterwards).
-   */
   protected buildInput(
     options: TextOptions<TProviderOptions>,
   ): ConverseCommandInput {
@@ -573,10 +486,6 @@ export class BedrockConverseTextAdapter<
       ? toToolConfig(convertTools(options.tools), 'auto')
       : undefined
 
-    // Sampling options live on `modelOptions` (typed as the narrowed
-    // `BedrockConverseProviderOptions`, which surfaces the OpenAI Chat
-    // Completions field names); translate them into Converse's `inferenceConfig`,
-    // which uses AWS-native camelCase keys.
     const modelOptions = options.modelOptions
     const temperature = modelOptions?.temperature
     const topP = modelOptions?.top_p
@@ -608,11 +517,6 @@ export class BedrockConverseTextAdapter<
   }
 }
 
-/**
- * Convert TanStack `Tool[]` to the Converse tool-converter input shape. Reuses
- * the SAME `convertSchemaToJsonSchema` the other adapters use so the Converse
- * tool input schemas match what every other provider sends.
- */
 function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
   return tools.map((tool) => {
     const inputSchema: JSONSchema = convertSchemaToJsonSchema(
@@ -626,11 +530,6 @@ function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
   })
 }
 
-/**
- * Find the forced structured-output tool's `input` in a non-streaming Converse
- * response. SDK-boundary narrowing only — `ConverseOutput` is a tagged union
- * (`{ message }`) and a tool-use block is `{ toolUse: { input } }`.
- */
 function extractStructuredToolInput(
   res: ConverseCommandOutput,
 ): unknown | undefined {
@@ -639,11 +538,6 @@ function extractStructuredToolInput(
   const content: Array<ContentBlock> = message?.content ?? []
   for (const block of content) {
     if ('toolUse' in block && block.toolUse) {
-      // Only accept the forced structured tool (an unnamed block is allowed,
-      // since the forced tool is the only one configured). A differently-named
-      // tool-use block is a hallucinated/leftover call whose arbitrary input
-      // must not be returned as the validated result — leave it to the caller's
-      // `throw` so the failure is accurate instead of silently wrong.
       if (
         block.toolUse.name === STRUCTURED_TOOL_NAME ||
         block.toolUse.name === undefined

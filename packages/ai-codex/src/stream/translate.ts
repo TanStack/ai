@@ -27,13 +27,6 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
-/**
- * Resolve the AG-UI tool-call name for a Codex thread item. Bridged TanStack
- * tools come back as `mcp_tool_call` items on the `tanstack` server and are
- * surfaced under the names the application registered; foreign MCP tools are
- * namespaced `mcp__<server>__<tool>`; harness-native items use their item
- * type verbatim (`command_execution`, `file_change`, ...).
- */
 export function toolNameForItem(item: CodexThreadItem): string {
   if (item.type === 'mcp_tool_call') {
     return item.server === BRIDGED_MCP_SERVER_NAME
@@ -151,27 +144,6 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
   return result
 }
 
-/**
- * Translate a Codex SDK thread-event stream into AG-UI StreamChunk events.
- *
- * The harness runs its own agent loop and executes its own tools, so the
- * translation always ends with `finishReason: 'stop'` (or RUN_ERROR) — never
- * `'tool_calls'`. Harness tool activity (commands, file changes, MCP calls,
- * web searches, todo lists) is emitted as already-resolved
- * TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so UIs can render it
- * while the TanStack engine never tries to execute them.
- *
- * Codex reports assistant text on `item.started` / `item.updated` /
- * `item.completed`. Each `agent_message` streams as START/CONTENT/END, with
- * CONTENT deltas from growing `item.text`. When `expectStructuredOutput` is
- * set, the last agent message is also parsed as the schema object on
- * `turn.completed`.
- *
- * Invariant: every TOOL_CALL_START is eventually paired with a
- * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
- * ends or aborts before the harness reported one) so the engine's
- * pending-tool-call scan on the next request never force-executes them.
- */
 export async function* translateThreadEvents(
   events: AsyncIterable<CodexThreadEvent>,
   ctx: TranslateContext,
@@ -267,7 +239,8 @@ export async function* translateThreadEvents(
   ): Generator<AdapterYieldChunk> {
     yield* startText(messageId)
     const state = openText.get(messageId)
-    if (state === undefined || state.ended) return
+    if (state === undefined) return
+    if (state.ended) return
     if (text.length <= state.emitted) return
     const delta = text.slice(state.emitted)
     state.emitted = text.length
@@ -283,7 +256,8 @@ export async function* translateThreadEvents(
 
   function* endText(messageId: string): Generator<AdapterYieldChunk> {
     const state = openText.get(messageId)
-    if (state === undefined || state.ended) return
+    if (state === undefined) return
+    if (state.ended) return
     state.ended = true
     yield {
       type: EventType.TEXT_MESSAGE_END,
@@ -420,11 +394,15 @@ export async function* translateThreadEvents(
       // needs RUN_STARTED first.
       yield* startRun()
 
-      if (event.type === 'item.started' || event.type === 'item.updated') {
+      if (event.type === 'item.started') {
         if (event.item.type === 'agent_message') {
           yield* handleAgentMessage(event.item, false)
-        } else if (event.type === 'item.started' && isToolItem(event.item)) {
+        } else if (isToolItem(event.item)) {
           yield* openToolCall(event.item)
+        }
+      } else if (event.type === 'item.updated') {
+        if (event.item.type === 'agent_message') {
+          yield* handleAgentMessage(event.item, false)
         }
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
@@ -441,12 +419,19 @@ export async function* translateThreadEvents(
           finishReason: 'stop',
           ...(usage !== undefined && { usage }),
         }
-      } else if (event.type === 'turn.failed' || event.type === 'error') {
+      } else if (event.type === 'turn.failed') {
         yield* synthesizeUnresolvedResults()
-        const message =
-          event.type === 'turn.failed'
-            ? (event.error?.message ?? 'Codex turn failed')
-            : event.message
+        const message = event.error?.message ?? 'Codex turn failed'
+        yield {
+          type: EventType.RUN_ERROR,
+          model,
+          timestamp: now(),
+          message,
+          error: { message },
+        }
+      } else if (event.type === 'error') {
+        yield* synthesizeUnresolvedResults()
+        const message = event.message
         yield {
           type: EventType.RUN_ERROR,
           model,
@@ -460,10 +445,6 @@ export async function* translateThreadEvents(
     }
     yield* emitStructuredFromLast()
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
     yield* synthesizeUnresolvedResults()
     throw error
   }

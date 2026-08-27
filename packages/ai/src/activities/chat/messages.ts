@@ -21,14 +21,7 @@ import type {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
-// ===========================
-// Message Converters
-// ===========================
 
-/**
- * Check if a MessagePart is a content part (text, image, audio, video, document)
- * that maps directly to a ModelMessage ContentPart.
- */
 function isContentPart(part: MessagePart): part is ContentPart {
   return (
     part.type === 'text' ||
@@ -65,10 +58,12 @@ function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
       ? bag
       : undefined
   const encrypted = encryptedValueFrom(toolCall)
-  if (bag === null && encrypted === undefined) {
+  const isInvalidBag = bag === null && encrypted === undefined
+  if (isInvalidBag) {
     return { ...toolCall, metadata: null }
   }
-  if (fromBag === undefined && encrypted === undefined) return toolCall
+  const isMissingFromBag = fromBag === undefined && encrypted === undefined
+  if (isMissingFromBag) return toolCall
   return {
     ...toolCall,
     metadata: {
@@ -86,12 +81,6 @@ function parseToolResultContent(content: string): unknown {
   }
 }
 
-/**
- * Collapse an array of ContentParts into the most compact ModelMessage content:
- * - Empty array → null
- * - All text parts → joined string (or null if empty)
- * - Mixed content → ContentPart array as-is
- */
 function collapseContentParts(
   parts: Array<ContentPart>,
 ): string | null | Array<ContentPart> {
@@ -106,17 +95,11 @@ function collapseContentParts(
   return parts
 }
 
-/**
- * Extract text content from ModelMessage content (string, null, or ContentPart array).
- * Used when only the text portion is needed (e.g., tool result content).
- */
 function getTextContent(
   content: string | null | undefined | Array<ContentPart>,
 ): string {
-  // Tool-call-only assistant turns carry no text and reach here as `null` or
-  // `undefined`; both must collapse to an empty string rather than crash on
-  // `.filter` (issue #532 — the interrupt-boundary MessagesSnapshot).
-  if (content === null || content === undefined) return ''
+  const isInvalid = content === null || content === undefined
+  if (isInvalid) return ''
   if (typeof content === 'string') return content
   return content
     .filter((part): part is TextPart => part.type === 'text')
@@ -130,9 +113,6 @@ function toolResultContent(
   return Array.isArray(content) ? content : getTextContent(content)
 }
 
-/**
- * Convert UIMessages or ModelMessages to ModelMessages
- */
 function collectAnchoredToolCallIds(
   messages: Array<UIMessage | ModelMessage>,
 ): Set<string> {
@@ -226,11 +206,11 @@ function convertWireModelMessage(
     restoreToolResultOwnership(msg),
   )
   const role = (modelMessage as { role: string }).role
-  if (
+  const hasTool =
     role === 'tool' &&
     modelMessage.toolCallId &&
     anchoredToolCallIds.has(modelMessage.toolCallId)
-  ) {
+  if (hasTool) {
     return { kind: 'skip' }
   }
   if (role === 'reasoning') {
@@ -268,9 +248,6 @@ function convertWireModelMessage(
   return { kind: 'message', message: modelMessage, clearThinking: false }
 }
 
-/**
- * Convert UIMessages or ModelMessages to ModelMessages
- */
 export function convertMessagesToModelMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
@@ -308,12 +285,14 @@ function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
 }
 
 export function restoreToolResultOwnership<T extends object>(message: T): T {
-  if (!('role' in message) || message.role !== 'tool') return message
+  const hasRole = !('role' in message) || message.role !== 'tool'
+  if (hasRole) return message
   const source = message
   const metadata = tanstackMetadata(source)
   const owned = metadata?.toolResult
   if (!isRecord(owned)) return message
-  if ('content' in owned && !isContentPartArray(owned.content)) return message
+  const hasContent = 'content' in owned && !isContentPartArray(owned.content)
+  if (hasContent) return message
   const next = { ...message }
   if (!('id' in owned)) Reflect.deleteProperty(next, 'id')
   if (!('createdAt' in owned)) Reflect.deleteProperty(next, 'createdAt')
@@ -341,11 +320,6 @@ export function restoreToolResultOwnership<T extends object>(message: T): T {
   return next
 }
 
-/**
- * Rebuild a `Date` from a live `Date` or from an ISO string.
- * `JSON.stringify` turns `Date` into a string, so persistence reload
- * and AG-UI wire both land here as strings.
- */
 export function coerceCreatedAt(value: unknown): Date | undefined {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? undefined : value
@@ -378,22 +352,29 @@ function optionalName(source: { name?: string }): { name?: string } {
 }
 
 function isUiResourcePart(value: unknown): value is UIResourcePart {
-  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+  const isInvalid =
+    value == null || typeof value !== 'object' || Array.isArray(value)
+  if (isInvalid) {
     return false
   }
-  if (!('type' in value) || value.type !== 'ui-resource') return false
-  if (!('toolCallId' in value) || typeof value.toolCallId !== 'string') {
+  const hasType = !('type' in value) || value.type !== 'ui-resource'
+  if (hasType) return false
+  const hasToolCallId =
+    !('toolCallId' in value) || typeof value.toolCallId !== 'string'
+  if (hasToolCallId) {
     return false
   }
-  if (!('toolName' in value) || typeof value.toolName !== 'string') {
+  const hasToolName =
+    !('toolName' in value) || typeof value.toolName !== 'string'
+  if (hasToolName) {
     return false
   }
-  if (
+  const hasResource =
     !('resource' in value) ||
     value.resource == null ||
     typeof value.resource !== 'object' ||
     Array.isArray(value.resource)
-  ) {
+  if (hasResource) {
     return false
   }
   const resource = value.resource
@@ -438,25 +419,6 @@ function assistantMetadata(
   return Object.keys(result).length > 0 ? result : undefined
 }
 
-/**
- * Convert a UIMessage to ModelMessage(s)
- *
- * Walks the parts array IN ORDER to preserve the interleaving of text,
- * tool calls, and tool results. This is critical for multi-round tool
- * flows where the model generates text, calls a tool, gets the result,
- * then generates more text and calls another tool.
- *
- * The output preserves the sequential structure:
- *   text1 → toolCall1 → toolResult1 → text2 → toolCall2 → toolResult2
- * becomes:
- *   assistant: {content: "text1", toolCalls: [toolCall1]}
- *   tool: toolResult1
- *   assistant: {content: "text2", toolCalls: [toolCall2]}
- *   tool: toolResult2
- *
- * @param uiMessage - The UIMessage to convert
- * @returns An array of ModelMessages preserving part ordering
- */
 export function uiMessageToModelMessages(
   uiMessage: UIMessage,
 ): Array<ModelMessage> {
@@ -475,10 +437,6 @@ export function uiMessageToModelMessages(
   return buildAssistantMessages(uiMessage)
 }
 
-/**
- * Build a single ModelMessage for user messages (simple path).
- * Preserves ordering of text and multimodal content parts.
- */
 function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
   const contentParts: Array<ContentPart> = []
   for (const part of uiMessage.parts) {
@@ -505,9 +463,6 @@ interface AssistantSegment {
     id: string
     type: 'function'
     function: { name: string; arguments: string }
-    /** Provider-specific metadata that round-trips with the tool call.
-     * Untyped at this framework layer; adapters narrow it via their
-     * `TToolCallMetadata` generic. */
     metadata?: unknown
   }>
 }
@@ -527,15 +482,6 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
   )
 }
 
-/**
- * Build ModelMessages for an assistant UIMessage, preserving the
- * sequential interleaving of text, tool calls, and tool results.
- *
- * Walks parts in order. Text and tool-call parts accumulate into the
- * current "segment". When a tool-result part is encountered, the
- * current segment is flushed as an assistant message, then the tool
- * result is emitted as a tool message.
- */
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
@@ -558,7 +504,8 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     const hasToolCalls = current.toolCalls.length > 0
     const hasThinking = pendingThinking.length > 0
 
-    if (force || hasContent || hasToolCalls || hasThinking) {
+    const hasForce = force || hasContent || hasToolCalls || hasThinking
+    if (hasForce) {
       messageList.push({
         ...assistantFields,
         role: 'assistant',
@@ -575,13 +522,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   }
 
   function handleContentPart(part: MessagePart): boolean {
-    if (
+    const isText =
       part.type === 'text' ||
       part.type === 'image' ||
       part.type === 'audio' ||
       part.type === 'video' ||
       part.type === 'document'
-    ) {
+    if (isText) {
       current.contentParts.push(part)
       return true
     }
@@ -607,10 +554,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   function handleToolResultPart(part: MessagePart): boolean {
     if (part.type !== 'tool-result') return false
     flushSegment(messageList.length === 0)
-    if (
+    const hasPart =
       (part.state === 'complete' || part.state === 'error') &&
       !emittedToolResultIds.has(part.toolCallId)
-    ) {
+    if (hasPart) {
       messageList.push({
         ...(part.id !== undefined && { id: part.id }),
         ...optionalCreatedAt(part),
@@ -638,7 +585,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       })
       return
     }
-    if (part.type !== 'structured-output' || part.status !== 'complete') return
+    const shouldSkipPart =
+      part.type !== 'structured-output' || part.status !== 'complete'
+    if (shouldSkipPart) return
     const serialized =
       part.raw !== ''
         ? part.raw
@@ -678,7 +627,9 @@ function appendImplicitToolResults(
 ): void {
   for (const part of uiMessage.parts) {
     if (part.type !== 'tool-call') continue
-    if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
+    const hasPart =
+      part.output !== undefined && !emittedToolResultIds.has(part.id)
+    if (hasPart) {
       messageList.push({
         role: 'tool',
         content: normalizeToolResult(part.output),
@@ -686,12 +637,12 @@ function appendImplicitToolResults(
       })
       emittedToolResultIds.add(part.id)
     }
-    if (
+    const hasPart2 =
       part.output === undefined &&
       part.state === 'approval-responded' &&
       part.approval?.approved !== undefined &&
       !emittedToolResultIds.has(part.id)
-    ) {
+    if (hasPart2) {
       const approved = part.approval.approved
       messageList.push({
         role: 'tool',
@@ -709,23 +660,13 @@ function appendImplicitToolResults(
   }
 }
 
-/**
- * Convert a ModelMessage to UIMessage
- *
- * This conversion creates a parts-based structure:
- * - content field → TextPart
- * - toolCalls array → ToolCallPart[]
- * - role="tool" messages should be converted separately and merged
- *
- * @param modelMessage - The ModelMessage to convert
- * @param id - Optional ID for the UIMessage (generated if not provided)
- * @returns A UIMessage with parts
- */
 function appendAssistantThinkingParts(
   modelMessage: ModelMessage,
   parts: Array<MessagePart>,
 ): void {
-  if (modelMessage.role !== 'assistant' || !modelMessage.thinking?.length) {
+  const shouldSkipModelMessage =
+    modelMessage.role !== 'assistant' || !modelMessage.thinking?.length
+  if (shouldSkipModelMessage) {
     return
   }
   for (const thinking of modelMessage.thinking) {
@@ -744,12 +685,13 @@ function appendModelContentParts(
   structuredOutput: StructuredOutputPart | undefined,
   createdAt: Date | undefined,
 ): void {
-  if (modelMessage.role === 'assistant' && structuredOutput) {
-    if (
+  const isAssistant = modelMessage.role === 'assistant' && structuredOutput
+  if (isAssistant) {
+    const isInvalidModelMessage =
       typeof modelMessage.content === 'string' &&
       modelMessage.content &&
       modelMessage.content !== structuredOutput.raw
-    ) {
+    if (isInvalidModelMessage) {
       const suffix = structuredOutput.raw
       const text =
         suffix !== '' && modelMessage.content.endsWith(suffix)
@@ -760,7 +702,8 @@ function appendModelContentParts(
     parts.push(structuredOutput)
     return
   }
-  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
+  const isTool = modelMessage.role === 'tool' && modelMessage.toolCallId
+  if (isTool) {
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
@@ -795,7 +738,9 @@ function appendModelToolCallParts(
   modelMessage: ModelMessage,
   parts: Array<MessagePart>,
 ): void {
-  if (!modelMessage.toolCalls || modelMessage.toolCalls.length === 0) return
+  const isEmptyModelMessage =
+    !modelMessage.toolCalls || modelMessage.toolCalls.length === 0
+  if (isEmptyModelMessage) return
   for (const toolCall of modelMessage.toolCalls) {
     let input: unknown
     try {
@@ -846,22 +791,6 @@ export function modelMessageToUIMessage(
   )
 }
 
-/**
- * Normalize a single AG-UI `MESSAGES_SNAPSHOT` message into a `UIMessage`.
- *
- * AG-UI snapshot messages use the wire shape `{ id, role, content }` and have
- * no `parts` array. Casting them directly to `UIMessage` is unsafe: any code
- * that later reads `message.parts` (e.g. the devtools `onToolCallStateChange`
- * handler) crashes with "Cannot read properties of undefined (reading 'find')".
- *
- * Each role is mapped to the canonical `UIMessage` shape, reusing
- * `modelMessageToUIMessage` for the roles that share `ModelMessage`'s structure.
- * The original AG-UI `id` is preserved so later `TEXT_MESSAGE_CONTENT` /
- * `TOOL_CALL_*` events still route by `messageId` (falling back to a generated
- * id only when the snapshot omits one). Messages that already carry `parts`
- * (e.g. a TanStack server echoing `UIMessage`s back over the wire) pass through
- * unchanged apart from ensuring an id.
- */
 function assistantSnapshotToUIMessage(
   message: Extract<AGUIMessage, { role: 'assistant' }>,
   id: string,
@@ -997,7 +926,9 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   let metadata: NonNullable<UIMessage['metadata']> | undefined
   if ('metadata' in source) {
     const raw = source.metadata
-    if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
+    const isInvalidRaw =
+      raw != null && typeof raw === 'object' && !Array.isArray(raw)
+    if (isInvalidRaw) {
       metadata = raw as NonNullable<UIMessage['metadata']>
       next = { ...next, metadata }
     }
@@ -1006,11 +937,17 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   const createdAt =
     coerceCreatedAt(next.createdAt) ??
     (metadata !== undefined ? createdAtFromMetadata(metadata) : undefined)
-  if (createdAt !== undefined && !Object.is(createdAt, next.createdAt)) {
+  const hasCreatedAt =
+    createdAt !== undefined && !Object.is(createdAt, next.createdAt)
+  if (hasCreatedAt) {
     next = { ...next, createdAt }
-  } else if (createdAt === undefined && next.createdAt !== undefined) {
-    const { createdAt: _invalid, ...rest } = next
-    next = rest
+  } else {
+    const hasCreatedAt2 =
+      createdAt === undefined && next.createdAt !== undefined
+    if (hasCreatedAt2) {
+      const { createdAt: _invalid, ...rest } = next
+      next = rest
+    }
   }
 
   const uiResources = tanstackMetadata(metadata)?.uiResources
@@ -1023,13 +960,13 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
 function snapshotStructuredOutput(
   value: TanStackMessageMetadata['structuredOutput'],
 ): StructuredOutputPart | undefined {
-  if (
+  const isInvalidStreaming =
     value == null ||
     (value.status !== 'streaming' &&
       value.status !== 'complete' &&
       value.status !== 'error') ||
     typeof value.raw !== 'string'
-  ) {
+  if (isInvalidStreaming) {
     return undefined
   }
   return {
@@ -1045,15 +982,6 @@ function snapshotStructuredOutput(
   }
 }
 
-/**
- * Convert AG-UI user message content into `UIMessage` parts.
- *
- * AG-UI user content is either a plain string or a multimodal array whose text
- * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
- * Text entries are rewritten to the TanStack shape; image/audio/video/document
- * entries already match `ContentPart` and pass through. `binary` entries have no
- * TanStack equivalent and are dropped.
- */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
@@ -1072,14 +1000,6 @@ function aguiUserContentToParts(
   return parts
 }
 
-/**
- * Convert an array of ModelMessages to UIMessages
- *
- * This handles merging tool result messages with their corresponding assistant messages
- *
- * @param modelMessages - Array of ModelMessages to convert
- * @returns Array of UIMessages
- */
 export function modelMessagesToUIMessages(
   modelMessages: Array<ModelMessage>,
 ): Array<UIMessage> {
@@ -1089,11 +1009,11 @@ export function modelMessagesToUIMessages(
   for (const msg of modelMessages) {
     if (msg.role === 'tool') {
       // Tool result - merge into the last assistant message if possible
-      if (
+      const hasMsg =
         msg.toolCallId !== undefined &&
         currentAssistantMessage &&
         currentAssistantMessage.role === 'assistant'
-      ) {
+      if (hasMsg) {
         const content = toolResultContent(msg.content)
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>
@@ -1143,14 +1063,6 @@ export function modelMessagesToUIMessages(
   return uiMessages
 }
 
-/**
- * Normalize a message (UIMessage or ModelMessage) to a UIMessage
- * Ensures the message has an ID and createdAt timestamp
- *
- * @param message - Either a UIMessage or ModelMessage
- * @param generateId - Function to generate a message ID if needed
- * @returns A UIMessage with guaranteed id and createdAt
- */
 export function normalizeToUIMessage(
   message: UIMessage | ModelMessage,
   generateId: () => string,
@@ -1173,9 +1085,6 @@ export function normalizeToUIMessage(
   }
 }
 
-/**
- * Generate a unique message ID
- */
 export function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`
 }

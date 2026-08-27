@@ -14,12 +14,6 @@ import type {
 import type { ElevenLabsClientConfig } from '../utils/client'
 import type { ElevenLabsTranscriptionModel } from '../model-meta'
 
-/**
- * Provider-specific options for ElevenLabs Scribe transcription. Fields map
- * 1:1 onto the SDK's `BodySpeechToTextV1SpeechToTextPost` — mirroring the
- * names so documentation stays useful.
- * @see https://elevenlabs.io/docs/api-reference/speech-to-text/convert
- */
 export interface ElevenLabsTranscriptionProviderOptions {
   /** Annotate non-speech events like (laughter), (footsteps), …. */
   tagAudioEvents?: boolean
@@ -35,10 +29,6 @@ export interface ElevenLabsTranscriptionProviderOptions {
   detectSpeakerRoles?: boolean
   /** Bias the model towards these keyterms (max 1000). */
   keyterms?: Array<string>
-  /**
-   * Entity detection: `'all'`, a category (`'pii'`, `'phi'`, `'pci'`,
-   * `'other'`, `'offensive_language'`), or a specific entity type.
-   */
   entityDetection?: string
   /** Redact entities from the transcript text. Must be a subset of `entityDetection`. */
   entityRedaction?: string
@@ -54,26 +44,9 @@ export interface ElevenLabsTranscriptionProviderOptions {
   enableLogging?: boolean
   /** Multi-channel audio with one speaker per channel. Max 5 channels. */
   useMultiChannel?: boolean
-  /**
-   * Hint for audio format. Use `'pcm_s16le_16'` to skip encoding for 16-bit
-   * PCM @ 16kHz mono little-endian inputs (lower latency).
-   */
   fileFormat?: 'pcm_s16le_16' | 'other'
 }
 
-/**
- * ElevenLabs speech-to-text adapter built on the official SDK's Scribe family.
- *
- * @example
- * ```ts
- * const adapter = elevenlabsTranscription('scribe_v1')
- * const result = await generateTranscription({
- *   adapter,
- *   audio: fileInput,
- *   language: 'en',
- * })
- * ```
- */
 export class ElevenLabsTranscriptionAdapter<
   TModel extends ElevenLabsTranscriptionModel,
 > extends BaseTranscriptionAdapter<
@@ -115,9 +88,6 @@ export class ElevenLabsTranscriptionAdapter<
   private transformResponse(
     response: Awaited<ReturnType<ElevenLabsClient['speechToText']['convert']>>,
   ): TranscriptionResult {
-    // The SDK types this as a union of single- and multi-channel responses.
-    // We treat multi-channel as "join the channel transcripts" — consumers
-    // who care about per-channel detail can re-parse from `modelOptions`.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- bridges SpeechToTextConvertResponse union (incl. webhook variant with no text/words/transcripts) to a flattened duck-typed shape we discriminate at runtime
     const data = response as unknown as {
       text?: string
@@ -308,9 +278,6 @@ function buildWordsAndSegments(
   return { words: outWords, segments }
 }
 
-/**
- * Create an ElevenLabs transcription adapter using `ELEVENLABS_API_KEY` from env.
- */
 export function elevenlabsTranscription<
   TModel extends ElevenLabsTranscriptionModel,
 >(
@@ -320,9 +287,6 @@ export function elevenlabsTranscription<
   return new ElevenLabsTranscriptionAdapter(model, config)
 }
 
-/**
- * Create an ElevenLabs transcription adapter with an explicit API key.
- */
 export function createElevenLabsTranscription<
   TModel extends ElevenLabsTranscriptionModel,
 >(

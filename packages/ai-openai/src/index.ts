@@ -1,7 +1,3 @@
-// ============================================================================
-// New Tree-Shakeable Adapters (Recommended)
-// ============================================================================
-
 // Text (Chat) adapter - for chat/text completion (Responses API)
 export {
   OpenAITextAdapter,
@@ -40,9 +36,6 @@ export type {
 } from './image/image-provider-options'
 
 // Video adapter - for video generation (experimental)
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export {
   OpenAIVideoAdapter,
   createOpenaiVideo,
@@ -87,10 +80,6 @@ export {
 } from './adapters/embedding'
 export type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
-// ============================================================================
-// Type Exports
-// ============================================================================
-
 export type {
   OpenAIChatModelProviderOptionsByName,
   OpenAIChatModelToolCapabilitiesByName,
@@ -121,10 +110,6 @@ export type {
   OpenAIMessageMetadataByModality,
 } from './message-types'
 export type { OpenAIClientConfig } from './utils/client'
-
-// ============================================================================
-// Realtime (Voice) Adapters
-// ============================================================================
 
 export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
 

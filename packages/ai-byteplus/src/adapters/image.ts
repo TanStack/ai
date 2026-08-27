@@ -44,29 +44,13 @@ import type {
 } from '../model-meta'
 import type { BytePlusArkConfig } from '../utils/client'
 
-/**
- * Configuration for the BytePlus Seedream image adapter.
- */
 export interface BytePlusImageConfig extends BytePlusArkConfig {}
 
-/**
- * Roles Seedream can honour. Every input image is a reference — there is no
- * inpainting mask, control-image or frame channel — so this is an allow-list
- * rather than a deny-list: a role added to the core union later (or a
- * video-oriented one like `start_frame`) fails loudly here instead of being
- * silently flattened into a plain reference.
- */
 const SUPPORTED_INPUT_ROLES: ReadonlySet<string> = new Set([
   'reference',
   'character',
 ])
 
-/**
- * Converts a prompt image part to the string Seedream's `image` field takes:
- * URLs pass through (BytePlus fetches them server-side), data sources become
- * data URIs. BytePlus requires the format in `data:image/<format>;base64,` to
- * be lowercase, so the mime type is lowercased on the way out.
- */
 function imagePartToImageRef(part: ImagePart<MediaInputMetadata>): string {
   const { source } = part
   if (source.type === 'url') return source.value
@@ -74,10 +58,6 @@ function imagePartToImageRef(part: ImagePart<MediaInputMetadata>): string {
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`
 }
 
-/**
- * Renders provider error objects as `code: message` pairs for a log line or
- * an error message.
- */
 function describeFailures(
   failures: ReadonlyArray<BytePlusImageErrorObject>,
 ): string {
@@ -89,15 +69,6 @@ function describeFailures(
     .join('; ')
 }
 
-/**
- * Maps Seedream's usage block onto `TokenUsage`.
- *
- * BytePlus bills per generated image and does not count input tokens, so
- * `promptTokens` is always 0 and `generated_images` is surfaced as
- * `usage.billed` (`{ quantity, unit: 'images' }`) — the count the price is
- * applied to. The deprecated `unitsBilled` is still populated for
- * backward compatibility.
- */
 function buildBytePlusImageUsage(
   usage: BytePlusImageUsage | undefined,
 ): TokenUsage | undefined {
@@ -115,31 +86,6 @@ function buildBytePlusImageUsage(
   }
 }
 
-/**
- * BytePlus Seedream image generation adapter.
- *
- * Drives Ark's `POST /images/generations` endpoint directly rather than
- * through the OpenAI SDK: the endpoint takes size tokens (`2K`) as well as
- * pixel sizes, has no `n` parameter, and carries reference images for editing
- * in the generation request instead of a separate edits endpoint.
- *
- * Features:
- * - Text-to-image and image-conditioned generation (editing, multi-reference)
- *   from a single call, with per-model reference-count limits enforced.
- * - Size validation across both accepted forms.
- * - `numberOfImages` mapped onto Seedream's group-image mode.
- *
- * @example
- * ```typescript
- * const adapter = byteplusImage('seedream-4-0-250828')
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A guitar in a sunlit workshop',
- *   size: '2K',
- *   modelOptions: { watermark: false },
- * })
- * ```
- */
 export class BytePlusImageAdapter<
   TModel extends BytePlusImageModel,
 > extends BaseImageAdapter<
@@ -173,7 +119,9 @@ export class BytePlusImageAdapter<
 
     const resolved = resolveMediaPrompt(options.prompt)
 
-    if (resolved.videos.length > 0 || resolved.audios.length > 0) {
+    const hasUnsupportedMedia =
+      resolved.videos.length > 0 || resolved.audios.length > 0
+    if (hasUnsupportedMedia) {
       throw new Error(
         `byteplus.generateImages does not support video / audio prompt parts on model ${model}.`,
       )
@@ -249,12 +197,6 @@ export class BytePlusImageAdapter<
     logger: InternalLogger,
     numberOfImages: number | undefined,
   ): ImageGenerationResult {
-    // Shape pinned by a live seedream-4-0-250828 call and the Ark OpenAPI
-    // document. Validate rather than cast: `readJsonBody` returns `undefined`
-    // for an empty body and the raw text for a non-JSON one (an HTML error
-    // page from a proxy in front of the API), and casting either would report
-    // "returned no images" with the body — the only evidence of what actually
-    // happened — thrown away.
     if (typeof body !== 'object' || body === null) {
       throw bytePlusArkError(
         200,
@@ -266,11 +208,6 @@ export class BytePlusImageAdapter<
 
     const images: Array<GeneratedImage> = []
     const failures: Array<BytePlusImageErrorObject> = []
-    // Items matching none of the three known shapes. Ark's OpenAPI document
-    // describes a second, nested item form, so this is a live possibility
-    // rather than a defensive branch — and an unrecognized item that is
-    // neither counted nor reported turns provider drift into an
-    // "returned no images" with no attribution at all.
     let unrecognized = 0
     for (const item of payload.data ?? []) {
       if (item.b64_json) {
@@ -322,10 +259,6 @@ export class BytePlusImageAdapter<
           failures,
         },
       )
-      // The caller asked for a group and is getting a short array. Warn
-      // unconditionally: the `numberOfImages` warning below only fires when
-      // the count was set explicitly, so a partial failure would otherwise
-      // return successfully with no signal at all.
       logger.warn(
         `byteplus: ${failures.length} of ${failures.length + images.length} ` +
           `images failed to generate; returning ${images.length}.`,
@@ -353,26 +286,6 @@ export class BytePlusImageAdapter<
   }
 }
 
-/**
- * Creates a BytePlus Seedream image adapter with an explicit API key.
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'seedream-4-0-250828')
- * @param apiKey - Your BytePlus Ark API key
- * @param config - Optional additional configuration
- * @returns Configured BytePlus image adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createBytePlusImage('seedream-5-0-260128', 'ark-...')
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A cute baby sea otter',
- *   size: '2K',
- * })
- * ```
- */
 export function createBytePlusImage<TModel extends BytePlusImageModel>(
   model: TModel,
   apiKey: string,
@@ -381,29 +294,6 @@ export function createBytePlusImage<TModel extends BytePlusImageModel>(
   return new BytePlusImageAdapter(model, { apiKey, ...config })
 }
 
-/**
- * Creates a BytePlus Seedream image adapter, reading `ARK_API_KEY` from the
- * environment. Type resolution happens here at the call site.
- *
- * Note that Ark keys are region-isolated: a key issued for `ap-southeast`
- * does not work against the EU host.
- *
- * @param model - The model name (e.g., 'seedream-4-0-250828')
- * @param config - Optional configuration (excluding apiKey, auto-detected)
- * @returns Configured BytePlus image adapter instance with resolved types
- * @throws Error if ARK_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * const adapter = byteplusImage('seedream-4-0-250828')
- *
- * const result = await generateImage({
- *   adapter,
- *   prompt: 'A beautiful sunset over mountains',
- *   modelOptions: { watermark: false },
- * })
- * ```
- */
 export function byteplusImage<TModel extends BytePlusImageModel>(
   model: TModel,
   config?: Omit<BytePlusImageConfig, 'apiKey'>,

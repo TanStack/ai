@@ -62,7 +62,8 @@ function definedFields(
   fields: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(fields)) {
+  const fieldEntries = Object.entries(fields)
+  for (const [key, value] of fieldEntries) {
     if (value !== undefined) out[key] = value
   }
   return out
@@ -136,10 +137,6 @@ export function injectChat<
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
     onRunIdChange: (nextRunId) => runId.set(nextRunId),
-    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
-    // signal (via `onRunIdChange`) and pending interrupts arrive through
-    // `onInterruptStateChange`, so there is nothing left for it to do — and it
-    // is not a public option here, matching the other framework packages.
     onInterruptStateChange: (nextInterruptState, context) => {
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState, context)
@@ -176,12 +173,6 @@ export function injectChat<
   messages.set(client.getMessages())
   interruptState.set(client.getInterruptState())
 
-  // START TAILING HERE, not in the constructor. A client is idle until something
-  // attaches it, so a client that gets built and thrown away never opens a
-  // connection — an unreachable stream would hold one of the browser's ~6
-  // connections per origin until the page reloaded. `inject*` runs in an injection
-  // context tied to the consumer's lifetime, and `destroyRef.onDestroy` below is the
-  // matching `detach`.
   client.attach()
 
   // Sync reactive body / forwardedProps / context to the client.
@@ -220,9 +211,6 @@ export function injectChat<
   afterNextRender(
     () => {
       client.mountDevtools()
-      // Delivery-durability resume is transparent: the resumable SSE
-      // connection adapter reattaches via the browser's native Last-Event-ID
-      // on reconnect. No client-side auto-resume wiring is needed.
     },
     { injector },
   )
@@ -270,7 +258,8 @@ export function injectChat<
 
   const final = computed<Final | null>(() => {
     const part = activeStructuredPart()
-    if (!part || part.status !== 'complete') return null
+    if (!part) return null
+    if (part.status !== 'complete') return null
     return part.data as Final
   })
 

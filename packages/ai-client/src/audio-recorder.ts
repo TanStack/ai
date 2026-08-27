@@ -7,26 +7,11 @@ export type AudioRecorderState = 'idle' | 'recording' | 'stopping'
 export interface AudioRecorderOptions {
   /** Constraints forwarded to `getUserMedia({ audio })`. Defaults to `true`. */
   audio?: MediaTrackConstraints | boolean
-  /**
-   * Preferred recorder mime type. Used only when
-   * `MediaRecorder.isTypeSupported` reports it; otherwise the browser default
-   * is used.
-   */
   mimeType?: string
   /** Fired on `getUserMedia` rejection (permission denied) or recorder error. */
   onError?: (error: Error) => void
 }
 
-/**
- * Resolves the value `stop()` produces from a recorder transform callback.
- *
- * - If the callback returns a value — sync or async — that value's awaited type
- *   is used (a returned `null` is a real value and is preserved).
- * - If the callback returns nothing (`void`/`undefined`), or is absent, falls
- *   back to {@link AudioRecording}.
- *
- * @template TFn - The transform callback type (or undefined if not provided)
- */
 export type InferAudioRecordingOutput<TFn> = TFn extends (
   recording: AudioRecording,
 ) => infer R
@@ -44,18 +29,9 @@ export interface AudioRecording {
   mimeType: string
   /** Recording length in milliseconds. */
   durationMs: number
-  /**
-   * Ready-to-use audio content part for `sendMessage`/generation prompts:
-   * `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`.
-   */
   part: AudioPart
 }
 
-/**
- * Framework-agnostic browser audio recorder. Wraps `getUserMedia` +
- * `MediaRecorder`, returns the recorder's native output (no transcode), and
- * builds a plug-and-play {@link AudioRecording.part}.
- */
 export class AudioRecorder {
   private readonly options: AudioRecorderOptions
   private recorder: MediaRecorder | null = null
@@ -105,7 +81,8 @@ export class AudioRecorder {
   }
 
   async start(): Promise<void> {
-    if (this._state !== 'idle' || this.starting) {
+    const is_stateIsNotIdleOrStarting = this._state !== 'idle' || this.starting
+    if (is_stateIsNotIdleOrStarting) {
       return
     }
     this.starting = true
@@ -113,9 +90,6 @@ export class AudioRecorder {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: this.options.audio ?? true,
       })
-      // cancel()/teardown ran while we were awaiting the mic: release the
-      // freshly acquired stream and bail rather than starting a recording the
-      // caller can no longer stop (a leaked live microphone).
       if (this.pendingCancel) {
         stream.getTracks().forEach((t) => t.stop())
         return
@@ -168,7 +142,9 @@ export class AudioRecorder {
   }
 
   stop(): Promise<AudioRecording> {
-    if (this._state !== 'recording' || !this.recorder) {
+    const is_stateIsNotRecordingOrNotRecorder =
+      this._state !== 'recording' || !this.recorder
+    if (is_stateIsNotRecordingOrNotRecorder) {
       return Promise.reject(
         new Error('AudioRecorder.stop() called while not recording'),
       )
@@ -186,9 +162,6 @@ export class AudioRecorder {
         // can't reach back in and fire finalize()/onError a second time.
         this.detachRecorder()
         if (this.chunks.length > 0) {
-          // onstop never fired, but ondataavailable already delivered the
-          // audio — finalize from the buffered chunks rather than discarding a
-          // recording the user successfully captured.
           void this.finalize()
         } else {
           this.handleError(
@@ -226,12 +199,9 @@ export class AudioRecorder {
       try {
         recorder.stop()
       } catch (err) {
-        // Stopping an already-inactive recorder throws InvalidStateError —
-        // that's expected here. Anything else is unexpected; surface it rather
-        // than swallowing it silently.
-        if (
-          !(err instanceof DOMException && err.name === 'InvalidStateError')
-        ) {
+        const isErrIsDOMExceptionAndNameIsInvalidStateError =
+          err instanceof DOMException && err.name === 'InvalidStateError'
+        if (!isErrIsDOMExceptionAndNameIsInvalidStateError) {
           this.notifyError(
             err instanceof Error ? err : new Error('Failed to stop recorder'),
           )
@@ -287,9 +257,6 @@ export class AudioRecorder {
     this.stopResolve = null
     this.stopReject = null
     this.setState('idle')
-    // Settle the pending stop() promise before invoking the user callback so a
-    // throwing onError can't strand the awaiter (the two error channels are
-    // independent — see start()/stop() docs).
     reject?.(error)
     this.notifyError(error)
   }

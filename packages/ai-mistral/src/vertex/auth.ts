@@ -14,34 +14,25 @@ function isMistralVertexLocation(
 }
 
 function isMissingGoogleAuthLibrary(error: unknown): boolean {
-  if (!(error instanceof Error) || !('code' in error)) {
+  if (error instanceof Error && 'code' in error) {
+    const code = error.code
+    const isModuleNotFound =
+      code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
+    if (isModuleNotFound) {
+      return error.message.includes('google-auth-library')
+    }
     return false
   }
-  const code = error.code
-  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
-    return false
-  }
-  return error.message.includes('google-auth-library')
+  return false
 }
 
 export type VertexAuthClient = {
   getRequestHeaders: (url?: string | URL) => Promise<Headers>
 }
 
-/**
- * Public Vertex config for Mistral. `project` and `location` match the
- * Gemini Vertex factories so one auth object works for both.
- *
- * Mistral on Vertex is regional only (`us-central1`, `europe-west4`).
- * There is no global endpoint.
- */
 export type MistralVertexConfig = {
   project?: string
   location?: string
-  /**
-   * Override the chat completions URL. When set, the Vertex
-   * `:rawPredict` / `:streamRawPredict` rewrite is skipped. Used by e2e.
-   */
   resolveRequestUrl?: (stream: boolean) => string
   getAccessToken?: () => Promise<string>
   authClient?: VertexAuthClient
@@ -49,17 +40,17 @@ export type MistralVertexConfig = {
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) {
-    return undefined
+  if (value !== undefined && value.length > 0) {
+    return value
   }
-  return value
+  return undefined
 }
 
 function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
-    return undefined
+  if (typeof process !== 'undefined' && process.env !== undefined) {
+    return nonEmpty(process.env[name])
   }
-  return nonEmpty(process.env[name])
+  return undefined
 }
 
 export function resolveMistralVertexProject(
@@ -116,12 +107,12 @@ export async function resolveMistralVertexAccessToken(
   if (config.authClient !== undefined) {
     const headers = await config.authClient.getRequestHeaders()
     const authorization = headers.get('Authorization')
-    if (authorization === null || !authorization.startsWith('Bearer ')) {
-      throw new MistralVertexAuthError(
-        'Mistral Vertex authClient.getRequestHeaders() must return an Authorization Bearer token.',
-      )
+    if (authorization !== null && authorization.startsWith('Bearer ')) {
+      return authorization.slice('Bearer '.length)
     }
-    return authorization.slice('Bearer '.length)
+    throw new MistralVertexAuthError(
+      'Mistral Vertex authClient.getRequestHeaders() must return an Authorization Bearer token.',
+    )
   }
 
   try {
@@ -131,12 +122,12 @@ export async function resolveMistralVertexAccessToken(
     })
     const client = await auth.getClient()
     const token = await client.getAccessToken()
-    if (token.token === null || token.token === undefined) {
-      throw new MistralVertexAuthError(
-        'Mistral Vertex could not load a Google access token from Application Default Credentials.',
-      )
+    if (token.token !== null && token.token !== undefined) {
+      return token.token
     }
-    return token.token
+    throw new MistralVertexAuthError(
+      'Mistral Vertex could not load a Google access token from Application Default Credentials.',
+    )
   } catch (error) {
     if (error instanceof MistralVertexAuthError) {
       throw error

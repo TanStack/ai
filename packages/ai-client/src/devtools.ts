@@ -173,7 +173,9 @@ export function createAIDevtoolsGenerationPreview(
     return textPreviewFromResult(input.result)
   }
 
-  if (input.result === null || input.result === undefined) {
+  const isMissingResultOrResultIsUndefined =
+    input.result === null || input.result === undefined
+  if (isMissingResultOrResultIsUndefined) {
     return { kind: 'empty' }
   }
 
@@ -192,7 +194,9 @@ function imagePreviewFromResult(result: unknown): AIDevtoolsGenerationPreview {
     .map((image) => mediaItemFromSource(image, 'image/png'))
     .filter(isGenerationMediaItem)
 
-  if (items.length === 0 && result !== null && result !== undefined) {
+  const isEmptyItemsAndHasResultAndResultIsNotUndefined =
+    items.length === 0 && result !== null && result !== undefined
+  if (isEmptyItemsAndHasResultAndResultIsNotUndefined) {
     const directItem = mediaItemFromSource(result, 'image/png')
     if (directItem) {
       items.push(directItem)
@@ -258,7 +262,9 @@ function textPreviewFromResult(result: unknown): AIDevtoolsGenerationPreview {
     return { kind: 'text', text }
   }
 
-  if (result === null || result === undefined) {
+  const isMissingResultOrResultIsUndefined =
+    result === null || result === undefined
+  if (isMissingResultOrResultIsUndefined) {
     return { kind: 'empty' }
   }
 
@@ -351,7 +357,9 @@ function mimeTypeFromAudioFormat(format: string | undefined): string {
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  const isNotValueOrTypeofValueIsNotObjectOrValueIsArray =
+    !value || typeof value !== 'object' || Array.isArray(value)
+  if (isNotValueOrTypeofValueIsNotObjectOrValueIsArray) {
     return undefined
   }
   return value as UnknownRecord
@@ -593,7 +601,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       activeBridgeByHookId.delete(this.options.hookId)
     }
 
-    for (const unsubscribe of this.unsubscribers.splice(0)) {
+    const splicedUnsubscribers = this.unsubscribers.splice(0)
+    for (const unsubscribe of splicedUnsubscribers) {
       unsubscribe()
     }
   }
@@ -637,7 +646,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private prepareForEmit(): boolean {
-    if (this.disposed || this.superseded) {
+    const isDisposedOrSuperseded = this.disposed || this.superseded
+    if (isDisposedOrSuperseded) {
       return false
     }
     this.activate()
@@ -665,7 +675,9 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
     const activeBridgeByHookId = getActiveBridgeRegistry()
     const activeBridge = activeBridgeByHookId.get(this.options.hookId)
-    if (activeBridge && activeBridge !== this) {
+    const isActiveBridgeAndActiveBridgeIsNotValue =
+      activeBridge && activeBridge !== this
+    if (isActiveBridgeAndActiveBridgeIsNotValue) {
       if (typeof activeBridge.supersede === 'function') {
         activeBridge.supersede()
       } else {
@@ -696,12 +708,15 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   private handleRequestState(
     event: AIDevtoolsEvent<{ targetHookId?: string }>,
   ): void {
-    if (this.disposed || this.superseded) {
+    const isDisposedOrSuperseded = this.disposed || this.superseded
+    if (isDisposedOrSuperseded) {
       return
     }
 
     const targetHookId = event.payload.targetHookId
-    if (targetHookId && targetHookId !== this.options.hookId) {
+    const isTargetHookIdAndTargetHookIdIsNotHookId =
+      targetHookId && targetHookId !== this.options.hookId
+    if (isTargetHookIdAndTargetHookIdIsNotHookId) {
       return
     }
 
@@ -711,11 +726,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
     this.onReplayState()
   }
 
-  /**
-   * Extension hook for subclasses to replay any additional cached state on a
-   * `devtools:request-state` (i.e. when a panel opens). Called only after the
-   * base guards (disposed/superseded/targetHookId) pass. No-op by default.
-   */
   protected onReplayState(): void {}
 
   private async handleToolFixtureApply(
@@ -730,21 +740,19 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private matchesFixtureTarget(fixture: AIDevtoolsToolFixture): boolean {
-    if (!fixture.hookId && !fixture.threadId) {
+    const isNotHookIdAndNotThreadId = !fixture.hookId && !fixture.threadId
+    if (isNotHookIdAndNotThreadId) {
       return false
     }
 
-    // Fixture routing: `hookId` wins when present (latest bridge for that
-    // registry key). `threadId` is the fallback for fixtures scoped only to a
-    // conversation / generation slot without a hook id.
     if (fixture.hookId) {
       return fixture.hookId === this.options.hookId
     }
 
-    if (
+    const isThreadIdAndNotThreadIdOrThreadIdIsNotThreadId =
       fixture.threadId &&
       (!this.options.threadId || fixture.threadId !== this.options.threadId)
-    ) {
+    if (isThreadIdAndNotThreadIdOrThreadIdIsNotThreadId) {
       return false
     }
     return true
@@ -793,10 +801,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
     }
   }
 }
-
-// Owns the chat-client devtools surface so the chat client itself stays a
-// pure transport. Fixture replay, per-run / per-stream event context, and
-// snapshot emission all live here; a no-op bridge can drop in for prod.
 
 export interface ChatDevtoolsBridgeOptions extends AIDevtoolsBridgeOptions<AIDevtoolsChatSnapshot> {
   getMessages: () => Array<UIMessage>
@@ -848,11 +852,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
-  /**
-   * Called by the auto-attaching emitter every time it sees a non-empty
-   * streamId pass through. Lets devtools track the latest stream id
-   * without the chat client wiring it up explicitly.
-   */
   recordStreamId(streamId: string): void {
     if (streamId) this.lastStreamId = streamId
   }
@@ -885,9 +884,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     )
   }
 
-  // Called when the chat client has just generated a runId for outbound emits;
-  // the matching RUN_STARTED chunk from the adapter lands later and
-  // observeChunk keeps the same context.
   beginRun(runId: string, threadId: string): void {
     this.currentRunId = runId
     this.currentRunThreadId = threadId
@@ -900,12 +896,16 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
       return
     }
 
-    if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+    const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
       const runId =
         chunk.type === 'RUN_FINISHED'
           ? chunk.runId
           : (chunk as { runId?: string }).runId
-      if (!runId || runId === this.currentRunId) {
+      const isNotRunIdOrRunIdIsCurrentRunId =
+        !runId || runId === this.currentRunId
+      if (isNotRunIdOrRunIdIsCurrentRunId) {
         const context = this.getCurrentRunEventContext()
         if (context) {
           this.lastRunEventContext = context
@@ -916,15 +916,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
-  /**
-   * Record a transported `memory:state` value (the server memory middleware's
-   * per-turn recall metrics + store snapshot). Called from the chat client's
-   * `onCustomEvent` handler — the designated path for CUSTOM stream events —
-   * NOT from `observeChunk`. Re-emits the browser `memory:*` events the devtools
-   * store consumes, and caches the value so a panel opened later can replay it
-   * (see {@link onReplayState}). Symmetric with the generation bridge's
-   * `recordResultChange` / `recordProgressChange`.
-   */
   recordMemoryState(rawValue: unknown): void {
     this.lastMemoryStateValue = rawValue
     this.emitMemoryState(rawValue)
@@ -943,11 +934,15 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
    * adapter supports introspection.
    */
   private emitMemoryState(rawValue: unknown): void {
-    if (!rawValue || typeof rawValue !== 'object') return
+    const isNotRawValueOrTypeofRawValueIsNotObject =
+      !rawValue || typeof rawValue !== 'object'
+    if (isNotRawValueOrTypeofRawValueIsNotObject) return
     const value = rawValue as MemoryStateEventValue
     const scope = value.scope
     const adapter = value.adapter
-    if (!scope || typeof adapter !== 'string') return
+    const isNotScopeOrTypeofAdapterIsNotString =
+      !scope || typeof adapter !== 'string'
+    if (isNotScopeOrTypeofAdapterIsNotString) return
     const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
 
     emitAIDevtoolsEvent('memory:retrieve:started', {
@@ -1039,11 +1034,6 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
 
   // --- Fixture replay ------------------------------------------------------
 
-  /**
-   * Entry point invoked when the devtools panel emits
-   * `devtools:tool-fixture:apply`. The chat client never calls this
-   * directly; it is wired through the base bridge's fixture subscription.
-   */
   async applyFixture(fixture: AIDevtoolsToolFixture): Promise<void> {
     const messages = this.chatOptions.getMessages()
     const threadId = fixture.threadId ?? this.chatOptions.threadId ?? ''
@@ -1246,7 +1236,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     messages: Array<UIMessage>,
   ): { message: UIMessage; toolCallId: string } | undefined {
     const sourceMessage = fixture.message
-    if (!sourceMessage || !Array.isArray(sourceMessage.parts)) {
+    const isNotSourceMessageOrNotPartsIsArray =
+      !sourceMessage || !Array.isArray(sourceMessage.parts)
+    if (isNotSourceMessageOrNotPartsIsArray) {
       return undefined
     }
 
@@ -1291,7 +1283,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   ): Map<string, string> {
     const ids = new Map<string, string>()
     for (const part of parts) {
-      if (!isRecord(part) || part.type !== 'tool-call') continue
+      const isNotIsRecordOrTypeIsNotToolCall =
+        !isRecord(part) || part.type !== 'tool-call'
+      if (isNotIsRecordOrTypeIsNotToolCall) continue
       if (typeof part.id !== 'string') continue
       ids.set(part.id, this.resolveFixtureToolCallId(part.id, messages))
     }
@@ -1302,7 +1296,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     messageId: string | undefined,
     messages: Array<UIMessage>,
   ): string {
-    if (messageId && !messages.some((message) => message.id === messageId)) {
+    const isMessageIdAndNotSome =
+      messageId && !messages.some((message) => message.id === messageId)
+    if (isMessageIdAndNotSome) {
       return messageId
     }
     return this.chatOptions.generateId('fixture-msg')
@@ -1312,7 +1308,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     toolCallId: string | undefined,
     messages: Array<UIMessage>,
   ): string {
-    if (toolCallId && !hasToolCallId(messages, toolCallId)) {
+    const isToolCallIdAndNotHasToolCallId =
+      toolCallId && !hasToolCallId(messages, toolCallId)
+    if (isToolCallIdAndNotHasToolCallId) {
       return toolCallId
     }
     return this.chatOptions.generateId('fixture-tool-call')
@@ -1336,11 +1334,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringifyFixtureValue(value: unknown): string {
   if (typeof value === 'string') return value
-  if (
+  const isValueIsUndefinedOrTypeofValueIsFunctionOrTypeofValueIsSymbol =
     value === undefined ||
     typeof value === 'function' ||
     typeof value === 'symbol'
-  ) {
+  if (isValueIsUndefinedOrTypeofValueIsFunctionOrTypeofValueIsSymbol) {
     return String(value)
   }
   try {
@@ -1370,13 +1368,19 @@ function cloneFixtureMessagePart(
   part: unknown,
   toolCallIds: Map<string, string>,
 ): MessagePart | undefined {
-  if (!isRecord(part) || typeof part.type !== 'string') return undefined
+  const isNotIsRecordOrTypeofTypeIsNotString =
+    !isRecord(part) || typeof part.type !== 'string'
+  if (isNotIsRecordOrTypeofTypeIsNotString) return undefined
   const cloned: Record<string, unknown> = { ...part }
 
-  if (part.type === 'tool-call' && typeof part.id === 'string') {
+  const isTypeIsToolCallAndTypeofIdIsString =
+    part.type === 'tool-call' && typeof part.id === 'string'
+  if (isTypeIsToolCallAndTypeofIdIsString) {
     cloned.id = toolCallIds.get(part.id) ?? part.id
   }
-  if (part.type === 'tool-result' && typeof part.toolCallId === 'string') {
+  const isTypeIsToolResultAndTypeofToolCallIdIsString =
+    part.type === 'tool-result' && typeof part.toolCallId === 'string'
+  if (isTypeIsToolResultAndTypeofToolCallIdIsString) {
     cloned.toolCallId = toolCallIds.get(part.toolCallId) ?? part.toolCallId
   }
   return cloned as MessagePart
@@ -1406,7 +1410,9 @@ function hydrateToolCallOutputs(
     }
   }
 
-  if (fixtureOutput.mappedToolCallId && fixtureOutput.output !== undefined) {
+  const isMappedToolCallIdAndOutputIsNotUndefined =
+    fixtureOutput.mappedToolCallId && fixtureOutput.output !== undefined
+  if (isMappedToolCallIdAndOutputIsNotUndefined) {
     const toolCall = parts.find(
       (candidate): candidate is ToolCallPart =>
         candidate.type === 'tool-call' &&
@@ -1431,10 +1437,6 @@ function hasToolCallId(
     }),
   )
 }
-
-// Devtools surface for GenerationClient / VideoGenerationClient. Owns per-run
-// history, active-run lifecycle, and snapshot emission; the generation client
-// pushes its core state in via the record* methods.
 
 export interface AIDevtoolsGenerationSnapshotBase<TOutput> {
   input: unknown
@@ -1515,13 +1517,13 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 
   ensureRunStarted(runId: string): void {
-    if (this.activeRunStarted && this.activeRunId === runId) return
+    const isActiveRunStartedAndActiveRunIdIsRunId =
+      this.activeRunStarted && this.activeRunId === runId
+    if (isActiveRunStartedAndActiveRunIdIsRunId) return
 
-    if (
-      !this.activeRunStarted &&
-      this.activeRunId &&
-      this.activeRunId !== runId
-    ) {
+    const isNotActiveRunStartedAndActiveRunIdAndActiveRunIdIsNotRunId =
+      !this.activeRunStarted && this.activeRunId && this.activeRunId !== runId
+    if (isNotActiveRunStartedAndActiveRunIdAndActiveRunIdIsNotRunId) {
       this.renameRun(this.activeRunId, runId)
     }
 
@@ -1721,10 +1723,6 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   }
 }
 
-// Video-job specialization: snapshots also carry the job id and the latest
-// provider-reported video status so the panel can show streaming progress
-// before the final URL lands.
-
 export interface AIDevtoolsVideoSnapshotBase<
   TOutput,
 > extends AIDevtoolsGenerationSnapshotBase<TOutput> {
@@ -1796,7 +1794,9 @@ export class VideoDevtoolsBridge<
     patch: VideoRunPatch<TOutput>,
   ): void {
     super.upsertRun(runId, patch)
-    if (!('jobId' in patch || 'videoStatus' in patch)) return
+    const isPatchHasJobIdOrPatchHasVideoStatus =
+      'jobId' in patch || 'videoStatus' in patch
+    if (!isPatchHasJobIdOrPatchHasVideoStatus) return
 
     const index = this.devtoolsRuns.findIndex((run) => run.id === runId)
     if (index < 0) return
@@ -1831,10 +1831,6 @@ export class VideoDevtoolsBridge<
   }
 }
 
-// Wraps the plain emitter so callers can do `this.events.X(...)` and get:
-// auto-attached run/thread context on every event that accepts one,
-// an auto-emitted snapshot after each event, and passive streamId tracking
-// so resolveStreamId() works without the chat client telling it.
 class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   constructor(
     private readonly getClientId: () => string,

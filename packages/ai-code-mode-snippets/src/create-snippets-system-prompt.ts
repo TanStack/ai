@@ -2,32 +2,20 @@ import { generateSnippetTypes } from './generate-snippet-types'
 import type { Snippet } from './types'
 
 interface CreateSnippetsSystemPromptOptions {
-  /**
-   * Snippets that were selected for this request
-   */
   selectedSnippets: Array<Snippet>
 
-  /**
-   * Total number of snippets in the library
-   */
   totalSnippetCount: number
 
-  /**
-   * Whether snippets are exposed as direct tools (not just sandbox bindings)
-   * @default true
-   */
   snippetsAsTools?: boolean
 }
 
-/**
- * Generate example input from a JSON Schema
- */
 function generateExampleFromSchema(schema: Record<string, unknown>): string {
   if (schema.type === 'object' && schema.properties) {
     const props = schema.properties as Record<string, { type: string }>
     const example: Record<string, unknown> = {}
 
-    for (const [key, value] of Object.entries(props)) {
+    const propertyEntries = Object.entries(props)
+    for (const [key, value] of propertyEntries) {
       if (value.type === 'string') example[key] = `'example_${key}'`
       else if (value.type === 'number') example[key] = 0
       else if (value.type === 'boolean') example[key] = true
@@ -40,10 +28,6 @@ function generateExampleFromSchema(schema: Record<string, unknown>): string {
   return '{}'
 }
 
-/**
- * Create system prompt documentation for the snippet library.
- * This is appended to the Code Mode system prompt.
- */
 export function createSnippetsSystemPrompt({
   selectedSnippets,
   totalSnippetCount,

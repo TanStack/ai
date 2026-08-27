@@ -109,10 +109,6 @@ export interface Message {
   requestId?: string
 }
 
-/**
- * Consolidated chunk - represents one or more raw chunks of the same type.
- * Consecutive content/thinking chunks are merged into a single entry with accumulated content.
- */
 export interface Chunk {
   id: string
   type:
@@ -337,14 +333,18 @@ function eventPartToMessagePart(part: EventMessagePart): MessagePart | null {
       errorMessage: part.errorMessage,
     }
   }
-  if (part.type === 'image' || part.type === 'audio' || part.type === 'video') {
-    return {
-      type: part.type,
-      source: part.source,
-      metadata: part.metadata,
-    }
+  switch (part.type) {
+    case 'image':
+    case 'audio':
+    case 'video':
+      return {
+        type: part.type,
+        source: part.source,
+        metadata: part.metadata,
+      }
+    default:
+      return null
   }
-  return null
 }
 
 function isStoreMessagePart(part: MessagePart | null): part is MessagePart {
@@ -391,8 +391,11 @@ function createdMessageToolCalls(
     state: 'input-complete',
   }))
   const toolCallsFromParts = toolCallsFromCreatedParts(parts, messageId)
-  if (toolCallsFromPayload && toolCallsFromPayload.length > 0) {
-    return toolCallsFromPayload
+  if (toolCallsFromPayload) {
+    const hasPayloadToolCalls = toolCallsFromPayload.length > 0
+    if (hasPayloadToolCalls) {
+      return toolCallsFromPayload
+    }
   }
   if (toolCallsFromParts.length > 0) {
     return toolCallsFromParts
@@ -475,15 +478,18 @@ export const AIProvider: ParentComponent = (props) => {
     for (const chunk of pending) {
       const lastChunk = existing[existing.length - 1]
 
-      if (
-        lastChunk &&
-        lastChunk.type === chunk.type &&
-        isMergeableChunkType(chunk.type) &&
-        lastChunk.messageId === chunk.messageId
-      ) {
-        lastChunk.content = chunk.content || lastChunk.content
-        lastChunk.delta = chunk.delta
-        lastChunk.chunkCount += chunk.chunkCount
+      if (lastChunk) {
+        const canMergeChunk =
+          lastChunk.type === chunk.type &&
+          isMergeableChunkType(chunk.type) &&
+          lastChunk.messageId === chunk.messageId
+        if (canMergeChunk) {
+          lastChunk.content = chunk.content || lastChunk.content
+          lastChunk.delta = chunk.delta
+          lastChunk.chunkCount += chunk.chunkCount
+        } else {
+          existing.push(chunk)
+        }
       } else {
         existing.push(chunk)
       }
@@ -555,15 +561,18 @@ export const AIProvider: ParentComponent = (props) => {
     }
 
     const lastPending = pending.chunks[pending.chunks.length - 1]
-    if (
-      lastPending &&
-      lastPending.type === chunk.type &&
-      isMergeableChunkType(chunk.type) &&
-      lastPending.messageId === chunk.messageId
-    ) {
-      lastPending.content = chunk.content || lastPending.content
-      lastPending.delta = chunk.delta
-      lastPending.chunkCount += chunk.chunkCount
+    if (lastPending) {
+      const canMergeChunk =
+        lastPending.type === chunk.type &&
+        isMergeableChunkType(chunk.type) &&
+        lastPending.messageId === chunk.messageId
+      if (canMergeChunk) {
+        lastPending.content = chunk.content || lastPending.content
+        lastPending.delta = chunk.delta
+        lastPending.chunkCount += chunk.chunkCount
+      } else {
+        pending.chunks.push(chunk)
+      }
     } else {
       pending.chunks.push(chunk)
     }
@@ -588,15 +597,18 @@ export const AIProvider: ParentComponent = (props) => {
     }
 
     const lastPending = pending.chunks[pending.chunks.length - 1]
-    if (
-      lastPending &&
-      lastPending.type === chunk.type &&
-      isMergeableChunkType(chunk.type) &&
-      lastPending.messageId === chunk.messageId
-    ) {
-      lastPending.content = chunk.content || lastPending.content
-      lastPending.delta = chunk.delta
-      lastPending.chunkCount += chunk.chunkCount
+    if (lastPending) {
+      const canMergeChunk =
+        lastPending.type === chunk.type &&
+        isMergeableChunkType(chunk.type) &&
+        lastPending.messageId === chunk.messageId
+      if (canMergeChunk) {
+        lastPending.content = chunk.content || lastPending.content
+        lastPending.delta = chunk.delta
+        lastPending.chunkCount += chunk.chunkCount
+      } else {
+        pending.chunks.push(chunk)
+      }
     } else {
       pending.chunks.push(chunk)
     }
@@ -631,13 +643,31 @@ export const AIProvider: ParentComponent = (props) => {
     }
   }
 
+  function resolveActivityConversation(
+    conversationId: string | undefined,
+    fallbackId: string,
+    label: string,
+  ): string {
+    if (!conversationId) {
+      getOrCreateConversation(fallbackId, 'server', label)
+      return fallbackId
+    }
+    if (!state.conversations[conversationId]) {
+      getOrCreateConversation(fallbackId, 'server', label)
+      return fallbackId
+    }
+    return conversationId
+  }
+
   function attachRunToConversation(
     conversationId: string,
     runId: string | undefined,
   ): void {
     if (!runId) return
     const conv = state.conversations[conversationId]
-    if (!conv || conv.runIds?.includes(runId)) return
+    if (!conv) return
+    const hasRun = conv.runIds?.includes(runId)
+    if (hasRun) return
     updateConversation(conversationId, {
       runIds: [...(conv.runIds ?? []), runId],
     })
@@ -691,9 +721,12 @@ export const AIProvider: ParentComponent = (props) => {
     // Find last assistant message
     for (let i = conv.messages.length - 1; i >= 0; i--) {
       const message = conv.messages[i]
-      if (message && message.role === 'assistant') {
-        queueMessageChunk(conversationId, i, chunk)
-        return
+      if (message) {
+        const isAssistantMessage = message.role === 'assistant'
+        if (isAssistantMessage) {
+          queueMessageChunk(conversationId, i, chunk)
+          return
+        }
       }
     }
 
@@ -736,10 +769,14 @@ export const AIProvider: ParentComponent = (props) => {
     // Cumulative usage is per-request, so mixing requests gives wrong deltas.
     for (let i = 0; i < targetMessageIndex; i++) {
       const msg = conv.messages[i]
-      if (msg?.role === 'assistant' && msg.usage) {
-        if (requestId && msg.requestId !== requestId) continue
-        previousPromptTokens += msg.usage.promptTokens
-        previousCompletionTokens += msg.usage.completionTokens
+      if (msg?.role === 'assistant') {
+        if (msg.usage) {
+          const isOtherRequest =
+            Boolean(requestId) && msg.requestId !== requestId
+          if (isOtherRequest) continue
+          previousPromptTokens += msg.usage.promptTokens
+          previousCompletionTokens += msg.usage.completionTokens
+        }
       }
     }
 
@@ -768,11 +805,6 @@ export const AIProvider: ParentComponent = (props) => {
     )
   }
 
-  /**
-   * Update conversation-level usage by tracking max cumulative per request.
-   * Usage events report cumulative totals per-request, so we keep the highest
-   * value seen for each requestId and sum across all requests for the total.
-   */
   function updateConversationUsage(
     conversationId: string,
     requestId: string | undefined,
@@ -786,13 +818,16 @@ export const AIProvider: ParentComponent = (props) => {
       requestUsageByConversation.set(conversationId, requestMap)
     }
     const existing = requestMap.get(key)
-    if (!existing || usage.totalTokens > existing.totalTokens) {
+    const shouldReplaceUsage =
+      !existing || usage.totalTokens > existing.totalTokens
+    if (shouldReplaceUsage) {
       requestMap.set(key, usage)
     }
     // Sum across all requests
     let prompt = 0
     let completion = 0
-    for (const v of requestMap.values()) {
+    const requestUsages = requestMap.values()
+    for (const v of requestUsages) {
       prompt += v.promptTokens
       completion += v.completionTokens
     }
@@ -953,7 +988,8 @@ export const AIProvider: ParentComponent = (props) => {
   }
 
   function isToolFixtureRecord(value: unknown): value is ToolFixtureRecord {
-    if (typeof value !== 'object' || value === null) return false
+    if (typeof value !== 'object') return false
+    if (value === null) return false
     const candidate = value as Partial<ToolFixtureRecord>
     return (
       typeof candidate.id === 'string' &&
@@ -972,7 +1008,8 @@ export const AIProvider: ParentComponent = (props) => {
   function isToolFixtureMessage(
     value: unknown,
   ): value is NonNullable<ToolFixtureRecord['message']> {
-    if (typeof value !== 'object' || value === null) return false
+    if (typeof value !== 'object') return false
+    if (value === null) return false
     const candidate = value as {
       id?: unknown
       role?: unknown
@@ -1004,7 +1041,8 @@ export const AIProvider: ParentComponent = (props) => {
     updates: Partial<Conversation>,
   ): void {
     if (!state.conversations[conversationId]) return
-    for (const [key, value] of Object.entries(updates)) {
+    const conversationUpdates = Object.entries(updates)
+    for (const [key, value] of conversationUpdates) {
       setState(
         'conversations',
         conversationId,
@@ -1020,8 +1058,10 @@ export const AIProvider: ParentComponent = (props) => {
     updates: Partial<Message>,
   ): void {
     const conv = state.conversations[conversationId]
-    if (!conv || !conv.messages[messageIndex]) return
-    for (const [key, value] of Object.entries(updates)) {
+    if (!conv) return
+    if (!conv.messages[messageIndex]) return
+    const messageUpdates = Object.entries(updates)
+    for (const [key, value] of messageUpdates) {
       setState(
         'conversations',
         conversationId,
@@ -1068,9 +1108,13 @@ export const AIProvider: ParentComponent = (props) => {
       if (!message?.toolCalls) continue
 
       const toolCallIndex = message.toolCalls.findIndex((toolCall) => {
-        if (input.toolCallId && toolCall.id === input.toolCallId) return true
-        if (input.approvalId && toolCall.approvalId === input.approvalId) {
-          return true
+        if (input.toolCallId) {
+          const isSameToolCall = toolCall.id === input.toolCallId
+          if (isSameToolCall) return true
+        }
+        if (input.approvalId) {
+          const isSameApproval = toolCall.approvalId === input.approvalId
+          if (isSameApproval) return true
         }
         return false
       })
@@ -1091,14 +1135,18 @@ export const AIProvider: ParentComponent = (props) => {
   }): Array<string> {
     const ids: Array<string> = []
     const add = (id: string | undefined) => {
-      if (id && !ids.includes(id)) ids.push(id)
+      if (id) {
+        const isNewId = !ids.includes(id)
+        if (isNewId) ids.push(id)
+      }
     }
 
     add(input.clientId)
     add(input.streamId ? streamToConversation.get(input.streamId) : undefined)
     add(input.threadId)
 
-    for (const conversationId of Object.keys(state.conversations)) {
+    const conversationIds = Object.keys(state.conversations)
+    for (const conversationId of conversationIds) {
       if (
         findToolCallLocation(conversationId, {
           toolCallId: input.toolCallId,
@@ -1120,7 +1168,10 @@ export const AIProvider: ParentComponent = (props) => {
   }): Array<string> {
     const ids: Array<string> = []
     const add = (id: string | undefined) => {
-      if (id && !ids.includes(id)) ids.push(id)
+      if (id) {
+        const isNewId = !ids.includes(id)
+        if (isNewId) ids.push(id)
+      }
     }
 
     add(input.clientId)
@@ -1128,7 +1179,8 @@ export const AIProvider: ParentComponent = (props) => {
     add(input.threadId)
 
     if (input.messageId) {
-      for (const conversation of Object.values(state.conversations)) {
+      const conversations = Object.values(state.conversations)
+      for (const conversation of conversations) {
         if (
           conversation.messages.some(
             (message) => message.id === input.messageId,
@@ -1218,7 +1270,8 @@ export const AIProvider: ParentComponent = (props) => {
     requestId: string | undefined,
   ): void {
     const conv = state.conversations[conversationId]
-    if (!conv || conv.iterations.length === 0) return
+    if (!conv) return
+    if (conv.iterations.length === 0) return
 
     let iterIndex = -1
     if (requestId) {
@@ -1234,7 +1287,8 @@ export const AIProvider: ParentComponent = (props) => {
     }
 
     const iteration = conv.iterations[iterIndex]
-    if (!iteration || iteration.messageIds.includes(messageId)) return
+    if (!iteration) return
+    if (iteration.messageIds.includes(messageId)) return
 
     setState(
       'conversations',
@@ -1303,10 +1357,6 @@ export const AIProvider: ParentComponent = (props) => {
     setState('conversations', conversationId, activityFlagMap[activity], true)
   }
 
-  /**
-   * For server conversations, ensure a message exists for the given messageId.
-   * This creates a placeholder message that will be updated as chunks arrive.
-   */
   function ensureMessageForChunk(
     conversationId: string,
     messageId: string | undefined,
@@ -1314,7 +1364,8 @@ export const AIProvider: ParentComponent = (props) => {
   ): void {
     if (!messageId) return
     const conv = state.conversations[conversationId]
-    if (!conv || conv.type === 'client') return
+    if (!conv) return
+    if (conv.type === 'client') return
 
     // Check if message already exists
     const existingMessage = conv.messages.find((m) => m.id === messageId)
@@ -1355,10 +1406,13 @@ export const AIProvider: ParentComponent = (props) => {
     const conversationId =
       clientId || (streamId ? streamToConversation.get(streamId) : undefined)
     if (!conversationId) return undefined
-    if (clientId && streamId) {
-      streamToConversation.set(streamId, clientId)
+    if (clientId) {
+      if (streamId) {
+        streamToConversation.set(streamId, clientId)
+      }
     }
-    if (role === 'tool' || role === 'system') return undefined
+    const isIgnoredRole = role === 'tool' || role === 'system'
+    if (isIgnoredRole) return undefined
     const source = normalizeMessageSource(
       payload.source,
       clientId ? 'client' : 'server',
@@ -1397,7 +1451,8 @@ export const AIProvider: ParentComponent = (props) => {
     }
     if (iterIndex < 0) return
     const iter = conv.iterations[iterIndex]
-    if (!iter || iter.messageIds.includes(messageId)) return
+    if (!iter) return
+    if (iter.messageIds.includes(messageId)) return
     setState(
       'conversations',
       conversationId,
@@ -1420,7 +1475,9 @@ export const AIProvider: ParentComponent = (props) => {
     )
     const parts = partsFromCreatedEvent(payload.parts)
     const toolCalls = createdMessageToolCalls(payload, parts, messageId)
-    if (role === 'user' && conv.type === 'client' && source === 'server') {
+    const isServerUserOnClient =
+      role === 'user' && conv.type === 'client' && source === 'server'
+    if (isServerUserOnClient) {
       return
     }
     if (
@@ -1459,10 +1516,12 @@ export const AIProvider: ParentComponent = (props) => {
     chunk: Chunk,
   ): void {
     const conv = state.conversations[conversationId]
-    if (conv?.type === 'client' && messageIndex !== undefined) {
-      queueMessageChunk(conversationId, messageIndex, chunk)
-    } else if (conv?.type === 'client') {
-      addChunkToMessage(conversationId, chunk)
+    if (conv?.type === 'client') {
+      if (messageIndex !== undefined) {
+        queueMessageChunk(conversationId, messageIndex, chunk)
+      } else {
+        addChunkToMessage(conversationId, chunk)
+      }
     } else {
       addChunk(conversationId, chunk)
     }
@@ -1636,9 +1695,6 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // Memory: the 5 `memory:*` operation events feed the timeline; `memory:snapshot`
-    // replaces the per-scope stored-state view. Keyed by composite scope
-    // (tenantId/userId/threadId).
     type MemoryEventInput = Parameters<typeof applyMemoryEvent>[1]
     const recordMemoryEvent = (
       type: MemoryEventInput['type'],
@@ -1788,7 +1844,9 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ? 'client' : 'server',
         )
 
-        if (conv.type === 'client' && source === 'server') {
+        const isServerEventOnClient =
+          conv.type === 'client' && source === 'server'
+        if (isServerEventOnClient) {
           return
         }
 
@@ -1855,7 +1913,9 @@ export const AIProvider: ParentComponent = (props) => {
     cleanupFns.push(
       aiEventClient.on('client:error:changed', (e) => {
         const clientId = e.payload.clientId
-        if (state.conversations[clientId] && e.payload.error) {
+        const hasClientError =
+          Boolean(state.conversations[clientId]) && Boolean(e.payload.error)
+        if (hasClientError) {
           updateConversation(clientId, { status: 'error' })
         }
       }),
@@ -1915,9 +1975,6 @@ export const AIProvider: ParentComponent = (props) => {
           }
         }
 
-        // If we couldn't find the message with toolCalls, still add the chunk
-        // This handles cases where the message hasn't been processed yet
-        // or the tool call is a client-only tool
         addChunkToMessage(clientId, chunk)
       }),
     )
@@ -1996,9 +2053,12 @@ export const AIProvider: ParentComponent = (props) => {
         const conversationId =
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined)
-        if (!conversationId || !state.conversations[conversationId]) return
-        if (clientId && streamId) {
-          streamToConversation.set(streamId, clientId)
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
+        if (clientId) {
+          if (streamId) {
+            streamToConversation.set(streamId, clientId)
+          }
         }
 
         const conv = state.conversations[conversationId]
@@ -2113,7 +2173,8 @@ export const AIProvider: ParentComponent = (props) => {
         const conversationId =
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
 
@@ -2129,7 +2190,8 @@ export const AIProvider: ParentComponent = (props) => {
           chunkCount: 1,
         }
 
-        if (conv.type === 'client' && messageId) {
+        const isClientMessage = conv.type === 'client' && Boolean(messageId)
+        if (isClientMessage) {
           const messageIndex = conv.messages.findIndex(
             (m) => m.id === messageId,
           )
@@ -2192,8 +2254,10 @@ export const AIProvider: ParentComponent = (props) => {
         timestamp,
       } = payload
 
-      if (clientId && streamId) {
-        streamToConversation.set(streamId, clientId)
+      if (clientId) {
+        if (streamId) {
+          streamToConversation.set(streamId, clientId)
+        }
       }
 
       const source = normalizeMessageSource(
@@ -2291,7 +2355,9 @@ export const AIProvider: ParentComponent = (props) => {
           const messageIndex = conv?.messages.findIndex(
             (msg) => msg.id === e.payload.messageId,
           )
-          if (messageIndex !== undefined && messageIndex >= 0) {
+          const hasMessageIndex =
+            messageIndex !== undefined && messageIndex >= 0
+          if (hasMessageIndex) {
             updateMessage(conversationId, messageIndex, {
               content: e.payload.content,
             })
@@ -2337,7 +2403,9 @@ export const AIProvider: ParentComponent = (props) => {
           const messageIndex = conv?.messages.findIndex(
             (msg) => msg.id === e.payload.messageId,
           )
-          if (messageIndex !== undefined && messageIndex >= 0) {
+          const hasMessageIndex =
+            messageIndex !== undefined && messageIndex >= 0
+          if (hasMessageIndex) {
             const message = conv?.messages[messageIndex]
             if (!message) return
 
@@ -2404,20 +2472,22 @@ export const AIProvider: ParentComponent = (props) => {
         }
 
         // Also update the toolCalls array with the result
-        if (conv && e.payload.toolCallId) {
-          for (let i = conv.messages.length - 1; i >= 0; i--) {
-            const message = conv.messages[i]
-            if (!message?.toolCalls) continue
+        if (conv) {
+          if (e.payload.toolCallId) {
+            for (let i = conv.messages.length - 1; i >= 0; i--) {
+              const message = conv.messages[i]
+              if (!message?.toolCalls) continue
 
-            const toolCallIndex = message.toolCalls.findIndex(
-              (t) => t.id === e.payload.toolCallId,
-            )
-            if (toolCallIndex >= 0) {
-              updateToolCall(conversationId, i, toolCallIndex, {
-                result: e.payload.result,
-                state: 'complete',
-              })
-              break
+              const toolCallIndex = message.toolCalls.findIndex(
+                (t) => t.id === e.payload.toolCallId,
+              )
+              if (toolCallIndex >= 0) {
+                updateToolCall(conversationId, i, toolCallIndex, {
+                  result: e.payload.result,
+                  state: 'complete',
+                })
+                break
+              }
             }
           }
         }
@@ -2457,14 +2527,16 @@ export const AIProvider: ParentComponent = (props) => {
         }
 
         // Update thinkingContent on the message for all conversation types
-        if (e.payload.messageId && conv) {
-          const messageIndex = conv.messages.findIndex(
-            (msg) => msg.id === e.payload.messageId,
-          )
-          if (messageIndex !== -1) {
-            updateMessage(conversationId, messageIndex, {
-              thinkingContent: e.payload.content,
-            })
+        if (e.payload.messageId) {
+          if (conv) {
+            const messageIndex = conv.messages.findIndex(
+              (msg) => msg.id === e.payload.messageId,
+            )
+            if (messageIndex !== -1) {
+              updateMessage(conversationId, messageIndex, {
+                thinkingContent: e.payload.content,
+              })
+            }
           }
         }
       }),
@@ -2515,36 +2587,38 @@ export const AIProvider: ParentComponent = (props) => {
           addChunk(conversationId, chunk)
         }
 
-        // Mark the current iteration as completed when the LLM finishes generating.
-        // This is critical for iterations that end with tool_calls — the
-        // text:iteration:completed event only fires when the NEXT iteration starts,
-        // so without this the iteration appears stuck in "streaming" during tool execution.
         if (e.payload.finishReason) {
           const convForIter = state.conversations[conversationId]
           if (convForIter) {
             for (let i = convForIter.iterations.length - 1; i >= 0; i--) {
               const iter = convForIter.iterations[i]
               const msgId = e.payload.messageId
-              if (
-                iter &&
-                !iter.completedAt &&
-                msgId &&
-                (iter.messageId === msgId || iter.messageIds.includes(msgId))
-              ) {
-                const iterIdx = i
-                setState(
-                  'conversations',
-                  conversationId,
-                  'iterations',
-                  iterIdx,
-                  produce((it: Iteration) => {
-                    it.completedAt = e.payload.timestamp
-                    if (!it.finishReason)
-                      it.finishReason = e.payload.finishReason || undefined
-                    if (e.payload.usage && !it.usage) it.usage = e.payload.usage
-                  }),
+              if (iter) {
+                const isOpenIteration = !iter.completedAt
+                const matchesMessage = Boolean(
+                  msgId &&
+                  (iter.messageId === msgId || iter.messageIds.includes(msgId)),
                 )
-                break
+                const shouldCompleteIteration =
+                  isOpenIteration && matchesMessage
+                if (shouldCompleteIteration) {
+                  const iterIdx = i
+                  setState(
+                    'conversations',
+                    conversationId,
+                    'iterations',
+                    iterIdx,
+                    produce((it: Iteration) => {
+                      it.completedAt = e.payload.timestamp
+                      if (!it.finishReason)
+                        it.finishReason = e.payload.finishReason || undefined
+                      const shouldSetUsage =
+                        Boolean(e.payload.usage) && !it.usage
+                      if (shouldSetUsage) it.usage = e.payload.usage
+                    }),
+                  )
+                  break
+                }
               }
             }
           }
@@ -2595,25 +2669,27 @@ export const AIProvider: ParentComponent = (props) => {
           const errorMsgId = e.payload.messageId
           for (let i = convForError.iterations.length - 1; i >= 0; i--) {
             const iter = convForError.iterations[i]
-            if (iter && !iter.completedAt) {
-              // Scope to matching requestId or messageId when available
-              const matchesRequest =
-                !errorRequestId || iter.requestId === errorRequestId
-              const matchesMessage =
-                !errorMsgId ||
-                iter.messageId === errorMsgId ||
-                iter.messageIds.includes(errorMsgId)
-              if (matchesRequest || matchesMessage) {
-                setState(
-                  'conversations',
-                  conversationId,
-                  'iterations',
-                  i,
-                  produce((it: Iteration) => {
-                    it.completedAt = e.payload.timestamp
-                    if (!it.finishReason) it.finishReason = 'error'
-                  }),
-                )
+            if (iter) {
+              if (!iter.completedAt) {
+                const matchesRequest =
+                  !errorRequestId || iter.requestId === errorRequestId
+                const matchesMessage =
+                  !errorMsgId ||
+                  iter.messageId === errorMsgId ||
+                  iter.messageIds.includes(errorMsgId)
+                const matchesIteration = matchesRequest || matchesMessage
+                if (matchesIteration) {
+                  setState(
+                    'conversations',
+                    conversationId,
+                    'iterations',
+                    i,
+                    produce((it: Iteration) => {
+                      it.completedAt = e.payload.timestamp
+                      if (!it.finishReason) it.finishReason = 'error'
+                    }),
+                  )
+                }
               }
             }
           }
@@ -2634,8 +2710,10 @@ export const AIProvider: ParentComponent = (props) => {
           e.payload.source,
           clientId ? 'client' : 'server',
         )
-        if (clientId && streamId) {
-          streamToConversation.set(streamId, clientId)
+        if (clientId) {
+          if (streamId) {
+            streamToConversation.set(streamId, clientId)
+          }
         }
 
         const conversationIds = getToolEventConversationIds({
@@ -2688,17 +2766,19 @@ export const AIProvider: ParentComponent = (props) => {
           return
         }
 
-        if (clientId && state.conversations[clientId]) {
-          streamToConversation.set(streamId, clientId)
-          requestToConversation.set(e.payload.requestId, clientId)
-          updateConversation(clientId, {
-            status: 'active',
-            ...e.payload,
-            systemPrompts: e.payload.systemPrompts,
-            hasChat: true,
-          })
-          attachRunToConversation(clientId, e.payload.runId)
-          return
+        if (clientId) {
+          if (state.conversations[clientId]) {
+            streamToConversation.set(streamId, clientId)
+            requestToConversation.set(e.payload.requestId, clientId)
+            updateConversation(clientId, {
+              status: 'active',
+              ...e.payload,
+              systemPrompts: e.payload.systemPrompts,
+              hasChat: true,
+            })
+            attachRunToConversation(clientId, e.payload.runId)
+            return
+          }
         }
 
         const activeClient = Object.values(state.conversations).find(
@@ -2753,47 +2833,51 @@ export const AIProvider: ParentComponent = (props) => {
         const { requestId, usage } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
-        if (conversationId && state.conversations[conversationId]) {
-          updateConversation(conversationId, {
-            status: 'completed',
-            completedAt: e.payload.timestamp,
-          })
-          if (usage) {
-            updateConversationUsage(conversationId, requestId, usage)
-            updateMessageUsage(
-              conversationId,
-              e.payload.messageId,
-              usage,
-              requestId,
-            )
-          }
-
-          // Failsafe: mark any remaining active iterations FOR THIS REQUEST as completed.
-          // Only scope to this requestId to avoid touching other requests' iterations.
-          const conv = state.conversations[conversationId]
-          for (let i = 0; i < conv.iterations.length; i++) {
-            const iter = conv.iterations[i]
-            if (
-              iter &&
-              !iter.completedAt &&
-              (!requestId || iter.requestId === requestId)
-            ) {
-              const iterIdx = i
-              setState(
-                'conversations',
+        if (conversationId) {
+          if (state.conversations[conversationId]) {
+            updateConversation(conversationId, {
+              status: 'completed',
+              completedAt: e.payload.timestamp,
+            })
+            if (usage) {
+              updateConversationUsage(conversationId, requestId, usage)
+              updateMessageUsage(
                 conversationId,
-                'iterations',
-                iterIdx,
-                produce((it: Iteration) => {
-                  it.completedAt = e.payload.timestamp
-                  if (!it.finishReason) {
-                    it.finishReason = e.payload.finishReason || 'stop'
-                  }
-                  if (!it.usage && usage) {
-                    it.usage = usage
-                  }
-                }),
+                e.payload.messageId,
+                usage,
+                requestId,
               )
+            }
+
+            const conv = state.conversations[conversationId]
+            for (let i = 0; i < conv.iterations.length; i++) {
+              const iter = conv.iterations[i]
+              if (iter) {
+                const isOpenIteration = !iter.completedAt
+                const matchesRequest =
+                  !requestId || iter.requestId === requestId
+                const shouldCompleteIteration =
+                  isOpenIteration && matchesRequest
+                if (shouldCompleteIteration) {
+                  const iterIdx = i
+                  setState(
+                    'conversations',
+                    conversationId,
+                    'iterations',
+                    iterIdx,
+                    produce((it: Iteration) => {
+                      it.completedAt = e.payload.timestamp
+                      if (!it.finishReason) {
+                        it.finishReason = e.payload.finishReason || 'stop'
+                      }
+                      const shouldSetUsage = !it.usage && Boolean(usage)
+                      if (shouldSetUsage) {
+                        it.usage = usage
+                      }
+                    }),
+                  )
+                }
+              }
             }
           }
         }
@@ -2805,9 +2889,11 @@ export const AIProvider: ParentComponent = (props) => {
         const { requestId, usage, messageId } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
-        if (conversationId && state.conversations[conversationId]) {
-          updateConversationUsage(conversationId, requestId, usage)
-          updateMessageUsage(conversationId, messageId, usage, requestId)
+        if (conversationId) {
+          if (state.conversations[conversationId]) {
+            updateConversationUsage(conversationId, requestId, usage)
+            updateMessageUsage(conversationId, messageId, usage, requestId)
+          }
         }
       }),
     )
@@ -2821,25 +2907,27 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
           requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
-        // Failsafe: when a new iteration starts, any previous uncompleted
-        // iterations for the same request must have ended (with tool_calls).
-        // This covers edge cases where text:chunk:done didn't match by messageId.
         const convForFailsafe = state.conversations[conversationId]
         for (let i = 0; i < convForFailsafe.iterations.length; i++) {
           const iter = convForFailsafe.iterations[i]
-          if (iter && !iter.completedAt && iter.requestId === requestId) {
-            setState(
-              'conversations',
-              conversationId,
-              'iterations',
-              i,
-              produce((it: Iteration) => {
-                it.completedAt = e.payload.timestamp
-                if (!it.finishReason) it.finishReason = 'tool_calls'
-              }),
-            )
+          if (iter) {
+            const isOpenRequestIteration =
+              !iter.completedAt && iter.requestId === requestId
+            if (isOpenRequestIteration) {
+              setState(
+                'conversations',
+                conversationId,
+                'iterations',
+                i,
+                produce((it: Iteration) => {
+                  it.completedAt = e.payload.timestamp
+                  if (!it.finishReason) it.finishReason = 'tool_calls'
+                }),
+              )
+            }
           }
         }
 
@@ -2893,7 +2981,8 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
           requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
         // Find the iteration by BOTH requestId and index to avoid cross-request pollution.
@@ -2942,7 +3031,8 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
           requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
         const iterIndex = findLatestIterationIndex(conv, requestId)
@@ -2978,7 +3068,8 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
           requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
         const iterIndex = findLatestIterationIndex(conv, requestId)
@@ -3014,7 +3105,8 @@ export const AIProvider: ParentComponent = (props) => {
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined) ||
           requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
         const iterIndex = findLatestIterationIndex(conv, requestId)
@@ -3050,16 +3142,32 @@ export const AIProvider: ParentComponent = (props) => {
 
         // Try to find an active conversation to attach to, or create a new one
         let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          // Find most recent active client conversation
+        if (!conversationId) {
           const activeClients = Object.values(state.conversations)
             .filter((c) => c.type === 'client' && c.status === 'active')
             .sort((a, b) => b.startedAt - a.startedAt)
 
-          if (activeClients.length > 0 && activeClients[0]) {
-            conversationId = activeClients[0].id
+          const firstActiveClient = activeClients[0]
+          if (firstActiveClient) {
+            conversationId = firstActiveClient.id
           } else {
-            // Create a new conversation for summaries
+            conversationId = `summarize-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Summarize (${model})`,
+            )
+            updateConversation(conversationId, { model })
+          }
+        } else if (!state.conversations[conversationId]) {
+          const activeClients = Object.values(state.conversations)
+            .filter((c) => c.type === 'client' && c.status === 'active')
+            .sort((a, b) => b.startedAt - a.startedAt)
+
+          const firstActiveClient = activeClients[0]
+          if (firstActiveClient) {
+            conversationId = firstActiveClient.id
+          } else {
             conversationId = `summarize-${requestId}`
             getOrCreateConversation(
               conversationId,
@@ -3097,7 +3205,8 @@ export const AIProvider: ParentComponent = (props) => {
         const { requestId, outputLength, duration } = e.payload
 
         const conversationId = requestToConversation.get(requestId)
-        if (!conversationId || !state.conversations[conversationId]) return
+        if (!conversationId) return
+        if (!state.conversations[conversationId]) return
 
         const conv = state.conversations[conversationId]
         if (!conv.summaries) return
@@ -3125,15 +3234,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('image:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `image-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Image (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `image-${requestId}`,
+          `Image (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'imageEvents', {
           id: requestId,
@@ -3148,15 +3253,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('image:request:completed', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `image-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Image (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `image-${requestId}`,
+          `Image (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'imageEvents', {
           id: requestId,
@@ -3171,15 +3272,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('image:usage', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `image-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Image (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `image-${requestId}`,
+          `Image (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'imageEvents', {
           id: requestId,
@@ -3194,15 +3291,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('audio:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `audio-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Audio (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `audio-${requestId}`,
+          `Audio (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'audioEvents', {
           id: requestId,
@@ -3217,15 +3310,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('audio:request:completed', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `audio-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Audio (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `audio-${requestId}`,
+          `Audio (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'audioEvents', {
           id: requestId,
@@ -3240,15 +3329,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('audio:request:error', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `audio-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Audio (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `audio-${requestId}`,
+          `Audio (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'audioEvents', {
           id: requestId,
@@ -3263,15 +3348,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('audio:usage', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `audio-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Audio (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `audio-${requestId}`,
+          `Audio (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'audioEvents', {
           id: requestId,
@@ -3286,15 +3367,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('speech:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `speech-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Speech (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `speech-${requestId}`,
+          `Speech (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'speechEvents', {
           id: requestId,
@@ -3309,15 +3386,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('speech:request:completed', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `speech-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Speech (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `speech-${requestId}`,
+          `Speech (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'speechEvents', {
           id: requestId,
@@ -3332,15 +3405,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('speech:request:error', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `speech-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Speech (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `speech-${requestId}`,
+          `Speech (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'speechEvents', {
           id: requestId,
@@ -3355,15 +3424,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('speech:usage', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `speech-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Speech (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `speech-${requestId}`,
+          `Speech (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'speechEvents', {
           id: requestId,
@@ -3378,15 +3443,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('transcription:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `transcription-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Transcription (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `transcription-${requestId}`,
+          `Transcription (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'transcriptionEvents', {
           id: requestId,
@@ -3401,15 +3462,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('transcription:request:completed', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `transcription-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Transcription (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `transcription-${requestId}`,
+          `Transcription (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'transcriptionEvents', {
           id: requestId,
@@ -3424,15 +3481,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('transcription:request:error', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `transcription-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Transcription (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `transcription-${requestId}`,
+          `Transcription (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'transcriptionEvents', {
           id: requestId,
@@ -3447,15 +3500,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('transcription:usage', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `transcription-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Transcription (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `transcription-${requestId}`,
+          `Transcription (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'transcriptionEvents', {
           id: requestId,
@@ -3470,15 +3519,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('video:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `video-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Video (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `video-${requestId}`,
+          `Video (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'videoEvents', {
           id: requestId,
@@ -3493,15 +3538,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('video:request:completed', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `video-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Video (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `video-${requestId}`,
+          `Video (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'videoEvents', {
           id: requestId,
@@ -3516,15 +3557,11 @@ export const AIProvider: ParentComponent = (props) => {
       aiEventClient.on('video:usage', (e) => {
         const { requestId, clientId, timestamp } = e.payload
 
-        let conversationId = clientId
-        if (!conversationId || !state.conversations[conversationId]) {
-          conversationId = `video-${requestId}`
-          getOrCreateConversation(
-            conversationId,
-            'server',
-            `Video (${requestId.substring(0, 8)})`,
-          )
-        }
+        const conversationId = resolveActivityConversation(
+          clientId,
+          `video-${requestId}`,
+          `Video (${requestId.substring(0, 8)})`,
+        )
 
         addActivityEvent(conversationId, 'videoEvents', {
           id: requestId,

@@ -1,15 +1,3 @@
-/**
- * Map a portable {@link SandboxPolicy} onto Grok Build harness flags.
- *
- * Coarse mapping for the headless NDJSON harness (`grok -p`):
- * - `capabilities.fileWrite === 'deny'` → `--sandbox read-only`
- * - `capabilities.network === 'deny'` → `--disable-web-search`
- * - `default: 'deny'`, `default: 'ask'`, or `commands.ask` → conservative
- *   (omit `--always-approve`, use `--permission-mode default`).
- *   A deny list alone is a hard block, not a human prompt, so it does
- *   not flip the approval flag. Headless `grok -p` auto-cancels tools
- *   when conservative is true.
- */
 import type { SandboxPolicy } from '@tanstack/ai-sandbox'
 
 export interface GrokBuildPolicyFlags {
@@ -28,7 +16,9 @@ export function mapPolicyToGrokBuildFlags(
   if (policy.capabilities?.network === 'deny') flags.networkDisabled = true
 
   const hasAsk = (policy.commands?.ask?.length ?? 0) > 0
-  if (hasAsk || policy.default === 'deny' || policy.default === 'ask') {
+  const needsConservative =
+    hasAsk || policy.default === 'deny' || policy.default === 'ask'
+  if (needsConservative) {
     flags.conservative = true
   }
 

@@ -41,22 +41,6 @@ export type {
   WhenBusy,
 }
 
-/**
- * Options for the useChat hook.
- *
- * This extends ChatClientOptions but omits the state change callbacks that are
- * managed internally by Preact state:
- * - `onMessagesChange` - Managed by Preact state (exposed as `messages`)
- * - `onLoadingChange` - Managed by Preact state (exposed as `isLoading`)
- * - `onErrorChange` - Managed by Preact state (exposed as `error`)
- * - `onStatusChange` - Managed by Preact state (exposed as `status`)
- *
- * All other callbacks (onResponse, onChunk, onFinish, onError) are
- * passed through to the underlying ChatClient and can be used for side effects.
- *
- * Note: Connection and body changes will recreate the ChatClient instance.
- * To update these options, remount the component or use a key prop.
- */
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
@@ -80,12 +64,6 @@ export type UseChatOptions<
   live?: boolean
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /**
-   * Standard-schema-compatible schema used to identify structured-output chat
-   * hooks in devtools. Preact currently exposes structured-output parts via
-   * `messages`; typed `partial` / `final` sugar is implemented in the other
-   * framework adapters.
-   */
   outputSchema?: SchemaInput
 } & ClientContextOptionFromTools<TTools, TContext>
 
@@ -94,40 +72,19 @@ export interface UseChatReturn<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
 > {
-  /**
-   * Current messages in the conversation
-   */
   messages: Array<UIMessage<TTools>>
 
-  /**
-   * Send a message and get a response.
-   * Can be a simple string or multimodal content with images, audio, etc.
-   * Pass `{ whenBusy }` to override the queue policy for a single send, or
-   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
-   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
   ) => Promise<void>
 
-  /**
-   * Pending messages queued while a stream is in flight.
-   */
   queue: Array<QueuedMessage>
 
-  /**
-   * Cancel a queued message before it drains. No-op if already sent.
-   */
   cancelQueued: (id: string) => void
 
-  /**
-   * Append a message to the conversation
-   */
   append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
 
-  /**
-   * Add the result of a client-side tool execution
-   */
   addToolResult: (result: {
     toolCallId: string
     tool: string
@@ -136,25 +93,11 @@ export interface UseChatReturn<
     errorText?: string
   }) => Promise<void>
 
-  /**
-   * Respond to a tool approval request
-   */
   addToolApprovalResponse: (response: {
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
 
-  /**
-   * The id of the run this client has in flight — one it started or rejoined —
-   * or `null` when there is none (including while a run sits paused on an
-   * interrupt, waiting on approval).
-   *
-   * A run is one turn of the conversation, so this changes from turn to turn. A
-   * whole tool loop stays inside one run, while resuming after an interrupt
-   * continues the turn under a new id — so one user message can produce several
-   * run ids. Use it to talk to your own server about that run (cancel it, poll
-   * it, correlate a log line).
-   */
   runId: string | null
   interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
@@ -181,56 +124,23 @@ export interface UseChatReturn<
     state?: ChatResumeState,
   ) => Promise<boolean>
 
-  /**
-   * Reload the last assistant message
-   */
   reload: () => Promise<void>
 
-  /**
-   * Stop the current response generation
-   */
   stop: () => void
 
-  /**
-   * Whether a response is currently being generated
-   */
   isLoading: boolean
 
-  /**
-   * Current error, if any
-   */
   error: Error | undefined
 
-  /**
-   * Set messages manually
-   */
   setMessages: (messages: Array<UIMessage<TTools>>) => void
 
-  /**
-   * Clear all messages
-   */
   clear: () => void
 
-  /**
-   * Current generation status
-   */
   status: ChatClientState
 
-  /**
-   * Whether the subscription loop is currently active
-   */
   isSubscribed: boolean
 
-  /**
-   * Current connection lifecycle status
-   */
   connectionStatus: ConnectionStatus
 
-  /**
-   * Whether the shared session is actively generating.
-   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
-   * Unlike `isLoading` (request-local), this reflects shared generation
-   * activity visible to all subscribers (e.g. across tabs/devices).
-   */
   sessionGenerating: boolean
 }

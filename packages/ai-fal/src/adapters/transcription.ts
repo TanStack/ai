@@ -15,9 +15,6 @@ import type {
 import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
-/**
- * Provider options for transcription, excluding fields TanStack AI handles.
- */
 export type FalTranscriptionProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'audio_url'
@@ -29,21 +26,6 @@ interface FalChunk {
   speaker?: string
 }
 
-/**
- * fal.ai transcription (speech-to-text) adapter.
- *
- * Supports fal.ai STT models like whisper, wizper, etc.
- *
- * @example
- * ```typescript
- * const adapter = falTranscription('fal-ai/whisper')
- * const result = await generateTranscription({
- *   adapter,
- *   audio: 'https://example.com/audio.mp3',
- *   language: 'en',
- * })
- * ```
- */
 export class FalTranscriptionAdapter<
   TModel extends FalModel,
 > extends BaseTranscriptionAdapter<
@@ -88,10 +70,6 @@ export class FalTranscriptionAdapter<
   private buildInput(
     options: TranscriptionOptions<FalTranscriptionProviderOptions<TModel>>,
   ): FalModelInput<TModel> {
-    // fal-client auto-uploads Blob/File inputs via fal.storage.upload, but
-    // passes strings through unchanged — so a `data:` URL would reach fal's
-    // API and get rejected with a 422 "Unsupported data URL". Decode data
-    // URLs to a Blob up front so the auto-upload path handles them.
     let audioInput: string | Blob | File
     if (options.audio instanceof ArrayBuffer) {
       audioInput = new Blob([options.audio])
@@ -121,23 +99,15 @@ export class FalTranscriptionAdapter<
 
     const text = (data.text as string) || ''
 
-    // Map fal chunks to TanStack segments. fal whisper can return
-    // `timestamp: null` on some chunks (e.g. when word-level timing is
-    // disabled), and the runtime payload is not actually constrained to a
-    // 2-tuple — treat it as unknown and validate before indexing.
     let segments: Array<TranscriptionSegment> | undefined
     const chunks = data.chunks as Array<FalChunk> | undefined
     if (chunks && Array.isArray(chunks)) {
       segments = chunks.flatMap((chunk, index) => {
         const ts = chunk.timestamp as unknown
-        if (
-          !Array.isArray(ts) ||
-          ts.length < 2 ||
-          typeof ts[0] !== 'number' ||
-          typeof ts[1] !== 'number'
-        ) {
-          return []
-        }
+        if (!Array.isArray(ts)) return []
+        if (ts.length < 2) return []
+        if (typeof ts[0] !== 'number') return []
+        if (typeof ts[1] !== 'number') return []
         return [
           {
             id: index,

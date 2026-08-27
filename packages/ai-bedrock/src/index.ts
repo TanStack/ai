@@ -1,12 +1,3 @@
-/**
- * @module @tanstack/ai-bedrock
- *
- * Amazon Bedrock adapter for TanStack AI via Bedrock's OpenAI-compatible APIs
- * and the native Converse API.  The public `bedrockText` / `createBedrockText`
- * factory branches between the Converse adapter (DEFAULT), the Chat Completions
- * adapter (`api: 'chat'`), and the Responses adapter (`api: 'responses'`).
- */
-
 import { BedrockTextAdapter } from './adapters/text'
 import { BedrockResponsesTextAdapter } from './adapters/responses-text'
 import { BedrockConverseTextAdapter } from './adapters/converse-text'
@@ -56,14 +47,6 @@ function stripApi<T extends { api?: unknown }>(config: T): Omit<T, 'api'> {
   return rest
 }
 
-/**
- * Shared branching used by both public factories. Constructs the adapter
- * classes directly so their constructors run the full auth cascade lazily
- * (config.apiKey → BEDROCK_API_KEY → AWS_BEARER_TOKEN_BEDROCK → SigV4). No
- * eager env-key fetch here, so `auth: 'sigv4'` never throws for a missing key.
- *
- * Default path → Converse adapter; opt-in via `api: 'chat'` or `api: 'responses'`.
- */
 function build(
   model: BedrockConverseModels,
   config?: BedrockClientConfig & { api?: 'converse' | 'chat' | 'responses' },

@@ -1,13 +1,3 @@
-/**
- * SandboxHandle backed by a Docker Sandboxes microVM (`sbx exec`).
- *
- * fs is the same chunked base64-over-exec design as the container handle.
- * Kill uses the same in-VM pid file. Do not only kill the host `sbx exec`
- * process.
- *
- * `writableStdin` and `killableProcesses` stay false until a live
- * measurement after `sbx login`.
- */
 import { randomUUID } from 'node:crypto'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
 import {
@@ -248,7 +238,8 @@ export class SbxHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        for (const command of fsWriteCommands(this.abs(p), data)) {
+        const writeCommands = fsWriteCommands(this.abs(p), data)
+        for (const command of writeCommands) {
           const r = await this.exec(command)
           if (r.exitCode !== 0)
             throw new Error(`write failed: ${r.stderr.trim()}`)
@@ -294,7 +285,8 @@ export class SbxHandle implements SandboxHandle {
           )
         }
         if (r.exitCode === 0) return true
-        if (r.exitCode === 1 && isNormalTestMiss(r.stderr)) return false
+        const isNormalMiss = r.exitCode === 1 && isNormalTestMiss(r.stderr)
+        if (isNormalMiss) return false
         throw new Error(r.stderr.trim() || `exists failed: exit ${r.exitCode}`)
       },
     }

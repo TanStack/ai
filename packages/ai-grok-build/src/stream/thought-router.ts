@@ -85,10 +85,6 @@ export function findEarliestToolEntry(
   return best
 }
 
-/**
- * How many trailing characters in `tail` must be held back because they may be
- * the prefix of a tool-entry literal still streaming in.
- */
 export function planningHoldback(tail: string): number {
   let hold = 0
   for (const literal of HOLD_LITERALS) {
@@ -154,11 +150,6 @@ interface ThoughtRouterContext {
   now: () => number
 }
 
-/**
- * Incrementally split Grok `thought` deltas into AG-UI reasoning vs tool-call
- * chunks. Grok's streaming-json format narrates tool execution inside
- * `thought` — this router reclassifies that narration before it reaches the UI.
- */
 export class GrokThoughtRouter {
   private buffer = ''
   private cursor = 0
@@ -194,7 +185,8 @@ export class GrokThoughtRouter {
   }
 
   private *closeReasoning(): Generator<AdapterYieldChunk> {
-    if (!this.reasoningOpen || this.reasoningId === null) return
+    if (!this.reasoningOpen) return
+    if (this.reasoningId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_END,
       messageId: this.reasoningId,
@@ -229,7 +221,8 @@ export class GrokThoughtRouter {
 
   private *openActiveTool(): Generator<AdapterYieldChunk> {
     const tool = this.activeTool
-    if (!tool || tool.opened) return
+    if (!tool) return
+    if (tool.opened) return
     tool.opened = true
     const input: Record<string, unknown> = {}
     if (tool.command) input.command = tool.command
@@ -322,10 +315,6 @@ export class GrokThoughtRouter {
     this.cursor = index
   }
 
-  // Returns the mode after draining ('tool' once a tool entry is reached,
-  // otherwise still 'planning'). Returned rather than read from `this.mode` at
-  // the call site so the caller sees the post-mutation value (TS can't narrow a
-  // field across the generator call).
   private *drainPlanning(): Generator<AdapterYieldChunk, 'planning' | 'tool'> {
     while (this.cursor < this.buffer.length) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
@@ -400,7 +389,9 @@ export class GrokThoughtRouter {
   }
 
   *finalize(): Generator<AdapterYieldChunk> {
-    if (this.mode === 'planning' && this.cursor < this.buffer.length) {
+    const hasUnemittedPlanning =
+      this.mode === 'planning' && this.cursor < this.buffer.length
+    if (hasUnemittedPlanning) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
       if (entry) {
         if (entry.index > this.cursor) {
@@ -414,7 +405,8 @@ export class GrokThoughtRouter {
       }
     }
 
-    if (this.mode === 'tool' && this.activeTool) {
+    const hasOpenTool = this.mode === 'tool' && this.activeTool
+    if (hasOpenTool) {
       yield* this.closeActiveTool(this.buffer.slice(this.cursor))
       this.cursor = this.buffer.length
     }

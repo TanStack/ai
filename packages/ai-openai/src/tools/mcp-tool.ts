@@ -11,9 +11,6 @@ export {
 
 export type OpenAIMCPTool = ProviderTool<'openai', 'mcp'>
 
-/**
- * Creates a standard Tool from MCPTool parameters, branded as an OpenAI provider tool.
- */
 export function mcpTool(toolData: Omit<MCPToolConfig, 'type'>): OpenAIMCPTool {
   return baseMcpTool(toolData) as OpenAIMCPTool
 }

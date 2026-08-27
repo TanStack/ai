@@ -8,37 +8,16 @@ import type {
   IsolateDriver,
 } from '@tanstack/ai-code-mode'
 
-/**
- * Configuration for the Node.js isolate driver
- */
 export interface NodeIsolateDriverConfig {
-  /**
-   * Default memory limit in MB (default: 128)
-   */
   memoryLimit?: number
 
-  /**
-   * Default execution timeout in ms (default: 30000)
-   */
   timeout?: number
 
-  /**
-   * Skip the subprocess compatibility probe for isolated-vm.
-   * The probe detects native addon incompatibilities that would otherwise
-   * crash the process with a segfault. Only set to true if you have
-   * independently verified compatibility.
-   */
   skipProbe?: boolean
 }
 
 let _probeResult: { compatible: boolean; error?: string } | null = null
 
-/**
- * Probe isolated-vm in a subprocess to detect native addon incompatibilities.
- * An incompatible build (e.g. compiled for a different Node.js version) will
- * segfault the process — a crash that no JS error handling can catch.
- * Running the probe in a child process lets us detect this safely.
- */
 function probeIsolatedVm(): { compatible: boolean; error?: string } {
   if (_probeResult) return _probeResult
 
@@ -76,46 +55,6 @@ function probeIsolatedVm(): { compatible: boolean; error?: string } {
 
 export { probeIsolatedVm }
 
-/**
- * Create a Node.js isolate driver using isolated-vm
- *
- * This driver creates V8 isolates that are completely sandboxed from the
- * host environment. Tools are injected as callable async functions that
- * bridge back to the host for execution.
- *
- * A subprocess probe runs on first call to verify that the `isolated-vm`
- * native addon is compatible with the current Node.js version. If the probe
- * fails (e.g. segfault from a mismatched binary), a descriptive error is
- * thrown instead of crashing the host process.
- *
- * @example
- * ```typescript
- * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
- *
- * const driver = createNodeIsolateDriver({
- *   memoryLimit: 128,
- *   timeout: 30000,
- * })
- *
- * const context = await driver.createContext({
- *   bindings: {
- *     readFile: {
- *       name: 'readFile',
- *       description: 'Read a file',
- *       inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
- *       execute: async ({ path }) => fs.readFile(path, 'utf-8'),
- *     },
- *   },
- * })
- *
- * const result = await context.execute(`
- *   const content = await readFile({ path: './data.json' })
- *   return JSON.parse(content)
- * `)
- * ```
- *
- * @throws Error if `isolated-vm` is not compatible with the current Node.js version
- */
 export function createNodeIsolateDriver(
   config: NodeIsolateDriverConfig = {},
 ): IsolateDriver {
@@ -190,8 +129,8 @@ export function createNodeIsolateDriver(
         };
       `)
 
-      // Inject each tool binding
-      for (const [name, binding] of Object.entries(isolateConfig.bindings)) {
+      const toolBindings = Object.entries(isolateConfig.bindings)
+      for (const [name, binding] of toolBindings) {
         // Create an async Reference that executes the tool
         // Uses applySyncPromise which properly handles async functions
         const toolRef = new ivm.Reference(

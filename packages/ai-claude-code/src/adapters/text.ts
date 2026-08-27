@@ -67,17 +67,7 @@ export type ClaudeCodeSettingSource = 'user' | 'project' | 'local'
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
-  /**
-   * Working directory inside the sandbox where `claude` runs. Defaults to
-   * `/workspace` (the conventional sandbox workspace root).
-   */
   cwd?: string
-  /**
-   * Claude Code permission mode passed via `--permission-mode`. Defaults to
-   * `'bypassPermissions'` — a sandbox is isolated, so the agent is allowed to
-   * edit files and run commands without prompting. Tighten via `defineSandboxPolicy`
-   * / this option for less autonomy.
-   */
   permissionMode?: ClaudeCodePermissionMode
   /** Built-in tools the harness may use (`--allowedTools`). */
   allowedTools?: Array<string>
@@ -87,18 +77,7 @@ export interface ClaudeCodeTextConfig {
   addDirs?: Array<string>
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
-  /**
-   * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
-   * `['project']`: workspace projections (instructions, skills, MCP config)
-   * are project-scoped, and the host's `~/.claude` stays out of local-process
-   * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
-   */
   settingSources?: Array<ClaudeCodeSettingSource>
-  /**
-   * How `systemPrompts` from `chat()` are applied:
-   * - `'append'` (default): `--append-system-prompt` on top of the preset.
-   * - `'replace'`: `--system-prompt` as the entire system prompt.
-   */
   systemPromptMode?: 'append' | 'replace'
   /** Path/name of the claude executable inside the sandbox. Defaults to `claude`. */
   claudeExecutable?: string
@@ -106,11 +85,6 @@ export interface ClaudeCodeTextConfig {
   streamPartials?: boolean
   /** Extra environment variables for the claude process inside the sandbox. */
   env?: Record<string, string>
-  /**
-   * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
-   * `'host'` uses `claude login` and does not inject the key.
-   * Not inferred from the sandbox.
-   */
   authMode?: 'host' | 'api-key'
   /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
   emitDiff?: boolean
@@ -131,10 +105,6 @@ function hostClaudeAuthEnv(): Record<string, string> {
   return env
 }
 
-/**
- * Windows Node often has USERPROFILE but no HOME. Claude then cannot find
- * `~/.claude.json` (the `claude login` file) and prints "Not logged in".
- */
 function chatRunErrorChunk(error: unknown, model: string): AdapterYieldChunk {
   const err = error as Error & { code?: string }
   const rawEvent = toRunErrorRawEvent(error)
@@ -247,15 +217,8 @@ export class ClaudeCodeTextAdapter<
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
-    // Claude only reads project-scoped config (CLAUDE.md, `.claude/skills`,
-    // `.mcp.json`) with `project` in the sources. `user` is off by default so
-    // a local-process run does not pull in the host's `~/.claude`.
     const settingSources = config.settingSources ?? ['project']
 
-    // `--setting-sources` before `-p`. Do not pass `--bare`: that flag
-    // skips stored `claude login` credentials and prints
-    // "Not logged in · Please run /login" (claude-code#51047).
-    // `-p` can take the next token as the prompt, so these flags stay first.
     const args: Array<string> = [
       ...exeParts,
       '--setting-sources',
@@ -335,12 +298,6 @@ export class ClaudeCodeTextAdapter<
     args.push(flag, systemPrompts.join('\n\n'))
   }
 
-  /**
-   * Build the permission-prompt resolver the host MCP bridge exposes to claude
-   * (`--permission-prompt-tool`). Maps claude's permission request onto the
-   * sandbox policy + client approvals; on an `ask` action with no decision yet,
-   * records an approval-requested event and denies (the client re-runs to grant).
-   */
   private buildPermissionResolver(
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,
@@ -447,7 +404,8 @@ export class ClaudeCodeTextAdapter<
       | undefined,
   ): Promise<HostToolBridge | undefined> {
     const hasTools = options.tools !== undefined && options.tools.length > 0
-    if (!hasTools && permission === undefined) return undefined
+    const skipBridge = !hasTools && permission === undefined
+    if (skipBridge) return undefined
     const provisioner =
       (options.capabilities
         ? getToolBridgeProvisioner(options.capabilities, { optional: true })
@@ -594,7 +552,8 @@ export class ClaudeCodeTextAdapter<
     if (this.adapterConfig.emitDiff === false) return
     try {
       const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
-      if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
+      const hasDiff = diff.exitCode === 0 && diff.stdout.trim() !== ''
+      if (hasDiff) {
         yield {
           type: EventType.CUSTOM,
           name: 'file.changed',
@@ -616,9 +575,6 @@ export class ClaudeCodeTextAdapter<
     let bridge: HostToolBridge | undefined
     let channel: BridgeEventChannel | undefined
     const approvalRequests: Array<AdapterYieldChunk> = []
-    // Temp files written for the run (bridge MCP config, redirected prompt) that
-    // carry the bearer token / prompt; removed in `finally` so they don't linger
-    // in the sandbox after the run.
     let cleanupSandbox: SandboxHandle | undefined
     const tempFiles: Array<string> = []
     try {
@@ -626,31 +582,14 @@ export class ClaudeCodeTextAdapter<
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
 
-      // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
-      // back off the capability bus. Absent it, everything below resolves to
-      // exactly today's behavior (no journal option, no alignment, and a
-      // generated `runId` when the caller didn't supply one).
       const durability = options.capabilities
         ? getSandboxDurability(options.capabilities, { optional: true })
         : undefined
-      // The journaled path below derives its journal path and its
-      // message-id generator from `runId`. A resuming host must recompute
-      // the same `runId` to find the same journal file and reproduce the
-      // same translated ids — that's only possible when the caller supplies
-      // `runId` explicitly. `resolveDurableRunId` enforces that loudly (via
-      // `DurableRunIdRequiredError`) whenever durability is wired, and falls
-      // back to a fresh `this.generateId()` otherwise, preserving today's
-      // behavior for non-durable runs.
       const runId = resolveDurableRunId(options.runId, {
         durable: durability !== undefined,
         adapter: 'claude-code',
         fallback: () => this.generateId(),
       })
-      // `threadId` is stamped on every chunk `translateSdkStream` emits, so an
-      // ATTACHING run that mints a fresh one replays a stream the stored log
-      // cannot match at index 0. `resolveDurableThreadId` refuses that up front
-      // instead of letting alignment discover it mid-stream; a durable FRESH run
-      // and a non-durable run both keep the generated fallback untouched.
       const threadId = resolveDurableThreadId(options.threadId, {
         durable: durability !== undefined,
         attaching: durability?.attach === true,
@@ -695,14 +634,6 @@ export class ClaudeCodeTextAdapter<
         options.outputSchema !== undefined
           ? appendOutputSchemaInstruction(built.prompt, options.outputSchema)
           : built.prompt
-      // Both files below name themselves after `runId`, and durability makes
-      // `runId` CALLER-chosen. Raw, a `/` in it would silently turn each basename
-      // into a nested path (writing outside the intended directory, or failing on
-      // one that does not exist), `..` would climb out of that directory, and a
-      // long id would fail the spawn with `ENAMETOOLONG`. `encodeRunId` collapses
-      // any id to one bounded, injective path segment — the same encoder
-      // `journalPaths` uses, so these files and the journal agree on how a given
-      // id spells. Computed once so the two filenames cannot drift apart.
       const runIdSegment = encodeRunId(runId)
       const prepared = await this.writeClaudeRunFiles({
         sandbox,
@@ -735,18 +666,6 @@ export class ClaudeCodeTextAdapter<
         for await (const event of rawEvents) yield event as AgentSdkMessage
       }
 
-      // `mergeChunkStreams` splices `channel.stream` (host-tool-bridge CUSTOM
-      // events from LIVE tool execution) into the deterministic translator
-      // output. Those events do not occur on a replay, so a takeover's replay is
-      // NOT chunk-for-chunk identical to what the log holds. `alignedIfAttaching`
-      // handles it: alignment skips stored out-of-band CUSTOM entries within a
-      // bounded window (see `align.ts`), so a bridged-tool run can be taken over
-      // without a spurious `JournalReplayDivergedError` — while a genuine
-      // determinism regression still throws. The wrap goes OUTSIDE the merge:
-      // the stored log holds the previous host's merged output, so aligning the
-      // pre-merge translated stream alone would compare against a log it never
-      // produced. On a non-attaching run this is a pure passthrough (see
-      // `alignedIfAttaching`'s `attach` guard).
       yield* alignedIfAttaching(
         mergeChunkStreams(
           translateSdkStream(asMessages(), {
@@ -756,11 +675,6 @@ export class ClaudeCodeTextAdapter<
             ...(options.parentRunId !== undefined && {
               parentRunId: options.parentRunId,
             }),
-            // Deterministic on the journaled path: two translations of the same
-            // journal prefix from a fresh generator seeded with the same
-            // `runId` mint the same message ids (unlike `this.generateId()`,
-            // which mixes in `Date.now()` / `Math.random()`). See
-            // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
             genId: createRunScopedIdGen(runId),
             ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
             onSdkMessage: (message) =>
@@ -811,19 +725,6 @@ export class ClaudeCodeTextAdapter<
   }
 }
 
-/**
- * Creates a Claude Code harness adapter that runs **inside a sandbox**.
- *
- * Unlike HTTP provider adapters, this is a *harness* adapter: it spawns the
- * `claude` CLI inside the sandbox provided by `withSandbox(...)` (the adapter
- * declares `requires: [SandboxCapability]`), streams its `stream-json` stdout
- * back as AG-UI events, and lets Claude Code run its own agent loop and native
- * tools (Bash, file edits, search, …) against the sandbox workspace. The
- * sandbox image must provide the `claude` executable and `ANTHROPIC_API_KEY`
- * in its environment (e.g. via `workspace.secrets`). The session id is
- * surfaced via a CUSTOM `claude-code.session-id` event so follow-up calls can
- * resume through `modelOptions.sessionId`.
- */
 export function claudeCodeText<TModel extends ClaudeCodeModel>(
   model: TModel,
   config: ClaudeCodeTextConfig = {},

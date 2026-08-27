@@ -1,70 +1,3 @@
-/**
- * Bound the journal directory: delete the journals nobody will ever read again,
- * and — far more importantly — refuse to delete anything else.
- *
- * `journalCleanupCommand` already deletes ONE run's journal at the moment its
- * `{"__exit":N}` sentinel is observed. That covers every run a host watched to
- * completion and covers nothing else: a run that reaches its sentinel while
- * DETACHED has no host reading its journal, so nothing observes the sentinel and
- * nothing calls the cleanup. Those journals accumulate in
- * {@link DEFAULT_JOURNAL_DIR} until the sandbox dies, which on a `keepAlive`
- * sandbox may be never. This module is the sweep that bounds them, driven from a
- * cron or a reaper rather than from a run.
- *
- * **Why deleting is dangerous, and therefore why almost every branch keeps.**
- * The journal is the ONLY copy of the bytes a successor host needs to replay a
- * run a dead host abandoned mid-flight. Delete a live run's journal and that run
- * becomes unresumable — silently, because the reader will simply deliver nothing.
- * There is no undo and no second copy. So the decision procedure here is not
- * "delete unless I have a reason to keep"; it is the opposite, and every arm that
- * is not a PROVEN-safe deletion keeps:
- *
- * | the store says…                    | action | why |
- * | ---------------------------------- | ------ | --- |
- * | terminal (`isTerminalRunStatus`)   | DELETE | the delivery log, not the journal, is the record |
- * | non-terminal, INCLUDING `'interrupted'` | KEEP | an interrupt-resume continues from it |
- * | nothing (unknown runId)            | KEEP until `orphanTtlMs` | the reader creates the journal BEFORE the record exists |
- * | the lookup threw                   | KEEP | never delete on an unanswered question |
- * | (the name did not decode)          | KEEP | a truncated name decodes to a plausible WRONG runId |
- * | (no mtime listing)                 | KEEP every age-gated entry | cannot age-gate ⇒ cannot expire |
- *
- * Deleting a TERMINAL run's journal is safe because a late takeover of a terminal
- * run aligns against the delivery LOG, not the journal: `align.ts`'s
- * `alignToStoredLog` takes a `StreamDurability` plus an
- * `AsyncIterable<StreamChunk>`, has no `SandboxHandle` and no `JournalPaths` in
- * its signature, and reads the already-delivered prefix with
- * `durability.snapshot()`. It *cannot* read a journal, so removing one cannot
- * break it. A non-zero exit is terminal too — `{"__exit":7}` is as final as
- * `{"__exit":0}`.
- *
- * The unknown-runId arm is the subtle one, and it is why an age gate exists at
- * all. `journalFollowCommand` opens the journal with `: >> file`, which CREATES
- * it; the reader and the run record are written by two independent code paths and
- * nothing orders them. So "a journal exists whose runId the store has never heard
- * of" is the NORMAL state of a run that started moments ago, not an anomaly.
- * Treating unknown as deletable would race every single run start. The journal is
- * therefore kept until it has been untouched for `orphanTtlMs`, which is the only
- * evidence available that no one is writing to it.
- *
- * **The fail-closed trap this module exists to not fall into.** BusyBox `find`
- * prints its "unrecognized option" diagnostic to *stderr* and exits **1 with
- * empty stdout**. A capability probe that ignores the exit code reads that as "no
- * files matched", i.e. "no file is newer than the cutoff" — and code that then
- * concludes "therefore every file is old" **deletes the entire directory**, live
- * runs included. {@link parseJournalMtimeListing} is built to make that
- * impossible: it passes the directory as `stat`'s own first operand as a
- * self-witness and returns `{ kind: 'unavailable' }` when that witness line is
- * absent, never `[]`. This module's whole obligation on that front is to honor
- * `unavailable` as "I cannot age-gate, so I keep" rather than as an empty
- * listing. See the `age-gate-unavailable` reason.
- *
- * **Shell only, never `handle.fs.*`.** On local-process, `fs.*` resolves `/tmp`
- * under the sandbox root while a shell redirect hits the real host `/tmp`, so an
- * `fs.remove` would delete a DIFFERENT path than the one `journaledCommand`
- * wrote — silently doing nothing while reporting success. Every filesystem touch
- * here goes through `handle.process.exec` with a command composed in
- * `journal.ts`.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import {
   DEFAULT_JOURNAL_DIR,
@@ -79,27 +12,8 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RunStore } from '@tanstack/ai'
 import type { SandboxHandle } from './contracts'
 
-/**
- * How long a journal whose runId the store does not know must go untouched
- * before the sweep will delete it.
- *
- * One hour, chosen against what the window actually protects: the gap between a
- * reader creating the journal with `: >> file` and the run record appearing in
- * the store. That gap is milliseconds in the normal case and seconds in the worst
- * case (a slow store, a retried write). An hour is three orders of magnitude of
- * headroom on the race, while still bounding a leaked journal to something a
- * sandbox's disk survives. Erring long is the cheap direction: the cost of too
- * long is bytes, the cost of too short is a destroyed live run.
- */
 export const DEFAULT_ORPHAN_TTL_MS = 60 * 60 * 1000
 
-/**
- * Ceiling on deletions per sweep. A cron-driven sweep runs unattended, so a
- * mistake — a store that answers `terminal` for everything, a misconfigured
- * directory — is bounded by this rather than by how many journals happen to
- * exist. The remainder is reported as kept with reason `max-deletes` and picked
- * up by the next sweep.
- */
 export const DEFAULT_MAX_DELETES = 200
 
 /** Why {@link pruneJournals} left a journal in place. */
@@ -108,17 +22,7 @@ export type KeptJournalReason =
   | 'non-terminal'
   /** The store has never heard of this runId and the journal is still fresh. */
   | 'orphan-too-recent'
-  /**
-   * The store has never heard of this runId and the age gate could not run at
-   * all — {@link parseJournalMtimeListing} returned `unavailable`. THE
-   * FAIL-CLOSED ARM: an unavailable listing is not an empty one and says nothing
-   * about any file's age.
-   */
   | 'age-gate-unavailable'
-  /**
-   * The age gate ran but reported no mtime for this file, so its age is unknown.
-   * (A file created between the two `exec`s, or a name the glob missed.)
-   */
   | 'age-gate-missing-entry'
   /** {@link decodeJournalRunId} refused the name (`truncated` or `malformed`). */
   | 'undecodable-name'
@@ -156,10 +60,6 @@ export interface PruneJournalsResult {
   deleted: Array<string>
   /** Everything left in place, with the reason. */
   kept: Array<KeptJournal>
-  /**
-   * Whether the mtime age gate was usable this sweep. `'unavailable'` means no
-   * orphan could be expired, by design.
-   */
   ageGate: 'listed' | 'unavailable'
   failures: Array<PruneJournalsFailure>
 }
@@ -167,11 +67,6 @@ export interface PruneJournalsResult {
 export interface PruneJournalsOptions {
   /** Sandbox holding the journal directory. Touched only via `process.exec`. */
   handle: SandboxHandle
-  /**
-   * Run lookup. Only `get` is used: the sweep asks about the runIds it found on
-   * disk and never enumerates the store, so no optional `RunStore` method is
-   * required of a backend.
-   */
   runs: Pick<RunStore, 'get'>
   /** Journal directory. Defaults to {@link DEFAULT_JOURNAL_DIR}. */
   dir?: string
@@ -207,9 +102,6 @@ async function listJournalNames(
       .map((line) => line.trim())
       .filter((line) => line !== '')
   } catch (error) {
-    // Nothing was enumerated, so nothing can be deleted. Report and stop —
-    // there is no partial-listing arm, because a partial listing is
-    // indistinguishable from a complete one and we only ever DELETE from it.
     state.failures.push({ stage: 'list', message: errorMessage(error) })
     state.logger?.warn('journal sweep: listing the journal directory failed', {
       dir,
@@ -266,9 +158,6 @@ function keepUnknownRunJournal(
     kept.push({ runId, names: runNames, reason: 'age-gate-missing-entry' })
     return true
   }
-  // The NEWEST of the run's files decides: a journal whose sidecar was
-  // written a second ago is being written to, whatever the journal's own
-  // mtime says.
   const newest = Math.max(...observed.filter(isDefined))
   if (newest > orphanCutoff) {
     kept.push({ runId, names: runNames, reason: 'orphan-too-recent' })
@@ -357,9 +246,6 @@ async function pruneJournalRun(
   }
 
   if (record === null) {
-    // Unknown to the store: either the record has not been written yet (the
-    // normal case for a run that just started) or it was deleted after the
-    // run ended. Only age distinguishes them.
     if (
       keepUnknownRunJournal(
         runId,
@@ -384,15 +270,6 @@ async function pruneJournalRun(
   }
 }
 
-/**
- * Group listed filenames by the runId they decode to, so a journal and its
- * `.err` sidecar are ONE decision and ONE `rm`, not two.
- *
- * De-duplication is not a tidiness measure: `journalCleanupCommand` deletes both
- * paths for a runId at once, so iterating raw names would ask the store twice per
- * run and then issue a second `rm` for files the first one already removed —
- * doubling the store load and reporting one run as two deletions.
- */
 function groupByRunId(names: Array<string>): {
   byRunId: Map<string, Array<string>>
   undecodable: Array<string>
@@ -412,17 +289,6 @@ function groupByRunId(names: Array<string>): {
   return { byRunId, undecodable }
 }
 
-/**
- * Sweep the journal directory, deleting only journals whose runs the store
- * reports terminal (plus orphans that have been untouched past `orphanTtlMs`).
- *
- * **Never rejects.** This runs unattended from a cron, where a rejected promise
- * is an unhandled rejection and, worse, hides which journals were and were not
- * swept. Every failure — a listing that errored, a store that threw, an `rm` that
- * exited non-zero — is folded into
- * {@link PruneJournalsResult.failures} and the sweep continues with the entries
- * it can still decide about.
- */
 export async function pruneJournals(
   options: PruneJournalsOptions,
 ): Promise<PruneJournalsResult> {
@@ -438,10 +304,6 @@ export async function pruneJournals(
     logger,
   }
 
-  // `ls -1` is the authoritative name list. It is a SEPARATE command from the
-  // mtime listing on purpose: `stat -c` may not exist on the provider's
-  // busybox, and a sweep that could not enumerate at all when the age gate is
-  // unavailable would never delete the terminal journals it is safe to delete.
   const names = await listJournalNames(options.handle, dir, state)
   if (names === null) {
     return {
@@ -454,9 +316,6 @@ export async function pruneJournals(
     }
   }
 
-  // The age gate. `unavailable` is a first-class outcome, NOT an empty listing:
-  // see the module doc's BusyBox `find` trap. It disables orphan expiry for this
-  // sweep and disables nothing else.
   const { ageGate, mtimes } = await loadJournalMtimes(
     options.handle,
     dir,
@@ -464,10 +323,6 @@ export async function pruneJournals(
   )
   const { byRunId, undecodable } = groupByRunId(names)
 
-  // Undecodable names are kept unconditionally and without asking the store.
-  // A truncated name decodes to a PLAUSIBLE BUT WRONG runId, so consulting the
-  // store about it would answer a question about some other run — possibly a
-  // live one — and a `terminal` answer would then delete this run's journal.
   for (const name of undecodable) {
     state.kept.push({ names: [name], reason: 'undecodable-name' })
   }

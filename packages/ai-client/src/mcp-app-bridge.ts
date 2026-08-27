@@ -16,11 +16,6 @@ export interface McpAppBridge {
     serverId?: string
     toolName: string
     args?: Record<string, unknown>
-    /**
-     * Reserved — forwarded to the call handler for correlation purposes but
-     * not consumed by the handler. Accepted on the wire; the handler does not
-     * read it (mirrors the `meta` convention on `UIResourcePart`).
-     */
     messageId?: string
   }) => Promise<unknown>
   sendPrompt: (text: string) => Promise<void>
@@ -42,9 +37,6 @@ function isToolCallResponse(value: unknown): value is ToolCallResponse {
   )
 }
 
-// Links arrive from an untrusted sandboxed widget. Only hand http(s)/mailto
-// URLs to the host's onLink; reject javascript:/data:/file:/etc. so a widget
-// can't smuggle a script-executing or local-resource URL through the bridge.
 const SAFE_LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
 function isSafeLink(url: string): boolean {
   try {

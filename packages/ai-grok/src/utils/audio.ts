@@ -1,15 +1,3 @@
-/**
- * Coerce the various audio input shapes accepted by `TranscriptionOptions.audio`
- * into a `File` suitable for `multipart/form-data` uploads.
- *
- * For base64 string inputs we require an explicit MIME type — either via a
- * `data:<mime>;base64,<payload>` URI prefix, or via the caller-provided
- * `audioFormat` parameter. Bare base64 without either is rejected, because
- * silently defaulting to `audio/mpeg` misreports non-mp3 audio to the server.
- *
- * The same rule applies to raw `ArrayBuffer` inputs: the caller must supply
- * an `audioFormat` so we know what MIME type and extension to use.
- */
 function audioFileFromBytes(bytes: BlobPart, mimeType: string): File {
   return new File([bytes], `audio.${extensionFor(mimeType)}`, {
     type: mimeType,
@@ -19,9 +7,6 @@ function audioFileFromBytes(bytes: BlobPart, mimeType: string): File {
 function audioFileFromString(audio: string, audioFormat?: string): File {
   if (audio.startsWith('data:')) {
     const [header, base64Data] = audio.split(',')
-    // Fail loudly on malformed data: URIs instead of silently defaulting
-    // to `audio/mpeg` — the file's contract is that we never mislabel
-    // audio for the server.
     const headerMatch = header?.match(/data:([^;]+)/)
     const uriMimeType = headerMatch?.[1]
     if (!uriMimeType) {
@@ -29,14 +14,16 @@ function audioFileFromString(audio: string, audioFormat?: string): File {
         'Malformed data: URI in toAudioFile: cannot parse MIME type — expected data:<mime>[;charset=…][;base64],<payload>',
       )
     }
-    if (base64Data === undefined || base64Data.trim() === '') {
+    if (base64Data === undefined) {
       throw new Error(
         'Malformed data: URI in toAudioFile: missing base64 payload after comma',
       )
     }
-    // Caller-supplied `audioFormat` wins over the URI-embedded MIME: the
-    // caller has more context (the URI MIME may be wrong, or a generic
-    // `application/octet-stream`).
+    if (base64Data.trim() === '') {
+      throw new Error(
+        'Malformed data: URI in toAudioFile: missing base64 payload after comma',
+      )
+    }
     const mimeType = audioFormat ? toMimeType(audioFormat) : uriMimeType
     return audioFileFromBytes(base64ToArrayBuffer(base64Data), mimeType)
   }
@@ -55,10 +42,6 @@ export function toAudioFile(
   audioFormat?: string,
 ): File {
   if (typeof File !== 'undefined' && audio instanceof File) {
-    // Prefer the caller-supplied `audioFormat` over a potentially empty or
-    // incorrect `File.type` — callers pass `audioFormat` precisely because
-    // they have more context than the browser does about the payload. If
-    // neither is set, fall through to the Blob-style error path below.
     if (audioFormat) {
       return audioFileFromBytes(audio, toMimeType(audioFormat))
     }
@@ -71,10 +54,6 @@ export function toAudioFile(
   }
 
   if (typeof Blob !== 'undefined' && audio instanceof Blob) {
-    // Mirror the ArrayBuffer / bare-base64 paths: prefer the explicit
-    // audioFormat argument over the Blob's (often empty) .type. We refuse to
-    // fall back to `application/octet-stream` because that mislabels audio
-    // for the server.
     const mimeType = audioFormat
       ? toMimeType(audioFormat)
       : audio.type || undefined
@@ -169,15 +148,6 @@ function extensionFor(mimeType: string): string {
   }
 }
 
-/**
- * Cross-runtime ArrayBuffer → base64 conversion.
- *
- * Uses Node's `Buffer` when available (fastest path on server) and falls
- * back to `btoa` + chunked `String.fromCharCode` everywhere else (browser,
- * Cloudflare Workers, Bun, Deno). Chunking is required because a very
- * large audio buffer spread into `String.fromCharCode(...bytes)` in one
- * call can hit `Maximum call stack size exceeded`.
- */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== 'undefined') {
     return Buffer.from(buffer).toString('base64')

@@ -1,9 +1,3 @@
-/**
- * Resolve a Perplexity API key from environment variables.
- *
- * Honors `PERPLEXITY_API_KEY` first, then falls back to `PPLX_API_KEY`.
- * Throws if neither is set.
- */
 export function getPerplexityApiKeyFromEnv(): string {
   const env = getEnvironment()
   const key = [env?.PERPLEXITY_API_KEY, env?.PPLX_API_KEY]

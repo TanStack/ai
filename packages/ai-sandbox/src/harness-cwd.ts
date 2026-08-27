@@ -1,11 +1,3 @@
-/**
- * Resolve a VIRTUAL sandbox cwd (e.g. `/workspace`) to the path a harness CLI
- * or ACP session must use on the real filesystem.
- *
- * Provider handles map virtual paths for spawn/exec/fs; harness-facing APIs
- * interpret cwd literally (`grok --cwd`, ACP `newSession`, opencode HTTP
- * `directory`, …).
- */
 import * as path from 'node:path'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { SandboxHandle } from './contracts'
@@ -30,7 +22,9 @@ export function resolveHarnessCwd(
   }
 
   const root = handle.workspaceRoot
-  if (root !== undefined && root !== DEFAULT_WORKSPACE_ROOT) {
+  const hasCustomWorkspaceRoot =
+    root !== undefined && root !== DEFAULT_WORKSPACE_ROOT
+  if (hasCustomWorkspaceRoot) {
     return mapVirtualWorkspacePath(virtualCwd, root)
   }
 

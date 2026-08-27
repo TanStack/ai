@@ -32,12 +32,6 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 
-/**
- * Shared implementation of the OpenAI Chat Completions API. Holds the
- * stream-accumulator + AG-UI lifecycle logic and calls the OpenAI SDK
- * directly. Subclasses (ai-openai, ai-grok, ai-groq) construct an OpenAI
- * client with their provider-specific `baseURL` / headers and pass it in.
- */
 export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
@@ -74,12 +68,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
 
     try {
-      // mapOptionsToRequest can throw (e.g. fail-loud guards in convertMessage
-      // for empty content or unsupported parts). Keep it inside the try so
-      // those failures surface as a single RUN_ERROR event, matching every
-      // other failure mode here — callers iterating chatStream then only need
-      // one error-handling path instead of both a try/catch around iteration
-      // and a RUN_ERROR handler.
       const requestParams = this.mapOptionsToRequest(options)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
@@ -194,10 +182,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
-  /**
-   * Extracts a rejected tool call from a provider error. Returned calls are
-   * emitted as non-executable `output-error` results so the model can repair them.
-   */
   protected extractRejectedToolCall(
     _rawEvent: unknown,
     _fallbackMessage: string,
@@ -212,18 +196,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return undefined
   }
 
-  /**
-   * Generate structured output using the provider's JSON Schema response format.
-   * Uses stream: false to get the complete response in one call.
-   *
-   * OpenAI-compatible APIs have strict requirements for structured output:
-   * - All properties must be in the `required` array
-   * - Optional fields should have null added to their type union
-   * - additionalProperties must be false for all objects
-   *
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply provider-specific transformations for structured output compatibility.
-   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -262,12 +234,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         extractRequestOptions(chatOptions.request),
       )
 
-      // Extract text content from the response. Fail loud on empty content
-      // rather than letting it cascade into a JSON-parse error on '' — the
-      // root cause (the model returned no content for the structured request)
-      // is then visible in logs.
       const rawText = response.choices[0]?.message.content
-      if (typeof rawText !== 'string' || rawText.length === 0) {
+      const hasNoStructuredText =
+        typeof rawText !== 'string' || rawText.length === 0
+      if (hasNoStructuredText) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no content`,
         )
@@ -306,15 +276,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
-  /**
-   * Stream structured output. Single Chat Completions request with
-   * `response_format: json_schema` + `stream: true`. Emits the standard
-   * AG-UI lifecycle (`RUN_STARTED` → `REASONING_*?` → `TEXT_MESSAGE_*`
-   * carrying raw JSON deltas → terminal `CUSTOM 'structured-output.complete'`
-   * → `RUN_FINISHED`). Subclasses use the same SDK-call / reasoning /
-   * structured-output-transform hooks as `chatStream` / `structuredOutput` —
-   * no per-subclass override should be needed.
-   */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -383,7 +344,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
     ): Generator<AdapterYieldChunk> {
       const reasoning = extractReasoning(chunk)
-      if (!reasoning || !reasoning.text) return
+      const reasoningText = reasoning?.text
+      const hasNoReasoningText = !reasoningText
+      if (hasNoReasoningText) return
       const model = chunk.model || chatOptions.model
       if (!reasoningMessageId) {
         reasoningMessageId = generateId(adapterName)
@@ -410,11 +373,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           stepType: 'thinking',
         }
       }
-      accumulatedReasoning += reasoning.text
+      accumulatedReasoning += reasoningText
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,
         messageId: reasoningMessageId,
-        delta: reasoning.text,
+        delta: reasoningText,
         model,
         timestamp: Date.now(),
       }
@@ -431,10 +394,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       if (chunk.model) lastModel = chunk.model
 
-      // Usage may arrive on a chunk with empty `choices` (OpenAI's
-      // include_usage terminal chunk) or piggybacked on a finish chunk
-      // (`x_groq.usage` on Groq). Capture from either independent of
-      // choices[0].
       const usage =
         chunk.usage ??
         (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage
@@ -603,9 +562,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
 
     try {
-      // Strip stream_options + tools from the base request. Structured output
-      // sends `response_format: json_schema` and doesn't carry tools — keeping
-      // them in the request can confuse strict-mode validation upstream.
       const {
         stream_options: _so,
         stream: _s,
@@ -645,14 +601,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
-  /**
-   * Cross-SDK abort detection for `structuredOutputStream`. Default duck-types
-   * on `name === 'APIUserAbortError'` (OpenAI SDK), `code === 'ERR_CANCELED'`,
-   * and standard `AbortError`s. Subclasses with proprietary error types (e.g.
-   * `@openrouter/sdk`'s `RequestAbortedError`) override to extend the check.
-   */
   protected isAbortError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') return false
+    const isNotErrorObject = !error || typeof error !== 'object'
+    if (isNotErrorObject) return false
     const e = error as { name?: unknown; code?: unknown }
     return (
       e.name === 'APIUserAbortError' ||
@@ -661,11 +612,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     )
   }
 
-  /**
-   * Strict conversion plus the inverse null-widening map for this request.
-   * Override this when schema conversion changes, so tool-input undo matches
-   * the wire schema.
-   */
   protected makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -673,11 +619,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
-  /**
-   * Applies provider-specific transformations for structured output compatibility.
-   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
-   * to match the wire schema.
-   */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -686,36 +627,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       .schema
   }
 
-  /**
-   * Extract reasoning content from a stream chunk. Default returns
-   * `undefined` because the OpenAI Chat Completions chunk shape doesn't
-   * carry reasoning. The chunk param is typed `unknown` so an override can
-   * narrow to its own SDK chunk type without an `as` dance — the base only
-   * passes through `processStreamChunks`'s structurally-iterated chunk.
-   */
   protected extractReasoning(_chunk: unknown): { text: string } | undefined {
     return undefined
   }
 
-  /**
-   * Final shaping pass applied to parsed structured-output JSON before it is
-   * returned to the caller. Default is a passthrough.
-   *
-   * Provider `null`s are no longer stripped here: strict-mode null-widening is
-   * now undone precisely by the engine (`undoNullWidening`, driven by the
-   * schema's null-widening map) the moment the result is captured, so a blind
-   * `transformNullsToUndefined` at the adapter would only destroy genuine
-   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
-   * provider's structured output.
-   */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
-  /**
-   * Processes streamed chunks from the Chat Completions API and yields AG-UI events.
-   * Override this in subclasses to handle provider-specific stream behavior.
-   */
   protected async *processStreamChunks(
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
@@ -739,10 +658,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     })
   }
 
-  /**
-   * Maps common TextOptions to Chat Completions API request format.
-   * Override this in subclasses to add provider-specific options.
-   */
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
@@ -772,13 +687,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const modelOptions = options.modelOptions
 
-    // Native combined mode (issue #605): when the engine threads
-    // `outputSchema` through TextOptions, the adapter declared
-    // `supportsCombinedToolsAndSchema` and the schema is already JSON Schema
-    // (pre-converted at the activity boundary). Wire it into
-    // `response_format` alongside any `tools`. Modern OpenAI-compatible
-    // Chat Completions accepts both together and emits the schema-
-    // constrained text on the natural final turn.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -800,10 +708,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       : undefined
 
-    // `modelOptions` is the sole sampling surface: callers set provider-native
-    // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
-    // there and they flow through the spread below. The root
-    // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
     return {
       ...modelOptions,
       model: options.model,
@@ -819,30 +723,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
-  /**
-   * Modern OpenAI-compatible Chat Completions APIs support `tools` and
-   * `response_format: json_schema` together in a single streaming request
-   * (per issue #605). Subclasses can override — Groq, for instance, must
-   * return `false` because its API rejects schema + tools + stream with a
-   * 400.
-   */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
 
-  /**
-   * Converts a single ModelMessage to the Chat Completions API message format.
-   * Override this in subclasses to handle provider-specific message formats.
-   */
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
-      // The Chat Completions API has no multimodal `tool` message support
-      // (unlike the Responses API's `function_call_output`). A tool that
-      // returns an `Array<ContentPart>` is therefore stringified here — the
-      // documented fallback for providers on the chat-completions path
-      // (Groq, Ollama, Grok, OpenRouter chat). Multimodal tool results are
-      // only delivered structurally via the Responses adapter.
       return {
         role: 'tool',
         tool_call_id: message.toolCallId || '',
@@ -869,10 +756,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const hasToolCalls = !!toolCalls && toolCalls.length > 0
       const textContent = this.extractTextContent(message.content)
 
-      // Per the OpenAI Chat Completions contract, an assistant message that
-      // only carries tool_calls should have `content: null` (or omit content)
-      // rather than `content: ''`. Empty-string content interacts oddly with
-      // tokenization on some backends; null is the documented shape.
       return {
         role: 'assistant',
         content: hasToolCalls && !textContent ? null : textContent,
@@ -883,13 +766,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // Handle user messages - support multimodal content
     const contentParts = this.normalizeContent(message.content)
 
-    // If only text, use simple string format
-    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
-      const text = contentParts[0].content
+    const firstPart = contentParts.length === 1 ? contentParts[0] : undefined
+    if (firstPart?.type === 'text') {
+      const text = firstPart.content
       if (text.length === 0) {
-        // Single empty text part is the same fail-loud condition as below —
-        // an empty paid request mask a real intent (caller passed `null`/'',
-        // or an upstream step normalised everything to an empty string).
         throw new Error(
           `User message for ${this.name} has empty text content. ` +
             `Empty user messages would produce a paid request with no input; ` +
@@ -902,10 +782,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       }
     }
 
-    // Otherwise, use array format for multimodal. Fail fast on unsupported
-    // content parts rather than silently dropping them — a message of all
-    // unsupported parts would otherwise turn into an empty user prompt and
-    // mask a real capability mismatch.
     const parts: Array<ChatCompletionContentPart> = []
     for (const part of contentParts) {
       const converted = this.convertContentPart(part)
@@ -920,9 +796,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
 
     if (parts.length === 0) {
-      // The original message had no content parts at all (e.g. content was
-      // explicitly null or []). Sending an empty user message to OpenAI
-      // produces a paid request with no signal — fail loud instead.
       throw new Error(
         `User message for ${this.name} has no content parts. ` +
           `Empty user messages would produce a paid request with no input; ` +
@@ -936,10 +809,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
-  /**
-   * Converts a single ContentPart to the Chat Completions API content part format.
-   * Override this in subclasses to handle additional content types or provider-specific metadata.
-   */
   protected convertContentPart(
     part: ContentPart,
   ): ChatCompletionContentPart | null {
@@ -952,10 +821,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         | { detail?: 'auto' | 'low' | 'high' }
         | undefined
 
-      // For base64 data, construct a data URI using the mimeType from source.
-      // Default to a generic octet-stream MIME if the source didn't provide
-      // one — interpolating `undefined` into the URI ("data:undefined;base64,
-      // ...") would produce an invalid URI the API rejects.
       const imageValue = part.source.value
       const imageMime = part.source.mimeType || 'application/octet-stream'
       const imageUrl =
@@ -973,10 +838,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
 
     if (part.type === 'document') {
-      // Documents (PDF) are implemented on the Responses adapter, which maps
-      // them to `input_file`. Model modality arrays are not endpoint-scoped,
-      // so a document part can type-check for a model this adapter serves —
-      // point callers at the supported path instead of a generic error.
       throw new Error(
         `${this.name} does not support document parts on the Chat Completions ` +
           `API; use the Responses adapter, which sends them as input_file.`,
@@ -987,14 +848,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return null
   }
 
-  /**
-   * Normalizes message content to an array of ContentPart.
-   * Handles backward compatibility with string content.
-   */
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return []
     }
     if (typeof content === 'string') {
@@ -1003,16 +861,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return content
   }
 
-  /**
-   * Extracts text content from a content value that may be string, null, or ContentPart array.
-   */
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
-    // Tool-call-only assistant turns (e.g. an approval resume replaying the
-    // pending call) carry no text and arrive as `null` or `undefined`; both
-    // must collapse to '' rather than crash on `.filter`.
-    if (content === null || content === undefined) {
+    const hasNoContent = content === null || content === undefined
+    if (hasNoContent) {
       return ''
     }
     if (typeof content === 'string') {

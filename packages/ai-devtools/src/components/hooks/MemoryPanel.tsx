@@ -8,17 +8,6 @@ import type {
   MemoryScopeState,
 } from '../../store/memory-registry'
 
-/**
- * DevTools "Memory" tab. Memory is per composite scope (tenant/user/thread),
- * not per-hook, so this panel reads the whole `state.memory` registry and lets
- * the user pick a scope (defaulting to the most recently active). It renders
- * two things:
- *   1. Live contents — the latest `inspect()` records + `listFacts()` facts,
- *      pushed via `memory:snapshot` (only for adapters that support inspection).
- *   2. Operations timeline — the `memory:*` recall/save/error events (always
- *      available, even when the adapter has no introspection).
- */
-
 /** Shape of a record inside the built-in adapters' `inspect()` payload. */
 interface MemoryRecordRow {
   id: string
@@ -31,7 +20,8 @@ interface MemoryRecordRow {
 
 /** Best-effort extraction of `{ records: [...] }` from the opaque snapshot data. */
 function extractRecords(data: unknown): Array<MemoryRecordRow> {
-  if (!data || typeof data !== 'object') return []
+  const isMissingData = !data || typeof data !== 'object'
+  if (isMissingData) return []
   const records = (data as { records?: unknown }).records
   if (!Array.isArray(records)) return []
   return records.filter(
@@ -86,7 +76,10 @@ export const MemoryPanel: Component = () => {
 
   const selectedKey = createMemo(() => {
     const chosen = override()
-    if (chosen && state.memory.scopes[chosen]) return chosen
+    if (chosen) {
+      const hasChosenScope = Boolean(state.memory.scopes[chosen])
+      if (hasChosenScope) return chosen
+    }
     return scopeKeys()[0] ?? null
   })
 

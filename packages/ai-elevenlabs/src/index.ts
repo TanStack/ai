@@ -1,7 +1,3 @@
-// ============================================================================
-// ElevenLabs Realtime (Voice) Adapters
-// ============================================================================
-
 export { elevenlabsRealtimeToken, elevenlabsRealtime } from './realtime/index'
 
 export type {
@@ -12,10 +8,6 @@ export type {
   ElevenLabsClientTool,
 } from './realtime/index'
 
-// ============================================================================
-// Speech (Text-to-Speech) Adapter
-// ============================================================================
-
 export {
   ElevenLabsSpeechAdapter,
   createElevenLabsSpeech,
@@ -23,10 +15,6 @@ export {
   type ElevenLabsSpeechProviderOptions,
   type ElevenLabsVoiceSettings,
 } from './adapters/speech'
-
-// ============================================================================
-// Audio (Music + Sound Effects) Adapter
-// ============================================================================
 
 export {
   ElevenLabsAudioAdapter,
@@ -38,20 +26,12 @@ export {
   type ElevenLabsMusicCompositionPlan,
 } from './adapters/audio'
 
-// ============================================================================
-// Transcription (Speech-to-Text) Adapter
-// ============================================================================
-
 export {
   ElevenLabsTranscriptionAdapter,
   createElevenLabsTranscription,
   elevenlabsTranscription,
   type ElevenLabsTranscriptionProviderOptions,
 } from './adapters/transcription'
-
-// ============================================================================
-// Model Metadata
-// ============================================================================
 
 export {
   ELEVENLABS_TTS_MODELS,
@@ -66,10 +46,6 @@ export {
   type ElevenLabsTranscriptionModel,
   type ElevenLabsOutputFormat,
 } from './model-meta'
-
-// ============================================================================
-// Utilities
-// ============================================================================
 
 export {
   getElevenLabsApiKeyFromEnv,

@@ -13,7 +13,10 @@ export type WebSearchTool = WebSearchToolConfig
 export type AnthropicWebSearchTool = ProviderTool<'anthropic', 'web_search'>
 
 const validateDomains = (tool: WebSearchToolConfig) => {
-  if (tool.allowed_domains && tool.blocked_domains) {
+  const hasConflictingDomains = Boolean(
+    tool.allowed_domains && tool.blocked_domains,
+  )
+  if (hasConflictingDomains) {
     throw new Error(
       'allowed_domains and blocked_domains cannot be used together.',
     )
@@ -23,29 +26,31 @@ const validateDomains = (tool: WebSearchToolConfig) => {
 const validateUserLocation = (tool: WebSearchToolConfig) => {
   const userLocation = tool.user_location
   if (userLocation) {
-    if (
-      userLocation.city &&
+    const cityOutOfRange =
+      Boolean(userLocation.city) &&
       (userLocation.city.length < 1 || userLocation.city.length > 255)
-    ) {
+    if (cityOutOfRange) {
       throw new Error(
         'user_location.city must be between 1 and 255 characters.',
       )
     }
-    if (userLocation.country && userLocation.country.length !== 2) {
+    const countryOutOfRange =
+      Boolean(userLocation.country) && userLocation.country.length !== 2
+    if (countryOutOfRange) {
       throw new Error('user_location.country must be exactly 2 characters.')
     }
-    if (
-      userLocation.region &&
+    const regionOutOfRange =
+      Boolean(userLocation.region) &&
       (userLocation.region.length < 1 || userLocation.region.length > 255)
-    ) {
+    if (regionOutOfRange) {
       throw new Error(
         'user_location.region must be between 1 and 255 characters.',
       )
     }
-    if (
-      userLocation.timezone &&
+    const timezoneOutOfRange =
+      Boolean(userLocation.timezone) &&
       (userLocation.timezone.length < 1 || userLocation.timezone.length > 255)
-    ) {
+    if (timezoneOutOfRange) {
       throw new Error(
         'user_location.timezone must be between 1 and 255 characters.',
       )
@@ -56,10 +61,6 @@ const validateUserLocation = (tool: WebSearchToolConfig) => {
 export function convertWebSearchToolToAdapterFormat(
   tool: Tool,
 ): WebSearchToolConfig {
-  // The factory stores the SDK config (`allowed_domains`, `max_uses`, …)
-  // on `metadata`. Vendor `WebSearchTool20250305` declares those fields as
-  // `T | null` (no `| undefined`) under exactOptionalPropertyTypes, so
-  // spread them only when present rather than passing explicit `undefined`.
   const metadata = getAnthropicProviderToolMetadata(tool)
   return {
     name: 'web_search',

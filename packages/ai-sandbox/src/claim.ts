@@ -1,73 +1,3 @@
-/**
- * The single-writer claim: what makes a takeover safe to attempt at all.
- *
- * WHY THIS MODULE EXISTS. `alignToStoredLog` decides where its appends start by
- * reading `durability.snapshot()`, and `snapshot()` carries NO LOCK — core says
- * so explicitly (`packages/ai/src/stream-durability.ts`: "a concurrent `append`
- * may land immediately after the snapshot is taken"). If two hosts drive one
- * run, both snapshot, both compute a "remainder", and both append it. The log
- * then holds the same logical chunk twice under two different offsets, and the
- * client CANNOT survive that: `ai-client`'s de-dup is keyed on the adapter's
- * offset string, so a re-appended chunk looks new, and the stream processor
- * applies text and tool-argument deltas unconditionally. The visible result is
- * doubled message text and `{"a":1}{"a":1}` tool arguments.
- *
- * Takeover is by definition two hosts wanting one run, so nothing may read a
- * journal for a run it has not claimed.
- *
- * THREE LAYERS, strongest first:
- *
- * 1. **The lease.** {@link withRunClaim} runs the whole drive inside
- *    `LockStore.withLock('run-driver:<runId>', …)`, so the snapshot and every
- *    append that follows are one critical section. A lease-backed lock aborts
- *    the callback signal the moment ownership is lost, and
- *    {@link fenceDurability} turns that into a thrown {@link RunClaimLostError}
- *    BEFORE the append reaches the log.
- * 2. **The epoch.** Each successful claim bumps `RunRecord.driverEpoch`.
- *    {@link fenceDurability} re-reads it every
- *    {@link DEFAULT_EPOCH_RECHECK_APPENDS} appends and refuses to append once a
- *    higher epoch exists. This covers what a lease cannot: an
- *    `InMemoryLockStore`, whose signal is a fresh `AbortController().signal`
- *    that is never aborted, and any backend whose renewal is coarser than the
- *    run's append rate. Once EITHER fence has refused an append, the fence
- *    latches shut and every later append refuses without re-reading anything.
- * 3. **Quiescence.** {@link awaitLogQuiescence} requires the stored log to stop
- *    growing before the successor appends anything, so a predecessor that is
- *    still writing is OBSERVED rather than raced.
- *
- * THE LOG IS NOT THE ONLY AUTHORITATIVE CHANNEL. A host that has lost its claim
- * must not write authoritative facts about the run through ANY seam, and there
- * are two: the event log and the run RECORD. Fencing only the log moves the harm
- * rather than removing it — a superseded driver whose append was refused folds
- * that refusal into a terminal `runs.update`, so the record reads `'failed'` for
- * a run the successor is healthily streaming, and `isTerminalRunStatus` (which
- * `findActiveRun`, the resume driver, and `reapDetachedRuns` all branch on) then
- * answers `true` for a live run. {@link fenceRunStore} closes that seam; both
- * fences share one per-claim latch so they can never disagree about whether the
- * claim is still held.
- *
- * WHY THE EPOCH RE-CHECK COUNTS APPENDS, NOT MILLISECONDS. `pipeToRunLog`
- * appends ONE chunk per call, so a time-based interval couples the fence's
- * resolution to the run's chunk rate: at 500 chunks/sec a 2s interval lets a
- * superseded driver write ~1000 chunks before it notices. A count gives a hard
- * bound independent of rate — see {@link DEFAULT_EPOCH_RECHECK_APPENDS}.
- *
- * WHAT THIS IS NOT. It is not airtight fencing.
- *
- * - A predecessor paused (GC, VM suspend) for longer than the quiescence
- *   window, between its last fence check and its append landing at the backend,
- *   can still write one batch. Closing that requires a compare-and-set on the
- *   durability write; `StreamDurability.append` has no such parameter and this
- *   phase deliberately does not add one.
- * - Layer 3 is only meaningful across PROCESSES. On a single-process
- *   `InMemoryLockStore` the two claims are serialized by the lock, not
- *   concurrent, so `awaitLogQuiescence` can never observe a predecessor still
- *   writing there — and consequently no unit test on that backend proves layer
- *   3 does anything. What the tests do prove on that backend is layer 2.
- *
- * The mitigation for both is deployment-level: use a lease-backed distributed
- * `LockStore`, and keep `fenceQuietMs` above the lease's renewal interval.
- */
 import { isTerminalRunStatus } from '@tanstack/ai'
 import type { LockStore } from '@tanstack/ai/locks'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -76,17 +6,6 @@ import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 /** Quiescence window before a successor's first append. */
 export const DEFAULT_FENCE_QUIET_MS = 5_000
 
-/**
- * Appends a fenced log makes between `driverEpoch` re-reads.
- *
- * Deliberately a COUNT, not an interval: `pipeToRunLog` appends one chunk per
- * call, so this bounds a superseded driver to at most 31 further chunk batches
- * (the bump can land immediately after a check) regardless of how fast the run
- * streams. At 500 chunks/sec that worst case is ~62ms of writes; at 5
- * chunks/sec it is ~6s of writes — either way 31 chunks, never ~1000.
- *
- * The cost of a smaller number is one extra `RunStore.get` per 32 chunks.
- */
 export const DEFAULT_EPOCH_RECHECK_APPENDS = 32
 
 /** Probes {@link awaitLogQuiescence} makes before giving up. */
@@ -135,37 +54,11 @@ export interface WithRunClaimOptions {
   runs: RunStore
   locks: LockStore
   runId: string
-  /**
-   * Quiescence window for {@link awaitLogQuiescence}. Defaults to
-   * {@link DEFAULT_FENCE_QUIET_MS}.
-   *
-   * `withRunClaim` itself does not read this: it has no durability handle. It
-   * lives here so a caller assembling a drive passes ONE options object to
-   * `withRunClaim`, `awaitLogQuiescence`, and {@link fenceDurability} instead of
-   * three that can drift apart.
-   */
   fenceQuietMs?: number
-  /**
-   * Forwarded to {@link fenceDurability}. Defaults to
-   * {@link DEFAULT_EPOCH_RECHECK_APPENDS}. Same rationale as `fenceQuietMs`.
-   */
   epochRecheckAppends?: number
   logger?: InternalLogger
 }
 
-/**
- * Claim exclusive driver rights on `runId` for the duration of `fn`.
- *
- * The ENTIRE body runs inside the lock, so a snapshot taken by `fn` and every
- * append that follows it sit in one critical section.
- *
- * Rejects with {@link RunClaimNotAcquiredError} when the run is unknown or
- * already terminal — a terminal run has nothing left to drive, and bumping its
- * epoch would fence out nobody while confusing an operator reading the record.
- *
- * The epoch is bumped INSIDE the lock and only after those checks pass, so a
- * refused claim leaves `driverEpoch` untouched.
- */
 export async function withRunClaim<T>(
   options: WithRunClaimOptions,
   fn: (claim: RunClaim) => Promise<T>,
@@ -189,23 +82,6 @@ export async function withRunClaim<T>(
   })
 }
 
-/**
- * Wait until the stored log stops growing, then answer how many entries it
- * holds.
- *
- * Uses `snapshot()`, never `read()`: `read` tails and only resolves once the log
- * is terminalized or the caller aborts, and a taken-over run's log is open by
- * definition — the host that would have closed it is the host that died.
- *
- * Rejects rather than looping forever. A log that never quiesces means a
- * predecessor is still actively writing, which is a condition to surface, not to
- * append into.
- *
- * This only detects a CONCURRENT predecessor, which means it can only fire when
- * the two drivers are in different processes. Within one process an
- * `InMemoryLockStore` serializes the claims, so the predecessor has already
- * stopped by the time the successor probes.
- */
 export async function awaitLogQuiescence<TOffset extends string = string>(
   durability: StreamDurability<TOffset>,
   quietMs: number,
@@ -227,20 +103,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * The one-way "this claim is gone" flag, latched by the first refusal.
- *
- * Keyed by the claim rather than held in one wrapper's closure because a claim
- * has TWO fenced seams — its log ({@link fenceDurability}) and its record
- * ({@link fenceRunStore}) — and a latch per wrapper would let them disagree: a
- * lease that flaps back to `aborted === false`, or an epoch read that fails,
- * would re-open the fence that had not refused yet. Losing a claim is not
- * transient, so one observation must close both.
- *
- * A `WeakMap` and not a field on {@link RunClaim} so the claim stays the plain
- * data structure core's `RunDriverOptions.claim` types it as, and so the latch is
- * collected with the claim.
- */
 interface ClaimLatch {
   /** `undefined` while the fence is open; otherwise the refusal to replay. */
   lost: RunClaimLostError | undefined
@@ -256,10 +118,6 @@ function latchFor(claim: RunClaim): ClaimLatch {
   return latch
 }
 
-/**
- * The I/O-free half of the check: the latch and the lease. Synchronous on
- * purpose — a fenced write must be refused BEFORE anything can half-land.
- */
 function claimLostSynchronously(
   claim: RunClaim,
   latch: ClaimLatch,
@@ -272,14 +130,6 @@ function claimLostSynchronously(
   return undefined
 }
 
-/**
- * The other half: re-read `driverEpoch` and refuse once a successor exists.
- *
- * A store failure is NOT treated as loss. The lease is the primary fence and it
- * has not fired, so fencing ourselves out on a store blip would kill a healthy
- * driver — and, for the record fence, would suppress a legitimate terminal write
- * and strand the run at `'running'`, which is worse than the write it prevents.
- */
 async function claimLostByEpoch(
   claim: RunClaim,
   latch: ClaimLatch,
@@ -291,54 +141,14 @@ async function claimLostByEpoch(
   } catch {
     return undefined
   }
-  if (observed !== undefined && observed > claim.epoch) {
+  const isNewerEpoch = observed !== undefined && observed > claim.epoch
+  if (isNewerEpoch) {
     latch.lost = new RunClaimLostError(claim.runId, claim.epoch, observed)
     return latch.lost
   }
   return undefined
 }
 
-/**
- * Wrap a log so every `append` is fenced by `claim`.
- *
- * `append` is the ONLY fenced method, deliberately:
- *
- * - `close()` must never be fenced. It runs on every teardown path including
- *   the teardown caused by losing the claim, and a fenced `close` would leave
- *   the record wedged at `'running'` with every live tailer parked forever (a
- *   `read` only ends when the log closes).
- * - `read` / `snapshot` / `resumeFrom` do not mutate, so a superseded host
- *   reading them is harmless.
- *
- * The lease check is synchronous and happens before any I/O, so a fenced append
- * cannot half-land. The epoch re-check is throttled to `epochRecheckAppends`
- * because it costs a store read and the append path is hot.
- *
- * ONE REFUSAL CLOSES THE FENCE FOR GOOD. The first `append` that is refused —
- * for EITHER cause, lost lease or moved epoch — latches this wrapper shut, and
- * every later `append` refuses immediately without consulting the throttle and
- * without a store read. This is not a nicety:
- *
- * - Losing a claim is not transient. Epochs only move forward and a lease is
- *   never handed back, so a wrapper that has refused once can never legitimately
- *   append again. Re-deciding per append can only produce a WRONG answer.
- * - The throttle makes that wrong answer reachable. A refusal consumes the
- *   re-read budget, so the very next append rides a fresh throttle window and is
- *   NOT re-checked. `pipeToRunLog`'s recovery path appends a `RUN_ERROR` right
- *   after the refusal it is recovering from, and that log belongs to the
- *   SUCCESSOR: a terminal `RUN_ERROR` from a dead host would fail the stream for
- *   every client attached to the live, healthy run.
- * - It is also strictly cheaper: a latched boolean replaces a store read.
- *
- * The latch deliberately does NOT extend to `close()` — see above.
- *
- * PASSES THE OFFSET TYPE THROUGH, rather than collapsing it to `string`. The
- * fence sits mid-chain between a caller's log and `pipeToRunLog`, so widening
- * here would reintroduce the branded-offset wall one layer in: a
- * `StreamDurability<DurableStreamOffset>` would go in and a
- * `StreamDurability<string>` would come out, which is not assignable back to
- * the caller's own type.
- */
 export function fenceDurability<TOffset extends string = string>(
   durability: StreamDurability<TOffset>,
   claim: RunClaim,
@@ -348,9 +158,6 @@ export function fenceDurability<TOffset extends string = string>(
     1,
     Math.trunc(options.epochRecheckAppends ?? DEFAULT_EPOCH_RECHECK_APPENDS),
   )
-  // Seeded at the threshold so the FIRST append always re-reads the epoch: a
-  // successor may have claimed between this fence being built and its first
-  // write.
   let appendsSinceEpochRead = recheckAppends
   // Latched by the FIRST refusal and never cleared, and SHARED with this claim's
   // record fence so the two seams cannot disagree.
@@ -383,52 +190,6 @@ export function fenceDurability<TOffset extends string = string>(
   }
 }
 
-/**
- * Wrap a run store so a TERMINAL record write is fenced by `claim`.
- *
- * The record is the run's other authoritative channel, and the same rule applies
- * to it: a host that has lost its claim must not state that the run is over. It
- * reaches this seam by the most ordinary route — `pipeToRunLog` catches the
- * `RunClaimLostError` its refused append threw, folds it in, and calls
- * `finish(ctx, 'failed', …)` — so fencing the log alone only moves where the harm
- * surfaces. `'completed'` and `'aborted'` arrive the same way (an empty stream
- * that never appended; a lease loss that aborts `claim.signal`, which
- * `pipeToRunLog` reads as an abort before it appends anything), which is why the
- * gate is {@link isTerminalRunStatus} and not "did an append refuse".
- *
- * SUPPRESSED, NOT ATTEMPTED-AND-SWALLOWED, and not thrown either. `update`
- * resolves without writing. `pipeToRunLog` must not reject — `RunController.start`
- * consumes its promise fire-and-forget — and a rejection here would additionally
- * make `finish` report the run through the local rebuilt record as if the store
- * had broken, which is a different and false fact.
- *
- * WHAT IS *NOT* FENCED, deliberately:
- *
- * - **`close()`** is not on this seam at all, and must stay off it: see
- *   {@link fenceDurability}. A wedged `'running'` record with tailers parked
- *   forever is worse than the write being prevented.
- * - **Non-terminal writes pass through**, including `detachedSince` and
- *   `sandboxKey` written by a superseded host. They are stale, but staleness is
- *   not the harm being fixed: none of them can make a live run look finished, so
- *   none can mislead `isTerminalRunStatus`, `findActiveRun`, or the reaper. They
- *   are also self-healing — the successor owns those fields and overwrites them —
- *   whereas over-suppressing strands a record: `createOrResume` is how the row
- *   comes into existence at all, and refusing a non-terminal write on a
- *   mis-observed loss would leave a run with no record to recover from. Suppress
- *   the writes that assert an outcome; let bookkeeping through.
- * - **Reads** (`get`, `listByThread`, `listReclaimable`, `findActiveRun`) do not
- *   mutate, so a superseded host reading them is harmless. `finish`'s terminal
- *   re-read therefore still works and answers with the SUCCESSOR's live record,
- *   which is the truthful thing to resolve with.
- * - **Another run's record.** The fence knows about `claim.runId` only; a write
- *   aimed elsewhere is not this claim's to judge.
- *
- * The OPTIONAL methods (`listByThread`, `listReclaimable`) are forwarded only
- * when the wrapped store actually has them: consumers feature-detect
- * (`store.listReclaimable?.(…)`), so materializing one that delegates to a
- * missing method would turn a graceful degrade into a `TypeError`.
- * `findActiveRun` is required on the contract, so it forwards unconditionally.
- */
 export function fenceRunStore(
   runs: RunStore,
   claim: RunClaim,
@@ -446,23 +207,17 @@ export function fenceRunStore(
     findActiveRun: (threadId) => runs.findActiveRun(threadId),
     update: async (runId, patch) => {
       const status = patch.status
-      if (
+      const isNotTerminalClaimUpdate =
         runId !== claim.runId ||
         status === undefined ||
         !isTerminalRunStatus(status)
-      ) {
+      if (isNotTerminalClaimUpdate) {
         return runs.update(runId, patch)
       }
       const lost =
         claimLostSynchronously(claim, latch) ??
-        // Unthrottled, unlike the append path: a terminal write happens once per
-        // run, so one store read is not a hot cost — and it is the read that
-        // catches a superseded driver whose stream ended without ever appending.
         (await claimLostByEpoch(claim, latch, runs))
       if (lost === undefined) return runs.update(runId, patch)
-      // Absorbing this silently would make it invisible: a detached run has no
-      // caller to report to. The logger is consumer-supplied, so a throwing sink
-      // must not turn a suppression into a rejection.
       try {
         options.logger?.sandbox(
           `run ${runId}: suppressed a terminal '${status}' record write from a superseded driver`,

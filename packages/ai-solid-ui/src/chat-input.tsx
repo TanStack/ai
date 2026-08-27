@@ -30,32 +30,6 @@ export interface ChatInputProps {
   submitOnEnter?: boolean
 }
 
-/**
- * Chat input component - handles message input and submission
- *
- * Features:
- * - Auto-growing textarea
- * - Submit on Enter (Shift+Enter for new line)
- * - Loading state management
- * - Full render prop support for custom UIs
- *
- * @example
- * ```tsx
- * <Chat.Input placeholder="Type your message..." />
- * ```
- *
- * @example Custom UI with render prop
- * ```tsx
- * <Chat.Input>
- *   {({ value, onChange, onSubmit, isLoading }) => (
- *     <div>
- *       <textarea value={value} onInput={(e) => onChange(e.target.value)} />
- *       <button onClick={onSubmit} disabled={isLoading}>Send</button>
- *     </div>
- *   )}
- * </Chat.Input>
- * ```
- */
 export function ChatInput(props: ChatInputProps) {
   const { sendMessage, isLoading } = useChatContext()
   const [value, setValue] = createSignal('')
@@ -63,7 +37,8 @@ export function ChatInput(props: ChatInputProps) {
   const disabled = () => props.disabled || isLoading()
 
   const handleSubmit = () => {
-    if (!value().trim() || disabled()) return
+    if (!value().trim()) return
+    if (disabled()) return
     void sendMessage(value())
     setValue('')
   }
@@ -100,7 +75,9 @@ export function ChatInput(props: ChatInputProps) {
         value={value()}
         onInput={(e) => setValue(e.currentTarget.value)}
         onKeyDown={(e) => {
-          if ((props.submitOnEnter ?? true) && e.key === 'Enter') {
+          const submitOnEnterKey =
+            (props.submitOnEnter ?? true) && e.key === 'Enter'
+          if (submitOnEnterKey) {
             e.preventDefault()
             handleSubmit()
           }
@@ -148,12 +125,14 @@ export function ChatInput(props: ChatInputProps) {
           'white-space': 'nowrap',
         }}
         onMouseEnter={(e) => {
-          if (!disabled() && value().trim()) {
+          const canHover = !disabled() && Boolean(value().trim())
+          if (canHover) {
             e.currentTarget.style.backgroundColor = 'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
-          if (!disabled() && value().trim()) {
+          const canHover = !disabled() && Boolean(value().trim())
+          if (canHover) {
             e.currentTarget.style.backgroundColor = 'rgb(249, 115, 22)'
           }
         }}

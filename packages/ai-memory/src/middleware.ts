@@ -15,20 +15,8 @@ import type {
   SaveReceipt,
 } from './types'
 
-/**
- * CUSTOM stream-event name carrying server-side memory state to the browser.
- * The middleware injects one of these per turn (via `onChunk`); the client
- * devtools bridge (`@tanstack/ai-client`) recognizes it and re-emits `memory:*`
- * on the browser event bus. This is how server-side memory reaches the browser
- * DevTools panel — server-emitted `aiEventClient` events never cross runtimes;
- * everything the panel shows is re-derived client-side from the chat stream
- * (mirrors how generation results ride `CUSTOM` events — see `GENERATION_EVENTS`).
- */
 export const MEMORY_STATE_EVENT = 'memory:state'
 
-/** Payload of the {@link MEMORY_STATE_EVENT} CUSTOM chunk. Captures memory state
- *  as of the turn's START — the snapshot reflects every prior turn's save; this
- *  turn's own save (deferred) surfaces in the next turn's snapshot. */
 export interface MemoryStateEventValue {
   scope: MemoryScope
   adapter: string
@@ -49,11 +37,6 @@ export interface MemoryStateEventValue {
   }
 }
 
-/**
- * How the middleware participates in the run:
- * - `'recall+save'` (default): recall on init (inject prompt + tools), save on finish.
- * - `'save-only'`: skip recall entirely — persist the turn but never read/inject.
- */
 export type MemoryMiddlewareRole = 'recall+save' | 'save-only'
 
 export interface MemoryRecallInfo {
@@ -71,11 +54,6 @@ export interface MemorySaveInfo {
 export interface MemoryMiddlewareOptions {
   /** The memory backend to recall from / save to. */
   adapter: MemoryAdapter
-  /**
-   * Scope for every adapter call. The function form is the safer default for
-   * multi-tenant apps: derive scope per request from trusted, server-validated
-   * chat context — never from client input.
-   */
   scope:
     | MemoryScope
     | ((ctx: ChatMiddlewareContext) => MemoryScope | Promise<MemoryScope>)
@@ -98,12 +76,6 @@ interface MemoryRequestState {
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, MemoryRequestState>()
 
-/**
- * Server-side memory middleware. Recalls relevant memory into the prompt before
- * the model runs, then defers `save` of the completed turn after it finishes.
- * All extraction/ranking/rendering lives in the adapter — this middleware only
- * wires `recall`/`save` into the chat lifecycle and emits devtools events.
- */
 export function memoryMiddleware(
   options: MemoryMiddlewareOptions,
 ): ChatMiddleware {
@@ -131,7 +103,8 @@ export function memoryMiddleware(
       stateByCtx.set(ctx, state)
 
       state.lastUserText = getMessageText(findLastUserMessage(config.messages))
-      if (!state.lastUserText || role === 'save-only') return
+      if (!state.lastUserText) return
+      if (role === 'save-only') return
 
       const startedAt = Date.now()
       let scope: MemoryScope
@@ -173,9 +146,6 @@ export function memoryMiddleware(
       })
       await options.onRecall?.({ scope, query: state.lastUserText, result })
 
-      // Stage the devtools transport chunk (recall metrics + current store
-      // snapshot). Injected into the stream by `onChunk` so it reaches the
-      // browser panel; see MEMORY_STATE_EVENT.
       const snapshot = await gatherSnapshot(options.adapter, scope)
       state.stateChunk = {
         emitted: false,
@@ -190,7 +160,8 @@ export function memoryMiddleware(
 
       const memoryPrompts = [result.toolGuidance ?? '', result.systemPrompt]
       const additions = memoryPrompts.filter((p) => p.length > 0)
-      if (additions.length === 0 && tools.length === 0) return
+      const nothingToAdd = additions.length === 0 && tools.length === 0
+      if (nothingToAdd) return
 
       const existingToolNames = new Set(config.tools.map((tool) => tool.name))
       const extraTools = tools.filter(
@@ -207,11 +178,9 @@ export function memoryMiddleware(
     },
 
     onChunk(ctx, chunk) {
-      // Inject the staged memory-state chunk exactly once, riding alongside the
-      // first stream chunk (typically RUN_STARTED) so the browser devtools sees
-      // it. Returning an array expands the stream; see ChatMiddleware.onChunk.
       const state = stateByCtx.get(ctx)
-      if (!state?.stateChunk || state.stateChunk.emitted) return
+      if (!state?.stateChunk) return
+      if (state.stateChunk.emitted) return
       state.stateChunk.emitted = true
       const custom: StreamChunk = {
         type: 'CUSTOM',
@@ -228,7 +197,8 @@ export function memoryMiddleware(
       const userText =
         state?.lastUserText || getMessageText(findLastUserMessage(ctx.messages))
       const assistant = info.content
-      if (!userText || !assistant) return
+      if (!userText) return
+      if (!assistant) return
       const scope = state?.resolvedScope
 
       ctx.defer(
@@ -285,16 +255,6 @@ export function memoryMiddleware(
   }
 }
 
-// ===========================
-// Internals
-// ===========================
-
-/**
- * Read the adapter's current stored state via the optional `inspect`/`listFacts`
- * introspection methods. Returns `undefined` for adapters that don't implement
- * `inspect` (they degrade to the metrics-only timeline). Fully guarded:
- * introspection must never affect chat.
- */
 async function gatherSnapshot(
   adapter: MemoryAdapter,
   scope: MemoryScope,
@@ -312,13 +272,6 @@ async function gatherSnapshot(
   }
 }
 
-/**
- * DevTools-only: after a save, emit the adapter's current stored state on the
- * (in-process) event bus, so a devtools consumer running in the SAME runtime as
- * the chat (client-side execution / server-side listener) sees "what's in
- * memory". For the standard server-side topology, the browser panel instead
- * gets state via the {@link MEMORY_STATE_EVENT} stream chunk (see `onChunk`).
- */
 async function emitSnapshot(
   adapter: MemoryAdapter,
   scope: MemoryScope,
@@ -343,12 +296,6 @@ function findLastUserMessage(
   return undefined
 }
 
-/**
- * Extract plain text from a `ModelMessage`. Text lives on `part.content` for
- * `TextPart`; bare strings in the content array are tolerated. All other
- * content kinds (tool-call, image, …) yield '' so they don't pollute the
- * recall query.
- */
 function getMessageText(message?: ModelMessage): string {
   if (!message) return ''
   if (typeof message.content === 'string') return message.content

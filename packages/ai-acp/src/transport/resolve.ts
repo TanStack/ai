@@ -1,10 +1,6 @@
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { AcpTransportPreference } from './types'
 
-/**
- * Pick stdio vs WebSocket for ACP based on sandbox capabilities and caller
- * preference.
- */
 export function resolveAcpTransportMode(
   sandbox: SandboxHandle,
   preference: AcpTransportPreference = 'auto',
@@ -33,10 +29,10 @@ export function resolveAcpTransportMode(
   }
 
   if (sandbox.capabilities.writableStdin === true) return 'stdio'
-  if (
+  const canUseWebsocket =
     sandbox.capabilities.ports === true &&
     sandbox.capabilities.backgroundProcesses === true
-  ) {
+  if (canUseWebsocket) {
     return 'websocket'
   }
 

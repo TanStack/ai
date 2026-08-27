@@ -7,11 +7,6 @@ import type {
 } from '@tanstack/ai-client'
 
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
-  /**
-   * Optional transform applied to the recording when `stop()` resolves. Its
-   * (awaited) return value becomes `recording` and the resolved value of
-   * `stop()`. Return nothing to keep the raw `AudioRecording`.
-   */
   onComplete?: TOnComplete
 }
 
@@ -30,30 +25,6 @@ export interface UseAudioRecorderReturn<TOutput> {
   cancel: () => void
 }
 
-/**
- * React hook for recording an audio message. The resolved
- * {@link AudioRecording} carries `.part` (an audio content part for
- * `useChat.sendMessage`) and `.base64` (for the generation hooks).
- *
- * Errors are delivered via `onError`. `start()` and `stop()` also reject on
- * failure (and `stop()` rejects with `Recording cancelled` if the component
- * unmounts while a stop is in flight) — handle one channel, not both.
- *
- * @example
- * ```tsx
- * const { isRecording, start, stop, recording } = useAudioRecorder()
- * const { sendMessage } = useChat({ connection })
- * // ...
- * const rec = await stop()
- * sendMessage({ content: [rec.part] })
- * ```
- */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`useAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -97,9 +68,6 @@ export function useAudioRecorder(
   const stop = useCallback(async () => {
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
-    // Only `undefined` (returning nothing) falls back to the raw recording, so
-    // a transform that returns null is preserved — matching the inferred type,
-    // which excludes only undefined/void/null from the transform's return.
     const output = transformed === undefined ? recording : transformed
     setRecording(() => output)
     return output

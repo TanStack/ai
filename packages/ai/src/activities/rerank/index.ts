@@ -1,10 +1,3 @@
-/**
- * Rerank Activity
- *
- * Reorders a set of documents by semantic relevance to a query.
- * This is a self-contained module with implementation, types, and JSDoc.
- */
-
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import { isAbortShapedError } from '../error-payload'
@@ -22,16 +15,8 @@ import type { GenerationMiddleware } from '../middleware/types'
 import type { RerankAdapter } from './adapter'
 import type { RerankResult } from '../../types'
 
-// ===========================
-// Activity Kind
-// ===========================
-
 /** The adapter kind this activity handles */
 export const kind = 'rerank' as const
-
-// ===========================
-// Type Extraction Helpers
-// ===========================
 
 /** Extract provider options from a RerankAdapter via ~types */
 export type RerankProviderOptions<TAdapter> = TAdapter extends {
@@ -40,17 +25,6 @@ export type RerankProviderOptions<TAdapter> = TAdapter extends {
   ? P
   : object
 
-// ===========================
-// Activity Options Type
-// ===========================
-
-/**
- * Options for the rerank activity. The model is extracted from the adapter's
- * model property.
- *
- * @template TAdapter - The rerank adapter type
- * @template TDocument - The document element type (string or object)
- */
 export interface RerankActivityOptions<
   TAdapter extends RerankAdapter<string, RerankProviderOptions<TAdapter>>,
   TDocument extends string | object = string,
@@ -59,12 +33,6 @@ export interface RerankActivityOptions<
   adapter: TAdapter & { kind: typeof kind }
   /** The query documents are scored against. */
   query: string
-  /**
-   * Documents to rerank. Either strings or JSON-serializable objects — object
-   * documents are serialized with `JSON.stringify` before being sent to the
-   * provider, and the original element (string or object) is returned in the
-   * result, preserving its type.
-   */
   documents: Array<TDocument>
   /** Return only the top N results. */
   topN?: number
@@ -72,23 +40,9 @@ export interface RerankActivityOptions<
   modelOptions?: RerankProviderOptions<TAdapter>
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
-  /**
-   * Observe-only middleware notified on start, usage, success, abort, and
-   * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
-   * the `GenerationMiddleware` contract for a custom backend.
-   */
   middleware?: Array<GenerationMiddleware>
-  /**
-   * Enable debug logging. Pass `true` to enable all categories, `false` to
-   * silence everything including errors, or a `DebugConfig` object for granular
-   * control and/or a custom `Logger`.
-   */
   debug?: DebugOption
 }
-
-// ===========================
-// Helper Functions
-// ===========================
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -100,55 +54,12 @@ function serializeDocument(document: string | object): string {
 }
 
 function isAbortError(error: unknown, signal?: AbortSignal): boolean {
-  // Prefer the error's own identity over the signal state. A genuine
-  // cancellation throws an abort-shaped error (DOM `AbortError`, the OpenRouter
-  // SDK's `RequestAbortedError`, …). Classifying on `signal.aborted` alone would
-  // misroute a real failure — e.g. the out-of-range-index throw below — to the
-  // abort hook whenever a shared/long-lived signal happens to already be
-  // aborted, hiding it from `onError` observers.
   if (isAbortShapedError(error)) return true
   // Fall back to signal state only for non-Error throws we can't otherwise
   // identify; a real Error with a non-abort name is never an abort.
   return error instanceof Error ? false : signal?.aborted === true
 }
 
-// ===========================
-// Activity Implementation
-// ===========================
-
-/**
- * Rerank activity - reorders documents by relevance to a query.
- *
- * @example Basic reranking
- * ```ts
- * import { rerank } from '@tanstack/ai'
- * import { cohereRerank } from '@tanstack/ai-cohere'
- *
- * const { ranking, rerankedDocuments } = await rerank({
- *   adapter: cohereRerank('rerank-v3.5'),
- *   query: 'talk about rain',
- *   documents: ['sunny day at the beach', 'rainy afternoon in the city'],
- *   topN: 2,
- * })
- *
- * console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
- * ```
- *
- * @example Reranking object documents
- * ```ts
- * const { ranking } = await rerank({
- *   adapter: cohereRerank('rerank-v3.5'),
- *   query: 'best laptop for travel',
- *   documents: [
- *     { id: 1, text: 'A heavy gaming desktop' },
- *     { id: 2, text: 'A lightweight ultrabook with all-day battery' },
- *   ],
- * })
- *
- * // ranking[0].document is the original object, fully typed.
- * console.log(ranking[0].document.id)
- * ```
- */
 export async function rerank<
   TAdapter extends RerankAdapter<string, RerankProviderOptions<TAdapter>>,
   TDocument extends string | object = string,
@@ -277,13 +188,6 @@ export async function rerank<
   }
 }
 
-// ===========================
-// Options Factory
-// ===========================
-
-/**
- * Create typed options for the rerank() function without executing.
- */
 export function createRerankOptions<
   TAdapter extends RerankAdapter<string, RerankProviderOptions<TAdapter>>,
   TDocument extends string | object = string,

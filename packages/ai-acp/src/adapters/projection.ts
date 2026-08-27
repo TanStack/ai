@@ -1,22 +1,3 @@
-/**
- * Generic workspace projector for ACP harnesses.
- *
- * `withSandbox` surfaces a portable {@link WorkspaceProjection} (skills, plugins,
- * a secret resolver, a one-time marker path) via a capability. Most of it maps
- * onto ACP natively:
- *
- *   - **MCP skills** → passed straight through ACP's `newSession` `mcpServers`
- *     (see {@link workspaceMcpServers}); no config file is written, because an
- *     ACP agent receives MCP servers over the protocol. This is the key
- *     difference from file-based harnesses (Claude Code, Codex) that read MCP
- *     from disk.
- *   - **gitSkill repos** → linked into the harness's skills directory (when the
- *     harness declares one via `skillsDir`, e.g. `.pi/skills`).
- *   - **agentSkill / plugins** → no generic ACP primitive, so we warn-and-skip.
- *
- * `fileSkill` and `instructions` are already written by the provider-agnostic
- * bootstrap (into the workspace root + `AGENTS.md`), so they need no projection.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -41,13 +22,6 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/**
- * Make a sandbox path relative to the workspace root, so shell commands work on
- * every provider. Only `fs.*` remaps the virtual `/workspace`; a raw `/workspace`
- * in a shell command is the real path in a container but a non-existent absolute
- * path on local-process. Running relative to the root (the exec cwd) is correct
- * everywhere.
- */
 function relativeToRoot(root: string, p: string): string {
   return p.startsWith(`${root}/`) ? p.slice(root.length + 1) : p
 }
@@ -69,11 +43,6 @@ function resolveHeaderValue(
   return value
 }
 
-/**
- * Build ACP `mcpServers` entries from the workspace's `mcp` skills, resolving
- * every header value (SecretRef / bearer / plain string). Returns `[]` when
- * there are no MCP skills. Pass the result to `startAcpSession({ mcpServers })`.
- */
 export function workspaceMcpServers(
   projection: WorkspaceProjection,
 ): Array<AcpMcpServer> {
@@ -93,15 +62,6 @@ export function workspaceMcpServers(
   return servers
 }
 
-/**
- * Project the non-MCP parts of a workspace into an ACP harness. Links each
- * cloned `gitSkill` repo into the harness's skills directory when one is
- * declared; warns and skips `agentSkill`s, `plugin`s, and (when no `skillsDir`
- * is configured) `gitSkill`s. Idempotent — gated by the projection marker.
- *
- * MCP skills are NOT handled here; pass {@link workspaceMcpServers} to the ACP
- * session instead.
- */
 export async function projectAcpWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -123,14 +83,8 @@ export async function projectAcpWorkspace(
         )
       }
     } else {
-      // Create the skills dir via fs (which remaps the virtual root), then copy
-      // each clone in with paths relative to the exec cwd (the workspace root)
-      // so the shell command resolves on every provider.
       await handle.fs.mkdir(`${projection.root}/${skillsDir}`)
       for (const skill of gitSkills) {
-        // Keep virtual `/workspace` paths for fs discovery. handle.fs remaps
-        // them. Remap only when building shell-relative paths so Daytona and
-        // local-process both resolve the same clone.
         const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
         const discovered = await discoverSkillDirs(handle, source)
         for (const { name, dir } of discovered) {

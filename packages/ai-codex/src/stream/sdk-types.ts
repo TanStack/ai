@@ -1,13 +1,3 @@
-/**
- * Structural subset of the `@openai/codex-sdk` event types that the stream
- * translator consumes.
- *
- * These are intentionally defined structurally (rather than imported from the
- * Codex SDK) so the translator stays a pure, fixture-testable state machine
- * and the package's public types don't depend on the SDK's type exports.
- * Unknown item or event types fall through every branch at runtime.
- */
-
 export interface CodexUsage {
   input_tokens?: number
   cached_input_tokens?: number

@@ -3,29 +3,6 @@ import { getGeminiApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { GeminiRealtimeTokenOptions } from './types'
 
-/**
- * Creates a Google Gemini realtime token adapter.
- *
- * This adapter generates ephemeral tokens for client-side WebSocket connections.
- *
- * @param options - Configuration options for the realtime session
- * @returns A RealtimeTokenAdapter for use with realtimeToken()
- *
- * @example
- * ```typescript
- * import { realtimeToken } from '@tanstack/ai'
- * import { geminiRealtimeToken } from '@tanstack/ai-gemini'
- *
- * const token = await realtimeToken({
- *   adapter: geminiRealtimeToken({
- *     // Optional: constraint model config by token
- *     liveConnectConstraints: {
- *       model: 'gemini-3.1-flash-live-preview',
- *     },
- *   }),
- * })
- * ```
- */
 export function geminiRealtimeToken(
   options: GeminiRealtimeTokenOptions = {},
 ): RealtimeTokenAdapter {

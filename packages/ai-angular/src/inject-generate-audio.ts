@@ -17,11 +17,6 @@ import type {
   InjectGenerationResult,
 } from './inject-generation'
 
-/**
- * Options for the injectGenerateAudio injectable.
- *
- * @template TOutput - The output type after optional transform (defaults to AudioGenerationResult)
- */
 export interface InjectGenerateAudioOptions<
   TOutput = AudioGenerationResult,
 > extends Pick<
@@ -41,13 +36,6 @@ export interface InjectGenerateAudioOptions<
   body?: ReactiveOption<Record<string, any>>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /**
-   * Callback when audio is generated. Can optionally return a transformed value.
-   *
-   * - Return a non-null value to transform and store it as the result
-   * - Return `null` to keep the previous result unchanged
-   * - Return nothing (`void`) to store the raw result as-is
-   */
   onResult?: (result: AudioGenerationResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -57,11 +45,6 @@ export interface InjectGenerateAudioOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
-/**
- * Return type for the injectGenerateAudio injectable.
- *
- * @template TOutput - The output type (after optional transform)
- */
 export interface InjectGenerateAudioResult<
   TOutput = AudioGenerationResult,
 > extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
@@ -77,37 +60,6 @@ export interface InjectGenerateAudioResult<
   status: Signal<GenerationClientState>
 }
 
-/**
- * Angular injectable for generating audio (music, sound effects) using AI models.
- *
- * @example
- * ```typescript
- * import { Component } from '@angular/core'
- * import { injectGenerateAudio } from '@tanstack/ai-angular'
- * import { fetchServerSentEvents } from '@tanstack/ai-client'
- *
- * @Component({
- *   selector: 'app-audio',
- *   template: `
- *     <button (click)="generate({ prompt: 'An upbeat electronic track', duration: 10 })">
- *       Generate
- *     </button>
- *     @if (result()) {
- *       <audio [src]="result()!.audio.url" controls></audio>
- *     }
- *   `,
- * })
- * export class AudioComponent {
- *   private gen = injectGenerateAudio({
- *     connection: fetchServerSentEvents('/api/generate/audio'),
- *   })
- *
- *   generate = this.gen.generate
- *   result = this.gen.result
- *   isLoading = this.gen.isLoading
- * }
- * ```
- */
 export function injectGenerateAudio<TTransformed = void>(
   options: Omit<
     InjectGenerateAudioOptions,

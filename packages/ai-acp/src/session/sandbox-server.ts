@@ -29,10 +29,6 @@ export interface StartAcpServerOptions {
     port: number
     stdout: string
   }) => string
-  /**
-   * Return true once {@link buildWsUrl} can be called. Receives accumulated
-   * stdout from the server process.
-   */
   isReady?: (stdout: string) => boolean
   /** Substring/regex marker used when {@link isReady} is omitted. */
   readyMarker?: string
@@ -78,7 +74,8 @@ function waitForReady(
         settle(() => resolve({ stdout, stderr }))
         return
       }
-      if (stdoutDone && stderrDone) {
+      const streamsEnded = stdoutDone && stderrDone
+      if (streamsEnded) {
         settle(() =>
           reject(
             new Error(
@@ -138,10 +135,6 @@ function waitForReady(
   })
 }
 
-/**
- * Boot a harness ACP WebSocket server inside a sandbox and expose its port via
- * {@link SandboxHandle.ports.connect}. Mirrors the `opencode serve` pattern.
- */
 export async function startAcpServerInSandbox(
   sandbox: SandboxHandle,
   options: StartAcpServerOptions,

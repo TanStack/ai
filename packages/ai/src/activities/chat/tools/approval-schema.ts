@@ -85,7 +85,8 @@ function isApprovalBranchMap(
 
 function toJsonSchema(value: Record<string, unknown>): JSONSchema {
   const result: JSONSchema = {}
-  for (const [key, item] of Object.entries(value)) {
+  const entries = Object.entries(value)
+  for (const [key, item] of entries) {
     result[key] = item
   }
   return result
@@ -123,7 +124,8 @@ function decisionEnvelope(input: {
     approved: { const: input.approved },
   }
   const required = ['approved']
-  if (input.approved && input.inputSchema) {
+  const isApproved = input.approved && input.inputSchema
+  if (isApproved) {
     properties['editedArgs'] = input.inputSchema.jsonSchema ?? {}
   }
   if (input.payload) {
@@ -148,7 +150,9 @@ export function normalizeApprovalSchema(
   let reject: NormalizedSchemaInput | null = null
 
   if (approvalSchema !== undefined) {
-    if (isStandardSchema(approvalSchema) || isRawJsonSchema(approvalSchema)) {
+    const isStandardSchema =
+      isStandardSchema(approvalSchema) || isRawJsonSchema(approvalSchema)
+    if (isStandardSchema) {
       approve = schemaToWire(approvalSchema)
       reject = approve
     } else if (isApprovalBranchMap(approvalSchema)) {

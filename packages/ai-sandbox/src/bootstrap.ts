@@ -1,13 +1,3 @@
-/**
- * Workspace bootstrap engine — provider-agnostic because it only uses the
- * {@link SandboxHandle} contract. Runs once when a sandbox is freshly created
- * (or restored without its working tree): land the source, inject secrets,
- * detect the package manager, and run setup commands.
- *
- * Harness-specific projection (CLAUDE.md, agent skills, MCP config) is NOT done
- * here — that's each adapter's `projectWorkspace()` hook, since the format
- * differs per harness.
- */
 import { resolveHarnessCwd } from './harness-cwd'
 import { buildSetupPlan } from './setup-plan'
 import { createBootstrapShell } from './shell'
@@ -71,11 +61,6 @@ async function landGitSource(
   workspace: WorkspaceDefinition,
   root: string,
 ): Promise<void> {
-  // Clone into the handle's own default root (each provider maps the
-  // conventional `/workspace` virtual root to its real backing dir), rather
-  // than passing a virtual `dir` that can't be remapped inside a shell
-  // command string. 'local' is provider-pre-populated at create; 'none'
-  // starts empty.
   if (workspace.source.type !== 'git') return
   const alreadyCloned = await handle.fs.exists(`${root}/.git`)
   if (alreadyCloned) return
@@ -119,10 +104,6 @@ async function cloneGitSkills(
   workspace: WorkspaceDefinition,
   root: string,
 ): Promise<void> {
-  // Clone git-skill repos so setup steps (and the harness projector) can use
-  // them. gitSkill clones are always shallow (depth 1) unless the skill's own
-  // repo entry carries a depth override — the WorkspaceSkill `git` variant
-  // does not expose one, so depth always defaults to 1 inside git.clone.
   for (const skill of workspace.skills ?? []) {
     if (skill.kind === 'git') {
       await cloneGitSkill(handle, workspace, root, skill)
@@ -136,14 +117,10 @@ async function writeAgentsAndFileSkills(
   root: string,
 ): Promise<void> {
   const skills = workspace.skills ?? []
-  // Write AGENTS.md (and its per-CLI symlinks) when instructions are provided
-  // directly on the workspace, via a fileSkill whose path is `AGENTS.md`, or
-  // when named workspace scripts should be surfaced for the agent.
   let agentsContent: string | undefined
-  if (
-    workspace.instructions !== undefined &&
-    workspace.instructions.length > 0
-  ) {
+  const hasWorkspaceInstructions =
+    workspace.instructions !== undefined && workspace.instructions.length > 0
+  if (hasWorkspaceInstructions) {
     agentsContent = workspace.instructions
   } else {
     const agentsFileSkill = skills.find(
@@ -161,7 +138,9 @@ async function writeAgentsAndFileSkills(
 
   // Write all other fileSkills directly into the workspace root.
   for (const skill of skills) {
-    if (skill.kind === 'file' && skill.path !== 'AGENTS.md') {
+    const isNonAgentsSkillFile =
+      skill.kind === 'file' && skill.path !== 'AGENTS.md'
+    if (isNonAgentsSkillFile) {
       await handle.fs.write(`${root}/${skill.path}`, skill.content)
     }
   }
@@ -225,9 +204,6 @@ async function runWorkspaceSetup(
   root: string,
   signal: AbortSignal | undefined,
 ): Promise<Array<string>> {
-  // Run setup over a single persistent shell so `cd`/exports persist across
-  // serial steps. Parallel groups fork the shell's current cwd+env into
-  // concurrent one-shot exec calls.
   const ranSetup: Array<string> = []
   const plan = buildSetupPlan(workspace.setup)
   if (plan.length === 0) return ranSetup
@@ -246,11 +222,6 @@ async function runWorkspaceSetup(
   return ranSetup
 }
 
-/**
- * Bootstrap a freshly created sandbox's workspace. Idempotent enough to be safe
- * on restore: a git clone into a populated dir is skipped by checking for the
- * target dir first.
- */
 export async function bootstrapWorkspace(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition,

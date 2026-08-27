@@ -6,9 +6,6 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
-// The canonical usage types live in the leaf `@tanstack/ai-event-client`
-// package (which `@tanstack/ai` already depends on) so there is a single source
-// of truth without a dependency cycle. They are re-exported below.
 import type {
   BilledUsage,
   BillingUnit,
@@ -52,38 +49,21 @@ import type {
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
 
-// Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
-// entry via `export * from './types'` without forcing the subpath import.
-// The canonical declaration lives in `./tools/provider-tool` alongside its
-// runtime helper `brandProviderTool`.
 export type { ProviderTool } from './tools/provider-tool'
 
-/**
- * Tool call states - track the lifecycle of a tool call
- */
 export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+  | 'complete'
+  | 'error'
 
-/**
- * Tool result states - track the lifecycle of a tool result
- */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = 'streaming' | 'complete' | 'error'
 
 export type ToolOutputState = 'output-available' | 'output-error'
 
-/**
- * JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
- * This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
- */
 export interface JSONSchema {
   type?: string | Array<string>
   properties?: Record<string, JSONSchema>
@@ -125,37 +105,11 @@ export interface JSONSchema {
   [key: string]: any // Allow additional properties for extensibility
 }
 
-/**
- * Union type for schema input - can be any Standard Schema compliant validator,
- * any Standard JSON Schema compliant schema, or a plain JSONSchema object.
- *
- * Standard JSON Schema compliant libraries (carry the JSON-schema converter):
- * - Zod v4.2+ (natively supports StandardJSONSchemaV1)
- * - ArkType v2.1.28+ (natively supports StandardJSONSchemaV1)
- * - Valibot v1.2+ (via `toStandardJsonSchema()` from `@valibot/to-json-schema`)
- *
- * StandardSchemaV1 covers libraries whose published types only expose the
- * validator surface — Zod's core `$ZodType['~standard']` is currently typed
- * as `StandardSchemaV1.Props` even though the runtime attaches the
- * `jsonSchema` converter, so this branch is what makes `InferSchemaType`
- * recover the inferred type for callers using `z.ZodType<T>`.
- *
- * @see https://standardschema.dev/json-schema
- */
-
 export type SchemaInput =
   | StandardJSONSchemaV1<any, any>
   | StandardSchemaV1<any, any>
   | JSONSchema
 
-/**
- * Infer the TypeScript type from a schema.
- * For Standard JSON Schema compliant schemas, extracts the input type.
- * For Standard Schema validators (e.g. Zod's `~standard` surface), extracts
- * the input type from the `StandardSchemaV1` shape.
- * For plain JSONSchema, returns `unknown` since we can't infer types from
- * JSON Schema at compile time.
- */
 export type InferSchemaType<T> =
   T extends StandardJSONSchemaV1<infer TInput, unknown>
     ? TInput
@@ -170,97 +124,30 @@ export interface ToolCall<TMetadata = unknown> {
     name: string
     arguments: string // JSON string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle.
-   * Typed per-adapter via `TToolCallMetadata`. For example,
-   * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
   metadata?: TMetadata
 }
 
-/**
- * Convention for tool-call `metadata` that marks a call as **provider-executed**
- * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
- * `web_fetch` server tools) rather than by the agent loop. Adapters set
- * `providerExecuted: true` so that:
- *
- * 1. The agent loop never tries to execute the call client-side (see
- *    {@link isProviderExecutedToolCall} usage in the chat engine), and
- * 2. The adapter can stash the raw provider result alongside it so the call —
- *    and its evidence — round-trips into the next turn's request.
- *
- * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
- * keeping this convention opaque to the framework core. The index signature
- * preserves those per-adapter fields.
- */
 export interface ProviderExecutedToolMetadata {
   providerExecuted?: boolean
   [key: string]: unknown
 }
 
-// ============================================================================
-// Multimodal Content Types
-// ============================================================================
-
-/**
- * Supported input modality types for multimodal content.
- * - 'text': Plain text content
- * - 'image': Image content (base64 or URL)
- * - 'audio': Audio content (base64 or URL)
- * - 'video': Video content (base64 or URL)
- * - 'document': Document content like PDFs (base64 or URL)
- */
 export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
-/**
- * Source specification for inline data content (base64).
- * Requires a mimeType to ensure providers receive proper content type information.
- */
 export interface ContentPartDataSource {
-  /**
-   * Indicates this is inline data content.
-   */
   type: 'data'
-  /**
-   * The base64-encoded content value.
-   */
   value: string
-  /**
-   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-   * Required for data sources to ensure proper handling by providers.
-   */
   mimeType: string
 }
 
-/**
- * Source specification for URL-based content.
- * mimeType is optional as it can often be inferred from the URL or response headers.
- */
 export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
   type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
   value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
   mimeType?: string
 }
 
-/**
- * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
- * - For 'data' sources: mimeType is required
- * - For 'url' sources: mimeType is optional
- */
 export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
 
-/**
- * Image content part for multimodal messages.
- * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
- */
 export interface ImagePart<TMetadata = unknown> {
   type: 'image'
   /** Source of the image content */
@@ -269,10 +156,6 @@ export interface ImagePart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-/**
- * Audio content part for multimodal messages.
- * @template TMetadata - Provider-specific metadata type
- */
 export interface AudioPart<TMetadata = unknown> {
   type: 'audio'
   /** Source of the audio content */
@@ -281,10 +164,6 @@ export interface AudioPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-/**
- * Video content part for multimodal messages.
- * @template TMetadata - Provider-specific metadata type
- */
 export interface VideoPart<TMetadata = unknown> {
   type: 'video'
   /** Source of the video content */
@@ -293,10 +172,6 @@ export interface VideoPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-/**
- * Document content part for multimodal messages (e.g., PDFs).
- * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
- */
 export interface DocumentPart<TMetadata = unknown> {
   type: 'document'
   /** Source of the document content */
@@ -305,13 +180,6 @@ export interface DocumentPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-/**
- * Union type for all multimodal content parts.
- * @template TImageMeta - Provider-specific image metadata type
- * @template TAudioMeta - Provider-specific audio metadata type
- * @template TVideoMeta - Provider-specific video metadata type
- * @template TDocumentMeta - Provider-specific document metadata type
- */
 export type ContentPart<
   TTextMeta = unknown,
   TImageMeta = unknown,
@@ -325,10 +193,6 @@ export type ContentPart<
   | VideoPart<TVideoMeta>
   | DocumentPart<TDocumentMeta>
 
-/**
- * Helper type to filter ContentPart union to only include specific modalities.
- * Used to constrain message content based on model capabilities.
- */
 export type ContentPartForInputModalitiesTypes<
   TInputModalitiesTypes extends InputModalitiesTypes,
 > = Extract<
@@ -342,17 +206,9 @@ export type ContentPartForInputModalitiesTypes<
   { type: TInputModalitiesTypes['inputModalities'][number] }
 >
 
-/**
- * Helper type to convert a readonly array of modalities to a union type.
- * e.g., readonly ['text', 'image'] -> 'text' | 'image'
- */
 export type ModalitiesArrayToUnion<T extends ReadonlyArray<Modality>> =
   T[number]
 
-/**
- * Type for message content constrained by supported modalities.
- * When modalities is ['text', 'image'], only TextPart and ImagePart are allowed in the array.
- */
 export type ConstrainedContent<
   TInputModalitiesTypes extends InputModalitiesTypes,
 > =
@@ -376,31 +232,11 @@ export interface ModelMessage<
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
-  /**
-   * Completed structured output represented by this assistant message.
-   * `content` remains the provider-facing JSON text; this field preserves the
-   * typed UI part across persistence and message conversion.
-   */
   structuredOutput?: StructuredOutputPart
-  /**
-   * Optional stable message id. Providers ignore it; it exists so a persisted
-   * transcript can retain the streaming `messageId` and survive the
-   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
-   * reuses it instead of generating a fresh id, so a hydrated message keeps the
-   * same identity as its live stream — which is what lets a mid-stream reload
-   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
-   */
   id?: string
-  /**
-   * Optional message creation timestamp. When present, message converters
-   * preserve it across persist → hydrate round-trips.
-   */
   createdAt?: Date
 }
 
-/**
- * Message parts - building blocks of UIMessage
- */
 export interface TextPart<TMetadata = unknown> {
   type: 'text'
   content: string
@@ -412,28 +248,16 @@ export interface ToolCallPart<TMetadata = unknown> {
   id: string
   name: string
   arguments: string // JSON string (may be incomplete)
-  /**
-   * Parsed tool input. Set from the parsed arguments once they are complete
-   * (`state: 'input-complete'` and later). `undefined` while the raw
-   * `arguments` string is still streaming, and may stay `undefined` for a call
-   * that terminates in an error state — the raw `arguments` string is always
-   * available as a fallback. Typed per-tool on the client `ToolCallPart` (see
-   * `@tanstack/ai-client`); `unknown` on this base type.
-   */
   input?: unknown
   state: ToolCallState
   /** Approval metadata if tool requires user approval */
   approval?: {
-    id: string // Unique approval ID
-    needsApproval: boolean // Always true if present
-    approved?: boolean // User's decision (undefined until responded)
+    id: string
+    needsApproval: boolean
+    approved?: boolean
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
-  /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. May follow the
-   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
-   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 
@@ -456,13 +280,6 @@ export interface ThinkingPart {
   signature?: string
 }
 
-/**
- * Recursive `Partial` — every nested field becomes optional. Used as the
- * `partial` type on a streaming structured-output part since the progressive
- * JSON parse hands back objects whose fields are only filled in as bytes
- * arrive. Defaulted in `DeepPartial<unknown>` → `unknown` so untyped parts
- * keep their existing shape.
- */
 export type DeepPartial<T> =
   T extends ReadonlyArray<infer U>
     ? Array<DeepPartial<U>>
@@ -470,13 +287,6 @@ export type DeepPartial<T> =
       ? { [K in keyof T]?: DeepPartial<T[K]> }
       : T
 
-/**
- * StructuredOutputPart — a typed structured response attached to the assistant
- * message that produced it. Generic over the schema-inferred data type so
- * consumers can thread `useChat({ outputSchema })`'s schema all the way down
- * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
- * (e.g. internal codepaths that don't know about TSchema) keep working.
- */
 export interface StructuredOutputPart<TData = unknown> {
   type: 'structured-output'
   status: 'streaming' | 'complete' | 'error'
@@ -521,10 +331,6 @@ export type MessagePart<TData = unknown> =
   | StructuredOutputPart<TData>
   | UIResourcePart
 
-/**
- * Shape of `metadata.tanstack` on a message.
- * `createdAt` is an ISO-8601 string.
- */
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
@@ -548,9 +354,6 @@ export interface TanStackMessageMetadata {
   uiResources?: Array<UIResourcePart>
 }
 
-/**
- * Shape of `metadata.tanstack` on run events.
- */
 export interface TanStackRunMetadata {
   model?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
@@ -566,13 +369,6 @@ export interface TanStackRunMetadata {
   input?: unknown
 }
 
-/**
- * UIMessage - Domain-specific message format optimized for building chat UIs
- * Contains parts that can be text, tool calls, or tool results. Generic over
- * the structured-output data type so `useChat({ outputSchema })`'s schema
- * narrows `parts.find(p => p.type === 'structured-output').data` on the
- * consumer side without manual casts.
- */
 export interface UIMessage<TData = unknown> {
   id: string
   role: 'system' | 'user' | 'assistant'
@@ -580,10 +376,6 @@ export interface UIMessage<TData = unknown> {
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
   name?: string
-  /**
-   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
-   * User keys stay at the top.
-   */
   metadata?: Record<string, any>
 }
 
@@ -592,10 +384,6 @@ export type InputModalitiesTypes = {
   messageMetadataByModality: DefaultMessageMetadataByModality
 }
 
-/**
- * A ModelMessage with content constrained to only allow content parts
- * matching the specified input modalities.
- */
 export type ConstrainedModelMessage<
   TInputModalitiesTypes extends InputModalitiesTypes,
 > = Omit<ModelMessage, 'content'> & {
@@ -611,56 +399,17 @@ type IsUnknown<T> = unknown extends T
 type RuntimeContextField<TContext> =
   IsUnknown<TContext> extends true
     ? {
-        /**
-         * Runtime context provided by the caller.
-         *
-         * This is request-local application state for tool and middleware
-         * implementations, not the AG-UI `Context[]` protocol field.
-         */
         context?: TContext
       }
     : {
-        /**
-         * Runtime context provided by the caller.
-         *
-         * This is request-local application state for tool and middleware
-         * implementations, not the AG-UI `Context[]` protocol field.
-         */
         context: TContext
       }
 
-/**
- * Context passed to tool execute functions, providing capabilities like
- * emitting custom events during execution.
- */
 export type ToolExecutionContext<TContext = unknown> =
   RuntimeContextField<TContext> & {
     /** The ID of the tool call being executed */
     toolCallId?: string
-    /**
-     * Abort signal for the current chat run. Aborts when the run's
-     * `abortController` fires (or middleware aborts). Long-running tools —
-     * e.g. MCP `callTool` — should forward this to cancel in-flight work.
-     */
     abortSignal?: AbortSignal
-    /**
-     * Emit a custom event during tool execution.
-     * Events are streamed to the client in real-time as AG-UI CUSTOM events.
-     *
-     * @param eventName - Name of the custom event
-     * @param value - Event payload value
-     *
-     * @example
-     * ```ts
-     * const tool = toolDefinition({ ... }).server(async (args, context) => {
-     *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
-     *   // ... do work ...
-     *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
-     *   // ... do more work ...
-     *   return result
-     * })
-     * ```
-     */
     emitCustomEvent: (eventName: string, value: Record<string, any>) => void
   }
 
@@ -678,123 +427,20 @@ export type ToolExecuteFunction<
       context: ToolExecutionContext<TContext>,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 
-/**
- * Tool/Function definition for function calling.
- *
- * Tools allow the model to interact with external systems, APIs, or perform computations.
- * The model will decide when to call tools based on the user's request and the tool descriptions.
- *
- * Tools can use any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.)
- * or plain JSON Schema objects for runtime validation and type safety.
- *
- * @see https://platform.openai.com/docs/guides/function-calling
- * @see https://docs.anthropic.com/claude/docs/tool-use
- * @see https://standardschema.dev/json-schema
- */
 export interface Tool<
   TInput extends SchemaInput | undefined = SchemaInput,
   TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
 > {
-  /**
-   * Unique name of the tool (used by the model to call it).
-   *
-   * Should be descriptive and follow naming conventions (e.g., snake_case or camelCase).
-   * Must be unique within the tools array.
-   *
-   * @example "get_weather", "search_database", "sendEmail"
-   */
   name: TName
 
-  /**
-   * Clear description of what the tool does.
-   *
-   * This is crucial - the model uses this to decide when to call the tool.
-   * Be specific about what the tool does, what parameters it needs, and what it returns.
-   *
-   * @example "Get the current weather in a given location. Returns temperature, conditions, and forecast."
-   */
   description: string
 
-  /**
-   * Schema describing the tool's input parameters.
-   *
-   * Can be any Standard JSON Schema compliant schema (Zod, ArkType, Valibot, etc.) or a plain JSON Schema object.
-   * Defines the structure and types of arguments the tool accepts.
-   * The model will generate arguments matching this schema.
-   * Standard JSON Schema compliant schemas are converted to JSON Schema for LLM providers.
-   *
-   * @see https://standardschema.dev/json-schema
-   * @see https://json-schema.org/
-   *
-   * @example
-   * // Using Zod v4+ schema (natively supports Standard JSON Schema)
-   * import { z } from 'zod';
-   * z.object({
-   *   location: z.string().describe("City name or coordinates"),
-   *   unit: z.enum(["celsius", "fahrenheit"]).optional()
-   * })
-   *
-   * @example
-   * // Using ArkType (natively supports Standard JSON Schema)
-   * import { type } from 'arktype';
-   * type({
-   *   location: 'string',
-   *   unit: "'celsius' | 'fahrenheit'"
-   * })
-   *
-   * @example
-   * // Using plain JSON Schema
-   * {
-   *   type: 'object',
-   *   properties: {
-   *     location: { type: 'string', description: 'City name or coordinates' },
-   *     unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
-   *   },
-   *   required: ['location']
-   * }
-   */
   inputSchema?: TInput
 
-  /**
-   * Optional schema for validating tool output.
-   *
-   * Can be any Standard JSON Schema compliant schema or a plain JSON Schema object.
-   * If provided with a Standard Schema compliant schema, tool results will be validated
-   * against this schema before being sent back to the model. This catches bugs in tool
-   * implementations and ensures consistent output formatting.
-   *
-   * Note: This is client-side validation only - not sent to LLM providers.
-   * Note: Plain JSON Schema output validation is not performed at runtime.
-   *
-   * @example
-   * // Using Zod
-   * z.object({
-   *   temperature: z.number(),
-   *   conditions: z.string(),
-   *   forecast: z.array(z.string()).optional()
-   * })
-   */
   outputSchema?: TOutput
 
-  /**
-   * Optional function to execute when the model calls this tool.
-   *
-   * If provided, the SDK will automatically execute the function with the model's arguments
-   * and feed the result back to the model. This enables autonomous tool use loops.
-   *
-   * Can return any value - will be automatically stringified if needed.
-   *
-   * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
-   * @returns Result to send back to the model (validated against outputSchema if provided)
-   *
-   * @example
-   * execute: async (args) => {
-   *   const weather = await fetchWeather(args.location);
-   *   return weather; // Can return object or string
-   * }
-   */
   execute?: ToolExecuteFunction<TInput, TOutput, TContext> | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
@@ -807,19 +453,7 @@ export interface Tool<
   metadata?: Record<string, any> | undefined
 }
 
-/**
- * Configuration for the lazy-tool discovery catalog, shared by chat() and
- * Code Mode. Optional in both — lazy behavior is triggered purely by tools
- * marked `lazy: true`; this only tunes how much of each lazy tool's
- * description appears in the pre-discovery catalog. The post-discovery payload
- * always returns the full description + schema.
- */
 export interface LazyToolsConfig {
-  /**
-   * How much of each lazy tool's description appears in the pre-discovery
-   * catalog (the names list shown before the model discovers the tool).
-   * @default 'none'
-   */
   includeDescription?: 'full' | 'first-sentence' | 'none'
 }
 
@@ -831,101 +465,22 @@ export interface ToolConfig {
   [key: string]: Tool
 }
 
-/**
- * Structured output format specification.
- *
- * Constrains the model's output to match a specific JSON structure.
- * Useful for extracting structured data, form filling, or ensuring consistent response formats.
- *
- * @see https://platform.openai.com/docs/guides/structured-outputs
- * @see https://sdk.vercel.ai/docs/ai-sdk-core/structured-outputs
- *
- * @template TData - TypeScript type of the expected data structure (for type safety)
- */
 export interface ResponseFormat<TData = any> {
-  /**
-   * Type of structured output.
-   *
-   * - "json_object": Forces the model to output valid JSON (any structure)
-   * - "json_schema": Validates output against a provided JSON Schema (strict structure)
-   *
-   * @see https://platform.openai.com/docs/api-reference/chat/create#chat-create-response_format
-   */
   type: 'json_object' | 'json_schema'
 
-  /**
-   * JSON schema specification (required when type is "json_schema").
-   *
-   * Defines the exact structure the model's output must conform to.
-   * OpenAI's structured outputs will guarantee the output matches this schema.
-   */
   json_schema?: {
-    /**
-     * Unique name for the schema.
-     *
-     * Used to identify the schema in logs and debugging.
-     * Should be descriptive (e.g., "user_profile", "search_results").
-     */
     name: string
 
-    /**
-     * Optional description of what the schema represents.
-     *
-     * Helps document the purpose of this structured output.
-     *
-     * @example "User profile information including name, email, and preferences"
-     */
     description?: string
 
-    /**
-     * JSON Schema definition for the expected output structure.
-     *
-     * Must be a valid JSON Schema (draft 2020-12 or compatible).
-     * The model's output will be validated against this schema.
-     *
-     * @see https://json-schema.org/
-     *
-     * @example
-     * {
-     *   type: "object",
-     *   properties: {
-     *     name: { type: "string" },
-     *     age: { type: "number" },
-     *     email: { type: "string", format: "email" }
-     *   },
-     *   required: ["name", "email"],
-     *   additionalProperties: false
-     * }
-     */
     schema: Record<string, any>
 
-    /**
-     * Whether to enforce strict schema validation.
-     *
-     * When true (recommended), the model guarantees output will match the schema exactly.
-     * When false, the model will "best effort" match the schema.
-     *
-     * Default: true (for providers that support it)
-     *
-     * @see https://platform.openai.com/docs/guides/structured-outputs#strict-mode
-     */
     strict?: boolean
   }
 
-  /**
-   * Type-only property to carry the inferred data type.
-   *
-   * This is never set at runtime - it only exists for TypeScript type inference.
-   * Allows the SDK to know what type to expect when parsing the response.
-   *
-   * @internal
-   */
   __data?: TData
 }
 
-/**
- * State passed to agent loop strategy for determining whether to continue
- */
 export interface AgentLoopState {
   /** Current iteration count (0-indexed). One iteration = one model turn. */
   iterationCount: number
@@ -933,39 +488,12 @@ export interface AgentLoopState {
   messages: Array<ModelMessage>
   /** Finish reason from the last response */
   finishReason: string | null
-  /**
-   * Cumulative tool calls counted so far in this run (model-emitted during the
-   * agent loop, including ones skipped by middleware, and pending tools from
-   * the inbound message list when resumed). Not a recount of full message
-   * history; not model turns.
-   */
   toolCallCount: number
-  /**
-   * Tool calls in the most recent batch — a live model turn or a
-   * pending/resume batch (0 when the last phase produced no tool calls).
-   */
   lastTurnToolCallCount: number
 }
 
-/**
- * Strategy function that determines whether the agent loop should continue
- *
- * @param state - Current state of the agent loop
- * @returns true to continue looping, false to stop
- *
- * @example
- * ```typescript
- * // Continue for up to 5 iterations (model turns, not tool calls)
- * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
- * // Cap total tool calls across the run (or use middleware onShouldContinue)
- * const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
- * ```
- */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
-/**
- * Options passed into the SDK and further piped to the AI provider.
- */
 export interface TextOptions<
   TProviderOptionsSuperset extends Record<string, any> = Record<string, any>,
   TProviderOptionsForModel = TProviderOptionsSuperset,
@@ -974,197 +502,44 @@ export interface TextOptions<
   model: string
   messages: Array<ModelMessage>
   tools?: Array<AnyTool> | undefined
-  /**
-   * Runtime context provided by the caller and passed to middleware and
-   * server-side tool implementations.
-   */
   context?: TContext
-  /**
-   * System prompts to include with the request.
-   *
-   * Accepts plain strings (the common case) or `{ content, metadata }`
-   * objects that let providers attach typed metadata (e.g. Anthropic
-   * `cache_control` for prompt caching) per prompt. At the chat call site
-   * the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
-   * — providers that don't declare one default to `never`, which makes the
-   * field carry no meaningful value (TypeScript will only accept
-   * `undefined` there). Provider-foreign metadata that reaches an adapter
-   * via JS / `as any` is silently dropped, never written to the wire.
-   *
-   * @see SystemPrompt
-   */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
-  /**
-   * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
-   * Tunes how much of each lazy tool's description appears in the discovery
-   * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
-   */
   lazyToolsConfig?: LazyToolsConfig
-  /**
-   * Observability metadata attached to this call. Surfaced to middleware,
-   * devtools, and the event client; values may be arbitrarily structured
-   * (objects, arrays). Adapters never forward this field onto the provider
-   * wire request.
-   *
-   * To send provider-side request metadata, use the provider's
-   * `modelOptions` field instead, where the provider supports one (e.g.
-   * OpenAI's and OpenRouter's `metadata` are both Record<string, string>).
-   */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
-  /**
-   * Schema for structured output.
-   *
-   * **Two distinct use sites:**
-   *
-   * 1. **User-facing (activity layer):** accepts any
-   *    {@link SchemaInput} — Zod, ArkType, Valibot, or a raw JSON Schema.
-   *    The activity layer converts to JSON Schema before handing off.
-   *
-   * 2. **Adapter-facing (`chatStream` call):** the engine populates this with
-   *    a pre-converted JSON Schema **only** when the adapter declared
-   *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
-   *    should then wire the schema into the upstream request (e.g.
-   *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`, `--json-schema`) alongside any `tools`.
-   *
-   *    How the engine then takes the object depends on
-   *    `combinedStructuredOutputSource()`:
-   *    - `'text'` (default): the final-turn assistant text is the JSON.
-   *    - `'event'`: the adapter emits `structured-output.complete` during
-   *      `chatStream`. Accumulated prose is not parsed.
-   *
-   *    Adapters that did NOT declare the capability never see this field
-   *    populated — the engine instead invokes `structuredOutput` /
-   *    `structuredOutputStream` after the agent loop.
-   */
   outputSchema?: SchemaInput
-  /**
-   * @deprecated Use `threadId` instead. `conversationId` is the legacy
-   * pre-AG-UI name for the same concept (a stable per-conversation
-   * identifier used to correlate client/server devtools events). When
-   * `conversationId` is omitted, the runtime falls back to `threadId`
-   * automatically, so most callers can simply pass `threadId` (or rely
-   * on `chatParamsFromRequest`, which surfaces it on `params`).
-   *
-   * Will be removed in a future major release.
-   */
   conversationId?: string
-  /**
-   * AbortController for request cancellation.
-   *
-   * Allows you to cancel an in-progress request using an AbortController.
-   * Useful for implementing timeouts or user-initiated cancellations.
-   *
-   * @example
-   * const abortController = new AbortController();
-   * setTimeout(() => abortController.abort(), 5000); // Cancel after 5 seconds
-   * await chat({ ..., abortController });
-   *
-   * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
-   */
   abortController?: AbortController
 
-  /**
-   * Internal logger threaded from the chat entry point. Adapter implementations
-   * must call `logger.request()` before SDK calls, `logger.provider()` for each
-   * chunk received, and `logger.errors()` in catch blocks.
-   */
   logger: InternalLogger
 
-  /**
-   * Thread ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-   */
   threadId?: string
-  /**
-   * Run ID for AG-UI protocol run correlation.
-   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
-   * If not provided, a unique ID will be generated.
-   */
   runId?: string
-  /**
-   * Parent run ID for AG-UI protocol nested run correlation.
-   * Surfaced for observability/middleware; not consumed by the LLM call.
-   */
   parentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
 
-  /**
-   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
-   * A first-party generic item carries the original request in `metadata`.
-   */
   resume?: Array<RunAgentResumeItem>
 
-  /**
-   * Middleware capability context for this run. The engine populates it with
-   * the live middleware context so harness adapters that declare
-   * `requires: [SomeCapability]` can read provided capabilities from inside
-   * `chatStream` — e.g. `getSandbox(options.capabilities)`. Capabilities are
-   * provisioned by middleware `setup` before the adapter runs. Undefined for
-   * direct adapter usage outside the chat engine.
-   */
   capabilities?: CapabilityContext
 
-  /**
-   * Client approval decisions for this run, keyed by approval id. The engine
-   * populates this from approvals carried on the incoming messages. Harness
-   * adapters consult it to resolve `ask`-policy permission requests (the agent
-   * pauses on a risky action; the client re-runs with a decision recorded
-   * here). Undefined for direct adapter usage outside the chat engine.
-   */
   approvals?: ReadonlyMap<string, boolean>
 }
 
-// ============================================================================
-// AG-UI Protocol Event Types
-// ============================================================================
-
-/**
- * Re-export EventType enum from @ag-ui/core for use in event creation.
- * Use `EventType.RUN_STARTED` etc. when constructing event objects.
- */
 export { EventType } from '@ag-ui/core'
 
-/**
- * AG-UI Protocol event types.
- * @deprecated Use `EventType` enum from `@ag-ui/core` instead. This type alias
- * is kept for backward compatibility but will be removed in a future version.
- * @see https://docs.ag-ui.com/concepts/events
- */
 export type AGUIEventType = `${EventType}`
 
-/**
- * Stream chunk/event types (AG-UI protocol).
- * @deprecated Use `EventType` enum instead.
- */
 export type StreamChunkType = AGUIEventType
 
-/**
- * Base structure for AG-UI events.
- * Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
- *
- * @ag-ui/core provides: `type`, `timestamp?`, `rawEvent?`
- */
 export interface BaseAGUIEvent extends AGUIBaseEvent {
   metadata?: Record<string, any>
 }
 
-// ============================================================================
-// AG-UI Event Interfaces
-// ============================================================================
-
-/**
- * Emitted when a run starts.
- * This is the first event in any streaming response.
- *
- * @ag-ui/core provides: `threadId`, `runId`, `parentRunId?`, `input?`
- */
 export interface RunStartedEvent extends AGUIRunStartedEvent {}
 
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
@@ -1179,11 +554,6 @@ export type {
   UsageCostBreakdown,
 }
 
-/**
- * @deprecated Renamed to {@link TokenUsage}. Kept as an alias for backward
- * compatibility with `@tanstack/ai@0.23` and earlier; will be removed in a
- * future release.
- */
 export type UsageTotals = TokenUsage
 
 export type Interrupt = AGUIInterrupt
@@ -1195,13 +565,6 @@ export type RunAgentResumeItem = AGUIResumeEntry & {
   metadata?: Record<string, unknown>
 }
 
-/**
- * Emitted when a run completes successfully.
- *
- * @ag-ui/core provides: `threadId`, `runId`, `result?`, `outcome?`
- * Spec `usage[]` is provider/model token counts. TanStack leftovers live in
- * `metadata.tanstack`.
- */
 export interface RunFinishedEvent extends Pick<
   AGUIRunFinishedEvent,
   'threadId' | 'runId' | 'result' | 'outcome' | 'timestamp' | 'rawEvent'
@@ -1215,13 +578,6 @@ export interface RunFinishedEvent extends Pick<
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
-/**
- * Emitted when an error occurs during a run.
- *
- * @ag-ui/core provides: `message`, `code?`
- * Spec `usage[]` is provider/model token counts. Interrupt errors live in
- * `metadata.tanstack.interruptErrors`.
- */
 export interface RunErrorEvent extends Pick<
   AGUIRunErrorEvent,
   'message' | 'code' | 'timestamp' | 'rawEvent'
@@ -1239,36 +595,12 @@ export interface RunErrorEvent extends Pick<
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
-/**
- * Emitted when a text message starts.
- *
- * @ag-ui/core provides: `messageId`, `role?`, `name?`
- */
 export interface TextMessageStartEvent extends AGUITextMessageStartEvent {}
 
-/**
- * Emitted when text content is generated (streaming tokens).
- *
- * @ag-ui/core provides: `messageId`, `delta`
- */
 export interface TextMessageContentEvent extends AGUITextMessageContentEvent {}
 
-/**
- * Emitted when a text message completes.
- *
- * @ag-ui/core provides: `messageId`
- */
 export interface TextMessageEndEvent extends AGUITextMessageEndEvent {}
 
-/**
- * Emitted when a tool call starts.
- *
- * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- *
- * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
- * `.passthrough()` index signatures do not pollute the StreamChunk
- * discriminated union — required for {@link KnownCustomEvent} narrowing.
- */
 export interface ToolCallStartEvent extends Pick<
   AGUIToolCallStartEvent,
   'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
@@ -1280,20 +612,8 @@ export interface ToolCallStartEvent extends Pick<
   metadata?: Record<string, any>
 }
 
-/**
- * Emitted when tool call arguments are streaming.
- *
- * @ag-ui/core provides: `toolCallId`, `delta`
- */
 export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {}
 
-/**
- * Emitted when a tool call completes.
- *
- * @ag-ui/core provides: `toolCallId`
- *
- * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
- */
 export interface ToolCallEndEvent extends Pick<
   AGUIToolCallEndEvent,
   'toolCallId' | 'timestamp' | 'rawEvent'
@@ -1304,62 +624,18 @@ export interface ToolCallEndEvent extends Pick<
   metadata?: Record<string, any>
 }
 
-/**
- * Emitted when a tool call result is available.
- *
- * @ag-ui/core provides: `messageId`, `toolCallId`, `content`, `role?`
- */
 export interface ToolCallResultEvent extends AGUIToolCallResultEvent {}
 
-/**
- * Emitted when a thinking/reasoning step starts.
- *
- * @ag-ui/core provides: `stepName`
- */
 export interface StepStartedEvent extends AGUIStepStartedEvent {}
 
-/**
- * Emitted when a thinking/reasoning step finishes.
- *
- * @ag-ui/core provides: `stepName`
- */
 export interface StepFinishedEvent extends AGUIStepFinishedEvent {}
 
-/**
- * Emitted to provide a snapshot of all messages in a conversation.
- *
- * Unlike StateSnapshot (which carries arbitrary application state),
- * MessagesSnapshot specifically delivers the conversation transcript.
- *
- * @ag-ui/core provides: `messages` (as @ag-ui/core Message[])
- *
- * Note: The `messages` field uses the @ag-ui/core Message type.
- * Use converters to transform to/from TanStack UIMessage format.
- */
 export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {}
 
-/**
- * Emitted to provide a full state snapshot.
- *
- * @ag-ui/core provides: `snapshot` (any)
- */
 export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {}
 
-/**
- * Emitted to provide an incremental state update.
- *
- * @ag-ui/core provides: `delta` (any[] - JSON Patch RFC 6902)
- */
 export interface StateDeltaEvent extends AGUIStateDeltaEvent {}
 
-/**
- * Custom event for extensibility.
- *
- * @ag-ui/core provides: `name`, `value`
- *
- * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
- * erase discriminant property access on {@link KnownCustomEvent} unions.
- */
 export interface CustomEvent extends Pick<
   AGUICustomEvent,
   'name' | 'value' | 'timestamp' | 'rawEvent'
@@ -1368,24 +644,6 @@ export interface CustomEvent extends Pick<
   metadata?: Record<string, any>
 }
 
-/**
- * Final event of a streaming structured-output run. Carries the validated
- * `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
- * the `raw` JSON text that produced it, and — for thinking/reasoning models —
- * the accumulated reasoning text. Adapters emit this with `T = unknown`; the
- * chat orchestrator narrows to the schema's inferred type after validation.
- *
- * `reasoning` is `undefined` when the model produced none (most non-thinking
- * models) and when the underlying adapter doesn't expose reasoning streams.
- *
- * `name` is a string literal so consumers can narrow directly:
- *
- * ```ts
- * if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
- *   chunk.value.object // typed as T
- * }
- * ```
- */
 export interface StructuredOutputCompleteEvent<
   T = unknown,
 > extends CustomEvent {
@@ -1393,30 +651,11 @@ export interface StructuredOutputCompleteEvent<
   value: { object: T; raw: string; reasoning?: string }
 }
 
-/**
- * Emitted at the start of a streaming structured-output run, before the JSON
- * deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
- * belong to a structured response so they can route those bytes into a
- * `StructuredOutputPart` instead of building a `TextPart`. Carries the
- * `messageId` the deltas will be tagged with so the routing decision can be
- * made per-message rather than globally.
- */
 export interface StructuredOutputStartEvent extends CustomEvent {
   name: 'structured-output.start'
   value: { messageId: string }
 }
 
-/**
- * Emitted when a server tool requires approval before execution. The agent
- * loop yields this and pauses — `structured-output.complete` will not fire
- * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
- * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
 export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
@@ -1427,16 +666,6 @@ export interface ApprovalRequestedEvent extends CustomEvent {
   }
 }
 
-/**
- * Emitted when a client tool is invoked. The agent loop yields this and
- * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by the agent-loop forwarding in
- * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
- */
-/**
- * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
- * compatibility event remains readable until 1.0.
- */
 export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
   value: {
@@ -1530,11 +759,6 @@ export interface SnippetRegisteredEvent extends CustomEvent {
   value: { id: string; name: string; description: string; timestamp: number }
 }
 
-/**
- * Every CUSTOM event TanStack AI itself emits, as a discriminated union on
- * `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)
- * are intentionally absent — they still flow at runtime.
- */
 export type KnownCustomEvent =
   | SandboxFileCustomEvent
   | SandboxFileDiffEvent
@@ -1555,46 +779,10 @@ export type KnownCustomEvent =
   | ToolInputAvailableEvent
   | UIResourceEvent
 
-/** The default chat streaming result: standard chunks plus every typed
- *  framework CUSTOM event, with the `value: any` catch-all excluded so
- *  literal-`name` narrowing types `value`. User-emitted custom names are typed
- *  out (still flow at runtime — branch outside the name narrows or cast). */
 export type ChatStream = AsyncIterable<
   Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
 >
 
-/**
- * Public type for streams returned by `chat({ outputSchema, stream: true })`.
- *
- * Yields all standard `StreamChunk` lifecycle events plus the typed
- * structured-output `CUSTOM` event emitted through this path:
- * - `structured-output.complete` — terminal event with typed `value.object: T`
- *
- * User-actionable waits, such as tool approval and client tool input, are
- * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
- * streams. Legacy `approval-requested` and `tool-input-available` custom
- * events may still be consumed for replay and backward compatibility, but
- * they are not the current source of truth for waits.
- *
- * Each variant has a literal `name`, so a single discriminated narrow gives
- * you a typed `value` with no helper or cast:
- *
- * ```ts
- * for await (const chunk of stream) {
- *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
- *     chunk.value.object // typed as T
- *   }
- * }
- * ```
- *
- * Caveat: tools can emit arbitrary user-defined custom events via the
- * `emitCustomEvent(name, value)` context API. Those flow through this stream
- * at runtime but are intentionally absent from this type — including a bare
- * `CustomEvent` (whose `value: any` would poison the union) would collapse
- * `chunk.value` back to `any` after the narrow. If you rely on
- * `emitCustomEvent` plus `outputSchema + stream: true`, branch on `CUSTOM`
- * outside the literal-`name` narrows or cast explicitly.
- */
 export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
   | StructuredOutputStartEvent
@@ -1603,59 +791,18 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | ToolInputAvailableEvent
 >
 
-// ============================================================================
-// AG-UI Reasoning Event Interfaces
-// ============================================================================
-
-/**
- * Emitted when reasoning starts for a message.
- *
- * @ag-ui/core provides: `messageId`
- */
 export interface ReasoningStartEvent extends AGUIReasoningStartEvent {}
 
-/**
- * Emitted when a reasoning message starts.
- *
- * @ag-ui/core provides: `messageId`, `role` ("reasoning")
- */
 export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {}
 
-/**
- * Emitted when reasoning message content is generated.
- *
- * @ag-ui/core provides: `messageId`, `delta`
- */
 export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {}
 
-/**
- * Emitted when a reasoning message ends.
- *
- * @ag-ui/core provides: `messageId`
- */
 export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {}
 
-/**
- * Emitted when reasoning ends for a message.
- *
- * @ag-ui/core provides: `messageId`
- */
 export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
 
-/**
- * Emitted for encrypted reasoning values.
- *
- * @ag-ui/core provides: `subtype`, `entityId`, `encryptedValue`
- */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
-// ============================================================================
-// AG-UI Event Union
-// ============================================================================
-
-/**
- * Union of all AG-UI events.
- */
 export type AGUIEvent =
   | RunStartedEvent
   | RunFinishedEvent
@@ -1680,35 +827,8 @@ export type AGUIEvent =
   | ReasoningEndEvent
   | ReasoningEncryptedValueEvent
 
-/**
- * Chunk returned by the SDK during streaming chat completions.
- * Uses the AG-UI protocol event format.
- */
 export type StreamChunk = AGUIEvent
 
-/**
- * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
- * has a literal `name`, so a single narrow on `chunk.name` yields a typed
- * `value` with no helper or cast:
- *
- * ```ts
- * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *   chunk.value.toolCallId // typed as string
- * }
- * ```
- *
- * The `StructuredOutputCompleteEvent` value is parameterized by `T`, which
- * the chat orchestrator narrows to the schema's inferred type after Standard
- * Schema validation. Adapters always emit it with `T = unknown`.
- *
- * Caveat: tools can emit arbitrary user-defined custom events via the
- * `emitCustomEvent(name, value)` context API. Those flow through the stream
- * at runtime but are intentionally absent from this union — including a bare
- * `CustomEvent` (whose `value: any` would poison the union) would collapse
- * `chunk.value` back to `any` after the narrow. If you rely on
- * `emitCustomEvent`, branch on `CUSTOM` outside the literal-`name` narrows
- * or cast the chunk to `StreamChunk` to recover the wider shape.
- */
 export type TaggedCustomEvent<T = unknown> =
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
@@ -1736,26 +856,9 @@ export interface SummarizationOptions<
   focus?: Array<string>
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
-  /**
-   * Run identity forwarded from the summarize() activity. When set, the
-   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
-   * chat), so a delivery-durable route keys the run's log by the same id the
-   * client rejoins with — making a mid-run reload resumable, like the media
-   * activities. Optional and non-breaking: adapters that ignore it just mint
-   * their own.
-   */
   runId?: string
   threadId?: string
-  /**
-   * Internal logger threaded from the summarize() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
@@ -1766,16 +869,6 @@ export interface SummarizationResult {
   usage: TokenUsage
 }
 
-// ============================================================================
-// Rerank Types
-// ============================================================================
-
-/**
- * Options passed to a {@link RerankAdapter}. Documents reach the adapter
- * already serialized to strings — the `rerank()` activity stringifies object
- * documents and maps results back to the original elements, so adapters never
- * deal with the caller's document type.
- */
 export interface RerankOptions<
   TProviderOptions extends object = Record<string, unknown>,
 > {
@@ -1790,19 +883,9 @@ export interface RerankOptions<
   modelOptions?: TProviderOptions
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
-  /**
-   * Internal logger threaded from the rerank() entry point. Adapters must call
-   * logger.request() before the provider call and logger.errors() in catch
-   * blocks.
-   */
   logger: InternalLogger
 }
 
-/**
- * Provider-level rerank result. Adapters return scored indices into the
- * (serialized) `documents` array plus usage — never the documents themselves.
- * The activity attaches the original documents.
- */
 export interface RerankAdapterResult {
   id: string
   /** Scored results, highest relevance first, as indices into `documents`. */
@@ -1810,11 +893,6 @@ export interface RerankAdapterResult {
   usage: TokenUsage
 }
 
-/**
- * Public result of the `rerank()` activity, generic over the caller's document
- * element type so `document` / `rerankedDocuments` carry the original values
- * (strings or objects), not their serialized form.
- */
 export interface RerankResult<TDocument = string> {
   id: string
   model: string
@@ -1822,27 +900,9 @@ export interface RerankResult<TDocument = string> {
   ranking: Array<{ index: number; score: number; document: TDocument }>
   /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
   rerankedDocuments: Array<TDocument>
-  /**
-   * Usage for the request. Rerank typically bills in provider-defined "search
-   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
-   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
-   * Cohere reports only search units and leaves the token counts at 0.
-   * The deprecated `unitsBilled` field is still populated for compatibility.
-   */
   usage: TokenUsage
 }
 
-// ============================================================================
-// Image Generation Types
-// ============================================================================
-
-/**
- * Optional role hint on a media input part (image / video / audio). Adapters
- * read `metadata.role` to route the part to the provider-specific request
- * field — e.g. `'mask'` → OpenAI `mask` / fal `mask_url`, `'end_frame'` → fal
- * `end_image_url`, `'reference'` → fal `reference_image_urls`. When omitted
- * the adapter falls back to positional routing.
- */
 export type MediaInputRole =
   | 'reference'
   | 'mask'
@@ -1851,54 +911,20 @@ export type MediaInputRole =
   | 'end_frame'
   | 'character'
 
-/**
- * Metadata convention for image / video / audio inputs to media generation.
- * Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
- * when used as conditioning inputs to `generateImage()` or `generateVideo()`.
- */
 export interface MediaInputMetadata {
   /** Optional role hint disambiguating the part's intent for the adapter */
   role?: MediaInputRole
-  /**
-   * Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
-   * **Informational only** — adapters never read it and the SDK never
-   * rewrites prompt text based on it. Use it to correlate parts with the
-   * references you write in your prompt using the provider's own syntax
-   * (fal's `@Image1`, OpenAI's "image 1", etc.), or for your own
-   * bookkeeping/logging.
-   */
   tag?: string
 }
 
-/**
- * A single part of a multimodal media-generation prompt. Reuses the chat
- * content-part shapes: text parts carry the instruction, image / video /
- * audio parts carry conditioning inputs (with an optional
- * `metadata.role` hint — see {@link MediaInputRole}).
- */
 export type MediaPromptPart =
   | TextPart
   | ImagePart<MediaInputMetadata>
   | VideoPart<MediaInputMetadata>
   | AudioPart<MediaInputMetadata>
 
-/**
- * Prompt accepted by `generateImage()` / `generateVideo()`: a plain string,
- * or an ordered array of content parts for image-conditioned generation
- * ("not like this *(image)*, more like this *(image)*"). Part order is
- * meaningful — adapters with native multimodal prompts (Gemini, OpenRouter)
- * preserve the interleaving; named-field providers (fal, OpenAI, xAI)
- * extract the media parts and flatten the text. Text is always sent
- * verbatim: to reference inputs from the prompt, write the provider's own
- * syntax yourself (e.g. fal's `@Image1`, OpenAI's "image 1"). An array may
- * be media-only (e.g. upscalers or pure img2img endpoints that take no
- * instruction text).
- */
 export type MediaPrompt = string | Array<MediaPromptPart>
 
-/**
- * Non-text modalities a media-generation model can accept in its prompt.
- */
 export type MediaPromptModality = 'image' | 'video' | 'audio'
 
 /** Maps a prompt modality to its content-part type. @internal */
@@ -1908,46 +934,21 @@ interface MediaPartByModality {
   audio: AudioPart<MediaInputMetadata>
 }
 
-/**
- * Prompt type narrowed to the modalities a specific model supports.
- * `MediaPromptFor<never>` (a text-only model) is `string | Array<TextPart>`;
- * `MediaPromptFor<'image'>` additionally admits image parts, etc. Used by
- * the activity option types together with the adapter's per-model input
- * modality map so unsupported parts fail at compile time.
- */
 export type MediaPromptFor<TModalities extends MediaPromptModality = never> =
   | string
   | Array<TextPart | MediaPartByModality[TModalities]>
 
-/**
- * Per-model map from model name to the prompt modalities it accepts, used as
- * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
- * from the map fall back to the unconstrained {@link MediaPrompt}.
- */
 export type ModelInputModalitiesByName = Record<
   string,
   ReadonlyArray<MediaPromptModality>
 >
 
-/**
- * Options for image generation.
- * These are the common options supported across providers.
- */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
 > {
   /** The model to use for image generation */
   model: string
-  /**
-   * Description of the desired image(s): a plain string, or an ordered array
-   * of content parts for image-conditioned generation (image-to-image,
-   * reference-guided, edit, multi-reference). Media parts may carry
-   * `metadata.role` to disambiguate intent (mask, control, reference, …).
-   * Adapters map parts onto the provider-native request — e.g. Gemini
-   * multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
-   * `mask_url` — and throw a clear runtime error for unsupported modalities.
-   */
   prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
@@ -1955,25 +956,10 @@ export interface ImageGenerationOptions<
   size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateImage() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
-/**
- * Source of a generated media asset. Exactly one of `url` or `b64Json` is
- * present; the other is absent. Modeled as a mutually-exclusive union so the
- * type rejects `{}` and `{ url, b64Json }` together at compile time while
- * preserving the flat `.url` / `.b64Json` access patterns.
- */
 export type GeneratedMediaSource =
   | {
       /** URL to the generated asset (may be temporary) */
@@ -2004,20 +990,7 @@ export interface PersistedArtifactRef {
   mimeType: string
   size: number
   createdAt: string
-  /**
-   * Where these bytes were fetched FROM — the provider's original result URL,
-   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
-   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
-   * instead.
-   */
   sourceUrl?: string
-  /**
-   * Durable app-origin URL that serves this artifact's persisted bytes (your
-   * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by
-   * `withGenerationPersistence`'s `artifactUrl` option, so clients render and
-   * restore durable media from your own origin rather than the provider's
-   * expiring link.
-   */
   url?: string
   source: {
     activity: PersistedArtifactActivity
@@ -2030,17 +1003,11 @@ export interface PersistedArtifactRef {
   }
 }
 
-/**
- * A single generated image
- */
 export type GeneratedImage = GeneratedMediaSource & {
   /** Revised prompt used by the model (if applicable) */
   revisedPrompt?: string
 }
 
-/**
- * Result of image generation
- */
 export interface ImageGenerationResult {
   /** Unique identifier for the generation */
   id: string
@@ -2054,14 +1021,6 @@ export interface ImageGenerationResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Audio Generation Types
-// ============================================================================
-
-/**
- * Options for audio generation (music, sound effects, etc.).
- * These are the common options supported across providers.
- */
 export interface AudioGenerationOptions<
   TProviderOptions extends object = object,
 > {
@@ -2073,23 +1032,10 @@ export interface AudioGenerationOptions<
   duration?: number
   /** Model-specific options for audio generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateAudio() entry point. Adapters
-   * must call logger.request() before the SDK call and logger.errors() in
-   * catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
-/**
- * A single generated audio output
- */
 export type GeneratedAudio = GeneratedMediaSource & {
   /** Content type of the audio (e.g., 'audio/wav', 'audio/mp3') */
   contentType?: string
@@ -2097,9 +1043,6 @@ export type GeneratedAudio = GeneratedMediaSource & {
   duration?: number
 }
 
-/**
- * Result of audio generation
- */
 export interface AudioGenerationResult {
   /** Unique identifier for the generation */
   id: string
@@ -2113,16 +1056,6 @@ export interface AudioGenerationResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Video Generation Types (Experimental)
-// ============================================================================
-
-/**
- * Options for video generation.
- * These are the common options supported across providers.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
   TSize extends string | undefined = string,
@@ -2130,61 +1063,24 @@ export interface VideoGenerationOptions<
 > {
   /** The model to use for video generation */
   model: string
-  /**
-   * Description of the desired video: a plain string, or an ordered array of
-   * content parts for image-conditioned generation. Image parts may carry
-   * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
-   * 'character'`) to disambiguate intent; adapters route them onto the
-   * provider-native request (e.g. OpenAI Sora `input_reference`, fal
-   * `image_url` / `end_image_url`) and throw at runtime if unsupported.
-   */
   prompt: MediaPrompt
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
-  /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
-   */
   duration?: TDuration
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateVideo() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
-/**
- * Result of creating a video generation job.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface VideoJobResult {
   /** Unique job identifier for polling status */
   jobId: string
   /** Model used for generation */
   model: string
-  /**
-   * Durable artifact references, when generation persistence with an artifact +
-   * blob store is wired. A submission has no video yet, so this only carries
-   * refs for persisted prompt INPUTS (e.g. a start frame).
-   */
   artifacts?: Array<PersistedArtifactRef>
 }
 
-/**
- * Status of a video generation job.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface VideoStatusResult {
   /** Job identifier */
   jobId: string
@@ -2196,11 +1092,6 @@ export interface VideoStatusResult {
   error?: string
 }
 
-/**
- * Result containing the URL to a generated video.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface VideoUrlResult {
   /** Job identifier */
   jobId: string
@@ -2208,24 +1099,11 @@ export interface VideoUrlResult {
   url: string
   /** When the URL expires, if applicable */
   expiresAt?: Date
-  /**
-   * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
-   * billed quantity paired with its unit — so consumers can compute exact cost.
-   */
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Text-to-Speech (TTS) Types
-// ============================================================================
-
-/**
- * Options for text-to-speech generation.
- * These are the common options supported across providers.
- */
 export interface TTSOptions<TProviderOptions extends object = object> {
   /** The model to use for TTS generation */
   model: string
@@ -2239,23 +1117,10 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateSpeech() entry point. Adapters
-   * must call logger.request() before the SDK call and logger.errors() in
-   * catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
-/**
- * Result of text-to-speech generation.
- */
 export interface TTSResult {
   /** Unique identifier for the generation */
   id: string
@@ -2275,14 +1140,6 @@ export interface TTSResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Transcription (Speech-to-Text) Types
-// ============================================================================
-
-/**
- * Options for audio transcription.
- * These are the common options supported across providers.
- */
 export type TranscriptionResponseFormat =
   | 'json'
   | 'text'
@@ -2305,23 +1162,10 @@ export interface TranscriptionOptions<
   responseFormat?: TranscriptionResponseFormat
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the generateTranscription() entry point.
-   * Adapters must call logger.request() before the SDK call and logger.errors()
-   * in catch blocks.
-   */
   logger: InternalLogger
-  /**
-   * Effective abort signal composed by the activity from caller `abortSignal`
-   * and/or `timeout`. Adapters should forward this to the provider SDK when
-   * supported. Request-specific — never store on a global client config.
-   */
   abortSignal?: AbortSignal
 }
 
-/**
- * A single segment of transcribed audio with timing information.
- */
 export interface TranscriptionSegment {
   /** Unique identifier for the segment */
   id: number
@@ -2337,9 +1181,6 @@ export interface TranscriptionSegment {
   speaker?: string
 }
 
-/**
- * A single word with timing information.
- */
 export interface TranscriptionWord {
   /** The transcribed word */
   word: string
@@ -2349,9 +1190,6 @@ export interface TranscriptionWord {
   end: number
 }
 
-/**
- * Result of audio transcription.
- */
 export interface TranscriptionResult {
   /** Unique identifier for the transcription */
   id: string
@@ -2373,46 +1211,15 @@ export interface TranscriptionResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
-// ============================================================================
-// Embedding Types
-// ============================================================================
-
-/**
- * Input modalities an embedding model can accept. Unlike
- * {@link MediaPromptModality}, `'text'` is listed explicitly because
- * text-only embedding models are the common case and the modality list
- * drives compile-time narrowing of {@link EmbeddingInputItem}.
- */
 export type EmbeddingModality = 'text' | 'image'
 
-/**
- * Per-model map from model name to the input modalities it accepts, used as
- * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
- * from the map fall back to the unconstrained {@link EmbeddingInputItem}.
- */
 export type EmbeddingModelInputModalitiesByName = Record<
   string,
   ReadonlyArray<EmbeddingModality>
 >
 
-/**
- * A fused multi-part embedding item: all parts are embedded together into a
- * single vector (e.g. a product photo plus its caption). Written as a nested
- * array of content parts — the same `Array<ContentPart>` convention chat
- * messages use — so a fused item is visually distinct from the top-level
- * `input` list, where each element produces its own vector. Supported by
- * multimodal embedding models such as Cohere embed-v4 and Amazon Titan
- * Multimodal.
- */
 export type EmbeddingContentParts = Array<TextPart | ImagePart>
 
-/**
- * One embeddable item, producing exactly one vector. A bare string is
- * shorthand for a text part; a nested {@link EmbeddingContentParts} array
- * fuses its parts into a single vector. Note that a bare array at the top
- * level of `input` is the *list of items* (one vector each) — fuse by
- * nesting, e.g. `input: [[textPart, imagePart]]`.
- */
 export type EmbeddingInputItem =
   | string
   | TextPart
@@ -2425,46 +1232,21 @@ interface EmbeddingItemByModality {
   image: ImagePart | EmbeddingContentParts
 }
 
-/**
- * Embedding item type narrowed to the modalities a specific model supports.
- * `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;
- * `'text' | 'image'` additionally admits image parts and fused
- * {@link EmbeddingContentParts} arrays. Used by the activity option types
- * together with the adapter's per-model modality map so unsupported inputs
- * fail at compile time.
- */
 export type EmbeddingInputItemFor<
   TModalities extends EmbeddingModality = EmbeddingModality,
 > = string | TextPart | EmbeddingItemByModality[TModalities]
 
-/**
- * Options for embedding generation, as received by adapters. The `embed()`
- * entry point normalizes a single input item to an array before calling the
- * adapter, so `input` is always an array here.
- */
 export interface EmbeddingOptions<TProviderOptions extends object = object> {
   /** The model to use for embedding generation */
   model: string
   /** The items to embed — one vector per item */
   input: Array<EmbeddingInputItem>
-  /**
-   * Requested output dimensionality. Adapters for models with fixed
-   * dimensions throw a clear runtime error when this is set.
-   */
   dimensions?: number
   /** Model-specific options for embedding generation */
   modelOptions?: TProviderOptions
-  /**
-   * Internal logger threaded from the embed() entry point. Adapters must
-   * call logger.request() before the SDK call and logger.errors() in catch
-   * blocks.
-   */
   logger: InternalLogger
 }
 
-/**
- * A single embedding vector.
- */
 export interface Embedding {
   /** The embedding vector */
   vector: Array<number>
@@ -2472,9 +1254,6 @@ export interface Embedding {
   index: number
 }
 
-/**
- * Result of embedding generation.
- */
 export interface EmbeddingResult {
   /** Unique identifier for the generation */
   id: string
@@ -2486,10 +1265,6 @@ export interface EmbeddingResult {
   usage?: TokenUsage
 }
 
-/**
- * Default metadata type for adapters that don't define custom metadata.
- * Uses unknown for all modalities.
- */
 export interface DefaultMessageMetadataByModality {
   text: unknown
   image: unknown

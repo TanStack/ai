@@ -30,32 +30,6 @@ export interface ChatInputProps {
   submitOnEnter?: boolean
 }
 
-/**
- * Chat input component - handles message input and submission
- *
- * Features:
- * - Auto-growing textarea
- * - Submit on Enter (Shift+Enter for new line)
- * - Loading state management
- * - Full render prop support for custom UIs
- *
- * @example
- * ```tsx
- * <Chat.Input placeholder="Type your message..." />
- * ```
- *
- * @example Custom UI with render prop
- * ```tsx
- * <Chat.Input>
- *   {({ value, onChange, onSubmit, isLoading }) => (
- *     <div>
- *       <textarea value={value} onChange={(e) => onChange(e.target.value)} />
- *       <button onClick={onSubmit} disabled={isLoading}>Send</button>
- *     </div>
- *   )}
- * </Chat.Input>
- * ```
- */
 export function ChatInput({
   children,
   className,
@@ -70,7 +44,8 @@ export function ChatInput({
   const disabled = disabledProp || isLoading
 
   const handleSubmit = () => {
-    if (!value.trim() || disabled) return
+    if (!value.trim()) return
+    if (disabled) return
     void sendMessage(value)
     setValue('')
   }
@@ -107,7 +82,8 @@ export function ChatInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (submitOnEnter && e.key === 'Enter') {
+          const submitOnEnterKey = submitOnEnter && e.key === 'Enter'
+          if (submitOnEnterKey) {
             e.preventDefault()
             handleSubmit()
           }
@@ -155,13 +131,15 @@ export function ChatInput({
           whiteSpace: 'nowrap',
         }}
         onMouseEnter={(e) => {
-          if (!disabled && value.trim()) {
+          const canHover = !disabled && Boolean(value.trim())
+          if (canHover) {
             ;(e.target as HTMLButtonElement).style.backgroundColor =
               'rgb(234, 88, 12)'
           }
         }}
         onMouseLeave={(e) => {
-          if (!disabled && value.trim()) {
+          const canHover = !disabled && Boolean(value.trim())
+          if (canHover) {
             ;(e.target as HTMLButtonElement).style.backgroundColor =
               'rgb(249, 115, 22)'
           }

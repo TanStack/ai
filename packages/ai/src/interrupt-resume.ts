@@ -31,16 +31,6 @@ import type {
 } from './interrupt-definition'
 import type { Interrupt, RunAgentResumeItem } from './types'
 
-/**
- * The `Interrupt.metadata` key under which this package's resume binding
- * travels.
- *
- * Exported so anything that produces an interrupt this package must later
- * resume — an application middleware raising a generic pause, a future
- * workflow-to-AG-UI projection — attaches the binding through
- * {@link withInterruptBinding} rather than copying the string. Everything
- * outside this key is the plain AG-UI envelope and is left untouched.
- */
 export const INTERRUPT_BINDING_METADATA_KEY = 'tanstack:interruptBinding'
 
 const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
@@ -100,7 +90,9 @@ function normalizeIssuePath(
 ): ReadonlyArray<string | number> | undefined {
   if (!path) return undefined
   return path.map((segment) => {
-    if (typeof segment === 'string' || typeof segment === 'number') {
+    const shouldSkipSegment =
+      typeof segment === 'string' || typeof segment === 'number'
+    if (shouldSkipSegment) {
       return segment
     }
     const record = objectValue(segment)
@@ -154,11 +146,6 @@ async function validateSchemaValue(input: {
     }
     return
   }
-
-  // A non-Standard-Schema value (a raw JSON Schema, e.g. a generic interrupt's
-  // wire responseSchema) is not validated by the library. The application
-  // validates the resume value itself if it needs to; otherwise it flows
-  // through as-is.
 }
 
 type RuntimeTool = ChatMiddlewareConfig['tools'][number] & {
@@ -239,14 +226,16 @@ function validateDescriptorSchema(
 ): unknown {
   const schema = descriptorResponseSchema(record)
   const responseSchemaHash = binding.responseSchemaHash
-  if (schema === undefined && responseSchemaHash === undefined) {
+  const isMissingSchema =
+    schema === undefined && responseSchemaHash === undefined
+  if (isMissingSchema) {
     return undefined
   }
-  if (
+  const isIncompleteSchema =
     schema === undefined ||
     responseSchemaHash === undefined ||
     schemaHash(schema) !== responseSchemaHash
-  ) {
+  if (isIncompleteSchema) {
     errors.push(
       interruptItemError(
         input,
@@ -287,11 +276,11 @@ function validateBindingCorrelation(
   errors: Array<InterruptSubmissionError>,
 ): void {
   const binding = record.binding
-  if (
+  const hasBinding =
     binding.interruptedRunId !== input.interruptedRunId ||
     binding.generation !== input.generation ||
     binding.interruptId !== record.interruptId
-  ) {
+  if (hasBinding) {
     errors.push(
       interruptItemError(
         input,
@@ -344,7 +333,9 @@ function validateResumeStatus(
   errors: Array<InterruptSubmissionError>,
 ): boolean {
   const entryStatus: unknown = entry.status
-  if (entryStatus === 'resolved' || entryStatus === 'cancelled') return true
+  const shouldSkipEntryStatus =
+    entryStatus === 'resolved' || entryStatus === 'cancelled'
+  if (shouldSkipEntryStatus) return true
   errors.push(
     interruptItemError(
       input,
@@ -385,7 +376,7 @@ async function validateGenericResumeItem(
   if (genericRequest !== undefined) {
     const batchIndex =
       binding.kind === 'generic' ? binding.batchIndex : undefined
-    if (
+    const isInvalidBinding =
       binding.kind !== 'generic' ||
       binding.definitionId !== genericRequest.definition.id ||
       binding.key !== genericRequest.key ||
@@ -393,7 +384,7 @@ async function validateGenericResumeItem(
       batchIndex === undefined ||
       !Number.isInteger(batchIndex) ||
       batchIndex < 0
-    ) {
+    if (isInvalidBinding) {
       errors.push(
         interruptItemError(
           input,
@@ -474,12 +465,12 @@ function detectToolSchemaDrift(
     )
     return { approval: undefined, drifted: true }
   }
-  if (
+  const hasApproval =
     approval !== undefined &&
     (hashSchemaInput(tool.inputSchema) !== binding.inputSchemaHash ||
       approval.approvalSchemaHash !== binding.approvalSchemaHash ||
       approval.responseSchemaHash !== binding.responseSchemaHash)
-  ) {
+  if (hasApproval) {
     errors.push(
       interruptItemError(
         input,
@@ -563,7 +554,8 @@ async function validateApprovalPayload(
       label: `Approval ${record.interruptId} envelope is invalid`,
     })
   }
-  if (approved && envelope?.editedArgs !== undefined) {
+  const hasApproved = approved && envelope?.editedArgs !== undefined
+  if (hasApproved) {
     if (tool.inputSchema === undefined) {
       errors.push(
         interruptItemError(
@@ -669,10 +661,9 @@ async function validateOnePendingRecord(input: {
   const { request, record, entry, errors } = input
   const binding = record.binding
   if (!entry) {
-    if (
-      input.genericBatchSatisfied &&
-      binding.kind === 'client-tool-execution'
-    ) {
+    const hasInput =
+      input.genericBatchSatisfied && binding.kind === 'client-tool-execution'
+    if (hasInput) {
       return
     }
     input.markIncomplete()
@@ -845,10 +836,10 @@ async function materializeResumeToolState(
     }
     const resolution = approvalResolutionFromEntry(entry)
     approvals.set(binding.toolCallId, resolution)
-    if (
+    const isApproved =
       resolution === false ||
       (typeof resolution === 'object' && !resolution.approved)
-    ) {
+    if (isApproved) {
       deniedToolResults.set(
         binding.toolCallId,
         typeof resolution === 'object' ? resolution.payload : undefined,
@@ -871,10 +862,6 @@ async function materializeResumeToolState(
   }
 }
 
-/**
- * Validate and translate a complete interrupt batch before any tool executes.
- * Used by ephemeral chat resume; a durable layer may share the same validator.
- */
 export async function validateInterruptResumeBatch(
   input: ValidateInterruptResumeBatchInput,
 ): Promise<ValidatedInterruptResumeBatch> {
@@ -963,14 +950,6 @@ export async function validateInterruptResumeBatch(
   return materializeResumeToolState(input, resumeById)
 }
 
-/**
- * Is this a binding written by a version of the protocol we understand?
- *
- * A missing `v` is read as {@link INTERRUPT_BINDING_VERSION} so bindings
- * written before the field existed still resume. A `v` we don't recognise is
- * rejected outright — a newer or foreign producer's binding must not be
- * duck-typed into ours.
- */
 function isSupportedBindingVersion(raw: Record<string, unknown>): boolean {
   const version = raw['v']
   if (version === undefined) return true
@@ -992,14 +971,14 @@ function readGenericUnopenedBinding(
     key !== undefined ||
     batchIndex !== undefined ||
     payloadSchemaHash !== undefined
-  if (
+  const isInvalidHasFirstPartyFields =
     hasFirstPartyFields &&
     (!definitionId ||
       !key ||
       typeof batchIndex !== 'number' ||
       !Number.isInteger(batchIndex) ||
       batchIndex < 0)
-  ) {
+  if (isInvalidHasFirstPartyFields) {
     return undefined
   }
   return {
@@ -1047,7 +1026,8 @@ function readToolApprovalUnopenedBinding(
 ): UnopenedInterruptBinding | undefined {
   const inputSchemaHash = stringField(raw, 'inputSchemaHash')
   const approvalSchemaHash = stringField(raw, 'approvalSchemaHash')
-  if (!inputSchemaHash || !approvalSchemaHash) return undefined
+  const shouldSkipInputSchemaHash = !inputSchemaHash || !approvalSchemaHash
+  if (shouldSkipInputSchemaHash) return undefined
   return {
     v: INTERRUPT_BINDING_VERSION,
     kind: 'tool-approval',
@@ -1069,7 +1049,9 @@ export function readUnopenedInterruptBinding(
   const raw = metadata
     ? objectValue(metadata[interruptBindingMetadataKey])
     : null
-  if (!raw || stringField(raw, 'interruptId') !== descriptor.id) {
+  const shouldSkipRaw =
+    !raw || stringField(raw, 'interruptId') !== descriptor.id
+  if (shouldSkipRaw) {
     return undefined
   }
   if (!isSupportedBindingVersion(raw)) return undefined
@@ -1077,8 +1059,11 @@ export function readUnopenedInterruptBinding(
   const interruptId = stringField(raw, 'interruptId')
   const responseSchemaHash = stringField(raw, 'responseSchemaHash')
   const expiresAt = stringField(raw, 'expiresAt')
-  if (!interruptId || responseSchemaHash === '') return undefined
-  if (expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt))) {
+  const shouldSkipInterruptId = !interruptId || responseSchemaHash === ''
+  if (shouldSkipInterruptId) return undefined
+  const isInvalidExpiresAt =
+    expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt))
+  if (isInvalidExpiresAt) {
     return undefined
   }
   if (kind === 'generic') {
@@ -1092,7 +1077,8 @@ export function readUnopenedInterruptBinding(
   if (!responseSchemaHash) return undefined
   const toolName = stringField(raw, 'toolName')
   const toolCallId = stringField(raw, 'toolCallId')
-  if (!toolName || !toolCallId) return undefined
+  const shouldSkipToolName = !toolName || !toolCallId
+  if (shouldSkipToolName) return undefined
   if (kind === 'client-tool-execution') {
     return readClientToolUnopenedBinding(
       interruptId,
@@ -1116,15 +1102,6 @@ export function readUnopenedInterruptBinding(
   return undefined
 }
 
-/**
- * Attach a resume binding to an interrupt descriptor, under
- * {@link INTERRUPT_BINDING_METADATA_KEY}.
- *
- * This is the supported way to make an interrupt resumable by this package.
- * The descriptor keeps its AG-UI shape; only `metadata` gains the namespaced
- * key. Pass the unopened form (no `interruptedRunId` / `generation`) when
- * emitting from inside a run — those fields are stamped as the run finishes.
- */
 export function withInterruptBinding(
   descriptor: Interrupt,
   binding: UnopenedInterruptBinding | InterruptBinding,
@@ -1142,13 +1119,6 @@ export function withInterruptBinding(
   }
 }
 
-/**
- * Read the opened resume binding off a descriptor, or `undefined` when the
- * descriptor carries no binding of a version we understand.
- *
- * `undefined` means "this interrupt is not ours to resume" — it is not a
- * failure to recover from by inventing a binding.
- */
 export function readInterruptBinding(
   descriptor: Interrupt,
 ): InterruptBinding | undefined {
@@ -1161,12 +1131,12 @@ export function readInterruptBinding(
   if (!raw) return undefined
   const interruptedRunId = stringField(raw, 'interruptedRunId')
   const generation = raw['generation']
-  if (
+  const isInvalidInterruptedRunId =
     !interruptedRunId ||
     typeof generation !== 'number' ||
     !Number.isInteger(generation) ||
     generation < 0
-  ) {
+  if (isInvalidInterruptedRunId) {
     return undefined
   }
   return { ...unopened, interruptedRunId, generation }
@@ -1174,7 +1144,9 @@ export function readInterruptBinding(
 
 export function withoutInterruptBinding(descriptor: Interrupt): Interrupt {
   const metadata = objectValue(descriptor.metadata)
-  if (!metadata || !(interruptBindingMetadataKey in metadata)) return descriptor
+  const shouldSkipMetadata =
+    !metadata || !(interruptBindingMetadataKey in metadata)
+  if (shouldSkipMetadata) return descriptor
   const publicMetadata = { ...metadata }
   delete publicMetadata[interruptBindingMetadataKey]
   return { ...descriptor, metadata: publicMetadata }

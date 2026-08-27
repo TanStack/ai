@@ -13,11 +13,6 @@ import type {
   ResponseFunctionToolCall,
 } from 'openai/resources/responses/responses'
 
-/**
- * The pre-2025-07 spec name for `response.reasoning_text.delta`. Removed from
- * the openai SDK, but OpenAI-compatible providers frozen on the older spec
- * (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
- */
 export interface LegacyReasoningDeltaEvent {
   type: 'response.reasoning.delta'
   delta?: unknown
@@ -129,19 +124,22 @@ function* openReasoning(
 function* closeReasoning(
   ctx: ResponsesStreamContext,
 ): Generator<AdapterYieldChunk> {
-  if (!ctx.state.reasoningMessageId || ctx.state.hasClosedReasoning) return
+  const reasoningMessageId = ctx.state.reasoningMessageId
+  const shouldSkipCloseReasoning =
+    !reasoningMessageId || ctx.state.hasClosedReasoning
+  if (shouldSkipCloseReasoning) return
   ctx.state.hasClosedReasoning = true
   const timestamp = Date.now()
   const currentModel = emitModel(ctx)
   yield {
     type: EventType.REASONING_MESSAGE_END,
-    messageId: ctx.state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: currentModel,
     timestamp,
   }
   yield {
     type: EventType.REASONING_END,
-    messageId: ctx.state.reasoningMessageId,
+    messageId: reasoningMessageId,
     model: currentModel,
     timestamp,
   }
@@ -240,9 +238,6 @@ function handleContentPart(
     }
   }
 
-  // Either a real refusal or an unknown content_part type. Surface
-  // the part type in the error so unknown parts are debuggable
-  // instead of being misreported as "Unknown refusal".
   const isRefusal = contentPart.type === 'refusal'
   const message = isRefusal
     ? contentPart.refusal || 'Refused without explanation'
@@ -293,12 +288,14 @@ function* emitToolCallStart(
   itemId: string,
   index: number,
 ): Generator<AdapterYieldChunk> {
-  if (metadata.started || !metadata.name) return
+  const toolName = metadata.name
+  const alreadyStartedOrUnnamed = metadata.started || !toolName
+  if (alreadyStartedOrUnnamed) return
   yield {
     type: EventType.TOOL_CALL_START,
     toolCallId: metadata.callId,
-    toolCallName: metadata.name,
-    toolName: metadata.name,
+    toolCallName: toolName,
+    toolName: toolName,
     parentMessageId: ctx.aguiState.messageId,
     model: emitModel(ctx),
     timestamp: Date.now(),
@@ -383,20 +380,17 @@ function* handleFailedOrIncomplete(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  if (
-    chunk.type !== 'response.failed' &&
-    chunk.type !== 'response.incomplete'
-  ) {
+  const isFailedOrIncomplete =
+    chunk.type === 'response.failed' || chunk.type === 'response.incomplete'
+  if (!isFailedOrIncomplete) {
     return
   }
+  if (!('response' in chunk)) return
   ctx.state.model = chunk.response.model
   yield* closeReasoning(ctx)
   if (ctx.state.hasEmittedTextMessageStart) {
     yield* emitTextMessageEnd(ctx, chunk.response.model)
   }
-  // Coalesce error + incomplete_details into a single RUN_ERROR
-  // payload — emitting two distinct events for one terminal upstream
-  // event would force consumers to handle a non-existent ordering.
   const errorMessage =
     chunk.response.error?.message ||
     chunk.response.incomplete_details?.reason ||
@@ -407,11 +401,6 @@ function* handleFailedOrIncomplete(
     chunk.response.error?.code ??
     (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
     undefined
-  // Always emit RUN_ERROR for terminal failure events, even when the
-  // upstream omitted both `error` and `incomplete_details`. Skipping
-  // emission on a `response.incomplete` with no detail would let the
-  // post-loop synthetic block silently coerce the run to a clean
-  // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
   yield {
     type: EventType.RUN_ERROR,
     model: chunk.response.model,
@@ -433,7 +422,9 @@ function* handleOutputTextDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  if (chunk.type !== 'response.output_text.delta' || !chunk.delta) return
+  const isNotOutputTextDelta =
+    chunk.type !== 'response.output_text.delta' || !chunk.delta
+  if (isNotOutputTextDelta) return
   const textDelta = joinDelta(chunk.delta)
   if (!textDelta) return
   yield* closeReasoning(ctx)
@@ -456,11 +447,11 @@ function* handleReasoningTextDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  if (
+  const isNotReasoningTextDelta =
     (chunk.type !== 'response.reasoning_text.delta' &&
       chunk.type !== 'response.reasoning.delta') ||
     !chunk.delta
-  ) {
+  if (isNotReasoningTextDelta) {
     return
   }
   yield* emitReasoningDelta(ctx, joinDelta(chunk.delta))
@@ -470,7 +461,9 @@ function* handleReasoningSummaryDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  if (chunk.type !== 'response.reasoning_summary_text.delta' || !chunk.delta) {
+  const isNotReasoningSummaryDelta =
+    chunk.type !== 'response.reasoning_summary_text.delta' || !chunk.delta
+  if (isNotReasoningSummaryDelta) {
     return
   }
   const summaryDelta = typeof chunk.delta === 'string' ? chunk.delta : ''
@@ -483,15 +476,11 @@ function* handleContentPartAdded(
 ): Generator<AdapterYieldChunk> {
   if (chunk.type !== 'response.content_part.added') return
   const contentPart = chunk.part
-  // The Responses API can announce a text part with an empty
-  // placeholder before putting the actual text only on the completed
-  // response. An empty placeholder is not streamed content and must
-  // not suppress the completion backstop below.
-  if (
+  const isEmptyStreamableText =
     (contentPart.type === 'output_text' ||
       contentPart.type === 'reasoning_text') &&
     !contentPart.text
-  ) {
+  if (isEmptyStreamableText) {
     return
   }
   if (contentPart.type === 'reasoning_text') {
@@ -505,19 +494,11 @@ function* handleContentPartAdded(
     yield* closeReasoning(ctx)
     yield* emitTextMessageStart(ctx)
   }
-  // Mark whichever stream we just emitted into so a subsequent
-  // `content_part.done` doesn't duplicate the same text. Without
-  // this flag, an `added` event carrying the full text followed by
-  // a matching `done` event would emit TEXT_MESSAGE_CONTENT twice.
   if (contentPart.type === 'output_text') {
     ctx.state.hasStreamedContentDeltas = true
   }
   const partChunk = handleContentPart(ctx, contentPart)
   yield partChunk
-  // handleContentPart returns RUN_ERROR for refusals / unknown
-  // content_part types — those are terminal events. Don't keep
-  // processing more chunks (and don't let the post-loop synthetic
-  // block emit a second terminal event).
   if (partChunk.type === EventType.RUN_ERROR) {
     ctx.state.runFinishedEmitted = true
     ctx.state.stop = true
@@ -533,25 +514,18 @@ function* handleContentPartDone(
 
   // Skip emitting chunks for content parts that we've already streamed via deltas
   // The done event is just a completion marker, not new content
-  if (
-    contentPart.type === 'output_text' &&
-    ctx.state.hasStreamedContentDeltas
-  ) {
+  const alreadyStreamedOutputText =
+    contentPart.type === 'output_text' && ctx.state.hasStreamedContentDeltas
+  if (alreadyStreamedOutputText) {
     return
   }
-  if (
+  const alreadyStreamedReasoningText =
     contentPart.type === 'reasoning_text' &&
     ctx.state.hasStreamedReasoningDeltas
-  ) {
+  if (alreadyStreamedReasoningText) {
     return
   }
 
-  // Upstreams that emit `content_part.done` without any preceding
-  // deltas (or `content_part.added`) still need a START event before
-  // CONTENT — otherwise consumers tracking start/end pairs see content
-  // without a start and never see an end. Emit the lifecycle opener
-  // for whichever stream this content_part belongs to before yielding
-  // the CONTENT chunk; the post-loop block emits the matching END.
   if (contentPart.type === 'reasoning_text') {
     yield* emitReasoningDelta(ctx, contentPart.text || '')
     return
@@ -579,23 +553,21 @@ function* handleOutputItemAdded(
 ): Generator<AdapterYieldChunk> {
   if (chunk.type !== 'response.output_item.added') return
   const item = chunk.item
-  if (item.type !== 'function_call' || !item.id) return
-  // Track the item as soon as we see it so subsequent arg deltas
-  // aren't logged as orphans, but only emit TOOL_CALL_START when
-  // both id AND name are populated. Emitting START with an empty
-  // name would propagate into TOOL_CALL_END (which reads the same
-  // metadata) and route the tool call to whatever name happens to
-  // match `''` downstream — a silent misroute.
+  const itemId = item.id
+  const isNotFunctionCall = item.type !== 'function_call' || !itemId
+  if (isNotFunctionCall) return
   const metadata = upsertFunctionCallMetadata(ctx, item, chunk.output_index)
   if (!metadata) return
-  yield* emitToolCallStart(ctx, metadata, item.id, chunk.output_index)
+  yield* emitToolCallStart(ctx, metadata, itemId, chunk.output_index)
 }
 
 function* handleFunctionCallArgsDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  if (chunk.type !== 'response.function_call_arguments.delta' || !chunk.delta) {
+  const isNotFunctionCallArgsDelta =
+    chunk.type !== 'response.function_call_arguments.delta' || !chunk.delta
+  if (isNotFunctionCallArgsDelta) {
     return
   }
   const metadata = ctx.toolCallMetadata.get(chunk.item_id)
@@ -630,13 +602,6 @@ function* handleFunctionCallArgsDone(
 
   // Get the function name from metadata (captured in output_item.added)
   const metadata = ctx.toolCallMetadata.get(item_id)
-  // If the matching START was never emitted (the upstream sent an
-  // `output_item.added` without a name and no later event has filled
-  // it in yet), defer END until `output_item.done` or
-  // `response.completed` can backfill the name. We stash the raw
-  // arguments so the late emission has them. Emitting END without
-  // START would produce an unbalanced AG-UI lifecycle event
-  // downstream consumers can't pair.
   if (!metadata?.started) {
     if (metadata) {
       metadata.pendingArguments = chunk.arguments
@@ -652,9 +617,6 @@ function* handleFunctionCallArgsDone(
     )
     return
   }
-  // The output_item.done backstop may have already emitted END (when
-  // it arrived before args.done with a populated item.arguments).
-  // Skip so we never produce a duplicate close for the same id.
   if (metadata.ended) return
   const name = metadata.name || ''
   metadata.ended = true
@@ -686,15 +648,19 @@ function* handleOutputItemDone(
 ): Generator<AdapterYieldChunk> {
   if (chunk.type !== 'response.output_item.done') return
   const item = chunk.item
-  if (item.type !== 'function_call' || !item.id) return
+  const itemId = item.id
+  const isNotFunctionCall = item.type !== 'function_call' || !itemId
+  if (isNotFunctionCall) return
   const metadata = upsertFunctionCallMetadata(ctx, item, chunk.output_index)
   if (!metadata) return
-  // Emit gated START if we now have a name and never started.
-  yield* emitToolCallStart(ctx, metadata, item.id, metadata.index)
-  // Emit END if we have args (either from a previously-deferred
-  // args.done OR from item.arguments) and haven't already ended.
-  const rawArgs = functionCallRawArgs(item, metadata)
-  if (!metadata.started || metadata.ended || rawArgs === undefined) return
+  yield* emitToolCallStart(ctx, metadata, itemId, metadata.index)
+  const rawArgs = functionCallRawArgs(
+    item as ResponseFunctionToolCall,
+    metadata,
+  )
+  const cannotEndFunctionCall =
+    !metadata.started || metadata.ended || rawArgs === undefined
+  if (cannotEndFunctionCall) return
   const name = metadata.name || ''
   const parsedInput = parseAndNormalizeArgs(
     ctx,
@@ -702,7 +668,7 @@ function* handleOutputItemDone(
     name,
     metadata.callId,
     ' (output_item.done backfill)',
-    { itemId: item.id },
+    { itemId },
   )
   yield toolCallEndChunk(ctx, metadata, parsedInput)
   metadata.ended = true
@@ -719,7 +685,9 @@ function* recoverCompletedText(
     .map((part) => part.text)
     .join('')
 
-  if (ctx.state.accumulatedContent.length !== 0 || completedText.length === 0) {
+  const hasStreamedOrEmptyCompletedText =
+    ctx.state.accumulatedContent.length !== 0 || completedText.length === 0
+  if (hasStreamedOrEmptyCompletedText) {
     return
   }
   if (!ctx.state.hasEmittedTextMessageStart) {
@@ -746,7 +714,8 @@ function* backfillCompletedFunctionCall(
   const metadata = upsertFunctionCallMetadata(ctx, item, 0)
   if (!metadata) return
   yield* emitToolCallStart(ctx, metadata, item.id, metadata.index)
-  if (!metadata.started || metadata.ended) return
+  const alreadyEndedOrNotStarted = !metadata.started || metadata.ended
+  if (alreadyEndedOrNotStarted) return
   const name = metadata.name || ''
   const rawArgs = functionCallRawArgs(item, metadata)
   const parsedInput = parseAndNormalizeArgs(
@@ -837,12 +806,6 @@ function* handleErrorEvent(
       ...(code !== undefined && { code }),
     },
   }
-  // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
-  // block fire after a top-level stream error event, and stop
-  // processing further chunks so no in-flight lifecycle events
-  // (TEXT_MESSAGE_CONTENT, TOOL_CALL_*) leak past the terminal
-  // error. Mirrors the `response.failed` / `response.incomplete`
-  // branches above which return after their RUN_ERROR emission.
   ctx.state.runFinishedEmitted = true
   ctx.state.stop = true
 }
@@ -868,7 +831,9 @@ const STREAM_HANDLERS: Record<string, StreamHandler> = {
 function* emitSyntheticFinish(
   ctx: ResponsesStreamContext,
 ): Generator<AdapterYieldChunk> {
-  if (ctx.state.runFinishedEmitted || !ctx.aguiState.hasEmittedRunStarted) {
+  const shouldSkipSyntheticFinish =
+    ctx.state.runFinishedEmitted || !ctx.aguiState.hasEmittedRunStarted
+  if (shouldSkipSyntheticFinish) {
     return
   }
   yield* closeReasoning(ctx)
@@ -880,10 +845,6 @@ function* emitSyntheticFinish(
       timestamp: Date.now(),
     }
   }
-  // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
-  // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
-  // `RunFinishedEvent.usage` is optional without `| undefined` under
-  // `exactOptionalPropertyTypes`.
   yield {
     type: EventType.RUN_FINISHED,
     runId: ctx.aguiState.runId,

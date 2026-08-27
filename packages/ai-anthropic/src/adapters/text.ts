@@ -71,21 +71,10 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 
-/**
- * The block type carried by an Anthropic provider-executed (server) tool's
- * stored result. Mirrors the `*_tool_result` block emitted by the streaming
- * API so it can be replayed verbatim into a later turn.
- */
 type AnthropicServerToolResultBlockType =
   | 'web_search_tool_result'
   | 'web_fetch_tool_result'
 
-/**
- * Anthropic payload stashed on a provider-executed tool call's `metadata`
- * (under the `anthropic` key, alongside `providerExecuted: true`). Holds enough
- * to reconstruct the original `server_tool_use` + `*_tool_result` blocks so the
- * model still sees prior `web_search` / `web_fetch` evidence on the next turn.
- */
 interface AnthropicServerToolMetadata {
   serverToolType: ServerToolUseBlockParam['name']
   resultBlockType: AnthropicServerToolResultBlockType
@@ -93,28 +82,28 @@ interface AnthropicServerToolMetadata {
   result: unknown
 }
 
-/**
- * Narrow an opaque tool-call `metadata` to {@link AnthropicServerToolMetadata}
- * when it follows the provider-executed convention, else `null`.
- */
 function readAnthropicServerToolMetadata(
   metadata: unknown,
 ): AnthropicServerToolMetadata | null {
-  if (typeof metadata !== 'object' || metadata === null) return null
+  if (typeof metadata !== 'object') return null
+  if (metadata === null) return null
   const outer = metadata as { providerExecuted?: unknown; anthropic?: unknown }
   if (outer.providerExecuted !== true) return null
   const inner = outer.anthropic
-  if (typeof inner !== 'object' || inner === null) return null
+  if (typeof inner !== 'object') return null
+  if (inner === null) return null
   const { serverToolType, resultBlockType, result } = inner as {
     serverToolType?: unknown
     resultBlockType?: unknown
     result?: unknown
   }
-  if (
-    typeof serverToolType !== 'string' ||
-    (resultBlockType !== 'web_search_tool_result' &&
-      resultBlockType !== 'web_fetch_tool_result')
-  ) {
+  const isServerToolResult =
+    resultBlockType === 'web_search_tool_result' ||
+    resultBlockType === 'web_fetch_tool_result'
+  if (typeof serverToolType !== 'string') {
+    return null
+  }
+  if (!isServerToolResult) {
     return null
   }
   return {
@@ -125,11 +114,6 @@ function readAnthropicServerToolMetadata(
   }
 }
 
-/**
- * Reconstruct the `*_tool_result` block param from stored server-tool metadata.
- * The `result` content is opaque round-trip data, asserted to the SDK's param
- * content type at this single boundary.
- */
 function buildServerToolResultBlock(
   toolUseId: string,
   meta: AnthropicServerToolMetadata,
@@ -148,14 +132,6 @@ function buildServerToolResultBlock(
   }
 }
 
-/**
- * Computes the `betas` array for a Messages request. Unions:
- * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
- * - `code-execution-2025-08-25` when a `code_execution` tool is present,
- * - `skills-2025-10-02` when that tool carries skills,
- * - `context-management-2025-06-27` when `context_management` is set.
- * Returns `undefined` when none apply (so the call site omits `betas`).
- */
 export function computeAnthropicBetas(
   tools: Array<AnyTool> | undefined,
   modelOptions:
@@ -189,9 +165,6 @@ export function computeAnthropicBetas(
   )
   if (codeExecTool) {
     const cfgType = readCodeExecutionConfig(codeExecTool)?.type
-    // Each code_execution tool version pairs with a specific beta. Known
-    // legacy variant maps explicitly; current/future variants (e.g.
-    // `code_execution_20250825` and later) use the latest `-08-25` beta.
     betas.add(
       cfgType === 'code_execution_20250522'
         ? 'code-execution-2025-05-22'
@@ -199,9 +172,6 @@ export function computeAnthropicBetas(
     )
   }
 
-  // Skills beta: scan ALL code_execution tools so this AGREES with the
-  // container-lift, which lifts skills from any code_execution tool that
-  // carries them (not just the first).
   const hasSkills = tools?.some(
     (tool) =>
       getAnthropicProviderToolKind(tool) === 'code_execution' &&
@@ -235,11 +205,6 @@ function copyValidAnthropicModelOptions(
   const validProviderOptions: Partial<InternalTextProviderOptions> = {}
   if (!modelOptions) return validProviderOptions
 
-  // `max_tokens` is a legitimate public modelOptions field, but it is read
-  // via a dedicated path (defaultMaxTokens below) rather than copied into
-  // validProviderOptions. Exempt it from the dropped-key warning here so a
-  // correct `modelOptions: { max_tokens }` call doesn't log a spurious
-  // "dropped unknown key" error, while keeping it out of the copy loop.
   const droppedKeyExemptSet = new Set<string>([
     ...ANTHROPIC_MODEL_OPTION_KEYS,
     'max_tokens',
@@ -248,11 +213,6 @@ function copyValidAnthropicModelOptions(
     (key) => !droppedKeyExemptSet.has(key),
   )
   if (droppedKeys.length > 0) {
-    // Reachable when callers cast around the public type (e.g.
-    // `modelOptions: { system: ... } as any`). Without this warning the
-    // unknown keys are silently dropped — `system` in particular was a
-    // previously-tested path for attaching `cache_control` and we don't
-    // want that to fail in production with no signal.
     logger.errors(
       `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
       {
@@ -322,15 +282,6 @@ function resolveAnthropicMaxTokens(
   thinkingBudget: number | undefined,
   stream: boolean,
 ): number {
-  // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
-  // value. When the caller doesn't specify one, default to the resolved
-  // model's real output ceiling (from model-meta) rather than a low constant
-  // that silently truncates long responses with `stop_reason: "max_tokens"`
-  // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
-  // tokens actually generated, so a higher default costs nothing extra.
-  // For non-streaming requests (the `structuredOutput()` path) the default is
-  // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
-  // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
   const defaultMaxTokens =
     modelOptions?.max_tokens ?? getAnthropicDefaultMaxTokens(model, { stream })
   return thinkingBudget && thinkingBudget >= defaultMaxTokens
@@ -338,37 +289,19 @@ function resolveAnthropicMaxTokens(
     : defaultMaxTokens
 }
 
-/**
- * Configuration for Anthropic text adapter
- */
 export interface AnthropicTextConfig extends AnthropicClientConfig {}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
   | { client: AnthropicMessagesClient }
 
-/**
- * Anthropic-specific provider options for text/chat
- */
 export type AnthropicTextProviderOptions = ExternalTextProviderOptions
 
-// ===========================
-// Type Resolution Helpers
-// ===========================
-
-/**
- * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
- */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof AnthropicChatModelProviderOptionsByName
     ? AnthropicChatModelProviderOptionsByName[TModel]
     : AnthropicTextProviderOptions
 
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use default.
- */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof AnthropicModelInputModalitiesByName
     ? AnthropicModelInputModalitiesByName[TModel]
@@ -385,11 +318,6 @@ type SdkAnthropicMessagesClient = {
   }
 }
 
-/**
- * Restore the package SDK's precise overloads at the adapter boundary.
- * Alternative clients may use a separate Anthropic 0.x SDK whose declarations
- * drift while implementing the same Messages protocol at runtime.
- */
 function asSdkAnthropicMessagesClient(
   client: AnthropicMessagesClient,
 ): SdkAnthropicMessagesClient {
@@ -397,16 +325,6 @@ function asSdkAnthropicMessagesClient(
   return client as unknown as SdkAnthropicMessagesClient
 }
 
-// ===========================
-// Adapter Implementation
-// ===========================
-
-/**
- * Anthropic Text (Chat) Adapter
- *
- * Tree-shakeable adapter for Anthropic chat/text completion functionality.
- * Import only what you need for smaller bundle sizes.
- */
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -455,12 +373,6 @@ export class AnthropicTextAdapter<
       // because the beta set depends on both the tools and the modelOptions.
       const betas = computeAnthropicBetas(options.tools, options.modelOptions)
 
-      // `client.beta.messages` is Anthropic's permanent staging surface, not a
-      // sunset path: it's a superset of `client.messages` that additionally
-      // accepts the `betas: AnthropicBeta[]` header (e.g. interleaved
-      // thinking) plus richer `container` (skills) and `context_management`
-      // shapes that `InternalTextProviderOptions` carries. We route every
-      // Messages call through it so the request mapper stays single-shape.
       const stream = await this.client.beta.messages.create(
         {
           ...requestParams,
@@ -503,21 +415,12 @@ export class AnthropicTextAdapter<
     }
   }
 
-  /**
-   * Generate structured output using Anthropic's tool-based approach.
-   * Anthropic doesn't have native structured output, so we use a tool with the schema
-   * and force the model to call it.
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const { logger } = chatOptions
 
-    // `structuredOutput()` issues a non-streaming `messages.create({ stream:
-    // false })` below, so the defaulted `max_tokens` must stay under the SDK's
-    // non-streaming 10-minute guard (issue #849) — pass `stream: false`.
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions, {
       stream: false,
     })
@@ -564,7 +467,9 @@ export class AnthropicTextAdapter<
       let rawText = ''
 
       for (const block of response.content) {
-        if (block.type === 'tool_use' && block.name === 'structured_output') {
+        const isStructuredOutput =
+          block.type === 'tool_use' && block.name === 'structured_output'
+        if (isStructuredOutput) {
           parsed = block.input
           rawText = JSON.stringify(block.input)
           break
@@ -632,16 +537,7 @@ export class AnthropicTextAdapter<
       stream,
     )
 
-    // `InternalTextProviderOptions.system` is typed
-    // `string | Array<TextBlockParam>` (no `| undefined`), so build it
-    // outside the literal and spread it conditionally rather than
-    // assigning `undefined` under exactOptionalPropertyTypes.
     const systemBlocks = buildAnthropicSystemBlocks(options.systemPrompts)
-    // Wire engine-threaded outputSchema into Messages `output_config.format`
-    // alongside any `tools` so the model emits tool calls during the agent
-    // loop and a single schema-constrained JSON message on its final turn.
-    // Merge into any existing `output_config` so callers can keep tuning
-    // `output_config.effort` alongside the schema.
     const combinedSchema = options.outputSchema as
       | Record<string, unknown>
       | undefined
@@ -657,16 +553,8 @@ export class AnthropicTextAdapter<
         }
       : undefined
 
-    // Lift skills attached to a `code_execution` tool into the top-level
-    // `container.skills` request param (Anthropic's required shape). Preserve any
-    // `container.id` supplied via modelOptions for container reuse. This is the
-    // canonical path for skills; `modelOptions.container.skills` is deprecated.
     applyCodeExecutionSkills(options.tools, validProviderOptions)
 
-    // `temperature`/`top_p` arrive via `...validProviderOptions` (sourced from
-    // `modelOptions`). `InternalTextProviderOptions` declares `system` and
-    // `tools` as `T?: ...` (no `| undefined`), so spread them conditionally
-    // rather than passing explicit `undefined` under exactOptionalPropertyTypes.
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: maxTokens,
@@ -680,12 +568,6 @@ export class AnthropicTextAdapter<
     return requestParams
   }
 
-  /**
-   * Anthropic supports `output_config.format` + `tools` in a single streaming
-   * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
-   * earlier we keep the forced-tool-use workaround in
-   * {@link structuredOutput} via the engine's finalization path.
-   */
   supportsCombinedToolsAndSchema(): boolean {
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
@@ -827,10 +709,6 @@ export class AnthropicTextAdapter<
     for (const toolCall of toolCalls) {
       const parsedInput = this.parseToolCallInput(toolCall)
 
-      // Provider-executed server tools (e.g. web_search) replay as the
-      // original `server_tool_use` + result blocks so the model still sees
-      // the prior evidence. Their result was captured verbatim during
-      // streaming (see processAnthropicStream).
       const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
       if (serverMeta) {
         const serverToolUseBlock: ServerToolUseBlockParam = {
@@ -932,9 +810,6 @@ export class AnthropicTextAdapter<
       })
     }
 
-    // Post-process: Anthropic requires strictly alternating user/assistant roles.
-    // Tool results are sent as role:'user' messages, which can create consecutive
-    // user messages when followed by a new user message. Merge them.
     return this.mergeConsecutiveSameRoleMessages(formattedMessages)
   }
 
@@ -955,14 +830,6 @@ export class AnthropicTextAdapter<
     }
   }
 
-  /**
-   * Merge consecutive messages of the same role into a single message.
-   * Anthropic's API requires strictly alternating user/assistant roles.
-   * Tool results are wrapped as role:'user' messages, which can collide
-   * with actual user messages in multi-turn conversations.
-   *
-   * Also filters out empty assistant messages (e.g., from a previous failed request).
-   */
   private mergeConsecutiveSameRoleMessages(
     messages: InternalTextProviderOptions['messages'],
   ): InternalTextProviderOptions['messages'] {
@@ -998,9 +865,6 @@ export class AnthropicTextAdapter<
       }
     }
 
-    // De-duplicate tool_result blocks with the same tool_use_id.
-    // This can happen when the core layer generates tool results from both
-    // the tool-result part and the tool-call part's output field.
     for (const msg of merged) {
       if (Array.isArray(msg.content)) {
         const seenToolResultIds = new Set<string>()
@@ -1020,10 +884,6 @@ export class AnthropicTextAdapter<
   }
 }
 
-/**
- * Creates an Anthropic chat adapter with explicit API key.
- * Type resolution happens here at the call site.
- */
 export function createAnthropicChat<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
 >(
@@ -1038,10 +898,6 @@ export function createAnthropicChat<
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates an Anthropic chat adapter with an injected Messages client.
- * Type resolution happens here at the call site.
- */
 export function createAnthropicChatWithClient<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
 >(
@@ -1055,10 +911,6 @@ export function createAnthropicChatWithClient<
   return new AnthropicTextAdapter({ client }, model)
 }
 
-/**
- * Creates an Anthropic text adapter with automatic API key detection.
- * Type resolution happens here at the call site.
- */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,

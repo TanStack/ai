@@ -1,7 +1,3 @@
-// Dependency-free SHA-256 (FIPS 180-4). Sync and isomorphic (Node + browser)
-// so interrupt hashing needs no crypto library. Users can replace the whole
-// algorithm through the `interrupts.hash` option; this is only the default.
-// ponytail: bundled ~60-line hash, swap via interrupts.hash if you need more.
 const SHA256_K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
   0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -100,12 +96,6 @@ function sha256Hex(input: string): string {
   )
 }
 
-/**
- * A hash function for interrupt bindings and resolution fingerprints. Receives
- * canonical JSON text and returns an opaque string. Must be deterministic; the
- * server compares hashes it computed against the ones in a binding, so the same
- * function has to run wherever a given binding is produced and checked.
- */
 export type InterruptHash = (canonicalJson: string) => string
 
 /** The built-in default: SHA-256, prefixed so the algorithm is self-describing. */
@@ -115,10 +105,13 @@ export function defaultInterruptHash(canonicalJson: string): string {
 
 function canonical(value: unknown, active: WeakSet<object>): string {
   if (value === null) return 'null'
-  if (typeof value === 'string' || typeof value === 'boolean') {
+  const shouldSkipCanonical =
+    typeof value === 'string' || typeof value === 'boolean'
+  if (shouldSkipCanonical) {
     return JSON.stringify(value)
   }
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  const canonical2 = typeof value === 'number' && Number.isFinite(value)
+  if (canonical2) {
     return JSON.stringify(value)
   }
   if (typeof value !== 'object') {
@@ -127,11 +120,11 @@ function canonical(value: unknown, active: WeakSet<object>): string {
   if (active.has(value)) {
     throw new TypeError('Interrupt values must not cycle.')
   }
-  if (
+  const isInvalidGetPrototypeOf =
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) !== Object.prototype &&
     Object.getPrototypeOf(value) !== null
-  ) {
+  if (isInvalidGetPrototypeOf) {
     throw new TypeError('Interrupt values must use plain JSON objects.')
   }
 
@@ -169,7 +162,9 @@ export function digestInterruptJson(
 }
 
 function freezeTree(value: unknown): void {
-  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
+  const isInvalidIsFrozen =
+    value === null || typeof value !== 'object' || Object.isFrozen(value)
+  if (isInvalidIsFrozen) {
     return
   }
   Object.values(value).forEach(freezeTree)

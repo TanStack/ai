@@ -3,12 +3,6 @@ import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
 
 type OpenRouterResponsesModel = (typeof OPENROUTER_CHAT_MODELS)[number]
 
-// ---------------------------------------------------------------------------
-// Composite option types for the OpenRouter Responses adapter.
-// Derived from the SDK's `ResponsesRequest` so future SDK additions surface
-// here without manual fan-out (mirrors `text-provider-options.ts`).
-// ---------------------------------------------------------------------------
-
 export type OpenRouterResponsesCommonOptions = Pick<
   ResponsesRequest,
   | 'provider'
@@ -33,10 +27,6 @@ export type OpenRouterResponsesCommonOptions = Pick<
   variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
 }
 
-// `parallelToolCalls` lives in BaseOptions alongside `toolChoice` (the other
-// tool-related knob). Listing it in both picks would let an SDK rename of
-// either pick still type-check through the survivor, defeating the static
-// gate the picks exist for.
 export type OpenRouterResponsesBaseOptions = Pick<
   ResponsesRequest,
   | 'maxOutputTokens'

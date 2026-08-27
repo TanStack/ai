@@ -10,29 +10,13 @@ import { convertUrlContextToolToAdapterFormat } from './url-context-tool'
 import type { Tool } from '@tanstack/ai'
 import type { ToolUnion } from '@google/genai'
 
-/**
- * Converts standard Tool format to Gemini-specific tool format
- *
- * @param tools - Array of standard Tool objects
- * @returns Array of Gemini-specific tool definitions
- *
- * @example
- * ```typescript
- * const tools: Tool[] = [{
- *   name: "get_weather",
- *   description: "Get weather for a location",
- *   inputSchema: z.object({
- *     location: z.string()
- *   })
- * }];
- *
- * const geminiTools = convertToolsToProviderFormat(tools);
- * ```
- */
 export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<ToolUnion> {
-  if (!tools || tools.length === 0) {
+  if (!tools) {
+    return []
+  }
+  if (tools.length === 0) {
     return []
   }
   assertUniqueToolNames(tools)

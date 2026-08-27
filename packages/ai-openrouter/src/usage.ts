@@ -2,10 +2,6 @@ import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
 import type { ChatUsage } from '@openrouter/sdk/models'
 
-/**
- * OpenRouter-specific provider usage details.
- * These fields are unique to OpenRouter and placed in providerUsageDetails.
- */
 export type OpenRouterProviderUsageDetails = {
   /** Accepted prediction tokens (speculative decoding) */
   acceptedPredictionTokens?: number
@@ -13,11 +9,6 @@ export type OpenRouterProviderUsageDetails = {
   rejectedPredictionTokens?: number
 }
 
-/**
- * Build normalized TokenUsage from OpenRouter's ChatUsage object.
- * Returns `undefined` when the provider reported no usage object, so callers
- * omit the field rather than fabricating zeroed totals.
- */
 export function buildOpenRouterUsage(
   usage: ChatUsage | undefined | null,
 ): TokenUsage<OpenRouterProviderUsageDetails> | undefined {

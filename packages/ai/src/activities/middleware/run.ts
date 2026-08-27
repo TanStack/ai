@@ -8,12 +8,6 @@ import type {
   GenerationUsageInfo,
 } from './types'
 
-/**
- * Build the stable context for a single media-activity call.
- *
- * Media activities are always server-side and carry no user runtime context,
- * so `source` is fixed to `'server'` and `context` to `undefined`.
- */
 export function createGenerationContext(args: {
   requestId: string
   activity: GenerationMiddlewareContext['activity']
@@ -41,16 +35,12 @@ export function createGenerationContext(args: {
   }
 }
 
-/**
- * Run a single lifecycle hook across each middleware in registration order,
- * awaiting each. Exceptions PROPAGATE (matching `chat()` middleware) — a
- * broken middleware fails the activity rather than being silently swallowed.
- */
 async function run(
   middleware: ReadonlyArray<GenerationMiddleware> | undefined,
   invoke: (mw: GenerationMiddleware) => void | Promise<void>,
 ): Promise<void> {
-  if (!middleware || middleware.length === 0) return
+  const isEmptyMiddleware = !middleware || middleware.length === 0
+  if (isEmptyMiddleware) return
   for (const mw of middleware) {
     await invoke(mw)
   }
@@ -95,12 +85,6 @@ export function runGenerationError(
   return run(middleware, (mw) => mw.onError?.(ctx, info))
 }
 
-/**
- * Apply the result transforms middleware registered on the context, in order,
- * to the raw adapter result. Each transform may return a replacement result or
- * `undefined` to leave it unchanged. Runs after the adapter result exists and
- * before the final result is returned or streamed.
- */
 export async function applyGenerationResultTransforms<TResult>(
   ctx: GenerationMiddlewareContext,
   result: TResult,

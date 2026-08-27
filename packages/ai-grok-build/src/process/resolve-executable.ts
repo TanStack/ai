@@ -4,13 +4,6 @@ import type { SandboxHandle } from '@tanstack/ai-sandbox'
 const GROK_PROBE =
   'sh -lc \'if test -x "$HOME/.grok/bin/grok"; then printf "%s" "$HOME/.grok/bin/grok"; elif command -v grok >/dev/null 2>&1; then command -v grok; fi\''
 
-/**
- * Resolve the `grok` executable path inside a sandbox.
- *
- * Sandboxed providers often install the CLI under `$HOME/.grok/bin` without a
- * global PATH entry (non-root images cannot write `/usr/local/bin`). Probe the
- * sandbox before spawning the harness.
- */
 export async function resolveGrokExecutable(
   sandbox: SandboxHandle,
   preferred?: string,
@@ -20,6 +13,7 @@ export async function resolveGrokExecutable(
 
   const probe = await sandbox.process.exec(GROK_PROBE)
   const resolved = probe.stdout.trim()
-  if (probe.exitCode === 0 && resolved !== '') return resolved
+  const foundOnPath = probe.exitCode === 0 && resolved !== ''
+  if (foundOnPath) return resolved
   return preferred ?? 'grok'
 }

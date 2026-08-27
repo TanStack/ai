@@ -1,39 +1,3 @@
-/**
- * Grok Build workspace projector — mirrors the codex reference
- * (`packages/ai-codex/src/adapters/projection.ts`).
- *
- * `withSandbox` surfaces a portable `WorkspaceProjection` (skills, plugins, a
- * secret resolver, and a one-time marker path) via a capability. Each harness
- * adapter reads it in its `chatStream` setup and projects those inputs into the
- * CLI's native format. For Grok Build that means:
- *
- *   - MCP servers   → `[mcp_servers.<name>]` tables in `<root>/.grok/config.toml`
- *                     (TOML), matching the shape `projectGrokMcpBridge` uses for
- *                     the host tool-bridge. Workspace projection MERGES only its
- *                     own `mcp_servers` entries so an existing bridge table (or
- *                     other non-workspace servers) is preserved — unlike codex,
- *                     where the bridge is passed via CLI `--config` flags instead
- *                     of sharing the same file.
- *   - gitSkill repos → linked under `<root>/.grok/skills/<basename>` via symlink,
- *                      falling back to recursive copy.
- *   - agentSkill     → no grok primitive pulls a public skill by bare name, so
- *                      we warn-and-skip rather than invent one.
- *   - plugins        → Grok Build has no plugin concept, so we warn-and-skip.
- *
- * The secret-bearing MCP config is (re)written on EVERY call, re-resolving
- * secrets each time, so grok always reads current values and a snapshot can
- * never serve a stale or rotated secret. Only the safe, idempotent, non-secret
- * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
- * one-time marker file under the workspace.
- *
- * Grok specifics (verified against the grok config schema):
- *   - Grok reads `[mcp_servers.<name>]` from `<cwd>/.grok/config.toml`, with a
- *     streamable-HTTP server taking `url`, `enabled`, and optional nested
- *     `[mcp_servers.<name>.headers]` tables. We write resolved header values
- *     directly so a rotated secret re-applies on every projection.
- *   - AGENTS.md is written universally by bootstrap (grok reads it natively),
- *     so it is NOT rewritten here.
- */
 import {
   discoverSkillDirs,
   isSecretRef,
@@ -63,11 +27,6 @@ function isBearerMarker(value: unknown): value is BearerRef {
   )
 }
 
-/**
- * Resolve a single MCP header value: a `SecretRef` resolves to its plaintext, a
- * `bearer(ref)` marker resolves to `Bearer <plaintext>`, and a plain string is
- * passed through unchanged.
- */
 function resolveHeaderValue(
   value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
@@ -94,11 +53,6 @@ interface GrokMcpServer {
   headers: Record<string, string>
 }
 
-/**
- * Build grok's `mcp_servers` map from the `{ kind: 'mcp' }` skills, resolving
- * every header value (SecretRef / bearer / string). Returns `undefined` when
- * there are no MCP skills so the caller can skip the write.
- */
 function buildMcpServers(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
@@ -110,7 +64,8 @@ function buildMcpServers(
     count += 1
     const headers: Record<string, string> = {}
     const rawHeaders = skill.config.headers ?? {}
-    for (const [name, value] of Object.entries(rawHeaders)) {
+    const headerEntries = Object.entries(rawHeaders)
+    for (const [name, value] of headerEntries) {
       headers[name] = resolveHeaderValue(value, resolveSecret)
     }
     const rawUrl = skill.config['url']
@@ -128,10 +83,6 @@ function mcpServerNameFromHeader(line: string): string | undefined {
   return match?.[1]
 }
 
-/**
- * Remove `[mcp_servers.<name>]` and `[mcp_servers.<name>.headers]` blocks for the
- * given server names, preserving every other table and top-level key.
- */
 function stripMcpServerSections(toml: string, names: Set<string>): string {
   const lines = toml.split('\n')
   const out: Array<string> = []
@@ -139,11 +90,14 @@ function stripMcpServerSections(toml: string, names: Set<string>): string {
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    const isTableHeader = trimmed.startsWith('[') && trimmed.endsWith(']')
+    if (isTableHeader) {
       const serverName = mcpServerNameFromHeader(trimmed)
-      if (serverName !== undefined && names.has(serverName)) {
-        skipping = true
-        continue
+      if (serverName !== undefined) {
+        if (names.has(serverName)) {
+          skipping = true
+          continue
+        }
       }
       skipping = false
     }
@@ -173,11 +127,6 @@ function renderMcpServerBlock(name: string, server: GrokMcpServer): string {
   return lines.join('\n')
 }
 
-/**
- * Merge workspace MCP server entries into an existing `.grok/config.toml`,
- * replacing only the named `mcp_servers` tables and leaving bridge (and other)
- * servers intact.
- */
 function mergeWorkspaceMcpIntoToml(
   existing: string,
   servers: Record<string, GrokMcpServer>,
@@ -201,11 +150,6 @@ export function renderGrokMcpToml(bridge: HostToolBridge): string {
   })
 }
 
-/**
- * Write the host tool-bridge into `<cwd>/.grok/config.toml` for the next
- * headless `grok` invocation. Re-written every run so rotated bearer tokens
- * apply immediately.
- */
 export async function projectGrokMcpBridge(
   sandbox: SandboxHandle,
   cwd: string,
@@ -216,13 +160,6 @@ export async function projectGrokMcpBridge(
   await sandbox.fs.write(`${grokDir}/config.toml`, renderGrokMcpToml(bridge))
 }
 
-/**
- * Write grok's `<root>/.grok/config.toml`, re-resolving every secret. This runs
- * on EVERY projection call (never gated by the marker) so grok always reads the
- * current secret values and a snapshot can never serve a stale or rotated one.
- * Existing `mcp_servers` entries (e.g. the host tool-bridge) are preserved via
- * merge. When there are no MCP skills the write is skipped.
- */
 async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -244,11 +181,6 @@ async function projectMcpServers(
   await handle.fs.write(target, mergeWorkspaceMcpIntoToml(existing, servers))
 }
 
-/**
- * Ensure each cloned `gitSkill` repo is available under grok's project skills
- * dir (`<root>/.grok/skills/<basename>`) via a symlink, falling back to a
- * recursive copy on platforms without `ln -s`.
- */
 async function projectGitSkills(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -285,11 +217,6 @@ async function projectGitSkills(
   }
 }
 
-/**
- * `agentSkill` references a public skill by bare name. Grok Build has no
- * primitive to fetch a skill from a bare name, so we warn and skip rather than
- * fabricate a command.
- */
 function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
@@ -301,10 +228,6 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   }
 }
 
-/**
- * Grok Build has no plugin concept, so declared plugins cannot be projected. We
- * warn once per plugin and skip rather than throw.
- */
 function projectPlugins(projection: WorkspaceProjection): void {
   for (const name of projection.plugins) {
     console.warn(
@@ -315,17 +238,6 @@ function projectPlugins(projection: WorkspaceProjection): void {
   }
 }
 
-/**
- * Project a `WorkspaceProjection` into the Grok Build sandbox. Safe to call on
- * every `chatStream`. The secret-bearing MCP config is (re)written on every
- * call, re-resolving secrets, so grok always reads current values and a snapshot
- * can never serve a stale or rotated secret. The safe, idempotent, non-secret
- * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
- * one-time marker so they run only on the first call after create/restore.
- *
- * @param handle     - The sandbox handle (`fs` + `process`).
- * @param projection - The portable workspace inputs from `withSandbox`.
- */
 export async function projectGrokWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

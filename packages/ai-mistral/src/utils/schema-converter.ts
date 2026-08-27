@@ -6,16 +6,6 @@ interface MistralStructuredOutputCompatibility {
   strict: boolean
 }
 
-/**
- * Convert a schema for Mistral strict mode and record how to invert it.
- *
- * Outcomes:
- * - `strict: true` — rewritten schema (`required` closed, optionals null-widened).
- *   `nullWideningMap` marks synthesized optional nulls only; already-nullable
- *   fields and enum/const repairs on required nodes are unmarked.
- * - `strict: false` — original schema, no map. Used when `oneOf`/`allOf`/`not`/
- *   `$ref`/`$defs` appear, or an `anyOf` branch would need a branch-dependent map.
- */
 export function makeMistralStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
@@ -51,11 +41,6 @@ const UNSUPPORTED_STRICT_KEYWORDS: ReadonlyArray<string> = [
   'definitions',
 ]
 
-/**
- * Tree-wide key scan for `oneOf`/`allOf`/`not`/`$ref`/`$defs`/`definitions`.
- * Conservative: a property literally named e.g. `oneOf` also trips fallback.
- * `anyOf` is handled separately in the coerce walk.
- */
 function containsUnsupportedStrictKeyword(node: unknown): boolean {
   if (Array.isArray(node)) return node.some(containsUnsupportedStrictKeyword)
   if (!isSchemaObject(node)) return false
@@ -141,24 +126,27 @@ function admitNullInEnumOrConst(
   return prop
 }
 
-/**
- * True when `type`/`enum`/`const`/`anyOf` already admit null. `oneOf`/`allOf`/
- * `not` are not inspected — callers must reject those first.
- */
 function acceptsNull(schema: unknown): boolean {
   if (schema === true) return true
   if (!isSchemaObject(schema)) return false
 
-  if ('const' in schema && schema.const !== null) return false
-  if (Array.isArray(schema.enum) && !schema.enum.includes(null)) return false
+  const hasNonNullConst = 'const' in schema && schema.const !== null
+  if (hasNonNullConst) return false
+  const hasNonNullEnum =
+    Array.isArray(schema.enum) && !schema.enum.includes(null)
+  if (hasNonNullEnum) return false
 
-  if (typeof schema.type === 'string' && schema.type !== 'null') return false
-  if (Array.isArray(schema.type) && !schema.type.includes('null')) return false
+  const hasNonNullTypeString =
+    typeof schema.type === 'string' && schema.type !== 'null'
+  if (hasNonNullTypeString) return false
+  const hasNonNullTypeArray =
+    Array.isArray(schema.type) && !schema.type.includes('null')
+  if (hasNonNullTypeArray) return false
 
-  if (
+  const hasNoNullAnyOf =
     Array.isArray(schema.anyOf) &&
     !schema.anyOf.some((variant: unknown) => acceptsNull(variant))
-  ) {
+  if (hasNoNullAnyOf) {
     return false
   }
 
@@ -260,7 +248,8 @@ function coerceObjectProperties(
   const propertyMaps: Record<string, NullWideningMap> = {}
   let hasUntrackableAnyOfWidening = false
 
-  for (const propName of Object.keys(properties)) {
+  const propNames = Object.keys(properties)
+  for (const propName of propNames) {
     const nested = coerceNestedProperty(properties[propName])
     const widened = widenOptionalProperty(
       nested.prop,

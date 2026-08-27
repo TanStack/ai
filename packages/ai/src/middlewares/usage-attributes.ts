@@ -2,27 +2,6 @@ import { firstNumber } from '../utilities/numbers'
 import type { AttributeValue } from '@opentelemetry/api'
 import type { TokenUsage } from '../types'
 
-/**
- * Build the full set of `gen_ai.usage.*` span attributes from a `TokenUsage`.
- *
- * Beyond input/output tokens, this emits provider-reported cost, total tokens,
- * cache and reasoning breakdowns, duration-based billing, and media unit counts
- * — every field is guarded so spans stay clean when a provider doesn't report
- * it. Cache and reasoning use the official GenAI semconv names;
- * `gen_ai.usage.cost` and `gen_ai.usage.total_tokens` are de-facto extensions
- * consumed by backends like PostHog (which otherwise re-derive cost from their
- * own price tables, losing cache discounts and gateway markup). Fields with no
- * semconv or de-facto convention (`billed`, `costDetails`, and the deprecated
- * `durationSeconds`/`unitsBilled`) are TanStack-namespaced.
- *
- * Shared by `otelMiddleware` across every activity (chat and the media
- * activities) so usage lands identically whichever activity produced the span.
- *
- * Deliberately not emitted: `providerUsageDetails` (a provider-shaped bag,
- * unsafe to spread onto spans) and the per-modality token breakdowns
- * (`promptTokensDetails.audioTokens`, etc.) — those can balloon the attribute
- * set and have no agreed convention yet.
- */
 export function usageAttributes(
   usage: TokenUsage,
 ): Record<string, AttributeValue> {
@@ -30,9 +9,6 @@ export function usageAttributes(
     'gen_ai.usage.input_tokens': usage.promptTokens,
     'gen_ai.usage.output_tokens': usage.completionTokens,
   }
-  // The self-describing billed quantity: the unit rides along as a string
-  // attribute so backends can label/aggregate non-token usage without
-  // out-of-band knowledge of the provider.
   if (usage.billed !== undefined) {
     const quantity = firstNumber(usage.billed.quantity)
     if (quantity !== undefined) {

@@ -23,20 +23,6 @@ function ensureFileSupport(): void {
   }
 }
 
-/**
- * Convert a TanStack `ImagePart` into an OpenAI-compatible `File`.
- *
- * - `source.type === 'data'`: decode base64 → Buffer → File.
- * - `source.type === 'url'` with a `data:` URI: parse in-memory → File.
- * - `source.type === 'url'` with an HTTP(S) URL: fetch → File, but only when
- *   `allowUrlFetch` is set. OpenAI's `/images/edits` and Sora
- *   `input_reference` require real file bytes (no URL passthrough), so the
- *   image has to be downloaded and buffered in memory — which can OOM
- *   constrained runtimes. Off by default; the caller opts in.
- *
- * The mime type comes from the source when available, else inferred from the
- * URL extension, else `image/png`.
- */
 export async function imagePartToFile(
   part: ImagePart<MediaInputMetadata>,
   fallbackName: string,
@@ -52,9 +38,6 @@ export async function imagePartToFile(
     })
   }
 
-  // Remote HTTP(S) URLs must be downloaded and buffered before upload; gate
-  // that behind an explicit opt-in. `data:` URIs are already in memory, so
-  // they're handled uniformly via fetch() below without the flag.
   if (/^https?:\/\//i.test(part.source.value) && !allowUrlFetch) {
     throw new Error(
       `openai: HTTP(S) URL image inputs are not fetched by default because ` +
@@ -82,8 +65,11 @@ export async function imagePartToFile(
 
 function inferMimeFromUrl(url: string): string {
   const match = url.match(/\.(png|jpe?g|webp|gif)(?:\?|#|$)/i)
-  if (!match || !match[1]) return DEFAULT_MIME
-  const ext = match[1].toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
-  return `image/${ext}`
+  if (match && match[1]) {
+    const ext = match[1].toLowerCase()
+    const isJpeg = ext === 'jpg' || ext === 'jpeg'
+    if (isJpeg) return 'image/jpeg'
+    return `image/${ext}`
+  }
+  return DEFAULT_MIME
 }

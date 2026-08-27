@@ -13,11 +13,6 @@ import type {
 } from '@tanstack/ai-client'
 
 export type InjectAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
-  /**
-   * Optional transform applied to the recording when `stop()` resolves. Its
-   * (awaited) return value becomes `recording` and the resolved value of
-   * `stop()`. Return nothing to keep the raw `AudioRecording`.
-   */
   onComplete?: TOnComplete
 }
 
@@ -35,21 +30,6 @@ export interface InjectAudioRecorderResult<TOutput> {
   cancel: () => void
 }
 
-/**
- * Angular injectable for recording an audio message. The resolved recording
- * carries `.part` (for `injectChat`'s `sendMessage`) and `.base64` (for the
- * generation injectables). Must be called in an injection context.
- *
- * Errors are delivered via `onError`. `start()` and `stop()` also reject on
- * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
- * while a stop is in flight, e.g. on destroy) — handle one channel, not both.
- */
-// The transforming overload requires `onComplete`. Without that constraint an
-// options object carrying only unrelated keys (`injectAudioRecorder({ onError })`)
-// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
-// collapse to `unknown` — so passing any option would silently cost you the
-// `AudioRecording` type. Requiring it here sends those calls to the second
-// overload instead (issue #1001).
 export function injectAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(

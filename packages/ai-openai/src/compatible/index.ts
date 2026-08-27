@@ -27,20 +27,6 @@ export type {
 
 const DEFAULT_NAME = 'openai-compatible'
 
-/**
- * Configure an OpenAI-compatible provider once, then select a model per call.
- *
- * @example
- * ```ts
- * const deepseek = openaiCompatible({
- *   name: 'deepseek',
- *   baseURL: 'https://api.deepseek.com/v1',
- *   apiKey: process.env.DEEPSEEK_KEY!,
- *   models: ['deepseek-chat', 'deepseek-reasoner'],
- * })
- * chat({ adapter: deepseek('deepseek-chat'), messages })
- * ```
- */
 export function openaiCompatible<
   const TModels extends ReadonlyArray<CompatibleModelInput>,
 >(config: OpenAICompatibleConfig<TModels>) {
@@ -72,20 +58,6 @@ export function openaiCompatible<
   }
 }
 
-/**
- * One-shot helper: build a single-model OpenAI-compatible adapter inline.
- *
- * @example
- * ```ts
- * chat({
- *   adapter: openaiCompatibleText('deepseek-chat', {
- *     baseURL: 'https://api.deepseek.com/v1',
- *     apiKey: process.env.DEEPSEEK_KEY!,
- *   }),
- *   messages,
- * })
- * ```
- */
 export function openaiCompatibleText<const TModelName extends string>(
   model: TModelName,
   config: OpenAICompatibleTextConfig,

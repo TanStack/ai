@@ -1,21 +1,5 @@
 import type { LLMGatewayTextProviderOptions } from './text/text-provider-options'
 
-/**
- * Internal metadata structure describing an LLM Gateway model's capabilities
- * and pricing.
- *
- * LLM Gateway routes hundreds of models from many providers through one
- * OpenAI-compatible endpoint. This file curates a set of flagship models
- * with per-model metadata for type safety; any model listed on
- * https://llmgateway.io/models works at runtime — pass its id with a type
- * assertion, or prefer a curated model for full type support. Prices are
- * USD per million tokens and follow the gateway's provider-passthrough
- * pricing (they may drift; the models page is the source of truth).
- *
- * Model ids accept an optional `provider/` prefix (e.g. `openai/gpt-5.5`)
- * to pin routing to a specific provider — the unprefixed ids below let the
- * gateway pick the best available provider.
- */
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   context_window?: number
@@ -38,9 +22,6 @@ interface ModelMeta<TProviderOptions = unknown> {
     >
     tools?: ReadonlyArray<never>
   }
-  /**
-   * Type-level description of which provider options this model supports.
-   */
   providerOptions?: TProviderOptions
 }
 
@@ -406,13 +387,6 @@ const GROK_4_5 = {
   },
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
-/**
- * Curated LLM Gateway chat model identifiers.
- *
- * Any model on https://llmgateway.io/models works at runtime; these curated
- * entries carry per-model type metadata (input modalities, provider
- * options).
- */
 export const LLMGATEWAY_CHAT_MODELS = [
   GPT_5_6_TERRA.name,
   GPT_5_5.name,
@@ -430,24 +404,10 @@ export const LLMGATEWAY_CHAT_MODELS = [
   GROK_4_5.name,
 ] as const
 
-/**
- * Union type of all curated LLM Gateway chat model names.
- */
 export type LLMGatewayChatModels = (typeof LLMGATEWAY_CHAT_MODELS)[number]
 
-/**
- * Model id accepted by the LLM Gateway adapters: a curated model name (with
- * autocomplete and per-model type metadata) or any other model id from
- * https://llmgateway.io/models, optionally prefixed with `provider/` to pin
- * routing to a specific provider. Uncurated ids fall back to text-only
- * input and the generic provider options.
- */
 export type LLMGatewayModelId = LLMGatewayChatModels | (string & {})
 
-/**
- * Type-only map from LLM Gateway chat model name to its supported input
- * modalities.
- */
 export type LLMGatewayModelInputModalitiesByName = {
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.input
   [GPT_5_5.name]: typeof GPT_5_5.supports.input
@@ -465,20 +425,10 @@ export type LLMGatewayModelInputModalitiesByName = {
   [GROK_4_5.name]: typeof GROK_4_5.supports.input
 }
 
-/**
- * Type-only map from LLM Gateway chat model name to its provider options
- * type.
- */
 export type LLMGatewayChatModelProviderOptionsByName = {
   [K in (typeof LLMGATEWAY_CHAT_MODELS)[number]]: LLMGatewayTextProviderOptions
 }
 
-/**
- * Type-only map from LLM Gateway chat model name to its supported provider
- * tools. LLM Gateway exposes no provider-specific tool factories, so every
- * model gets an empty tuple. This ensures that passing an Anthropic/OpenAI
- * ProviderTool to an LLM Gateway adapter produces a compile-time type error.
- */
 export type LLMGatewayChatModelToolCapabilitiesByName = {
   [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.tools
   [GPT_5_5.name]: typeof GPT_5_5.supports.tools
@@ -496,20 +446,11 @@ export type LLMGatewayChatModelToolCapabilitiesByName = {
   [GROK_4_5.name]: typeof GROK_4_5.supports.tools
 }
 
-/**
- * Resolves the provider options type for a specific LLM Gateway model.
- * Falls back to the generic options for uncurated model ids.
- */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof LLMGatewayChatModelProviderOptionsByName
     ? LLMGatewayChatModelProviderOptionsByName[TModel]
     : LLMGatewayTextProviderOptions
 
-/**
- * Resolve input modalities for a specific model.
- * If the model has explicit modalities in the map, use those; otherwise use
- * text only.
- */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof LLMGatewayModelInputModalitiesByName
     ? LLMGatewayModelInputModalitiesByName[TModel]

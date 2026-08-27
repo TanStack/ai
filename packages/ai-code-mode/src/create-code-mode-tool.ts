@@ -14,9 +14,6 @@ import type {
   IsolateContext,
 } from './types'
 
-/**
- * Schema for the execute_typescript tool input
- */
 const executeTypescriptInputSchema = z.object({
   typescriptCode: z
     .string()
@@ -27,9 +24,6 @@ const executeTypescriptInputSchema = z.object({
     ),
 })
 
-/**
- * Schema for the execute_typescript tool output
- */
 const executeTypescriptOutputSchema = z.object({
   success: z.boolean().describe('Whether execution completed without errors'),
   result: z
@@ -58,30 +52,6 @@ export type ExecuteTypescriptOutput = z.infer<
   typeof executeTypescriptOutputSchema
 >
 
-/**
- * Create an execute_typescript tool that can be used alongside other agent tools.
- *
- * This tool allows an LLM to execute TypeScript code in a secure sandbox.
- * Tools passed in the config become `external_*` functions available inside the sandbox.
- *
- * @example
- * ```typescript
- * import { createCodeMode } from '@tanstack/ai-code-mode'
- * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
- *
- * const { tool, systemPrompt } = createCodeMode({
- *   driver: createNodeIsolateDriver(),
- *   tools: [weatherTool, dbTool],  // Become external_fetchWeather, external_dbQuery
- *   timeout: 30000,
- * })
- *
- * chat({
- *   systemPrompts: [myPrompt, systemPrompt],
- *   tools: [tool, searchTool, emailTool],
- *   messages,
- * })
- * ```
- */
 export function createCodeModeTool(
   config: CodeModeToolConfig,
 ): ServerTool<
@@ -163,20 +133,31 @@ export function createCodeModeTool(
         emitCustomEvent('code_mode:execution_finished', payload)
         if (!result.success) {
           console.error('[code-mode] execute_typescript failed', payload)
-        } else if (
-          typeof process !== 'undefined' &&
-          process.env?.CODE_MODE_DEBUG === '1'
-        ) {
-          console.info('[code-mode] execute_typescript ok', {
-            durationMs,
-            phase,
-            logCount: payload.logCount,
-          })
+        } else if (typeof process !== 'undefined') {
+          if (process.env?.CODE_MODE_DEBUG === '1') {
+            console.info('[code-mode] execute_typescript ok', {
+              durationMs,
+              phase,
+              logCount: payload.logCount,
+            })
+          }
         }
         return result
       }
 
-      if (!typescriptCode || typeof typescriptCode !== 'string') {
+      if (!typescriptCode) {
+        return finish(
+          {
+            success: false,
+            error: {
+              message: 'typescriptCode must be a non-empty string',
+              name: 'ValidationError',
+            },
+          },
+          'validate-input',
+        )
+      }
+      if (typeof typescriptCode !== 'string') {
         return finish(
           {
             success: false,
@@ -233,9 +214,6 @@ export function createCodeModeTool(
   )
 }
 
-/**
- * Build the tool description including available external functions
- */
 function codeModeCaughtError(
   error: unknown,
 ): NonNullable<CodeModeToolResult['error']> {
@@ -251,7 +229,8 @@ function emitCodeModeConsoleLogs(
   logs: Array<string> | undefined,
   emitCustomEvent: (name: string, payload: unknown) => void,
 ): void {
-  if (!logs || logs.length === 0) return
+  if (!logs) return
+  if (logs.length === 0) return
   for (const log of logs) {
     const parsed = parseCodeModeLog(log)
     emitCustomEvent('code_mode:console', {

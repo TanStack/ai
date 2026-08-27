@@ -1,13 +1,5 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
 
-/**
- * String `format` values accepted by OpenAI's strict Structured Outputs subset.
- * Any other format (e.g. "uri", "uri-reference", "regex") causes the API to
- * reject the whole request with `400 ... '<format>' is not a valid format`.
- * MCP servers and hand-written tools routinely declare such formats, so we strip
- * the unsupported ones before sending. See:
- * https://platform.openai.com/docs/guides/structured-outputs#supported-properties
- */
 const SUPPORTED_STRING_FORMATS = new Set([
   'date-time',
   'time',
@@ -20,26 +12,18 @@ const SUPPORTED_STRING_FORMATS = new Set([
   'uuid',
 ])
 
-/**
- * Recursively drop JSON-Schema `format` keywords whose value isn't in OpenAI's
- * strict-mode allowlist. Pure — returns a fresh tree and never mutates `node`,
- * so the caller's original tool definition is left intact.
- *
- * A property *named* `format` always has a schema (object/boolean) value, never
- * a bare string, so it is preserved and recursed into; only the `format`
- * *keyword* (whose value is a string) is subject to removal.
- */
 export function stripUnsupportedFormats(node: any): any {
   if (Array.isArray(node)) return node.map(stripUnsupportedFormats)
   if (node === null || typeof node !== 'object') return node
 
   const out: Record<string, any> = {}
-  for (const [key, value] of Object.entries(node)) {
-    if (
+  const nodeEntries = Object.entries(node)
+  for (const [key, value] of nodeEntries) {
+    const isUnsupportedStringFormat =
       key === 'format' &&
       typeof value === 'string' &&
       !SUPPORTED_STRING_FORMATS.has(value)
-    ) {
+    if (isUnsupportedStringFormat) {
       continue
     }
     out[key] = stripUnsupportedFormats(value)
@@ -47,18 +31,6 @@ export function stripUnsupportedFormats(node: any): any {
   return out
 }
 
-/**
- * Transform a JSON schema to be compatible with OpenAI's structured output requirements.
- * OpenAI requires:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for objects
- * - String `format` keywords must be from a fixed allowlist (others are stripped)
- *
- * @param schema - JSON schema to transform
- * @param originalRequired - Original required array (to know which fields were optional)
- * @returns Transformed schema compatible with OpenAI structured output
- */
 export function makeStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
@@ -75,11 +47,6 @@ interface CoercedStrictSchema extends StructuredOutputCompatibility {
   hasUntrackableAnyOfWidening: boolean
 }
 
-/**
- * Strict-schema conversion plus an exact map of the nullability introduced by
- * that conversion. Consumers can pass provider output through
- * `undoNullWidening` before validating it against the original schema.
- */
 export function makeStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
@@ -94,22 +61,6 @@ export function makeStructuredOutputCompatibleWithMap(
   }
 }
 
-/**
- * JSON-Schema keywords outside OpenAI's strict Structured Outputs subset. A
- * schema using any of these can't be coerced into a strict-valid shape, and
- * sending it with `strict: true` makes the API reject the ENTIRE request
- * (e.g. `400 Invalid schema ... 'additionalProperties' is required to be ...`).
- * Tools with such schemas are emitted with `strict: false` instead (see the
- * tool converters) so they remain callable. MCP servers (e.g. Notion) routinely
- * emit these.
- *
- * - `oneOf` / `allOf` / `not` — combinator keywords strict mode rejects
- * - `prefixItems` — 2020-12 tuple keyword. openai-node's strict transform
- *   rejects it, so we send those tools with `strict: false` instead
- * - `$ref` / `$defs` / `definitions` — references and definition pools whose
- *   object subschemas escape the `additionalProperties: false` normalization
- *   strict mode requires
- */
 const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
   'oneOf',
   'allOf',
@@ -120,15 +71,6 @@ const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
   'definitions',
 ]
 
-/**
- * Keys that give a schema node a resolvable type under OpenAI's strict subset.
- * A schema-position node carrying none of these is *typeless* (e.g. the empty
- * `{}` that `z.any()` / `z.unknown()` emit). Strict mode requires every schema
- * to declare a type, so a typeless node 400s the whole request — such tools
- * must be sent with `strict: false` instead. (`oneOf`/`allOf`/`$ref` count as
- * type indicators here even though they're independently strict-unsupported;
- * the keyword check below already rejects them.)
- */
 const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
   'type',
   'enum',
@@ -139,27 +81,6 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
   '$ref',
 ]
 
-/**
- * Returns `false` when `schema` cannot be made strict-compatible and must be
- * sent with `strict: false`. Two ways that happens:
- *
- * 1. It uses a JSON-Schema keyword outside OpenAI's strict subset anywhere in
- *    the tree (`oneOf`/`allOf`/`not`/`prefixItems`/`$ref`/`$defs`).
- * 2. It contains a *typeless* schema node — a property/items/anyOf entry with
- *    no `type` (nor `enum`/`const`/combinator), e.g. the `{}` that `z.any()`
- *    produces. Strict mode rejects typeless schemas.
- * 3. It contains an open object schema. OpenAI strict mode requires objects to
- *    set `additionalProperties: false`, which would change the semantics of a
- *    free-form map rather than merely normalizing it.
- * 4. An `anyOf` variant itself needs null widening. The inverse map is
- *    intentionally schema-blind, so it cannot select a variant without risking
- *    removal of a genuine nullable value accepted by another variant.
- *
- * Conservative by design: for (1) keywords are matched as object keys, so a
- * property literally named e.g. `oneOf` also trips it. That only costs that one
- * tool its strict mode, which is strictly safer than a false "compatible"
- * verdict that 400s the whole request.
- */
 export function isStrictModeCompatible(schema: unknown): boolean {
   return (
     !containsStrictUnsupportedKeyword(schema) &&
@@ -169,29 +90,18 @@ export function isStrictModeCompatible(schema: unknown): boolean {
   )
 }
 
-/**
- * Reports strict conversions whose synthesized nulls cannot be represented by
- * the schema-blind inverse map. Optional `anyOf` wrappers remain supported:
- * only widening introduced inside one of their variants triggers fallback.
- */
 function containsUntrackableAnyOfWidening(schema: unknown): boolean {
-  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+  if (!isSchemaObject(schema)) {
     return false
   }
-  return coerceStrictSchema(schema as Record<string, any>)
-    .hasUntrackableAnyOfWidening
+  return coerceStrictSchema(schema).hasUntrackableAnyOfWidening
 }
 
-/**
- * Reports object schemas that cannot be closed without changing their input
- * semantics. Objects with `properties` and no explicit
- * `additionalProperties` are safe because `coerceStrictSchema` closes them.
- */
 function containsOpenObject(node: unknown): boolean {
   if (Array.isArray(node)) {
     return node.some(containsOpenObject)
   }
-  if (node === null || typeof node !== 'object') return false
+  if (!isSchemaObject(node)) return false
 
   const schema = node as Record<string, unknown>
   const type = schema['type']
@@ -199,10 +109,10 @@ function containsOpenObject(node: unknown): boolean {
     type === 'object' || (Array.isArray(type) && type.includes('object'))
 
   if (isObjectSchema) {
-    if (
+    const allowsAdditionalProperties =
       'additionalProperties' in schema &&
       schema['additionalProperties'] !== false
-    ) {
+    if (allowsAdditionalProperties) {
       return true
     }
 
@@ -211,7 +121,9 @@ function containsOpenObject(node: unknown): boolean {
       properties !== null &&
       typeof properties === 'object' &&
       !Array.isArray(properties)
-    if (!hasProperties && schema['additionalProperties'] !== false) {
+    const isOpenObjectWithoutProperties =
+      !hasProperties && schema['additionalProperties'] !== false
+    if (isOpenObjectWithoutProperties) {
       return true
     }
   }
@@ -223,8 +135,9 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
   if (Array.isArray(node)) {
     return node.some(containsStrictUnsupportedKeyword)
   }
-  if (node === null || typeof node !== 'object') return false
-  for (const [key, value] of Object.entries(node)) {
+  if (!isSchemaObject(node)) return false
+  const nodeEntries = Object.entries(node)
+  for (const [key, value] of nodeEntries) {
     if (STRICT_UNSUPPORTED_KEYWORDS.includes(key)) return true
     if (containsStrictUnsupportedKeyword(value)) return true
   }
@@ -233,23 +146,14 @@ function containsStrictUnsupportedKeyword(node: unknown): boolean {
 
 /** A schema-position node that declares no type and so 400s strict mode. */
 function isTypelessSchema(node: unknown): boolean {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
-    // JSON Schema permits bare boolean nodes; malformed inputs may contain
-    // other primitives. OpenAI's strict subset requires a declared type, so
-    // preserve the containing tool by sending it in non-strict mode.
+  if (!isSchemaObject(node)) {
     return true
   }
   return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
 }
 
-/**
- * Walks the genuine schema positions (property values, `items`, `anyOf`
- * variants) and reports whether any is typeless. Unlike the keyword walk this
- * must respect structure: an empty `{}` is only a problem at a schema position,
- * not e.g. an empty `properties` map.
- */
 function containsTypelessSchema(node: unknown): boolean {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+  if (!isSchemaObject(node)) {
     return false
   }
   const schema = node as Record<string, any>
@@ -272,11 +176,6 @@ function containsTypelessSchema(node: unknown): boolean {
   )
 }
 
-/**
- * Strict-mode structural rewrite (required widening, nullability,
- * additionalProperties). Kept private so the public entry point can apply the
- * format-stripping pass exactly once over the fully-rewritten tree.
- */
 function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
   return Object.keys(map).length > 0 ? map : undefined
 }
@@ -290,16 +189,23 @@ function acceptsNull(schema: unknown): boolean {
   if (schema === true) return true
   if (!isSchemaObject(schema)) return false
 
-  if ('const' in schema && schema.const !== null) return false
-  if (Array.isArray(schema.enum) && !schema.enum.includes(null)) return false
+  const hasNonNullConst = 'const' in schema && schema.const !== null
+  if (hasNonNullConst) return false
+  const enumRejectsNull =
+    Array.isArray(schema.enum) && !schema.enum.includes(null)
+  if (enumRejectsNull) return false
 
-  if (typeof schema.type === 'string' && schema.type !== 'null') return false
-  if (Array.isArray(schema.type) && !schema.type.includes('null')) return false
+  const hasNonNullStringType =
+    typeof schema.type === 'string' && schema.type !== 'null'
+  if (hasNonNullStringType) return false
+  const typeListRejectsNull =
+    Array.isArray(schema.type) && !schema.type.includes('null')
+  if (typeListRejectsNull) return false
 
-  if (
+  const anyOfRejectsNull =
     Array.isArray(schema.anyOf) &&
     !schema.anyOf.some((variant: unknown) => acceptsNull(variant))
-  ) {
+  if (anyOfRejectsNull) {
     return false
   }
 
@@ -362,9 +268,6 @@ function widenOptionalProperty(prop: unknown): {
   const originallyAcceptedNull = acceptsNull(prop)
   let next = prop
 
-  // `type: [..., 'null']` alone does not make null valid when an enum or
-  // const still excludes it; strict decoding would be forced to emit the
-  // original literal instead of the synthetic omission marker.
   if (isSchemaObject(next) && 'const' in next && next.const !== null) {
     const { const: constValue, ...withoutConst } = next
     next = { ...withoutConst, enum: [constValue, null] }
@@ -437,7 +340,8 @@ function coerceObjectProperties(
   const propertyMaps: Record<string, NullWideningMap> = {}
   let hasUntrackableAnyOfWidening = false
 
-  for (const propName of Object.keys(next)) {
+  const propertyNames = Object.keys(next)
+  for (const propName of propertyNames) {
     const coerced = coerceObjectProperty(
       next[propName],
       !required.includes(propName),

@@ -13,35 +13,14 @@ import type {
 import type { OllamaEmbeddingModel } from '../model-meta'
 import type { OllamaEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 
-/**
- * Configuration for the Ollama Embedding adapter.
- * Ollama has no API key — only an optional host (and headers).
- */
 export interface OllamaEmbeddingConfig extends OllamaClientConfig {}
 
-/**
- * Extract `prompt_eval_count` through an optional-field view of the response.
- * The Ollama SDK types it as required, but servers can omit it at runtime;
- * widening here keeps the presence check honest without any casts.
- */
 function extractPromptEvalCount(response: {
   prompt_eval_count?: number
 }): number | undefined {
   return response.prompt_eval_count
 }
 
-/**
- * Ollama Embedding Adapter
- *
- * Tree-shakeable adapter for Ollama text embeddings (`/api/embed`).
- *
- * Notes:
- * - Batch embedding: one request for the whole input array.
- * - Ollama models are loaded dynamically, so any model name string is
- *   accepted; `OLLAMA_EMBEDDING_MODELS` lists common embedding models.
- * - Ollama does not support requesting embedding dimensions, so the
- *   top-level `dimensions` option is rejected.
- */
 export class OllamaEmbeddingAdapter<
   TModel extends OllamaEmbeddingModel,
 > extends BaseEmbeddingAdapter<TModel, OllamaEmbeddingProviderOptions> {
@@ -79,9 +58,6 @@ export class OllamaEmbeddingAdapter<
     }
 
     try {
-      // Built incrementally so optional keys are omitted entirely when unset
-      // (exactOptionalPropertyTypes). Provider options use camelCase
-      // (`keepAlive`) and are mapped to the SDK's snake_case wire fields.
       const request: EmbedRequest = {
         model,
         input: texts,
@@ -134,24 +110,6 @@ export class OllamaEmbeddingAdapter<
   }
 }
 
-/**
- * Creates an Ollama embedding adapter with explicit host (or client config).
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'nomic-embed-text')
- * @param hostOrConfig - Ollama host URL or client config (defaults to http://localhost:11434)
- * @returns Configured Ollama embedding adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createOllamaEmbedding('nomic-embed-text', 'http://localhost:11434');
- *
- * const result = await embed({
- *   adapter,
- *   input: 'a red guitar'
- * });
- * ```
- */
 export function createOllamaEmbedding<TModel extends OllamaEmbeddingModel>(
   model: TModel,
   hostOrConfig?: string | OllamaEmbeddingConfig,
@@ -159,26 +117,6 @@ export function createOllamaEmbedding<TModel extends OllamaEmbeddingModel>(
   return new OllamaEmbeddingAdapter(hostOrConfig, model)
 }
 
-/**
- * Creates an Ollama embedding adapter with host from the `OLLAMA_HOST`
- * environment variable (falling back to the Ollama default).
- * Type resolution happens here at the call site.
- *
- * @param model - The model name (e.g., 'nomic-embed-text')
- * @returns Configured Ollama embedding adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = ollamaEmbedding('mxbai-embed-large');
- *
- * const result = await embed({
- *   adapter,
- *   input: ['a red guitar', 'a blue drum kit']
- * });
- *
- * console.log(result.embeddings[0].vector)
- * ```
- */
 export function ollamaEmbedding<TModel extends OllamaEmbeddingModel>(
   model: TModel,
 ): OllamaEmbeddingAdapter<TModel> {

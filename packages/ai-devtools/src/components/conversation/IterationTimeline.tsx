@@ -29,10 +29,6 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
 
-  /**
-   * Group iterations by user messages.
-   * Memoized to avoid recomputing on unrelated store changes.
-   */
   const groups = createMemo((): Array<UserMessageGroup> => {
     const userMessages = props.messages.filter((m) => m.role === 'user')
     const iters = props.iterations
@@ -47,12 +43,16 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
       (a, b) => a.timestamp - b.timestamp,
     )
 
-    for (const [u, currentUser] of sortedUsers.entries()) {
+    const userEntries = sortedUsers.entries()
+    for (const [u, currentUser] of userEntries) {
       const nextUser = sortedUsers[u + 1]
 
       const groupIters = iters.filter((it) => {
         if (it.startedAt < currentUser.timestamp) return false
-        if (nextUser && it.startedAt >= nextUser.timestamp) return false
+        if (nextUser) {
+          const isAfterNextUser = it.startedAt >= nextUser.timestamp
+          if (isAfterNextUser) return false
+        }
         return true
       })
 
@@ -152,7 +152,8 @@ const UserMessageGroupCard: Component<{
 
   const totalDuration = createMemo(() => {
     let sum = 0
-    for (const it of iters()) {
+    const iterations = iters()
+    for (const it of iterations) {
       if (it.completedAt) {
         sum += it.completedAt - it.startedAt
       }
@@ -164,13 +165,17 @@ const UserMessageGroupCard: Component<{
   const toolInvocationCounts = createMemo(() => {
     const counts = new Map<string, number>()
     const allMsgIds = new Set<string>()
-    for (const it of iters()) {
+    const iterations = iters()
+    for (const it of iterations) {
       for (const id of it.messageIds) allMsgIds.add(id)
     }
     for (const msg of props.allMessages) {
-      if (allMsgIds.has(msg.id) && msg.toolCalls) {
-        for (const tc of msg.toolCalls) {
-          counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+      if (allMsgIds.has(msg.id)) {
+        const toolCalls = msg.toolCalls
+        if (toolCalls) {
+          for (const tc of toolCalls) {
+            counts.set(tc.name, (counts.get(tc.name) || 0) + 1)
+          }
         }
       }
     }
@@ -179,26 +184,24 @@ const UserMessageGroupCard: Component<{
 
   const totalToolCalls = createMemo(() => {
     let count = 0
-    for (const v of toolInvocationCounts().values()) count += v
+    const invocationCounts = toolInvocationCounts().values()
+    for (const v of invocationCounts) count += v
     return count
   })
 
-  // Iterations store CUMULATIVE usage per request, so keep the MAX totalTokens
-  // reading per requestId. Comparing on totalTokens directly (not prompt +
-  // completion) is necessary because some providers — Anthropic, OpenAI o-series
-  // — bundle reasoning tokens into totalTokens that are not summed into
-  // prompt + completion, and a later reading with fewer reasoning tokens would
-  // otherwise overwrite a larger earlier one.
   const totalUsage = createMemo(() => {
     const maxByRequest = new Map<
       string,
       { prompt: number; completion: number; total: number }
     >()
-    for (const it of iters()) {
+    const iterations = iters()
+    for (const it of iterations) {
       if (!it.usage) continue
       const key = it.requestId || '__default__'
       const existing = maxByRequest.get(key)
-      if (!existing || it.usage.totalTokens > existing.total) {
+      const shouldReplaceUsage =
+        !existing || it.usage.totalTokens > existing.total
+      if (shouldReplaceUsage) {
         maxByRequest.set(key, {
           prompt: it.usage.promptTokens,
           completion: it.usage.completionTokens,
@@ -209,7 +212,8 @@ const UserMessageGroupCard: Component<{
     let prompt = 0
     let completion = 0
     let total = 0
-    for (const v of maxByRequest.values()) {
+    const requestUsages = maxByRequest.values()
+    for (const v of requestUsages) {
       prompt += v.prompt
       completion += v.completion
       total += v.total
@@ -286,7 +290,8 @@ const UserMessageGroupCard: Component<{
 
   const middlewareTransformCount = createMemo(() => {
     let count = 0
-    for (const it of iters()) {
+    const iterations = iters()
+    for (const it of iterations) {
       for (const ev of it.middlewareEvents) {
         if (ev.hasTransform) count++
       }

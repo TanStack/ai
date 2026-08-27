@@ -15,10 +15,6 @@ import type {
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
-/**
- * Configuration for a single speaker in a multi-speaker dialogue.
- * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
- */
 export interface GeminiSpeakerVoiceConfig {
   /** A name used in the prompt to refer to this speaker */
   speaker: string
@@ -30,97 +26,27 @@ export interface GeminiSpeakerVoiceConfig {
   }
 }
 
-/**
- * Provider-specific options for Gemini TTS
- *
- * @experimental Gemini TTS is an experimental feature.
- * @see https://ai.google.dev/gemini-api/docs/speech-generation
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
- */
 export interface GeminiTTSProviderOptions {
-  /**
-   * Voice configuration for single-speaker TTS.
-   * Choose from 30 available voices with different characteristics.
-   *
-   * Use `multiSpeakerVoiceConfig` instead for dialogues.
-   */
   voiceConfig?: {
     prebuiltVoiceConfig?: {
-      /**
-       * The voice name to use for speech synthesis.
-       * @see https://ai.google.dev/gemini-api/docs/speech-generation#voices
-       */
       voiceName?: GeminiTTSVoice
     }
   }
 
-  /**
-   * Multi-speaker voice configuration (up to 2 speakers).
-   * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
-   *
-   * Each speaker's lines in the prompt are prefixed with the name defined
-   * here, e.g.:
-   *
-   * ```text
-   * Joe: Hey, how's it going?
-   * Jane: Not bad, you?
-   * ```
-   */
   multiSpeakerVoiceConfig?: {
     speakerVoiceConfigs: Array<GeminiSpeakerVoiceConfig>
   }
 
-  /**
-   * System instruction for controlling speech style.
-   * Use natural language to describe the desired speaking style,
-   * pace, tone, accent, or other characteristics.
-   *
-   * With Gemini 3.1 Flash TTS, you can also use inline audio tags like
-   * `[whispering]`, `[laughs]`, `[excited]` directly in the input text
-   * to control delivery.
-   *
-   * @example "Speak slowly and calmly, as if telling a bedtime story"
-   * @example "Use an upbeat, enthusiastic tone with moderate pace"
-   * @example "Speak with a British accent"
-   */
   systemInstruction?: string
 
-  /**
-   * Language code hint for the speech synthesis.
-   * Gemini 3.1 Flash TTS supports 70+ languages with auto-detection;
-   * the 2.5 TTS models support 24 languages.
-   *
-   * @example "en-US" for American English
-   * @example "es-ES" for Spanish (Spain)
-   * @example "ja-JP" for Japanese
-   */
   languageCode?: string
 }
 
-/**
- * Configuration for Gemini TTS adapter
- *
- * @experimental Gemini TTS is an experimental feature.
- */
 export interface GeminiTTSConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini TTS */
 export type GeminiTTSModel = (typeof GEMINI_TTS_MODELS)[number]
 
-/**
- * Gemini Text-to-Speech Adapter
- *
- * Tree-shakeable adapter for Gemini TTS functionality.
- *
- * **IMPORTANT**: Gemini TTS uses the Live API (WebSocket-based) which requires
- * different handling than traditional REST APIs. This adapter provides a
- * simplified interface but may have limitations.
- *
- * @experimental Gemini TTS is an experimental feature and may change.
- *
- * Models:
- * - gemini-2.5-flash-preview-tts
- */
 export class GeminiTTSAdapter<
   TModel extends GeminiTTSModel,
 > extends BaseTTSAdapter<TModel, GeminiTTSProviderOptions> {
@@ -133,12 +59,6 @@ export class GeminiTTSAdapter<
     this.client = createGeminiClient(config)
   }
 
-  /**
-   * Generate speech from text using Gemini's TTS model.
-   *
-   * @experimental This implementation is experimental and may change.
-   * @see https://ai.google.dev/gemini-api/docs/speech-generation
-   */
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {
@@ -231,7 +151,10 @@ function speechResultFromResponse(
 ): TTSResult {
   const parts = response.candidates?.[0]?.content?.parts
 
-  if (!parts || parts.length === 0) {
+  if (!parts) {
+    throw new Error('No audio output received from Gemini TTS')
+  }
+  if (parts.length === 0) {
     throw new Error('No audio output received from Gemini TTS')
   }
 
@@ -239,7 +162,13 @@ function speechResultFromResponse(
     part.inlineData?.mimeType?.startsWith('audio/'),
   )
 
-  if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+  if (!audioPart) {
+    throw new Error('No audio data in Gemini TTS response')
+  }
+  if (!audioPart.inlineData) {
+    throw new Error('No audio data in Gemini TTS response')
+  }
+  if (!audioPart.inlineData.data) {
     throw new Error('No audio data in Gemini TTS response')
   }
 
@@ -288,11 +217,6 @@ function parsePcmMimeType(
   // carry a RIFF header and must not be re-wrapped.
   if (subtype.includes('wav')) return undefined
 
-  // Accept the variants Gemini and other providers actually emit:
-  //   - audio/L16;codec=pcm;rate=24000 (IANA PCM with bit depth in the type)
-  //   - audio/L24 and friends
-  //   - audio/pcm and audio/x-pcm
-  //   - anything else that explicitly tags codec=pcm and isn't wav-containered
   const bitDepthMatch = /^audio\/l(\d+)/.exec(normalized)
   const isPcm =
     bitDepthMatch !== null ||
@@ -319,9 +243,6 @@ function wrapPcmBase64AsWav(
   channels = 1,
   bitsPerSample = 16,
 ): string {
-  // The WAV writer below emits a 16-bit PCM fmt chunk. If the source claims a
-  // different bit depth we'd be lying about the payload, so bail out loudly
-  // rather than producing a corrupt file.
   if (bitsPerSample !== 16) {
     throw new Error(
       `Unsupported PCM bit depth ${bitsPerSample}: only 16-bit PCM can be wrapped as WAV.`,
@@ -378,27 +299,6 @@ function writeAscii(view: DataView, offset: number, text: string): void {
   }
 }
 
-/**
- * Creates a Gemini TTS adapter with explicit API key.
- * Type resolution happens here at the call site.
- *
- * @experimental Gemini TTS is an experimental feature and may change.
- *
- * @param model - The model name (e.g., 'gemini-2.5-flash-preview-tts')
- * @param apiKey - Your Google API key
- * @param config - Optional additional configuration
- * @returns Configured Gemini TTS adapter instance with resolved types
- *
- * @example
- * ```typescript
- * const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', "your-api-key");
- *
- * const result = await generateSpeech({
- *   adapter,
- *   text: 'Hello, world!'
- * });
- * ```
- */
 export function createGeminiSpeech<TModel extends GeminiTTSModel>(
   model: TModel,
   apiKey: string,
@@ -409,32 +309,6 @@ export function createGeminiSpeech<TModel extends GeminiTTSModel>(
   return new GeminiTTSAdapter({ ...config, apiKey }, model)
 }
 
-/**
- * Creates a Gemini speech adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
- *
- * @experimental Gemini TTS is an experimental feature and may change.
- *
- * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'gemini-2.5-flash-preview-tts')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Gemini speech adapter instance with resolved types
- * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found in environment
- *
- * @example
- * ```typescript
- * // Automatically uses GOOGLE_API_KEY from environment
- * const adapter = geminiSpeech('gemini-2.5-flash-preview-tts');
- *
- * const result = await generateSpeech({
- *   adapter,
- *   text: 'Welcome to TanStack AI!'
- * });
- * ```
- */
 export function geminiSpeech<TModel extends GeminiTTSModel>(
   model: TModel,
   config?: Omit<GeminiTTSConfig, 'apiKey'>,

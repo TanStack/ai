@@ -1,20 +1,3 @@
-/**
- * Shared interactive-approval logic for harness adapters.
- *
- * Flow (rides chat()'s existing resume-based approval mechanism):
- *  1. The agent (inside the sandbox) asks to run a risky action; the harness's
- *     host-side permission callback fires.
- *  2. `resolveApproval` evaluates the sandbox policy: `allow`/`deny` are final;
- *     `ask` consults the client's approval decisions (threaded via
- *     `TextOptions.approvals`, keyed by a stable `approvalId`).
- *  3. On `ask` with no decision yet, the adapter emits an `approval-requested`
- *     CUSTOM event (carrying the `approvalId`) and denies the action this turn.
- *     The client shows UI, then re-runs chat() with the decision in the message;
- *     the engine surfaces it as `approvals`, and the next run allows it.
- *
- * `approvalId` is stable for a given (provider, kind, target) so a client grant
- * matches the same action on the resumed run.
- */
 import { EventType, withTanstackMetadata } from '@tanstack/ai'
 import { evaluateCommand } from './policy'
 import type { SandboxPolicy } from './policy'

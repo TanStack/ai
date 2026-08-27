@@ -1,9 +1,3 @@
-/**
- * Stream Processing Module
- *
- * Unified stream processing for both server and client.
- */
-
 // Core processor
 export { StreamProcessor, createReplayStream } from './processor'
 export type { StreamProcessorEvents, StreamProcessorOptions } from './processor'

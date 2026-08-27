@@ -4,29 +4,21 @@ const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'
 export const TIMEOUT_ERROR = 'TimeoutError'
 
-/**
- * Whether this normalized error indicates the QuickJS VM should not be reused
- * (memory or stack limit exceeded). Timeouts are also terminal but take a
- * separate release path (see `releaseAfterTimeout` in isolate-context).
- */
 export function isFatalQuickJSLimitError(error: NormalizedError): boolean {
   return (
     error.name === MEMORY_LIMIT_ERROR || error.name === STACK_OVERFLOW_ERROR
   )
 }
 
-/**
- * Normalize various error types into a consistent format
- */
 function normalizeErrorInstance(error: Error): NormalizedError {
   const msg = error.message
   const lower = msg.toLowerCase()
 
-  if (
+  const isMemoryLimit =
     lower.includes('out of memory') ||
     lower.includes('memory alloc') ||
     (error.name === 'InternalError' && lower.includes('memory'))
-  ) {
+  if (isMemoryLimit) {
     return {
       name: MEMORY_LIMIT_ERROR,
       message: 'Code execution exceeded memory limit',
@@ -43,7 +35,9 @@ function normalizeErrorInstance(error: Error): NormalizedError {
   }
 
   // QuickJS reports a fired interrupt handler as "InternalError: interrupted".
-  if (error.name === 'InternalError' && lower.includes('interrupted')) {
+  const isInterruptTimeout =
+    error.name === 'InternalError' && lower.includes('interrupted')
+  if (isInterruptTimeout) {
     return {
       name: TIMEOUT_ERROR,
       message: 'Code execution timed out',
@@ -51,7 +45,9 @@ function normalizeErrorInstance(error: Error): NormalizedError {
     }
   }
 
-  if (error.name === 'RuntimeError' && lower.includes('unreachable')) {
+  const isUnreachableWasm =
+    error.name === 'RuntimeError' && lower.includes('unreachable')
+  if (isUnreachableWasm) {
     return {
       name: 'WasmRuntimeError',
       message: msg || 'WebAssembly runtime error',
@@ -72,10 +68,9 @@ function normalizeErrorObject(error: object): NormalizedError {
   const message = String(errObj.message || 'Unknown error')
   const stack =
     errObj['stack'] !== undefined ? { stack: String(errObj['stack']) } : {}
-  if (
-    name === 'InternalError' &&
-    message.toLowerCase().includes('interrupted')
-  ) {
+  const isInterruptTimeout =
+    name === 'InternalError' && message.toLowerCase().includes('interrupted')
+  if (isInterruptTimeout) {
     return {
       name: TIMEOUT_ERROR,
       message: 'Code execution timed out',

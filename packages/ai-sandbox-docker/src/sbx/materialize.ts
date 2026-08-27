@@ -51,23 +51,22 @@ function invalidSandboxId(id: string): Error {
   )
 }
 
-/**
- * One source of truth for ids used as `sbx --name` and as the owned dest
- * folder under `tmpdir()/tanstack-sbx/`. Rejects empty, `.`, `..`, path
- * separators, and any value that would resolve outside that directory.
- * Does not rewrite a bad id into a safe name.
- */
 export function sandboxNameFromId(id: string): string {
-  if (typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..') {
+  const isInvalidSandboxName =
+    typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..'
+  if (isInvalidSandboxName) {
     throw invalidSandboxId(typeof id === 'string' ? id : String(id))
   }
-  if (id.includes('/') || id.includes('\\') || id.includes('\0')) {
+  const hasPathSeparator =
+    id.includes('/') || id.includes('\\') || id.includes('\0')
+  if (hasPathSeparator) {
     throw invalidSandboxId(id)
   }
   const root = path.resolve(ownedHostRepoRoot())
   const dest = path.resolve(path.join(root, id))
   const prefix = root.endsWith(path.sep) ? root : root + path.sep
-  if (dest === root || !dest.startsWith(prefix)) {
+  const isOutsideRepoRoot = dest === root || !dest.startsWith(prefix)
+  if (isOutsideRepoRoot) {
     throw invalidSandboxId(id)
   }
   return id
@@ -102,10 +101,10 @@ function normalizeGitUrl(url: string): string {
 function isUnexpectedGitProbeError(error: unknown): boolean {
   // git exits with a number when the dest/remote/ref does not match.
   // Spawn/syscall failures use a string code (ENOENT, EACCES, ...).
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return true
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return typeof error.code !== 'number'
   }
-  return typeof error.code !== 'number'
+  return true
 }
 
 const GIT_SHA_RE = /^[0-9a-f]{7,40}$/i
@@ -171,9 +170,6 @@ async function ownedGitDestMatchesSource(
   }
 }
 
-// Credential helper that prints creds read from the child ENV. The helper
-// string references ${GIT_ASKPASS_*} only — the raw token never lands in
-// GIT_CONFIG_VALUE_0 (process listings / git config dumps).
 const CREDENTIAL_HELPER =
   '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
 
@@ -205,12 +201,12 @@ async function checkoutGitSha(
 }
 
 function rethrowMissingGitBin(error: unknown): never {
-  if (
-    error &&
+  const isMissingGitBin =
+    Boolean(error) &&
     typeof error === 'object' &&
     'code' in error &&
     (error as { code?: string }).code === 'ENOENT'
-  ) {
+  if (isMissingGitBin) {
     throw new Error(MISSING_GIT_BIN)
   }
   throw error
@@ -227,19 +223,18 @@ async function cloneGitSource(
 ): Promise<string> {
   const dest = ownedHostRepoDir(id)
   const resolvedDepth = source.depth ?? 1
-  if (
+  const isInvalidCloneDepth =
     resolvedDepth !== 'full' &&
     (!Number.isInteger(resolvedDepth) || resolvedDepth <= 0)
-  ) {
+  if (isInvalidCloneDepth) {
     throw new Error(
       'sbxSandbox: git clone depth must be a positive integer or "full".',
     )
   }
   await mkdir(path.dirname(dest), { recursive: true })
-  if (
-    (await hasGitDir(dest)) &&
-    (await ownedGitDestMatchesSource(dest, source))
-  ) {
+  const canReuseClone =
+    (await hasGitDir(dest)) && (await ownedGitDestMatchesSource(dest, source))
+  if (canReuseClone) {
     return dest
   }
   await rm(dest, { recursive: true, force: true })

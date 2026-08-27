@@ -89,9 +89,6 @@ function DevtoolsContent() {
   onCleanup(() => {
     document.removeEventListener('mousemove', handleMouseMove)
     document.removeEventListener('mouseup', handleMouseUp)
-    // If the panel unmounts mid-drag, the mouseup handler never fires;
-    // reset the global drag styles so the host page isn't stuck with
-    // col-resize cursor / unselectable body.
     if (isDragging()) {
       setIsDragging(false)
       document.body.style.cursor = ''

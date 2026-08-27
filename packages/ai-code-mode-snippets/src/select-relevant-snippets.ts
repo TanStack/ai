@@ -3,35 +3,17 @@ import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { Snippet, SnippetIndexEntry, SnippetStorage } from './types'
 
 interface SelectRelevantSnippetsOptions {
-  /**
-   * Text adapter for snippet selection (should be a cheap/fast model)
-   */
   adapter: AnyTextAdapter
 
-  /**
-   * Current conversation messages
-   */
   messages: Array<ModelMessage>
 
-  /**
-   * Snippet index (lightweight metadata)
-   */
   snippetIndex: Array<SnippetIndexEntry>
 
-  /**
-   * Maximum number of snippets to select
-   */
   maxSnippets: number
 
-  /**
-   * Storage to load full snippet data
-   */
   storage: SnippetStorage
 }
 
-/**
- * Use a cheap/fast LLM to select which snippets are relevant for the current conversation
- */
 export async function selectRelevantSnippets({
   adapter,
   messages,

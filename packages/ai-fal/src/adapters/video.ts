@@ -31,24 +31,18 @@ import type {
 } from '../model-meta'
 import type { FalClientConfig } from '../utils/client'
 
-/**
- * Map video conditioning inputs onto fal field names.
- * Video-to-video endpoints on fal almost universally use `video_url`; the
- * occasional model takes `video_urls` (rare). Mirror the image-input logic
- * positionally with a `reference` role escape hatch via `reference_video_urls`.
- */
 function mapVideoInputsToFalFields(
   videoInputs?: ReadonlyArray<VideoPart<MediaInputMetadata>>,
 ): Record<string, unknown> {
-  if (!videoInputs || videoInputs.length === 0) return {}
+  if (!videoInputs) return {}
+  if (videoInputs.length === 0) return {}
   const references: Array<string> = []
   const sources: Array<string> = []
   for (const part of videoInputs) {
     const url = videoPartToUrl(part)
-    if (
-      part.metadata?.role === 'reference' ||
-      part.metadata?.role === 'character'
-    ) {
+    const isReference =
+      part.metadata?.role === 'reference' || part.metadata?.role === 'character'
+    if (isReference) {
       references.push(url)
     } else {
       sources.push(url)
@@ -67,9 +61,15 @@ function mapVideoInputsToFalFields(
 function mapAudioInputsToFalFields(
   audioInputs?: ReadonlyArray<AudioPart<MediaInputMetadata>>,
 ): Record<string, unknown> {
-  if (!audioInputs || audioInputs.length === 0) return {}
+  if (!audioInputs) return {}
+  if (audioInputs.length === 0) return {}
   const [part, ...rest] = audioInputs
-  if (!part || rest.length > 0) {
+  if (!part) {
+    throw new Error(
+      `fal: exactly one audio prompt part is supported (received ${audioInputs.length}).`,
+    )
+  }
+  if (rest.length > 0) {
     throw new Error(
       `fal: exactly one audio prompt part is supported (received ${audioInputs.length}).`,
     )
@@ -101,13 +101,6 @@ interface FalVideoResultData {
   video_url?: string
 }
 
-/**
- * Maps fal.ai queue status to TanStack AI video status.
- *
- * Note: fal.ai does not return a FAILED queue status. Errors surface
- * as exceptions when fetching results from a COMPLETED job (e.g. 422
- * validation errors). Those are handled in getVideoUrl().
- */
 function mapFalStatusToVideoStatus(
   falStatus: FalQueueStatus,
 ): VideoStatusResult['status'] {
@@ -123,15 +116,6 @@ function mapFalStatusToVideoStatus(
   }
 }
 
-/**
- * fal.ai video generation adapter.
- * Supports MiniMax, Luma, Kling, Hunyuan, and other fal.ai video models.
- *
- * Uses fal.ai's comprehensive type system to provide autocomplete
- * and type safety for all supported video models.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   TModel,
   FalVideoProviderOptions<TModel>,
@@ -280,11 +264,6 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   }
 }
 
-/**
- * Create a fal.ai video adapter with an explicit API key.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export function createFalVideo<TModel extends FalModel>(
   model: TModel,
   config?: FalClientConfig,
@@ -292,11 +271,6 @@ export function createFalVideo<TModel extends FalModel>(
   return new FalVideoAdapter(model, config)
 }
 
-/**
- * Create a fal.ai video adapter using config.apiKey or the FAL_KEY environment variable.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
 export function falVideo<TModel extends FalModel>(
   model: TModel,
   config?: FalClientConfig,

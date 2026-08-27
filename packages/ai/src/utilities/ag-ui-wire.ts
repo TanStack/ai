@@ -69,15 +69,6 @@ export type WireMessage =
   | WireToolMessage
   | WireReasoningMessage
 
-/**
- * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
- * `RunAgentInput.messages` wire shape. Anchors are spec-only (`id`, `role`,
- * `name`, `content`, `toolCalls`, `metadata`). Tool results and thinking parts
- * on assistant messages are additionally emitted as fan-out
- * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
- * server consumers. Set `includeSnapshotStructuredOutput` to retain complete
- * structured-output metadata for UI snapshots.
- */
 function appendStandaloneToolMessage(
   msg: ModelMessage & { role: 'tool'; toolCallId: string },
   wire: Array<WireMessage>,
@@ -165,11 +156,11 @@ function appendToolCallFanout(
   usedWireIds: Set<string>,
 ): void {
   const approved = part.approval?.approved
-  if (
+  const isIncompleteExplicitToolResults =
     explicitToolResults.has(part.id) ||
     (part.output === undefined &&
       (part.state !== 'approval-responded' || approved === undefined))
-  ) {
+  if (isIncompleteExplicitToolResults) {
     return
   }
   const result =
@@ -297,13 +288,15 @@ export function uiMessagesToWire(
 
   const assistantIds = new Set<string>()
   for (const msg of messages) {
-    if (msg.role === 'assistant' && msg.id !== undefined) {
+    const hasMsg = msg.role === 'assistant' && msg.id !== undefined
+    if (hasMsg) {
       assistantIds.add(msg.id)
     }
   }
 
   for (const msg of messages) {
-    if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
+    const hasParts = !('parts' in msg) && msg.role === 'tool' && msg.toolCallId
+    if (hasParts) {
       appendStandaloneToolMessage(msg, wire, usedWireIds, assistantIds)
       continue
     }
@@ -398,7 +391,8 @@ function messageMetadata(
 
   const toolCallMetadata: Record<string, unknown> = {}
   for (const part of parts) {
-    if (part.type === 'tool-call' && part.metadata !== undefined) {
+    const hasPart = part.type === 'tool-call' && part.metadata !== undefined
+    if (hasPart) {
       toolCallMetadata[part.id] = part.metadata
     }
   }
@@ -421,10 +415,10 @@ function serializedStructuredOutput(
   includeSnapshotStructuredOutput: boolean,
 ): TanStackMessageMetadata['structuredOutput'] | undefined {
   for (const p of parts) {
-    if (
+    const isStructuredOutput =
       p.type === 'structured-output' &&
       (includeSnapshotStructuredOutput || p.status !== 'complete')
-    ) {
+    if (isStructuredOutput) {
       return structuredOutputMetadata(p, includeSnapshotStructuredOutput)
     }
   }
@@ -452,26 +446,18 @@ function structuredOutputMetadata(
 }
 
 function collectText(parts: ReadonlyArray<MessagePart>): string {
-  // The streamed JSON of a completed structured-output part is the source of
-  // truth for multi-turn coherence — emitting it back as assistant content
-  // lets the LLM see its own prior structured response. Streaming/errored
-  // parts are skipped: they'd ship malformed JSON fragments and confuse the
-  // model. `completeStructuredOutputPart` tries hard to populate `raw`
-  // (caller → existing buffer → `JSON.stringify(data)`), but the stringify
-  // fallback can leave it empty when `data` is unserializable (BigInt,
-  // circular). The `p.raw !== ''` guard below is what enforces "no malformed
-  // round-trip" in that case — without it we'd ship `''` and the model would
-  // see an empty assistant turn.
   const out: Array<string> = []
   for (const p of parts) {
     if (p.type === 'text') {
       out.push(p.content)
-    } else if (
-      p.type === 'structured-output' &&
-      p.status === 'complete' &&
-      p.raw !== ''
-    ) {
-      out.push(p.raw)
+    } else {
+      const isStructuredOutput =
+        p.type === 'structured-output' &&
+        p.status === 'complete' &&
+        p.raw !== ''
+      if (isStructuredOutput) {
+        out.push(p.raw)
+      }
     }
   }
   return out.join('')
@@ -494,24 +480,24 @@ function collectUserContent(
   for (const p of parts) {
     if (p.type === 'text') {
       out.push({ type: 'text', text: p.content })
-    } else if (
-      p.type === 'image' ||
-      p.type === 'audio' ||
-      p.type === 'video' ||
-      p.type === 'document'
-    ) {
-      out.push(p)
+    } else {
+      const isImage =
+        p.type === 'image' ||
+        p.type === 'audio' ||
+        p.type === 'video' ||
+        p.type === 'document'
+      if (isImage) {
+        out.push(p)
+      }
     }
   }
   return out
 }
 
 function thoughtSignatureFromMetadata(metadata: unknown): string | undefined {
-  if (
-    metadata == null ||
-    typeof metadata !== 'object' ||
-    Array.isArray(metadata)
-  ) {
+  const isInvalidMetadata =
+    metadata == null || typeof metadata !== 'object' || Array.isArray(metadata)
+  if (isInvalidMetadata) {
     return undefined
   }
   if (!('thoughtSignature' in metadata)) return undefined
@@ -567,14 +553,12 @@ function toolWireId(
   assistantIds: ReadonlySet<string>,
 ): string {
   const derived = deriveToolMessageId(toolCallId)
-  if (id === undefined || assistantIds.has(id)) return derived
+  const isIncompleteId = id === undefined || assistantIds.has(id)
+  if (isIncompleteId) return derived
   return id
 }
 
 function hashContent(s: string): string {
-  // Cheap deterministic id suffix; collisions are tolerable since
-  // reasoning ids only matter for AG-UI server consumers, not for our
-  // own server's dedup logic (which keys on toolCallId, not reasoning id).
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
   return Math.abs(h).toString(36)

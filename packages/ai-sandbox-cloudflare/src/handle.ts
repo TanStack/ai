@@ -1,25 +1,3 @@
-/**
- * SandboxHandle backed by a Cloudflare Sandbox (Containers + Durable Objects),
- * via `@cloudflare/sandbox`. Runs at the edge inside a Worker.
- *
- * fs is implemented over `exec` with chunked base64 piping (binary-safe),
- * matching the Docker provider. The container disk is EPHEMERAL (wiped to the image on
- * restart) and snapshots are not yet GA, so `capabilities.snapshots` and
- * `durableFilesystem` are false — `withSandbox` re-bootstraps under the same
- * identity across cold starts.
- *
- * LIMITATION: Cloudflare background processes do not expose a writable host→
- * process stdin, so `spawn().stdin.write` throws. This is advertised via
- * `capabilities.writableStdin: false`; harness adapters that feed a prompt over
- * stdin (e.g. the Claude Code adapter) detect this and instead deliver the
- * prompt via a file + shell stdin-redirection (`claude -p … < file`), which the
- * in-container shell handles with no host-side stdin write. `exec` (one-shot)
- * and streamed stdout from `spawn` both work fully.
- *
- * NOTE: not runtime-verified in this repo (requires a Workers runtime); it
- * compiles against the real `@cloudflare/sandbox` types and follows the proven
- * provider contract.
- */
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
 import { fsWriteCommands } from './fs-write'
 import type { Sandbox } from '@cloudflare/sandbox'
@@ -41,10 +19,6 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
   backgroundProcesses: true,
   // No writable host→process stdin; stdin-fed harnesses use file-redirection.
   writableStdin: false,
-  // `spawnProcess.kill()` is a no-op (see the comment in `spawnProcess`) and
-  // the caller's abort signal is never forwarded to `sandbox.exec` — on
-  // `exec` as well as `spawn` — so a spawned follower process (e.g. `tail -f`)
-  // can never be stopped by the caller here.
   killableProcesses: false,
   snapshots: false,
   networkPolicy: false,
@@ -68,21 +42,23 @@ function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
   const size = fields?.groups?.size
-  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
-  const parsedMode = Number.parseInt(mode, 16)
-  const parsedSize = Number(size)
-  if (
-    !Number.isSafeInteger(parsedMode) ||
-    !Number.isSafeInteger(parsedSize) ||
-    parsedSize < 0
-  )
-    throw new Error(`invalid lstat output: ${output}`)
-  const type = parsedMode & 0xf000
-  if (type === 0x8000)
-    return { type: 'file', mode: parsedMode, size: parsedSize }
-  if (type === 0x4000) return { type: 'dir', mode: parsedMode }
-  if (type === 0xa000) return { type: 'symlink', mode: parsedMode }
-  return { type: 'other', mode: parsedMode }
+  if (mode && size) {
+    const parsedMode = Number.parseInt(mode, 16)
+    const parsedSize = Number(size)
+    const isInvalidLstatNumbers =
+      !Number.isSafeInteger(parsedMode) ||
+      !Number.isSafeInteger(parsedSize) ||
+      parsedSize < 0
+    if (isInvalidLstatNumbers)
+      throw new Error(`invalid lstat output: ${output}`)
+    const type = parsedMode & 0xf000
+    if (type === 0x8000)
+      return { type: 'file', mode: parsedMode, size: parsedSize }
+    if (type === 0x4000) return { type: 'dir', mode: parsedMode }
+    if (type === 0xa000) return { type: 'symlink', mode: parsedMode }
+    return { type: 'other', mode: parsedMode }
+  }
+  throw new Error(`invalid lstat output: ${output}`)
 }
 
 /** A push-driven async string queue used to adapt CF's onOutput callback. */
@@ -165,7 +141,8 @@ export class CloudflareHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        for (const command of fsWriteCommands(this.abs(p), data)) {
+        const writeCommands = fsWriteCommands(this.abs(p), data)
+        for (const command of writeCommands) {
           const r = await this.exec(command)
           if (r.exitCode !== 0)
             throw new Error(`write failed: ${r.stderr.trim()}`)
@@ -225,7 +202,8 @@ export class CloudflareHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    const isMissingPath = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (isMissingPath) return undefined
     if (r.exitCode !== 0) {
       throw new Error(`lstat failed: ${r.stderr.trim()}`)
     }
@@ -254,22 +232,6 @@ export class CloudflareHandle implements SandboxHandle {
     const stdout = new OutputQueue()
     const stderr = new OutputQueue()
 
-    // Stream over `exec({ stream: true, onOutput })` — the SAME proven command
-    // path as one-shot `exec`. The background-process API (`startProcess` +
-    // `streamProcessLogs`) does NOT deliver its `onOutput`/`onExit` callbacks
-    // here (verified under `wrangler dev`: the process runs and exits cleanly,
-    // yet no log events ever arrive), so a stdout-NDJSON harness spawned that
-    // way hangs forever. exec's streaming path emits each chunk via `onOutput`
-    // and resolves with the exit code on completion. The prompt still reaches
-    // the CLI via in-shell stdin redirection (`… < file`), which this session
-    // shell honors — `writableStdin` stays false.
-    //
-    // The caller's AbortSignal is intentionally NOT forwarded: `exec` is a
-    // Durable Object RPC and Workers RPC cannot serialize an AbortSignal
-    // ("AbortSignal serialization is not enabled"), so passing one throws
-    // before the command runs. Mid-run cancellation is therefore unavailable
-    // on this provider; a stuck run is bounded by the coordinator's watchdog
-    // and the Durable Object lifecycle instead. `kill()` is a best-effort no-op.
     const settled = this.sandbox.exec(command, {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
@@ -279,10 +241,6 @@ export class CloudflareHandle implements SandboxHandle {
         else stderr.push(data)
       },
     })
-    // End the output queues once the command settles either way (so the stdout
-    // reader terminates), but let a failure REJECT `wait()` rather than masking
-    // it as a clean exit — the harness adapter turns that into a RUN_ERROR
-    // instead of a silent zero-output run.
     const exitPromise = settled.then(
       (result) => {
         stdout.end()

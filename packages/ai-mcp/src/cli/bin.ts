@@ -8,7 +8,8 @@ import type { EmitInput } from './emit'
 async function generate(cwd = process.cwd()): Promise<void> {
   const config = await loadConfig(cwd)
   const input: EmitInput = {}
-  for (const [name, server] of Object.entries(config.servers)) {
+  const servers = Object.entries(config.servers)
+  for (const [name, server] of servers) {
     process.stderr.write(`Introspecting MCP server "${name}"…\n`)
     const surface = await introspectServer(server)
     input[name] = { prefix: server.prefix, surface }

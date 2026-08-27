@@ -16,11 +16,6 @@ import type {
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
-/**
- * Options for the useTranscription composable.
- *
- * @template TOutput - The output type after optional transform (defaults to TranscriptionResult)
- */
 export interface UseTranscriptionOptions<
   TOutput = TranscriptionResult,
 > extends Pick<
@@ -44,13 +39,6 @@ export interface UseTranscriptionOptions<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
-  /**
-   * Callback when transcription is complete. Can optionally return a transformed value.
-   *
-   * - Return a non-null value to transform and store it as the result
-   * - Return `null` to keep the previous result unchanged
-   * - Return nothing (`void`) to store the raw result as-is
-   */
   onResult?: (result: TranscriptionResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -60,11 +48,6 @@ export interface UseTranscriptionOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
-/**
- * Return type for the useTranscription composable.
- *
- * @template TOutput - The output type (after optional transform)
- */
 export interface UseTranscriptionReturn<
   TOutput = TranscriptionResult,
 > extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
@@ -80,40 +63,6 @@ export interface UseTranscriptionReturn<
   status: DeepReadonly<ShallowRef<GenerationClientState>>
 }
 
-/**
- * Vue composable for transcribing audio to text using AI models.
- *
- * @example
- * ```vue
- * <script setup>
- * import { useTranscription } from '@tanstack/ai-vue'
- * import { fetchServerSentEvents } from '@tanstack/ai-client'
- *
- * const { generate, result, isLoading } = useTranscription({
- *   connection: fetchServerSentEvents('/api/transcribe'),
- * })
- *
- * const handleFile = (e: Event) => {
- *   const file = (e.target as HTMLInputElement).files?.[0]
- *   if (file) {
- *     const reader = new FileReader()
- *     reader.onload = () => {
- *       generate({ audio: reader.result as string, language: 'en' })
- *     }
- *     reader.readAsDataURL(file)
- *   }
- * }
- * </script>
- *
- * <template>
- *   <div>
- *     <input type="file" accept="audio/*" @change="handleFile" />
- *     <p v-if="isLoading">Transcribing...</p>
- *     <p v-if="result">{{ result.text }}</p>
- *   </div>
- * </template>
- * ```
- */
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,

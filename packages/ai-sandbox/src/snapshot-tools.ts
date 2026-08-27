@@ -14,13 +14,15 @@ export interface CreateSnapshotToolsOptions {
 }
 
 function field(value: unknown, key: string): unknown {
-  if (value === null || typeof value !== 'object') return undefined
+  const isNotObject = value === null || typeof value !== 'object'
+  if (isNotObject) return undefined
   return Reflect.get(value, key)
 }
 
 function requiredString(value: unknown, key: string): string {
   const candidate = field(value, key)
-  if (typeof candidate !== 'string' || candidate.length === 0) {
+  const isEmptyString = typeof candidate !== 'string' || candidate.length === 0
+  if (isEmptyString) {
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_TOOL_INPUT',
       `Snapshot tool requires a non-empty ${key}`,
@@ -32,7 +34,8 @@ function requiredString(value: unknown, key: string): string {
 function optionalString(value: unknown, key: string): string | undefined {
   const candidate = field(value, key)
   if (candidate === undefined) return undefined
-  if (typeof candidate !== 'string' || candidate.length === 0) {
+  const isEmptyString = typeof candidate !== 'string' || candidate.length === 0
+  if (isEmptyString) {
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_TOOL_INPUT',
       `Snapshot tool ${key} must be a non-empty string when provided`,

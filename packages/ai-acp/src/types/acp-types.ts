@@ -1,11 +1,3 @@
-/**
- * Structural subset of the Agent Client Protocol (ACP) types that harness
- * adapters consume.
- *
- * Defined structurally (rather than imported from `@agentclientprotocol/sdk`)
- * so the stream translator stays a pure, fixture-testable state machine.
- */
-
 export type AcpContentBlock =
   | { type: 'text'; text: string }
   | { type: string; [key: string]: unknown }

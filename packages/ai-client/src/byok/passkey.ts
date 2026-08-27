@@ -2,20 +2,6 @@ import { isProviderId } from '@tanstack/ai/byok'
 import { memoryStorage } from './storage'
 import type { KeyPreview, Keyring, KeyringStorage } from './storage'
 
-/**
- * Passkey-encrypted keyring storage (WebAuthn PRF → HKDF → AES-256-GCM).
- *
- * The keyring is encrypted at rest in IndexedDB with an AES-256-GCM key derived
- * from a passkey's PRF output, unwrapped on demand with a biometric/PIN tap.
- * Decryption happens entirely client-side with the user present — no server,
- * no custodian.
- *
- * Honest scope: this protects against at-rest theft (stolen device,
- * storage-dumping extension, backups). It does NOT defeat live in-page XSS —
- * an attacker running JS in the origin after the user unlocks can read the
- * decrypted keys from memory.
- */
-
 const STORE_NAME = 'keyring'
 const RECORD_ID = 'default'
 const HKDF_INFO = 'byok:keyring:v1'
@@ -31,19 +17,19 @@ interface StoredRecord {
   iv: ArrayBuffer
   /** Encrypted keyring JSON. */
   ciphertext: ArrayBuffer
-  /**
-   * Unencrypted presence metadata (`provider → last 4`). Non-sensitive, so it
-   * can be read via {@link KeyringStorage.peek} without an unlock ceremony to
-   * show saved keys as "locked" after a refresh.
-   */
   preview: KeyPreview
 }
 
 function sanitizeKeyring(value: unknown): Keyring {
-  if (typeof value !== 'object' || value === null) return {}
+  const isTypeofValueIsNotObjectOrMissingValue =
+    typeof value !== 'object' || value === null
+  if (isTypeofValueIsNotObjectOrMissingValue) return {}
   const keys: Keyring = {}
-  for (const [provider, key] of Object.entries(value)) {
-    if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
+  const objectEntries = Object.entries(value)
+  for (const [provider, key] of objectEntries) {
+    const isProviderIdAndTypeofKeyIsStringAndNonemptyKey =
+      isProviderId(provider) && typeof key === 'string' && key.length > 0
+    if (isProviderIdAndTypeofKeyIsStringAndNonemptyKey) {
       keys[provider] = key
     }
   }
@@ -53,19 +39,16 @@ function sanitizeKeyring(value: unknown): Keyring {
 /** Build the non-sensitive `provider → last 4` preview from a keyring. */
 function previewOf(keys: Keyring): KeyPreview {
   const preview: KeyPreview = {}
-  for (const [provider, key] of Object.entries(keys)) {
-    if (!key || !isProviderId(provider)) continue
+  const objectEntries = Object.entries(keys)
+  for (const [provider, key] of objectEntries) {
+    const isNotKeyOrNotIsProviderId = !key || !isProviderId(provider)
+    if (isNotKeyOrNotIsProviderId) continue
     // Keys of length ≤ 4 would make last-4 the whole secret — store presence only.
     preview[provider] = key.length > 4 ? key.slice(-4) : ''
   }
   return preview
 }
 
-/**
- * Whether the current environment exposes WebAuthn. Actual PRF support can
- * only be confirmed during registration; `passkeyStorage` throws if the
- * chosen authenticator does not support PRF.
- */
 export function isPasskeyStorageSupported(): boolean {
   return (
     typeof globalThis !== 'undefined' &&
@@ -74,10 +57,6 @@ export function isPasskeyStorageSupported(): boolean {
     typeof globalThis.navigator.credentials.create === 'function'
   )
 }
-
-// ---------------------------------------------------------------------------
-// Crypto (exported for testing; the WebAuthn ceremony below feeds `deriveAesKey`)
-// ---------------------------------------------------------------------------
 
 /** Derive a non-extractable AES-256-GCM key from a 32-byte PRF output. */
 export async function deriveAesKey(
@@ -128,10 +107,6 @@ export async function decryptKeyring(
   return sanitizeKeyring(parsed)
 }
 
-// ---------------------------------------------------------------------------
-// IndexedDB
-// ---------------------------------------------------------------------------
-
 function openDb(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(dbName, 1)
@@ -180,10 +155,6 @@ function idbClear(dbName: string): Promise<void> {
       }),
   )
 }
-
-// ---------------------------------------------------------------------------
-// WebAuthn ceremonies
-// ---------------------------------------------------------------------------
 
 function requirePublicKeyCredential(
   credential: Credential | null,
@@ -263,33 +234,16 @@ async function evaluatePrf(
   return result
 }
 
-// ---------------------------------------------------------------------------
-// Storage strategy
-// ---------------------------------------------------------------------------
-
 export interface PasskeyStorageOptions {
   /** Relying-party name shown in the passkey prompt. */
   rpName?: string
   /** Username label attached to the created passkey. */
   userName?: string
-  /**
-   * WebAuthn Relying Party ID. Omit to bind the passkey to the current origin's
-   * effective domain (the default — no central/hardcoded domain). Set it to a
-   * registrable parent domain to share the credential across subdomains of your
-   * own deployment. The encrypted keyring is never portable across unrelated
-   * domains.
-   */
   rpId?: string
   /** IndexedDB database name. Defaults to `byok`. */
   dbName?: string
 }
 
-/**
- * Passkey-encrypted persistence. `ByokClient` treats this as `unlockable`, so
- * nothing is decrypted until the user calls `unlock()` (or saves a key, which
- * registers a passkey on first use). The derived key is cached in memory for
- * the session so repeated saves don't re-prompt.
- */
 export function passkeyStorage(
   options: PasskeyStorageOptions = {},
 ): KeyringStorage {
@@ -311,7 +265,8 @@ export function passkeyStorage(
     credentialId: ArrayBuffer
     salt: Uint8Array<ArrayBuffer>
   }> {
-    if (cachedKey && cachedMeta) {
+    const isCachedKeyAndCachedMeta = cachedKey && cachedMeta
+    if (isCachedKeyAndCachedMeta) {
       return { key: cachedKey, ...cachedMeta }
     }
     const existing = await idbGet(dbName)
@@ -356,7 +311,8 @@ export function passkeyStorage(
       const hasKeys = Object.values(keys).some(Boolean)
       // First save with an empty keyring is a no-op — avoids a passkey ceremony
       // when another storage tier writes an empty ring.
-      if (!hasKeys && !existing) return
+      const isNotHasKeysAndNotExisting = !hasKeys && !existing
+      if (isNotHasKeysAndNotExisting) return
 
       const { key, credentialId, salt } = await ensureKey()
       const { iv, ciphertext } = await encryptKeyring(key, keys)
@@ -377,18 +333,15 @@ export function passkeyStorage(
   }
 }
 
-/**
- * Passkey-encrypted storage when WebAuthn is available in a secure context.
- * Otherwise session memory, with a warning — this is not an automatic PRF
- * fallback. First save still throws if the authenticator lacks PRF.
- */
 export function defaultByokStorage(
   options?: PasskeyStorageOptions,
 ): KeyringStorage {
   const secure =
     typeof globalThis.isSecureContext !== 'boolean' ||
     globalThis.isSecureContext
-  if (!isPasskeyStorageSupported() || !secure) {
+  const isNotIsPasskeyStorageSupportedOrNotSecure =
+    !isPasskeyStorageSupported() || !secure
+  if (isNotIsPasskeyStorageSupportedOrNotSecure) {
     return {
       ...memoryStorage(),
       warning:
