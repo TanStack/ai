@@ -33,34 +33,12 @@ export function partTypeToKey(type: string): ChatUIPartKey | string {
   return type.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
 }
 
-export function isInlineInterruptConfig(entry: unknown): boolean {
-  return (
-    typeof entry === 'object' &&
-    entry !== null &&
-    'placement' in entry &&
-    (entry as { placement?: unknown }).placement === 'inline'
-  )
-}
-
-export function getMappedComponent(entry: unknown): unknown {
-  if (
-    typeof entry === 'object' &&
-    entry !== null &&
-    'component' in entry &&
-    'placement' in entry
-  ) {
-    return (entry as { component: unknown }).component
-  }
-  return entry
-}
-
 export function collectInlineToolNames(
   toolInterrupts?: Record<string, unknown>,
+  mappedToolNames?: ReadonlyArray<string>,
 ): Array<string> {
-  if (!toolInterrupts) return []
-  return Object.keys(toolInterrupts).filter((name) =>
-    isInlineInterruptConfig(toolInterrupts[name]),
-  )
+  const listPlaced = new Set(Object.keys(toolInterrupts ?? {}))
+  return (mappedToolNames ?? []).filter((name) => !listPlaced.has(name))
 }
 
 export function resolveInterruptComponent(
@@ -74,7 +52,7 @@ export function resolveInterruptComponent(
 ): unknown {
   if (!interruptsMap) return undefined
   if (interrupt.kind === 'tool-approval') {
-    return getMappedComponent(interruptsMap.tools?.[interrupt.toolName])
+    return interruptsMap.tools?.[interrupt.toolName]
   }
   const generic = interruptsMap.generic
   if (!generic) return undefined
@@ -84,7 +62,7 @@ export function resolveInterruptComponent(
       : undefined
   if (definitionId && definitionId !== 'fallback') {
     const registered = generic[definitionId]
-    if (registered) return getMappedComponent(registered)
+    if (registered) return registered
   }
   return generic.fallback
 }

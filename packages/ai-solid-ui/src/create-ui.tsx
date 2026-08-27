@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'solid-js'
+import { For, createContext, useContext } from 'solid-js'
 import type { Accessor, Component, JSX } from 'solid-js'
 import {
   automaticPartsForMessage,
@@ -9,13 +9,20 @@ import {
 } from '@tanstack/ai-client/ui'
 import type {
   ChatUIData,
+  ChatUIHasNamedInterrupts,
+  ChatUIHasNamedTools,
   ChatUIInterrupt,
+  ChatUIInterruptName,
+  ChatUIInterruptOf,
+  ChatUIInterruptsOf,
+  ChatUINamedInterruptId,
   ChatUIPartKey,
-  ChatUIRegisteredInterruptId,
+  ChatUIPartOf,
+  ChatUISchemaOf,
   ChatUISelectedPart,
+  ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
-  RegisteredUIInterrupt,
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
@@ -23,19 +30,15 @@ import type {
   ToolResultPart,
   UIMessage,
 } from '@tanstack/ai-client'
+import type { UseChatReturn } from '@tanstack/ai-solid'
 
-// ponytail: duck-typed so UseChatReturn assigns; accessors and UIMessage generics are invariant
-export type ChatUIHost = {
-  messages: Accessor<ReadonlyArray<any>> | ReadonlyArray<any>
-  interrupts?: Accessor<ReadonlyArray<any>> | ReadonlyArray<any>
-  error?: Accessor<Error | undefined> | Error
-  isLoading?: Accessor<boolean> | boolean
-  status?: Accessor<string> | string
-  sendMessage?: (content: string, ...args: Array<any>) => Promise<void> | void
-}
+export type ChatUIHost<TOptions = unknown> = UseChatReturn<
+  ChatUIToolsOf<TOptions>,
+  ChatUISchemaOf<TOptions>,
+  ChatUIInterruptsOf<TOptions>
+>
 
 export type LayoutProps<TOptions> = {
-  chat: ChatUIHost
   renderMessages: () => JSX.Element
   renderInterrupts: () => JSX.Element
   renderInput: () => JSX.Element
@@ -43,63 +46,52 @@ export type LayoutProps<TOptions> = {
 }
 
 export type MessageProps<TOptions> = {
-  chat: ChatUIHost
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
   renderParts: () => JSX.Element
 }
 
 export type InputProps<TOptions> = {
-  chat: ChatUIHost
   readonly __ui?: TOptions
 }
 
-export type PartProps<TOptions> = {
-  chat: ChatUIHost
-  part: MessagePart<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
+  part: ChatUIPartOf<TOptions, TKey>
 }
 
 export type ToolProps<
   TOptions,
   TName extends ChatUIToolName<TOptions> = ChatUIToolName<TOptions>,
 > = {
-  chat: ChatUIHost
   part: Extract<ToolCallPart<ChatUIToolsOf<TOptions>>, { name: TName }>
   result?: ToolResultPart
-  interrupt?: Extract<
-    ChatUIInterrupt,
-    { kind: 'tool-approval'; toolName: TName }
-  >
-  renderInterrupt: () => JSX.Element
+  interrupt?: ChatUIToolApproval<TOptions, TName>
 }
 
-export type InterruptProps<TOptions> = {
-  chat: ChatUIHost
-  interrupt: ChatUIInterrupt
+export type InterruptProps<
+  TOptions,
+  TName extends ChatUIInterruptName<TOptions> = never,
+> = {
+  interrupt: ChatUIInterruptOf<TOptions, TName>
   readonly __ui?: TOptions
 }
 
-export type RegisteredInterruptProps<
-  TOptions,
-  TId extends ChatUIRegisteredInterruptId<TOptions> =
-    ChatUIRegisteredInterruptId<TOptions>,
-> = {
-  chat: ChatUIHost
-  interrupt: RegisteredUIInterrupt<TOptions, TId>
-}
+type GenericInterruptComponents<TOptions> =
+  ChatUIHasNamedInterrupts<TOptions> extends true
+    ? {
+        [K in ChatUINamedInterruptId<TOptions>]: Component<
+          InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
+        >
+      } & {
+        fallback?: Component<InterruptProps<TOptions>>
+      }
+    : {
+        fallback?: Component<InterruptProps<TOptions>>
+      }
 
-type InterruptEntry<TOptions> =
-  | Component<InterruptProps<TOptions>>
-  | {
-      component: Component<InterruptProps<TOptions>>
-      placement?: 'inline' | 'list'
-    }
-
-type GenericInterruptComponents<TOptions> = {
-  [K in ChatUIRegisteredInterruptId<TOptions> as K extends 'fallback'
-    ? never
-    : K]?: Component<RegisteredInterruptProps<TOptions, K>>
-} & {
-  fallback?: Component<InterruptProps<TOptions>>
+type ToolApprovalMap<TOptions> = {
+  [K in ChatUIToolName<TOptions>]?: Component<
+    InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
+  >
 }
 
 export type ChatUIComponents<TOptions> = {
@@ -107,25 +99,39 @@ export type ChatUIComponents<TOptions> = {
   message: Component<MessageProps<TOptions>>
   input?: Component<InputProps<TOptions>>
   parts: {
-    [K in ChatUIPartKey]?: Component<PartProps<TOptions>>
+    [K in ChatUIPartKey]?: Component<PartProps<TOptions, K>>
   } & {
     fallback?: Component<PartProps<TOptions>>
   }
-  tools?: {
-    [K in ChatUIToolName<TOptions>]?: Component<ToolProps<TOptions, K>>
-  }
-  interrupts?: {
-    tools?: {
-      [K in ChatUIToolName<TOptions>]?: InterruptEntry<TOptions>
+} & (ChatUIHasNamedTools<TOptions> extends true
+  ? {
+      tools: {
+        [K in ChatUIToolName<TOptions>]: Component<ToolProps<TOptions, K>>
+      }
     }
-    generic?: GenericInterruptComponents<TOptions>
-  }
-}
+  : {
+      tools?: {
+        [K in ChatUIToolName<TOptions>]?: Component<ToolProps<TOptions, K>>
+      }
+    }) &
+  (ChatUIHasNamedInterrupts<TOptions> extends true
+    ? {
+        interrupts: {
+          tools?: ToolApprovalMap<TOptions>
+          generic: GenericInterruptComponents<TOptions>
+        }
+      }
+    : {
+        interrupts?: {
+          tools?: ToolApprovalMap<TOptions>
+          generic?: GenericInterruptComponents<TOptions>
+        }
+      })
 
-type UIContextValue<TOptions> = {
-  chat: ChatUIHost
+type ComponentsValue<TOptions> = {
   components: ChatUIComponents<TOptions>
   warn: (key: string, message: string) => void
+  inlineToolNames: ReadonlyArray<string>
 }
 
 function createWarnOnce() {
@@ -138,39 +144,50 @@ function createWarnOnce() {
   }
 }
 
-function readMessages(chat: ChatUIHost): ReadonlyArray<any> {
-  return typeof chat.messages === 'function' ? chat.messages() : chat.messages
+function readMessages<TOptions>(
+  chat: ChatUIHost<TOptions>,
+): ReadonlyArray<any> {
+  return chat.messages()
 }
 
-function readInterrupts(chat: ChatUIHost): ReadonlyArray<any> {
-  const value = chat.interrupts
-  if (typeof value === 'function') return value()
-  return value ?? []
+function readInterrupts<TOptions>(
+  chat: ChatUIHost<TOptions>,
+): ReadonlyArray<any> {
+  return chat.interrupts()
 }
 
-function messagesAccessor(chat: ChatUIHost): Accessor<ReadonlyArray<any>> {
-  const value = chat.messages
-  if (typeof value === 'function') return value
-  return () => value
+function messagesAccessor<TOptions>(
+  chat: ChatUIHost<TOptions>,
+): Accessor<ReadonlyArray<any>> {
+  return chat.messages
 }
 
 export function createUI<const TOptions>(options: TOptions) {
   void options
   const warn = createWarnOnce()
-  const UIContext = createContext<UIContextValue<TOptions> | null>(null)
+  const ChatContext = createContext<ChatUIHost<TOptions> | null>(null)
+  const ComponentsContext = createContext<ComponentsValue<TOptions> | null>(
+    null,
+  )
 
-  function useUIContext() {
-    const value = useContext(UIContext)
+  function useChat() {
+    const chat = useContext(ChatContext)
+    if (!chat) {
+      throw new Error(
+        'Chat UI components must be wrapped in UI.Provider or UI.Chat.',
+      )
+    }
+    return chat
+  }
+
+  function useComponents() {
+    const value = useContext(ComponentsContext)
     if (!value) {
       throw new Error(
         'Chat UI components must be wrapped in UI.Provider or UI.Chat.',
       )
     }
     return value
-  }
-
-  function useChat() {
-    return useUIContext().chat
   }
 
   function defineComponents(components: ChatUIComponents<TOptions>) {
@@ -180,37 +197,46 @@ export function createUI<const TOptions>(options: TOptions) {
   function inlineNames(components: ChatUIComponents<TOptions>) {
     return collectInlineToolNames(
       components.interrupts?.tools as Record<string, unknown> | undefined,
+      Object.keys(components.tools ?? {}),
     )
   }
 
   function Provider(props: {
-    chat: ChatUIHost
+    chat: ChatUIHost<TOptions>
     components: ChatUIComponents<TOptions>
     children?: JSX.Element
   }) {
+    const componentsValue: ComponentsValue<TOptions> = {
+      get components() {
+        return props.components
+      },
+      warn,
+      get inlineToolNames() {
+        return inlineNames(props.components)
+      },
+    }
     return (
-      <UIContext.Provider
-        value={{ chat: props.chat, components: props.components, warn }}
-      >
-        {props.children}
-      </UIContext.Provider>
+      <ComponentsContext.Provider value={componentsValue}>
+        <ChatContext.Provider value={props.chat}>
+          {props.children}
+        </ChatContext.Provider>
+      </ComponentsContext.Provider>
     )
   }
 
   function Chat(props: {
-    chat: ChatUIHost
+    chat: ChatUIHost<TOptions>
     components: ChatUIComponents<TOptions>
   }) {
     const Layout = props.components.layout
     return (
       <Provider chat={props.chat} components={props.components}>
         <Layout
-          chat={props.chat}
           renderMessages={() => <Messages />}
           renderInterrupts={() => <Interrupts />}
           renderInput={() => {
             const Input = props.components.input
-            return Input ? <Input chat={props.chat} /> : null
+            return Input ? <Input /> : null
           }}
         />
       </Provider>
@@ -222,14 +248,46 @@ export function createUI<const TOptions>(options: TOptions) {
       messages: Accessor<ReadonlyArray<UIMessage<any, any>>>,
     ) => JSX.Element
   }) {
-    const ctx = useUIContext()
-    if (props.children) return <>{props.children(messagesAccessor(ctx.chat))}</>
+    const chat = useChat()
+    const comps = useComponents()
+    if (props.children) return <>{props.children(messagesAccessor(chat))}</>
     return (
-      <>
-        {readMessages(ctx.chat).map((message) => (
-          <Message message={message} />
-        ))}
-      </>
+      <For each={readMessages(chat)}>
+        {(message) => (
+          <MessageView
+            inlineToolNames={comps.inlineToolNames}
+            interrupts={readInterrupts(chat)}
+            message={message}
+          />
+        )}
+      </For>
+    )
+  }
+
+  function MessageView(props: {
+    message: UIMessage<any, any>
+    interrupts: ReadonlyArray<any>
+    inlineToolNames: ReadonlyArray<string>
+    children?: (parts: Array<ChatUISelectedPart>) => JSX.Element
+  }) {
+    const comps = useComponents()
+    const selected = selectMessageUI(props.message, {
+      interrupts: props.interrupts,
+      inlineToolNames: props.inlineToolNames,
+    })
+    if (props.children) return <>{props.children(selected.parts)}</>
+    const MessageComponent = comps.components.message
+    return (
+      <MessageComponent
+        message={props.message as MessageProps<TOptions>['message']}
+        renderParts={() => (
+          <AutomaticParts
+            inlineToolNames={props.inlineToolNames}
+            interrupts={props.interrupts}
+            message={props.message}
+          />
+        )}
+      />
     )
   }
 
@@ -237,50 +295,45 @@ export function createUI<const TOptions>(options: TOptions) {
     message: UIMessage<any, any>
     children?: (parts: Array<ChatUISelectedPart>) => JSX.Element
   }) {
-    const ctx = useUIContext()
-    const inlineToolNames = inlineNames(ctx.components)
-    const selected = selectMessageUI(props.message, {
-      interrupts: readInterrupts(ctx.chat),
-      inlineToolNames,
-    })
-    if (props.children) return <>{props.children(selected.parts)}</>
-    const MessageComponent = ctx.components.message
+    const chat = useChat()
+    const comps = useComponents()
     return (
-      <MessageComponent
-        chat={ctx.chat}
-        message={props.message as MessageProps<TOptions>['message']}
-        renderParts={() => <AutomaticParts message={props.message} />}
+      <MessageView
+        children={props.children}
+        inlineToolNames={comps.inlineToolNames}
+        interrupts={readInterrupts(chat)}
+        message={props.message}
       />
     )
   }
 
-  function AutomaticParts(props: { message: UIMessage<any, any> }) {
-    const ctx = useUIContext()
+  function AutomaticParts(props: {
+    message: UIMessage<any, any>
+    interrupts: ReadonlyArray<any>
+    inlineToolNames: ReadonlyArray<string>
+  }) {
     const selected = selectMessageUI(props.message, {
-      interrupts: readInterrupts(ctx.chat),
-      inlineToolNames: inlineNames(ctx.components),
+      interrupts: props.interrupts,
+      inlineToolNames: props.inlineToolNames,
     })
     return (
       <>
         {automaticPartsForMessage(selected).map((part) => (
-          <SelectedPartView selected={part} inline />
+          <SelectedPartView selected={part} />
         ))}
       </>
     )
   }
 
-  function SelectedPartView(props: {
-    selected: ChatUISelectedPart
-    inline: boolean
-  }) {
-    const ctx = useUIContext()
+  function SelectedPartView(props: { selected: ChatUISelectedPart }) {
+    const comps = useComponents()
     if (props.selected.key === 'toolCall') {
       const name = props.selected.part.name
-      const Tool = ctx.components.tools?.[name as ChatUIToolName<TOptions>] as
-        | Component<ToolProps<TOptions>>
-        | undefined
+      const Tool = comps.components.tools?.[
+        name as ChatUIToolName<TOptions>
+      ] as Component<ToolProps<TOptions>> | undefined
       if (!Tool) {
-        ctx.warn(
+        comps.warn(
           `tool:${name}`,
           `[tanstack-ai-ui] Missing tools.${name} component`,
         )
@@ -288,7 +341,6 @@ export function createUI<const TOptions>(options: TOptions) {
       }
       return (
         <Tool
-          chat={ctx.chat}
           part={props.selected.part as ToolProps<TOptions>['part']}
           result={props.selected.result}
           interrupt={
@@ -296,18 +348,15 @@ export function createUI<const TOptions>(options: TOptions) {
               ? props.selected.interrupt
               : undefined) as ToolProps<TOptions>['interrupt']
           }
-          renderInterrupt={() =>
-            props.inline && props.selected.key === 'toolCall' ? (
-              <InlineInterrupt interrupt={props.selected.interrupt} />
-            ) : null
-          }
         />
       )
     }
-    const PartComponent =
-      ctx.components.parts[props.selected.key] ?? ctx.components.parts.fallback
+    const PartComponent = (comps.components.parts[props.selected.key] ??
+      comps.components.parts.fallback) as
+      | Component<PartProps<TOptions>>
+      | undefined
     if (!PartComponent) {
-      ctx.warn(
+      comps.warn(
         `part:${props.selected.key}`,
         `[tanstack-ai-ui] Missing parts.${props.selected.key} component`,
       )
@@ -315,33 +364,19 @@ export function createUI<const TOptions>(options: TOptions) {
     }
     return (
       <PartComponent
-        chat={ctx.chat}
         part={props.selected.part as PartProps<TOptions>['part']}
       />
     )
   }
 
-  function InlineInterrupt(props: { interrupt?: ChatUIInterrupt }) {
-    const ctx = useUIContext()
-    const interrupt = props.interrupt
-    if (!interrupt || interrupt.kind !== 'tool-approval') return null
-    if (!inlineNames(ctx.components).includes(interrupt.toolName)) return null
-    const Component = resolveInterruptComponent(
-      interrupt,
-      ctx.components.interrupts,
-    ) as Component<InterruptProps<TOptions>> | undefined
-    if (!Component) return null
-    return <Component chat={ctx.chat} interrupt={interrupt} />
-  }
-
   function Part(props: { part: MessagePart }) {
-    const ctx = useUIContext()
+    const chat = useChat()
     const selected = selectMessageUI(
       { id: 'part', role: 'assistant', parts: [props.part] },
-      { interrupts: readInterrupts(ctx.chat), inlineToolNames: [] },
+      { interrupts: readInterrupts(chat), inlineToolNames: [] },
     ).parts[0]
     if (!selected) return null
-    return <SelectedPartView selected={selected} inline={false} />
+    return <SelectedPartView selected={selected} />
   }
 
   function Interrupts(props: {
@@ -349,39 +384,38 @@ export function createUI<const TOptions>(options: TOptions) {
       interrupts: Accessor<ReadonlyArray<ChatUIInterrupt>>,
     ) => JSX.Element
   }) {
-    const ctx = useUIContext()
+    const chat = useChat()
+    const comps = useComponents()
     const selected = () =>
       selectChatUI({
-        messages: readMessages(ctx.chat),
-        interrupts: readInterrupts(ctx.chat),
-        inlineToolNames: inlineNames(ctx.components),
+        messages: readMessages(chat),
+        interrupts: readInterrupts(chat),
+        inlineToolNames: comps.inlineToolNames,
       })
     if (props.children) {
       return <>{props.children(() => selected().interrupts)}</>
     }
     return (
-      <>
-        {selected().interrupts.map((interrupt) => (
-          <Interrupt interrupt={interrupt} />
-        ))}
-      </>
+      <For each={selected().interrupts}>
+        {(interrupt) => <Interrupt interrupt={interrupt} />}
+      </For>
     )
   }
 
   function Interrupt(props: { interrupt: ChatUIInterrupt }) {
-    const ctx = useUIContext()
+    const comps = useComponents()
     const Component = resolveInterruptComponent(
       props.interrupt,
-      ctx.components.interrupts,
+      comps.components.interrupts,
     ) as Component<InterruptProps<TOptions>> | undefined
     if (!Component) {
-      ctx.warn(
+      comps.warn(
         `interrupt:${props.interrupt.id}`,
         `[tanstack-ai-ui] Missing interrupt component for ${props.interrupt.kind}`,
       )
       return null
     }
-    return <Component chat={ctx.chat} interrupt={props.interrupt} />
+    return <Component interrupt={props.interrupt} />
   }
 
   return {

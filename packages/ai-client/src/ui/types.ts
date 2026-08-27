@@ -29,13 +29,36 @@ export type ChatUIPartKey =
   | 'structuredOutput'
   | 'uiResource'
 
+export type ChatUIPartTypeByKey = {
+  text: 'text'
+  image: 'image'
+  audio: 'audio'
+  video: 'video'
+  document: 'document'
+  thinking: 'thinking'
+  toolCall: 'tool-call'
+  toolResult: 'tool-result'
+  structuredOutput: 'structured-output'
+  uiResource: 'ui-resource'
+}
+
+export type ChatUIPartOf<
+  TOptions,
+  TKey extends ChatUIPartKey = ChatUIPartKey,
+> = TKey extends ChatUIPartKey
+  ? Extract<
+      MessagePart<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>,
+      { type: ChatUIPartTypeByKey[TKey] }
+    >
+  : never
+
 export type ChatUIToolsOf<TOptions> = TOptions extends {
   tools: infer TTools
 }
   ? TTools extends ReadonlyArray<AnyClientTool>
     ? TTools
-    : ReadonlyArray<AnyClientTool>
-  : ReadonlyArray<AnyClientTool>
+    : any
+  : any
 
 export type ChatUIInterruptsOf<TOptions> = TOptions extends {
   interrupts: infer TInterrupts
@@ -75,12 +98,49 @@ export type ChatUIRegisteredInterruptId<TOptions> =
       : string
     : string
 
+export type ChatUIHasNamedTools<TOptions> = [ChatUIToolName<TOptions>] extends [
+  never,
+]
+  ? false
+  : [string] extends [ChatUIToolName<TOptions>]
+    ? false
+    : true
+
+export type ChatUIHasNamedInterrupts<TOptions> = [
+  ChatUIRegisteredInterruptId<TOptions>,
+] extends [never]
+  ? false
+  : [string] extends [ChatUIRegisteredInterruptId<TOptions>]
+    ? false
+    : true
+
+export type ChatUINamedInterruptId<TOptions> = Exclude<
+  ChatUIRegisteredInterruptId<TOptions>,
+  'fallback'
+>
+
+export type ChatUIInterruptName<TOptions> =
+  | (ChatUIHasNamedTools<TOptions> extends true
+      ? ChatUIToolName<TOptions>
+      : never)
+  | (ChatUIHasNamedInterrupts<TOptions> extends true
+      ? ChatUINamedInterruptId<TOptions>
+      : never)
+
 type ToolByName<TOptions, TName> = Extract<
   ChatUIToolsOf<TOptions> extends ReadonlyArray<infer TTool> ? TTool : never,
   { name: TName }
 >
 
 export type ChatUIInterrupt = ChatInterrupt | ToolApprovalInterrupt
+
+export type ChatUIToolApproval<
+  TOptions,
+  TName extends ChatUIToolName<TOptions> = ChatUIToolName<TOptions>,
+> = Extract<
+  ChatInterrupt<ChatUIToolsOf<TOptions>, ChatUIInterruptsOf<TOptions>>,
+  { kind: 'tool-approval'; toolName: TName }
+>
 
 export type ChatUIToolPart<
   TOptions,
@@ -105,6 +165,21 @@ export type RegisteredUIInterrupt<
   RegisteredGenericInterrupt<ChatUIInterruptsOf<TOptions>>,
   { definitionId: TId }
 >
+
+export type ChatUIInterruptOf<
+  TOptions,
+  TName extends ChatUIInterruptName<TOptions> = never,
+> = [TName] extends [never]
+  ? ChatUIInterrupt
+  : TName extends (
+        ChatUIHasNamedTools<TOptions> extends true
+          ? ChatUIToolName<TOptions>
+          : never
+      )
+    ? ChatUIToolApproval<TOptions, TName>
+    : TName extends ChatUINamedInterruptId<TOptions>
+      ? RegisteredUIInterrupt<TOptions, TName>
+      : ChatUIInterrupt
 
 export type ChatUISelectedToolPart = {
   key: 'toolCall'

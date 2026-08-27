@@ -1,18 +1,48 @@
 import { expectTypeOf, it } from 'vitest'
 import { createUI } from '../src/create-ui'
-import type { RegisteredInterruptProps, ToolProps } from '../src/create-ui'
+import type {
+  ChatUIHost,
+  InterruptProps,
+  PartProps,
+  ToolProps,
+} from '../src/create-ui'
 import { chatOptions } from '../../ai-client/tests/ui-fixtures'
 
 it('types tool and interrupt component props from chatOptions', () => {
+  type TextPartProps = PartProps<typeof chatOptions, 'text'>
+  expectTypeOf<TextPartProps['part']['type']>().toEqualTypeOf<'text'>()
+  expectTypeOf<TextPartProps['part']['content']>().toEqualTypeOf<string>()
+
   type WeatherToolProps = ToolProps<typeof chatOptions, 'getWeather'>
   expectTypeOf<WeatherToolProps['part']['input']>().toEqualTypeOf<
     { city: string } | undefined
   >()
 
-  type ChoosePlanProps = RegisteredInterruptProps<
+  type PurchaseToolProps = ToolProps<typeof chatOptions, 'purchaseItem'>
+  expectTypeOf<PurchaseToolProps['interrupt']>().toMatchTypeOf<
+    { kind: 'tool-approval'; toolName: 'purchaseItem' } | undefined
+  >()
+  expectTypeOf<
+    NonNullable<PurchaseToolProps['interrupt']>['originalArgs']
+  >().toEqualTypeOf<{ item: string }>()
+
+  type PurchaseInterruptProps = InterruptProps<
     typeof chatOptions,
-    'choosePlan'
+    'purchaseItem'
   >
+  expectTypeOf<
+    PurchaseInterruptProps['interrupt']['kind']
+  >().toEqualTypeOf<'tool-approval'>()
+  expectTypeOf<
+    PurchaseInterruptProps['interrupt']['toolName']
+  >().toEqualTypeOf<'purchaseItem'>()
+  expectTypeOf<
+    PurchaseInterruptProps['interrupt']['originalArgs']
+  >().toEqualTypeOf<{
+    item: string
+  }>()
+
+  type ChoosePlanProps = InterruptProps<typeof chatOptions, 'choosePlan'>
   expectTypeOf<ChoosePlanProps['interrupt']['payload']>().toEqualTypeOf<
     { title: string } | undefined
   >()
@@ -20,13 +50,28 @@ it('types tool and interrupt component props from chatOptions', () => {
   const UI = createUI(chatOptions)
 
   UI.defineComponents({
-    layout: ({ chat, renderMessages }) => {
-      expectTypeOf(chat.messages).toMatchTypeOf<ReadonlyArray<unknown>>()
+    layout: ({ renderMessages }) => {
+      expectTypeOf(UI.useChat()).toEqualTypeOf<ChatUIHost<typeof chatOptions>>()
+      expectTypeOf(UI.useChat().sendMessage).toBeFunction()
+      expectTypeOf(UI.useChat().queue).toBeArray()
       return renderMessages()
     },
     message: ({ renderParts }) => renderParts(),
     parts: {
-      fallback: () => null,
+      text: ({ part }) => {
+        expectTypeOf(part.type).toEqualTypeOf<'text'>()
+        expectTypeOf(part.content).toEqualTypeOf<string>()
+        return null
+      },
+      structuredOutput: ({ part }) => {
+        expectTypeOf(part.type).toEqualTypeOf<'structured-output'>()
+        expectTypeOf(part.data).toEqualTypeOf<{ answer: string } | undefined>()
+        return null
+      },
+      fallback: ({ part }) => {
+        expectTypeOf(part.type).toBeString()
+        return null
+      },
     },
     tools: {
       getWeather: ({ part, result }) => {
@@ -37,6 +82,7 @@ it('types tool and interrupt component props from chatOptions', () => {
         expectTypeOf(result?.toolCallId).toEqualTypeOf<string | undefined>()
         return null
       },
+      purchaseItem: () => null,
       // @ts-expect-error This tool is not in chatOptions.
       unknownTool: () => null,
     },
@@ -53,5 +99,43 @@ it('types tool and interrupt component props from chatOptions', () => {
         fallback: () => null,
       },
     },
+  })
+
+  UI.defineComponents({
+    layout: () => null,
+    message: () => null,
+    parts: { fallback: () => null },
+    // @ts-expect-error Every configured tool needs a component.
+    tools: {
+      getWeather: () => null,
+    },
+    interrupts: {
+      generic: {
+        choosePlan: () => null,
+      },
+    },
+  })
+
+  UI.defineComponents({
+    layout: () => null,
+    message: () => null,
+    parts: { fallback: () => null },
+    tools: {
+      getWeather: () => null,
+      purchaseItem: () => null,
+    },
+    interrupts: {
+      // @ts-expect-error Every registered interrupt id needs a component.
+      generic: {
+        fallback: () => null,
+      },
+    },
+  })
+
+  const Untyped = createUI({})
+  Untyped.defineComponents({
+    layout: () => null,
+    message: () => null,
+    parts: { fallback: () => null },
   })
 })

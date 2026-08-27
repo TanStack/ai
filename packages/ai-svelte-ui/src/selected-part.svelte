@@ -1,8 +1,6 @@
 <script lang="ts">
   import {
-    getUIContext,
-    inlineNames,
-    interruptComponent,
+    getComponentsContext,
     partComponent,
     toolComponent,
     type UIDescriptor,
@@ -12,48 +10,34 @@
   let {
     ui,
     selected,
-    inline = false,
   }: {
     ui: UIDescriptor
     selected: ChatUISelectedPart
-    inline?: boolean
   } = $props()
 
-  const ctx = $derived(getUIContext(ui))
+  const comps = $derived(getComponentsContext(ui))
 </script>
 
 {#if selected.key === 'toolCall'}
-  {@const Tool = toolComponent(ctx, selected.part.name) as any}
+  {@const Tool = toolComponent(comps.components, selected.part.name) as any}
   {#if Tool}
-    {@const Interrupt = (
-      selected.interrupt
-        ? interruptComponent(ctx, selected.interrupt)
-        : undefined
-    ) as any}
     <Tool
-      chat={ctx.chat}
       part={selected.part}
       result={selected.result}
       interrupt={selected.interrupt}
-    >
-      {#snippet renderInterrupt()}
-        {#if inline && selected.interrupt?.kind === 'tool-approval' && Interrupt && inlineNames(ctx.components).includes(selected.interrupt.toolName)}
-          <Interrupt chat={ctx.chat} interrupt={selected.interrupt} />
-        {/if}
-      {/snippet}
-    </Tool>
+    />
   {:else}
-    {ctx.ui.warn(
+    {comps.warn(
       `tool:${selected.part.name}`,
       `[tanstack-ai-ui] Missing tools.${selected.part.name} component`,
     )}
   {/if}
 {:else}
-  {@const Part = partComponent(ctx, selected.key) as any}
+  {@const Part = partComponent(comps.components, selected.key) as any}
   {#if Part}
-    <Part chat={ctx.chat} part={selected.part} />
+    <Part part={selected.part} />
   {:else}
-    {ctx.ui.warn(
+    {comps.warn(
       `part:${selected.key}`,
       `[tanstack-ai-ui] Missing parts.${selected.key} component`,
     )}

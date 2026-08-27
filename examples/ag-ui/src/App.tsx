@@ -17,22 +17,25 @@ function AgUiChat({
   const chat = useChat({ connection })
   const [draft, setDraft] = useState('')
   const components = UI.defineComponents({
-    layout: ({ chat: current, renderMessages, renderInput }) => (
-      <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
-        {current.error ? (
-          <p className="p-4 text-sm text-red-300">{current.error.message}</p>
-        ) : current.messages.length === 0 ? (
-          <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
-            {emptyLabel}
-          </div>
-        ) : (
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
-            {renderMessages()}
-          </div>
-        )}
-        <div className="border-t border-slate-800 p-4">{renderInput()}</div>
-      </div>
-    ),
+    layout: ({ renderMessages, renderInput }) => {
+      const current = UI.useChat()
+      return (
+        <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
+          {current.error ? (
+            <p className="p-4 text-sm text-red-300">{current.error.message}</p>
+          ) : current.messages.length === 0 ? (
+            <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
+              {emptyLabel}
+            </div>
+          ) : (
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              {renderMessages()}
+            </div>
+          )}
+          <div className="border-t border-slate-800 p-4">{renderInput()}</div>
+        </div>
+      )
+    },
     message: ({ message }) => <ChatMessage message={message} />,
     input: () => (
       <form

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { setUIContext, type ChatUIHost, type UIDescriptor } from './create-ui'
+  import { setUIContext, type UIDescriptor } from './create-ui'
 
   let {
     ui,
@@ -8,7 +8,7 @@
     children,
   }: {
     ui: UIDescriptor
-    chat: ChatUIHost
+    chat: any
     components: Record<string, unknown>
     children?: import('svelte').Snippet
   } = $props()

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { createUI } from '../src/create-ui'
+import type { ChatUIHost } from '../src/create-ui'
 import {
   chatOptions,
   createChatResult,
@@ -13,6 +14,14 @@ import {
   unknownToolMessage,
 } from '../../ai-client/tests/ui-fixtures'
 import type { ToolCallState } from '@tanstack/ai-client'
+
+function host(
+  init?: Parameters<typeof createChatResult>[0],
+): ChatUIHost<typeof chatOptions> {
+  return createChatResult(init ?? {}) as unknown as ChatUIHost<
+    typeof chatOptions
+  >
+}
 
 describe('createUI', () => {
   it('renders automatic and manual trees', () => {
@@ -31,11 +40,14 @@ describe('createUI', () => {
         purchaseItem: () => null,
       },
       interrupts: {
-        generic: { fallback: ({ interrupt }) => <i>{interrupt.reason}</i> },
+        generic: {
+          choosePlan: () => null,
+          fallback: ({ interrupt }) => <i>{interrupt.reason}</i>,
+        },
       },
     })
 
-    const chat = createChatResult({ messages: [messageWithToolResults] })
+    const chat = host({ messages: [messageWithToolResults] })
     const automatic = renderToStaticMarkup(
       <UI.Chat chat={chat} components={components} />,
     )
@@ -54,7 +66,7 @@ describe('createUI', () => {
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const UI = createUI(chatOptions)
-    const chat = createChatResult({ messages: [unknownToolMessage] })
+    const chat = host({ messages: [unknownToolMessage] })
     const components = UI.defineComponents({
       layout: ({ renderMessages }) => renderMessages(),
       message: ({ renderParts }) => renderParts(),
@@ -63,7 +75,9 @@ describe('createUI', () => {
         getWeather: () => null,
         purchaseItem: () => null,
       },
-      interrupts: { generic: { fallback: () => null } },
+      interrupts: {
+        generic: { choosePlan: () => null, fallback: () => null },
+      },
     })
     renderToStaticMarkup(<UI.Chat chat={chat} components={components} />)
     renderToStaticMarkup(<UI.Chat chat={chat} components={components} />)
@@ -85,12 +99,14 @@ describe('createUI', () => {
         getWeather: () => <strong>weather</strong>,
         purchaseItem: () => null,
       },
-      interrupts: { generic: { fallback: () => null } },
+      interrupts: {
+        generic: { choosePlan: () => null, fallback: () => null },
+      },
     })
 
     const matched = renderToStaticMarkup(
       <UI.Chat
-        chat={createChatResult({ messages: [messageWithToolResults] })}
+        chat={host({ messages: [messageWithToolResults] })}
         components={components}
       />,
     )
@@ -99,56 +115,15 @@ describe('createUI', () => {
 
     const unmatched = renderToStaticMarkup(
       <UI.Chat
-        chat={createChatResult({ messages: [orphanResultMessage] })}
+        chat={host({ messages: [orphanResultMessage] })}
         components={components}
       />,
     )
     expect(unmatched).toContain('<em>standalone</em>')
   })
 
-  it('puts inline approvals in the tool slot and list approvals in Interrupts', () => {
+  it('puts list approvals in Interrupts when interrupts.tools has the tool', () => {
     const UI = createUI(chatOptions)
-    const inline = UI.defineComponents({
-      layout: ({ renderMessages, renderInterrupts }) => (
-        <>
-          {renderMessages()}
-          {renderInterrupts()}
-        </>
-      ),
-      message: ({ renderParts }) => renderParts(),
-      parts: { fallback: () => null },
-      tools: {
-        getWeather: () => null,
-        purchaseItem: ({ renderInterrupt }) => (
-          <div>
-            tool
-            {renderInterrupt()}
-          </div>
-        ),
-      },
-      interrupts: {
-        tools: {
-          purchaseItem: {
-            component: () => <b>inline-approval</b>,
-            placement: 'inline',
-          },
-        },
-        generic: { fallback: ({ interrupt }) => <i>{interrupt.reason}</i> },
-      },
-    })
-
-    const inlineMarkup = renderToStaticMarkup(
-      <UI.Chat
-        chat={createChatResult({
-          messages: [purchaseApprovalMessage],
-          interrupts: [purchaseApprovalInterrupt],
-        })}
-        components={inline}
-      />,
-    )
-    expect(inlineMarkup).toContain('inline-approval')
-    expect(inlineMarkup).not.toContain('<i>')
-
     const list = UI.defineComponents({
       layout: ({ renderMessages, renderInterrupts }) => (
         <>
@@ -160,24 +135,19 @@ describe('createUI', () => {
       parts: { fallback: () => null },
       tools: {
         getWeather: () => null,
-        purchaseItem: ({ renderInterrupt }) => (
-          <div>
-            tool
-            {renderInterrupt()}
-          </div>
-        ),
+        purchaseItem: () => <div>tool</div>,
       },
       interrupts: {
         tools: {
           purchaseItem: () => <b>list-approval</b>,
         },
-        generic: { fallback: () => null },
+        generic: { choosePlan: () => null, fallback: () => null },
       },
     })
 
     const listMarkup = renderToStaticMarkup(
       <UI.Chat
-        chat={createChatResult({
+        chat={host({
           messages: [purchaseApprovalMessage],
           interrupts: [purchaseApprovalInterrupt],
         })}
@@ -185,6 +155,47 @@ describe('createUI', () => {
       />,
     )
     expect(listMarkup).toContain('list-approval')
+    expect(listMarkup).toContain('tool')
+  })
+
+  it('lets a tool render its approval from interrupt without a registered interrupt component', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const UI = createUI(chatOptions)
+    const components = UI.defineComponents({
+      layout: ({ renderMessages, renderInterrupts }) => (
+        <>
+          {renderMessages()}
+          {renderInterrupts()}
+        </>
+      ),
+      message: ({ renderParts }) => renderParts(),
+      parts: { fallback: () => null },
+      tools: {
+        getWeather: () => null,
+        purchaseItem: ({ interrupt }) =>
+          interrupt ? <b>{interrupt.toolName}</b> : <span>tool</span>,
+      },
+      interrupts: {
+        generic: { choosePlan: () => null, fallback: () => <i>list</i> },
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [purchaseApprovalMessage],
+          interrupts: [purchaseApprovalInterrupt],
+        })}
+        components={components}
+      />,
+    )
+    expect(markup).toContain('<b>purchaseItem</b>')
+    expect(markup).not.toContain('<i>list</i>')
+    expect(
+      warn.mock.calls.filter((call) =>
+        String(call[0]).includes('[tanstack-ai-ui]'),
+      ),
+    ).toHaveLength(0)
+    warn.mockRestore()
   })
 
   it('renders registered generic interrupts and sends the rest to fallback', () => {
@@ -207,7 +218,7 @@ describe('createUI', () => {
 
     const markup = renderToStaticMarkup(
       <UI.Chat
-        chat={createChatResult({
+        chat={host({
           interrupts: [genericInterrupt, unboundInterrupt],
         })}
         components={components}
@@ -223,9 +234,16 @@ describe('createUI', () => {
       layout: ({ renderInput }) => <main>{renderInput()}</main>,
       message: ({ renderParts }) => renderParts(),
       parts: { fallback: () => null },
+      tools: {
+        getWeather: () => null,
+        purchaseItem: () => null,
+      },
+      interrupts: {
+        generic: { choosePlan: () => null },
+      },
     })
     const markup = renderToStaticMarkup(
-      <UI.Chat chat={createChatResult({})} components={components} />,
+      <UI.Chat chat={host({})} components={components} />,
     )
     expect(markup).toBe('<main></main>')
   })
@@ -239,10 +257,17 @@ describe('createUI', () => {
       },
       message: ({ renderParts }) => renderParts(),
       parts: { fallback: () => null },
+      tools: {
+        getWeather: () => null,
+        purchaseItem: () => null,
+      },
+      interrupts: {
+        generic: { choosePlan: () => null },
+      },
     })
 
-    const inner = createChatResult({ messages: [messageWithToolResults] })
-    const outer = createChatResult({ messages: [] })
+    const inner = host({ messages: [messageWithToolResults] })
+    const outer = host({ messages: [] })
     const markup = renderToStaticMarkup(
       <UI.Provider chat={outer} components={components}>
         <UI.Chat chat={inner} components={components} />
@@ -278,13 +303,15 @@ describe('createUI', () => {
         getWeather: ({ part }) => <span>{part.state}</span>,
         purchaseItem: () => null,
       },
-      interrupts: { generic: { fallback: () => null } },
+      interrupts: {
+        generic: { choosePlan: () => null, fallback: () => null },
+      },
     })
 
     for (const state of states) {
       const markup = renderToStaticMarkup(
         <UI.Chat
-          chat={createChatResult({
+          chat={host({
             messages: [
               {
                 id: state,

@@ -8,37 +8,48 @@ import {
 } from '@tanstack/ai-client/ui'
 import type {
   ChatUIData,
+  ChatUIHasNamedInterrupts,
+  ChatUIHasNamedTools,
   ChatUIInterrupt,
+  ChatUIInterruptName,
+  ChatUIInterruptOf,
+  ChatUIInterruptsOf,
+  ChatUINamedInterruptId,
   ChatUIPartKey,
-  ChatUIRegisteredInterruptId,
+  ChatUIPartOf,
+  ChatUISchemaOf,
   ChatUISelectedPart,
+  ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
-  RegisteredUIInterrupt,
 } from '@tanstack/ai-client/ui'
 import type {
-  MessagePart,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
 } from '@tanstack/ai-client'
+import type { CreateChatReturn } from '@tanstack/ai-svelte'
 
-// ponytail: duck-typed so createChat assigns; UIMessage generics are invariant
-export type ChatUIHost = {
-  messages: ReadonlyArray<any>
-  interrupts?: ReadonlyArray<any>
-  error?: Error
-  isLoading?: boolean
-  status?: string
-  sendMessage?: (content: string, ...args: Array<any>) => Promise<void> | void
-}
+export type ChatUIHost<TOptions = unknown> = CreateChatReturn<
+  ChatUIToolsOf<TOptions>,
+  ChatUISchemaOf<TOptions>,
+  unknown,
+  ChatUIInterruptsOf<TOptions>
+>
 
-type GenericInterruptComponents<TOptions> = {
-  [K in ChatUIRegisteredInterruptId<TOptions> as K extends 'fallback'
-    ? never
-    : K]?: unknown
-} & {
-  fallback?: unknown
+type GenericInterruptComponents<TOptions> =
+  ChatUIHasNamedInterrupts<TOptions> extends true
+    ? {
+        [K in ChatUINamedInterruptId<TOptions>]: unknown
+      } & {
+        fallback?: unknown
+      }
+    : {
+        fallback?: unknown
+      }
+
+type ToolApprovalMap<TOptions> = {
+  [K in ChatUIToolName<TOptions>]?: unknown
 }
 
 export type ChatUIComponents<TOptions> = {
@@ -50,18 +61,22 @@ export type ChatUIComponents<TOptions> = {
   } & {
     fallback?: unknown
   }
-  tools?: {
-    [K in ChatUIToolName<TOptions>]?: unknown
-  }
-  interrupts?: {
-    tools?: {
-      [K in ChatUIToolName<TOptions>]?:
-        | unknown
-        | { component: unknown; placement?: 'inline' | 'list' }
-    }
-    generic?: GenericInterruptComponents<TOptions>
-  }
-}
+} & (ChatUIHasNamedTools<TOptions> extends true
+  ? { tools: { [K in ChatUIToolName<TOptions>]: unknown } }
+  : { tools?: { [K in ChatUIToolName<TOptions>]?: unknown } }) &
+  (ChatUIHasNamedInterrupts<TOptions> extends true
+    ? {
+        interrupts: {
+          tools?: ToolApprovalMap<TOptions>
+          generic: GenericInterruptComponents<TOptions>
+        }
+      }
+    : {
+        interrupts?: {
+          tools?: ToolApprovalMap<TOptions>
+          generic?: GenericInterruptComponents<TOptions>
+        }
+      })
 
 export type UIDescriptor<TOptions = unknown> = {
   key: symbol
@@ -69,13 +84,23 @@ export type UIDescriptor<TOptions = unknown> = {
   defineComponents: (
     components: ChatUIComponents<TOptions>,
   ) => ChatUIComponents<TOptions>
-  useChat: () => ChatUIHost
+  useChat: () => ChatUIHost<TOptions>
 }
 
 export type UIContextValue<TOptions = unknown> = {
-  chat: ChatUIHost
+  chat: ChatUIHost<TOptions>
   components: ChatUIComponents<TOptions>
   ui: UIDescriptor<TOptions>
+}
+
+type ComponentsValue<TOptions = unknown> = {
+  components: ChatUIComponents<TOptions>
+  warn: (key: string, message: string) => void
+  inlineToolNames: ReadonlyArray<string>
+}
+
+type UIRuntime<TOptions = unknown> = UIDescriptor<TOptions> & {
+  componentsKey: symbol
 }
 
 function createWarnOnce() {
@@ -92,25 +117,43 @@ export function createUI<const TOptions>(
   options: TOptions,
 ): UIDescriptor<TOptions> {
   void options
-  const ui: UIDescriptor<TOptions> = {
-    key: Symbol('tanstack-ai-ui'),
+  const ui: UIRuntime<TOptions> = {
+    key: Symbol('tanstack-ai-ui-chat'),
+    componentsKey: Symbol('tanstack-ai-ui-components'),
     warn: createWarnOnce(),
     defineComponents(components) {
       return components
     },
     useChat() {
-      return getUIContext(ui).chat
+      return getChatContext(ui)
     },
   }
   return ui
 }
 
 export function setUIContext<TOptions>(value: UIContextValue<TOptions>) {
-  setContext(value.ui.key, value)
+  setContext(value.ui.key, value.chat)
+  setContext((value.ui as UIRuntime).componentsKey, {
+    components: value.components,
+    warn: value.ui.warn,
+    inlineToolNames: inlineNames(value.components),
+  } satisfies ComponentsValue<TOptions>)
 }
 
-export function getUIContext<TOptions>(ui: UIDescriptor<TOptions>) {
-  const value = getContext<UIContextValue<TOptions> | undefined>(ui.key)
+export function getChatContext<TOptions>(ui: UIDescriptor<TOptions>) {
+  const chat = getContext<ChatUIHost<TOptions> | undefined>(ui.key)
+  if (!chat) {
+    throw new Error(
+      'Chat UI components must be wrapped in UIProvider or UIChat.',
+    )
+  }
+  return chat
+}
+
+export function getComponentsContext<TOptions>(ui: UIDescriptor<TOptions>) {
+  const value = getContext<ComponentsValue<TOptions> | undefined>(
+    (ui as UIRuntime).componentsKey,
+  )
   if (!value) {
     throw new Error(
       'Chat UI components must be wrapped in UIProvider or UIChat.',
@@ -119,96 +162,96 @@ export function getUIContext<TOptions>(ui: UIDescriptor<TOptions>) {
   return value
 }
 
-export function readMessages(chat: ChatUIHost) {
+export function getUIContext<TOptions>(ui: UIDescriptor<TOptions>) {
+  return {
+    ui,
+    chat: getChatContext(ui),
+    components: getComponentsContext(ui).components,
+  } satisfies UIContextValue<TOptions>
+}
+
+export function readMessages<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.messages ?? []
 }
 
-export function readInterrupts(chat: ChatUIHost) {
+export function readInterrupts<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.interrupts ?? []
 }
 
 export function inlineNames<TOptions>(components: ChatUIComponents<TOptions>) {
   return collectInlineToolNames(
     components.interrupts?.tools as Record<string, unknown> | undefined,
+    Object.keys(components.tools ?? {}),
   )
 }
 
 export function messageParts(
-  ctx: UIContextValue,
   message: UIMessage,
+  interrupts: ReadonlyArray<ChatUIInterrupt>,
+  inlineToolNames: ReadonlyArray<string>,
 ): Array<ChatUISelectedPart> {
   return automaticPartsForMessage(
-    selectMessageUI(message, {
-      interrupts: readInterrupts(ctx.chat),
-      inlineToolNames: inlineNames(ctx.components),
-    }),
+    selectMessageUI(message, { interrupts, inlineToolNames }),
   )
 }
 
-export function listInterrupts(ctx: UIContextValue) {
+export function listInterrupts<TOptions>(
+  chat: ChatUIHost<TOptions>,
+  inlineToolNames: ReadonlyArray<string>,
+) {
   return selectChatUI({
-    messages: readMessages(ctx.chat),
-    interrupts: readInterrupts(ctx.chat),
-    inlineToolNames: inlineNames(ctx.components),
+    messages: readMessages(chat),
+    interrupts: readInterrupts(chat),
+    inlineToolNames,
   }).interrupts
 }
 
-export function toolComponent(ctx: UIContextValue, name: string) {
-  return ctx.components.tools?.[name as never]
+export function toolComponent<TOptions>(
+  components: ChatUIComponents<TOptions>,
+  name: string,
+) {
+  return components.tools?.[name as never]
 }
 
-export function partComponent(ctx: UIContextValue, key: string) {
-  return (
-    ctx.components.parts[key as ChatUIPartKey] ?? ctx.components.parts.fallback
-  )
+export function partComponent<TOptions>(
+  components: ChatUIComponents<TOptions>,
+  key: string,
+) {
+  return components.parts[key as ChatUIPartKey] ?? components.parts.fallback
 }
 
-export function interruptComponent(
-  ctx: UIContextValue,
+export function interruptComponent<TOptions>(
+  components: ChatUIComponents<TOptions>,
   interrupt: ChatUIInterrupt,
 ) {
-  return resolveInterruptComponent(interrupt, ctx.components.interrupts)
+  return resolveInterruptComponent(interrupt, components.interrupts)
 }
 
 export type LayoutProps<TOptions> = {
-  chat: ChatUIHost
   readonly __ui?: TOptions
 }
 export type MessageProps<TOptions> = {
-  chat: ChatUIHost
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
 }
 export type InputProps<TOptions> = {
-  chat: ChatUIHost
   readonly __ui?: TOptions
 }
-export type PartProps<TOptions> = {
-  chat: ChatUIHost
-  part: MessagePart<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
+export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
+  part: ChatUIPartOf<TOptions, TKey>
 }
 export type ToolProps<
   TOptions,
   TName extends ChatUIToolName<TOptions> = ChatUIToolName<TOptions>,
 > = {
-  chat: ChatUIHost
   part: Extract<ToolCallPart<ChatUIToolsOf<TOptions>>, { name: TName }>
   result?: ToolResultPart
-  interrupt?: Extract<
-    ChatUIInterrupt,
-    { kind: 'tool-approval'; toolName: TName }
-  >
+  interrupt?: ChatUIToolApproval<TOptions, TName>
   readonly __ui?: TOptions
 }
-export type InterruptProps<TOptions> = {
-  chat: ChatUIHost
-  interrupt: ChatUIInterrupt
-  readonly __ui?: TOptions
-}
-export type RegisteredInterruptProps<
+export type InterruptProps<
   TOptions,
-  TId extends ChatUIRegisteredInterruptId<TOptions> =
-    ChatUIRegisteredInterruptId<TOptions>,
+  TName extends ChatUIInterruptName<TOptions> = never,
 > = {
-  chat: ChatUIHost
-  interrupt: RegisteredUIInterrupt<TOptions, TId>
+  interrupt: ChatUIInterruptOf<TOptions, TName>
+  readonly __ui?: TOptions
 }

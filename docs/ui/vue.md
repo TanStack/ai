@@ -13,6 +13,8 @@ keywords:
 
 Install `@tanstack/ai-vue-ui`. Call `createUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
 
+`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+
 The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI text adapter.
 
 ## Client
@@ -57,7 +59,6 @@ const components = ui.defineComponents({
       },
     }),
   },
-  interrupts: { generic: { fallback: defineComponent(() => () => null) } },
 })
 
 export default defineComponent({
@@ -109,7 +110,11 @@ export const components = ui.defineComponents({
 })
 ```
 
-Registered generic interrupts use `RegisteredInterruptProps<typeof chatOptions, 'choosePlan'>`.
+Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is already a text part.
+
+Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
+
+Mapped components do not receive `chat` as a prop. Call `ui.useChat()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
 
 ## Read chat from `ui.useChat()`
 
@@ -156,6 +161,6 @@ export default defineComponent({
 
 ## Interrupts
 
-Tool approvals can sit in the tool (`placement: 'inline'` plus the `renderInterrupt` slot) or in the list (a direct component). Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interrupts.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).

@@ -2,7 +2,7 @@
   import UIProvider from './ui-provider.svelte'
   import UIMessages from './ui-messages.svelte'
   import UIInterrupts from './ui-interrupts.svelte'
-  import type { ChatUIHost, UIDescriptor } from './create-ui'
+  import type { UIDescriptor } from './create-ui'
 
   let {
     ui,
@@ -10,7 +10,7 @@
     components,
   }: {
     ui: UIDescriptor
-    chat: ChatUIHost
+    chat: any
     components: any
   } = $props()
 
@@ -19,7 +19,7 @@
 </script>
 
 <UIProvider {ui} {chat} {components}>
-  <Layout {chat}>
+  <Layout>
     {#snippet messages()}
       <UIMessages {ui} />
     {/snippet}
@@ -28,7 +28,7 @@
     {/snippet}
     {#snippet input()}
       {#if Input}
-        <Input {chat} />
+        <Input />
       {/if}
     {/snippet}
   </Layout>

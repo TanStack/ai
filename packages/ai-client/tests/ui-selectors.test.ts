@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectInlineToolNames,
   partTypeToKey,
   resolveInterruptComponent,
   selectChatUI,
@@ -89,6 +90,18 @@ describe('selectChatUI', () => {
       inlineToolNames: ['purchaseItem'],
     })
     expect(selected.interrupts).toEqual([genericInterrupt])
+  })
+
+  it('treats mapped tools as inline unless the interrupt map puts them in the list', () => {
+    expect(
+      collectInlineToolNames(undefined, ['purchaseItem', 'getWeather']),
+    ).toEqual(['purchaseItem', 'getWeather'])
+    expect(collectInlineToolNames({}, ['purchaseItem'])).toEqual([
+      'purchaseItem',
+    ])
+    expect(
+      collectInlineToolNames({ purchaseItem: {} }, ['purchaseItem']),
+    ).toEqual([])
   })
 
   it('preserves empty arrays', () => {

@@ -33,7 +33,6 @@ export {
   type LayoutProps,
   type MessageProps,
   type PartProps,
-  type RegisteredInterruptProps,
   type ToolProps,
 } from './create-ui'
 

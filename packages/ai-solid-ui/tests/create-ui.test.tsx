@@ -1,12 +1,21 @@
 import { render } from 'solid-js/web'
 import { describe, expect, it, vi } from 'vitest'
 import { createUI } from '../src/create-ui'
+import type { ChatUIHost } from '../src/create-ui'
 import {
   chatOptions,
   createSolidChatResult,
   messageWithToolResults,
   unknownToolMessage,
 } from '../../ai-client/tests/ui-fixtures'
+
+function host(
+  ...args: Parameters<typeof createSolidChatResult>
+): ChatUIHost<typeof chatOptions> {
+  return createSolidChatResult(...args) as unknown as ChatUIHost<
+    typeof chatOptions
+  >
+}
 
 function renderHtml(node: () => unknown) {
   const container = document.createElement('div')
@@ -17,7 +26,7 @@ function renderHtml(node: () => unknown) {
 describe('Solid createUI', () => {
   it('renders automatic and manual traversal', () => {
     const UI = createUI(chatOptions)
-    const chat = createSolidChatResult([messageWithToolResults])
+    const chat = host([messageWithToolResults])
     const components = UI.defineComponents({
       layout: (props) => <>{props.renderMessages()}</>,
       message: (props) => <article>{props.renderParts()}</article>,
@@ -26,7 +35,7 @@ describe('Solid createUI', () => {
         getWeather: (props) => <strong>{props.part.input?.city}</strong>,
         purchaseItem: () => null,
       },
-      interrupts: { generic: { fallback: () => null } },
+      interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
     })
 
     expect(
@@ -46,7 +55,7 @@ describe('Solid createUI', () => {
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const UI = createUI(chatOptions)
-    const chat = createSolidChatResult([unknownToolMessage])
+    const chat = host([unknownToolMessage])
     const components = UI.defineComponents({
       layout: (props) => props.renderMessages(),
       message: (props) => props.renderParts(),
@@ -55,7 +64,7 @@ describe('Solid createUI', () => {
         getWeather: () => null,
         purchaseItem: () => null,
       },
-      interrupts: { generic: { fallback: () => null } },
+      interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
     })
     renderHtml(() => <UI.Chat chat={chat} components={components} />)
     renderHtml(() => <UI.Chat chat={chat} components={components} />)

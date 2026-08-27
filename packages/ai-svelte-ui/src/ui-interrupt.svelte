@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    getUIContext,
+    getComponentsContext,
     interruptComponent,
     type UIDescriptor,
   } from './create-ui'
@@ -14,14 +14,16 @@
     interrupt: ChatUIInterrupt
   } = $props()
 
-  const ctx = $derived(getUIContext(ui))
-  const Component = $derived(interruptComponent(ctx, interrupt) as any)
+  const comps = $derived(getComponentsContext(ui))
+  const Component = $derived(
+    interruptComponent(comps.components, interrupt) as any,
+  )
 </script>
 
 {#if Component}
-  <Component chat={ctx.chat} {interrupt} />
+  <Component {interrupt} />
 {:else}
-  {ctx.ui.warn(
+  {comps.warn(
     `interrupt:${interrupt.id}`,
     `[tanstack-ai-ui] Missing interrupt component for ${interrupt.kind}`,
   )}

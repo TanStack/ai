@@ -153,18 +153,22 @@ const chatOptions = {
 const UI = createUI(chatOptions)
 
 const components = UI.defineComponents({
-  layout: ({ chat, renderMessages, renderInterrupts, renderInput }) => (
-    <main>
-      {chat.error ? (
-        <pre data-testid="chat-error">{chat.error.message}</pre>
-      ) : null}
-      {renderMessages()}
-      {renderInterrupts()}
-      {renderInput()}
-    </main>
-  ),
+  layout: ({ renderMessages, renderInterrupts, renderInput }) => {
+    const chat = UI.useChat()
+    return (
+      <main>
+        {chat.error ? (
+          <pre data-testid="chat-error">{chat.error.message}</pre>
+        ) : null}
+        {renderMessages()}
+        {renderInterrupts()}
+        {renderInput()}
+      </main>
+    )
+  },
   message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: function Input({ chat }) {
+  input: function Input() {
+    const chat = UI.useChat()
     const [ready, setReady] = useState(false)
     useEffect(() => {
       setReady(true)
@@ -178,7 +182,7 @@ const components = UI.defineComponents({
           const text = field.value.trim()
           if (!text) return
           field.value = ''
-          void chat.sendMessage?.(text)
+          void chat.sendMessage(text)
         }}
       >
         <label>
@@ -200,10 +204,18 @@ const components = UI.defineComponents({
     fallback: () => null,
   },
   tools: {
-    purchaseItem: ({ part, renderInterrupt }) => (
+    purchaseItem: ({ part, interrupt }) => (
       <div data-testid="purchase-tool">
         {part.input?.item}
-        {renderInterrupt()}
+        {interrupt?.status === 'pending' ? (
+          <button
+            data-testid="purchase-approval"
+            type="button"
+            onClick={() => interrupt.resolveInterrupt(true)}
+          >
+            Approve purchase
+          </button>
+        ) : null}
         {part.output ? (
           <div data-testid="purchase-output">
             {part.output.ok ? 'approved' : 'denied'}
@@ -213,25 +225,7 @@ const components = UI.defineComponents({
     ),
   },
   interrupts: {
-    tools: {
-      purchaseItem: {
-        component: ({ interrupt }) => (
-          <button
-            data-testid="purchase-approval"
-            type="button"
-            onClick={() => {
-              if (interrupt.kind === 'tool-approval') {
-                interrupt.resolveInterrupt(true)
-              }
-            }}
-          >
-            Approve purchase
-          </button>
-        ),
-        placement: 'inline',
-      },
-    },
-    generic: { fallback: () => null },
+    generic: { choosePlan: () => null, fallback: () => null },
   },
 })
 

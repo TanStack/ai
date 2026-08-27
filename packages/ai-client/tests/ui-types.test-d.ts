@@ -1,6 +1,8 @@
 import { expectTypeOf } from 'vitest'
 import type {
   ChatUIData,
+  ChatUIInterrupt,
+  ChatUIInterruptOf,
   ChatUIToolPart,
   RegisteredUIInterrupt,
 } from '../src/ui'
@@ -21,3 +23,15 @@ expectTypeOf<PlanInterrupt['payload']>().toEqualTypeOf<
 expectTypeOf<ChatUIData<typeof chatOptions>>().toEqualTypeOf<{
   answer: string
 }>()
+
+type ChoosePlan = ChatUIInterruptOf<typeof chatOptions, 'choosePlan'>
+expectTypeOf<ChoosePlan['payload']>().toEqualTypeOf<
+  { title: string } | undefined
+>()
+
+type PurchaseApproval = ChatUIInterruptOf<typeof chatOptions, 'purchaseItem'>
+expectTypeOf<PurchaseApproval['kind']>().toEqualTypeOf<'tool-approval'>()
+expectTypeOf<PurchaseApproval['toolName']>().toEqualTypeOf<'purchaseItem'>()
+
+type AnyInterrupt = ChatUIInterruptOf<typeof chatOptions>
+expectTypeOf<AnyInterrupt>().toEqualTypeOf<ChatUIInterrupt>()
