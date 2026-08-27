@@ -14,7 +14,8 @@ const EMPTY_ALLOWLIST =
   'sbxSandbox: network deny/ask has an empty allowlist. Pass allowNetwork, or use grokBuildText / claudeCodeText / codexText so the model API host is added.'
 
 /** Guest URLs use host.docker.internal; the sbx proxy rewrites that to localhost. */
-const BRIDGE_HOST = 'localhost'
+const /** Guest URLs use host.docker.internal; the sbx proxy rewrites that to localhost. */
+BRIDGE_HOST = 'localhost'
 
 export function autoApiHosts(adapterName: string | undefined): Array<string> {
   if (!adapterName) return []

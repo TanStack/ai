@@ -1,10 +1,26 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { ToolDescriptor, WorkspaceDefinition } from '@tanstack/ai-sandbox'
 
+/**
+ * The in-sandbox harnesses the runner can spawn. Single source of truth: the
+ * {@link HarnessId} type is DERIVED from this list, and {@link isHarnessId}
+ * validates against it — so the runtime guard and the compile-time type can
+ * never drift.
+ */
 const HARNESS_IDS = ['claude-code', 'codex', 'opencode'] as const
 
+/**
+ * Identifier for the in-sandbox harness the runner spawns. The runner maps this
+ * to the matching `*Text` adapter (via the caller's `resolveAdapter`); the DO
+ * never imports the adapter packages.
+ */
 export type HarnessId = (typeof HARNESS_IDS)[number]
 
+/**
+ * The body of `POST /run`: the run identity + conversation + serialized
+ * host-tool descriptors + the tool-exec callback, plus the harness/model/
+ * workspace the runner needs to build the right adapter.
+ */
 export interface ContainerRunRequest {
   runId: string
   threadId: string
@@ -46,6 +62,11 @@ function isWorkspaceDefinition(value: unknown): value is WorkspaceDefinition {
   )
 }
 
+/**
+ * Assert enough of a message to fail fast on garbage (a non-empty `role` and a
+ * `content` field). The chat engine validates the full shape downstream; this
+ * narrows the array element to {@link ModelMessage} without a cast.
+ */
 function isModelMessage(value: unknown): value is ModelMessage {
   return (
     value !== null &&
@@ -72,6 +93,12 @@ function requireNonEmptyString(
   throw new Error(`run request: ${key} must be a non-empty string`)
 }
 
+/**
+ * Narrow an unknown `POST /run` body into a {@link ContainerRunRequest} (project
+ * rule: no `as`). The message and descriptor shapes are validated downstream by
+ * the chat engine and the tool bridge; here we only assert enough to fail fast
+ * with a clear error on a malformed request.
+ */
 export function parseContainerRunRequest(value: unknown): ContainerRunRequest {
   if (!isRecord(value)) {
     throw new Error('run request must be a JSON object')
@@ -79,7 +106,9 @@ export function parseContainerRunRequest(value: unknown): ContainerRunRequest {
   const runId = requireNonEmptyString(value, 'runId')
   const threadId = requireNonEmptyString(value, 'threadId')
   const model = requireNonEmptyString(value, 'model')
+  /** DO endpoint the in-container `httpRemoteToolExecutor` POSTs tool calls to. */
   const toolExecUrl = requireNonEmptyString(value, 'toolExecUrl')
+  /** Per-run bearer token gating that tool-exec endpoint. */
   const toolExecToken = requireNonEmptyString(value, 'toolExecToken')
 
   const messages = value['messages']
@@ -98,6 +127,7 @@ export function parseContainerRunRequest(value: unknown): ContainerRunRequest {
       throw new Error('run request: workspace must be a WorkspaceDefinition')
     }
 
+    /** Host-tool descriptors serialized by `toolDescriptors()` on the DO. */
     const toolDescriptors = value['toolDescriptors']
     if (
       Array.isArray(toolDescriptors) &&

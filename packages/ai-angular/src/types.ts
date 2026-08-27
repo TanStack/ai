@@ -44,6 +44,11 @@ export type {
 }
 export type { ReactiveOption }
 
+/**
+ * Recursive partial — every property and every nested array element is optional.
+ * Used to type the in-flight `partial` value while a structured-output stream
+ * is still arriving.
+ */
 export type DeepPartial<T> =
   T extends ReadonlyArray<infer U>
     ? Array<DeepPartial<U>>
@@ -51,6 +56,14 @@ export type DeepPartial<T> =
       ? { [K in keyof T]?: DeepPartial<T[K]> }
       : T
 
+/**
+ * Options for {@link injectChat}.
+ *
+ * Mirrors the Vue `useChat` options, except:
+ * - State-change callbacks are managed internally and exposed as signals.
+ * - `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
+ *   they can be a static value, a `Signal`, or a getter and stay reactive.
+ */
 export type InjectChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -82,9 +95,17 @@ export type InjectChatOptions<
   forwardedProps?: ReactiveOption<Record<string, any>>
   /** Whether to keep a live subscription open. Reactive. */
   live?: ReactiveOption<boolean>
+  /**
+     * Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema).
+     * Used to infer the shape of `partial` and `final`.
+     */
   outputSchema?: TSchema
 } & ClientContextOptionFromTools<TTools, ReactiveOption<TContext>>
 
+/**
+ * Return shape of {@link injectChat}. When `outputSchema` is supplied, adds
+ * typed `partial` / `final` signals; otherwise the return is unchanged.
+ */
 export type InjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -112,6 +133,11 @@ interface BaseInjectChatResult<
 > {
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
+  /**
+     * Send a message (string or multimodal content).
+     * Pass `{ whenBusy }` to override the queue policy for a single send, or
+     * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+     */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -135,6 +161,17 @@ interface BaseInjectChatResult<
     id: string
     approved: boolean
   }) => Promise<void>
+  /**
+     * The id of the run this client has in flight — one it started or rejoined —
+     * or `null` when there is none (including while a run sits paused on an
+     * interrupt, waiting on approval).
+     *
+     * A run is one turn of the conversation, so this changes from turn to turn. A
+     * whole tool loop stays inside one run, while resuming after an interrupt
+     * continues the turn under a new id — so one user message can produce several
+     * run ids. Use it to talk to your own server about that run (cancel it, poll
+     * it, correlate a log line).
+     */
   runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
   interrupts: Signal<BoundInterrupts<TTools, TInterrupts>>

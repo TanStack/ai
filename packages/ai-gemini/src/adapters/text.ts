@@ -43,25 +43,49 @@ import type {
 } from '../message-types'
 import type { GeminiClientConfig } from '../utils/client'
 
+/**
+ * Configuration for Gemini text adapter
+ */
 export interface GeminiTextConfig extends GeminiClientConfig {}
 
+/**
+ * Gemini-specific provider options for text/chat
+ */
 export type GeminiTextProviderOptions = ExternalTextProviderOptions
 
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GeminiChatModelProviderOptionsByName
     ? GeminiChatModelProviderOptionsByName[TModel]
     : GeminiTextProviderOptions
 
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use all modalities.
+ */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GeminiModelInputModalitiesByName
     ? GeminiModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio', 'video', 'document']
 
+/**
+ * Resolve tool capabilities for a specific model.
+ * If the model has explicit tools in the map, use those; otherwise use empty tuple.
+ */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * Gemini Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for Gemini chat/text completion functionality.
+ * Import only what you need for smaller bundle sizes.
+ */
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -129,6 +153,11 @@ export class GeminiTextAdapter<
     }
   }
 
+  /**
+     * Generate structured output using Gemini's native JSON response format.
+     * Uses responseMimeType: 'application/json' and responseSchema for structured output.
+     * The outputSchema is already JSON Schema (converted in the ai layer).
+     */
   async structuredOutput(
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -185,6 +214,9 @@ export class GeminiTextAdapter<
     }
   }
 
+  /**
+     * Extract text content from a non-streaming response
+     */
   private extractTextFromResponse(response: GenerateContentResponse): string {
     let textContent = ''
 
@@ -704,6 +736,15 @@ export class GeminiTextAdapter<
     return this.mergeConsecutiveSameRoleMessages(formatted)
   }
 
+  /**
+     * Merge consecutive messages of the same role into a single message.
+     * Gemini's API requires strictly alternating user/model roles.
+     * Tool results are mapped to role:'user', which can collide with actual
+     * user messages in multi-turn conversations.
+     *
+     * Also filters out empty model messages (e.g., from a previous failed request)
+     * and deduplicates functionResponse parts with the same name (tool call ID).
+     */
   private mergeConsecutiveSameRoleMessages(
     messages: Array<Content>,
   ): Array<Content> {
@@ -804,11 +845,21 @@ export class GeminiTextAdapter<
     return requestOptions
   }
 
+  /**
+     * Gemini 3.x natively combines `tools` + `responseSchema` in a single
+     * streaming `generateContentStream` call (issue #605). Gemini 2.x is
+     * documented as brittle for the combination and keeps the engine's
+     * legacy finalization path.
+     */
   supportsCombinedToolsAndSchema(): boolean {
     return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
 }
 
+/**
+ * Creates a Gemini text adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ */
 export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
   apiKey: string,
@@ -822,6 +873,10 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
   return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates a Gemini text adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
+ */
 export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
   model: TModel,
   config?: Omit<GeminiTextConfig, 'apiKey'>,

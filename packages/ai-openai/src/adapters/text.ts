@@ -20,25 +20,54 @@ import type {
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 
+/**
+ * Configuration for OpenAI text adapter
+ */
 export interface OpenAITextConfig extends OpenAIClientConfig {}
 
+/**
+ * Alias for TextProviderOptions
+ */
 export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof OpenAIChatModelProviderOptionsByName
     ? OpenAIChatModelProviderOptionsByName[TModel]
     : OpenAITextProviderOptions
 
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use all modalities.
+ */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenAIModelInputModalitiesByName
     ? OpenAIModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio']
 
+/**
+ * Resolve tool capabilities for a specific model.
+ * If the model has explicit tools in the map, use those; otherwise use empty tuple.
+ */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenAIChatModelToolCapabilitiesByName
     ? NonNullable<OpenAIChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * OpenAI Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for OpenAI chat/text completion functionality.
+ * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter} from
+ * `@tanstack/openai-base`. The base calls `openai.responses.create`
+ * directly; this subclass just hands it a configured client and overrides
+ * `mapOptionsToRequest` to route through OpenAI's full tool converter
+ * (supporting file_search, web_search, etc.) and to apply provider option
+ * validation.
+ */
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -60,6 +89,12 @@ export class OpenAITextAdapter<
     super(model, 'openai', new OpenAI(config))
   }
 
+  /**
+     * Maps common options to OpenAI-specific format.
+     * Overrides the base class to use OpenAI's full tool converter
+     * (supporting special tool types like file_search, web_search, etc.)
+     * and to apply OpenAI-specific provider option validation.
+     */
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
@@ -97,6 +132,21 @@ export class OpenAITextAdapter<
   }
 }
 
+/**
+ * Creates an OpenAI chat adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
+ * @param apiKey - Your OpenAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI chat adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenaiChat('gpt-4o', "sk-...");
+ * // adapter has type-safe modelOptions for gpt-4o
+ * ```
+ */
 export function createOpenaiChat<
   TModel extends (typeof OPENAI_CHAT_MODELS)[number],
 >(
@@ -107,6 +157,30 @@ export function createOpenaiChat<
   return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an OpenAI text adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `OPENAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @param model - The model name (e.g., 'gpt-4o', 'gpt-4-turbo')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured OpenAI text adapter instance with resolved types
+ * @throws Error if OPENAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses OPENAI_API_KEY from environment
+ * const adapter = openaiText('gpt-4o');
+ *
+ * const stream = chat({
+ *   adapter,
+ *   messages: [{ role: "user", content: "Hello!" }]
+ * });
+ * ```
+ */
 export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
   model: TModel,
   config?: Omit<OpenAITextConfig, 'apiKey'>,

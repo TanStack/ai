@@ -81,9 +81,20 @@ export interface GrokBuildTextConfig {
   emitDiff?: boolean
   /** Extra raw CLI flags appended verbatim (advanced). */
   extraArgs?: Array<string>
+  /**
+     * Harness wire protocol. Defaults to `'acp'`. A durable sandbox run
+     * (durability wired, no explicit protocol) uses `'streaming-json'` so the
+     * run can journal and recover. Set `'streaming-json'` yourself for the
+     * headless NDJSON path without durability.
+     */
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
+  /**
+     * `'api-key'` (default) calls authenticate with `xai.api_key`.
+     * `'host'` skips ACP authenticate (use `grok login`).
+     * Not inferred from the sandbox.
+     */
   authMode?: GrokBuildAuthMode
   /** Explicit ACP auth method. Wins over {@link authMode}. */
   authMethodId?: string
@@ -189,6 +200,11 @@ export class GrokBuildTextAdapter<
     )
   }
 
+  /**
+     * Cwd for harness-facing APIs (NDJSON `--cwd`, ACP `newSession`). Virtual `/workspace`
+     * is mapped to the real filesystem path on local-process; spawn/fs still use
+     * the virtual path via the provider handle.
+     */
   private harnessCwd(
     sandbox: SandboxHandle,
     options: TextOptions<GrokBuildTextProviderOptions>,
@@ -332,6 +348,7 @@ export class GrokBuildTextAdapter<
 
     try {
       const sandbox = this.sandboxFrom(options)
+      /** Working directory inside the sandbox. Defaults to `/workspace`. */
       const cwd = this.workdir(options)
       const harnessCwd = this.harnessCwd(sandbox, options)
       const runId = resolveDurableRunId(options.runId, {
@@ -468,6 +485,7 @@ export class GrokBuildTextAdapter<
       modelOptions?.permissionMode ??
       this.adapterConfig.permissionMode ??
       'bypassPermissions'
+    /** Explicit ACP auth method. Wins over {@link authMode}. */
     const authMethodId = resolveGrokSessionAuthMethod(
       modelOptions?.authMode ?? this.adapterConfig.authMode,
       modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
@@ -841,6 +859,14 @@ export class GrokBuildTextAdapter<
   }
 }
 
+/**
+ * Creates a Grok Build harness adapter that runs **inside a sandbox**.
+ *
+ * Spawns the `grok` CLI (or a configured executable) inside the sandbox
+ * provided via `withSandbox(...)`. The adapter declares
+ * `requires: [SandboxCapability]`. The sandbox image must provide the
+ * executable and `XAI_API_KEY` (or equivalent) for the harness.
+ */
 export function grokBuildText<TModel extends GrokBuildModel>(
   model: TModel,
   config: GrokBuildTextConfig = {},

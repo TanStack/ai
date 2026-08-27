@@ -33,6 +33,8 @@ export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
 export interface TextPart {
   type: 'text'
   content: string
+  /** Provider-specific metadata that round-trips with the tool call.
+     * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
   metadata?: unknown
 }
 
@@ -105,6 +107,7 @@ export interface StructuredOutputPart {
   type: 'structured-output'
   status: 'streaming' | 'complete' | 'error'
   partial?: unknown
+  /** Adapter-defined `inspect()` payload (e.g. `{ records: [...] }`). */
   data?: unknown
   raw: string
   reasoning?: string
@@ -132,6 +135,10 @@ export interface ToolCall<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
+/**
+ * Detailed breakdown of prompt/input token usage.
+ * Fields are populated based on provider support.
+ */
 export interface PromptTokensDetails {
   /** Tokens read from cache */
   cachedTokens?: number
@@ -149,6 +156,10 @@ export interface PromptTokensDetails {
   documentTokens?: number
 }
 
+/**
+ * Detailed breakdown of completion/output token usage.
+ * Fields are populated based on provider support.
+ */
 export interface CompletionTokensDetails {
   /** Reasoning/thinking tokens */
   reasoningTokens?: number
@@ -164,6 +175,13 @@ export interface CompletionTokensDetails {
   documentTokens?: number
 }
 
+/**
+ * Provider-reported cost breakdown for a single request, normalized onto a
+ * canonical shape so consumer code is portable across gateways. Each adapter's
+ * extractor maps its provider-specific wire keys (e.g. OpenRouter's
+ * `upstream_inference_prompt_cost`, `upstream_inference_input_cost`) onto these
+ * fields at runtime.
+ */
 export interface UsageCostBreakdown {
   /** Total cost the gateway paid the upstream provider. */
   upstreamCost?: number
@@ -173,6 +191,12 @@ export interface UsageCostBreakdown {
   upstreamOutputCost?: number
 }
 
+/**
+ * Unit a billed quantity is counted in. The named members cover the units
+ * TanStack AI adapters bill in today; the `(string & {})` member keeps the
+ * union open for genuinely provider-specific units while preserving
+ * autocompletion for the common ones.
+ */
 export type BillingUnit =
   | 'tokens'
   | 'seconds'
@@ -184,6 +208,12 @@ export type BillingUnit =
   | 'units'
   | (string & {})
 
+/**
+ * A billed quantity paired with the unit it is counted in, so consumers can
+ * label and aggregate usage without out-of-band knowledge of the provider or
+ * activity. `unit: 'units'` marks an opaque provider-defined unit (e.g. fal's
+ * "fal units") whose price is only knowable from the provider's pricing page.
+ */
 export interface BilledUsage {
   /** Number of units billed. */
   quantity: number
@@ -191,8 +221,30 @@ export interface BilledUsage {
   unit: BillingUnit
 }
 
+/**
+ * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
+ * does not supply a specific shape. Values are constrained to non-nullish
+ * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
+ * stays assignable across JSON-serialization boundaries — e.g. TanStack Start's
+ * server-fn return types model serializable values as `{}` and reject `unknown`,
+ * which permits `null`/`undefined`.
+ */
 export type ProviderUsageDetails = Record<string, NonNullable<unknown>>
 
+/**
+ * Canonical token usage for a run, with optional detailed breakdowns and
+ * provider-reported cost. This is the single source of truth re-exported by
+ * `@tanstack/ai`.
+ *
+ * Core fields (`promptTokens`, `completionTokens`, `totalTokens`) are always
+ * present. Detail fields are provider-dependent and absent when not reported,
+ * so consumers must treat them as optional.
+ *
+ * `providerUsageDetails` is parameterized via `TProviderDetails` so adapters can
+ * surface a strongly-typed bag (e.g. `TokenUsage<AnthropicProviderUsageDetails>`);
+ * it defaults to {@link ProviderUsageDetails} (an open, serializable record) for
+ * generic consumers.
+ */
 export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   /** Total input/prompt tokens */
   promptTokens: number
@@ -205,8 +257,28 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   promptTokensDetails?: PromptTokensDetails
   /** Detailed breakdown of completion tokens by category */
   completionTokensDetails?: CompletionTokensDetails
+  /**
+     * The primary non-token billed quantity, self-describing via its unit —
+     * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
+     * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
+     * when the activity bills purely in tokens (the token fields above are
+     * already self-describing). When a provider bills tokens *on top of* a media
+     * unit, the tokens stay in the token fields and `billed` carries the media
+     * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
+     */
   billed?: BilledUsage
+  /**
+     * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+     * duration with an explicit `unit: 'seconds'`. Still populated alongside
+     * `billed` for backward compatibility; will be removed in a future release.
+     */
   durationSeconds?: number
+  /**
+     * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+     * count with the unit it is denominated in (`seconds`, `units`, …) — this
+     * bare count is ambiguous across providers. Still populated alongside
+     * `billed` for backward compatibility; will be removed in a future release.
+     */
   unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
   providerUsageDetails?: TProviderDetails
@@ -216,6 +288,10 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   costDetails?: UsageCostBreakdown
 }
 
+/**
+ * Tool call states - track the lifecycle of a tool call
+ * Must match @tanstack/ai-client ToolCallState
+ */
 export type ToolCallState =
   | 'awaiting-input'
   | 'input-streaming'
@@ -225,8 +301,17 @@ export type ToolCallState =
   | 'complete'
   | 'error'
 
+/**
+ * Tool result states - track the lifecycle of a tool result
+ * Must match @tanstack/ai-client ToolResultState
+ */
 export type ToolResultState = 'streaming' | 'complete' | 'error'
 
+/**
+ * @deprecated Image and audio usage now use the canonical {@link TokenUsage}
+ * shape. Kept as an alias for backward compatibility; will be removed in a
+ * future release.
+ */
 export type ImageUsage = TokenUsage
 
 interface BaseEventContext {
@@ -250,9 +335,11 @@ interface BaseEventContext {
   model?: string
   systemPrompts?: Array<string>
   options?: Record<string, unknown> | undefined
+  /** Provider-specific options passed to the embedding request. */
   modelOptions?: Record<string, unknown> | undefined
   toolNames?: Array<string>
   messageCount?: number
+  /** Whether the recall result injected any tools this turn. */
   hasTools?: boolean
   streaming?: boolean
 }
@@ -450,6 +537,7 @@ export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
   streamId: string
   middlewareName: string
   originalChunkType: string
+  /** Number of ranked results returned (after any `topN`). */
   resultCount: number
   wasDropped: boolean
 }
@@ -730,6 +818,11 @@ export interface AudioRequestStartedEvent extends BaseEventContext {
   duration?: number
 }
 
+/**
+ * Audio asset carried on completion events. Exactly one of `url` or `b64Json`
+ * is present; this mirrors the `GeneratedAudio` contract from `@tanstack/ai`
+ * and prevents consumers from reading both fields as present simultaneously.
+ */
 export type AudioRequestCompletedAudio =
   | {
       url: string
@@ -836,6 +929,18 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
+/**
+ * Wire/devtools payload for a **known** memory scope.
+ *
+ * Structural mirror of `Scope` from `@tanstack/ai` (`threadId` required when
+ * present). Not an isolation authority — adapters use real `MemoryScope` /
+ * `Scope`. Lives here so `@tanstack/ai-event-client` does not import
+ * `@tanstack/ai` (dependency cycle).
+ *
+ * When identity is unknown (e.g. the scope resolver threw before producing a
+ * scope), omit the field entirely on {@link MemoryErrorEvent} — do not send a
+ * partial or empty-string scope.
+ */
 export type MemoryScopeLite = {
   threadId: string
   userId?: string
@@ -846,6 +951,10 @@ export type MemoryScopeLite = {
 
 /** Emitted when the middleware begins a `recall` for the current turn. */
 export interface MemoryRetrieveStartedEvent extends BaseEventContext {
+  /**
+     * Scope when it was already resolved before the failure. Omitted when the
+     * resolver itself failed or never ran — there is no fake empty scope.
+     */
   scope: MemoryScopeLite
   /** Adapter id (e.g. 'in-memory', 'hindsight'). */
   adapter: string
@@ -856,6 +965,7 @@ export interface MemoryRetrieveStartedEvent extends BaseEventContext {
 /** Emitted when `recall` returns, before the result is injected into the prompt. */
 export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
   scope: MemoryScopeLite
+  /** Adapter id (e.g. 'in-memory', 'hindsight'). */
   adapter: string
   /** Number of discrete fragments returned (0 when the adapter synthesizes). */
   fragmentCount: number
@@ -899,6 +1009,13 @@ export interface MemoryFactLite {
   createdAt?: string
 }
 
+/**
+ * Emitted after a successful `save` when the adapter supports introspection
+ * (`inspect`/`listFacts`), carrying the current stored state for the scope so
+ * DevTools can render "what's in memory". Adapters without introspection never
+ * emit this — DevTools then falls back to the metrics-only timeline. Structurally
+ * decoupled from `@tanstack/ai-memory` (mirrors `MemorySnapshot` + `MemoryFact`).
+ */
 export interface MemorySnapshotEvent extends BaseEventContext {
   scope: MemoryScopeLite
   adapter: string

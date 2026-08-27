@@ -13,7 +13,28 @@ export interface SandboxCapabilities {
   ports: boolean
   /** Long-running/background processes via {@link SandboxProcess.spawn}. */
   backgroundProcesses: boolean
+  /**
+     * A spawned process exposes a writable host→process stdin
+     * ({@link SpawnHandle.stdin}). `true` for host (`localProcessSandbox`).
+     * `false` for Docker container, Docker Sandboxes (`sbx`), Daytona, Vercel,
+     * and Cloudflare. When `false`, harness adapters that feed a prompt over
+     * stdin must instead deliver it via a file + shell redirection.
+     */
   writableStdin: boolean
+  /**
+     * A spawned process can be forcibly terminated via {@link SpawnHandle.kill}
+     * and aborted mid-flight via the {@link ProcessOptions.signal} passed to
+     * {@link SandboxProcess.spawn}. `true` for host and Docker container.
+     * `false` for Docker Sandboxes (`sbx`) until measured, and for Daytona,
+     * Vercel, and Cloudflare. Those providers implement `kill()` as a no-op or
+     * have not been measured yet, so a long-running follower process
+     * (e.g. `tail -f`) started there can never be stopped by the caller, only
+     * polled and abandoned.
+     * Callers MUST branch on this before relying on `kill`/abort to reclaim a
+     * background process: a bring-your-own provider that omits it would
+     * otherwise be silently treated as killable, leaking an unstoppable process
+     * inside the sandbox.
+     */
   killableProcesses: boolean
   /** Capture/restore filesystem snapshots via {@link SandboxHandle.snapshot}. */
   snapshots: boolean
@@ -42,6 +63,13 @@ export interface ProcessOptions {
   signal?: AbortSignal
 }
 
+/**
+ * A live background process. `stdout`/`stderr` are async-iterables of decoded
+ * chunks; `stdin.write` feeds the process (duplex — required for ACP harness
+ * protocols such as Codex / Gemini CLI). There is intentionally NO
+ * reconnect-to-a-running-process in v1 — that belongs to the durable-stream /
+ * persistence layer.
+ */
 export interface SpawnHandle {
   readonly pid: number
   readonly stdout: AsyncIterable<string>
@@ -74,6 +102,10 @@ export interface SandboxFs {
   remove: (path: string) => Promise<void>
   rename: (from: string, to: string) => Promise<void>
   exists: (path: string) => Promise<boolean>
+  /**
+     * Optional metadata lookup. Implementations must not follow symlinks.
+     * Returns undefined only for a confirmed missing path. All other errors reject.
+     */
   lstat?: (path: string) => Promise<SandboxFsStat | undefined>
   /** Optional — present only when `capabilities.fs` providers advertise watch. */
   watch?: (
@@ -89,12 +121,19 @@ export type SandboxFsStat =
   | { type: 'symlink'; mode: number }
   | { type: 'other'; mode: number }
 
+/**
+ * Uniform git surface. Implementations either delegate to the provider's
+ * native git (when advertised) or desugar to `process.exec("git …")`, so the
+ * contract is identical across providers.
+ */
 export interface SandboxGit {
   clone: (input: {
+    /** URL the host can reach (localhost / host-bound port / authenticated preview URL). */
     url: string
     dir?: string
     ref?: string
-    auth?: { username?: string; token: string }
+    auth?: { username?: string; /** Bearer token gating the channel, when the provider issues one. */
+token: string }
     depth?: number | 'full'
   }) => Promise<void>
   status: (dir?: string) => Promise<string>
@@ -112,6 +151,13 @@ export interface SandboxChannel {
   url: string
   /** Bearer token gating the channel, when the provider issues one. */
   token?: string
+  /**
+     * Ready-to-send HTTP headers that authenticate requests to {@link url}, when
+     * the provider's auth doesn't fit a plain `Authorization: Bearer <token>`
+     * (e.g. Daytona's `x-daytona-preview-token`). Consumers that speak HTTP to the
+     * channel should attach these verbatim; the provider owns the header names so
+     * consumers stay provider-agnostic.
+     */
   headers?: Record<string, string>
 }
 
@@ -126,6 +172,7 @@ export interface SandboxEnv {
 
 /** Opaque reference to a stored snapshot, used to restore later. */
 export interface SnapshotRef {
+  /** Provider-assigned id used to reconnect to this sandbox. */
   id: string
   label?: string
 }
@@ -136,13 +183,22 @@ export interface SandboxHandle {
   readonly id: string
   /** Provider name (e.g. "docker", "cloudflare", "local-process"). */
   readonly provider: string
+  /**
+     * Real filesystem path backing the virtual workspace root (`/workspace`).
+     * Harness CLIs and ACP `newSession` interpret cwd literally — use
+     * {@link resolveHarnessCwd} rather than the virtual path when the provider
+     * maps `/workspace` elsewhere (Daytona, Vercel, local-process).
+     */
   readonly workspaceRoot?: string
   /** What this sandbox can do. */
   readonly capabilities: SandboxCapabilities
+  /** Read/write/list/… via {@link SandboxFs}. Always true (mandatory). */
   readonly fs: SandboxFs
   readonly git: SandboxGit
   readonly process: SandboxProcess
+  /** Expose a port and resolve a reachable channel via {@link SandboxPorts}. */
   readonly ports: SandboxPorts
+  /** Per-create / per-command environment variables. */
   readonly env: SandboxEnv
   /** Capability-gated: throws UnsupportedCapabilityError if `capabilities.snapshots` is false. */
   snapshot?: (label?: string) => Promise<SnapshotRef>
@@ -157,6 +213,7 @@ export interface SandboxCreateInput {
   workspace?: WorkspaceDefinition
   policy?: SandboxPolicy
   env?: Record<string, string>
+  /** Abort the command/process when this signal fires. */
   signal?: AbortSignal
   /** Harness adapter name. Optional. Providers that do not use it ignore it. */
   adapterName?: string
@@ -184,6 +241,10 @@ export interface SandboxDestroyInput {
   signal?: AbortSignal
 }
 
+/**
+ * Owns an isolation primitive. Implemented by `@tanstack/ai-sandbox-*`
+ * provider packages.
+ */
 export interface SandboxProvider {
   readonly name: string
   /** Static capability descriptor. */

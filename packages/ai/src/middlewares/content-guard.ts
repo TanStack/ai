@@ -4,10 +4,16 @@ import type {
 } from '../activities/chat/middleware/types'
 import type { StreamChunk } from '../types'
 
+/**
+ * A content guard rule — either a regex pattern with replacement, or a transform function.
+ */
 export type ContentGuardRule =
   | { pattern: RegExp; replacement: string }
   | { fn: (text: string) => string }
 
+/**
+ * Information passed to the onFiltered callback.
+ */
 export interface ContentFilteredInfo {
   /** The message ID being filtered */
   messageId: string
@@ -19,18 +25,44 @@ export interface ContentFilteredInfo {
   strategy: 'delta' | 'buffered'
 }
 
+/**
+ * Options for the content guard middleware.
+ */
 export interface ContentGuardMiddlewareOptions {
+  /**
+     * Rules to apply to text content. Each rule is either a regex pattern
+     * with a replacement string, or a custom transform function.
+     * Rules are applied in order. Each rule receives the output of the previous.
+     */
   rules: Array<ContentGuardRule>
 
+  /** Which strategy was used */
   strategy?: 'delta' | 'buffered'
 
+  /**
+     * Number of characters to hold back before emitting (buffered strategy only).
+     * Should be at least as long as the longest pattern you expect to match.
+     * Buffer is flushed when the stream ends.
+     *
+     * @default 50
+     */
   bufferSize?: number
 
+  /**
+     * If true, drop the entire chunk when any rule changes the content.
+     * @default false
+     */
   blockOnMatch?: boolean
 
+  /**
+     * Callback when content is filtered by any rule.
+     */
   onFiltered?: (info: ContentFilteredInfo) => void
 }
 
+/**
+ * Apply all rules to a string, returning the transformed result.
+ */
 function applyRules(text: string, rules: Array<ContentGuardRule>): string {
   let result = text
   for (const rule of rules) {
@@ -43,6 +75,21 @@ function applyRules(text: string, rules: Array<ContentGuardRule>): string {
   return result
 }
 
+/**
+ * Creates a middleware that filters or transforms streamed text content.
+ *
+ * @example
+ * ```ts
+ * import { contentGuardMiddleware } from '@tanstack/ai/middlewares'
+ *
+ * const guard = contentGuardMiddleware({
+ *   rules: [
+ *     { pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: '[SSN REDACTED]' },
+ *   ],
+ *   strategy: 'buffered',
+ * })
+ * ```
+ */
 export function contentGuardMiddleware(
   options: ContentGuardMiddlewareOptions,
 ): ChatMiddleware {
@@ -71,7 +118,9 @@ function createDeltaStrategy(
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       if (chunk.type !== 'TEXT_MESSAGE_CONTENT') return
 
+      /** The original text before filtering */
       const original = chunk.delta
+      /** The filtered text after rules applied */
       const filtered = applyRules(original, rules)
 
       if (filtered === original) return // unchanged, pass through

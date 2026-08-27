@@ -15,21 +15,47 @@ import type {
 } from '@tanstack/ai-code-mode'
 
 /** Default memory limit in MB (matches Node isolate driver default). */
-const DEFAULT_MEMORY_LIMIT_MB = 128
+const /** Default memory limit in MB (matches Node isolate driver default). */
+DEFAULT_MEMORY_LIMIT_MB = 128
 
 /** Default max stack size in bytes for QuickJS runtime. */
-const DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+const /** Default max stack size in bytes for QuickJS runtime. */
+DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
+/**
+ * Configuration for the QuickJS WASM isolate driver
+ */
 export interface QuickJSIsolateDriverConfig {
+  /**
+     * Default execution timeout in ms (default: 30000)
+     */
   timeout?: number
 
+  /**
+     * Default memory limit in MB (default: 128).
+     * Applied via QuickJS `runtime.setMemoryLimit`.
+     */
   memoryLimit?: number
 
+  /**
+     * Default max stack size in bytes (default: 512 KiB).
+     * Applied via QuickJS `runtime.setMaxStackSize`.
+     */
   maxStackSize?: number
 
+  /**
+     * URL or path from which Emscripten loads the QuickJS WASM binary.
+     *
+     * When omitted, `quickjs-emscripten` resolves its bundled WASM binary.
+     * Set this when serving the binary from a public directory or CDN.
+     */
   wasmLocation?: string
 }
 
+/**
+ * Run a tool binding against JSON-encoded args. Never rejects: errors are
+ * encoded into the JSON envelope so the guest-side wrapper can rethrow them.
+ */
 async function invokeBinding(
   binding: ToolBinding,
   argsJson: string,
@@ -44,6 +70,15 @@ async function invokeBinding(
   }
 }
 
+/**
+ * Inject a tool binding as a host function that returns a QuickJS promise
+ * resolved from the host side.
+ *
+ * Deliberately avoids `newAsyncifiedFunction`: repeated asyncify suspensions
+ * corrupt QuickJS refcounts and abort the WASM module
+ * (https://github.com/justjake/quickjs-emscripten/issues/258). The promise
+ * bridge never suspends the WASM stack, so that bug cannot trigger.
+ */
 function injectBinding(
   vm: QuickJSContext,
   name: string,
@@ -115,6 +150,40 @@ function injectBinding(
   wrapperResult.value.dispose()
 }
 
+/**
+ * Create a QuickJS WASM isolate driver
+ *
+ * This driver uses QuickJS compiled to WebAssembly via Emscripten.
+ * It provides a sandboxed JavaScript environment that runs anywhere
+ * (Node.js, browser, edge) without native dependencies.
+ *
+ * Tools are injected as async functions that bridge back to the host.
+ *
+ * @example
+ * ```typescript
+ * import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
+ *
+ * const driver = createQuickJSIsolateDriver({
+ *   timeout: 30000,
+ * })
+ *
+ * const context = await driver.createContext({
+ *   bindings: {
+ *     readFile: {
+ *       name: 'readFile',
+ *       description: 'Read a file',
+ *       inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+ *       execute: async ({ path }) => fs.readFile(path, 'utf-8'),
+ *     },
+ *   },
+ * })
+ *
+ * const result = await context.execute(`
+ *   const content = await readFile({ path: './data.json' })
+ *   return JSON.parse(content)
+ * `)
+ * ```
+ */
 export function createQuickJSIsolateDriver(
   config: QuickJSIsolateDriverConfig = {},
 ): IsolateDriver {

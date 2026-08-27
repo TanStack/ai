@@ -34,6 +34,26 @@ function getChunkParentMessageId(chunk: StreamChunk): string | undefined {
     : undefined
 }
 
+/**
+ * Encapsulates everything persistence-related for `ChatClient` so the client
+ * itself stays focused on streaming and message state.
+ *
+ * Two responsibilities live here:
+ *
+ * 1. **Storage orchestration** — hydrate from `getItem(id)` on creation, save a
+ *    combined `{ messages, resume? }` record via `setItem` on every change
+ *    through an ordered write queue, and `removeItem(id)` on clear (or when
+ *    both the transcript and resume pointer are empty). A generation counter
+ *    discards stale writes when a removal or a newer conversation supersedes
+ *    an in-flight async operation.
+ * 2. **Clear-during-stream suppression** — when a conversation is cleared while a
+ *    stream is still producing, late chunks for the cleared run(s) must not
+ *    repopulate the now-empty state. The persistor tracks the cleared ids and
+ *    decides, per chunk, whether the client should ignore it.
+ *
+ * All adapter calls are best-effort: a throwing or rejecting adapter is swallowed
+ * so storage problems never break the chat.
+ */
 export class ChatPersistor {
   // --- storage queue state ---
   private skipNextPersist = false
@@ -89,6 +109,10 @@ export class ChatPersistor {
     })
   }
 
+  /**
+     * Synchronously read the persisted state for constructor-time hydration.
+     * Returns the normalized combined record, or a promise of it for async stores.
+     */
   readInitial():
     | ChatPersistedState
     | undefined
@@ -109,6 +133,10 @@ export class ChatPersistor {
     }
   }
 
+  /**
+     * Apply state from an async `getItem` once it resolves, unless the message
+     * list has already changed since hydration began.
+     */
   hydrateAsync(
     persistedState:
       | ChatPersistedState
@@ -140,6 +168,11 @@ export class ChatPersistor {
       })
   }
 
+  /**
+     * Record a message-list change and queue a combined write for it. Skips a
+     * single write after {@link beginClear} so the clear's empty snapshot isn't
+     * persisted between `clearMessages()` and {@link remove}.
+     */
   notifyMessagesChanged(messages: Array<UIMessage>): void {
     this.messagesGeneration++
     this.lastMessages = [...messages]
@@ -150,6 +183,11 @@ export class ChatPersistor {
     this.writeState()
   }
 
+  /**
+     * Record the current resume snapshot (which run to rejoin / which interrupts
+     * are pending) and persist it alongside the messages. Pass `null` to clear it
+     * once the run reaches a non-interrupt terminal.
+     */
   persistResumeSnapshot(snapshot: ChatResumeSnapshot | null): void {
     this.lastResume = snapshot
     if (this.skipNextPersist) {
@@ -204,6 +242,10 @@ export class ChatPersistor {
     }
   }
 
+  /**
+     * Capture the message/run ids that exist at the moment of a clear so chunks
+     * still arriving for them can be ignored.
+     */
   snapshotClear(context: {
     messages: Array<UIMessage>
     activeRunIds: Set<string>
@@ -279,6 +321,10 @@ export class ChatPersistor {
     return false
   }
 
+  /**
+     * The owning client calls this when a run starts so runless content chunks
+     * (adapters that omit `runId` on content events) can be attributed to it.
+     */
   onRunStarted(runId: string): void {
     this.currentRunlessRunId = runId
   }
@@ -304,6 +350,10 @@ export class ChatPersistor {
     this.ignoredActiveRunIds.clear()
   }
 
+  /**
+     * Consume the current runless run id (if any), forgetting it. Used when an
+     * ignored, runId-less RUN_ERROR drains the run the client is still tracking.
+     */
   takeRunlessRunId(): string | null {
     const runId = this.currentRunlessRunId
     if (!runId) return null

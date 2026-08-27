@@ -50,10 +50,22 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
   )
 }
 
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface LovableVideoConfig extends LovableClientConfig {
+  /**
+     * Opt into fetching HTTP(S) image URL inputs for `input_reference`.
+     * The endpoint requires uploaded file bytes, so an HTTP(S) URL has to be
+     * downloaded and buffered in memory. When `false` (the default), HTTP(S)
+     * URL image inputs throw.
+     */
   allowUrlFetch?: boolean
 }
 
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export class LovableVideoAdapter<
   TModel extends LovableVideoModel,
 > extends BaseVideoAdapter<
@@ -269,6 +281,9 @@ function isHttpStatus(error: unknown, status: number): boolean {
   )
 }
 
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export function createLovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   apiKey: string,
@@ -277,6 +292,9 @@ export function createLovableVideo<TModel extends LovableVideoModel>(
   return new LovableVideoAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export function lovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   config?: Omit<LovableVideoConfig, 'apiKey'>,

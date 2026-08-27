@@ -34,6 +34,11 @@ function makeRecord(
   }
 }
 
+/**
+ * Assert `makeStore()` produces a spec-compliant {@link SandboxInstanceStore}. Each
+ * `it` gets a fresh store, so implementations may share process state across
+ * calls without cross-test bleed only if `makeStore` returns an isolated store.
+ */
 export function runSandboxInstanceStoreConformance(
   name: string,
   makeStore: () => SandboxInstanceStore | Promise<SandboxInstanceStore>,

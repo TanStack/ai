@@ -17,6 +17,13 @@ export interface PerplexitySearchRequest {
   max_results?: number
   /** Maximum tokens of content to return per page. */
   max_tokens_per_page?: number
+  /**
+     * Restrict (or exclude) results by domain (max 20 entries).
+     *
+     * Hostnames, optional paths, or TLDs. Use bare entries to allowlist
+     * (`["nytimes.com"]`) or `-` prefixed entries to denylist
+     * (`["-pinterest.com"]`). Allow and deny entries must NOT be mixed.
+     */
   search_domain_filter?: Array<string>
   /** Restrict results by recency: `hour | day | week | month | year`. */
   search_recency_filter?: 'hour' | 'day' | 'week' | 'month' | 'year'
@@ -43,8 +50,15 @@ const DEFAULT_BASE_URL = 'https://api.perplexity.ai'
 const MAX_QUERY_BATCH = 5
 const MAX_DOMAIN_FILTER = 20
 
+/**
+ * Low-level HTTP client for the Perplexity Search API.
+ *
+ * Calls `POST {baseURL}/search` with bearer auth.
+ */
 export class PerplexitySearchClient {
+  /** Perplexity API key. Falls back to `PERPLEXITY_API_KEY` / `PPLX_API_KEY` env vars. */
   private readonly apiKey: string
+  /** Override the API base URL (defaults to https://api.perplexity.ai). */
   private readonly baseURL: string
   private readonly fetchImpl: typeof fetch
 
@@ -64,6 +78,7 @@ export class PerplexitySearchClient {
     request: PerplexitySearchRequest,
     init: { signal?: AbortSignal } = {},
   ): Promise<PerplexitySearchResponse> {
+    /** The search query, or up to 5 queries. */
     const query = normalizeQuery(request.query)
     validateDomainFilter(request.search_domain_filter)
 

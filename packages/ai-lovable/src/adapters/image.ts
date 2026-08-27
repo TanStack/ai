@@ -30,6 +30,12 @@ import type { LovableClientConfig } from '../utils/client'
 const MAX_EDIT_IMAGES = 16
 
 export interface LovableImageConfig extends LovableClientConfig {
+  /**
+     * Opt into fetching HTTP(S) image URL inputs for image edits. The gateway
+     * `/images/edits` endpoint requires uploaded file bytes, so an HTTP(S) URL
+     * has to be downloaded and buffered in memory. When `false` (the default),
+     * HTTP(S) URL image inputs throw.
+     */
   allowUrlFetch?: boolean
 }
 

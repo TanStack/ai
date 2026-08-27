@@ -1,38 +1,71 @@
 import type { DebugOption, VADConfig } from '@tanstack/ai'
 import type { GrokRealtimeModel } from '../model-meta'
 
+/**
+ * Grok realtime voice options (Voice Agent API).
+ * https://docs.x.ai/developers/model-capabilities/audio/voice-agent
+ */
 export type GrokRealtimeVoice = 'eve' | 'ara' | 'rex' | 'sal' | 'leo'
 
+/**
+ * Grok semantic VAD configuration.
+ */
 export interface GrokSemanticVADConfig {
   type: 'semantic_vad'
   /** Eagerness level for turn detection */
   eagerness?: 'low' | 'medium' | 'high'
 }
 
+/**
+ * Grok server VAD configuration.
+ */
 export interface GrokServerVADConfig extends VADConfig {
   type: 'server_vad'
 }
 
+/**
+ * Grok turn detection configuration.
+ */
 export type GrokTurnDetection =
   | GrokSemanticVADConfig
   | GrokServerVADConfig
   | null
 
+/**
+ * Options for the Grok realtime token adapter.
+ */
 export interface GrokRealtimeTokenOptions {
   /** Model to use (default: 'grok-voice-think-fast-2.0'). */
   model?: GrokRealtimeModel
+  /**
+     * Enable debug logging for token creation.
+     *
+     * - `true`: log all categories via the default `ConsoleLogger`
+     * - `false`: silence everything including errors
+     * - `DebugConfig`: per-category toggles plus an optional custom `logger`
+     * - omitted: only the `errors` category is active (default behaviour)
+     */
   debug?: DebugOption
 }
 
+/**
+ * Options for the Grok realtime client adapter.
+ */
 export interface GrokRealtimeOptions {
   /** Connection mode (default: 'webrtc' in browser). */
   connectionMode?: 'webrtc' | 'websocket'
   debug?: DebugOption
 }
 
+/**
+ * Grok realtime session response from the `/v1/realtime/client_secrets`
+ * endpoint. Shape matches OpenAI's `/v1/realtime/sessions` response since
+ * xAI advertises its voice agent API as OpenAI-realtime-compatible.
+ */
 export interface GrokRealtimeSessionResponse {
   id: string
   object: string
+  /** Model to use (default: 'grok-voice-think-fast-2.0'). */
   model: string
   modalities: Array<string>
   instructions: string
@@ -47,6 +80,7 @@ export interface GrokRealtimeSessionResponse {
     threshold?: number
     prefix_padding_ms?: number
     silence_duration_ms?: number
+    /** Eagerness level for turn detection */
     eagerness?: string
   } | null
   tools: Array<{

@@ -20,6 +20,28 @@ export type ReclaimOutcome =
   /** The record belongs to a different provider; refused. */
   | 'provider-mismatch'
 
+/**
+ * Destroy the sandbox a terminal run was bound to.
+ *
+ * Two orderings are load-bearing:
+ *
+ * - **The provider check before either `destroy` or `delete`.** A multi-provider
+ *   application would otherwise hand a Docker container id to Daytona's
+ *   `destroy`, which at best errors and at worst matches an unrelated sandbox
+ *   in the other provider's id namespace. Getting this wrong destroys a
+ *   stranger's workload, so it is the first gate — a mismatch touches NOTHING,
+ *   including the record, which the right provider still needs.
+ * - **`destroy` before `delete`, and `delete` regardless of whether `destroy`
+ *   succeeded.** The provider sandbox may already be gone (idle-reclaimed, the
+ *   region wiped, the container pruned). Keeping an instance record that points
+ *   at nothing guarantees a failed `resume` on the thread's next turn, which is
+ *   strictly worse than an orphaned provider sandbox — one is a broken user
+ *   experience, the other is a bounded cost the provider itself will reclaim.
+ *   The delete is therefore unconditional — but a failed `destroy` returns
+ *   `'destroy-failed'`, not `'destroyed'`: the record is gone either way, and an
+ *   operator has to be able to tell "torn down" from "possibly still billing and
+ *   no longer reachable from here".
+ */
 export async function reclaimSandbox(
   record: RunRecord,
   options: ReclaimSandboxOptions,
@@ -62,6 +84,23 @@ export async function reclaimSandbox(
   return destroyFailed ? 'destroy-failed' : 'destroyed'
 }
 
+/**
+ * Thrown by {@link sandboxReclaimer} when {@link reclaimSandbox} answers
+ * `'destroy-failed'`.
+ *
+ * WHY AN EXCEPTION AND NOT A RETURN VALUE. `ReapOptions.reclaim` is
+ * `(record) => Promise<void>`, and the sweep's only channel for "the sandbox was
+ * NOT reclaimed" is a rejection — `reapOne` catches one and reports the run
+ * `'reclaim-failed'` with its `status` and `exitCode` intact. A reclaimer that
+ * logged this arm and returned normally therefore reported `'finalized'`, and
+ * `outcomes['reclaim-failed']` read `0` on precisely the leak it watches for.
+ *
+ * It carries no `cause`: `reclaimSandbox` returns a {@link ReclaimOutcome}, not
+ * the provider's rejection, and widening that return to smuggle the error out
+ * would change an outcome contract whose ordering and arms are load-bearing. The
+ * underlying `destroy` rejection is on `reclaimSandbox`'s own `warn` line, which
+ * carries the same `runId` and `sandboxKey` this error does.
+ */
 export class SandboxReclaimFailedError extends Error {
   readonly runId: string
   /** Absent only in the impossible case; see the throw site in `sandboxReclaimer`. */
@@ -79,6 +118,14 @@ export class SandboxReclaimFailedError extends Error {
   }
 }
 
+/**
+ * Adapt {@link reclaimSandbox} to `ReapOptions.reclaim`.
+ *
+ * REJECTS on `'destroy-failed'` — see {@link SandboxReclaimFailedError} for why
+ * that arm must not resolve. Every other outcome resolves: `'destroyed'` did the
+ * job, and `'no-sandbox-key'` / `'not-found'` / `'provider-mismatch'` all mean
+ * there is nothing for this reclaimer to tear down, which is not a sweep failure.
+ */
 export function sandboxReclaimer(
   options: ReclaimSandboxOptions,
 ): (record: RunRecord) => Promise<void> {

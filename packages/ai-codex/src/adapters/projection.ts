@@ -26,6 +26,11 @@ function isBearerMarker(value: unknown): value is BearerRef {
   )
 }
 
+/**
+ * Resolve a single MCP header value: a `SecretRef` resolves to its plaintext, a
+ * `bearer(ref)` marker resolves to `Bearer <plaintext>`, and a plain string is
+ * passed through unchanged.
+ */
 function resolveHeaderValue(
   value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
@@ -52,6 +57,11 @@ interface CodexMcpServer {
   headers: Record<string, string>
 }
 
+/**
+ * Build codex's `mcp_servers` map from the `{ kind: 'mcp' }` skills, resolving
+ * every header value (SecretRef / bearer / string). Returns `undefined` when
+ * there are no MCP skills so the caller can skip the write.
+ */
 function buildMcpServers(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
@@ -74,6 +84,12 @@ function buildMcpServers(
   return count > 0 ? servers : undefined
 }
 
+/**
+ * Render codex's `[mcp_servers.<name>]` config in TOML. Each server emits a
+ * `url` and, when it has headers, an inline `http_headers` table of resolved
+ * literal values (matching the `mcp_servers.*` key shape the adapter already
+ * uses for the host tool-bridge).
+ */
 function renderMcpToml(servers: Record<string, CodexMcpServer>): string {
   const blocks: Array<string> = []
   const mcpServers = Object.entries(servers)
@@ -94,6 +110,12 @@ function renderMcpToml(servers: Record<string, CodexMcpServer>): string {
   return `${blocks.join('\n\n')}\n`
 }
 
+/**
+ * Write codex's `<root>/.codex/config.toml`, re-resolving every secret. This runs on
+ * EVERY projection call (never gated by the marker) so codex always reads the
+ * current secret values and a snapshot can never serve a stale or rotated one.
+ * When there are no MCP skills the write is skipped.
+ */
 async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -105,6 +127,12 @@ async function projectMcpServers(
   await handle.fs.write(target, renderMcpToml(servers))
 }
 
+/**
+ * Ensure each cloned `gitSkill` repo is available under codex's project skills
+ * dir (`<root>/.codex/skills/<basename>`) via a symlink, falling back to a
+ * recursive copy on platforms without `ln -s`. Codex has no documented skills
+ * dir; if linking fails we warn rather than throw.
+ */
 async function projectGitSkills(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -141,6 +169,11 @@ async function projectGitSkills(
   }
 }
 
+/**
+ * `agentSkill` references a public skill by bare name. Codex has no primitive to
+ * fetch a skill from a bare name, so we warn and skip rather than fabricate a
+ * command.
+ */
 function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
@@ -152,6 +185,10 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * Codex has no plugin concept, so declared plugins cannot be projected. We warn
+ * once per plugin and skip rather than throw.
+ */
 function projectPlugins(projection: WorkspaceProjection): void {
   for (const name of projection.plugins) {
     console.warn(
@@ -162,6 +199,17 @@ function projectPlugins(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * Project a `WorkspaceProjection` into the Codex sandbox. Safe to call on every
+ * `chatStream`. The secret-bearing MCP config is (re)written on every call,
+ * re-resolving secrets, so codex always reads current values and a snapshot can
+ * never serve a stale or rotated secret. The safe, idempotent, non-secret
+ * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
+ * one-time marker so they run only on the first call after create/restore.
+ *
+ * @param handle     - The sandbox handle (`fs` + `process`).
+ * @param projection - The portable workspace inputs from `withSandbox`.
+ */
 export async function projectCodexWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

@@ -96,7 +96,8 @@ interface ValidationFailure {
   path?: ReadonlyArray<string | number>
 }
 
-type ValidationResult = { valid: true; payload: unknown } | ValidationFailure
+type ValidationResult = { valid: true; /** Validated display payload for a registered first-party generic item. */
+payload: unknown } | ValidationFailure
 
 interface TransactionToken {
   active: boolean
@@ -191,6 +192,12 @@ function isLegacyClientToolMetadata(value: unknown): boolean {
   )
 }
 
+/**
+ * Does this descriptor carry the pre-binding TanStack metadata marker?
+ *
+ * Descriptors emitted before the resume binding existed are still ours to
+ * resume, so they must not be mistaken for another producer's interrupt.
+ */
 function isLegacyInterruptMetadata(interrupt: Interrupt): boolean {
   return (
     isLegacyApprovalMetadata(interrupt.metadata) ||
@@ -206,6 +213,7 @@ function getDescriptorBinding(
 
 function hasReservedFirstPartyBindingMarker(interrupt: Interrupt): boolean {
   if (!isUnknownObject(interrupt.metadata)) return false
+  /** `undefined` only for `unbound` items. */
   const binding = interrupt.metadata[INTERRUPT_BINDING_METADATA_KEY]
   if (!isUnknownObject(binding)) return false
   const isUnsupportedBindingVersion =
@@ -242,6 +250,10 @@ function getInterruptPayload(interrupt: Interrupt): unknown {
   return interrupt.metadata?.['tanstack:interruptPayload']
 }
 
+/**
+ * Only used to route *legacy* (pre-binding) descriptors, which have no binding
+ * to classify off. Current descriptors are classified by their binding alone.
+ */
 function isClientToolExecutionReason(reason: string): boolean {
   return (
     reason === 'tanstack:client_tool_execution' ||
@@ -1047,6 +1059,7 @@ export class InterruptManager<
     candidate: InterruptBinding | undefined,
     legacyResumable: boolean,
   ): RuntimeInterrupt {
+    /** This binding is valid and can participate in this chat resume batch. */
     const resumable = isGenericFallbackResumable(
       legacyResumable,
       candidate,

@@ -39,6 +39,10 @@ function canonical(value: unknown): string {
     .join(',')}}`
 }
 
+/**
+ * Hash of the parts of a workspace that change what the agent sees. Secrets are
+ * intentionally excluded (rotating a token must not orphan the sandbox).
+ */
 export function computeWorkspaceHash(
   workspace: WorkspaceDefinition | undefined,
 ): string {

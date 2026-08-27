@@ -128,6 +128,11 @@ export class ByokClient {
     this.#emit()
   }
 
+  /**
+     * `true` — the server can fill any slug from env.
+     * `false` — no env coverage.
+     * A record merges per-id flags and clears the all/none boolean.
+     */
   setServerCoverage(flags: boolean | Readonly<Record<string, boolean>>): void {
     if (typeof flags === 'boolean') {
       this.#coverageAll = flags

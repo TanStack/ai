@@ -15,6 +15,9 @@ import type {
 import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
+/**
+ * Provider options for transcription, excluding fields TanStack AI handles.
+ */
 export type FalTranscriptionProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'audio_url'
@@ -26,6 +29,21 @@ interface FalChunk {
   speaker?: string
 }
 
+/**
+ * fal.ai transcription (speech-to-text) adapter.
+ *
+ * Supports fal.ai STT models like whisper, wizper, etc.
+ *
+ * @example
+ * ```typescript
+ * const adapter = falTranscription('fal-ai/whisper')
+ * const result = await generateTranscription({
+ *   adapter,
+ *   audio: 'https://example.com/audio.mp3',
+ *   language: 'en',
+ * })
+ * ```
+ */
 export class FalTranscriptionAdapter<
   TModel extends FalModel,
 > extends BaseTranscriptionAdapter<

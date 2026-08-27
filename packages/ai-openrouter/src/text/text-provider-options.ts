@@ -23,12 +23,22 @@ export type PluginAutoRouter = Extract<Plugin, { id: 'auto-router' }>
 export type PdfParserOptions = NonNullable<PluginFileParser['pdf']>
 
 export type ReasoningOptions = NonNullable<ChatRequest['reasoning']> & {
+  /**
+     * Disable reasoning for this request.
+     *
+     * OpenRouter documents `enabled: false`, but the SDK's chat request schema
+     * currently strips that field. The adapter normalizes this explicit opt-out
+     * to `effort: 'none'`, which the SDK preserves on the wire.
+     */
   enabled?: false
 }
 
 export type StreamOptions = NonNullable<ChatRequest['streamOptions']>
 
 export type ImageConfig = {
+  /**
+     * The aspect ratio for generated images.
+     */
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
 
   image_size?: '1k' | '2k' | '4k'
@@ -47,7 +57,14 @@ export type OpenRouterCommonOptions = Pick<
   | 'parallelToolCalls'
   | 'modalities'
 > & {
+  /**
+     * A list of model IDs to use as fallbacks if the primary model is unavailable.
+     */
   models?: Array<OpenRouterChatModel>
+  /**
+     * The model variant to use, if supported by the model.
+     * Will be appended to the model ID.
+     */
   variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
 }
 
@@ -73,6 +90,35 @@ export type OpenRouterBaseOptions = Pick<
 export type ExternalTextProviderOptions = OpenRouterCommonOptions &
   OpenRouterBaseOptions
 
+/**
+ * Per-system-prompt metadata accepted on each `chat({ systemPrompts: [...] })`
+ * entry (the `{ content, metadata }` object form).
+ *
+ * The only field is `cache_control`, OpenRouter's pass-through prompt-cache
+ * directive. It is honoured by Anthropic-family models routed through
+ * OpenRouter (the equivalent of calling Anthropic directly with a
+ * `cache_control` breakpoint) and ignored by routes that don't support it —
+ * OpenAI models, for instance, cache long prefixes automatically with no
+ * request-side directive. The adapter forwards it onto the system message's
+ * text content part on the wire; without it, the system prompt is sent as a
+ * plain joined string exactly as before.
+ *
+ * @example
+ *   import type { OpenRouterSystemPromptMetadata } from '@tanstack/ai-openrouter'
+ *
+ *   chat({
+ *     adapter: openRouterText('anthropic/claude-sonnet-4.5'),
+ *     systemPrompts: [
+ *       {
+ *         content: 'Large, stable instructions — cache me.',
+ *         metadata: {
+ *           cache_control: { type: 'ephemeral' },
+ *         } satisfies OpenRouterSystemPromptMetadata,
+ *       },
+ *       'Volatile per-request instruction.',
+ *     ],
+ *   })
+ */
 export type OpenRouterSystemPromptMetadata = {
   cache_control?: ChatContentCacheControl
 }

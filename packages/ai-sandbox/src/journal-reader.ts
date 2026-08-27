@@ -12,10 +12,20 @@ import type { JournalPaths } from './journal'
 import type { JournalLine } from './journal-bytes'
 import type { ProcessOptions, SandboxHandle } from './contracts'
 
+/**
+ * Poll interval for the bounded-`exec` strategy. Matches the interval
+ * `ai-sandbox-cloudflare`'s run-log Durable Object already uses, so the two
+ * readers have the same latency profile.
+ */
 export const DEFAULT_JOURNAL_POLL_MS = 250
 
 export interface ReadJournalOptions {
   paths: JournalPaths
+  /**
+     * Count of journal bytes already consumed. The read starts at the next byte.
+     * Defaults to 0, which is also what a takeover uses: the alignment step, not
+     * the reader, decides what has already been delivered.
+     */
   fromByte?: number
   /** Stop reading. On the follow strategy this also kills the `tail`. */
   signal?: AbortSignal
@@ -25,10 +35,32 @@ export interface ReadJournalOptions {
   pollIntervalMs?: number
   /** Working directory for the read command. Paths are absolute, so rarely needed. */
   cwd?: string
+  /**
+     * How long to wait for the FIRST byte of the journal before failing with
+     * `'journal-stalled'`. Defaults to {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS} — the
+     * same number that bounds the attach preflight, because it bounds the same
+     * question from the other side. `0` or a non-finite value disables the bound;
+     * do that only where some OTHER deadline already covers the read, since an
+     * unbounded read of an empty journal never returns.
+     *
+     * Only the first byte is bounded. An agent that streams slowly is never cut
+     * off.
+     */
   firstByteTimeoutMs?: number
+  /**
+     * Run id, for the stall error's message only. Defaults to naming the journal
+     * path, which is always available and always identifies the run uniquely.
+     */
   runId?: string
 }
 
+/**
+ * Which read strategy a provider supports.
+ *
+ * Keyed on capabilities, never on `handle.provider`: a BYO provider with the
+ * same limitation must get the same treatment, and name-sniffing would silently
+ * hand it an unstoppable `tail -f`.
+ */
 export function journalReadStrategy(handle: SandboxHandle): 'follow' | 'poll' {
   const { backgroundProcesses, killableProcesses } = handle.capabilities
   return backgroundProcesses && killableProcesses ? 'follow' : 'poll'
@@ -42,8 +74,25 @@ function processOptions(options: ReadJournalOptions): ProcessOptions {
 }
 
 /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
-const ABORTED = Symbol('journal-read-aborted')
+const /** Resolution of the abort race in {@link untilAborted}. Never a stream value. */
+ABORTED = Symbol('journal-read-aborted')
 
+/**
+ * Iterate `source` but stop the moment `signal` fires, instead of waiting for
+ * the stream to close.
+ *
+ * Without this, aborting a follow read only *asks* the provider to kill `tail`
+ * and then blocks on `stdout` until that kill closes the pipe — which is not a
+ * guarantee any provider makes. On local-process/Windows, `killTree` falls back
+ * to signalling only the `sh` wrapper if `taskkill` is unavailable, leaving the
+ * `tail` grandchild holding the stdout pipe open, and the read rides past its
+ * own AbortSignal until some outer timeout fires. The signal is the caller's
+ * contract with the reader, so the reader honors it itself and treats the kill
+ * as best-effort cleanup. (local-process now also verifies the tree is gone and
+ * sweeps the MSYS grandchildren `taskkill /T` cannot reach, but that is a
+ * provider improving its best effort — not a guarantee this reader may assume of
+ * any provider.)
+ */
 async function* untilAborted<T>(
   source: AsyncIterable<T>,
   signal: AbortSignal | undefined,
@@ -73,7 +122,8 @@ async function* untilAborted<T>(
 }
 
 /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
-const STALLED = Symbol('journal-read-stalled')
+const /** Resolution of the first-byte race in {@link withFirstByteDeadline}. */
+STALLED = Symbol('journal-read-stalled')
 
 /** The bound in effect for a read; `undefined` when the caller disabled it. */
 function firstByteTimeout(options: ReadJournalOptions): number | undefined {
@@ -81,6 +131,10 @@ function firstByteTimeout(options: ReadJournalOptions): number | undefined {
   return Number.isFinite(ms) && ms > 0 ? ms : undefined
 }
 
+/**
+ * The `'journal-stalled'` failure, shared by both strategies so the two report
+ * the same diagnosis for the same state.
+ */
 function stalled(
   options: ReadJournalOptions,
   timeoutMs: number,
@@ -95,6 +149,17 @@ function stalled(
   )
 }
 
+/**
+ * Pass `source` through unchanged, except that receiving NO value within
+ * `timeoutMs` throws.
+ *
+ * Only the first value is raced. After it, the source is iterated directly, so a
+ * long gap between later values costs nothing and cannot fail a healthy read.
+ *
+ * A source that simply ENDS before the deadline is not a stall — that is the
+ * consumer's abort (`untilAborted` returns on abort) or a `tail` that exited —
+ * and it returns quietly, preserving the "an abort diagnoses nothing" rule.
+ */
 async function* withFirstByteDeadline<T>(
   source: AsyncIterable<T>,
   timeoutMs: number | undefined,
@@ -210,10 +275,25 @@ async function* pollJournal(
   }
 }
 
+/**
+ * Read a run's journal as positioned lines.
+ *
+ * **This is a public entry point and it CANNOT hang.** It has no `RunStore` in
+ * its signature and no runId to look one up with, so it cannot run the
+ * `attach-preflight.ts` gate that classifies a stale or mistyped runId as
+ * `'unknown-run'`/`'terminal-run'`; what it has instead is the unconditional
+ * bound described in the module doc. A runId with no journal therefore fails with
+ * {@link JournalAttachUnavailableError} (`reason: 'journal-stalled'`) after
+ * {@link DEFAULT_ATTACH_JOURNAL_WAIT_MS} rather than tailing an empty file it
+ * just created, for ever, with no error and no log line. Callers that DO have a
+ * store — `runner.ts` on an attach — run the preflight as well, for the sharper
+ * diagnosis.
+ */
 export function readJournal(
   handle: SandboxHandle,
   options: ReadJournalOptions,
 ): AsyncIterable<JournalLine> {
+  /** Override the capability-derived strategy. Tests and diagnostics only. */
   const strategy = options.strategy ?? journalReadStrategy(handle)
   return strategy === 'follow'
     ? followJournal(handle, options)

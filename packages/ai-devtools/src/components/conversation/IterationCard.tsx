@@ -89,6 +89,10 @@ function getIterationLabel(iter: Iteration, displayIndex: number): string {
   return `Iteration ${displayIndex}`
 }
 
+/**
+ * Build steps in insertion order — no timestamp sorting.
+ * Events are emitted in order by the server, so we respect that order.
+ */
 function buildSteps(
   iter: Iteration,
   allMessages: Array<Message>,
@@ -613,6 +617,12 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
     }),
   )
 
+  /**
+     * Compute delta usage for display.
+     * The store holds cumulative usage per iteration (as reported by the provider).
+     * If a previous iteration exists on the same request, subtract its cumulative
+     * to get this iteration's incremental usage.
+     */
   const deltaUsage = createMemo(() => {
     const usage = iter().usage
     if (!usage) return undefined
@@ -675,7 +685,8 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   const systemPrompts = () => iter().systemPrompts || []
 
   /** Count actual tool invocations in this iteration's messages */
-  const toolInvocationCounts = createMemo(() => {
+  const /** Count actual tool invocations in this iteration's messages */
+toolInvocationCounts = createMemo(() => {
     const counts = new Map<string, number>()
     const msgIds = new Set(iter().messageIds)
     for (const msg of props.messages) {

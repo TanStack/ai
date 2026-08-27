@@ -1,5 +1,13 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
 
+/**
+ * String `format` values accepted by OpenAI's strict Structured Outputs subset.
+ * Any other format (e.g. "uri", "uri-reference", "regex") causes the API to
+ * reject the whole request with `400 ... '<format>' is not a valid format`.
+ * MCP servers and hand-written tools routinely declare such formats, so we strip
+ * the unsupported ones before sending. See:
+ * https://platform.openai.com/docs/guides/structured-outputs#supported-properties
+ */
 const SUPPORTED_STRING_FORMATS = new Set([
   'date-time',
   'time',
@@ -12,6 +20,15 @@ const SUPPORTED_STRING_FORMATS = new Set([
   'uuid',
 ])
 
+/**
+ * Recursively drop JSON-Schema `format` keywords whose value isn't in OpenAI's
+ * strict-mode allowlist. Pure — returns a fresh tree and never mutates `node`,
+ * so the caller's original tool definition is left intact.
+ *
+ * A property *named* `format` always has a schema (object/boolean) value, never
+ * a bare string, so it is preserved and recursed into; only the `format`
+ * *keyword* (whose value is a string) is subject to removal.
+ */
 export function stripUnsupportedFormats(node: any): any {
   if (Array.isArray(node)) return node.map(stripUnsupportedFormats)
   if (node === null || typeof node !== 'object') return node
@@ -31,6 +48,18 @@ export function stripUnsupportedFormats(node: any): any {
   return out
 }
 
+/**
+ * Transform a JSON schema to be compatible with OpenAI's structured output requirements.
+ * OpenAI requires:
+ * - All properties must be in the `required` array
+ * - Optional fields should have null added to their type union
+ * - additionalProperties must be false for objects
+ * - String `format` keywords must be from a fixed allowlist (others are stripped)
+ *
+ * @param schema - JSON schema to transform
+ * @param originalRequired - Original required array (to know which fields were optional)
+ * @returns Transformed schema compatible with OpenAI structured output
+ */
 export function makeStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
@@ -47,6 +76,11 @@ interface CoercedStrictSchema extends StructuredOutputCompatibility {
   hasUntrackableAnyOfWidening: boolean
 }
 
+/**
+ * Strict-schema conversion plus an exact map of the nullability introduced by
+ * that conversion. Consumers can pass provider output through
+ * `undoNullWidening` before validating it against the original schema.
+ */
 export function makeStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
   originalRequired?: Array<string>,
@@ -61,6 +95,22 @@ export function makeStructuredOutputCompatibleWithMap(
   }
 }
 
+/**
+ * JSON-Schema keywords outside OpenAI's strict Structured Outputs subset. A
+ * schema using any of these can't be coerced into a strict-valid shape, and
+ * sending it with `strict: true` makes the API reject the ENTIRE request
+ * (e.g. `400 Invalid schema ... 'additionalProperties' is required to be ...`).
+ * Tools with such schemas are emitted with `strict: false` instead (see the
+ * tool converters) so they remain callable. MCP servers (e.g. Notion) routinely
+ * emit these.
+ *
+ * - `oneOf` / `allOf` / `not` — combinator keywords strict mode rejects
+ * - `prefixItems` — 2020-12 tuple keyword. openai-node's strict transform
+ *   rejects it, so we send those tools with `strict: false` instead
+ * - `$ref` / `$defs` / `definitions` — references and definition pools whose
+ *   object subschemas escape the `additionalProperties: false` normalization
+ *   strict mode requires
+ */
 const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
   'oneOf',
   'allOf',
@@ -71,6 +121,15 @@ const STRICT_UNSUPPORTED_KEYWORDS: ReadonlyArray<string> = [
   'definitions',
 ]
 
+/**
+ * Keys that give a schema node a resolvable type under OpenAI's strict subset.
+ * A schema-position node carrying none of these is *typeless* (e.g. the empty
+ * `{}` that `z.any()` / `z.unknown()` emit). Strict mode requires every schema
+ * to declare a type, so a typeless node 400s the whole request — such tools
+ * must be sent with `strict: false` instead. (`oneOf`/`allOf`/`$ref` count as
+ * type indicators here even though they're independently strict-unsupported;
+ * the keyword check below already rejects them.)
+ */
 const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
   'type',
   'enum',
@@ -81,6 +140,27 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
   '$ref',
 ]
 
+/**
+ * Returns `false` when `schema` cannot be made strict-compatible and must be
+ * sent with `strict: false`. Two ways that happens:
+ *
+ * 1. It uses a JSON-Schema keyword outside OpenAI's strict subset anywhere in
+ *    the tree (`oneOf`/`allOf`/`not`/`prefixItems`/`$ref`/`$defs`).
+ * 2. It contains a *typeless* schema node — a property/items/anyOf entry with
+ *    no `type` (nor `enum`/`const`/combinator), e.g. the `{}` that `z.any()`
+ *    produces. Strict mode rejects typeless schemas.
+ * 3. It contains an open object schema. OpenAI strict mode requires objects to
+ *    set `additionalProperties: false`, which would change the semantics of a
+ *    free-form map rather than merely normalizing it.
+ * 4. An `anyOf` variant itself needs null widening. The inverse map is
+ *    intentionally schema-blind, so it cannot select a variant without risking
+ *    removal of a genuine nullable value accepted by another variant.
+ *
+ * Conservative by design: for (1) keywords are matched as object keys, so a
+ * property literally named e.g. `oneOf` also trips it. That only costs that one
+ * tool its strict mode, which is strictly safer than a false "compatible"
+ * verdict that 400s the whole request.
+ */
 export function isStrictModeCompatible(schema: unknown): boolean {
   return (
     !containsStrictUnsupportedKeyword(schema) &&
@@ -90,6 +170,11 @@ export function isStrictModeCompatible(schema: unknown): boolean {
   )
 }
 
+/**
+ * Reports strict conversions whose synthesized nulls cannot be represented by
+ * the schema-blind inverse map. Optional `anyOf` wrappers remain supported:
+ * only widening introduced inside one of their variants triggers fallback.
+ */
 function containsUntrackableAnyOfWidening(schema: unknown): boolean {
   if (!isSchemaObject(schema)) {
     return false
@@ -97,6 +182,11 @@ function containsUntrackableAnyOfWidening(schema: unknown): boolean {
   return coerceStrictSchema(schema).hasUntrackableAnyOfWidening
 }
 
+/**
+ * Reports object schemas that cannot be closed without changing their input
+ * semantics. Objects with `properties` and no explicit
+ * `additionalProperties` are safe because `coerceStrictSchema` closes them.
+ */
 function containsOpenObject(node: unknown): boolean {
   if (Array.isArray(node)) {
     return node.some(containsOpenObject)
@@ -152,6 +242,12 @@ function isTypelessSchema(node: unknown): boolean {
   return !TYPE_INDICATOR_KEYWORDS.some((key) => key in node)
 }
 
+/**
+ * Walks the genuine schema positions (property values, `items`, `anyOf`
+ * variants) and reports whether any is typeless. Unlike the keyword walk this
+ * must respect structure: an empty `{}` is only a problem at a schema position,
+ * not e.g. an empty `properties` map.
+ */
 function containsTypelessSchema(node: unknown): boolean {
   if (!isSchemaObject(node)) {
     return false
@@ -176,6 +272,11 @@ function containsTypelessSchema(node: unknown): boolean {
   )
 }
 
+/**
+ * Strict-mode structural rewrite (required widening, nullability,
+ * additionalProperties). Kept private so the public entry point can apply the
+ * format-stripping pass exactly once over the fully-rewritten tree.
+ */
 function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
   return Object.keys(map).length > 0 ? map : undefined
 }

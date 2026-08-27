@@ -18,6 +18,27 @@ import type {
 // Token refresh buffer - refresh 1 minute before expiry
 const TOKEN_REFRESH_BUFFER_MS = 60_000
 
+/**
+ * Client for managing realtime voice conversations.
+ *
+ * Handles connection lifecycle, audio I/O, message state,
+ * and tool execution for realtime voice-to-voice AI interactions.
+ *
+ * @example
+ * ```typescript
+ * import { RealtimeClient } from '@tanstack/ai-client'
+ * import { openaiRealtime } from '@tanstack/ai-openai'
+ *
+ * const client = new RealtimeClient({
+ *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+ *   adapter: openaiRealtime(),
+ *   tools: [myTool.client(handler)],
+ *   onMessage: (msg) => console.log('Message:', msg),
+ * })
+ *
+ * await client.connect()
+ * ```
+ */
 export class RealtimeClient {
   private readonly options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
@@ -54,6 +75,10 @@ export class RealtimeClient {
     }
   }
 
+  /**
+     * Connect to the realtime session.
+     * Fetches a token and establishes the connection.
+     */
   async connect(): Promise<void> {
     if (this.state.status === 'connected') {
       return
@@ -92,7 +117,8 @@ export class RealtimeClient {
 
       this.updateState({ status: 'connected', mode: 'listening' })
       this.options.onConnect?.()
-    } catch (error) {
+    } catch (/** Get current error, if any */
+error) {
       const err = error instanceof Error ? error : new Error(String(error))
       this.updateState({ status: 'error', error: err })
       this.options.onError?.(err)
@@ -100,6 +126,9 @@ export class RealtimeClient {
     }
   }
 
+  /**
+     * Disconnect from the realtime session.
+     */
   async disconnect(): Promise<void> {
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout)
@@ -127,6 +156,10 @@ export class RealtimeClient {
     this.options.onDisconnect?.()
   }
 
+  /**
+     * Start listening for voice input.
+     * Only needed when vadMode is 'manual'.
+     */
   startListening(): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -134,6 +167,10 @@ export class RealtimeClient {
     this.updateState({ mode: 'listening' })
   }
 
+  /**
+     * Stop listening for voice input.
+     * Only needed when vadMode is 'manual'.
+     */
   stopListening(): void {
     if (!this.connection) {
       return
@@ -142,6 +179,9 @@ export class RealtimeClient {
     this.updateState({ mode: 'idle' })
   }
 
+  /**
+     * Interrupt the current assistant response.
+     */
   interrupt(): void {
     if (!this.connection) {
       return
@@ -149,6 +189,9 @@ export class RealtimeClient {
     this.connection.interrupt()
   }
 
+  /**
+     * Send a text message instead of voice.
+     */
   sendText(text: string): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -166,6 +209,11 @@ export class RealtimeClient {
     this.connection.sendText(text)
   }
 
+  /**
+     * Send an image to the conversation.
+     * @param imageData - Base64-encoded image data or a URL
+     * @param mimeType - MIME type of the image (e.g., 'image/png', 'image/jpeg')
+     */
   sendImage(imageData: string, mimeType: string): void {
     if (!this.connection) return
     if (this.state.status !== 'connected') return
@@ -218,6 +266,10 @@ export class RealtimeClient {
     return this.connection?.getAudioVisualization() ?? null
   }
 
+  /**
+     * Update the session configuration.
+     * This applies changes to the active connection and persists them for future reconnections.
+     */
   updateSession(config: Partial<RealtimeSessionConfig>): void {
     const o = this.options
     if (config.instructions !== undefined) o.instructions = config.instructions
@@ -242,6 +294,10 @@ export class RealtimeClient {
     }
   }
 
+  /**
+     * Subscribe to state changes.
+     * @returns Unsubscribe function
+     */
   onStateChange(callback: RealtimeStateChangeCallback): () => void {
     this.stateChangeCallbacks.add(callback)
     return () => {
@@ -249,6 +305,10 @@ export class RealtimeClient {
     }
   }
 
+  /**
+     * Clean up resources.
+     * Call this when disposing of the client.
+     */
   destroy(): void {
     void this.disconnect()
     this.stateChangeCallbacks.clear()

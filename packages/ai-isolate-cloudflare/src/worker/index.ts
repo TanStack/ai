@@ -1,8 +1,19 @@
 import { wrapCode } from './wrap-code'
 import type { ExecuteRequest, ExecuteResponse, ToolCallRequest } from '../types'
 
+/**
+ * Compatibility date for the loaded child Worker. Pinned at this layer so
+ * sandbox semantics don't drift with the parent Worker's compat date.
+ */
 const SANDBOX_COMPAT_DATE = '2026-05-01'
 
+/**
+ * Worker Loader binding type.
+ *
+ * Provides dynamic-code execution by loading a module into a fresh V8
+ * isolate. Configure in wrangler.toml under `[[worker_loaders]]`. Requires a
+ * Workers Paid plan; see https://developers.cloudflare.com/dynamic-workers/.
+ */
 interface WorkerLoaderEntrypoint {
   fetch: (request: Request) => Promise<Response>
 }
@@ -22,9 +33,18 @@ interface WorkerLoader {
 }
 
 interface Env {
+  /**
+     * worker_loader (Dynamic Workers) binding. Configured in wrangler.toml
+     * under `[[worker_loaders]] binding = "LOADER"`.
+     */
   LOADER?: WorkerLoader
 }
 
+/**
+ * Wrap the existing IIFE-returning string in an ES module that exposes a
+ * `fetch` handler. The child Worker's entrypoint runs the IIFE on each
+ * invocation and returns the structured result as JSON.
+ */
 function wrapAsSandboxModule(wrappedCode: string): string {
   return `
 export default {
@@ -38,6 +58,9 @@ export default {
 `
 }
 
+/**
+ * Execute code in a freshly loaded child Worker isolate.
+ */
 async function executeCode(
   request: ExecuteRequest,
   env: Env,

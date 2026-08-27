@@ -3,6 +3,9 @@ import { normalizeError } from './error-normalizer'
 import type ivm from 'isolated-vm'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
+/**
+ * IsolateContext implementation using isolated-vm
+ */
 export class NodeIsolateContext implements IsolateContext {
   private readonly isolate: ivm.Isolate
   private readonly context: ivm.Context

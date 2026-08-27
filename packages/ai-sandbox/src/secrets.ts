@@ -1,12 +1,17 @@
 /** A reference to a named secret — carries only the name, never the value. */
 export type SecretRef = { readonly __secretName: string }
 
+/**
+ * A map of named SecretRef properties. The underlying value registry is stored
+ * under a non-enumerable symbol so iterating the object never exposes it.
+ */
 export type Secrets<TKeys extends string = string> = {
   readonly [P in TKeys]: SecretRef
 }
 
 /** Internal symbol used to store the value registry on a Secrets object. */
-const REGISTRY = Symbol('secrets.registry')
+const /** Internal symbol used to store the value registry on a Secrets object. */
+REGISTRY = Symbol('secrets.registry')
 
 /** Create a typed secrets object from a plain record of name→value pairs. */
 export function createSecrets<T extends Record<string, string>>(
@@ -69,6 +74,10 @@ export function resolveBearer(secrets: Secrets, ref: BearerRef): string {
   return `Bearer ${resolveSecret(secrets, ref.__bearerRef)}`
 }
 
+/**
+ * Resolve all secrets in a Secrets object to a plain `Record<string, string>`
+ * suitable for injecting into a process environment.
+ */
 export function resolveAllSecrets(secrets: Secrets): Record<string, string> {
   const registry = Reflect.get(secrets, REGISTRY) as
     | Map<string, string>

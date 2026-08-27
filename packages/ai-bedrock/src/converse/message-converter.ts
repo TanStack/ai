@@ -210,6 +210,14 @@ function messageToBlocks(
   return blocks
 }
 
+/**
+ * Convert TanStack AI messages + system prompts into the Converse API format.
+ *
+ * - System prompts are lifted into `SystemContentBlock[]`.
+ * - `tool` role messages are remapped to `user` role `toolResult` blocks.
+ * - Consecutive messages with the same Converse role are merged (Converse
+ *   requires strict user/assistant alternation).
+ */
 export function toConverseMessages(
   messages: Array<ModelMessage>,
   systemPrompts?: Array<SystemPrompt>,

@@ -15,6 +15,11 @@ import type {
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
 
+/**
+ * Options for the createGenerateSpeech function.
+ *
+ * @template TOutput - The output type after optional transform (defaults to TTSResult)
+ */
 export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   CreateGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
   | 'persistence'
@@ -32,6 +37,13 @@ export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+     * Callback when speech is generated. Can optionally return a transformed value.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: TTSResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -41,6 +53,11 @@ export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   onChunk?: (chunk: StreamChunk) => void
 }
 
+/**
+ * Return type for the createGenerateSpeech function.
+ *
+ * @template TOutput - The output type (after optional transform)
+ */
 export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
   CreateGenerationReturn<TOutput>,
   'generate'
@@ -57,6 +74,32 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
   generate: (input: SpeechGenerateInput) => Promise<void>
 }
 
+/**
+ * Creates a reactive speech generation (text-to-speech) instance for Svelte 5.
+ *
+ * @example
+ * ```svelte
+ * <script>
+ *   import { createGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-svelte'
+ *
+ *   const speech = createGenerateSpeech({
+ *     connection: fetchServerSentEvents('/api/generate/speech'),
+ *   })
+ * </script>
+ *
+ * <div>
+ *   <button onclick={() => speech.generate({ text: 'Hello world', voice: 'alloy' })}>
+ *     Generate Speech
+ *   </button>
+ *   {#if speech.isLoading}
+ *     <p>Generating...</p>
+ *   {/if}
+ *   {#if speech.result}
+ *     <audio src={`data:audio/${speech.result.format};base64,${speech.result.audio}`} controls></audio>
+ *   {/if}
+ * </div>
+ * ```
+ */
 export function createGenerateSpeech<TTransformed = void>(
   options: Omit<
     CreateGenerateSpeechOptions,
@@ -67,6 +110,7 @@ export function createGenerateSpeech<TTransformed = void>(
 ): CreateGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -80,15 +124,19 @@ export function createGenerateSpeech<TTransformed = void>(
   })
 
   return {
+    /** The TTS result containing audio data, or null */
     get result() {
       return gen.result
     },
+    /** Whether generation is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

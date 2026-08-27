@@ -39,7 +39,8 @@ function validateShellEnvironment(
   for (const skill of skills) {
     if ('skill_id' in skill) {
       const id = skill.skill_id
-      if (id.length < 1 || id.length > 64) {
+      const isInvalidSkillId = id.length < 1 || id.length > 64
+      if (isInvalidSkillId) {
         throw new Error('skill_id must be between 1 and 64 characters.')
       }
     }
@@ -61,6 +62,12 @@ export function convertShellToolToAdapterFormat(tool: Tool): ShellToolConfig {
   }
 }
 
+/**
+ * Creates a standard Tool from ShellTool parameters.
+ *
+ * Base (non-branded) factory. Providers that need branded return types should
+ * re-wrap this in their own package.
+ */
 export function shellTool(config: ShellToolFactoryConfig = {}): Tool {
   validateShellEnvironment(config.environment)
   return openAIProviderTool(

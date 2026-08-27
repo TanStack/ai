@@ -64,6 +64,7 @@ function stripFile(filePath) {
     const endLine = posToLine(original, range.end)
     const lineCount = endLine - startLine + 1
     if (range.kind === ts.SyntaxKind.MultiLineCommentTrivia) {
+      if (commentText.startsWith('/**')) continue
       if (lineCount > 2) {
         for (let i = startLine - 1; i < endLine; i++) keep[i] = false
       }

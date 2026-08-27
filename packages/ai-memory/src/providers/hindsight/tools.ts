@@ -18,6 +18,11 @@ function stringField(args: unknown, key: string): string {
   return ''
 }
 
+/**
+ * Build the hindsight LLM tools (retain / recall / reflect). These let the model
+ * take direct control of long-term memory beyond the automatic recall/save the
+ * middleware performs. Returned in `RecallResult.tools` and merged into the run.
+ */
 export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
   const retainTool: Tool = {
     name: 'hindsight_retain',

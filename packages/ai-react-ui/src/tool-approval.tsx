@@ -12,6 +12,7 @@ export interface ToolApprovalProps {
   approval: {
     id: string
     needsApproval: boolean
+    /** User's decision (if responded) */
     approved?: boolean
   }
   /** CSS class name */
@@ -35,6 +36,21 @@ export interface ToolApprovalRenderProps {
   approved?: boolean
 }
 
+/**
+ * Tool approval component - renders approve/deny buttons for tools that need approval
+ *
+ * @example
+ * ```tsx
+ * {part.approval && (
+ *   <ToolApproval
+ *     toolCallId={part.id}
+ *     toolName={part.name}
+ *     input={JSON.parse(part.arguments)}
+ *     approval={part.approval}
+ *   />
+ * )}
+ * ```
+ */
 export function ToolApproval({
   toolCallId: _,
   toolName,
@@ -59,6 +75,7 @@ export function ToolApproval({
     })
   }
 
+  /** Whether user has responded */
   const hasResponded = approval.approved !== undefined
 
   const renderProps: ToolApprovalRenderProps = {

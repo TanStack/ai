@@ -16,6 +16,11 @@ import type {
 } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 
+/**
+ * Options for the useTranscription hook.
+ *
+ * @template TOutput - The transformed output type (defaults to TranscriptionResult)
+ */
 export interface UseTranscriptionOptions<
   TOutput = TranscriptionResult,
 > extends Pick<
@@ -39,6 +44,13 @@ export interface UseTranscriptionOptions<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+     * Callback when transcription is complete. Can optionally return a transformed value.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: TranscriptionResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -48,6 +60,11 @@ export interface UseTranscriptionOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
+/**
+ * Return type for the useTranscription hook.
+ *
+ * @template TOutput - The transformed output type (defaults to TranscriptionResult)
+ */
 export interface UseTranscriptionReturn<
   TOutput = TranscriptionResult,
 > extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
@@ -63,6 +80,41 @@ export interface UseTranscriptionReturn<
   status: Accessor<GenerationClientState>
 }
 
+/**
+ * Solid hook for transcribing audio to text using AI models.
+ *
+ * @example
+ * ```tsx
+ * import { useTranscription } from '@tanstack/ai-solid'
+ * import { fetchServerSentEvents } from '@tanstack/ai-client'
+ *
+ * function Transcriber() {
+ *   const { generate, result, isLoading } = useTranscription({
+ *     connection: fetchServerSentEvents('/api/transcribe'),
+ *   })
+ *
+ *   const handleFile = (e: Event) => {
+ *     const input = e.target as HTMLInputElement
+ *     const file = input.files?.[0]
+ *     if (file) {
+ *       const reader = new FileReader()
+ *       reader.onload = () => {
+ *         generate({ audio: reader.result as string, language: 'en' })
+ *       }
+ *       reader.readAsDataURL(file)
+ *     }
+ *   }
+ *
+ *   return (
+ *     <div>
+ *       <input type="file" accept="audio/*" onChange={handleFile} />
+ *       {isLoading() && <p>Transcribing...</p>}
+ *       {result() && <p>{result()!.text}</p>}
+ *     </div>
+ *   )
+ * }
+ * ```
+ */
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,
@@ -73,6 +125,7 @@ export function useTranscription<TTransformed = void>(
 ): UseTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'solid',

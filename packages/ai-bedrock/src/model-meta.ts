@@ -10,6 +10,10 @@ import type {
 
 type Entry = (typeof GENERATED_BEDROCK_MODELS)[number]
 
+/**
+ * Type-level per-API filter over the generated catalog. Because the catalog is
+ * `as const`, `Extract` preserves literal `id` unions (no widening to `string`).
+ */
 type IdsWhere<TApi extends 'converse' | 'chat' | 'responses'> = Extract<
   Entry,
   { apis: Record<TApi, true> }
@@ -22,7 +26,8 @@ export type BedrockResponsesModels = IdsWhere<'responses'>
 /** Runtime catalogs. Cast-free narrowing via a type predicate (the ai-bedrock pattern). */
 // Every catalog entry advertises `converse: true` (Converse is the universal
 // Bedrock surface), so the id list is the full catalog — no runtime filter needed.
-export const BEDROCK_CONVERSE_MODELS: ReadonlyArray<BedrockConverseModels> =
+export const /** Runtime catalogs. Cast-free narrowing via a type predicate (the ai-bedrock pattern). */
+BEDROCK_CONVERSE_MODELS: ReadonlyArray<BedrockConverseModels> =
   GENERATED_BEDROCK_MODELS.map((m) => m.id)
 
 export const BEDROCK_CHAT_MODELS: ReadonlyArray<BedrockChatModels> =
@@ -70,6 +75,11 @@ export type ResolveInputModalities<TModel extends string> =
     ? BedrockModelInputModalitiesByName[TModel]
     : readonly ['text']
 
+/**
+ * Embedding models reachable through Bedrock's `InvokeModel` API. These are
+ * not part of the generated Converse catalog (embedding models have no
+ * conversational surface), so they're maintained by hand here.
+ */
 export const BEDROCK_EMBEDDING_MODELS = [
   'amazon.titan-embed-text-v2:0',
   'amazon.titan-embed-image-v1',
@@ -79,6 +89,11 @@ export const BEDROCK_EMBEDDING_MODELS = [
 
 export type BedrockEmbeddingModel = (typeof BEDROCK_EMBEDDING_MODELS)[number]
 
+/**
+ * Type-only map from embedding model name to its provider options type.
+ * The Cohere models make `modelOptions` REQUIRED at the `embed()` call site
+ * because `inputType` is a required field.
+ */
 export type BedrockEmbeddingModelProviderOptionsByName = {
   'amazon.titan-embed-text-v2:0': BedrockTitanTextEmbeddingProviderOptions
   'amazon.titan-embed-image-v1': BedrockTitanImageEmbeddingProviderOptions
@@ -86,6 +101,11 @@ export type BedrockEmbeddingModelProviderOptionsByName = {
   'cohere.embed-multilingual-v3': BedrockCohereEmbeddingProviderOptions
 }
 
+/**
+ * Per-model input modalities for embedding models. Titan Multimodal accepts
+ * text and/or images (including fused text+image items embedded into one
+ * vector); the rest are text-only, so image inputs fail at compile time.
+ */
 export type BedrockEmbeddingModelInputModalitiesByName = {
   'amazon.titan-embed-text-v2:0': readonly ['text']
   'amazon.titan-embed-image-v1': readonly ['text', 'image']

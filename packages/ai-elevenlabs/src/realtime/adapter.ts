@@ -15,6 +15,25 @@ import type {
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { ElevenLabsRealtimeOptions } from './types'
 
+/**
+ * Creates an ElevenLabs realtime adapter for client-side use.
+ *
+ * Wraps the @elevenlabs/client SDK for voice conversations.
+ *
+ * @param options - Optional configuration
+ * @returns A RealtimeAdapter for use with RealtimeClient
+ *
+ * @example
+ * ```typescript
+ * import { RealtimeClient } from '@tanstack/ai-client'
+ * import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
+ *
+ * const client = new RealtimeClient({
+ *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+ *   adapter: elevenlabsRealtime(),
+ * })
+ * ```
+ */
 export function elevenlabsRealtime(
   options: ElevenLabsRealtimeOptions = {},
 ): RealtimeAdapter {
@@ -35,6 +54,9 @@ export function elevenlabsRealtime(
   }
 }
 
+/**
+ * Creates a connection to ElevenLabs conversational AI
+ */
 async function createElevenLabsConnection(
   token: RealtimeToken,
   _options: ElevenLabsRealtimeOptions,

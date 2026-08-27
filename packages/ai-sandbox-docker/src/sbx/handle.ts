@@ -209,6 +209,7 @@ export class SbxHandle implements SandboxHandle {
   private readonly binary: string
   private readonly spawnFn: SbxSpawn | undefined
   private readonly logger: SbxLogger | undefined
+  /** When true, destroy also deletes `tmpdir/tanstack-sbx/<name>`. Default false. */
   private readonly owned: boolean
   private readonly envVars: Record<string, string> = {}
 

@@ -4,6 +4,10 @@ import type { SpawnHandle } from '@tanstack/ai-sandbox'
 /** How JSON-RPC messages are framed on the wire. */
 export type AcpMessageFraming = 'ndjson' | 'frame'
 
+/**
+ * Byte-level duplex transport consumed by {@link ndJsonStream} for stdio
+ * harnesses.
+ */
 export interface AcpByteTransport {
   writable: WritableStream<Uint8Array>
   readable: ReadableStream<Uint8Array>
@@ -23,6 +27,7 @@ export type AcpSessionTransport =
       kind: 'stream'
       stream: AcpJsonRpcStream
       dispose: () => Promise<void>
+      /** Last bytes of stderr, for error messages. */
       stderrTail?: () => string
     }
 

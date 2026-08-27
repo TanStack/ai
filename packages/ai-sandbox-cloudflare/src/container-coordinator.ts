@@ -14,16 +14,40 @@ import type { WorkspaceDefinition } from '@tanstack/ai-sandbox'
 import type { Sandbox } from '@cloudflare/sandbox'
 
 /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
-const RUNNER_PORT = 8080
+const /** Port the in-container runner listens on (matches RUNNER_PORT in the image). */
+RUNNER_PORT = 8080
 
+/**
+ * The Env bindings a {@link ContainerSandboxCoordinator} requires. The
+ * `tool-exec` URL the CONTAINER calls back on needs a hostname; `PUBLIC_HOSTNAME`
+ * is OPTIONAL (request-derived when unset; locally → `host.docker.internal` — see
+ * {@link resolveBridgeOrigin}).
+ *
+ * Auth is HARNESS-AGNOSTIC: the in-container CLI's API key is NOT a fixed field on
+ * this env. Instead each run's workspace DECLARES the secret names it needs (via
+ * `createSecrets`), and the coordinator copies those names out of the Worker `env`
+ * into the container env at boot. So a Claude run declares `ANTHROPIC_API_KEY`, a
+ * codex run declares `CODEX_API_KEY`, and neither name is baked into the package —
+ * the concrete key binding lives on the APP's env type, not here.
+ */
 export interface ContainerCoordinatorEnv {
   /** The `@cloudflare/sandbox` Sandbox DO namespace (the container hosts). */
   Sandbox: DurableObjectNamespace<Sandbox>
+  /**
+     * Hostname the container uses to reach the DO's `/tool-exec` endpoint. Optional:
+     * unset → derived from the trigger request (deployed: request host; local dev:
+     * `host.docker.internal`). Set it only to override. See {@link resolveBridgeOrigin}.
+     */
   PUBLIC_HOSTNAME?: string
 }
 
 /** What {@link ContainerSandboxCoordinator.config} returns for one run. */
 export interface ContainerRunConfig {
+  /**
+     * The REAL host tools. Their `execute()` runs HERE, in the DO — the
+     * in-container agent only ever reaches them via `/tool-exec/:runId`. Only the
+     * serialized descriptors cross to the container.
+     */
   hostTools: Array<AnyTool>
   /** Workspace the in-container runner bootstraps for the agent. */
   workspace: WorkspaceDefinition
@@ -39,6 +63,7 @@ export interface ContainerRunConfig {
 interface ToolExecState {
   token: string
   hostTools: Array<AnyTool>
+  /** Runtime context forwarded to each host tool's `execute()` (DB / app state). */
   context?: unknown
   /** Aborted once the run is terminal so a still-running host tool is cancelled. */
   abort: AbortController
@@ -49,6 +74,14 @@ function isStreamChunk(value: unknown): value is StreamChunk {
   return value !== null && typeof value === 'object' && 'type' in value
 }
 
+/**
+ * Adapt the runner's NDJSON response body into an `AsyncIterable<StreamChunk>`
+ * so the DO can drive it through the SAME base `RunController` / `pipeToRunLog`
+ * the DO-drives coordinator uses — terminal-status handling, RUN_ERROR
+ * detection, and never-rejects semantics all come for free. A malformed line
+ * (unparseable JSON, or valid JSON that isn't a chunk) is surfaced as a terminal
+ * RUN_ERROR chunk, never silently dropped.
+ */
 async function* ndjsonToChunks(
   body: ReadableStream<Uint8Array>,
 ): AsyncIterable<StreamChunk> {
@@ -75,6 +108,11 @@ async function* ndjsonToChunks(
   if (tail !== '') yield parseChunkLine(tail)
 }
 
+/**
+ * Parse one NDJSON line into a {@link StreamChunk}, turning a truncated/garbled
+ * line (a crashed container's last write) or a non-chunk object into a terminal
+ * RUN_ERROR chunk rather than throwing or silently dropping it.
+ */
 function parseChunkLine(line: string): StreamChunk {
   let parsed: unknown
   try {
@@ -97,15 +135,36 @@ function parseChunkLine(line: string): StreamChunk {
 export abstract class ContainerSandboxCoordinator<
   TEnv extends ContainerCoordinatorEnv = ContainerCoordinatorEnv,
 > extends SandboxCoordinator<TEnv> {
+  /**
+     * Live per-run tool-exec tokens, keyed by runId. In-memory by design: a run's
+     * tool-exec endpoint is only reachable while the run is in flight, and
+     * `ctx.waitUntil(done)` keeps THIS instance alive for the run's lifetime, so
+     * the container's callbacks always hit the instance that minted the token.
+     */
   private readonly toolExec = new Map<string, ToolExecState>()
 
+  /**
+     * In-flight runner boot, memoized so two runs starting near-simultaneously on
+     * this instance don't both spawn `container-runner` (the second would hit
+     * EADDRINUSE on RUNNER_PORT). Cleared once boot settles.
+     */
   private runnerBoot?: Promise<void>
 
   /** Last `/health` probe error, surfaced if the runner never comes up. */
   private lastProbeError?: unknown
 
+  /**
+     * Resolve the host tools, workspace, harness, and model for one run.
+     * Implemented by the app subclass (or supplied by
+     * {@link createCloudflareSandboxAgent}).
+     */
   protected abstract config(input: StartRunInput): ContainerRunConfig
 
+  /**
+     * Mint the per-run tool-exec token, POST `/run` to the in-container runner, and
+     * yield its NDJSON chunks. The token is registered BEFORE the container is told
+     * to run, so a tool callback can never arrive before the token exists.
+     */
   protected override buildRunStream(
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> {
@@ -124,12 +183,23 @@ export abstract class ContainerSandboxCoordinator<
     return this.driveContainer(input, runConfig, token)
   }
 
+  /**
+     * Once the run is terminal, abort any host tool still running on its behalf
+     * (so a tool that outlived the run doesn't leak), then drop the per-run state.
+     */
   protected override onRunSettled(runId: string): void {
     const state = this.toolExec.get(runId)
     if (state) state.abort.abort()
     this.toolExec.delete(runId)
   }
 
+  /**
+     * POST `/run` to the in-container runner and yield its NDJSON chunks. The DO
+     * reaches the runner DIRECTLY over the sandbox binding (`containerFetch` to
+     * RUNNER_PORT) — this internal channel needs no public hostname. The runner
+     * gets the host-tool descriptors plus the `/tool-exec` URL + token it calls
+     * back on.
+     */
   private async *driveContainer(
     input: StartRunInput,
     runConfig: ContainerRunConfig,
@@ -174,6 +244,12 @@ export abstract class ContainerSandboxCoordinator<
     yield* ndjsonToChunks(response.body)
   }
 
+  /**
+     * Ensure the in-container runner is listening on RUNNER_PORT. The base image's
+     * ENTRYPOINT is the sandbox CONTROL server, not our runner — so we start the
+     * bundled runner as a background process via that control server. Idempotent
+     * for a thread-reused container: if `/health` already answers, we skip spawn.
+     */
   private ensureRunner(
     sandbox: Sandbox,
     workspace: WorkspaceDefinition,
@@ -187,6 +263,15 @@ export abstract class ContainerSandboxCoordinator<
     return boot
   }
 
+  /**
+     * Copy the run's DECLARED secret names out of the Worker `env` into a plain
+     * record for the container env. The workspace's `createSecrets` carries only the
+     * names across the `/run` boundary; the VALUES come from `env` by that name —
+     * which is how `ANTHROPIC_API_KEY` / `CODEX_API_KEY` / any harness key reach the
+     * CLI without the package hardcoding which one. A declared name missing from
+     * `env` is skipped here and fails loudly later in the runner's
+     * `reconstituteWorkspace` (never a silent keyless run).
+     */
   private secretEnvFromWorkspace(
     workspace: WorkspaceDefinition,
   ): Record<string, string> {
@@ -256,6 +341,12 @@ export abstract class ContainerSandboxCoordinator<
     return super.handleRoute(request, parts)
   }
 
+  /**
+     * Execute a host tool the in-container agent called back for. The token gates
+     * it (constant-time Web Crypto compare); the REAL tool's `execute()` runs here
+     * via {@link executeHostTool} and its raw result returns as `{ result }`. An
+     * unknown tool or a thrown `execute()` is surfaced as a 4xx/5xx, never masked.
+     */
   private async serveToolExec(
     runId: string,
     request: Request,

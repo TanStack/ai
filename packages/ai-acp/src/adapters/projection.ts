@@ -22,6 +22,13 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Make a sandbox path relative to the workspace root, so shell commands work on
+ * every provider. Only `fs.*` remaps the virtual `/workspace`; a raw `/workspace`
+ * in a shell command is the real path in a container but a non-existent absolute
+ * path on local-process. Running relative to the root (the exec cwd) is correct
+ * everywhere.
+ */
 function relativeToRoot(root: string, p: string): string {
   return p.startsWith(`${root}/`) ? p.slice(root.length + 1) : p
 }
@@ -43,6 +50,11 @@ function resolveHeaderValue(
   return value
 }
 
+/**
+ * Build ACP `mcpServers` entries from the workspace's `mcp` skills, resolving
+ * every header value (SecretRef / bearer / plain string). Returns `[]` when
+ * there are no MCP skills. Pass the result to `startAcpSession({ mcpServers })`.
+ */
 export function workspaceMcpServers(
   projection: WorkspaceProjection,
 ): Array<AcpMcpServer> {
@@ -62,6 +74,15 @@ export function workspaceMcpServers(
   return servers
 }
 
+/**
+ * Project the non-MCP parts of a workspace into an ACP harness. Links each
+ * cloned `gitSkill` repo into the harness's skills directory when one is
+ * declared; warns and skips `agentSkill`s, `plugin`s, and (when no `skillsDir`
+ * is configured) `gitSkill`s. Idempotent — gated by the projection marker.
+ *
+ * MCP skills are NOT handled here; pass {@link workspaceMcpServers} to the ACP
+ * session instead.
+ */
 export async function projectAcpWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

@@ -63,6 +63,13 @@ function assertSafeToolName(name: string): void {
   }
 }
 
+/**
+ * Generate tool wrapper code that collects calls or returns cached results.
+ *
+ * Tool calls are identified by a sequential index (__toolCallIdx) rather than
+ * by hashing the input. This avoids mismatches when re-executing code whose
+ * inputs contain non-deterministic values (e.g. random UUIDs).
+ */
 export function generateToolWrappers(
   tools: Array<ToolSchema>,
   toolResults?: Record<string, ToolResultPayload>,
@@ -100,6 +107,9 @@ export function generateToolWrappers(
   return wrappers.join('\n')
 }
 
+/**
+ * Wrap user code in an async IIFE with tool wrappers
+ */
 export function wrapCode(
   code: string,
   tools: Array<ToolSchema>,

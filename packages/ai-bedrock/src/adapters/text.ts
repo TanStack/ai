@@ -20,6 +20,12 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<BedrockChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * Bedrock Chat Completions adapter. Drives Bedrock's OpenAI-compatible
+ * `/chat/completions` endpoint via the OpenAI SDK with a baseURL override
+ * (same pattern as ai-groq). Tool conversion, streaming, structured output,
+ * and the agent loop come from the base.
+ */
 export class BedrockTextAdapter<
   TModel extends BedrockChatModels,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -42,6 +48,11 @@ export class BedrockTextAdapter<
     super(model, 'bedrock', new OpenAI(withBedrockDefaults(config)))
   }
 
+  /**
+     * Surface reasoning deltas (gpt-oss / Claude reasoning) the OpenAI-compatible
+     * way. Base types the chunk as `unknown`; narrow with runtime guards — no
+     * `as` casts, no `any`.
+     */
   protected override extractReasoning(
     chunk: unknown,
   ): { text: string } | undefined {

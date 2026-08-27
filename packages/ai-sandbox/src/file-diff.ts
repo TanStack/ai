@@ -8,10 +8,25 @@ function relTo(root: string, path: string): string {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path
 }
 
+/**
+ * POSIX single-quote escape for embedding a value in a shell command.
+ */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Unified add-patch for a brand-new file, closely following the shape `git
+ * diff` produces for an added file (`diff --git` header + `new file mode` +
+ * `--- /dev/null` + `+++ b/<rel>`), so synthesized `create` diffs align with
+ * the real `git diff` output emitted for `change` events. `rel` must be the
+ * repo-root-relative POSIX path (like git's). Reproduces git's `\ No newline
+ * at end of file` marker and the header-only form for a zero-byte file, so a
+ * consumer applying the patch reconstructs the file byte-for-byte. It is not
+ * byte-identical to git — it omits the `index <hash>..<hash>` line and always
+ * writes the `+1,N` hunk count (git omits `,1`) — but both are valid
+ * unified-diff and accepted by `git apply`/`patch`.
+ */
 function synthesizeAddPatch(rel: string, content: string): string {
   const header = `diff --git a/${rel} b/${rel}\nnew file mode 100644\n`
   // A zero-byte new file has no hunk in git's output — just the header.
@@ -29,6 +44,13 @@ function synthesizeAddPatch(rel: string, content: string): string {
   )
 }
 
+/**
+ * Wrap a raw {@link SandboxFileEvent} with lazy git-backed accessors bound to
+ * the live handle. `baseSha` is the session baseline (`''` when the workspace
+ * isn't a git repo). Never throws — every git/fs failure falls back to `''`
+ * (or a synthesized add-patch), but is logged first via `logger` so a failure
+ * is observable instead of silently becoming empty data.
+ */
 export function buildFileHookEvent(
   handle: SandboxHandle,
   root: string,

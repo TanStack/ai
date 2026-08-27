@@ -6,6 +6,12 @@ import {
 import type { ToolExecutionContext } from '@tanstack/ai'
 import type { CodeModeTool, ToolBinding } from '../types'
 
+/**
+ * Convert an array of TanStack AI tools to a Record of ToolBindings
+ *
+ * @param tools - Array of tools to convert
+ * @param prefix - Optional prefix to add to binding names (e.g., 'external_')
+ */
 export function toolsToBindings(
   tools: Array<CodeModeTool>,
   prefix: string = '',
@@ -20,6 +26,13 @@ export function toolsToBindings(
   return bindings
 }
 
+/**
+ * Convert a single TanStack AI tool to a ToolBinding
+ *
+ * @param tool - Tool to convert
+ * @param prefix - Optional prefix to add to binding name (e.g., 'external_')
+ * @throws Error if the tool doesn't have an execute function
+ */
 export function toolToBinding(
   tool: CodeModeTool,
   prefix: string = '',
@@ -82,6 +95,13 @@ export function toolToBinding(
   }
 }
 
+/**
+ * Create event-aware bindings that emit custom events for each external function call.
+ * Wraps each binding's execute function to emit events before and after execution.
+ *
+ * @param bindings - Original tool bindings
+ * @param emitCustomEvent - Callback to emit custom events to the stream
+ */
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],

@@ -27,14 +27,25 @@ import type {
 } from '../../types'
 
 /** The adapter kind this activity handles */
-export const kind = 'transcription' as const
+export const /** The adapter kind this activity handles */
+kind = 'transcription' as const
 
+/**
+ * Extract provider options from a TranscriptionAdapter via ~types.
+ */
 export type TranscriptionProviderOptions<TAdapter> = TAdapter extends {
   '~types': { providerOptions: infer P extends object }
 }
   ? P
   : object
 
+/**
+ * Options for the transcription activity.
+ * The model is extracted from the adapter's model property.
+ *
+ * @template TAdapter - The transcription adapter type
+ * @template TStream - Whether to stream the output
+ */
 export interface TranscriptionActivityOptions<
   TAdapter extends TranscriptionAdapter<
     string,
@@ -54,17 +65,49 @@ export interface TranscriptionActivityOptions<
   responseFormat?: TranscriptionResponseFormat
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
+  /**
+     * Whether to stream the transcription result.
+     * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+     * When false or not provided, returns a Promise<TranscriptionResult>.
+     *
+     * @default false
+     */
   stream?: TStream
+  /**
+     * Enable debug logging. Pass `true` to enable all categories, `false` to
+     * silence everything including errors, or a `DebugConfig` object for granular
+     * control and/or a custom `Logger`.
+     */
   debug?: DebugOption
+  /**
+     * Observe-only middleware notified on start, usage, success, and error. Pass
+     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+     * `GenerationMiddleware` contract for a custom backend.
+     */
   middleware?: Array<GenerationMiddleware>
   /** Stable conversation/thread id for correlating this run when persisted. */
   threadId?: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
+  /**
+     * Maximum duration of this activity invocation in milliseconds.
+     * No SDK-wide default — choose a value suitable for the provider and job.
+     * Composed with {@link abortSignal}; the first abort wins.
+     */
   timeout?: number
+  /**
+     * Caller cancellation signal (request disconnects, job/runtime cancellation).
+     * Composed with {@link timeout} into an effective signal forwarded to the
+     * adapter. Request-specific — not stored on global provider client config.
+     */
   abortSignal?: AbortSignal
 }
 
+/**
+ * Result type for the transcription activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<TranscriptionResult>
+ */
 export type TranscriptionActivityResult<TStream extends boolean = false> =
   TStream extends true
     ? AsyncIterable<StreamChunk>
@@ -74,6 +117,49 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/**
+ * Transcription activity - converts audio to text.
+ *
+ * Uses AI speech-to-text models to transcribe audio content.
+ *
+ * @example Transcribe an audio file
+ * ```ts
+ * import { generateTranscription } from '@tanstack/ai'
+ * import { openaiTranscription } from '@tanstack/ai-openai'
+ *
+ * const result = await generateTranscription({
+ *   adapter: openaiTranscription('whisper-1'),
+ *   audio: audioFile, // File, Blob, or base64 string
+ *   language: 'en'
+ * })
+ *
+ * console.log(result.text)
+ * ```
+ *
+ * @example With verbose output for timestamps
+ * ```ts
+ * const result = await generateTranscription({
+ *   adapter: openaiTranscription('whisper-1'),
+ *   audio: audioFile,
+ *   responseFormat: 'verbose_json'
+ * })
+ *
+ * result.segments?.forEach(segment => {
+ *   console.log(`[${segment.start}s - ${segment.end}s]: ${segment.text}`)
+ * })
+ * ```
+ *
+ * @example Streaming transcription result
+ * ```ts
+ * for await (const chunk of generateTranscription({
+ *   adapter: openaiTranscription('whisper-1'),
+ *   audio: audioFile,
+ *   stream: true
+ * })) {
+ *   console.log(chunk)
+ * }
+ * ```
+ */
 export function generateTranscription<
   TAdapter extends TranscriptionAdapter<
     string,
@@ -96,6 +182,9 @@ export function generateTranscription<
   ) as TranscriptionActivityResult<TStream>
 }
 
+/**
+ * Run non-streaming transcription
+ */
 async function runGenerateTranscription<
   TAdapter extends TranscriptionAdapter<
     string,
@@ -232,6 +321,9 @@ async function runGenerateTranscription<
   }
 }
 
+/**
+ * Create typed options for the generateTranscription() function without executing.
+ */
 export function createTranscriptionOptions<
   TAdapter extends TranscriptionAdapter<
     string,

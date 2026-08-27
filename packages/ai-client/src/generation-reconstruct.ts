@@ -37,6 +37,16 @@ export function reconstructImageResult(
   }
 }
 
+/**
+ * tts → `{ id, model, audio: '', format, contentType, artifacts }`.
+ *
+ * Unlike {@link reconstructAudioResult}, `TTSResult.audio` is a bare base64
+ * string with no URL slot, and server-driven persistence never stores the raw
+ * bytes — only the durable serve URL on the artifact ref. So the restored
+ * result surfaces the audio through `artifacts` (each carrying `url`); consumers
+ * play the restored clip from `result.artifacts[0].url` and fall back to the
+ * live base64 `audio` only for a just-finished (non-restored) run.
+ */
 export function reconstructSpeechResult(
   restored: GenerationRestoredResult,
 ): TTSResult | null {

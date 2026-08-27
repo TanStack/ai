@@ -6,6 +6,11 @@ import type { McpAppBridge } from '@tanstack/ai-client'
 export interface MCPAppResourceProps {
   /** The ui-resource part from a UIMessage assistant part. */
   part: UIResourcePart
+  /**
+     * Framework-agnostic bridge for tool calls, prompt sending, and link opening.
+     * Omit it to render the widget in display-only mode — iframe interactions
+     * that would trigger tool calls or prompts are ignored.
+     */
   bridge?: McpAppBridge
   /** Sandbox iframe configuration — must include the proxy page URL. */
   sandbox: { url: URL }
@@ -17,6 +22,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Coalesce an arbitrary bridge result into the `string` required by the
+ * `CallToolResult` text content block. `JSON.stringify` is typed to return
+ * `string` but actually returns `undefined` for inputs like `undefined` or a
+ * function, so we narrow explicitly to avoid `text: undefined`.
+ */
 function resultToText(result: unknown): string {
   if (typeof result === 'string') return result
   // `JSON.stringify`'s lib signature claims `string`, but it returns
@@ -25,6 +36,12 @@ function resultToText(result: unknown): string {
   return stringify(result) ?? 'null'
 }
 
+/**
+ * Renders an MCP App UI resource inside a sandboxed iframe.
+ *
+ * Wraps `@mcp-ui/client`'s `AppRenderer` and wires its callbacks to a
+ * framework-agnostic {@link McpAppBridge}.
+ */
 export function MCPAppResource(props: MCPAppResourceProps) {
   const { part, bridge, sandbox, toolInput } = props
 

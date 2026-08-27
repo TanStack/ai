@@ -69,6 +69,12 @@ class GrokVertexTextAdapter<
   }
 }
 
+/**
+ * Creates a Grok chat adapter that talks to xAI Grok on Vertex AI.
+ *
+ * Install `google-auth-library` next to `@tanstack/ai-grok` for Application
+ * Default Credentials. Or pass `authClient` or `getAccessToken`.
+ */
 export function grokVertexText<TModel extends GrokVertexChatModel>(
   model: TModel,
   config: GrokVertexConfig = {},
@@ -102,6 +108,9 @@ export function grokVertexText<TModel extends GrokVertexChatModel>(
   )
 }
 
+/**
+ * Creates a Grok summarize adapter that talks to xAI Grok on Vertex AI.
+ */
 export function grokVertexSummarize<TModel extends GrokVertexChatModel>(
   model: TModel,
   config: GrokVertexConfig = {},

@@ -4,6 +4,10 @@ import type { InjectionKey } from 'vue'
 
 export const CHAT_KEY = Symbol() as InjectionKey<UseChatReturn>
 
+/**
+ * Composable to access chat context
+ * @throws Error if used outside of Chat component
+ */
 export function useChatContext(): UseChatReturn {
   const context = inject(CHAT_KEY)
   if (!context) {

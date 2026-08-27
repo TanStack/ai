@@ -13,6 +13,14 @@ import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 
+/**
+ * Configuration for the OpenAI Chat Completions adapter.
+ *
+ * Distinct from `OpenAITextConfig` (the Responses-API adapter) only in name —
+ * both wrap the same `OpenAIClientConfig`. Kept separate so a future
+ * chat-completions-only knob (e.g. legacy `function_call`) has a place to land
+ * without leaking into the Responses adapter's surface.
+ */
 export interface OpenAIChatCompletionsConfig extends OpenAIClientConfig {}
 
 export type OpenAIChatCompletionsProviderOptions = ExternalTextProviderOptions
@@ -32,6 +40,14 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<OpenAIChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * OpenAI Text adapter targeting the **Chat Completions** API
+ * (`/v1/chat/completions`).
+ *
+ * Sibling of `OpenAITextAdapter`, which targets the Responses API. Use this
+ * one when you want the older, more broadly compatible wire format (e.g. to
+ * compare streaming behaviour across providers that don't speak Responses yet).
+ */
 export class OpenAIChatCompletionsTextAdapter<
   TModel extends OpenAIChatModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,

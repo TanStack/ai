@@ -25,6 +25,13 @@ export type VertexAuthClient = {
   getRequestHeaders: (url?: string | URL) => Promise<Headers>
 }
 
+/**
+ * Public Vertex config for Grok. `project` and `location` match the Gemini
+ * Vertex factories so one auth object works for both.
+ *
+ * Default location is `global`. Grok on Vertex uses the OpenAI-compatible
+ * Responses endpoint under `/endpoints/openapi`.
+ */
 export type GrokVertexConfig = {
   project?: string
   location?: string

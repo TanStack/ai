@@ -2,7 +2,15 @@ import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 
+/**
+ * Anthropic-specific provider usage details.
+ * These fields are unique to Anthropic and placed in providerUsageDetails.
+ */
 export type AnthropicProviderUsageDetails = {
+  /**
+     * Server-side tool usage metrics.
+     * Available when using Anthropic's built-in tools like web search.
+     */
   serverToolUse?: {
     /** Number of web search requests made during the response */
     webSearchRequests?: number
@@ -11,6 +19,12 @@ export type AnthropicProviderUsageDetails = {
   }
 }
 
+/**
+ * Build normalized TokenUsage from Anthropic's usage object.
+ * Handles cache tokens and server tool use metrics. Returns `undefined` when
+ * the provider reported no usage object, so callers omit the field rather than
+ * fabricating zeroed totals.
+ */
 export function buildAnthropicUsage(
   usage:
     | Anthropic_SDK.Beta.BetaUsage

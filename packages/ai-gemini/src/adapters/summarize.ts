@@ -5,10 +5,24 @@ import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { GEMINI_MODELS } from '../model-meta'
 import type { GeminiClientConfig } from '../utils/client'
 
+/**
+ * Configuration for Gemini summarize adapter
+ */
 export interface GeminiSummarizeConfig extends GeminiClientConfig {}
 
 export type GeminiSummarizeModel = (typeof GEMINI_MODELS)[number]
 
+/**
+ * Creates a Gemini summarize adapter with explicit API key and model.
+ *
+ * Note: keeps the historical (apiKey, model, config) argument order to
+ * avoid breaking existing callers.
+ *
+ * @example
+ * ```typescript
+ * const adapter = createGeminiSummarize('AIza...', 'gemini-2.5-flash');
+ * ```
+ */
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
   model: TModel,
@@ -24,6 +38,16 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   )
 }
 
+/**
+ * Creates a Gemini summarize adapter with API key from `GOOGLE_API_KEY` /
+ * `GEMINI_API_KEY` environment variables.
+ *
+ * @example
+ * ```typescript
+ * const adapter = geminiSummarize('gemini-2.5-flash');
+ * await summarize({ adapter, text: 'Long article text...' });
+ * ```
+ */
 export function geminiSummarize<TModel extends GeminiSummarizeModel>(
   model: TModel,
   config?: Omit<GeminiSummarizeConfig, 'apiKey'>,

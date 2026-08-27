@@ -16,13 +16,20 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Claude Code session id. */
-export const SESSION_ID_EVENT = 'claude-code.session-id'
+export const /** Name of the CUSTOM event carrying the Claude Code session id. */
+SESSION_ID_EVENT = 'claude-code.session-id'
 
 /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools (model sees `mcp__tanstack__<name>`). */
+BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const BRIDGED_MCP_PREFIX = `mcp__${BRIDGED_MCP_SERVER_NAME}__`
 
+/**
+ * Claude Code `--json-schema` injects a fake tool named StructuredOutput.
+ * The model "calls" it with the schema JSON. The result message may omit
+ * `structured_output`; harvest the tool input in that case.
+ */
 export const SYNTHETIC_STRUCTURED_OUTPUT_TOOL = 'StructuredOutput'
 
 /** Claude Code-specific usage details attached to RUN_FINISHED usage. */
@@ -45,6 +52,11 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
+/**
+ * Strip the bridged MCP server prefix so tool-call events match the TanStack
+ * tool names the application registered. Built-in harness tools (Bash, Read,
+ * Edit, ...) and foreign MCP tools pass through verbatim.
+ */
 export function stripMcpPrefix(name: string): string {
   return name.startsWith(BRIDGED_MCP_PREFIX)
     ? name.slice(BRIDGED_MCP_PREFIX.length)
@@ -101,6 +113,21 @@ function buildUsage(
   return result
 }
 
+/**
+ * Translate a Claude Code Agent SDK message stream into AG-UI StreamChunk
+ * events.
+ *
+ * The harness runs its own agent loop and executes its own tools, so the
+ * translation always ends with `finishReason: 'stop'` (or `'length'` /
+ * RUN_ERROR) — never `'tool_calls'`. Harness tool activity is emitted as
+ * already-resolved TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so
+ * UIs can render it, while the TanStack engine never tries to execute them.
+ *
+ * Invariant: every TOOL_CALL_START is eventually paired with a
+ * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
+ * ends or aborts before the harness reported one) so the engine's
+ * pending-tool-call scan on the next request never force-executes them.
+ */
 export async function* translateSdkStream(
   sdkMessages: AsyncIterable<AgentSdkMessage>,
   ctx: TranslateContext,
@@ -110,14 +137,16 @@ export async function* translateSdkStream(
 
   let runStarted = false
   /** Tool calls started but with no result yet. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet. */
+unresolvedToolCalls = new Set<string>()
   const syntheticOutputToolIds = new Set<string>()
   let capturedStructuredOutput: unknown
   let assistantTextForHarvest = ''
   let partialStructuredJson = ''
   let partialIsStructuredOutput = false
   /** Anthropic message ids whose text/thinking already streamed via partials. */
-  const streamedMessageIds = new Set<string>()
+  const /** Anthropic message ids whose text/thinking already streamed via partials. */
+streamedMessageIds = new Set<string>()
 
   // Partial-stream state
   let partialMessageId: string | null = null

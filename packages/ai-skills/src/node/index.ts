@@ -62,7 +62,9 @@ async function resolveInside(dir: string, rel: string): Promise<string> {
   const rootReal = await realpath(dir)
   const fullReal = await realpath(full)
   const prefix = rootReal.endsWith(sep) ? rootReal : rootReal + sep
-  if (fullReal !== rootReal && !fullReal.startsWith(prefix)) {
+  const isOutsideRoot =
+    fullReal !== rootReal && !fullReal.startsWith(prefix)
+  if (isOutsideRoot) {
     throw new Error(`unsafe resource path: "${rel}"`)
   }
   return fullReal
@@ -76,7 +78,8 @@ export function skillDirectory(
   const { maxDepth, strict = true } = options
 
   /** Fresh scan of every root → parsed skill name → skill directory. First wins. */
-  const scan = async (): Promise<Map<string, string>> => {
+  const /** Fresh scan of every root → parsed skill name → skill directory. First wins. */
+scan = async (): Promise<Map<string, string>> => {
     const map = new Map<string, string>()
     for (const r of roots) {
       const dirs = await walkSkillDirs(nodeLister, r, { maxDepth })
@@ -112,7 +115,8 @@ export function skillDirectory(
     revision: async () => {
       const map = await scan()
       const parts: Array<string> = []
-      for (const [name, dir] of [...map].sort()) {
+      const sorted = [...map].sort()
+      for (const [name, dir] of sorted) {
         const s = await stat(join(dir, 'SKILL.md')).catch(() => undefined)
         parts.push(`${name}:${s?.mtimeMs ?? 0}:${s?.size ?? 0}`)
       }
@@ -129,9 +133,8 @@ export function skillDirectory(
         try {
           out.push(parseSkill(raw, { dirName: basename(dir), strict }).metadata)
         } catch {
-          // Lenient: an unparseable skill is skipped, not fatal (spec §7).
-          // strict mode still throws inside parseSkill for warnings, but a
-          // genuinely broken file (no description) is always skipped.
+          // Lenient: skip unparseable skills (spec §7). strict still throws
+          // on warnings; a broken file (no description) is always skipped.
         }
       }
       return out

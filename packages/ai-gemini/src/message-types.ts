@@ -1,3 +1,6 @@
+/**
+ * Supported image MIME types for Gemini.
+ */
 export type GeminiImageMimeType =
   | 'image/png'
   | 'image/jpeg'
@@ -5,6 +8,9 @@ export type GeminiImageMimeType =
   | 'image/heic'
   | 'image/heif'
 
+/**
+ * Supported audio MIME types for Gemini.
+ */
 export type GeminiAudioMimeType =
   | 'audio/wav'
   | 'audio/mp3'
@@ -13,6 +19,9 @@ export type GeminiAudioMimeType =
   | 'audio/ogg'
   | 'audio/flac'
 
+/**
+ * Supported video MIME types for Gemini.
+ */
 export type GeminiVideoMimeType =
   | 'video/mp4'
   | 'video/mpeg'
@@ -24,6 +33,9 @@ export type GeminiVideoMimeType =
   | 'video/wmv'
   | 'video/3gpp'
 
+/**
+ * Supported document MIME types for Gemini.
+ */
 export type GeminiDocumentMimeType =
   | 'application/pdf'
   | 'text/plain'
@@ -38,24 +50,50 @@ export type GeminiDocumentMimeType =
   | 'application/json'
   | 'application/xml'
 
+/**
+ * Metadata for Gemini image content parts.
+ */
 export interface GeminiImageMetadata {
+  /**
+     * The MIME type of the image.
+     * Required for proper content processing.
+     *
+     * @see https://ai.google.dev/gemini-api/docs/vision#supported-formats
+     */
   mimeType?: GeminiImageMimeType
 }
 
+/**
+ * Metadata for Gemini audio content parts.
+ */
 export interface GeminiAudioMetadata {
   mimeType?: GeminiAudioMimeType
 }
 
+/**
+ * Metadata for Gemini video content parts.
+ */
 export interface GeminiVideoMetadata {
   mimeType?: GeminiVideoMimeType
 }
 
+/**
+ * Metadata for Gemini document content parts.
+ */
 export interface GeminiDocumentMetadata {
   mimeType?: GeminiDocumentMimeType
 }
 
+/**
+ * Metadata for Gemini text content parts.
+ * Currently no specific metadata options for text in Gemini.
+ */
 export interface GeminiTextMetadata {}
 
+/**
+ * Map of modality types to their Gemini-specific metadata types.
+ * Used for type inference when constructing multimodal messages.
+ */
 export interface GeminiMessageMetadataByModality {
   text: GeminiTextMetadata
   image: GeminiImageMetadata
@@ -64,6 +102,16 @@ export interface GeminiMessageMetadataByModality {
   document: GeminiDocumentMetadata
 }
 
+/**
+ * Provider-specific metadata that round-trips with each Gemini tool call.
+ *
+ * `thoughtSignature` is emitted by Gemini 3.x (and 2.5 thinking) models on
+ * the Part containing the `functionCall`. The same signature must be echoed
+ * back at the Part level on the next turn or the API rejects the request
+ * with `400 INVALID_ARGUMENT: "Function call is missing a thought_signature"`.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/thinking
+ */
 export interface GeminiToolCallMetadata {
   thoughtSignature?: string
 }

@@ -13,10 +13,26 @@ import type {
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface CloudflareSandboxConfig {
+  /**
+     * The Sandbox Durable Object namespace binding (e.g. `env.Sandbox`).
+     * Available inside a Worker `fetch` handler.
+     */
   binding: DurableObjectNamespace<Sandbox>
   /** Working directory inside the container. Defaults to `/workspace`. */
   workdir?: string
+  /**
+     * Your Worker's request hostname, required by `ports.connect` to expose a
+     * preview URL (Cloudflare routes exposed ports by hostname).
+     */
   previewHostname?: string
+  /**
+     * Container-control transport. Defaults to `'rpc'` (the SDK's primary path)
+     * because `sandbox.tunnels` — used by `exposePreviewTool` to mint quick-tunnel
+     * preview URLs — ONLY exists on the RPC transport; on `'http'`/`'websocket'` it
+     * throws "requires the RPC transport". The transport must be the same for every
+     * `getSandbox()` of a given id, so this provider applies it to create/resume/
+     * destroy alike. Override to `'http'` only if you don't use preview tunnels.
+     */
   transport?: SandboxTransport
 }
 
@@ -29,6 +45,7 @@ class CloudflareProvider implements SandboxProvider {
     return CLOUDFLARE_CAPS
   }
 
+  /** Working directory inside the container. Defaults to `/workspace`. */
   private get workdir(): string {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
@@ -80,6 +97,11 @@ class CloudflareProvider implements SandboxProvider {
   }
 }
 
+/**
+ * Cloudflare sandbox provider — runs harness adapters inside Cloudflare
+ * Containers at the edge. Construct it inside a Worker with the Sandbox Durable
+ * Object namespace binding. See the stdin/snapshot limitations in `handle.ts`.
+ */
 export function cloudflareSandbox(
   config: CloudflareSandboxConfig,
 ): SandboxProvider {

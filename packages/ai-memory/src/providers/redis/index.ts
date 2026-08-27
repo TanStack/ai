@@ -12,6 +12,11 @@ import type {
 } from '../../internal/store'
 import type { MemoryAdapter, MemoryScope } from '../../types'
 
+/**
+ * Minimal subset of the Redis client API the adapter uses. Shaped to match
+ * `ioredis` directly (lowercase method names). For node-redis v4+'s camelCase
+ * API, wrap the client with {@link fromNodeRedis}.
+ */
 export interface RedisLike {
   set: (key: string, value: string) => Promise<unknown>
   get: (key: string) => Promise<string | null>
@@ -33,6 +38,11 @@ export interface NodeRedisLike {
   mGet: (keys: Array<string>) => Promise<Array<string | null>>
 }
 
+/**
+ * Wrap a node-redis v4+ default-mode client (camelCase API) into the lowercase
+ * {@link RedisLike} shape this adapter expects. For `ioredis`, no wrapper is
+ * needed — pass the client directly.
+ */
 export function fromNodeRedis(client: NodeRedisLike): RedisLike {
   return {
     get: (key) => client.get(key),
@@ -52,6 +62,13 @@ export interface RedisOptions extends BuiltinOptions {
   prefix?: string
 }
 
+/**
+ * Escape the `:` scope-key delimiter (and the `\` escape character itself) in a
+ * scope value before composing the colon-joined key. Without this, a scope
+ * value containing `:` could shift segment positions and collide two different
+ * scopes' index buckets. `_` is escaped too so a literal `_` value can't collide
+ * with the unset-key placeholder.
+ */
 function escapeScopeValue(value: string): string {
   return value.replace(/[\\:_]/g, '\\$&')
 }
@@ -74,8 +91,10 @@ function warnMalformedRow(id: string, err: unknown): void {
   )
 }
 
+/** A Redis client implementing {@link RedisLike} (ioredis, or wrapped node-redis). */
 export function redis(options: RedisOptions): MemoryAdapter {
   const client = options.redis
+  /** Key prefix. Defaults to `'tanstack-ai:memory'`. */
   const prefix = options.prefix ?? 'tanstack-ai:memory'
 
   const scopeKey = (scope: MemoryScope): string => {

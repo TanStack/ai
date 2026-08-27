@@ -178,9 +178,8 @@ export const HookDetails: Component = () => {
     return []
   })
   const showSecondaryPane = createMemo(() => {
-    // Tools tab owns its own form/saved-fixtures layout that fills the
-    // primary pane; the secondary "User View" preview squeezes the tool
-    // detail column to zero width on narrower hookDetails widths.
+    // Tools/skills own the primary pane; the User View preview would
+    // squeeze the detail column to zero width on narrower layouts.
     const hideSecondaryPane =
       (activeTab() === 'tools' || activeTab() === 'skills') &&
       !isGenerationHook()

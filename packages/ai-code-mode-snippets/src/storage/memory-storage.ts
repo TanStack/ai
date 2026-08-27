@@ -8,11 +8,21 @@ import type {
 import type { TrustStrategy } from '../trust-strategies'
 
 export interface MemorySnippetStorageOptions {
+  /**
+     * Initial snippets to populate the storage with
+     */
   initialSnippets?: Array<Snippet>
 
+  /**
+     * Trust strategy for determining snippet trust levels
+     * @default createDefaultTrustStrategy()
+     */
   trustStrategy?: TrustStrategy
 }
 
+/**
+ * In-memory snippet storage for testing and demos
+ */
 export function createMemorySnippetStorage(
   optionsOrSnippets: MemorySnippetStorageOptions | Array<Snippet> = [],
 ): SnippetStorage {

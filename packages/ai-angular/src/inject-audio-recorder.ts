@@ -13,6 +13,11 @@ import type {
 } from '@tanstack/ai-client'
 
 export type InjectAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+     * Optional transform applied to the recording when `stop()` resolves. Its
+     * (awaited) return value becomes `recording` and the resolved value of
+     * `stop()`. Return nothing to keep the raw `AudioRecording`.
+     */
   onComplete?: TOnComplete
 }
 
@@ -30,6 +35,15 @@ export interface InjectAudioRecorderResult<TOutput> {
   cancel: () => void
 }
 
+/**
+ * Angular injectable for recording an audio message. The resolved recording
+ * carries `.part` (for `injectChat`'s `sendMessage`) and `.base64` (for the
+ * generation injectables). Must be called in an injection context.
+ *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
+ * while a stop is in flight, e.g. on destroy) — handle one channel, not both.
+ */
 export function injectAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -52,7 +66,9 @@ export function injectAudioRecorder(
     ...(options.mimeType !== undefined && { mimeType: options.mimeType }),
     ...(options.onError !== undefined && { onError: options.onError }),
   })
+  /** Reactive: true while actively capturing audio. */
   const isRecording = signal(false)
+  /** Reactive: latest recording (transformed if `onComplete` provided), or null. */
   const recording = signal<unknown>(null)
 
   const unsubscribe = recorder.subscribe((state) => {
@@ -63,6 +79,7 @@ export function injectAudioRecorder(
     recorder.cancel()
   })
 
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   const stop = async (): Promise<unknown> => {
     const rawRecording = await recorder.stop()
     const transformed = await options.onComplete?.(rawRecording)

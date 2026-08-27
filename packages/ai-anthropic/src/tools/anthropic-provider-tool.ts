@@ -13,6 +13,14 @@ const ANTHROPIC_PROVIDER_TOOL_KINDS = {
 
 type AnthropicProviderToolKind = keyof typeof ANTHROPIC_PROVIDER_TOOL_KINDS
 
+/**
+ * Adds a stable runtime discriminator to an Anthropic-native tool.
+ *
+ * The core ProviderTool brand is intentionally type-only. Anthropic also needs
+ * a runtime discriminator because custom functions may use the same public
+ * names as native tools. Adapter metadata is the repository-wide extension
+ * point for this plain-data marker; converters remove it from the wire shape.
+ */
 export function brandAnthropicProviderTool<
   T extends ProviderTool<'anthropic', AnthropicProviderToolKind>,
 >(tool: Omit<T, '~provider' | '~toolKind'>, toolKind: T['~toolKind']): T {

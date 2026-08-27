@@ -9,6 +9,9 @@ export type { LocalShellToolConfig }
 /** @deprecated Renamed to `LocalShellToolConfig`. Will be removed in a future release. */
 export type LocalShellTool = LocalShellToolConfig
 
+/**
+ * Converts a standard Tool to OpenAI LocalShellTool format
+ */
 export function convertLocalShellToolToAdapterFormat(
   _tool: Tool,
 ): LocalShellToolConfig {
@@ -17,6 +20,12 @@ export function convertLocalShellToolToAdapterFormat(
   }
 }
 
+/**
+ * Creates a standard Tool from LocalShellTool parameters.
+ *
+ * Base (non-branded) factory. Providers that need branded return types should
+ * re-wrap this in their own package.
+ */
 export function localShellTool(): Tool {
   return openAIProviderTool(
     {

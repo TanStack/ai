@@ -22,6 +22,12 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<LovableChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * Lovable AI Gateway Responses text adapter.
+ *
+ * Talks to the OpenAI-compatible Responses API at
+ * `https://ai.gateway.lovable.dev/v1`.
+ */
 export class LovableResponsesTextAdapter<
   TModel extends LovableModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,

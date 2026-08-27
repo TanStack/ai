@@ -17,6 +17,11 @@ import type { ByokClient } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
+/**
+ * Options for the useGenerateVideo composable.
+ *
+ * @template TOutput - The output type after optional transform (defaults to VideoGenerateResult)
+ */
 export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   /** Connect-based adapter for streaming transport (server handles polling) */
   connection?: ConnectConnectionAdapter
@@ -30,10 +35,50 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+     * How this generation persists across reloads.
+     * - Omit / `false`: ephemeral, in-memory only.
+     * - `true`: server-driven — on mount the client hydrates the last generation
+     *   for its `threadId` from the server (needs a connection with a
+     *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+     */
   persistence?: boolean
+  /**
+     * The **scope** this generation belongs to: a stable, app-chosen name for the
+     * slot successive runs fill — not a link to a chat conversation.
+     *
+     * The hook starts empty and produces many runs over its life; each gets its
+     * own `runId`, but all belong to one scope. Persistence keys on this, so
+     * derive it from your own domain and keep it identical across reloads (e.g.
+     * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+     * id on the wire, which the protocol requires.
+     *
+     * **Required whenever `persistence` is set** — an app that cannot name the
+     * scope has nothing to restore to. Optional for ephemeral generations. If
+     * omitted, the client mints a wire id after mount.
+     */
   threadId?: string
+  /**
+     * Server-driven hydration handler for `persistence: true` when the
+     * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+     * `rpcStream()` adapter built without handlers) — typically a one-line
+     * server-function call. The connection's own handler takes precedence.
+     */
   hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+     * Re-attach handler that replays a run still generating to completion on
+     * mount, when the connection doesn't carry one. Without it, a restored
+     * `running` snapshot surfaces as an (interrupted) error. The connection's
+     * own handler takes precedence.
+     */
   joinRun?: ConnectConnectionAdapter['joinRun']
+  /**
+     * Callback when video generation completes. Can optionally return a transformed value.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: VideoGenerateResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -47,6 +92,11 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   onChunk?: (chunk: StreamChunk) => void
 }
 
+/**
+ * Return type for the useGenerateVideo composable.
+ *
+ * @template TOutput - The output type (after optional transform)
+ */
 export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   /** Trigger video generation */
   generate: (input: VideoGenerateInput) => Promise<void>
@@ -66,9 +116,46 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
   stop: () => void
   /** Clear all state and return to idle */
   reset: () => void
+  /**
+     * The id of the generation job currently running, or `null` when nothing is in
+     * flight. Each call to `generate` is one job with its own id. Pass it to your
+     * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+     * local stream, it does not stop work already running on the provider.
+     */
   runId: DeepReadonly<ShallowRef<string | null>>
 }
 
+/**
+ * Vue composable for generating videos using AI models.
+ *
+ * Video generation is asynchronous: a job is created, then polled for status
+ * until completion. This composable handles the full lifecycle.
+ *
+ * @example
+ * ```vue
+ * <script setup>
+ * import { useGenerateVideo } from '@tanstack/ai-vue'
+ * import { fetchServerSentEvents } from '@tanstack/ai-client'
+ *
+ * const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *   connection: fetchServerSentEvents('/api/generate/video'),
+ *   onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
+ * })
+ * </script>
+ *
+ * <template>
+ *   <div>
+ *     <button @click="generate({ prompt: 'A flying car over a city' })">
+ *       Generate Video
+ *     </button>
+ *     <p v-if="isLoading && videoStatus">
+ *       Status: {{ videoStatus.status }} ({{ videoStatus.progress }}%)
+ *     </p>
+ *     <video v-if="result" :src="result.url" controls />
+ *   </div>
+ * </template>
+ * ```
+ */
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
@@ -83,11 +170,17 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
+  /** The final video result (with URL), or null */
   const result = shallowRef<TOutput | null>(null)
+  /** The current job ID, or null */
   const jobId = shallowRef<string | null>(null)
+  /** Current video generation status info, or null */
   const videoStatus = shallowRef<VideoStatusInfo | null>(null)
+  /** Whether generation/polling is in progress */
   const isLoading = shallowRef(false)
+  /** Current error, if any */
   const error = shallowRef<Error | undefined>(undefined)
+  /** Current state of the generation */
   const status = shallowRef<GenerationClientState>('idle')
   const runId = shallowRef<string | null>(null)
   let disposed = false
@@ -204,14 +297,17 @@ export function useGenerateVideo<TTransformed = void>(
     client.dispose()
   })
 
+  /** Trigger video generation */
   const generate = async (input: VideoGenerateInput) => {
     await client.generate(input)
   }
 
+  /** Abort the current generation/polling */
   const stop = () => {
     client.stop()
   }
 
+  /** Clear all state and return to idle */
   const reset = () => {
     client.reset()
   }

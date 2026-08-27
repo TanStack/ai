@@ -113,6 +113,11 @@ export function defaultSandboxSnapshotPolicy(
   }
 }
 
+/**
+ * Keep default exclusions unless the caller passed `exclude`.
+ * `include` or `redact` alone must not capture `.env`, `.git`, or
+ * `node_modules`.
+ */
 export function resolveSandboxSnapshotPolicy(
   supplied: SandboxSnapshotPolicy | undefined,
   workspaceHash?: string,

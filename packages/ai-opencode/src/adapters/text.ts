@@ -53,9 +53,19 @@ const DEFAULT_PORT = 4096
 export interface OpencodeTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   directory?: string
+  /**
+     * Port the in-sandbox `opencode serve` listens on. Defaults to 4096. For the
+     * Docker provider this port must also be published (`publishPorts: [4096]`)
+     * so the host can reach it.
+     */
   port?: number
   /** Hostname the in-sandbox server binds. Defaults to `0.0.0.0`. */
   hostname?: string
+  /**
+     * OpenCode permission mode driving the dynamic permission handler. Defaults
+     * to `'default'`; set `'acceptEdits'` / `'bypassPermissions'` to let the
+     * harness edit files and run commands autonomously inside the sandbox.
+     */
   permissionMode?: OpencodePermissionMode
   /** Custom permission handler; replaces the adapter's default policy. */
   onPermissionRequest?: PermissionHandler
@@ -118,6 +128,7 @@ async function* emitOpencodeStructuredOutput(
   }
 }
 
+/** Split a `provider/model` id into its provider and model halves. */
 function splitModel(model: string): { providerID: string; modelID: string } {
   const slash = model.indexOf('/')
   const isInvalidModelId = slash <= 0 || slash === model.length - 1
@@ -354,6 +365,7 @@ export class OpencodeTextAdapter<
   ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     const sandbox = this.sandboxFrom(options)
+    /** Working directory inside the sandbox. Defaults to `/workspace`. */
     const directory =
       options.modelOptions?.directory ??
       this.adapterConfig.directory ??
@@ -549,6 +561,16 @@ export class OpencodeTextAdapter<
   }
 }
 
+/**
+ * Creates an OpenCode harness adapter that runs **inside a sandbox**.
+ *
+ * It declares `requires: [SandboxCapability]`, spawns `opencode serve` inside
+ * the sandbox provided by `withSandbox(...)`, exposes its port, and connects
+ * the `@opencode-ai/sdk` HTTP client to it. OpenCode owns the agent loop and
+ * executes its native tools against the sandbox workspace. The sandbox image
+ * must provide the `opencode` executable (Docker: also publish the server port
+ * via `publishPorts`). chat()-provided tools aren't bridged yet.
+ */
 export function opencodeText<TModel extends OpencodeModel>(
   model: TModel,
   config: OpencodeTextConfig = {},

@@ -7,6 +7,11 @@ import type {
 } from '@tanstack/ai-client'
 
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
+  /**
+     * Optional transform applied to the recording when `stop()` resolves. Its
+     * (awaited) return value becomes `recording` and the resolved value of
+     * `stop()`. Return nothing to keep the raw `AudioRecording`.
+     */
   onComplete?: TOnComplete
 }
 
@@ -25,6 +30,24 @@ export interface UseAudioRecorderReturn<TOutput> {
   cancel: () => void
 }
 
+/**
+ * React hook for recording an audio message. The resolved
+ * {@link AudioRecording} carries `.part` (an audio content part for
+ * `useChat.sendMessage`) and `.base64` (for the generation hooks).
+ *
+ * Errors are delivered via `onError`. `start()` and `stop()` also reject on
+ * failure (and `stop()` rejects with `Recording cancelled` if the component
+ * unmounts while a stop is in flight) — handle one channel, not both.
+ *
+ * @example
+ * ```tsx
+ * const { isRecording, start, stop, recording } = useAudioRecorder()
+ * const { sendMessage } = useChat({ connection })
+ * // ...
+ * const rec = await stop()
+ * sendMessage({ content: [rec.part] })
+ * ```
+ */
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
@@ -64,14 +87,18 @@ export function useAudioRecorder(
     }
   }, [recorder])
 
+  /** Acquire the mic and begin recording. */
   const start = useCallback(() => recorder.start(), [recorder])
+  /** Stop and resolve with the completed recording (transformed if `onComplete` provided). */
   const stop = useCallback(async () => {
+    /** Latest recording (transformed if `onComplete` provided), or null. */
     const recording = await recorder.stop()
     const transformed = await optionsRef.current.onComplete?.(recording)
     const output = transformed === undefined ? recording : transformed
     setRecording(() => output)
     return output
   }, [recorder])
+  /** Discard the in-progress recording and release the mic. */
   const cancel = useCallback(() => recorder.cancel(), [recorder])
 
   return {

@@ -2,6 +2,9 @@ import type { AnyClientTool } from '../activities/chat/tools/tool-definition'
 
 import type { UsageInfo } from '../activities/chat/middleware/types'
 
+/**
+ * Voice activity detection configuration
+ */
 export interface VADConfig {
   /** Sensitivity threshold (0.0-1.0) */
   threshold?: number
@@ -11,6 +14,10 @@ export interface VADConfig {
   silenceDurationMs?: number
 }
 
+/**
+ * Serializable tool descriptor for realtime session configuration.
+ * Contains only the metadata needed by providers, not Zod schemas or execute functions.
+ */
 export interface RealtimeToolConfig {
   name: string
   description: string
@@ -18,6 +25,9 @@ export interface RealtimeToolConfig {
   outputSchema?: Record<string, any>
 }
 
+/**
+ * Configuration for a realtime session
+ */
 export interface RealtimeSessionConfig {
   /** Model to use for the session */
   model?: string
@@ -43,6 +53,9 @@ export interface RealtimeSessionConfig {
   providerOptions?: Record<string, any>
 }
 
+/**
+ * Token returned by the server for client authentication
+ */
 export interface RealtimeToken {
   /** Provider identifier */
   provider: string
@@ -54,6 +67,9 @@ export interface RealtimeToken {
   config: RealtimeSessionConfig
 }
 
+/**
+ * Adapter interface for generating provider-specific tokens
+ */
 export interface RealtimeTokenAdapter {
   /** Provider identifier */
   provider: string
@@ -61,16 +77,25 @@ export interface RealtimeTokenAdapter {
   generateToken: () => Promise<RealtimeToken>
 }
 
+/**
+ * Options for the realtimeToken function
+ */
 export interface RealtimeTokenOptions {
   /** The token adapter to use */
   adapter: RealtimeTokenAdapter
 }
 
+/**
+ * Text content part in a realtime message
+ */
 export interface RealtimeTextPart {
   type: 'text'
   content: string
 }
 
+/**
+ * Audio content part in a realtime message
+ */
 export interface RealtimeAudioPart {
   type: 'audio'
   /** Transcription of the audio */
@@ -81,8 +106,12 @@ export interface RealtimeAudioPart {
   durationMs?: number
 }
 
+/**
+ * Tool call part in a realtime message
+ */
 export interface RealtimeToolCallPart {
   type: 'tool-call'
+  /** Unique message identifier */
   id: string
   name: string
   arguments: string
@@ -90,12 +119,18 @@ export interface RealtimeToolCallPart {
   output?: unknown
 }
 
+/**
+ * Tool result part in a realtime message
+ */
 export interface RealtimeToolResultPart {
   type: 'tool-result'
   toolCallId: string
   content: string
 }
 
+/**
+ * Image content part in a realtime message
+ */
 export interface RealtimeImagePart {
   type: 'image'
   /** Base64-encoded image data or a URL */
@@ -104,6 +139,9 @@ export interface RealtimeImagePart {
   mimeType: string
 }
 
+/**
+ * Union of all realtime message parts
+ */
 export type RealtimeMessagePart =
   | RealtimeTextPart
   | RealtimeAudioPart
@@ -111,6 +149,9 @@ export type RealtimeMessagePart =
   | RealtimeToolResultPart
   | RealtimeImagePart
 
+/**
+ * A message in a realtime conversation
+ */
 export interface RealtimeMessage {
   /** Unique message identifier */
   id: string
@@ -128,6 +169,9 @@ export interface RealtimeMessage {
   durationMs?: number
 }
 
+/**
+ * Connection status of the realtime client
+ */
 export type RealtimeStatus =
   | 'idle'
   | 'connecting'
@@ -135,8 +179,14 @@ export type RealtimeStatus =
   | 'reconnecting'
   | 'error'
 
+/**
+ * Current mode of the realtime session
+ */
 export type RealtimeMode = 'idle' | 'listening' | 'thinking' | 'speaking'
 
+/**
+ * Interface for accessing audio visualization data
+ */
 export interface AudioVisualization {
   /** Input volume level (0-1 normalized) */
   readonly inputLevel: number
@@ -168,6 +218,9 @@ export interface AudioVisualization {
   ) => () => void
 }
 
+/**
+ * Events emitted by the realtime connection
+ */
 export type RealtimeEvent =
   | 'status_change'
   | 'mode_change'
@@ -180,27 +233,40 @@ export type RealtimeEvent =
   | 'go_away' // Event that signals that the current connection will soon be terminated
   | 'usage'
 
+/**
+ * Event payloads for realtime events
+ */
 export interface RealtimeEventPayloads {
   status_change: { status: RealtimeStatus }
   mode_change: { mode: RealtimeMode }
+  /** Transcription of the audio */
   transcript: {
+    /** Message role */
     role: 'user' | 'assistant'
     transcript: string
     isFinal: boolean
   }
-  audio_chunk: { data: ArrayBuffer; sampleRate: number }
+  audio_chunk: { /** Base64-encoded image data or a URL */
+data: ArrayBuffer; sampleRate: number }
   tool_call: { toolCallId: string; toolName: string; input: unknown }
   message_complete: { message: RealtimeMessage }
+  /** Whether this message was interrupted */
   interrupted: { messageId?: string }
   error: { error: Error }
   go_away: { timeLeft?: string }
   usage: UsageInfo
 }
 
+/**
+ * Handler type for realtime events
+ */
 export type RealtimeEventHandler<TEvent extends RealtimeEvent> = (
   payload: RealtimeEventPayloads[TEvent],
 ) => void
 
+/**
+ * Error codes for realtime errors
+ */
 export type RealtimeErrorCode =
   | 'TOKEN_EXPIRED'
   | 'CONNECTION_FAILED'
@@ -208,22 +274,46 @@ export type RealtimeErrorCode =
   | 'PROVIDER_ERROR'
   | 'UNKNOWN'
 
+/**
+ * Extended error with realtime-specific information
+ */
 export interface RealtimeError extends Error {
   code: RealtimeErrorCode
+  /** Provider identifier */
   provider?: string
   details?: unknown
 }
 
+/**
+ * Adapter interface for connecting to realtime providers.
+ * Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
+ *
+ * Defined here in `@tanstack/ai` — the shared layer that both provider adapter
+ * packages and the client runtime (`@tanstack/ai-client`) already depend on —
+ * so a provider package can describe its realtime adapter without taking a
+ * dependency on the client-only `@tanstack/ai-client`. `@tanstack/ai-client`
+ * re-exports this type for backwards compatibility.
+ */
 export interface RealtimeAdapter {
   /** Provider identifier */
   provider: string
 
+  /**
+     * Create a connection using the provided token
+     * @param token - The ephemeral token from the server
+     * @param clientTools - Optional client-side tools to register with the provider
+     * @returns A connection instance
+     */
   connect: (
     token: RealtimeToken,
     clientTools?: ReadonlyArray<AnyClientTool>,
   ) => Promise<RealtimeConnection>
 }
 
+/**
+ * Connection interface representing an active realtime session.
+ * Handles audio I/O, events, and session management.
+ */
 export interface RealtimeConnection {
   // Lifecycle
   /** Disconnect from the realtime session */

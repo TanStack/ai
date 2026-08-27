@@ -71,10 +71,21 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 
+/**
+ * The block type carried by an Anthropic provider-executed (server) tool's
+ * stored result. Mirrors the `*_tool_result` block emitted by the streaming
+ * API so it can be replayed verbatim into a later turn.
+ */
 type AnthropicServerToolResultBlockType =
   | 'web_search_tool_result'
   | 'web_fetch_tool_result'
 
+/**
+ * Anthropic payload stashed on a provider-executed tool call's `metadata`
+ * (under the `anthropic` key, alongside `providerExecuted: true`). Holds enough
+ * to reconstruct the original `server_tool_use` + `*_tool_result` blocks so the
+ * model still sees prior `web_search` / `web_fetch` evidence on the next turn.
+ */
 interface AnthropicServerToolMetadata {
   serverToolType: ServerToolUseBlockParam['name']
   resultBlockType: AnthropicServerToolResultBlockType
@@ -82,6 +93,10 @@ interface AnthropicServerToolMetadata {
   result: unknown
 }
 
+/**
+ * Narrow an opaque tool-call `metadata` to {@link AnthropicServerToolMetadata}
+ * when it follows the provider-executed convention, else `null`.
+ */
 function readAnthropicServerToolMetadata(
   metadata: unknown,
 ): AnthropicServerToolMetadata | null {
@@ -95,6 +110,7 @@ function readAnthropicServerToolMetadata(
   const { serverToolType, resultBlockType, result } = inner as {
     serverToolType?: unknown
     resultBlockType?: unknown
+    /** Raw result block content, preserved verbatim from the stream. */
     result?: unknown
   }
   const isServerToolResult =
@@ -114,6 +130,11 @@ function readAnthropicServerToolMetadata(
   }
 }
 
+/**
+ * Reconstruct the `*_tool_result` block param from stored server-tool metadata.
+ * The `result` content is opaque round-trip data, asserted to the SDK's param
+ * content type at this single boundary.
+ */
 function buildServerToolResultBlock(
   toolUseId: string,
   meta: AnthropicServerToolMetadata,
@@ -132,6 +153,14 @@ function buildServerToolResultBlock(
   }
 }
 
+/**
+ * Computes the `betas` array for a Messages request. Unions:
+ * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `code-execution-2025-08-25` when a `code_execution` tool is present,
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - `context-management-2025-06-27` when `context_management` is set.
+ * Returns `undefined` when none apply (so the call site omits `betas`).
+ */
 export function computeAnthropicBetas(
   tools: Array<AnyTool> | undefined,
   modelOptions:
@@ -289,19 +318,33 @@ function resolveAnthropicMaxTokens(
     : defaultMaxTokens
 }
 
+/**
+ * Configuration for Anthropic text adapter
+ */
 export interface AnthropicTextConfig extends AnthropicClientConfig {}
 
 export type AnthropicTextAdapterConfig =
   | AnthropicTextConfig
   | { client: AnthropicMessagesClient }
 
+/**
+ * Anthropic-specific provider options for text/chat
+ */
 export type AnthropicTextProviderOptions = ExternalTextProviderOptions
 
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
 type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof AnthropicChatModelProviderOptionsByName
     ? AnthropicChatModelProviderOptionsByName[TModel]
     : AnthropicTextProviderOptions
 
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use default.
+ */
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof AnthropicModelInputModalitiesByName
     ? AnthropicModelInputModalitiesByName[TModel]
@@ -318,6 +361,11 @@ type SdkAnthropicMessagesClient = {
   }
 }
 
+/**
+ * Restore the package SDK's precise overloads at the adapter boundary.
+ * Alternative clients may use a separate Anthropic 0.x SDK whose declarations
+ * drift while implementing the same Messages protocol at runtime.
+ */
 function asSdkAnthropicMessagesClient(
   client: AnthropicMessagesClient,
 ): SdkAnthropicMessagesClient {
@@ -325,6 +373,12 @@ function asSdkAnthropicMessagesClient(
   return client as unknown as SdkAnthropicMessagesClient
 }
 
+/**
+ * Anthropic Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for Anthropic chat/text completion functionality.
+ * Import only what you need for smaller bundle sizes.
+ */
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -415,6 +469,12 @@ export class AnthropicTextAdapter<
     }
   }
 
+  /**
+     * Generate structured output using Anthropic's tool-based approach.
+     * Anthropic doesn't have native structured output, so we use a tool with the schema
+     * and force the model to call it.
+     * The outputSchema is already JSON Schema (converted in the ai layer).
+     */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -568,6 +628,12 @@ export class AnthropicTextAdapter<
     return requestParams
   }
 
+  /**
+     * Anthropic supports `output_config.format` + `tools` in a single streaming
+     * Messages request only for Claude 4.5+ (GA 2026-01-29). For 4.4 and
+     * earlier we keep the forced-tool-use workaround in
+     * {@link structuredOutput} via the engine's finalization path.
+     */
   supportsCombinedToolsAndSchema(): boolean {
     return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
   }
@@ -830,6 +896,14 @@ export class AnthropicTextAdapter<
     }
   }
 
+  /**
+     * Merge consecutive messages of the same role into a single message.
+     * Anthropic's API requires strictly alternating user/assistant roles.
+     * Tool results are wrapped as role:'user' messages, which can collide
+     * with actual user messages in multi-turn conversations.
+     *
+     * Also filters out empty assistant messages (e.g., from a previous failed request).
+     */
   private mergeConsecutiveSameRoleMessages(
     messages: InternalTextProviderOptions['messages'],
   ): InternalTextProviderOptions['messages'] {
@@ -884,6 +958,10 @@ export class AnthropicTextAdapter<
   }
 }
 
+/**
+ * Creates an Anthropic chat adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ */
 export function createAnthropicChat<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
 >(
@@ -898,6 +976,10 @@ export function createAnthropicChat<
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an Anthropic chat adapter with an injected Messages client.
+ * Type resolution happens here at the call site.
+ */
 export function createAnthropicChatWithClient<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
 >(
@@ -911,6 +993,10 @@ export function createAnthropicChatWithClient<
   return new AnthropicTextAdapter({ client }, model)
 }
 
+/**
+ * Creates an Anthropic text adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
+ */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
   config?: Omit<AnthropicTextConfig, 'apiKey'>,

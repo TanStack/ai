@@ -529,6 +529,13 @@ export type OllamaModelInputModalitiesByName =
     TinyllamaModelInputModalitiesByName &
     Tulu3ModelInputModalitiesByName
 
+/**
+ * Common Ollama embedding models.
+ *
+ * Note: Ollama models are loaded dynamically, so this is a known subset —
+ * `OllamaEmbeddingModel` also accepts any string via the `(string & {})`
+ * escape hatch.
+ */
 export const OLLAMA_EMBEDDING_MODELS = [
   'nomic-embed-text',
   'mxbai-embed-large',

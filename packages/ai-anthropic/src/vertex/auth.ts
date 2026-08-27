@@ -11,6 +11,10 @@ type VertexSdkOptions = NonNullable<
   ConstructorParameters<typeof AnthropicVertex>[0]
 >
 
+/**
+ * Public Vertex config for Claude. `project` and `location` match the Gemini
+ * Vertex factories so one auth object works for both.
+ */
 export type AnthropicVertexConfig = Omit<
   VertexSdkOptions,
   'projectId' | 'region'

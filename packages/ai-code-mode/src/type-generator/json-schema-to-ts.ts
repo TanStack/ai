@@ -1,9 +1,24 @@
 import type { ToolBinding } from '../types'
 
+/**
+ * Options for type stub generation
+ */
 export interface TypeGeneratorOptions {
+  /**
+     * Include JSDoc comments with descriptions
+     * @default true
+     */
   includeDescriptions?: boolean
 }
 
+/**
+ * Generate TypeScript type stubs for all tool bindings
+ *
+ * These stubs are included in the LLM system prompt so it knows
+ * the exact type signatures of available tools.
+ *
+ * Tool names match the actual function names injected into the sandbox.
+ */
 export function generateTypeStubs(
   bindings: Record<string, ToolBinding>,
   options: TypeGeneratorOptions = {},
@@ -55,6 +70,11 @@ interface TypeResult {
   declaration: string
 }
 
+/**
+ * Convert a JSON Schema to a TypeScript type
+ *
+ * Supports basic types: string, number, boolean, object, array
+ */
 export function jsonSchemaToTypeScript(
   schema: Record<string, unknown>,
   typeName: string,
@@ -80,6 +100,9 @@ export function jsonSchemaToTypeScript(
   }
 }
 
+/**
+ * Convert a JSON Schema to a TypeScript type string
+ */
 function schemaToType(schema: Record<string, unknown>): string {
   if (typeof schema !== 'object') {
     return 'unknown'
@@ -160,6 +183,9 @@ function schemaToType(schema: Record<string, unknown>): string {
   return 'unknown'
 }
 
+/**
+ * Capitalize the first letter of a string
+ */
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }

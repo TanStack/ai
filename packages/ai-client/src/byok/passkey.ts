@@ -2,6 +2,19 @@ import { isProviderId } from '@tanstack/ai/byok'
 import { memoryStorage } from './storage'
 import type { KeyPreview, Keyring, KeyringStorage } from './storage'
 
+/**
+ * Passkey-encrypted keyring storage (WebAuthn PRF → HKDF → AES-256-GCM).
+ *
+ * The keyring is encrypted at rest in IndexedDB with an AES-256-GCM key derived
+ * from a passkey's PRF output, unwrapped on demand with a biometric/PIN tap.
+ * Decryption happens entirely client-side with the user present — no server,
+ * no custodian.
+ *
+ * Honest scope: this protects against at-rest theft (stolen device,
+ * storage-dumping extension, backups). It does NOT defeat live in-page XSS —
+ * an attacker running JS in the origin after the user unlocks can read the
+ * decrypted keys from memory.
+ */
 const STORE_NAME = 'keyring'
 const RECORD_ID = 'default'
 const HKDF_INFO = 'byok:keyring:v1'
@@ -17,6 +30,11 @@ interface StoredRecord {
   iv: ArrayBuffer
   /** Encrypted keyring JSON. */
   ciphertext: ArrayBuffer
+  /**
+     * Unencrypted presence metadata (`provider → last 4`). Non-sensitive, so it
+     * can be read via {@link KeyringStorage.peek} without an unlock ceremony to
+     * show saved keys as "locked" after a refresh.
+     */
   preview: KeyPreview
 }
 
@@ -45,6 +63,11 @@ function previewOf(keys: Keyring): KeyPreview {
   return preview
 }
 
+/**
+ * Whether the current environment exposes WebAuthn. Actual PRF support can
+ * only be confirmed during registration; `passkeyStorage` throws if the
+ * chosen authenticator does not support PRF.
+ */
 export function isPasskeyStorageSupported(): boolean {
   return (
     typeof globalThis !== 'undefined' &&
@@ -78,7 +101,9 @@ export async function deriveAesKey(
 export async function encryptKeyring(
   key: CryptoKey,
   keys: Keyring,
-): Promise<{ iv: ArrayBuffer; ciphertext: ArrayBuffer }> {
+): Promise<{ /** AES-GCM initialization vector for this ciphertext. */
+iv: ArrayBuffer; /** Encrypted keyring JSON. */
+ciphertext: ArrayBuffer }> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const plaintext = new TextEncoder().encode(JSON.stringify(keys))
   const ciphertext = await crypto.subtle.encrypt(
@@ -168,7 +193,9 @@ async function registerPasskey(
   userName: string,
   rpId?: string,
 ): Promise<{
+  /** The passkey's raw credential id, replayed in the unlock ceremony. */
   credentialId: ArrayBuffer
+  /** Fixed per-install PRF evaluation input (not secret). */
   salt: Uint8Array<ArrayBuffer>
   prf?: BufferSource
 }> {
@@ -235,17 +262,33 @@ export interface PasskeyStorageOptions {
   rpName?: string
   /** Username label attached to the created passkey. */
   userName?: string
+  /**
+     * WebAuthn Relying Party ID. Omit to bind the passkey to the current origin's
+     * effective domain (the default — no central/hardcoded domain). Set it to a
+     * registrable parent domain to share the credential across subdomains of your
+     * own deployment. The encrypted keyring is never portable across unrelated
+     * domains.
+     */
   rpId?: string
   /** IndexedDB database name. Defaults to `byok`. */
   dbName?: string
 }
 
+/**
+ * Passkey-encrypted persistence. `ByokClient` treats this as `unlockable`, so
+ * nothing is decrypted until the user calls `unlock()` (or saves a key, which
+ * registers a passkey on first use). The derived key is cached in memory for
+ * the session so repeated saves don't re-prompt.
+ */
 export function passkeyStorage(
   options: PasskeyStorageOptions = {},
 ): KeyringStorage {
+  /** Relying-party name shown in the passkey prompt. */
   const rpName = options.rpName ?? 'BYOK'
+  /** Username label attached to the created passkey. */
   const userName = options.userName ?? 'byok-keyring'
   const { rpId } = options
+  /** IndexedDB database name. Defaults to `byok`. */
   const dbName = options.dbName ?? DEFAULT_DB
 
   let cachedKey: CryptoKey | null = null
@@ -328,6 +371,11 @@ export function passkeyStorage(
   }
 }
 
+/**
+ * Passkey-encrypted storage when WebAuthn is available in a secure context.
+ * Otherwise session memory, with a warning — this is not an automatic PRF
+ * fallback. First save still throws if the authenticator lacks PRF.
+ */
 export function defaultByokStorage(
   options?: PasskeyStorageOptions,
 ): KeyringStorage {

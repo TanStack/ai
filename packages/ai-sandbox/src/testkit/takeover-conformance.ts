@@ -34,18 +34,53 @@ export interface TakeoverConformanceConfig {
     handle: SandboxHandle
     dispose: () => Promise<void>
   }>
+  /**
+     * Declare that this provider cannot support takeover, with the reason.
+     * Registers a skipped case whose title carries the reason — a NAMED skip,
+     * visible in the reporter. Omit it and the suite runs.
+     */
   unsupported?: { reason: string }
 }
 
+/**
+ * Journal directory for this suite, deliberately NOT
+ * {@link DEFAULT_JOURNAL_DIR}: on local-process the sandbox shell shares the
+ * host's real `/tmp`, so conformance runs must not write where an application's
+ * runs live.
+ */
 const CONFORMANCE_JOURNAL_DIR = '/tmp/tanstack-takeover-conformance'
 
 /** Poll interval handed to providers that cannot follow a growing file. */
-const POLL_INTERVAL_MS = 50
+const /** Poll interval handed to providers that cannot follow a growing file. */
+POLL_INTERVAL_MS = 50
 
+/**
+ * Quiescence window for the successor's first append. Short because the
+ * predecessor in these cases has provably stopped (the suite sequenced it) —
+ * the gate still runs, it just does not need to wait 5s to observe nothing.
+ */
 const FENCE_QUIET_MS = 25
 
+/**
+ * Bound on a real journal read, so a reader that delivers nothing FAILS instead
+ * of parking CI.
+ *
+ * Never an assertion, and deliberately far above anything a healthy read needs
+ * (measured: 10–18s for the follow cases on both providers). Every use site
+ * pairs it with a `backstopped: false` witness, so a read the CLOCK ended fails
+ * naming this backstop rather than as a downstream transcript mismatch — which
+ * means this number can be raised freely and must never be the thing a case is
+ * tuned against.
+ */
 const READ_BACKSTOP_MS = 90_000
 
+/**
+ * Unique per case, and it must be: `journalPaths` derives the file name from the
+ * `runId` and the journal is append-only, so a reused id appends BEHIND the
+ * previous run's `{"__exit":N}` sentinel and the new run appears to emit nothing
+ * at all (see `journal.ts`). The counter covers two cases created inside the
+ * same millisecond; the random suffix covers two suites sharing one `/tmp`.
+ */
 let caseCounter = 0
 function uniqueRunId(label: string): string {
   caseCounter += 1
@@ -53,6 +88,14 @@ function uniqueRunId(label: string): string {
   return `tko-${label}-${Date.now()}-${caseCounter}-${suffix}`
 }
 
+/**
+ * An in-process event log with real accumulated state, plus the two facts the
+ * assertions need: what is stored (in append order) and how many times `close()`
+ * ran.
+ *
+ * `snapshot()` returns fresh objects, per the `StreamDurability` contract, so a
+ * caller cannot reach the stored log through the result.
+ */
 interface ConformanceLog {
   log: StreamDurability
   /** Stored chunks, in append order. The transcript under test. */
@@ -63,6 +106,7 @@ interface ConformanceLog {
 
 function conformanceLog(): ConformanceLog {
   const entries: Array<{ offset: string; chunk: StreamChunk }> = []
+  /** `close()` calls — proof that `close` is NOT fenced. */
   let closes = 0
   return {
     log: {
@@ -87,6 +131,15 @@ function conformanceLog(): ConformanceLog {
   }
 }
 
+/**
+ * A lock that grants every request immediately and never reports a loss.
+ *
+ * `InMemoryLockStore` SERIALIZES claims within one process, so a second attach
+ * waits for the first to finish and the two drivers are never concurrent — which
+ * means the epoch fence can never be observed there. `claim.ts` says exactly
+ * that: in one process only layer 2, the `driverEpoch` fence, is provable. This
+ * models a lease-less lock so the two drives overlap and layer 2 does the work.
+ */
 const permissiveLocks: LockStore = {
   withLock: (_key, fn) => fn(new AbortController().signal),
 }
@@ -101,6 +154,14 @@ function contentChunk(messageId: string, delta: string): StreamChunk {
   }
 }
 
+/**
+ * Narrow one parsed journal line into its chunk.
+ *
+ * Fields are validated and the chunk is REBUILT from them rather than asserted
+ * into shape: a cast would let a provider that mangles the bytes (a folded
+ * stderr diagnostic, a truncated line) reach `chunkFingerprint` as a
+ * structurally invalid chunk and fail somewhere unrelated.
+ */
 function toChunk(
   runId: string,
   messageId: string,
@@ -120,6 +181,12 @@ function toChunk(
   return contentChunk(messageId, delta)
 }
 
+/**
+ * The translator. Deterministic by construction, which is what makes alignment
+ * possible at all: the message id comes from {@link createRunScopedIdGen}, so
+ * re-translating the same journal from byte 0 reproduces byte-identical chunks
+ * (modulo `timestamp`, the one field `chunkFingerprint` excludes).
+ */
 async function* translate(
   runId: string,
   lines: AsyncIterable<unknown>,
@@ -128,6 +195,15 @@ async function* translate(
   for await (const line of lines) yield toChunk(runId, messageId, line)
 }
 
+/**
+ * A comparable transcript: each chunk reduced to its {@link chunkFingerprint}.
+ *
+ * The fingerprint, not the chunk object, and for the same reason alignment uses
+ * it — `timestamp` is wall-clock and unreproducible, so a raw `toEqual` on
+ * chunks would fail on the one field the feature deliberately ignores. Every
+ * other field participates, so a duplicated prefix, a dropped chunk, or a
+ * reordered one still fails.
+ */
 function transcript(chunks: Array<StreamChunk>): Array<string> {
   return chunks.map(chunkFingerprint)
 }
@@ -141,6 +217,14 @@ function expectedTranscript(
   return deltas.map((delta) => contentChunk(messageId, delta))
 }
 
+/**
+ * A real agent: a shell command that prints one NDJSON line per delta, with an
+ * optional real pause partway through, then exits.
+ *
+ * `printf '%s\n' a b c` reuses the format for every operand on GNU coreutils and
+ * on busybox alike, so this needs no loop. The JSON contains only double quotes,
+ * so it is safe inside the POSIX single-quoted words this builds.
+ */
 function agentCommand(deltas: Array<string>, pauseAfter: number): string {
   const line = (delta: string): string => `'{"delta":"${delta}"}'`
   const head = deltas.slice(0, pauseAfter)
@@ -177,6 +261,14 @@ function durabilityFor(
   return resolved
 }
 
+/**
+ * The reader's journal options for a resolved durability.
+ *
+ * `journalOptionsFor` answers `undefined` for a NON-durable run, which cannot
+ * happen here — every run in this suite is fully wired. Narrowing it with a
+ * thrown error rather than a non-null assertion keeps the impossible case loud
+ * if the resolver's contract ever changes.
+ */
 function journalOptions(
   durability: SandboxRunDurability,
   runId: string,
@@ -200,6 +292,23 @@ async function runningRun(
   return runs
 }
 
+/**
+ * Wrap a handle so the `process.exec` calls ONE operation makes can be counted.
+ *
+ * This is how the attach preflight's fail-fast cases are anchored, and the reason
+ * they are not anchored on elapsed time. `awaitAttachableJournal` runs exactly one
+ * `test -f` before it consults the run store, so a decision made from the record
+ * costs one `exec` and a decision made by waiting costs one per
+ * `probeIntervalMs`. The count separates those two behaviors exactly; elapsed time
+ * does not, because a single `exec` is a provider round-trip whose latency the
+ * suite does not control — a `docker exec` on a loaded daemon has been measured at
+ * 9.6s, which fails a `< 4_000ms` bound while the preflight under test did
+ * precisely the right thing. A timing bound that goes red on a busy machine
+ * teaches people to ignore the suite.
+ *
+ * The spread copies the handle's own methods, so everything except `exec` is the
+ * provider's; the wrapper delegates rather than reimplementing.
+ */
 function countingExec(handle: SandboxHandle): {
   handle: SandboxHandle
   execs: () => number
@@ -255,6 +364,19 @@ function gate(): Gate {
   return { promise, open }
 }
 
+/**
+ * Build the driver a host would build for one run.
+ *
+ * `drive` is the real journal path: read the run's journal from byte 0 (through
+ * the attach preflight when attaching), translate, and align against the stored
+ * log — `alignedIfAttaching`, so alignment runs on an attach and only on an
+ * attach.
+ *
+ * Returns the driver alongside `backstopped()`, the causal witness for
+ * {@link READ_BACKSTOP_MS}: every case that drives this must assert it is
+ * `false` before its transcript assertions, so a read the CLOCK ended fails
+ * naming the backstop instead of as a truncated-transcript diff.
+ */
 function driverFor(input: {
   handle: SandboxHandle
   runs: RunStore
@@ -333,6 +455,11 @@ async function cleanup(handle: SandboxHandle, runId: string): Promise<void> {
   } catch {}
 }
 
+/**
+ * Assert `createHandle` satisfies the takeover conformance contract. Each `it`
+ * gets a fresh sandbox via `createHandle`/`dispose`, and a unique `runId`, so no
+ * case can observe another's journal.
+ */
 export function runTakeoverConformance(
   config: TakeoverConformanceConfig,
 ): void {

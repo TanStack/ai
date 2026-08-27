@@ -67,7 +67,17 @@ export type ClaudeCodeSettingSource = 'user' | 'project' | 'local'
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
+  /**
+     * Working directory inside the sandbox where `claude` runs. Defaults to
+     * `/workspace` (the conventional sandbox workspace root).
+     */
   cwd?: string
+  /**
+     * Claude Code permission mode passed via `--permission-mode`. Defaults to
+     * `'bypassPermissions'` — a sandbox is isolated, so the agent is allowed to
+     * edit files and run commands without prompting. Tighten via `defineSandboxPolicy`
+     * / this option for less autonomy.
+     */
   permissionMode?: ClaudeCodePermissionMode
   /** Built-in tools the harness may use (`--allowedTools`). */
   allowedTools?: Array<string>
@@ -77,7 +87,18 @@ export interface ClaudeCodeTextConfig {
   addDirs?: Array<string>
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
+  /**
+     * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
+     * `['project']`: workspace projections (instructions, skills, MCP config)
+     * are project-scoped, and the host's `~/.claude` stays out of local-process
+     * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
+     */
   settingSources?: Array<ClaudeCodeSettingSource>
+  /**
+     * How `systemPrompts` from `chat()` are applied:
+     * - `'append'` (default): `--append-system-prompt` on top of the preset.
+     * - `'replace'`: `--system-prompt` as the entire system prompt.
+     */
   systemPromptMode?: 'append' | 'replace'
   /** Path/name of the claude executable inside the sandbox. Defaults to `claude`. */
   claudeExecutable?: string
@@ -85,6 +106,11 @@ export interface ClaudeCodeTextConfig {
   streamPartials?: boolean
   /** Extra environment variables for the claude process inside the sandbox. */
   env?: Record<string, string>
+  /**
+     * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
+     * `'host'` uses `claude login` and does not inject the key.
+     * Not inferred from the sandbox.
+     */
   authMode?: 'host' | 'api-key'
   /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
   emitDiff?: boolean
@@ -97,6 +123,7 @@ function q(value: string): string {
 
 /** Copy host Anthropic auth into the sandbox process. Docker `exec` Env replaces the container env, so a key set only at create time can vanish. */
 function hostClaudeAuthEnv(): Record<string, string> {
+  /** Extra environment variables for the claude process inside the sandbox. */
   const env: Record<string, string> = {}
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (apiKey) env.ANTHROPIC_API_KEY = apiKey
@@ -135,6 +162,10 @@ function abortSignalFields(
   return {}
 }
 
+/**
+ * Windows Node often has USERPROFILE but no HOME. Claude then cannot find
+ * `~/.claude.json` (the `claude login` file) and prints "Not logged in".
+ */
 function localProcessHomeEnv(provider: string): Record<string, string> {
   if (provider !== 'local-process') return {}
   if (process.env.HOME) return {}
@@ -241,6 +272,7 @@ export class ClaudeCodeTextAdapter<
       'bypassPermissions'
     args.push('--permission-mode', permissionMode)
 
+    /** Maximum harness-internal turns (`--max-turns`). */
     const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
     if (maxTurns !== undefined) args.push('--max-turns', String(maxTurns))
 
@@ -267,6 +299,7 @@ export class ClaudeCodeTextAdapter<
   ): void {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
+    /** Built-in tools the harness may use (`--allowedTools`). */
     const allowedTools = [
       ...(modelOptions?.allowedTools ?? config.allowedTools ?? []),
       ...policyFlags.allowedTools,
@@ -274,6 +307,7 @@ export class ClaudeCodeTextAdapter<
     if (allowedTools.length > 0) {
       args.push('--allowedTools', [...new Set(allowedTools)].join(','))
     }
+    /** Built-in tools removed from the harness (`--disallowedTools`). */
     const disallowedTools = [
       ...(modelOptions?.disallowedTools ?? config.disallowedTools ?? []),
       ...policyFlags.disallowedTools,
@@ -298,6 +332,12 @@ export class ClaudeCodeTextAdapter<
     args.push(flag, systemPrompts.join('\n\n'))
   }
 
+  /**
+     * Build the permission-prompt resolver the host MCP bridge exposes to claude
+     * (`--permission-prompt-tool`). Maps claude's permission request onto the
+     * sandbox policy + client approvals; on an `ask` action with no decision yet,
+     * records an approval-requested event and denies (the client re-runs to grant).
+     */
   private buildPermissionResolver(
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,
@@ -725,6 +765,19 @@ export class ClaudeCodeTextAdapter<
   }
 }
 
+/**
+ * Creates a Claude Code harness adapter that runs **inside a sandbox**.
+ *
+ * Unlike HTTP provider adapters, this is a *harness* adapter: it spawns the
+ * `claude` CLI inside the sandbox provided by `withSandbox(...)` (the adapter
+ * declares `requires: [SandboxCapability]`), streams its `stream-json` stdout
+ * back as AG-UI events, and lets Claude Code run its own agent loop and native
+ * tools (Bash, file edits, search, …) against the sandbox workspace. The
+ * sandbox image must provide the `claude` executable and `ANTHROPIC_API_KEY`
+ * in its environment (e.g. via `workspace.secrets`). The session id is
+ * surfaced via a CUSTOM `claude-code.session-id` event so follow-up calls can
+ * resume through `modelOptions.sessionId`.
+ */
 export function claudeCodeText<TModel extends ClaudeCodeModel>(
   model: TModel,
   config: ClaudeCodeTextConfig = {},

@@ -11,11 +11,31 @@ import type {
 import type { TrustStrategy } from '../trust-strategies'
 
 export interface FileSnippetStorageOptions {
+  /**
+     * Directory path for storing snippets
+     */
   directory: string
 
+  /**
+     * Trust strategy for determining snippet trust levels
+     * @default createDefaultTrustStrategy()
+     */
   trustStrategy?: TrustStrategy
 }
 
+/**
+ * File-system based snippet storage
+ *
+ * Directory structure:
+ *   .snippets/
+ *     _index.json          # Fast catalog loading
+ *     fetch_github_stats/
+ *       meta.json          # Metadata (description, schemas, hints, stats)
+ *       code.ts            # The actual TypeScript code
+ *     deploy_to_prod/
+ *       meta.json
+ *       code.ts
+ */
 export function createFileSnippetStorage(
   directoryOrOptions: string | FileSnippetStorageOptions,
 ): SnippetStorage {

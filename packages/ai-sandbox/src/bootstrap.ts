@@ -222,6 +222,11 @@ async function runWorkspaceSetup(
   return ranSetup
 }
 
+/**
+ * Bootstrap a freshly created sandbox's workspace. Idempotent enough to be safe
+ * on restore: a git clone into a populated dir is skipped by checking for the
+ * target dir first.
+ */
 export async function bootstrapWorkspace(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition,

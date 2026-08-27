@@ -11,14 +11,33 @@ import type {
 } from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
+/**
+ * Execution state shared with the tool bindings created in the driver.
+ * `deadline === 0` means no execution is active, so any guest job that runs
+ * outside execute() is interrupted immediately. `pendingCancels` holds one
+ * cancel callback per tool call still awaiting its host promise; a timed-out
+ * execution invokes them to settle the guest program so the VM can be
+ * disposed safely.
+ */
 export interface ExecState {
   deadline: number
   pendingCancels: Set<() => void>
 }
 
 /** Grace window for cancellation continuations after a timeout. */
-const CANCEL_GRACE_MS = 100
+const /** Grace window for cancellation continuations after a timeout. */
+CANCEL_GRACE_MS = 100
 
+/**
+ * Await the guest program's promise, but give up at `deadline`. Host tool
+ * calls are bridged as QuickJS promises, so a guest program that is stuck
+ * waiting (e.g. its continuation was interrupted) would otherwise never
+ * settle. A timeout is terminal for the context (see `fail()` in execute):
+ * the timed-out program's interrupted jobs stay queued in the VM and must
+ * never run inside a later execution. If the guest settles after the
+ * deadline, its result handle is disposed to avoid leaking it into the
+ * context's lifetime.
+ */
 function awaitWithDeadline(
   promise: Promise<VmCallResult<QuickJSHandle>>,
   deadline: number,
@@ -61,6 +80,9 @@ function awaitWithDeadline(
   })
 }
 
+/**
+ * IsolateContext implementation using QuickJS WASM
+ */
 export class QuickJSIsolateContext implements IsolateContext {
   private readonly vm: QuickJSContext
   private readonly logs: Array<string>

@@ -1,6 +1,13 @@
 import type { DebugOption } from '@tanstack/ai'
 
+/**
+ * Options for the ElevenLabs realtime token adapter
+ */
 export interface ElevenLabsRealtimeTokenOptions {
+  /**
+     * Agent ID configured in ElevenLabs dashboard. Falls back to
+     * `ELEVENLABS_AGENT_ID` in the environment when omitted.
+     */
   agentId?: string
   /** Optional override values for the agent */
   overrides?: {
@@ -15,14 +22,29 @@ export interface ElevenLabsRealtimeTokenOptions {
   }
 }
 
+/**
+ * Options for the ElevenLabs realtime client adapter
+ */
 export interface ElevenLabsRealtimeOptions {
   /** Connection mode (default: auto-detect) */
   connectionMode?: 'websocket' | 'webrtc'
+  /**
+     * Enable debug logging for this adapter.
+     *
+     * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
+     * - A {@link DebugConfig} object selects categories and/or a custom sink.
+     */
   debug?: DebugOption
 }
 
+/**
+ * ElevenLabs conversation mode
+ */
 export type ElevenLabsConversationMode = 'speaking' | 'listening'
 
+/**
+ * ElevenLabs voice activity detection configuration
+ */
 export interface ElevenLabsVADConfig {
   /** VAD threshold (0.1-0.9) */
   vadThreshold?: number
@@ -34,6 +56,9 @@ export interface ElevenLabsVADConfig {
   minSilenceDurationMs?: number
 }
 
+/**
+ * Client tool definition for ElevenLabs
+ */
 export interface ElevenLabsClientTool<TParams = unknown, TResult = unknown> {
   /** Tool handler function */
   handler: (params: TParams) => Promise<TResult> | TResult

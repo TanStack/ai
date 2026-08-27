@@ -12,9 +12,26 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 export interface SpritesSandboxConfig {
+  /**
+     * Sprites API token (`org/projectNumber/tokenId/secret`). Falls back to the
+     * `SPRITES_API_KEY` env var when omitted.
+     */
   apiKey?: string
+  /**
+     * Sprites control-plane base URL. Falls back to `SPRITES_API_URL`, then
+     * `https://api.sprites.dev`.
+     */
   apiUrl?: string
+  /**
+     * Working directory inside the Sprite. The `/workspace` virtual root maps
+     * here. Defaults to `/home/sprite`.
+     */
   workdir?: string
+  /**
+     * URL auth mode for created Sprites. `'public'` (default) makes the Sprite's
+     * URL reachable without an org token — required to reach a service via
+     * `ports.connect()`. Use `'sprite'` to keep it org-token gated.
+     */
   urlAuth?: SpriteUrlAuth
   /** Internal port proxied to the public URL. Defaults to 8080. */
   httpPort?: number
@@ -51,6 +68,7 @@ class SpritesProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
+  /** Internal port proxied to the public URL. Defaults to 8080. */
   private get httpPort(): number {
     return this.config.httpPort ?? SPRITE_DEFAULT_HTTP_PORT
   }
@@ -117,6 +135,11 @@ class SpritesProvider implements SandboxProvider {
   }
 }
 
+/**
+ * Sprites sandbox provider — runs harness adapters inside isolated Fly.io
+ * Sprite stateful sandboxes. Requires a Sprites API token (`config.apiKey` or
+ * the `SPRITES_API_KEY` env var).
+ */
 export function spritesSandbox(
   config: SpritesSandboxConfig = {},
 ): SandboxProvider {

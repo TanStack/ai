@@ -50,6 +50,7 @@ interface MessagePart {
     | 'video'
     | 'document'
     | 'structured-output'
+  /** Accumulated content from all merged chunks */
   content?: string | Array<ContentPart>
   status?: 'streaming' | 'complete' | 'error'
   raw?: string
@@ -59,6 +60,7 @@ interface MessagePart {
   errorMessage?: string
   toolCallId?: string
   toolName?: string
+  /** Tool arguments for tool_call chunks */
   arguments?: string
   state?: string
   output?: unknown
@@ -69,6 +71,7 @@ interface MessagePart {
     approved?: boolean
   }
   // Multimodal content fields
+  /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
   source?: ContentPartSource
   metadata?: unknown
 }
@@ -78,6 +81,7 @@ export interface ToolCall {
   name: string
   arguments: string
   state: string
+  /** Tool result data for tool_result chunks */
   result?: unknown
   approvalRequired?: boolean
   approvalId?: string
@@ -109,6 +113,10 @@ export interface Message {
   requestId?: string
 }
 
+/**
+ * Consolidated chunk - represents one or more raw chunks of the same type.
+ * Consecutive content/thinking chunks are merged into a single entry with accumulated content.
+ */
 export interface Chunk {
   id: string
   type:
@@ -156,6 +164,7 @@ export interface MiddlewareEvent {
   middlewareName: string
   hookName: string
   timestamp: number
+  /** Duration of tool execution in milliseconds */
   duration?: number
   hasTransform: boolean
   configChanges?: Record<string, unknown>
@@ -205,6 +214,7 @@ export interface Conversation {
   type: 'client' | 'server'
   label: string
   messages: Array<Message>
+  /** Consolidated chunks - consecutive same-type chunks are merged into one entry */
   chunks: Array<Chunk>
   model?: string
   provider?: string
@@ -451,7 +461,8 @@ export const AIProvider: ParentComponent = (props) => {
   const streamToConversation = new Map<string, string>()
   const requestToConversation = new Map<string, string>()
   /** Track max cumulative usage per requestId per conversation for correct totals */
-  const requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
+  const /** Track max cumulative usage per requestId per conversation for correct totals */
+requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
   const fixturesStorageKey = 'tanstack-ai-devtools:tool-fixtures'
 
   const pendingConversationChunks = new Map<
@@ -805,6 +816,11 @@ export const AIProvider: ParentComponent = (props) => {
     )
   }
 
+  /**
+     * Update conversation-level usage by tracking max cumulative per request.
+     * Usage events report cumulative totals per-request, so we keep the highest
+     * value seen for each requestId and sum across all requests for the total.
+     */
   function updateConversationUsage(
     conversationId: string,
     requestId: string | undefined,
@@ -1200,6 +1216,7 @@ export const AIProvider: ParentComponent = (props) => {
       messageId: string
       timestamp: number
       source: 'client' | 'server'
+      /** The requestId this message belongs to (for scoping usage calculations) */
       requestId?: string
       status: 'streaming' | 'complete' | 'error'
       raw: string
@@ -1357,6 +1374,10 @@ export const AIProvider: ParentComponent = (props) => {
     setState('conversations', conversationId, activityFlagMap[activity], true)
   }
 
+  /**
+     * For server conversations, ensure a message exists for the given messageId.
+     * This creates a placeholder message that will be updated as chunks arrive.
+     */
   function ensureMessageForChunk(
     conversationId: string,
     messageId: string | undefined,
@@ -2242,6 +2263,7 @@ export const AIProvider: ParentComponent = (props) => {
       data?: unknown
       reasoning?: string
       errorMessage?: string
+      /** The last delta received (kept for debugging) */
       delta?: string
     }) => {
       const {
@@ -3190,6 +3212,7 @@ export const AIProvider: ParentComponent = (props) => {
 
         const conv = state.conversations[conversationId]
         if (conv) {
+          /** Summarize operations in this conversation */
           const summaries = conv.summaries || []
           setState('conversations', conversationId, 'summaries', [
             ...summaries,

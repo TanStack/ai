@@ -10,6 +10,10 @@ export type MistralVisionProviderOptions = MistralTextProviderOptions
 /** Provider options for reasoning-capable Mistral models (magistral-*). */
 export type MistralReasoningProviderOptions = MistralTextProviderOptions
 
+/**
+ * Internal metadata structure describing a Mistral model's capabilities
+ * and approximate pricing (USD per million tokens).
+ */
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   context_window?: number
@@ -262,6 +266,9 @@ const CODESTRAL_2 = {
   },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
+/**
+ * All supported Mistral chat model identifiers.
+ */
 export const MISTRAL_CHAT_MODELS = [
   MISTRAL_LARGE_LATEST.name,
   MISTRAL_MEDIUM_LATEST.name,
@@ -276,8 +283,16 @@ export const MISTRAL_CHAT_MODELS = [
   OPEN_MISTRAL_NEMO.name,
 ] as const
 
+/**
+ * Union type of all supported Mistral chat model names.
+ */
 export type MistralChatModels = (typeof MISTRAL_CHAT_MODELS)[number]
 
+/**
+ * Mistral chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the Mistral API catalog.
+ * OCR (`mistral-ocr-2505`) is not a chat model.
+ */
 export const MISTRAL_VERTEX_CHAT_MODELS = [
   MISTRAL_MEDIUM_3.name,
   MISTRAL_SMALL_2503.name,
@@ -287,6 +302,9 @@ export const MISTRAL_VERTEX_CHAT_MODELS = [
 export type MistralVertexChatModel = (typeof MISTRAL_VERTEX_CHAT_MODELS)[number]
 export type MistralTextAdapterModel = MistralChatModels | MistralVertexChatModel
 
+/**
+ * Type-only map from Mistral chat model name to its supported input modalities.
+ */
 export type MistralModelInputModalitiesByName = {
   [MISTRAL_LARGE_LATEST.name]: typeof MISTRAL_LARGE_LATEST.supports.input
   [MISTRAL_MEDIUM_LATEST.name]: typeof MISTRAL_MEDIUM_LATEST.supports.input
@@ -304,6 +322,9 @@ export type MistralModelInputModalitiesByName = {
   [CODESTRAL_2.name]: typeof CODESTRAL_2.supports.input
 }
 
+/**
+ * Type-only map from Mistral chat model name to its provider options type.
+ */
 export type MistralChatModelProviderOptionsByName = {
   [MISTRAL_LARGE_LATEST.name]: MistralTextProviderOptions
   [MISTRAL_MEDIUM_LATEST.name]: MistralVisionProviderOptions
@@ -321,28 +342,50 @@ export type MistralChatModelProviderOptionsByName = {
   [CODESTRAL_2.name]: MistralTextProviderOptions
 }
 
+/**
+ * Embedding models (based on endpoints: "embeddings")
+ */
 export const MISTRAL_EMBEDDING_MODELS = [
   'mistral-embed',
   'codestral-embed',
 ] as const
 
+/**
+ * Union type of all supported Mistral embedding model names.
+ */
 export type MistralEmbeddingModel = (typeof MISTRAL_EMBEDDING_MODELS)[number]
 
+/**
+ * Type-only map from embedding model name to its provider options type.
+ *
+ * `mistral-embed` accepts no provider options (fixed 1024-dim output);
+ * `codestral-embed` additionally supports `outputDtype`.
+ */
 export type MistralEmbeddingModelProviderOptionsByName = {
   'mistral-embed': MistralEmbedProviderOptions
   'codestral-embed': CodestralEmbedProviderOptions
 }
 
+/**
+ * Per-model input modalities for embedding models. Mistral embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
 export type MistralEmbeddingModelInputModalitiesByName = {
   'mistral-embed': readonly ['text']
   'codestral-embed': readonly ['text']
 }
 
+/**
+ * Resolves the provider options type for a specific Mistral model.
+ */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof MistralChatModelProviderOptionsByName
     ? MistralChatModelProviderOptionsByName[TModel]
     : MistralTextProviderOptions
 
+/**
+ * Resolve input modalities for a specific model.
+ */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
     ? MistralModelInputModalitiesByName[TModel]

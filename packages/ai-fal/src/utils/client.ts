@@ -5,6 +5,12 @@ import { createBillingFetch } from './billing'
 export interface FalClientConfig {
   apiKey: string
   proxyUrl?: string
+  /**
+     * Override the underlying fetch used for fal requests. The adapter wraps it to
+     * read the `x-fal-billable-units` header (see ./billing.ts), so usage capture
+     * still works. Defaults to the global `fetch`. Useful for proxying,
+     * instrumentation, or pointing requests at a mock in tests.
+     */
   fetch?: typeof fetch
 }
 
@@ -25,6 +31,12 @@ export function generateId(prefix: string): string {
   return _generateId(prefix)
 }
 
+/**
+ * Extract a safe file extension from a URL. Strips query strings, URL
+ * fragments, and any trailing slashes, and only returns the extension when
+ * it looks like a real one (2-5 alphanumeric chars). Returns undefined
+ * otherwise so callers can fall back to a default.
+ */
 export function extractUrlExtension(url: string): string | undefined {
   // Parse via URL when possible so we only look at the pathname and never
   // mistake a TLD (e.g. the `.com` in `https://x.com/`) for a file extension.
@@ -48,6 +60,11 @@ export function extractUrlExtension(url: string): string | undefined {
   return /^[a-z0-9]{2,5}$/i.test(extension) ? extension : undefined
 }
 
+/**
+ * Derive a reasonable audio content-type. Prefers the explicit MIME (stripped
+ * of parameters), then an extension-based lookup for common audio formats,
+ * otherwise falls back to audio/mpeg — fal URLs virtually always serve mp3.
+ */
 export function deriveAudioContentType(
   explicitContentType: string | undefined,
   url: string,
@@ -79,6 +96,15 @@ export function deriveAudioContentType(
   }
 }
 
+/**
+ * Decode a `data:` URL into a Blob so fal-client can auto-upload it via
+ * `fal.storage.upload`. fal's inference API rejects data URLs with a 422
+ * "Unsupported data URL", so we convert them before handing them off.
+ *
+ * Supports both base64 and URL-encoded data URLs. Returns `undefined` for
+ * anything that isn't a data URL, so callers can fall through to other
+ * handling (http URLs are passed to fal as-is).
+ */
 export function dataUrlToBlob(value: string): Blob | undefined {
   if (!value.startsWith('data:')) return undefined
   const commaIndex = value.indexOf(',')
@@ -101,6 +127,13 @@ export function dataUrlToBlob(value: string): Blob | undefined {
   return new Blob([decodeURIComponent(payload)], { type: mimeType })
 }
 
+/**
+ * Convert an ArrayBuffer to base64 in a cross-runtime way.
+ *
+ * The naive `btoa(String.fromCharCode(...bytes))` form blows up V8's argument
+ * limit (~65k) on realistic audio payloads, so we either use `Buffer` (Node /
+ * Bun) or walk the byte array in a single loop (browser).
+ */
 export function arrayBufferToBase64(bytes: ArrayBuffer): string {
   if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
     return Buffer.from(bytes).toString('base64')

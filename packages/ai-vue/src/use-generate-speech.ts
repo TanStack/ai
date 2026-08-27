@@ -16,6 +16,11 @@ import type {
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
+/**
+ * Options for the useGenerateSpeech composable.
+ *
+ * @template TOutput - The output type after optional transform (defaults to TTSResult)
+ */
 export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
   | 'persistence'
@@ -33,6 +38,13 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+     * Callback when speech is generated. Can optionally return a transformed value.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: TTSResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -42,6 +54,11 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   onChunk?: (chunk: StreamChunk) => void
 }
 
+/**
+ * Return type for the useGenerateSpeech composable.
+ *
+ * @template TOutput - The output type (after optional transform)
+ */
 export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
   UseGenerationReturn<TOutput>,
   'generate'
@@ -58,6 +75,34 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
   status: DeepReadonly<ShallowRef<GenerationClientState>>
 }
 
+/**
+ * Vue composable for generating speech (text-to-speech) using AI models.
+ *
+ * @example
+ * ```vue
+ * <script setup>
+ * import { useGenerateSpeech } from '@tanstack/ai-vue'
+ * import { fetchServerSentEvents } from '@tanstack/ai-client'
+ *
+ * const { generate, result, isLoading } = useGenerateSpeech({
+ *   connection: fetchServerSentEvents('/api/generate/speech'),
+ * })
+ * </script>
+ *
+ * <template>
+ *   <div>
+ *     <button @click="generate({ text: 'Hello world', voice: 'alloy' })">
+ *       Generate Speech
+ *     </button>
+ *     <audio
+ *       v-if="result"
+ *       :src="`data:audio/${result.format};base64,${result.audio}`"
+ *       controls
+ *     />
+ *   </div>
+ * </template>
+ * ```
+ */
 export function useGenerateSpeech<TTransformed = void>(
   options: Omit<
     UseGenerateSpeechOptions,
@@ -68,6 +113,7 @@ export function useGenerateSpeech<TTransformed = void>(
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'vue',

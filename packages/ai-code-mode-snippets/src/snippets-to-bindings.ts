@@ -3,15 +3,32 @@ import type { ToolBinding } from '@tanstack/ai-code-mode'
 import type { Snippet, SnippetStorage } from './types'
 
 interface SnippetsToBindingsOptions {
+  /**
+     * Snippets to convert to bindings
+     */
   snippets: Array<Snippet>
 
+  /**
+     * Tool execution context for emitting custom events
+     */
   context?: ToolExecutionContext
 
+  /**
+     * Function to execute snippet code in the sandbox
+     * The snippet code receives `input` as a variable
+     */
   executeInSandbox: (code: string, input: unknown) => Promise<unknown>
 
+  /**
+     * Storage for updating execution stats
+     */
   storage: SnippetStorage
 }
 
+/**
+ * Convert snippets to sandbox bindings with the snippet_ prefix.
+ * Snippets become callable functions inside the sandbox.
+ */
 export function snippetsToBindings({
   snippets,
   context,
@@ -87,6 +104,11 @@ export function snippetsToBindings({
   return bindings
 }
 
+/**
+ * Create a simple binding record for snippets without full sandbox execution.
+ * This is used when snippets are being documented in the system prompt
+ * but not yet being executed.
+ */
 export function snippetsToSimpleBindings(
   snippets: Array<Snippet>,
 ): Record<string, ToolBinding> {

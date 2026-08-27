@@ -64,6 +64,9 @@ export function buildGrokAcpServeCommand(options: {
   return `${buildAgentPrefix(options.exe, options.cliModel, options.extraArgs)} serve --bind ${q(hostname)} --secret ${q(options.secret)}`
 }
 
+/**
+ * Open an ACP connection to `grok agent` over stdio or in-sandbox WebSocket.
+ */
 export async function openGrokAcpConnection(
   options: OpenGrokAcpConnectionOptions,
 ): Promise<GrokAcpConnection> {

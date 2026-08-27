@@ -42,10 +42,17 @@ import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
+const /** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+asChunk = (chunk: Record<string, unknown>) =>
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
   chunk as unknown as AdapterYieldChunk
 
+/**
+ * Parse the accumulated streaming arguments for a tool call. Throws a clear
+ * error if the JSON is malformed — silently substituting `{}` would let a
+ * tool fire with empty inputs, masking truncated streams or mis-shaped output.
+ */
 function parseToolCallInput(
   toolCall: {
     id: string
@@ -67,8 +74,14 @@ function parseToolCallInput(
   }
 }
 
+/**
+ * Configuration for Mistral text adapter.
+ */
 export type MistralTextConfig = MistralClientConfig
 
+/**
+ * Alias for TextProviderOptions for external use.
+ */
 export type MistralTextProviderOptions = ExternalTextProviderOptions
 
 type ResolveProviderOptions<TModel extends string> =
@@ -81,6 +94,12 @@ type ResolveInputModalities<TModel extends string> =
     ? MistralModelInputModalitiesByName[TModel]
     : readonly ['text']
 
+/**
+ * Snake-case shape of a Mistral chat completion stream chunk as returned on the
+ * wire. We bypass the SDK's `chat.stream` because its Zod validation rejects
+ * tool-call argument deltas that omit `function.name` (only the first chunk in
+ * a tool call carries the name).
+ */
 interface MistralRawToolCall {
   id?: string
   type?: string
@@ -199,6 +218,11 @@ function applyMistralModelOptions(
   }
 }
 
+/**
+ * Mistral Text (Chat) Adapter.
+ *
+ * Tree-shakeable adapter for Mistral chat/text completion functionality.
+ */
 export class MistralTextAdapter<
   TModel extends MistralTextAdapterModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -269,6 +293,9 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Generate structured output using Mistral's JSON Schema response format.
+     */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -323,6 +350,9 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Processes streaming chunks from the Mistral API and yields AG-UI stream events.
+     */
   private async *processMistralStreamChunks(
     stream: AsyncIterable<MistralRawChunk>,
     options: TextOptions,
@@ -708,6 +738,11 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Makes a raw fetch request to the Mistral chat completions endpoint and
+     * parses the SSE stream manually, bypassing the SDK's Zod validation which
+     * rejects streaming tool call chunks that omit `name` in argument deltas.
+     */
   private async *fetchRawMistralStream(
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
@@ -775,6 +810,10 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Converts the SDK's camelCase `ChatCompletionStreamRequest` into the
+     * snake_case wire body, including converting messages.
+     */
   private toWireBody(
     params: ChatCompletionStreamRequest,
   ): Record<string, unknown> {
@@ -813,6 +852,14 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Splits a Mistral delta content payload into text and reasoning deltas.
+     * Mistral reasoning models (magistral-*) stream reasoning content as
+     * `{ type: 'thinking', thinking: [{ type: 'text', text }, ...] }` content
+     * parts. A single delta may contain text only, thinking only, or — rarely —
+     * both (when a step transitions); both fields are returned so the caller
+     * can sequence REASONING and TEXT lifecycle events in order.
+     */
   private extractDeltaParts(
     content:
       | string
@@ -843,6 +890,9 @@ export class MistralTextAdapter<
     return { text, thinking }
   }
 
+  /**
+     * Maps common TextOptions to Mistral Chat Completions request parameters.
+     */
   private mapTextOptionsToMistral(
     options: TextOptions<TProviderOptions>,
   ): ChatCompletionStreamRequest {
@@ -879,6 +929,9 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Converts a TanStack AI ModelMessage to a Mistral ChatCompletionMessageParam.
+     */
   private convertMessageToMistral(
     message: ModelMessage,
   ): ChatCompletionMessageParam {
@@ -936,6 +989,10 @@ export class MistralTextAdapter<
     }
   }
 
+  /**
+     * Converts a ContentPart to a Mistral content part. Returns undefined for
+     * unsupported part types.
+     */
   private convertContentPartToMistral(
     part: ContentPart,
   ): ChatCompletionContentPart {
@@ -972,6 +1029,9 @@ export class MistralTextAdapter<
     )
   }
 
+  /**
+     * Normalizes message content to an array of ContentPart.
+     */
   private normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -982,6 +1042,9 @@ export class MistralTextAdapter<
     return []
   }
 
+  /**
+     * Extracts text content from a content value that may be string, null, or ContentPart array.
+     */
   private extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {
@@ -996,6 +1059,9 @@ export class MistralTextAdapter<
   }
 }
 
+/**
+ * Snake-cases a Mistral SDK message into the wire format expected by the API.
+ */
 function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   if (msg.role === 'tool') {
     return {
@@ -1037,6 +1103,19 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
   return msg
 }
 
+/**
+ * Creates a Mistral text adapter with explicit API key.
+ *
+ * @param model - The model name (e.g., 'mistral-large-latest')
+ * @param apiKey - Your Mistral API key
+ * @param config - Optional additional configuration
+ * @returns Configured Mistral text adapter instance
+ *
+ * @example
+ * ```typescript
+ * const adapter = createMistralText('mistral-large-latest', 'api_key');
+ * ```
+ */
 export function createMistralText<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
 >(
@@ -1047,6 +1126,19 @@ export function createMistralText<
   return new MistralTextAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
+ *
+ * @param model - The model name (e.g., 'mistral-large-latest')
+ * @param config - Optional configuration (excluding apiKey)
+ * @returns Configured Mistral text adapter instance
+ * @throws Error if MISTRAL_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * const adapter = mistralText('mistral-large-latest');
+ * ```
+ */
 export function mistralText<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
 >(

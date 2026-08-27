@@ -26,6 +26,11 @@ import type { VercelGatewayClientConfig } from '../utils/client'
 
 export interface VercelGatewayImageConfig extends VercelGatewayClientConfig {}
 
+/**
+ * Vercel AI Gateway image adapter.
+ *
+ * Text-to-image only via `POST /v1/images/generations`.
+ */
 export class VercelGatewayImageAdapter<
   TModel extends VercelGatewayImageModel,
 > extends BaseImageAdapter<

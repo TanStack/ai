@@ -1,5 +1,6 @@
 /** Stay well under `MAX_ARG_STRLEN` after base64 and quoting. */
-export const FS_WRITE_BYTE_CHUNK = 32_768
+export const /** Stay well under `MAX_ARG_STRLEN` after base64 and quoting. */
+FS_WRITE_BYTE_CHUNK = 32_768
 
 function quote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`

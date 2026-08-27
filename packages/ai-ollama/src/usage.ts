@@ -2,6 +2,10 @@ import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
 import type { ChatResponse } from 'ollama'
 
+/**
+ * Ollama-specific provider usage details.
+ * These fields are unique to Ollama and placed in providerUsageDetails.
+ */
 export type OllamaProviderUsageDetails = {
   /** Time spent loading the model in nanoseconds */
   loadDuration?: number
@@ -17,6 +21,10 @@ export type OllamaProviderUsageDetails = {
   evalCount?: number
 }
 
+/**
+ * Build normalized TokenUsage from Ollama's ChatResponse.
+ * Handles duration metrics as provider-specific details.
+ */
 export function buildOllamaUsage(
   response: ChatResponse,
 ): TokenUsage | undefined {

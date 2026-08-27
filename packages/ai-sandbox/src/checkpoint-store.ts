@@ -85,6 +85,7 @@ export interface SandboxCheckpointForkInput {
 }
 
 export interface SandboxCheckpointForkCapability {
+  /** Optional atomic fork capability. Stores without this method cannot fork. */
   forkFromCheckpoint: (input: SandboxCheckpointForkInput) => Promise<{
     checkpoint: SandboxCheckpoint
   }>

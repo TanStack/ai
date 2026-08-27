@@ -1,5 +1,8 @@
 import type { GeminiLiveClient } from './client'
 
+/**
+ * Audio Worklet Processor for capturing and processing audio
+ */
 const captureWorkletCode = `
 class AudioCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -41,6 +44,11 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 // Register the processor
 registerProcessor("audio-capture-processor", AudioCaptureProcessor);`
 
+/**
+ * Audio Playback Worklet Processor for playing PCM audio.
+ * Uses an offset tracker instead of slice() to avoid allocations
+ * on the real-time audio thread.
+ */
 const playbackWorkletCode = `
 class PCMProcessor extends AudioWorkletProcessor {
   constructor() {

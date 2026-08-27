@@ -16,6 +16,11 @@ function isBearerMarker(value: unknown): value is BearerRef {
   )
 }
 
+/**
+ * Resolve a single MCP header value: a `SecretRef` resolves to its plaintext,
+ * a `bearer(ref)` marker resolves to `Bearer <plaintext>`, and a plain string
+ * is passed through unchanged.
+ */
 function resolveHeaderValue(
   value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
@@ -33,6 +38,12 @@ interface OpencodeMcpServer {
   headers: Record<string, string>
 }
 
+/**
+ * Build the `mcp` section of OpenCode's `opencode.json` from the
+ * `{ kind: 'mcp' }` skills, resolving every header value (SecretRef / bearer
+ * / string). Returns `undefined` when there are no MCP skills so the caller
+ * can skip the write.
+ */
 function buildMcpSection(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
@@ -55,6 +66,15 @@ function buildMcpSection(
   return count > 0 ? mcp : undefined
 }
 
+/**
+ * Write (or merge-update) `opencode.json` at the workspace root with the
+ * project-scoped MCP servers, re-resolving every secret. Runs on EVERY
+ * projection call (never marker-gated) so rotated secrets always re-apply.
+ *
+ * If `opencode.json` already exists (e.g. committed to the repo) we read it,
+ * merge only the `mcp` key, and rewrite, preserving other settings. When there
+ * are no MCP skills the write is skipped entirely.
+ */
 async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -89,6 +109,11 @@ async function projectMcpServers(
   await handle.fs.write(target, JSON.stringify(merged, null, 2))
 }
 
+/**
+ * OpenCode has no recognised skills directory where we can drop gitSkill repos.
+ * AGENTS.md is already handled by the bootstrap layer (OpenCode reads it
+ * natively). We warn-and-skip instead of inventing a path.
+ */
 function projectGitSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'git') continue
@@ -101,6 +126,10 @@ function projectGitSkills(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * `agentSkill` references a public skill by bare name. OpenCode has no command
+ * to fetch a skill from a bare name, so we warn and skip.
+ */
 function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
@@ -112,6 +141,10 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * OpenCode has no plugin install command. We warn-and-skip each declared plugin
+ * rather than fabricating a command.
+ */
 function projectPlugins(projection: WorkspaceProjection): void {
   for (const name of projection.plugins) {
     console.warn(
@@ -121,6 +154,18 @@ function projectPlugins(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * Project a `WorkspaceProjection` into the OpenCode sandbox. Safe to call on
+ * every `chatStream`. The secret-bearing `opencode.json` mcp section is
+ * (re)written on every call, re-resolving secrets, so OpenCode always reads
+ * current values and a snapshot can never serve a stale or rotated secret.
+ * The safe, idempotent, non-secret operations (gitSkill, agentSkill, plugins
+ * — all warn-and-skip for OpenCode) are guarded by a one-time marker so they
+ * produce at most one warning per sandbox lifetime.
+ *
+ * @param handle     - The sandbox handle (`fs` + `process`).
+ * @param projection - The portable workspace inputs from `withSandbox`.
+ */
 export async function projectOpencodeWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

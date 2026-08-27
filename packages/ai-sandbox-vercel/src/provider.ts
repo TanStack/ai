@@ -10,6 +10,10 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 export interface VercelSandboxConfig {
+  /**
+     * Vercel access token. Falls back to the `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN`
+     * env vars (read by the SDK) when omitted.
+     */
   token?: string
   /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
   teamId?: string
@@ -21,7 +25,16 @@ export interface VercelSandboxConfig {
   timeout?: number
   /** Ports to expose; reachable from the host via `ports.connect(port)`. */
   ports?: Array<number>
+  /**
+     * Create a persistent (named) sandbox that survives `stop()` and can be
+     * reconnected with `resume({ id })`. Defaults to false (ephemeral), in which
+     * case `resume` resolves null once the sandbox has stopped.
+     */
   persistent?: boolean
+  /**
+     * Working directory inside the sandbox. The `/workspace` virtual root maps
+     * here. Defaults to `/vercel/sandbox`.
+     */
   workdir?: string
 }
 
@@ -43,6 +56,12 @@ export function withSandboxUserAgent(
   }
 }
 
+/**
+ * True when `error` is the Vercel SDK's "directory already exists" failure — an
+ * {@link APIError} with HTTP 400 whose body reports an `EEXIST`-style message.
+ * Used to make the non-idempotent native `mkDir` safe to call on a workdir that
+ * may already exist (notably the default `/vercel/sandbox`).
+ */
 export function isDirAlreadyExistsError(error: unknown): boolean {
   if (!(error instanceof APIError)) return false
   if (error.response.status !== 400) return false
@@ -75,12 +94,15 @@ class VercelProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
+  /** Ports to expose; reachable from the host via `ports.connect(port)`. */
   private get ports(): Array<number> {
     return this.config.ports ?? []
   }
 
   /** Auth overrides shared by create/get/stop, omitting undefined fields. */
-  private auth(): { token?: string; teamId?: string; projectId?: string } {
+  private auth(): { token?: string; /** Vercel team id. Falls back to `VERCEL_TEAM_ID`. */
+teamId?: string; /** Vercel project id. Falls back to `VERCEL_PROJECT_ID`. */
+projectId?: string } {
     const out: { token?: string; teamId?: string; projectId?: string } = {}
     const token = this.config.token ?? process.env.VERCEL_TOKEN
     const teamId = this.config.teamId ?? process.env.VERCEL_TEAM_ID
@@ -149,6 +171,11 @@ class VercelProvider implements SandboxProvider {
   }
 }
 
+/**
+ * Vercel Sandbox provider — runs harness adapters inside isolated Vercel
+ * microVMs. Requires a Vercel access token (`config.token` or the
+ * `VERCEL_TOKEN` / `VERCEL_OIDC_TOKEN` env var) plus team/project scope.
+ */
 export function vercelSandbox(
   config: VercelSandboxConfig = {},
 ): SandboxProvider {

@@ -266,6 +266,9 @@ const GROK_4_1_FAST_NON_REASONING = {
   },
 } as const satisfies ModelMeta
 
+/**
+ * Grok chat models supported by the xAI Responses adapter.
+ */
 export const GROK_CHAT_MODELS = [
   GROK_4_5.name,
   GROK_4_6.name,
@@ -273,6 +276,10 @@ export const GROK_CHAT_MODELS = [
   GROK_4_3.name,
 ] as const
 
+/**
+ * Grok chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the xAI API catalog.
+ */
 export const GROK_VERTEX_CHAT_MODELS = [
   GROK_4_3.name,
   GROK_4_20_REASONING.name,
@@ -281,6 +288,9 @@ export const GROK_VERTEX_CHAT_MODELS = [
   GROK_4_1_FAST_NON_REASONING.name,
 ] as const
 
+/**
+ * Grok Image Generation Models
+ */
 export const GROK_IMAGE_MODELS = [
   GROK_2_IMAGE.name,
   GROK_IMAGINE_IMAGE.name,
@@ -288,6 +298,11 @@ export const GROK_IMAGE_MODELS = [
   GROK_IMAGINE_IMAGE_QUALITY.name,
 ] as const
 
+/**
+ * Grok Video Generation Models (xAI Imagine API)
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export const GROK_VIDEO_MODELS = [
   GROK_IMAGINE_VIDEO.name,
   GROK_IMAGINE_VIDEO_1_5.name,
@@ -320,7 +335,8 @@ const GROK_VOICE_FAST_1 = {
 } as const satisfies ModelMeta
 
 /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
-const GROK_VOICE_THINK_FAST_1 = {
+const /** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
+GROK_VOICE_THINK_FAST_1 = {
   name: 'grok-voice-think-fast-1.0',
   supports: {
     input: ['audio', 'text'],
@@ -364,6 +380,11 @@ export const GROK_REALTIME_MODELS = [
   GROK_VOICE_THINK_FAST_1.name,
 ] as const
 
+/**
+ * Default speech-to-speech model used by the realtime token issuer and the
+ * realtime client adapter when no model is specified. Single source of truth
+ * so a future default bump cannot leave the two sides disagreeing.
+ */
 export const GROK_DEFAULT_REALTIME_MODEL: GrokRealtimeModel =
   'grok-voice-think-fast-2.0'
 
@@ -376,6 +397,10 @@ export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
 export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
 export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
 
+/**
+ * Type-only map from Grok chat model name to its supported input modalities.
+ * Used for type inference when constructing multimodal messages.
+ */
 export type GrokModelInputModalitiesByName = {
   [GROK_4_3.name]: typeof GROK_4_3.supports.input
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.input
@@ -387,6 +412,11 @@ export type GrokModelInputModalitiesByName = {
   [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.input
 }
 
+/**
+ * Type-only map from Grok chat model name to its supported provider tools.
+ * Keeps Grok provider-tool factories type-checked against the models that
+ * advertise xAI Responses server-side tools.
+ */
 export type GrokChatModelToolCapabilitiesByName = {
   [GROK_4_3.name]: typeof GROK_4_3.supports.tools
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.tools
@@ -398,6 +428,9 @@ export type GrokChatModelToolCapabilitiesByName = {
 
 export type GrokProviderOptions = GrokTextProviderOptions
 
+/**
+ * Type-only map from Grok chat model name to its provider options type.
+ */
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
   [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
@@ -407,11 +440,19 @@ export type GrokChatModelProviderOptionsByName = {
   [GROK_4_1_FAST_NON_REASONING.name]: GrokProviderOptions
 }
 
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GrokChatModelProviderOptionsByName
     ? GrokChatModelProviderOptionsByName[TModel]
     : GrokProviderOptions
 
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use text only.
+ */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GrokModelInputModalitiesByName
     ? GrokModelInputModalitiesByName[TModel]

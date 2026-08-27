@@ -15,6 +15,10 @@ export interface HindsightRecallResponse {
   results?: Array<{ text: string; type?: string; id: string }>
 }
 
+/**
+ * Structural view of the hindsight client — only the methods this adapter uses.
+ * Decouples the adapter from the SDK's exact type surface.
+ */
 export interface HindsightClientLike {
   retain: (
     bankId: string,
@@ -24,7 +28,8 @@ export interface HindsightClientLike {
   recall: (
     bankId: string,
     query: string,
-    opts: { budget: string },
+    opts: { /** Recall budget. Defaults to `'mid'`. */
+budget: string },
   ) => Promise<HindsightRecallResponse>
   reflect: (bankId: string, query: string) => Promise<{ text?: string }>
   listMemories: (
@@ -78,6 +83,7 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
     if (!runtimePromise) {
       runtimePromise = (async () => {
         const mod = await import('@vectorize-io/hindsight-client')
+        /** Hindsight server URL. Defaults to `HINDSIGHT_URL` or `http://localhost:8888`. */
         const baseUrl =
           options.baseUrl ??
           process.env.HINDSIGHT_URL ??
@@ -99,6 +105,7 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
   }
 
   function bankId(scope: MemoryScope): string {
+    /** Durable user id used in the bank key. Falls back to `scope.userId`, then `'demo-user'`. */
     const user = options.user ?? scope.userId ?? 'demo-user'
     // Include tenant so multi-tenant deploys cannot share banks when user+thread
     // collide. Unset tenant uses `_` (same placeholder convention as redis).

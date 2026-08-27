@@ -140,7 +140,8 @@ import type {
 import type { ChatMCPOptions } from './mcp/types'
 
 /** The adapter kind this activity handles */
-export const kind = 'text' as const
+export const /** The adapter kind this activity handles */
+kind = 'text' as const
 
 type AnyRuntimeTool = AnyTool
 type RuntimeToolWithApproval = AnyRuntimeTool & {
@@ -356,7 +357,10 @@ type CheckInterruptRegistry<
 type RuntimeContextOption<TTools, TMiddleware, TContext> = [
   MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>,
 ] extends [never]
-  ? { context?: TContext }
+  ? { /**
+   * Runtime context value passed to middleware hooks and server tools.
+   */
+context?: TContext }
   : undefined extends MergeContext<
         ContextFromInputs<TTools, TMiddleware>,
         TContext
@@ -409,11 +413,47 @@ type TextActivityOptionsWithContext<
   TextActivityOptions<TAdapter, TSchema, TStream, any>,
   'tools' | 'middleware' | 'context' | 'interrupts'
 > & {
+  /**
+     * Tools for function calling (auto-executed when called).
+     *
+     * Accepts two shapes:
+     *  - User-defined tools via `toolDefinition()` — plain `Tool`, always assignable.
+     *  - Provider tools from `@tanstack/ai-<provider>/tools` (e.g. `webSearchTool`)
+     *    — branded and type-checked against the selected model's
+     *    `supports.tools` list. Passing an unsupported tool produces a
+     *    compile-time error on the array element.
+     */
   tools?: TTools
+  /**
+     * First-party generic interrupt definitions for this chat call.
+     * Register the same definitions on the client to type payloads and answers.
+     */
   interrupts?: TInterrupts & CheckUniqueInterruptDefinitions<TInterrupts>
+  /**
+     * Optional middleware array for observing/transforming chat behavior.
+     * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
+     *
+     * @example
+     * ```ts
+     * const stream = chat({
+     *   adapter: openaiText('gpt-5.5'),
+     *   messages: [...],
+     *   middleware: [loggingMiddleware, redactionMiddleware],
+     * })
+     * ```
+     */
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
 } & RuntimeContextOption<TTools, TMiddleware, TContext>
 
+/**
+ * Options for the text activity.
+ * Types are extracted directly from the adapter (which has pre-resolved generics).
+ *
+ * @template TAdapter - The text adapter type (created by a provider function)
+ * @template TSchema - Optional Standard Schema for structured output
+ * @template TStream - Whether to stream the output (default: true)
+ * @template TContext - Runtime context value threaded to middleware hooks and server tools
+ */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
@@ -422,6 +462,14 @@ export interface TextActivityOptions<
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
+  /**
+     * Conversation messages. Accepts:
+     * - `ConstrainedModelMessage` — content types constrained by the adapter's input modalities.
+     * - `ModelMessage` — unconstrained model message (e.g., forwarded from an AG-UI wire payload).
+     * - `UIMessage` — parts-based UI representation; converted internally via `convertMessagesToModelMessages`.
+     *
+     * The three shapes can be mixed in a single array (e.g., when forwarding a wire payload that includes both anchor UIMessages and AG-UI fan-out ModelMessages).
+     */
   messages?:
     | Array<
         | UIMessage
@@ -432,6 +480,15 @@ export interface TextActivityOptions<
           }>
       >
     | undefined
+  /**
+     * System prompts to prepend to the conversation.
+     *
+     * Accepts plain strings or `{ content, metadata }` objects. The `metadata`
+     * field is typed by the adapter — Anthropic narrows it to
+     * `AnthropicSystemPromptMetadata` (with `cache_control` for prompt
+     * caching), providers without per-prompt metadata reject the field
+     * entirely.
+     */
   systemPrompts?:
     | Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
     | undefined
@@ -441,6 +498,11 @@ export interface TextActivityOptions<
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
     | undefined
+  /**
+     * Hand MCP clients/pools to chat(): their tools are discovered at run start
+     * and merged into the run; `connection` controls whether chat() closes them
+     * when the run ends. See docs/tools/mcp.md "Managing MCP clients with chat()".
+     */
   mcp?: ChatMCPOptions
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
@@ -450,6 +512,11 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /**
+     * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
+     * Tunes how much of each lazy tool's description appears in the discovery
+     * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
+     */
   lazyToolsConfig?: LazyToolsConfig
   /** Unique conversation identifier for tracking */
   conversationId?: TextOptions['conversationId']
@@ -461,15 +528,76 @@ export interface TextActivityOptions<
   parentRunId?: TextOptions['parentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
+  /**
+     * AG-UI interrupt resume responses. Persistence middleware validates these
+     * before accepting new input on a thread with pending interrupts.
+     */
   resume?: TextOptions['resume']
+  /**
+     * Optional Standard Schema for structured output.
+     * When provided, the activity will:
+     * 1. Run the full agentic loop (executing tools as needed)
+     * 2. Once complete, return a Promise with the parsed output matching the schema
+     *
+     * Supports any Standard Schema compliant library (Zod v4+, ArkType, Valibot, etc.)
+     *
+     * @example
+     * ```ts
+     * const result = await chat({
+     *   adapter: openaiText('gpt-5.5'),
+     *   messages: [{ role: 'user', content: 'Generate a person' }],
+     *   outputSchema: z.object({ name: z.string(), age: z.number() })
+     * })
+     * // result is { name: string, age: number }
+     * ```
+     */
   outputSchema?: TSchema
+  /**
+     * Whether to stream the text result.
+     * When true (default), returns a ChatStream for streaming output.
+     * When false, returns a Promise<string> with the collected text content.
+     *
+     * Note: If outputSchema is provided, this option is ignored and the result
+     * is always a Promise<InferSchemaType<TSchema>>.
+     *
+     * @default true
+     *
+     * @example Non-streaming text
+     * ```ts
+     * const text = await chat({
+     *   adapter: openaiText('gpt-5.5'),
+     *   messages: [{ role: 'user', content: 'Hello!' }],
+     *   stream: false
+     * })
+     * // text is a string with the full response
+     * ```
+     */
   stream?: TStream
   middleware?: Array<ChatMiddleware<TContext>>
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   context?: TContext
+  /**
+     * Enable debug logging. Pass `true` to enable all categories with the default
+     * console logger, `false` to silence everything, or a `DebugConfig` object for
+     * granular control and/or a custom `Logger`. Defaults to `undefined`, which
+     * means only the `errors` category is active.
+     */
   debug?: DebugOption
 }
 
+/**
+ * Create typed options for the chat() function without executing.
+ * This is useful for pre-defining configurations with full type inference.
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatOptions({
+ *   adapter: anthropicText('claude-sonnet-4-5'),
+ * })
+ *
+ * const stream = chat({ ...chatOptions, messages })
+ * ```
+ */
 export function createChatOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined = undefined,
@@ -511,6 +639,22 @@ export function createChatOptions<
   return options
 }
 
+/**
+ * Result type for the text activity.
+ * - If outputSchema is provided AND stream is explicitly true:
+ *   StructuredOutputStream<InferSchemaType<TSchema>> — yields raw JSON deltas
+ *   via TEXT_MESSAGE_CONTENT plus a terminal StructuredOutputCompleteEvent
+ *   carrying the validated object.
+ * - If outputSchema is provided without explicit stream:true:
+ *   Promise<InferSchemaType<TSchema>>.
+ * - If stream is explicitly false (no schema): Promise<string>.
+ * - Otherwise (default): ChatStream.
+ *
+ * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
+ * default `boolean` value of `TStream` does *not* match the streaming branch.
+ * Without this, plain `chat({ outputSchema })` would type as a stream while
+ * the runtime returns a Promise — see issue #526.
+ */
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = boolean,
@@ -534,11 +678,49 @@ interface TextEngineConfig<
     TContext
   >,
 > {
+  /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
   systemPrompts?: Array<SystemPrompt>
   params: TParams
   middleware?: Array<AnyChatMiddleware>
   context?: TContext
+  /**
+     * If set, after the agent loop finishes the engine runs a
+     * structured-output finalization step through the same middleware
+     * pipeline. See `runStructuredFinalization` for the flow.
+     *
+     * - jsonSchema: the JSON Schema to send to the provider
+     * - yieldChunks: when true, finalization chunks are yielded to the caller
+     *   (used by runStreamingStructuredOutput). When false, chunks are
+     *   consumed internally for middleware visibility but not yielded
+     *   (used by runAgenticStructuredOutput).
+     * - normalize: optional schema-aware transform applied to the captured
+     *   structured-output object the moment it enters the engine — BEFORE it is
+     *   stored, validated, or yielded. Used to undo strict-mode null-widening
+     *   (`undoNullWidening`): strict schemas widen optional fields to
+     *   `required` + nullable so the provider returns `null` for an absent
+     *   optional, and this strips exactly those synthesized nulls while keeping
+     *   the ones a `.nullable()` field genuinely allows. Applied here (not in
+     *   the adapter) because the engine is the only layer holding the original
+     *   schema's null-widening map, and applying it at capture fixes BOTH the
+     *   streaming chunk and the Promise<T> result with one transform.
+     * - validate: optional callback invoked AFTER `normalize` and AFTER the
+     *   structured-output result is captured, but BEFORE the terminal hook
+     *   fires. If it throws, the engine records a `finalizationError` and fires
+     *   `onError` instead of `onFinish` (per spec §7.3). On success, the
+     *   returned value is stored as the validated result and retrievable via
+     *   `getValidatedStructuredOutput()`. Used by `runAgenticStructuredOutput`
+     *   to perform Standard Schema validation inside the engine.
+     * - nativeCombined: when true, the adapter declared
+     *   `supportsCombinedToolsAndSchema()` and the engine wires `jsonSchema`
+     *   into the regular `chatStream` call instead of running a separate
+     *   finalization round-trip. The `'structuredOutput'` middleware phase
+     *   does NOT fire on this path — middleware sees the run through
+     *   `beforeModel` / `modelStream` as usual.
+     * - source: how to take the combined object. `'text'` (default) parses
+     *   accumulated assistant text. `'event'` reads an adapter-emitted
+     *   `structured-output.complete` and does not parse prose.
+     */
   finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
@@ -552,6 +734,11 @@ interface TextEngineConfig<
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
+/**
+ * Combine two optional AbortSignals into one that aborts when either does.
+ * Returns the other signal directly when one is absent or already aborted.
+ * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
+ */
 function combineAbortSignals(
   a: AbortSignal | undefined,
   b: AbortSignal | undefined,
@@ -644,6 +831,7 @@ class TextEngine<
   >()
 
   // AG-UI protocol IDs
+  /** Thread/conversation ID for AG-UI protocol. Auto-generated if not provided. */
   private readonly threadId: string
   private readonly runIdOverride?: string
   private readonly parentRunIdOverride?: string
@@ -662,6 +850,12 @@ class TextEngine<
   // observe both cancellation sources via ctx.abortSignal.
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
+  /**
+     * Latched the first time the delivery socket closes; see `notifyDisconnected`.
+     * Also read by `subscribe` so a listener registered AFTER the disconnect (a
+     * middleware whose `setup` was still running at the time — the common case) is
+     * called immediately rather than never.
+     */
   private disconnected = false
   private readonly disconnectListeners: Array<() => void | Promise<void>> = []
 
@@ -869,6 +1063,13 @@ class TextEngine<
     return this.structuredOutputResult
   }
 
+  /**
+     * Returns the validated structured-output value (the result of running
+     * `finalStructuredOutput.validate` against the raw structured-output data)
+     * wrapped in a `{ value }` object so callers can distinguish "no validation
+     * happened" from "validation produced undefined". Returns `null` when no
+     * validator was configured or validation hasn't been performed yet.
+     */
   getValidatedStructuredOutput(): { value: unknown } | null {
     return this.hasValidatedStructuredOutput
       ? { value: this.validatedStructuredOutput }
@@ -1488,6 +1689,7 @@ class TextEngine<
       this.captureStreamMessageIdentity(chunk.parentMessageId)
     }
     this.toolCallManager.addToolCallStartEvent(chunk)
+    /** Additional metadata to attach to the request. */
     const metadata = chunk.metadata
     const thoughtSignature =
       metadata != null &&
@@ -1517,6 +1719,7 @@ class TextEngine<
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
     const state = end.state ?? tanstackMetadata(end)?.state
     const skipResultReplay =
       state !== 'output-error' || end.result === undefined
@@ -1637,6 +1840,14 @@ class TextEngine<
     this.currentThinkingSignature = chunk.encryptedValue
   }
 
+  /**
+     * Tools available for execution this turn. The discovery tool is dropped
+     * from the advertised set (`this.tools`) once every lazy tool is discovered,
+     * but a model may still re-request discovery; this widens execution lookup
+     * to include it so such calls don't fail with "Unknown tool". Centralised so
+     * both execution sites (`processToolCalls` and `checkForPendingToolCalls`)
+     * stay in sync.
+     */
   private resolveExecutableTools(
     toolCalls: ReadonlyArray<ToolCall>,
   ): ReadonlyArray<AnyTool> {
@@ -2294,6 +2505,11 @@ class TextEngine<
     })
   }
 
+  /**
+     * Extract client state (approvals and client tool results) from original messages.
+     * This is called in the constructor BEFORE converting to ModelMessage format,
+     * because the parts array (which contains approval state) is lost during conversion.
+     */
   private extractClientStateFromOriginalMessages(
     originalMessages: Array<any>,
   ): {
@@ -2989,6 +3205,10 @@ class TextEngine<
     return pending
   }
 
+  /**
+     * Find a tool call by id in message history (including already-completed ones).
+     * Used when the client has already attached a tool result for UI before resume.
+     */
   private findToolCallInMessages(toolCallId: string): ToolCall | undefined {
     for (const message of this.messages) {
       if (message.role !== 'assistant') continue
@@ -3000,6 +3220,12 @@ class TextEngine<
     return undefined
   }
 
+  /**
+     * Tool calls that must be reconstructed as interrupt pending for ephemeral
+     * resume. Includes outstanding tools plus client tools that already have
+     * results in history when the resume batch still carries `client_tool_*`
+     * entries (the client writes local tool results before submitting resume).
+     */
   private getToolCallsForEphemeralResume(
     resume: ReadonlyArray<{ interruptId: string }> | undefined,
   ): Array<ToolCall> {
@@ -3061,6 +3287,15 @@ class TextEngine<
     )
   }
 
+  /**
+     * Record tool calls (deduped by id) toward `toolCallCount` /
+     * `lastTurnToolCallCount` for strategies and middleware `onShouldContinue`.
+     *
+     * Used for both live model turns and pending/resume batches. IDs already
+     * counted in this run (e.g. wait→resume after a live turn) are not
+     * re-added to `toolCallCount`. Per-turn execution caps are app middleware
+     * (`onBeforeToolCall` skip), not engine policy.
+     */
   private recordToolCalls(toolCalls: Array<ToolCall>): void {
     this.lastTurnToolCallCount = toolCalls.length
     let newlyCounted = 0
@@ -3085,16 +3320,66 @@ class TextEngine<
     return this.isAborted() || this.isMiddlewareAborted()
   }
 
+  /**
+     * The reason to report on `AbortInfo` for a cancelled run.
+     *
+     * `this.abortReason` only ever holds a *middleware*-initiated reason
+     * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
+     * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
+     * cancel channel — never touches that field, so the reason has to be read back
+     * off the caller's signal, which is the signal `isCancelled()` consults via
+     * `isAborted()`. A signal aborted with no reason carries a DOMException rather
+     * than a string, so non-string reasons are reported as absent.
+     */
   private resolveAbortReason(): string | undefined {
     if (this.abortReason !== undefined) return this.abortReason
     const signalReason: unknown = this.effectiveSignal?.reason
     return typeof signalReason === 'string' ? signalReason : undefined
   }
 
+  /**
+     * Whether this run's teardown declared its abort a DETACH — see
+     * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
+     * and only for a plain, intentless disconnect of a detachable run, so every
+     * other exit path answers `false`.
+     *
+     * Surfaced on the engine (rather than the ctx being handed out) so the
+     * capability read stays inside core, and so the delivery sink learns the
+     * verdict through {@link publishRunDetachedSignal} instead of reaching into a
+     * middleware context it has no business holding.
+     *
+     * @internal
+     */
   wasDetached(): boolean {
     return getRunDetached(this.middlewareCtx, { optional: true }) === true
   }
 
+  /**
+     * The delivery socket closed while this run was still going.
+     *
+     * Notifies every subscriber (see {@link RunDisconnectCapability}) and RETURNS
+     * IMMEDIATELY. Synchronous on purpose: it is called from
+     * `ReadableStream.cancel()`, which must not be made to wait on a run-store
+     * write, and the caller ({@link notifyRunDisconnected}) has no consumer left to
+     * report to anyway.
+     *
+     * Subscribers therefore run CONCURRENTLY with the still-executing run — which is
+     * the entire point. The run is typically suspended inside a slow middleware
+     * `setup` at this moment, so anything dispatched from the run's own unwinding
+     * would be minutes late. Nothing on this path aborts the run: a durable run
+     * outlives its viewer.
+     *
+     * Each subscriber's promise is parked on `deferredPromises`, which the run awaits
+     * in its `finally`, so bookkeeping cannot be lost to a race with the run's own
+     * completion even though nothing awaits it here.
+     *
+     * IDEMPOTENT. A second cancel, or one arriving after a terminal hook already ran,
+     * is ignored: the terminal hooks own the run's outcome, and re-stamping
+     * `detachedSince` on a run that has already finished would hand a completed run
+     * to the reaper as reclaimable work.
+     *
+     * @internal
+     */
   notifyDisconnected(): void {
     const alreadyDisconnected = this.disconnected || this.terminalHookCalled
     if (alreadyDisconnected) return
@@ -3104,6 +3389,16 @@ class TextEngine<
     }
   }
 
+  /**
+     * Invoke one disconnect listener, isolated and with its failure SWALLOWED after
+     * logging.
+     *
+     * There is no caller left to report to — the socket this would report on is the
+     * one that just closed — and a rejection parked on `deferredPromises` would
+     * surface as the run's failure, replacing a healthy outcome with a bookkeeping
+     * error. Isolation matters for the usual reason too: one subscriber's failing
+     * write must not skip the next one's.
+     */
   private runDisconnectListener(listener: () => void | Promise<void>): void {
     let result: void | Promise<void>
     try {
@@ -3120,6 +3415,15 @@ class TextEngine<
     )
   }
 
+  /**
+     * Run the final structured-output adapter call through the middleware
+     * pipeline. Yields chunks to the caller only when
+     * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
+     * silently while still piping through middleware.
+     *
+     * On success, populates this.structuredOutputResult.
+     * On failure, populates this.finalizationError.
+     */
   private async *runStructuredFinalization(): AsyncGenerator<StreamChunk> {
     if (!this.finalStructuredOutput) {
       throw new Error(
@@ -3502,6 +3806,23 @@ class TextEngine<
     )
   }
 
+  /**
+     * Native combined mode: harvest the structured output from the agent
+     * loop's accumulated final-turn text (no separate provider call).
+     *
+     * The adapter wired `outputSchema` into the regular `chatStream` request,
+     * so the model's final-turn text is the schema-constrained JSON. We parse
+     * `this.accumulatedContent`, populate `this.structuredOutputResult`, emit
+     * a synthetic `structured-output.complete` (and a `structured-output.start`
+     * if one wasn't emitted earlier — only happens on the streaming path when
+     * the model returned no text at all), and run the validate callback when
+     * present. Failures populate `this.finalizationError` so the engine's
+     * terminal-hook chooser routes to `onError` (per spec §7.3).
+     *
+     * The `'structuredOutput'` middleware phase intentionally does NOT fire on
+     * this path — middleware sees the run through `beforeModel` / `modelStream`
+     * as usual. See PR #605 / issue #605 for the design rationale.
+     */
   private async *harvestCombinedStructuredOutput(): AsyncGenerator<StreamChunk> {
     if (!this.finalStructuredOutput) {
       throw new Error(
@@ -3972,6 +4293,10 @@ class TextEngine<
     this.toolPhase = phase
   }
 
+  /**
+     * Spec-normalize middleware output, then yield to the public iterable.
+     * Engine state and `onChunk` already saw the raw chunk.
+     */
   private *emitPublicChunks(
     outputs: Array<StreamChunk>,
   ): Generator<StreamChunk, void, void> {
@@ -3988,6 +4313,10 @@ class TextEngine<
     }
   }
 
+  /**
+     * Pipe a single internal chunk through middleware, then spec-normalize
+     * before the public `for await` stream.
+     */
   private async *pipeThroughMiddleware(
     chunk: AdapterYieldChunk,
   ): AsyncGenerator<StreamChunk, void, void> {
@@ -3998,6 +4327,10 @@ class TextEngine<
     yield* this.emitPublicChunks(afterMw)
   }
 
+  /**
+     * Drain queued `sandbox.file` chunks (emitted via the SandboxRuntime sink)
+     * through the middleware pipeline and into the public stream.
+     */
   private async *drainSandboxFileQueue(): AsyncGenerator<StreamChunk> {
     while (this.sandboxFileQueue.length > 0) {
       const chunk = this.sandboxFileQueue.shift()
@@ -4005,6 +4338,10 @@ class TextEngine<
     }
   }
 
+  /**
+     * Drain an executeToolCalls async generator, yielding any CustomEvent chunks
+     * through the middleware pipeline and returning the final ExecuteToolCallsResult.
+     */
   private async *drainToolCallGenerator(
     generator: AsyncGenerator<
       CustomEvent,
@@ -4049,6 +4386,67 @@ class TextEngine<
   }
 }
 
+/**
+ * Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
+ *
+ * This activity supports four modes:
+ * 1. **Streaming agentic text**: Stream responses with automatic tool execution
+ * 2. **Streaming one-shot text**: Simple streaming request/response without tools
+ * 3. **Non-streaming text**: Returns collected text as a string (stream: false)
+ * 4. **Agentic structured output**: Run tools, then return structured data
+ *
+ * @example Full agentic text (streaming with tools)
+ * ```ts
+ * import { chat } from '@tanstack/ai'
+ * import { openaiText } from '@tanstack/ai-openai'
+ *
+ * for await (const chunk of chat({
+ *   adapter: openaiText('gpt-5.5'),
+ *   messages: [{ role: 'user', content: 'What is the weather?' }],
+ *   tools: [weatherTool]
+ * })) {
+ *   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+ *     console.log(chunk.delta)
+ *   }
+ * }
+ * ```
+ *
+ * @example One-shot text (streaming without tools)
+ * ```ts
+ * for await (const chunk of chat({
+ *   adapter: openaiText('gpt-5.5'),
+ *   messages: [{ role: 'user', content: 'Hello!' }]
+ * })) {
+ *   console.log(chunk)
+ * }
+ * ```
+ *
+ * @example Non-streaming text (stream: false)
+ * ```ts
+ * const text = await chat({
+ *   adapter: openaiText('gpt-5.5'),
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ *   stream: false
+ * })
+ * // text is a string with the full response
+ * ```
+ *
+ * @example Agentic structured output (tools + structured response)
+ * ```ts
+ * import { z } from 'zod'
+ *
+ * const result = await chat({
+ *   adapter: openaiText('gpt-5.5'),
+ *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+ *   tools: [researchTool, analyzeTool],
+ *   outputSchema: z.object({
+ *     summary: z.string(),
+ *     keyPoints: z.array(z.string())
+ *   })
+ * })
+ * // result is { summary: string, keyPoints: string[] }
+ * ```
+ */
 export function chat<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined = undefined,
@@ -4192,6 +4590,12 @@ function validateInterruptDefinitions(
   }
 }
 
+/**
+ * The slice of the engine that the durable delivery sink reaches back into, in
+ * BOTH directions: it reads the detach verdict (`wasDetached`) and pushes the
+ * socket-closed fact in (`notifyDisconnected`). Filled by the generator body as
+ * soon as its engine exists.
+ */
 interface DeliveryEngineRef {
   current?: {
     wasDetached: () => boolean
@@ -4199,6 +4603,14 @@ interface DeliveryEngineRef {
   }
 }
 
+/**
+ * Publish both delivery-side seams for `stream`.
+ *
+ * Shared by the two streaming paths so they cannot drift apart — the
+ * structured-output path having been wired for one seam and not the other is
+ * exactly the bug `publishRunDetachedSignal` picked up last time (a durable
+ * `chat({ outputSchema, stream: true })` could never detach).
+ */
 function publishDeliverySeams(
   stream: object,
   engineRef: DeliveryEngineRef,
@@ -4214,6 +4626,16 @@ function publishDeliverySeams(
   })
 }
 
+/**
+ * Run streaming text (agentic or one-shot depending on tools).
+ *
+ * A thin, NON-generator wrapper, because the stream object is also the key the
+ * durable delivery sink looks the run's detach verdict up under (see
+ * `../../delivery-detach`) and delivers its disconnect notification through (see
+ * `../../delivery-disconnect`). A generator function cannot reach the generator it
+ * returns, so the identity has to be minted out here and the engine reached back
+ * through `engineRef`, which the body fills as soon as its engine exists.
+ */
 function runStreamingText(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
 ): AsyncIterable<StreamChunk> {
@@ -4262,6 +4684,10 @@ async function* streamTextChunks(
   }
 }
 
+/**
+ * Run non-streaming text - collects all content and returns as a string.
+ * Runs the full agentic loop (if tools are provided) but returns collected text.
+ */
 function runNonStreamingText(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
@@ -4273,6 +4699,12 @@ function runNonStreamingText(
   return streamToText(stream)
 }
 
+/**
+ * Run agentic structured output:
+ * 1. Execute the full agentic loop (with tools)
+ * 2. Once complete, call adapter.structuredOutput with the conversation context
+ * 3. Validate and return the structured result
+ */
 async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   options: RuntimeTextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<InferSchemaType<TSchema>> {
@@ -4380,6 +4812,13 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   return result.data as InferSchemaType<TSchema>
 }
 
+/**
+ * Parse the `value` payload of a `structured-output.complete` CUSTOM event
+ * into a typed shape, returning `null` if the runtime payload doesn't match.
+ *
+ * Uses an `unknown`-input runtime check rather than `as` casts so the engine
+ * stays cast-free in its hot path.
+ */
 function readCustomEventMessageId(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   if (!('messageId' in value)) return undefined
@@ -4406,6 +4845,17 @@ function readStructuredOutputCompleteValue(
   }
 }
 
+/**
+ * Synthesize a streaming structured-output stream by wrapping a non-streaming
+ * `structuredOutput` call. Used when an adapter doesn't implement
+ * `structuredOutputStream` natively.
+ *
+ * `onAdapterError`, when provided, is invoked with the raw error from
+ * `adapter.structuredOutput` before the synthesized RUN_ERROR is yielded.
+ * The engine uses this to preserve the original error (stack, cause, custom
+ * properties like provider `status`/`code`) as `finalizationError.cause`,
+ * because the RUN_ERROR wire shape only carries `message` and `code`.
+ */
 async function* fallbackStructuredOutputStream(
   adapter: AnyTextAdapter,
   options: StructuredOutputOptions<Record<string, unknown>>,
@@ -4413,6 +4863,7 @@ async function* fallbackStructuredOutputStream(
 ): AsyncIterable<AdapterYieldChunk> {
   const { chatOptions } = options
   const fallbackRand = Math.random().toString(36).slice(2)
+  /** Run ID override for AG-UI protocol. Auto-generated by adapter if not provided. */
   const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
   const threadId =
     chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
@@ -4488,6 +4939,33 @@ async function* fallbackStructuredOutputStream(
   }
 }
 
+/**
+ * Run streaming structured output via the TextEngine, with the engine's
+ * `finalStructuredOutput.yieldChunks: true` mode. The agent loop's
+ * RUN_STARTED/RUN_FINISHED are suppressed; the structured-output finalization
+ * step's pair brackets the run for the consumer.
+ *
+ * Standard Schema *validation* is intentionally NOT run on this path — it is
+ * the consumer's responsibility. This is a deliberate asymmetry vs.
+ * `runAgenticStructuredOutput` (Promise<T> path), which DOES validate inside
+ * the engine and routes validation failures through `onError`. The reason:
+ * streaming consumers typically render partial JSON progressively (via
+ * `parsePartialJSON` or `useChat`'s `partial` slot) and validate downstream
+ * after assembly. Running validation server-side would force a hard error
+ * on partial-by-design payloads. See `docs/structured-outputs/overview.md`.
+ *
+ * Null-widening normalization, however, IS run on both paths: the
+ * `structured-output.complete` CUSTOM event is forwarded with its `value.object`
+ * already un-widened (synthesized strict-mode nulls dropped, genuine
+ * `.nullable()` nulls kept), so a consumer validating the assembled object
+ * against the original schema doesn't choke on a `null` for an `.optional()`
+ * field. Same `convertSchemaForStructuredOutput` pass and same
+ * `undoNullWidening` map as the Promise<T> path — the two must not diverge.
+ *
+ * Pre-flight validation (missing schema, unconvertible schema) throws
+ * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
+ * those are programmer errors, not runtime conditions.
+ */
 function runStreamingStructuredOutput<TSchema extends SchemaInput>(
   options: RuntimeTextActivityOptions<AnyTextAdapter, TSchema, true>,
 ): StructuredOutputStream<InferSchemaType<TSchema>> {
@@ -4516,6 +4994,18 @@ function runStreamingStructuredOutput<TSchema extends SchemaInput>(
   return stream as StructuredOutputStream<InferSchemaType<TSchema>>
 }
 
+/**
+ * Internal generator return type — broader than the public
+ * `StructuredOutputStream<T>`. The structured-output completion event remains
+ * the pinned public CUSTOM event for this stream; approval and client-tool
+ * waits now surface as RUN_FINISHED interrupt outcomes. At runtime, tools can
+ * still emit arbitrary user-defined `CustomEvent`s through the
+ * `emitCustomEvent` context API; those flow
+ * through this generator with `name: string` and are widened out at the
+ * public boundary because keeping them would collapse the typed narrow back
+ * to `any`. The cast inside `runStreamingStructuredOutput` is where that
+ * widening happens.
+ */
 type StructuredOutputStreamInternal<T> = AsyncIterable<
   StreamChunk | StructuredOutputCompleteEvent<T>
 >

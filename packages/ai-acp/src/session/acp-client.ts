@@ -20,6 +20,13 @@ import type {
 } from '../types/acp-types'
 import type { AcpJsonRpcStream, AcpSessionTransport } from '../transport/types'
 
+/**
+ * Identifies this client to the agent in the ACP `initialize` handshake. The
+ * `version` is informational (sent in `clientInfo`); keep it loosely in step
+ * with the package version. `clientInfo` is currently optional in the protocol
+ * but will become required, so we always send it.
+ * ponytail: hardcoded — clientInfo is diagnostic; a stale patch version is harmless.
+ */
 const CLIENT_INFO = {
   name: '@tanstack/ai-acp',
   title: 'TanStack AI',
@@ -50,6 +57,10 @@ export interface StartAcpSessionOptions {
   onPermissionRequest: (
     request: AcpPermissionRequest,
   ) => Promise<AcpPermissionOutcome> | AcpPermissionOutcome
+  /**
+     * Harness-specific JSON-RPC notifications (e.g. Grok `_x.ai/session_notification`).
+     * Return without throwing — unknown vendor extensions must not tear down the session.
+     */
   onExtNotification?: (method: string, params: Record<string, unknown>) => void
 }
 
@@ -77,6 +88,9 @@ function streamFromTransport(transport: AcpSessionTransport): {
   }
 }
 
+/**
+ * Drive an ACP harness over stdio or a pre-connected JSON-RPC stream.
+ */
 export async function startAcpSession(
   options: StartAcpSessionOptions,
 ): Promise<AcpSessionHandle> {

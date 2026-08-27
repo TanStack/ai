@@ -1,3 +1,8 @@
+/**
+ * Parse JSON from a model/harness assistant string.
+ * Strips a wrapping markdown fence when the whole payload is fenced.
+ * If the model wrote prose first, take the last JSON object or array.
+ */
 export function parseJsonFromAssistantText(raw: string): unknown {
   const trimmed = raw.trim()
   if (trimmed === '') {

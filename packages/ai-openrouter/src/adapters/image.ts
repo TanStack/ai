@@ -28,6 +28,10 @@ export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
 
 export type OpenRouterImageModel = (typeof OPENROUTER_IMAGE_MODELS)[number]
 
+/**
+ * Mapping of standard image sizes to their aspect ratios
+ * Used for Gemini and other models that support aspect ratio configuration
+ */
 const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '1024x1024': '1:1', // default
   '832x1248': '2:3',
@@ -41,6 +45,13 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
   '1536x672': '21:9',
 }
 
+/**
+ * Resolve a requested size to the aspect ratio OpenRouter's chat-completions
+ * image pathway understands (`image_config.aspect_ratio`). The pathway has
+ * no free-form size field, so a size outside the mapping table cannot be
+ * expressed — throw rather than silently generating at the default 1:1.
+ * Accepts the multiplication sign ('×') as a separator for tolerance.
+ */
 function sizeToAspectRatio(size: string | undefined): string | undefined {
   if (!size) return undefined
   const normalized = size.replace('×', 'x')
@@ -53,6 +64,11 @@ function sizeToAspectRatio(size: string | undefined): string | undefined {
   return aspectRatio
 }
 
+/**
+ * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
+ * `image_url` content parts: public URLs pass through, data sources become
+ * base64 data URIs.
+ */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`

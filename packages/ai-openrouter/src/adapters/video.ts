@@ -37,8 +37,19 @@ import type {
 } from '@tanstack/ai'
 import type { OpenRouterClientConfig } from '../utils/client'
 
+/**
+ * Configuration for the OpenRouter video adapter.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface OpenRouterVideoConfig extends OpenRouterClientConfig {}
 
+/**
+ * Threshold for emitting a "this download will probably OOM serverless
+ * runtimes" warning. Anything larger than this (in bytes) gets surfaced via
+ * console.warn — workers and small isolates routinely run out of memory once
+ * a downloaded video is base64-encoded.
+ */
 const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
 
 function warnIfLargeMediaBuffer(byteLength: number): void {
@@ -50,6 +61,12 @@ function warnIfLargeMediaBuffer(byteLength: number): void {
   )
 }
 
+/**
+ * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
+ * video API image fields: public URLs pass through verbatim, data sources
+ * become base64 data URIs. OpenRouter never fetches URLs through redirects
+ * or bot checks on your behalf — pass directly accessible URLs.
+ */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
@@ -105,6 +122,20 @@ function assertSupportedVideoFrames(
   }
 }
 
+/**
+ * Map the prompt's image parts onto OpenRouter's video request fields:
+ *
+ * - `metadata.role === 'start_frame'`             → `frame_images[]` with `frame_type: 'first_frame'`
+ * - `metadata.role === 'end_frame'`               → `frame_images[]` with `frame_type: 'last_frame'`
+ * - `metadata.role === 'reference' | 'character'` → `input_references[]`
+ * - `metadata.role === 'mask' | 'control'`        → throws (no video routing)
+ * - remaining parts (no role)                     → start frame (positional default)
+ *
+ * When both `frame_images` and `input_references` are present OpenRouter
+ * treats the request as image-to-video and references take lower priority.
+ * Frame roles are validated against the model's `supported_frame_images`
+ * metadata when known.
+ */
 function mapImagePartsToVideoFields(
   model: string,
   images: Array<ImagePart<MediaInputMetadata>>,
@@ -163,6 +194,11 @@ function mapImagePartsToVideoFields(
   }
 }
 
+/**
+ * Map OpenRouter job status onto the TanStack video job status. OpenRouter
+ * reports `pending → in_progress → completed | failed`, plus `cancelled` and
+ * `expired` terminals.
+ */
 function mapStatus(
   apiStatus: VideoGenerationResponse['status'],
 ): VideoStatusResult['status'] {
@@ -182,6 +218,11 @@ function mapStatus(
   }
 }
 
+/**
+ * Build TokenUsage from the job's usage block. Video generation bills by
+ * cost, not tokens, so the token counts are zero and the gateway-reported
+ * cost is surfaced via `usage.cost`.
+ */
 function buildVideoUsage(
   usage: VideoGenerationResponse['usage'],
 ): TokenUsage | undefined {
@@ -195,6 +236,17 @@ function buildVideoUsage(
   return result
 }
 
+/**
+ * OpenRouter Video Generation Adapter
+ *
+ * Tree-shakeable adapter for OpenRouter's dedicated async video generation
+ * API (`POST /api/v1/videos`) — Seedance, Veo, Wan, Kling, Sora and others
+ * through one gateway. Uses a jobs/polling architecture: submit a job, poll
+ * `GET /api/v1/videos/{jobId}` until completed, then download from the
+ * job's unsigned URLs.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export class OpenRouterVideoAdapter<
   TModel extends OpenRouterVideoModel,
 > extends BaseVideoAdapter<
@@ -347,6 +399,21 @@ export class OpenRouterVideoAdapter<
   }
 }
 
+/**
+ * Creates an OpenRouter video adapter with an explicit API key.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenRouterVideo('bytedance/seedance-2.0', 'your-api-key')
+ *
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A beautiful sunset over the ocean',
+ * })
+ * ```
+ */
 export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
   apiKey: string,
@@ -355,6 +422,24 @@ export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
   return new OpenRouterVideoAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an OpenRouter video adapter using the `OPENROUTER_API_KEY`
+ * environment variable.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @example
+ * ```typescript
+ * const adapter = openRouterVideo('google/veo-3.1')
+ *
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A cat playing piano in a jazz bar',
+ * })
+ *
+ * const status = await getVideoJobStatus({ adapter, jobId })
+ * ```
+ */
 export function openRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
   config?: Omit<OpenRouterVideoConfig, 'apiKey'>,

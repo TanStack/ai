@@ -1,11 +1,25 @@
 /** ACP auth methods advertised by `grok agent` (see harness `initialize`). */
 export type GrokBuildAcpAuthMethod = 'xai.api_key' | 'grok.com'
 
+/**
+ * How the harness should sign in.
+ *
+ * - `'api-key'` (default): call `authenticate` with `xai.api_key`.
+ * - `'host'`: skip ACP `authenticate`. Use `grok login` on the machine.
+ *
+ * This is not inferred from the sandbox. A local-process run can be a laptop
+ * with a login, or a runner that only has `XAI_API_KEY`.
+ */
 export type GrokBuildAuthMode = 'host' | 'api-key'
 
 /** Isolated sandboxes have no host CLI login, so this is the default. */
-const DEFAULT_GROK_AUTH_MODE: GrokBuildAuthMode = 'api-key'
+const /** Isolated sandboxes have no host CLI login, so this is the default. */
+DEFAULT_GROK_AUTH_MODE: GrokBuildAuthMode = 'api-key'
 
+/**
+ * Pick the Grok ACP auth method for {@link startAcpSession} when using
+ * `authMode: 'api-key'`.
+ */
 export function resolveGrokAcpAuthMethod(
   env?: Record<string, string | undefined>,
 ): GrokBuildAcpAuthMethod | undefined {

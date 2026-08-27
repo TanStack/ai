@@ -1,3 +1,6 @@
+/**
+ * Structural Daytona process/code-run types plus the host/sandbox protocol.
+ */
 export interface DaytonaCodeRunArtifacts {
   stdout?: string | undefined
 }

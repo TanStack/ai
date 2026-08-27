@@ -6,6 +6,12 @@ import type {
 import type { ImagePart, MediaInputMetadata } from '@tanstack/ai'
 import type { FalModel, FalModelInput } from '../model-meta'
 
+/**
+ * The image-conditioning fields the mappers may set, narrowed to the ones
+ * that actually exist on the given endpoint's input type. For endpoints
+ * unknown to the installed `@fal-ai/client` this widens to all known field
+ * names.
+ */
 export type FalImageInputFields<TModel extends string> = Partial<
   Pick<
     FalModelInput<TModel>,
@@ -13,6 +19,12 @@ export type FalImageInputFields<TModel extends string> = Partial<
   >
 >
 
+/**
+ * Default field per routing role. Endpoint-specific deviations live in the
+ * generated `FAL_IMAGE_FIELD_OVERRIDES` map (regenerate with
+ * `pnpm generate:fal-image-fields`); these defaults must stay in sync with
+ * `DEFAULTS` in scripts/generate-fal-image-field-map.ts.
+ */
 const DEFAULT_FIELDS = {
   single: 'image_url',
   multi: 'image_urls',
@@ -23,6 +35,10 @@ const DEFAULT_FIELDS = {
   end: 'end_image_url',
 } satisfies Required<FalImageFieldOverride>
 
+/**
+ * Field names that accept an array of images. The generator asserts the
+ * SDK types agree with this set, so wrap-vs-scalar decisions stay correct.
+ */
 const LIST_FIELDS = new Set<string>([
   'image_urls',
   'input_image_urls',
@@ -38,6 +54,14 @@ function fieldSpecFor(model: string): Required<FalImageFieldOverride> {
   return { ...DEFAULT_FIELDS, ...overrides }
 }
 
+/**
+ * Assign URLs to a field, wrapping or unwrapping based on whether the field
+ * takes an array. When two roles resolve to the same list field (e.g.
+ * sources and references both land on `image_urls` for nano-banana edit)
+ * the values are merged in assignment order; two roles resolving to the
+ * same scalar field is ambiguous and throws. Throws when multiple images
+ * target a scalar field.
+ */
 function assignField(
   fields: Record<string, unknown>,
   field: string,
@@ -96,6 +120,28 @@ function bucketByRole(
   return buckets
 }
 
+/**
+ * Map the prompt's image parts onto fal.ai image-endpoint fields.
+ *
+ * fal endpoints use different field names for image-conditioned generation
+ * (~80% use `image_url` for single; the rest use `image_urls`,
+ * `reference_image_urls`, `mask_url`, `control_image_url`, etc.). Field
+ * names are resolved per endpoint from the generated
+ * `FAL_IMAGE_FIELD_OVERRIDES` map (derived from the fal SDK's endpoint
+ * types), falling back to the defaults above for endpoints the installed
+ * SDK doesn't know:
+ *
+ * - parts with `metadata.role === 'mask'`      → spec.mask      (single)
+ * - parts with `metadata.role === 'control'`   → spec.control   (single)
+ * - `role === 'reference' | 'character'`       → spec.reference
+ * - `role === 'start_frame' | 'end_frame'`     → treated as sources (frame
+ *   roles only apply to video generation)
+ * - remaining parts                            → spec.single / spec.multi
+ *
+ * Users can always override the resulting field shape via `modelOptions`
+ * (spread before these fields), or pass everything through `modelOptions`
+ * directly when the mapping doesn't match an obscure endpoint.
+ */
 export function mapImageInputsToFalFields<TModel extends FalModel>(
   model: TModel,
   imageInputs?: ReadonlyArray<ImagePart<MediaInputMetadata>>,
@@ -131,6 +177,22 @@ export function mapImageInputsToFalFields<TModel extends FalModel>(
   return fields as FalImageInputFields<TModel>
 }
 
+/**
+ * Map the prompt's image parts onto fal.ai video-endpoint fields.
+ *
+ * Video endpoints often expose a start frame as `image_url` (76% of i2v
+ * models) plus an optional `end_image_url`. Multi-reference video models
+ * (Kling O3, Seedance reference-to-video) use `reference_image_urls` or
+ * `image_urls`. Field names resolve through the same generated override
+ * map as the image mapper — e.g. `role: 'start_frame'` lands on `image_url`
+ * for Kling/Veo image-to-video and `first_frame_url` for Pixverse. Mapping:
+ *
+ * - `metadata.role === 'start_frame'`              → spec.start
+ * - `metadata.role === 'end_frame'`                → spec.end
+ * - `metadata.role === 'reference' | 'character'`  → spec.reference
+ * - `metadata.role === 'mask' | 'control'`         → throws (no video routing)
+ * - remaining parts (no role)                      → spec.single / spec.multi
+ */
 export function mapImageInputsToFalVideoFields<TModel extends FalModel>(
   model: TModel,
   imageInputs?: ReadonlyArray<ImagePart<MediaInputMetadata>>,
@@ -171,6 +233,11 @@ export function mapImageInputsToFalVideoFields<TModel extends FalModel>(
   return fields as FalImageInputFields<TModel>
 }
 
+/**
+ * Convert a TanStack ImagePart into a string suitable for fal's URL-based
+ * input fields. URL sources pass through; data sources are emitted as a
+ * `data:<mime>;base64,<value>` URI which fal endpoints accept on the wire.
+ */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`

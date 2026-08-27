@@ -12,18 +12,57 @@ type DurableStreamCursor = string & {
 export type DurableStreamOffset = DurableStreamCursor | '-1' | 'now'
 
 export interface DurableStreamOptions {
+  /**
+     * Base URL of the Durable Streams server (no trailing slash needed).
+     * Optional when `fetch` is supplied — e.g. a Cloudflare service binding that
+     * ignores the host and dispatches to the bound Worker by path — in which case
+     * an internal placeholder base is used and only the `/streams/...` path
+     * matters.
+     */
   server?: string
   /** Stream-name prefix. Defaults to `runs`. */
   streamPrefix?: string
   /** Fetch implementation. Defaults to the global fetch. */
   fetch?: typeof globalThis.fetch
+  /**
+     * Headers applied to every create, append, read, and close request. A
+     * resolver is called for every request so credentials can rotate.
+     */
   headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>)
+  /**
+     * Bounding for the read reconnect loop. After a response-body read failure
+     * mid-window, `read` retries from the last valid position; these cap
+     * consecutive retries and throttle them so a persistently failing backend
+     * surfaces the error instead of looping without end. Normal window
+     * advancement (long-poll) is never throttled.
+     */
   reconnect?: {
+    /**
+         * Consecutive body-read-failure retries before surfacing the underlying
+         * read error. Default 10.
+         */
     maxReadFailures?: number
     /** Delay between read retries, in ms. Default 250. */
     delayMs?: number
   }
+  /**
+     * Timeout (ms) for a single create / append / close request to the backend.
+     * A stalled backend would otherwise hang chunk delivery or terminalization
+     * indefinitely. Default 30000. Long-poll `read` window advancement is NOT
+     * bounded by this — a caught-up reader may legitimately wait. `snapshot`,
+     * which must always return, IS bounded by it.
+     */
   operationTimeoutMs?: number
+  /**
+     * Producer fencing epoch sent as `Producer-Epoch` on every append.
+     *
+     * A backend that fences producers rejects an append whose epoch is below the
+     * highest it has seen, so a zombie host that lost its claim cannot keep
+     * writing to a run a newer host took over. Callers that track a monotonic
+     * per-run driver epoch (`RunRecord.driverEpoch`) should pass it here; the
+     * default of `0` makes every producer look equally current to the backend,
+     * which leaves fencing entirely to the caller's own run claim.
+     */
   producerEpoch?: number
 }
 
@@ -79,6 +118,13 @@ interface ControlFrame {
 const CURSOR_PREFIX = 'tanstack-ai-ds:v1:'
 const READ_ABORTED = Symbol('read aborted')
 
+/**
+ * Hard ceiling on the SSE windows a single `snapshot` will pull before it gives
+ * up. A snapshot stops at the first control frame that reports the reader caught
+ * up (`upToDate`), so a conforming backend ends it in one or two windows. This
+ * only fires for a backend that keeps handing out advancing windows without ever
+ * reporting `upToDate`, where the alternative is a read that never returns.
+ */
 const SNAPSHOT_MAX_WINDOWS = 1000
 
 class ResponseBodyReadFailure extends Error {
@@ -286,6 +332,13 @@ async function* consumeSseWindow(args: {
   deliveredThroughSeq: number
   previousResponseSeq: number
   stopWhenUpToDate: boolean
+  /**
+     * Raise the append counter past a sequence already present in the log.
+     *
+     * Called for every record any read observes — including records the reader
+     * then dedups away — so both `snapshot` (the alignment path a takeover
+     * already runs) and a plain `read` teach this instance the log's tail.
+     */
   observeSeq: (seq: number) => void
 }): AsyncGenerator<
   { offset: DurableStreamOffset; chunk: StreamChunk },
@@ -608,6 +661,21 @@ function httpFailure(
   )
 }
 
+/**
+ * External-URL Durable Streams protocol adapter.
+ *
+ * `request` must name a run — `X-Run-Id` header (what a `@tanstack/ai-client`
+ * POST sends) or `?runId` (what a GET attach sends), resolved by core's
+ * `resolveResumeRunId`. A request that names neither throws rather than
+ * silently producing into an unaddressable stream.
+ *
+ * Returns a plain `StreamDurability`, not an `UpsertableStreamDurability`.
+ * This adapter's offsets embed a backend-assigned Next-Offset cursor, so a
+ * caller cannot choose them; there is no `upsert` implementation to supply.
+ * Omitting `upsert` is the type-level statement that this adapter does not
+ * support caller-supplied offsets, so a consumer requiring that capability
+ * gets a compile error at the wiring site instead of a runtime failure.
+ */
 export function durableStream(
   request: Request,
   options: DurableStreamOptions,
@@ -723,6 +791,15 @@ export function durableStream(
     return createPromise
   }
 
+  /**
+     * The one window-pulling loop behind both `read` and `snapshot`.
+     *
+     * `stopWhenUpToDate` is the only difference between them. The protocol's
+     * control frame carries `upToDate: true` when the backend has handed the
+     * reader everything the stream currently holds; a live `read` ignores that and
+     * keeps long-polling for more, while a `snapshot` returns there. That makes a
+     * snapshot bounded even on a stream nobody ever closed.
+     */
   const readWindows = async function* (
     offset: DurableStreamOffset,
     signal: AbortSignal | undefined,
@@ -825,6 +902,33 @@ export function durableStream(
     }
   }
 
+  /**
+     * One bounded pass over everything the log currently holds.
+     *
+     * Two things bound it. `readWindows(..., stopWhenUpToDate=true)` returns at
+     * the first control frame reporting the reader caught up, and
+     * `SNAPSHOT_MAX_WINDOWS` catches a backend that keeps handing out advancing
+     * windows without ever saying so. Neither covers a backend that simply never
+     * answers — `upToDate` is an optional protocol field, read windows
+     * deliberately skip `fetchWithTimeout` (a caught-up live reader may wait),
+     * and an empty still-open log has nothing to send. That shape would park the
+     * fetch forever, so the snapshot carries its own `operationTimeoutMs`
+     * deadline. Timing out is a loud failure, never a truncated result: an
+     * aborted `readWindows` ends its iteration quietly, so the flag is rechecked
+     * after the loop and thrown.
+     *
+     * `ensureCreated()` first, exactly as `append` and `read` do. A snapshot of a
+     * stream the backend does not hold yet must answer "nothing has been
+     * delivered", not reject: `sandboxRunDriver`'s `pipe` calls
+     * `awaitLogQuiescence` — two `snapshot()` reads — BEFORE the first append, so
+     * the very first producer of every durable run snapshots a stream no `PUT` has
+     * created. Reading straight through would surface that as
+     * `httpFailure('read', ...)` and fail the run at its first chunk. It also keeps
+     * this adapter's contract identical to core's `memoryStream`, which resolves to
+     * `[]` for an unknown run; two `StreamDurability` implementations must not
+     * disagree about so basic a case. `ensureCreated` is idempotent and memoised,
+     * so this costs nothing once the stream exists.
+     */
   const collectSnapshot = async (): Promise<
     Array<{ offset: DurableStreamOffset; chunk: StreamChunk }>
   > => {
@@ -862,6 +966,24 @@ export function durableStream(
     }
   }
 
+  /**
+     * Learn where the log ends before this instance appends to it for the first
+     * time.
+     *
+     * A takeover host is handed a fresh adapter for a run whose log already holds
+     * `seq 1..N`, and nothing in the protocol reports a record count, so the tail
+     * has to be read. One bounded read per instance, and the alignment `snapshot()`
+     * a takeover already performs satisfies it.
+     *
+     * A brand-new run pays nothing, and must not: the seeding read cannot be on the
+     * producer's critical path. `upToDate` is an optional protocol field and an
+     * empty still-open log has nothing to send, so on a backend that omits it the
+     * read has to run its `operationTimeoutMs` deadline out and then fail — the
+     * producer would wait on a reader that is waiting on the producer, and every
+     * fresh run on such a backend would die of a synthetic error. `createdHere`
+     * settles it without a request: a stream this instance brought into existence
+     * provably holds no records, so `nextSeq` is already correct at 1.
+     */
   const ensureSeqSeeded = (): Promise<void> => {
     if (seqSeeded) return Promise.resolve()
     if (seedPromise) return seedPromise

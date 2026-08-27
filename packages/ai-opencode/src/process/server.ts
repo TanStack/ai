@@ -14,6 +14,11 @@ export interface OpencodeSessionHandle {
   sessionId: string
   /** Whether an existing session was actually resumed. */
   resumed: boolean
+  /**
+     * Run one prompt turn. Resolves with the final assistant message (finish
+     * reason, token usage, error) and its concatenated text once the harness
+     * goes idle. Streaming deltas arrive via `onEvent` while this is pending.
+     */
   prompt: (
     text: string,
   ) => Promise<{ message: OpencodeAssistantMessage; text: string }>
@@ -26,11 +31,24 @@ export interface OpencodeSessionHandle {
 export interface StartOpencodeSessionOptions {
   /** Connect to an already-running server instead of spawning one. */
   baseUrl?: string
+  /**
+     * Headers attached to every request to the opencode server — used to
+     * authenticate a token-gated preview channel (e.g. Daytona). Without them a
+     * gated preview proxy rejects the requests (404 "Not found.").
+     */
   headers?: Record<string, string>
   /** Hostname for the spawned server. Defaults to the SDK default. */
   hostname?: string
   /** Port for the spawned server. Defaults to the SDK default. */
   port?: number
+  /**
+     * Directory the opencode HTTP API scopes the session to. Omit to use the
+     * server's own launch cwd (the common case): the server is spawned with the
+     * correct working dir per-provider, so passing a directory here is only needed
+     * to override it. Passing a VIRTUAL sandbox path (e.g. `/workspace`) is wrong
+     * for host-running providers (local-process), where that path doesn't exist —
+     * the API then stalls on it. Leave undefined and rely on the server cwd.
+     */
   directory?: string
   /** Provider id (the part before `/` in the model id). */
   providerID: string
@@ -80,6 +98,18 @@ function buildConfig(options: StartOpencodeSessionOptions): Config {
   }
 }
 
+/**
+ * Boot (or attach to) an OpenCode HTTP server, resolve a session, and wire its
+ * event subscription + permission replies.
+ *
+ * This module is the only place that touches `@opencode-ai/sdk`; the rest of
+ * the package works with the structural types in `sdk-types.ts`.
+ *
+ * Resume semantics: when `resumeSessionId` is set and the server still knows
+ * the session (same machine, same data dir), it is reused. Otherwise a fresh
+ * session is created and `resumed: false` tells the adapter to send the
+ * flattened transcript.
+ */
 export async function startOpencodeSession(
   options: StartOpencodeSessionOptions,
 ): Promise<OpencodeSessionHandle> {
@@ -98,6 +128,7 @@ export async function startOpencodeSession(
       ...(directory !== undefined && { directory }),
     })
   } else {
+    /** Extra OpenCode config merged with the adapter's mcp/permission config. */
     const config = buildConfig(options)
     const result = await createOpencode({
       ...(options.hostname !== undefined && { hostname: options.hostname }),
@@ -120,6 +151,7 @@ export async function startOpencodeSession(
   try {
     // Resolve the session before subscribing so the event filter has an id.
     let sessionId: string | undefined
+    /** Whether an existing session was actually resumed. */
     let resumed = false
     if (options.resumeSessionId !== undefined) {
       const existing = await client.session.get({

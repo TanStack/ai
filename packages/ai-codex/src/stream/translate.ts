@@ -8,10 +8,12 @@ import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Codex thread (session) id. */
-export const SESSION_ID_EVENT = 'codex.session-id'
+export const /** Name of the CUSTOM event carrying the Codex thread (session) id. */
+SESSION_ID_EVENT = 'codex.session-id'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -27,6 +29,13 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
+/**
+ * Resolve the AG-UI tool-call name for a Codex thread item. Bridged TanStack
+ * tools come back as `mcp_tool_call` items on the `tanstack` server and are
+ * surfaced under the names the application registered; foreign MCP tools are
+ * namespaced `mcp__<server>__<tool>`; harness-native items use their item
+ * type verbatim (`command_execution`, `file_change`, ...).
+ */
 export function toolNameForItem(item: CodexThreadItem): string {
   if (item.type === 'mcp_tool_call') {
     return item.server === BRIDGED_MCP_SERVER_NAME
@@ -144,6 +153,27 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
   return result
 }
 
+/**
+ * Translate a Codex SDK thread-event stream into AG-UI StreamChunk events.
+ *
+ * The harness runs its own agent loop and executes its own tools, so the
+ * translation always ends with `finishReason: 'stop'` (or RUN_ERROR) — never
+ * `'tool_calls'`. Harness tool activity (commands, file changes, MCP calls,
+ * web searches, todo lists) is emitted as already-resolved
+ * TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so UIs can render it
+ * while the TanStack engine never tries to execute them.
+ *
+ * Codex reports assistant text on `item.started` / `item.updated` /
+ * `item.completed`. Each `agent_message` streams as START/CONTENT/END, with
+ * CONTENT deltas from growing `item.text`. When `expectStructuredOutput` is
+ * set, the last agent message is also parsed as the schema object on
+ * `turn.completed`.
+ *
+ * Invariant: every TOOL_CALL_START is eventually paired with a
+ * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
+ * ends or aborts before the harness reported one) so the engine's
+ * pending-tool-call scan on the next request never force-executes them.
+ */
 export async function* translateThreadEvents(
   events: AsyncIterable<CodexThreadEvent>,
   ctx: TranslateContext,
@@ -153,9 +183,11 @@ export async function* translateThreadEvents(
 
   let runStarted = false
   /** Tool calls started but with no result yet. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet. */
+unresolvedToolCalls = new Set<string>()
   /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
-  const openedToolItems = new Set<string>()
+  const /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
+openedToolItems = new Set<string>()
 
   function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return

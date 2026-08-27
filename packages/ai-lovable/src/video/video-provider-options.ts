@@ -1,3 +1,6 @@
+/**
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export type LovableHdVideoSize =
   | '1280x720'
   | '720x1280'

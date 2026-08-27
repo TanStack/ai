@@ -1,3 +1,8 @@
+/**
+ * Minimal promise-based async queue bridging the OpenCode event
+ * subscription's callback-style notifications into the async-iterable world
+ * the stream translator consumes.
+ */
 export class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly values: Array<T> = []
   private readonly waiters: Array<{

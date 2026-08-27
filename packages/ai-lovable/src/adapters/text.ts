@@ -20,6 +20,12 @@ export interface LovableTextConfig extends LovableClientConfig {}
 
 export type { ExternalTextProviderOptions as LovableTextProviderOptions } from '../text/text-provider-options'
 
+/**
+ * Lovable AI Gateway text adapter.
+ *
+ * Talks to the OpenAI-compatible Chat Completions API at
+ * `https://ai.gateway.lovable.dev/v1`.
+ */
 export class LovableTextAdapter<
   TModel extends LovableModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,

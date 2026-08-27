@@ -125,6 +125,12 @@ export interface HookRecord {
   activityRunIds: Array<string>
 }
 
+/**
+ * Cap on the number of recently-seen event IDs we retain for dedupe. Once
+ * exceeded, the oldest entries are evicted FIFO so the structure stays
+ * bounded for the life of the session. Events older than this window may
+ * dedupe-miss; consumers should not rely on perfect global dedupe.
+ */
 export const SEEN_EVENT_IDS_CAP = 10_000
 
 export interface HookRegistryState {

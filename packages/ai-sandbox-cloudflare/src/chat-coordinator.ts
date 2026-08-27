@@ -21,7 +21,20 @@ import type {
   ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 
+/**
+ * The Env bindings a {@link ChatSandboxCoordinator} requires. The bridge origin the
+ * SANDBOX calls back on needs a hostname; `PUBLIC_HOSTNAME` is OPTIONAL — when
+ * unset, the coordinator derives it from the trigger request (locally →
+ * `host.docker.internal`; safe on Cloudflare). See {@link resolveBridgeOrigin}.
+ */
 export interface ChatCoordinatorEnv {
+  /**
+     * Hostname the CONTAINER uses to reach the Worker's tool-bridge (`/_bridge`).
+     * Optional: unset → derived from each trigger request (deployed: the request
+     * host; local dev: `host.docker.internal`). Set it only to override — e.g. a
+     * stable named-tunnel host. See {@link resolveBridgeOrigin}. (Browser-facing
+     * preview URLs use a separate `PREVIEW_HOSTNAME`; see {@link resolvePreviewHost}.)
+     */
   PUBLIC_HOSTNAME?: string
 }
 
@@ -46,10 +59,30 @@ interface BridgeState {
 export abstract class ChatSandboxCoordinator<
   TEnv extends ChatCoordinatorEnv = ChatCoordinatorEnv,
 > extends SandboxCoordinator<TEnv> {
+  /**
+     * Live per-run bridges, keyed by runId. In-memory by design: a bridge is only
+     * reachable while its run is in flight, and `ctx.waitUntil(done)` keeps THIS
+     * instance alive (un-hibernated) for the run's whole lifetime — so the agent's
+     * MCP calls always hit the instance that provisioned the bridge. A request for
+     * a run with no live bridge (finished, or never started here) is a hard 404,
+     * not a silent re-provision.
+     */
   private readonly bridges = new Map<string, BridgeState>()
 
+  /**
+     * Resolve the adapter, sandbox, and chat()-tools for one run. Implemented by
+     * the app subclass (or supplied by {@link createCloudflareSandboxAgent}); this
+     * is the only model-specific input the DO-drives coordinator needs.
+     */
   protected abstract config(input: StartRunInput): ChatRunConfig
 
+  /**
+     * Run `chat()` IN the DO, streaming its `StreamChunk`s. `stream: true` (with no
+     * outputSchema) makes chat() return an `AsyncIterable<StreamChunk>` directly —
+     * no cast needed for the run driver. Both middlewares run `setup` before
+     * streaming begins: our middleware provides the DO-backed bridge provisioner,
+     * and `withSandbox` provides the sandbox handle the harness adapter needs.
+     */
   protected override buildRunStream(
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> {
@@ -79,6 +112,12 @@ export abstract class ChatSandboxCoordinator<
     this.bridges.delete(runId)
   }
 
+  /**
+     * A tiny middleware that PROVIDES our DO-backed {@link ToolBridgeProvisioner}.
+     * The harness adapter reads it via `getOptional` and falls back to the
+     * `node:http` host transport when absent — here we override that so the bridge
+     * is served from this DO's `fetch` handler instead of a TCP listener.
+     */
   private bridgeProvisionerMiddleware(input: StartRunInput) {
     const provisioner = this.makeBridgeProvisioner(input)
     return defineChatMiddleware({
@@ -90,6 +129,12 @@ export abstract class ChatSandboxCoordinator<
     })
   }
 
+  /**
+     * Stand up the per-run bridge: register the tool core + a fresh bearer token
+     * on this DO, and hand back a URL the SANDBOX can reach — the Worker's public
+     * hostname routed to `/_bridge/:runId`. The `threadId` query lets the Worker
+     * route the agent's MCP calls back to THIS coordinator. No raw socket is opened.
+     */
   private makeBridgeProvisioner(input: StartRunInput): ToolBridgeProvisioner {
     const env = this.env
     const bridges = this.bridges

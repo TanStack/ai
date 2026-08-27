@@ -47,10 +47,14 @@ function itemsOf(data: unknown): Array<Record<string, unknown>> {
 }
 
 export function mem0(options: Mem0Options = {}): MemoryAdapter {
+  /** mem0 server URL. Defaults to `MEM0_URL` or `http://localhost:8000`. */
   const baseUrl =
     options.baseUrl ?? process.env.MEM0_URL ?? 'http://localhost:8000'
+  /** Bearer token. Defaults to `MEM0_ADMIN_API_KEY`. */
   const apiKey = options.apiKey ?? process.env.MEM0_ADMIN_API_KEY ?? ''
+  /** Ask mem0 to rerank search results. Defaults to `true`. */
   const rerank = options.rerank ?? true
+  /** Minimum search score. Defaults to `0.1`. */
   const threshold = options.threshold ?? 0.1
 
   function headers(): Record<string, string> {
@@ -63,6 +67,10 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
     return options.user ?? scope.userId ?? 'demo-user'
   }
 
+  /**
+     * mem0 `run_id` — conversation/run isolation. Maps 1:1 to `scope.threadId` so
+     * same-user memories do not leak across threads.
+     */
   function runId(scope: MemoryScope): string {
     return scope.threadId
   }

@@ -20,7 +20,8 @@ import type { DefinedChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
 import type { ModelFamily, SkillMetadata, SkillSource } from './types'
 
 /** CUSTOM stream-event name carrying the catalog to the browser DevTools. */
-export const SKILLS_STATE_EVENT = 'skills:state'
+export const /** CUSTOM stream-event name carrying the catalog to the browser DevTools. */
+SKILLS_STATE_EVENT = 'skills:state'
 
 export interface SkillsStateEventValue {
   catalog: Array<{ name: string; description: string }>
@@ -59,7 +60,8 @@ interface SkillsRuntime {
 const SkillsCapability = createCapability<SkillsRuntime>()('skills')
 
 /** ~4 chars/token — good enough to guard a runaway catalog. */
-const estimateTokens = (s: string) => Math.ceil(s.length / 4)
+const /** ~4 chars/token — good enough to guard a runaway catalog. */
+estimateTokens = (s: string) => Math.ceil(s.length / 4)
 
 function fillTemplate(template: string, catalog: string): string {
   // Escape `{{`/`}}` to sentinels, substitute `{skills}`, then restore braces.
@@ -84,10 +86,14 @@ function findNativeSkillTool(tools: Array<Tool>): string | undefined {
     const meta = tool.metadata as
       | { skills?: Array<unknown>; environment?: { skills?: Array<unknown> } }
       | undefined
-    if (tool.name === 'code_execution' && (meta?.skills?.length ?? 0) > 0) {
+    const isHostedCodeExecution =
+      tool.name === 'code_execution' && (meta?.skills?.length ?? 0) > 0
+    if (isHostedCodeExecution) {
       return 'code_execution'
     }
-    if (tool.name === 'shell' && (meta?.environment?.skills?.length ?? 0) > 0) {
+    const isHostedShell =
+      tool.name === 'shell' && (meta?.environment?.skills?.length ?? 0) > 0
+    if (isHostedShell) {
       return 'shell'
     }
   }
@@ -116,15 +122,17 @@ export function withSkills(
   readonly [],
   readonly [typeof SkillsCapability]
 > {
-  if (options.instructionTemplate && options.renderCatalog) {
+  const hasConflictingCatalogOptions =
+    Boolean(options.instructionTemplate) && Boolean(options.renderCatalog)
+  if (hasConflictingCatalogOptions) {
     throw new Error(
       '`instructionTemplate` and `renderCatalog` are mutually exclusive',
     )
   }
-  if (
-    options.instructionTemplate &&
+  const lacksSkillsPlaceholder =
+    options.instructionTemplate !== undefined &&
     !options.instructionTemplate.includes('{skills}')
-  ) {
+  if (lacksSkillsPlaceholder) {
     throw new Error(
       '`instructionTemplate` must contain a `{skills}` placeholder',
     )
@@ -208,9 +216,8 @@ export function withSkills(
         }
       }
 
-      // onConfig fires every iteration and the engine feeds the merged config
-      // back in — so appending must be idempotent (add our prompt/tools only
-      // when not already present) or a second iteration duplicates them.
+      // onConfig runs every iteration with the merged config fed back in.
+      // Append only when missing, or a later iteration duplicates them.
       const prompt = rt.memo.prompt
       const promptPresent =
         !prompt ||
@@ -236,7 +243,8 @@ export function withSkills(
 
     onChunk(ctx, chunk) {
       const rt = ctx.getOptional(SkillsCapability)
-      if (!rt || rt.stateChunkEmitted) return
+      if (!rt) return
+      if (rt.stateChunkEmitted) return
       rt.stateChunkEmitted = true
       const custom: StreamChunk = {
         type: 'CUSTOM',

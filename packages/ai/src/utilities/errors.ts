@@ -59,6 +59,10 @@ export function errorMessage(err: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * Best-effort extraction of an error's type name (used for the `error.type`
+ * metric attribute), falling back to `'Error'` when no name is available.
+ */
 export function errorTypeName(err: unknown): string {
   if (err instanceof Error) return err.name || 'Error'
   if (err && typeof err === 'object' && 'name' in err) {
@@ -68,6 +72,11 @@ export function errorTypeName(err: unknown): string {
   return 'Error'
 }
 
+/**
+ * Convert an AG-UI RUN_ERROR event to the Error shape exposed to consumers.
+ * Preserves the provider code and sanitized raw event when available, while
+ * accepting the deprecated nested error payload for backward compatibility.
+ */
 export function runErrorEventToError(
   chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
 ): Error {

@@ -31,6 +31,11 @@ function waitForWebSocketOpen(
   })
 }
 
+/**
+ * Wrap a stream controller so its terminal calls are idempotent. A WebSocket can
+ * fire `close` after `error` (or after the reader cancels), and closing/erroring
+ * an already-settled controller throws `ERR_INVALID_STATE` out of the listener.
+ */
 function idempotentController<T>(
   controller: ReadableStreamDefaultController<T>,
 ): {
@@ -56,6 +61,9 @@ function idempotentController<T>(
   }
 }
 
+/**
+ * One JSON-RPC object per WebSocket text frame (e.g. `grok agent serve`).
+ */
 export function webSocketFrameToAcpStream(ws: WebSocket): AcpJsonRpcStream {
   const decoder = new TextDecoder()
 
@@ -146,6 +154,10 @@ export interface AcpWebSocketConnection {
   close: () => void
 }
 
+/**
+ * Open a WebSocket to an in-sandbox ACP server and adapt it for
+ * {@link ClientSideConnection}.
+ */
 function openWebSocket(
   url: string,
   headers?: Record<string, string>,

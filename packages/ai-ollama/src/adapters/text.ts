@@ -33,6 +33,10 @@ export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]
   | (string & {})
 
+/**
+ * Resolve model options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
 type ResolveModelOptions<TModel extends string> =
   TModel extends keyof OllamaChatModelOptionsByName
     ? OllamaChatModelOptionsByName[TModel]
@@ -43,8 +47,14 @@ export interface OllamaTextAdapterOptions {
   host?: string
 }
 
+/**
+ * Default input modalities for Ollama models
+ */
 type OllamaInputModalities = readonly ['text', 'image']
 
+/**
+ * Default message metadata for Ollama
+ */
 type OllamaMessageMetadataByModality = {
   text: unknown
   image: unknown
@@ -53,6 +63,13 @@ type OllamaMessageMetadataByModality = {
   document: unknown
 }
 
+/**
+ * Ollama Text/Chat Adapter
+ * A tree-shakeable chat adapter for Ollama
+ *
+ * Note: Ollama supports any model name as a string since models are loaded dynamically.
+ * The predefined OllamaTextModels are common models but any string is accepted.
+ */
 export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
   ResolveModelOptions<TModel>,
@@ -123,6 +140,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     }
   }
 
+  /**
+     * Generate structured output using Ollama's JSON format option.
+     * Uses format: 'json' with the schema to ensure structured output.
+     * The outputSchema is already JSON Schema (converted in the ai layer).
+     */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -522,6 +544,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   }
 }
 
+/**
+ * Creates an Ollama chat adapter with explicit host and optional config.
+ * Type resolution happens here at the call site.
+ */
 export function createOllamaChat<TModel extends string>(
   model: TModel,
   hostOrConfig?: string | OllamaClientConfig,
@@ -529,6 +555,10 @@ export function createOllamaChat<TModel extends string>(
   return new OllamaTextAdapter(hostOrConfig, model)
 }
 
+/**
+ * Creates an Ollama text adapter with host from environment.
+ * Type resolution happens here at the call site.
+ */
 export function ollamaText<TModel extends string>(
   model: TModel,
 ): OllamaTextAdapter<TModel> {

@@ -542,6 +542,13 @@ interface MemoryPersistenceStores {
   blobs: BlobStore
 }
 
+/**
+ * In-process reference backend for the full state + generation store set.
+ *
+ * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
+ * + blobs. Locks are not included — use `InMemoryLockStore` + `withLocks` from
+ * `@tanstack/ai` when a test or single-process app needs coordination.
+ */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
     messages: new MemoryMessageStore(),

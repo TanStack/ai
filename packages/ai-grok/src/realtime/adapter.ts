@@ -17,6 +17,12 @@ import type { GrokRealtimeOptions } from './types'
 
 const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'
 
+/**
+ * Runtime-checked field readers for untyped server events. Replace the
+ * drive-by `event.X as string` / `event.X as Record<string, unknown>` casts
+ * with readers that return `undefined` when the shape doesn't match, so a
+ * malformed frame can't throw a TypeError inside `handleServerEvent`.
+ */
 function readString(
   obj: Record<string, unknown>,
   key: string,
@@ -113,6 +119,24 @@ function applyGrokTranscription(
   }
 }
 
+/**
+ * Creates a Grok realtime adapter for client-side use.
+ *
+ * Uses WebRTC for browser connections (default). Mirrors the OpenAI realtime
+ * adapter because xAI's Voice Agent API is OpenAI-realtime-compatible — the
+ * only differences are the endpoint URL and default model.
+ *
+ * @example
+ * ```typescript
+ * import { RealtimeClient } from '@tanstack/ai-client'
+ * import { grokRealtime } from '@tanstack/ai-grok'
+ *
+ * const client = new RealtimeClient({
+ *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+ *   adapter: grokRealtime(),
+ * })
+ * ```
+ */
 export function grokRealtime(
   options: GrokRealtimeOptions = {},
 ): RealtimeAdapter {
@@ -145,6 +169,9 @@ export function grokRealtime(
   }
 }
 
+/**
+ * Creates a WebRTC connection to xAI's realtime API.
+ */
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
@@ -328,6 +355,16 @@ async function createWebRTCConnection(
     }
   }
 
+  /**
+     * Tear down every resource we may have allocated so the mic/pc/audio
+     * nodes/audio element don't leak on a failed connect. Safe to call from
+     * any point after `new RTCPeerConnection()`; each branch null-guards and
+     * swallows errors because cascading closes (e.g. `pc.close()` closing the
+     * data channel implicitly) are expected.
+     *
+     * Shared between the SDP-path catch, the post-SDP catch, and (implicitly
+     * via idempotency) the `disconnect()` entry point.
+     */
   async function teardownConnection() {
     isTornDown = true
 

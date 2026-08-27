@@ -4,6 +4,11 @@ const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'
 export const TIMEOUT_ERROR = 'TimeoutError'
 
+/**
+ * Whether this normalized error indicates the QuickJS VM should not be reused
+ * (memory or stack limit exceeded). Timeouts are also terminal but take a
+ * separate release path (see `releaseAfterTimeout` in isolate-context).
+ */
 export function isFatalQuickJSLimitError(error: NormalizedError): boolean {
   return (
     error.name === MEMORY_LIMIT_ERROR || error.name === STACK_OVERFLOW_ERROR
@@ -81,6 +86,9 @@ function normalizeErrorObject(error: object): NormalizedError {
   return { name, message, ...stack }
 }
 
+/**
+ * Normalize various error types into a consistent format
+ */
 export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) return normalizeErrorInstance(error)
   if (typeof error === 'string') return { name: 'Error', message: error }

@@ -9,6 +9,13 @@ import type {
 
 const DEFAULT_GROK_BASE_URL = 'https://api.x.ai/v1'
 
+/**
+ * Configuration for the Grok TTS adapter.
+ *
+ * Unlike chat/image/summarize adapters, TTS does not use the OpenAI SDK
+ * because xAI's `/v1/tts` endpoint is not OpenAI-compatible. This config
+ * is a minimal subset suitable for direct `fetch` calls.
+ */
 export interface GrokSpeechConfig {
   apiKey: string
   baseURL?: string
@@ -16,6 +23,12 @@ export interface GrokSpeechConfig {
   defaultHeaders?: Record<string, string>
 }
 
+/**
+ * Grok Text-to-Speech Adapter.
+ *
+ * Talks to `POST {baseURL}/tts` per
+ * https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
+ */
 export class GrokSpeechAdapter<
   TModel extends GrokTTSModel,
 > extends BaseTTSAdapter<TModel, GrokTTSProviderOptions> {
@@ -23,6 +36,7 @@ export class GrokSpeechAdapter<
 
   private readonly apiKey: string
   private readonly baseURL: string
+  /** Additional headers to merge into every request (e.g., test IDs). */
   private readonly defaultHeaders: Record<string, string>
 
   constructor(config: GrokSpeechConfig, model: TModel) {
@@ -88,6 +102,13 @@ export class GrokSpeechAdapter<
   }
 }
 
+/**
+ * Build the JSON body for `POST /v1/tts`, resolving codec / sample-rate / voice
+ * defaults in one place.
+ *
+ * Returns the request `body`, the resolved `codec`, and the `sampleRateForContentType`
+ * used by the caller to label the response via `getContentType`.
+ */
 export function buildTTSRequestBody(options: {
   text: string
   voice: string | undefined
@@ -134,6 +155,12 @@ export function buildTTSRequestBody(options: {
   return { body, codec, sampleRateForContentType }
 }
 
+/**
+ * Maps the cross-provider `TTSOptions.format` onto Grok's supported codecs.
+ * `opus`, `aac`, and `flac` are not supported by xAI TTS (which only exposes
+ * mp3/wav/pcm/mulaw/alaw) — we fall back to mp3. An explicit
+ * `modelOptions.codec` always wins.
+ */
 function pickCodec(
   codecOverride: GrokTTSCodec | undefined,
   format: TTSOptions['format'] | undefined,
@@ -177,6 +204,19 @@ export function getContentType(
   }
 }
 
+/**
+ * Creates a Grok speech (TTS) adapter with an explicit API key.
+ *
+ * @example
+ * ```typescript
+ * const adapter = createGrokSpeech('grok-tts', 'xai-...')
+ * const result = await generateSpeech({
+ *   adapter,
+ *   text: 'Hello from Grok',
+ *   voice: 'eve',
+ * })
+ * ```
+ */
 export function createGrokSpeech<TModel extends GrokTTSModel>(
   model: TModel,
   apiKey: string,
@@ -185,6 +225,12 @@ export function createGrokSpeech<TModel extends GrokTTSModel>(
   return new GrokSpeechAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates a Grok speech (TTS) adapter, reading the API key from
+ * `XAI_API_KEY` in the environment.
+ *
+ * @throws Error if `XAI_API_KEY` is not set.
+ */
 export function grokSpeech<TModel extends GrokTTSModel>(
   model: TModel,
   config?: Omit<GrokSpeechConfig, 'apiKey'>,

@@ -2,7 +2,8 @@ import { EventType } from './types'
 import type { CustomEvent, StreamChunk } from './types'
 
 /** Well-known CUSTOM event names. */
-export const CUSTOM_EVENT = {
+export const /** Well-known CUSTOM event names. */
+CUSTOM_EVENT = {
   FILE_CHANGED: 'file.changed',
   PROCESS_STDOUT: 'process.stdout',
   PROCESS_STDERR: 'process.stderr',
@@ -83,6 +84,10 @@ export interface CustomEventPayloads {
 export type WellKnownCustomEvent<TName extends WellKnownCustomEventName> =
   CustomEvent & { name: TName; value: CustomEventPayloads[TName] }
 
+/**
+ * Type guard: is `chunk` a CUSTOM event with the given well-known `name`?
+ * Narrows the payload type when true, so consumers read `chunk.value` typed.
+ */
 export function isCustomEvent<TName extends WellKnownCustomEventName>(
   chunk: StreamChunk,
   name: TName,

@@ -20,6 +20,7 @@ export function createBridgeEventChannel(meta: {
   let notify: (() => void) | null = null
   let closed = false
 
+  /** Live CUSTOM-chunk stream; ends after {@link close} once drained. */
   async function* stream(): AsyncIterable<StreamChunk> {
     for (;;) {
       const next = buffer.shift()
@@ -36,6 +37,7 @@ export function createBridgeEventChannel(meta: {
   }
 
   return {
+    /** Pass as the bridge's `emitCustomEvent`; buffers a CUSTOM chunk for the stream. */
     emitCustomEvent(eventName, value) {
       if (closed) return
       buffer.push(
@@ -55,6 +57,7 @@ export function createBridgeEventChannel(meta: {
       )
       notify?.()
     },
+    /** Stop the stream (call when the run's main output is done). */
     close() {
       closed = true
       notify?.()
@@ -63,6 +66,11 @@ export function createBridgeEventChannel(meta: {
   }
 }
 
+/**
+ * Merge a `side` chunk stream into a `base` chunk stream, yielding from whichever
+ * settles first. Terminates when `base` ends (the run is over), then releases the
+ * side iterator — so a never-ending channel (until closed) doesn't hang the merge.
+ */
 export async function* mergeChunkStreams(
   base: AsyncIterable<StreamChunk>,
   side: AsyncIterable<StreamChunk>,

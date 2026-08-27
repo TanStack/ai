@@ -23,6 +23,14 @@ import type {
   ElevenLabsSoundEffectsModel,
 } from '../model-meta'
 
+/**
+ * Structured composition plan for ElevenLabs music generation. Mutually
+ * exclusive with a free-form `prompt` on the `generateAudio()` call — when
+ * supplied, `prompt` is ignored by ElevenLabs.
+ *
+ * We mirror the SDK's camelCase naming. Lengths are in milliseconds.
+ * @see https://elevenlabs.io/docs/api-reference/music/compose
+ */
 export interface ElevenLabsMusicCompositionPlan {
   /** Positive global style descriptors (mood, instruments, tempo, …). */
   positiveGlobalStyles?: Array<string>
@@ -38,11 +46,17 @@ export interface ElevenLabsMusicCompositionPlan {
   }>
 }
 
+/**
+ * Provider options common to all ElevenLabs audio endpoints.
+ */
 interface CommonAudioOptions {
   /** Output audio format. Defaults to `mp3_44100_128`. */
   outputFormat?: ElevenLabsOutputFormat
 }
 
+/**
+ * Provider options for music generation (`music_v1`).
+ */
 export interface ElevenLabsMusicProviderOptions extends CommonAudioOptions {
   /** Structured composition plan. Mutually exclusive with `prompt`/`duration`. */
   compositionPlan?: ElevenLabsMusicCompositionPlan
@@ -54,6 +68,9 @@ export interface ElevenLabsMusicProviderOptions extends CommonAudioOptions {
   respectSectionsDurations?: boolean
 }
 
+/**
+ * Provider options for sound-effect generation (`eleven_text_to_sound_v*`).
+ */
 export interface ElevenLabsSoundEffectsProviderOptions extends CommonAudioOptions {
   /** Prompt influence, 0..1. Default 0.3. Higher = more prompt adherence. */
   promptInfluence?: number
@@ -61,11 +78,29 @@ export interface ElevenLabsSoundEffectsProviderOptions extends CommonAudioOption
   loop?: boolean
 }
 
+/**
+ * Union of per-model provider options. We keep both branches on one type so
+ * the adapter stays tree-shakeable; callers narrow by model at the factory.
+ */
 export type ElevenLabsAudioProviderOptions =
   | (ElevenLabsMusicProviderOptions & ElevenLabsSoundEffectsProviderOptions)
   | ElevenLabsMusicProviderOptions
   | ElevenLabsSoundEffectsProviderOptions
 
+/**
+ * ElevenLabs audio generation adapter. Dispatches to music or SFX endpoints
+ * based on the model id. Music → `client.music.compose`, SFX →
+ * `client.textToSoundEffects.convert`.
+ *
+ * @example
+ * ```ts
+ * const music = elevenlabsAudio('music_v1')
+ * await generateAudio({ adapter: music, prompt: 'lo-fi beat', duration: 15 })
+ *
+ * const sfx = elevenlabsAudio('eleven_text_to_sound_v2')
+ * await generateAudio({ adapter: sfx, prompt: 'glass shattering', duration: 3 })
+ * ```
+ */
 export class ElevenLabsAudioAdapter<
   TModel extends ElevenLabsAudioModel,
 > extends BaseAudioAdapter<TModel, ElevenLabsAudioProviderOptions> {
@@ -111,6 +146,7 @@ export class ElevenLabsAudioAdapter<
     // Gated by isElevenLabsMusicModel() in generateAudio().
     const modelId = this.model as ElevenLabsMusicModel
     const music = (options.modelOptions ?? {}) as ElevenLabsMusicProviderOptions
+    /** Output audio format. Defaults to `mp3_44100_128`. */
     const outputFormat = music.outputFormat
 
     const stream = await this.client.music.compose({
@@ -200,6 +236,9 @@ function toMusicPrompt(plan: ElevenLabsMusicCompositionPlan) {
   }
 }
 
+/**
+ * Create an ElevenLabs audio adapter using `ELEVENLABS_API_KEY` from env.
+ */
 export function elevenlabsAudio<TModel extends ElevenLabsAudioModel>(
   model: TModel,
   config?: ElevenLabsClientConfig,
@@ -207,6 +246,9 @@ export function elevenlabsAudio<TModel extends ElevenLabsAudioModel>(
   return new ElevenLabsAudioAdapter(model, config)
 }
 
+/**
+ * Create an ElevenLabs audio adapter with an explicit API key.
+ */
 export function createElevenLabsAudio<TModel extends ElevenLabsAudioModel>(
   model: TModel,
   apiKey: string,

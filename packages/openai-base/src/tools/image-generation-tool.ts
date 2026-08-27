@@ -20,6 +20,11 @@ const validatePartialImages = (value: number | undefined) => {
   }
 }
 
+/**
+ * Converts a standard Tool to OpenAI ImageGenerationTool format. Spread
+ * `metadata` first, then force `type: 'image_generation'` last so a stray
+ * `metadata.type` cannot shadow the wire discriminator.
+ */
 export function convertImageGenerationToolToAdapterFormat(
   tool: Tool,
 ): ImageGenerationToolConfig {
@@ -33,6 +38,12 @@ export function convertImageGenerationToolToAdapterFormat(
   }
 }
 
+/**
+ * Creates a standard Tool from ImageGenerationTool parameters.
+ *
+ * Base (non-branded) factory. Providers that need branded return types should
+ * re-wrap this in their own package.
+ */
 export function imageGenerationTool(
   toolData: Omit<ImageGenerationToolConfig, 'type'>,
 ): Tool {

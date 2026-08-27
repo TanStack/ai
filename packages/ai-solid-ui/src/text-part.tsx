@@ -16,12 +16,30 @@ export interface TextPartProps {
   assistantClass?: string
   /** Additional remark plugins, appended after the defaults. */
   remarkPlugins?: PluggableList
+  /**
+     * Additional rehype plugins. Inserted before the trailing
+     * `rehypeSanitize` so sanitization always runs last.
+     */
   rehypePlugins?: PluggableList
   /** solid-markdown `components` overrides. */
   components?: SolidMarkdownComponents
+  /**
+     * Drop the built-in plugin defaults entirely. Disables the XSS
+     * sanitizer; the caller becomes responsible for sanitization.
+     */
   disableDefaultPlugins?: boolean
 }
 
+/**
+ * TextPart component - renders markdown text with syntax highlighting.
+ *
+ * @example Add a markdown plugin (e.g. CJK bold/emphasis support)
+ * ```tsx
+ * import remarkCjkFriendly from 'remark-cjk-friendly'
+ *
+ * <TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
+ * ```
+ */
 export function TextPart(props: TextPartProps) {
   const roleClass = () =>
     props.role === 'user'

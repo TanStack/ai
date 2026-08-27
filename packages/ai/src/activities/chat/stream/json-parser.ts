@@ -1,9 +1,21 @@
 import { parse as parsePartialJSONLib } from 'partial-json'
 
+/**
+ * JSON Parser interface - allows for custom parser implementations
+ */
 export interface JSONParser {
+  /**
+     * Parse a JSON string (may be incomplete/partial)
+     * @param jsonString - The JSON string to parse
+     * @returns The parsed object, or undefined if parsing fails
+     */
   parse: (jsonString: string) => any
 }
 
+/**
+ * Partial JSON Parser implementation using the partial-json library
+ * This parser can handle incomplete JSON strings during streaming
+ */
 export class PartialJSONParser implements JSONParser {
   parse(jsonString: string): any {
     const isBlank = !jsonString || jsonString.trim() === ''
@@ -21,8 +33,16 @@ export class PartialJSONParser implements JSONParser {
   }
 }
 
+/**
+ * Default parser instance
+ */
 export const defaultJSONParser = new PartialJSONParser()
 
+/**
+ * Parse partial JSON string (convenience function)
+ * @param jsonString - The JSON string to parse (may be incomplete)
+ * @returns The parsed object, or undefined if parsing fails
+ */
 export function parsePartialJSON(jsonString: string): any {
   return defaultJSONParser.parse(jsonString)
 }

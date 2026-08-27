@@ -17,6 +17,44 @@ import type { ToolBinding } from '@tanstack/ai-code-mode'
 
 export type { CodeModeWithSnippetsOptions, CodeModeWithSnippetsResult }
 
+/**
+ * Create Code Mode tools and system prompt with snippets integration.
+ *
+ * This function:
+ * 1. Loads the snippet index from storage
+ * 2. Uses a cheap/fast LLM to select relevant snippets based on conversation context
+ * 3. Creates the execute_typescript tool with dynamic snippet bindings
+ * 4. Creates snippet management tools (search, get, register)
+ * 5. Generates system prompts documenting available snippets
+ * 6. Returns a ToolRegistry that allows dynamic snippet additions mid-stream
+ *
+ * @example
+ * ```typescript
+ * // Node-only file storage lives behind the `/storage` subpath:
+ * import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+ *
+ * const { toolsRegistry, systemPrompt, selectedSnippets } = await codeModeWithSnippets({
+ *   config: {
+ *     driver: createNodeIsolateDriver(),
+ *     tools: allTools,
+ *     timeout: 60000,
+ *   },
+ *   adapter: openaiText('gpt-4o-mini'),  // Cheap model for selection
+ *   snippets: {
+ *     storage: createFileSnippetStorage('./.snippets'),
+ *     maxSnippetsInContext: 5,
+ *   },
+ *   messages,
+ * });
+ *
+ * const stream = chat({
+ *   adapter: openaiText('gpt-4o'),  // Main model
+ *   toolRegistry: toolsRegistry,  // Dynamic tool registry
+ *   messages,
+ *   systemPrompts: [BASE_PROMPT, systemPrompt],
+ * });
+ * ```
+ */
 export async function codeModeWithSnippets({
   config,
   adapter,
@@ -139,6 +177,13 @@ export async function codeModeWithSnippets({
   }
 }
 
+/**
+ * Create a Code Mode tool configuration extended with snippets.
+ * This is an alternative to codeModeWithSnippets that returns
+ * a config object instead of directly creating tools.
+ *
+ * Useful when you want more control over the tool creation process.
+ */
 export function createCodeModeWithSnippetsConfig({
   config,
   selectedSnippets,

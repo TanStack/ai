@@ -9,13 +9,16 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the OpenCode session id. */
-export const SESSION_ID_EVENT = 'opencode.session-id'
+export const /** Name of the CUSTOM event carrying the OpenCode session id. */
+SESSION_ID_EVENT = 'opencode.session-id'
 
 /** Name of the CUSTOM event carrying the harness's todo list updates. */
-export const TODO_EVENT = 'opencode.todo'
+export const /** Name of the CUSTOM event carrying the harness's todo list updates. */
+TODO_EVENT = 'opencode.todo'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -23,11 +26,22 @@ export interface TranslateContext {
   threadId: string
   parentRunId?: string
   genId: () => string
+  /**
+     * Names of bridged TanStack tools, used to surface the harness's MCP tool
+     * calls under the names the application registered.
+     */
   bridgedToolNames?: ReadonlySet<string>
   /** Called for each raw stream event, for logging. */
   onStreamEvent?: (event: OpencodeStreamEvent) => void
 }
 
+/**
+ * Resolve the AG-UI tool-call name for an OpenCode tool part. OpenCode names
+ * MCP tools `<server>_<tool>`, so bridged TanStack tools arrive as
+ * `tanstack_<tool>` and are surfaced under the names the application
+ * registered; everything else (built-in `read`, `edit`, `bash`, ... and
+ * foreign MCP tools) uses the harness tool name verbatim.
+ */
 export function resolveToolName(
   tool: string,
   bridgedToolNames: ReadonlySet<string> | undefined,
@@ -81,6 +95,26 @@ function messageError(
   return { message: message.error.data?.message ?? message.error.name }
 }
 
+/**
+ * Translate an OpenCode event stream into AG-UI StreamChunk events.
+ *
+ * The harness runs its own agent loop and executes its own tools, so the
+ * translation always ends with `finishReason: 'stop'` (or `'length'` /
+ * RUN_ERROR) — never `'tool_calls'`. Harness tool activity is emitted as
+ * already-resolved TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so
+ * UIs can render it, while the TanStack engine never tries to execute them.
+ *
+ * OpenCode delivers true token-level deltas for both assistant text and
+ * reasoning via `message.part.updated` events (a `delta` string when
+ * incremental, otherwise the full part text, from which the delta is
+ * derived). The final assistant message — finish reason, token usage, and any
+ * fatal error — arrives as the terminal `done` event.
+ *
+ * Invariant: every TOOL_CALL_START is eventually paired with a
+ * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
+ * ends or aborts before the harness reported one) so the engine's
+ * pending-tool-call scan on the next request never force-executes them.
+ */
 export async function* translateOpencodeStream(
   events: AsyncIterable<OpencodeStreamEvent>,
   ctx: TranslateContext,
@@ -90,14 +124,18 @@ export async function* translateOpencodeStream(
 
   let runStarted = false
   /** Tool calls started but with no result yet, keyed by callID. */
-  const unresolvedToolCalls = new Set<string>()
+  const /** Tool calls started but with no result yet, keyed by callID. */
+unresolvedToolCalls = new Set<string>()
   /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
-  const openedToolCalls = new Set<string>()
+  const /** Tool call ids that already emitted TOOL_CALL_START/ARGS/END. */
+openedToolCalls = new Set<string>()
   /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
-  const resolvedToolCalls = new Set<string>()
+  const /** Tool call ids that already emitted a TOOL_CALL_RESULT. */
+resolvedToolCalls = new Set<string>()
 
   /** Accumulated text per text-part id, for delta derivation. */
-  const textAccumulators = new Map<string, string>()
+  const /** Accumulated text per text-part id, for delta derivation. */
+textAccumulators = new Map<string, string>()
   let openTextId: string | null = null
   let openReasoningId: string | null = null
 

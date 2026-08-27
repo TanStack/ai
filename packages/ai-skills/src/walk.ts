@@ -78,7 +78,9 @@ async function walk(
   }
   for (const entry of entries) {
     if (entry.type !== 'dir') continue
-    if (entry.name.startsWith('.') || SKIP_DIR_NAMES.has(entry.name)) continue
+    const shouldSkipDir =
+      entry.name.startsWith('.') || SKIP_DIR_NAMES.has(entry.name)
+    if (shouldSkipDir) continue
     await walk(list, entry.path, found, depth + 1, maxDepth)
   }
 }

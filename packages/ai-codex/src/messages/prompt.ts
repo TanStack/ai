@@ -18,6 +18,15 @@ function extractText(content: ModelMessage['content']): string {
     .join('')
 }
 
+/**
+ * Convert TanStack chat history into the Codex SDK's prompt + resume inputs.
+ *
+ * With a `sessionId`, the harness already holds the conversation context, so
+ * only the trailing user message is sent and the thread is resumed. Without
+ * one, prior turns are flattened into a plain-text transcript preamble (tool
+ * messages and tool-call-only assistant turns are harness-internal noise and
+ * are skipped; prompts are text-only in v1).
+ */
 export function buildPrompt(
   messages: Array<ModelMessage>,
   sessionId: string | undefined,

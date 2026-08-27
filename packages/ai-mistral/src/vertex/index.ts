@@ -20,6 +20,12 @@ export {
   type MistralVertexChatModel,
 } from '../model-meta'
 
+/**
+ * Creates a Mistral chat adapter that talks to Mistral on Vertex AI.
+ *
+ * Install `google-auth-library` next to `@tanstack/ai-mistral` for
+ * Application Default Credentials. Or pass `authClient` or `getAccessToken`.
+ */
 export function mistralVertexText<TModel extends MistralVertexChatModel>(
   model: TModel,
   config: MistralVertexConfig = {},

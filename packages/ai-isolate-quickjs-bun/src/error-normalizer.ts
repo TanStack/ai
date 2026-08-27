@@ -4,12 +4,21 @@ const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'
 const TIMEOUT_ERROR = 'TimeoutError'
 
+/**
+ * Whether this normalized error indicates the QuickJS VM should not be reused
+ * (memory or stack limit exceeded).
+ */
 export function isFatalQuickJSLimitError(error: NormalizedError): boolean {
   return (
     error.name === MEMORY_LIMIT_ERROR || error.name === STACK_OVERFLOW_ERROR
   )
 }
 
+/**
+ * Normalized error for code that exhausted the QuickJS heap so thoroughly
+ * that QuickJS could not even allocate an Error object — it throws a bare
+ * `null` exception value in that situation.
+ */
 export function memoryLimitError(stack?: string): NormalizedError {
   return {
     name: MEMORY_LIMIT_ERROR,
@@ -18,6 +27,9 @@ export function memoryLimitError(stack?: string): NormalizedError {
   }
 }
 
+/**
+ * Normalize various error types into a consistent format
+ */
 export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) {
     const msg = error.message

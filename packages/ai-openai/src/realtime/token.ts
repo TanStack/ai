@@ -9,12 +9,26 @@ import type {
 const OPENAI_REALTIME_CLIENT_SECRETS_URL =
   'https://api.openai.com/v1/realtime/client_secrets'
 
+/**
+ * Builds the GA `/v1/realtime/client_secrets` request body.
+ *
+ * The session config (including its required `type`) is nested under the
+ * `session` key. The model is bound to the resulting ephemeral key, so the
+ * client never sends it during the WebRTC SDP exchange.
+ */
 export function buildClientSecretRequest(
   model: OpenAIRealtimeModel,
 ): Record<string, unknown> {
   return { session: { type: 'realtime', model } }
 }
 
+/**
+ * Parses the GA client secret response into a {@link RealtimeToken}.
+ *
+ * GA returns the ephemeral key at the top level (`value` / `expires_at`),
+ * not nested under `client_secret` like the retired Beta
+ * `/v1/realtime/sessions` response did.
+ */
 export function parseClientSecretResponse(
   data: Partial<OpenAIRealtimeClientSecretResponse> | undefined,
   fallbackModel: OpenAIRealtimeModel,
@@ -42,6 +56,26 @@ export function parseClientSecretResponse(
   )
 }
 
+/**
+ * Creates an OpenAI realtime token adapter.
+ *
+ * This adapter generates ephemeral keys for client-side WebRTC connections
+ * via the GA `/v1/realtime/client_secrets` endpoint. The key is valid for
+ * 10 minutes by default.
+ *
+ * @param options - Configuration options for the realtime session
+ * @returns A RealtimeTokenAdapter for use with realtimeToken()
+ *
+ * @example
+ * ```typescript
+ * import { realtimeToken } from '@tanstack/ai'
+ * import { openaiRealtimeToken } from '@tanstack/ai-openai'
+ *
+ * const token = await realtimeToken({
+ *   adapter: openaiRealtimeToken({ model: 'gpt-realtime' }),
+ * })
+ * ```
+ */
 export function openaiRealtimeToken(
   options: OpenAIRealtimeTokenOptions = {},
 ): RealtimeTokenAdapter {

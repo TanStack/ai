@@ -1,5 +1,16 @@
 import { approvalId } from '@tanstack/ai-sandbox'
 
+/**
+ * Permission modes for the OpenCode adapter, mirroring the Claude Code and
+ * Gemini CLI adapters' semantics:
+ *
+ * - `'default'`: bridged TanStack tools run; anything else that asks for
+ *   permission is rejected with no prompt (a headless server must never hang
+ *   on an interactive question).
+ * - `'acceptEdits'`: additionally auto-approves file-mutation requests
+ *   (edit / write / patch).
+ * - `'bypassPermissions'`: approves everything.
+ */
 export type OpencodePermissionMode =
   | 'default'
   | 'acceptEdits'
@@ -25,8 +36,15 @@ export type PermissionHandler = (
 ) => Promise<OpencodePermissionResponse> | OpencodePermissionResponse
 
 /** Permission categories treated as file mutations for `'acceptEdits'`. */
-const EDIT_TYPES = new Set(['edit', 'write', 'patch'])
+const /** Permission categories treated as file mutations for `'acceptEdits'`. */
+EDIT_TYPES = new Set(['edit', 'write', 'patch'])
 
+/**
+ * Decide whether an OpenCode permission request targets one of the bridged
+ * TanStack tools. OpenCode names MCP tools `<server>_<tool>` (e.g.
+ * `tanstack_lookup_user`), so a request is bridged when its type or title is
+ * a registered tool name, or carries the `tanstack` server prefix.
+ */
 export function matchBridgedToolName(
   request: OpencodePermissionRequest,
   bridgedToolNames: ReadonlySet<string> | undefined,
@@ -51,6 +69,11 @@ export function matchBridgedToolName(
   return false
 }
 
+/**
+ * The adapter's default permission policy. Always answers immediately — never
+ * hangs a headless server on a question only an interactive user could
+ * answer.
+ */
 export function resolvePermission(
   request: OpencodePermissionRequest,
   mode: OpencodePermissionMode,
@@ -69,6 +92,12 @@ export function resolvePermission(
   return 'reject'
 }
 
+/**
+ * Interactive variant: when the mode/bridge policy would reject, consult the
+ * client's approval decisions. Returns the OpenCode response plus, when the
+ * action still needs a client decision, the `approvalId`/`title` the adapter
+ * should surface via an `approval-requested` event.
+ */
 export function resolveInteractivePermission(
   request: OpencodePermissionRequest,
   mode: OpencodePermissionMode,

@@ -63,6 +63,9 @@ interface ModelMeta<TProviderOptions = unknown> {
       normal: number
     }
   }
+  /**
+     * Type-level description of which provider options this model supports.
+     */
   providerOptions?: TProviderOptions
 }
 
@@ -474,6 +477,10 @@ const GPT5_CODEX = {
     OpenAIMetadataOptions
 >
 
+/**
+ * Sora-2 video generation model.
+ * @experimental Video generation is an experimental feature and may change.
+ */
 const SORA2 = {
   name: 'sora-2',
   pricing: {
@@ -495,6 +502,10 @@ const SORA2 = {
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
+/**
+ * Sora-2-Pro video generation model (higher quality).
+ * @experimental Video generation is an experimental feature and may change.
+ */
 const SORA2_PRO = {
   name: 'sora-2-pro',
   pricing: {
@@ -2238,6 +2249,16 @@ export const OPENAI_CHAT_MODELS = [
 
 export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 
+/**
+ * Whether a model rejects the `temperature` / `top_p` sampling knobs.
+ *
+ * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
+ * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
+ * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
+ * still accept them, so those are excluded. Matching by name (rather than a
+ * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
+ * See the note in `text/text-provider-options.ts`.
+ */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
   if (/^o\d/.test(model)) return true
   const isGpt5SamplingBlocked =
@@ -2265,6 +2286,9 @@ export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
 export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
 
+/**
+ * Text-to-speech models (based on endpoints: "speech_generation")
+ */
 export const OPENAI_TTS_MODELS = [
   'tts-1',
   'tts-1-hd',
@@ -2273,6 +2297,9 @@ export const OPENAI_TTS_MODELS = [
 
 export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
+/**
+ * Transcription models (based on endpoints: "transcription")
+ */
 export const OPENAI_TRANSCRIPTION_MODELS = [
   'whisper-1',
   'gpt-4o-transcribe',
@@ -2283,6 +2310,9 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
 export type OpenAITranscriptionModel =
   (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
+/**
+ * Embedding models (based on endpoints: "embeddings")
+ */
 export const OPENAI_EMBEDDING_MODELS = [
   'text-embedding-3-small',
   'text-embedding-3-large',
@@ -2290,16 +2320,30 @@ export const OPENAI_EMBEDDING_MODELS = [
 
 export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
 
+/**
+ * Type-only map from embedding model name to its provider options type.
+ */
 export type OpenAIEmbeddingModelProviderOptionsByName = {
   'text-embedding-3-small': OpenAIEmbeddingProviderOptions
   'text-embedding-3-large': OpenAIEmbeddingProviderOptions
 }
 
+/**
+ * Per-model input modalities for embedding models. OpenAI embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
 export type OpenAIEmbeddingModelInputModalitiesByName = {
   'text-embedding-3-small': readonly ['text']
   'text-embedding-3-large': readonly ['text']
 }
 
+/**
+ * Type-only map from chat model name to its provider options type.
+ * Used by the core AI types (via the adapter) to narrow
+ * `providerOptions` based on the selected model.
+ *
+ * Manually defined to ensure accurate type narrowing per model.
+ */
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
@@ -2556,6 +2600,11 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIMetadataOptions
 }
 
+/**
+ * Type-only map from chat model name to its supported provider tools.
+ * Keyed on each model's `.name` field. Value is the `typeof supports.tools`
+ * tuple from each model constant.
+ */
 export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.tools
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.tools
@@ -2607,6 +2656,14 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
 }
 
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * Based on the 'supports.input' arrays defined for each model.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ */
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input

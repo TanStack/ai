@@ -5,6 +5,11 @@ import {
 } from '@tanstack/ai-utils'
 import type { ElevenLabsOutputFormat } from '../model-meta'
 
+/**
+ * Configuration for any ElevenLabs adapter. When `apiKey` is omitted we read
+ * `ELEVENLABS_API_KEY` from `process.env` / `window.env` to match the
+ * pattern the realtime adapters already use.
+ */
 export interface ElevenLabsClientConfig {
   apiKey?: string
   /** Override the API base URL — handy for tests + self-hosted proxies. */
@@ -52,6 +57,11 @@ export function getElevenLabsAgentIdFromEnv(): string {
   return id
 }
 
+/**
+ * Build an `ElevenLabsClient` with env-based or explicit credentials.
+ * Each adapter calls this once at construction time so unit tests can
+ * pass in an explicit key without needing `process.env`.
+ */
 export function createElevenLabsClient(
   config?: ElevenLabsClientConfig,
 ): ElevenLabsClient {
@@ -71,6 +81,13 @@ export function createElevenLabsClient(
 // while the implementation stays deduped across provider packages.
 export const generateId = sharedGenerateId
 
+/**
+ * Convert an ArrayBuffer to base64 in a cross-runtime way.
+ *
+ * The naive `btoa(String.fromCharCode(...bytes))` form blows up V8's argument
+ * limit (~65k) on realistic audio payloads, so we either use `Buffer`
+ * (Node / Bun) or walk the byte array in a single loop (browser).
+ */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
     return Buffer.from(buffer).toString('base64')
@@ -83,6 +100,12 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
+/**
+ * Drain a `ReadableStream<Uint8Array>` (what the ElevenLabs SDK returns for
+ * audio endpoints) into a single `Uint8Array`, then expose it as an
+ * `ArrayBuffer` slice. We concatenate ourselves rather than going through
+ * `new Response(stream).arrayBuffer()` so we stay runtime-agnostic.
+ */
 export async function readStreamToArrayBuffer(
   stream: ReadableStream<Uint8Array>,
 ): Promise<ArrayBuffer> {
@@ -111,6 +134,12 @@ export async function readStreamToArrayBuffer(
   )
 }
 
+/**
+ * Decode a `data:` URL into a Blob for upload to the ElevenLabs STT API
+ * (which only accepts multipart files or https URLs). Supports base64 and
+ * URL-encoded payloads. Returns `undefined` for non-data-URL strings so the
+ * caller can fall through to treating the input as an https URL.
+ */
 export function dataUrlToBlob(value: string): Blob | undefined {
   if (!value.startsWith('data:')) return undefined
   const commaIndex = value.indexOf(',')
@@ -133,6 +162,15 @@ export function dataUrlToBlob(value: string): Blob | undefined {
   return new Blob([decodeURIComponent(payload)], { type: mimeType })
 }
 
+/**
+ * Break an ElevenLabs `output_format` string (`mp3_44100_128`,
+ * `pcm_24000`, `opus_48000_64`, `ulaw_8000`, ...) into a file extension and
+ * content-type suitable for `TTSResult` / `AudioGenerationResult` consumers.
+ *
+ * Unknown codecs fall back to `mp3` / `audio/mpeg` because the ElevenLabs
+ * default is `mp3_44100_128` — mispredicting on an exotic format is safer
+ * than throwing in the adapter.
+ */
 export function parseOutputFormat(fmt: ElevenLabsOutputFormat | undefined): {
   format: string
   contentType: string

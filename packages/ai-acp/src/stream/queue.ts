@@ -1,3 +1,7 @@
+/**
+ * Minimal promise-based async queue bridging callback-style ACP notifications
+ * into the async-iterable world the stream translator consumes.
+ */
 export class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly values: Array<T> = []
   private readonly waiters: Array<{

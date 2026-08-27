@@ -7,6 +7,11 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/**
+ * Persisted artifact refs a middleware may have attached to the result. Read
+ * defensively: the result shape is activity-specific and `artifacts` is only
+ * present when generation persistence is wired with an artifact + blob store.
+ */
 function artifactsFromResult(result: unknown): Array<unknown> | undefined {
   if (typeof result !== 'object' || result === null) return undefined
   const artifacts = (result as { artifacts?: unknown }).artifacts
@@ -15,6 +20,16 @@ function artifactsFromResult(result: unknown): Array<unknown> | undefined {
     : undefined
 }
 
+/**
+ * Wrap a one-shot generation result as a StreamChunk async iterable.
+ *
+ * This allows non-streaming activities (image, speech, transcription, summarize)
+ * to be sent over the same streaming transport as chat.
+ *
+ * @param generator - An async function that performs the generation and returns the result
+ * @param options - Optional configuration (runId, threadId)
+ * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
+ */
 export async function* streamGenerationResult<TResult>(
   generator: (resolved: {
     runId: string

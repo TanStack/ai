@@ -51,6 +51,12 @@ function invalidSandboxId(id: string): Error {
   )
 }
 
+/**
+ * One source of truth for ids used as `sbx --name` and as the owned dest
+ * folder under `tmpdir()/tanstack-sbx/`. Rejects empty, `.`, `..`, path
+ * separators, and any value that would resolve outside that directory.
+ * Does not rewrite a bad id into a safe name.
+ */
 export function sandboxNameFromId(id: string): string {
   const isInvalidSandboxName =
     typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..'

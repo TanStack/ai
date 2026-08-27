@@ -1,5 +1,13 @@
 import type { Tool } from '../../../types'
 
+/**
+ * Thrown when `chat({ tools })` (or a provider converter) receives two tools
+ * with the same public `name`.
+ *
+ * The common case is a provider-native factory (`webSearchTool()`) next to an
+ * ordinary function that reused the reserved name (`web_search`). Providers
+ * reject that pair, so we fail before the request is built.
+ */
 export class DuplicateToolNameError extends Error {
   readonly toolName: string
 
@@ -32,6 +40,12 @@ function duplicateNameMessage(toolName: string) {
   ].join(' ')
 }
 
+/**
+ * Throws {@link DuplicateToolNameError} when two tools share a public name.
+ *
+ * The native-vs-custom message fires when one of the colliding tools carries
+ * adapter `metadata.__kind` (set by a provider factory) and another does not.
+ */
 export function assertUniqueToolNames(tools: ReadonlyArray<Tool>): void {
   const byName = new Map<string, Array<Tool>>()
   for (const tool of tools) {

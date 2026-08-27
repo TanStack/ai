@@ -1,5 +1,17 @@
 import type { TokenUsage } from '../../types'
 
+/**
+ * The activity an observability event describes.
+ *
+ * Mirrors the public surface a caller reaches for: `'chat'` for `chat()`,
+ * `'summarize'` for `summarize()`, and the media kinds for the `generate*`
+ * activities. `'tts'` matches the speech adapter's kind (the public
+ * discriminator avoids inventing a parallel `'speech'`/`'text'` vocabulary).
+ * `otelMiddleware` maps each to its `gen_ai.operation.name`.
+ *
+ * `'summarize'` produces text, not media, so it has no artifacts — a
+ * persistence middleware stores its run record and result and nothing else.
+ */
 export type GenerationActivity =
   | 'chat'
   | 'image'
@@ -11,7 +23,20 @@ export type GenerationActivity =
   | 'rerank'
   | 'summarize'
 
+/**
+ * Stable context passed to every {@link GenerationMiddleware} hook. Created
+ * once per activity call and shared across the hooks of that call.
+ *
+ * Carries only fields every activity can honor. `ChatMiddlewareContext`
+ * structurally includes all of these plus chat-only state (messages,
+ * iteration, capabilities, …), which is why a chat middleware that reads those
+ * extra fields is not assignable to `GenerationMiddleware`.
+ */
 export interface GenerationMiddlewareContext<TContext = unknown> {
+  /**
+     * Stable id correlating the `onStart` / `onFinish` / `onError` / `onAbort`
+     * hooks of a single activity call.
+     */
   requestId: string
   /** Which activity this call is. Discriminates media from chat. */
   activity: GenerationActivity
@@ -23,6 +48,11 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   threadId?: string
   /** Stable run id, when supplied by the caller. */
   runId?: string
+  /**
+     * Provider-specific options passed to the activity, if any. Typed `unknown`
+     * because each activity's options are strongly typed per model; a supertype
+     * of `ChatMiddlewareContext`'s `modelOptions`.
+     */
   modelOptions?: unknown
   /** Where the call originates. Always `'server'` for media activities. */
   source: 'client' | 'server'
@@ -30,7 +60,25 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   createId: (prefix: string) => string
   /** Runtime context provided by the activity options, if any. */
   context: TContext
+  /**
+     * Result transforms registered by middleware during this activity call.
+     * Transforms run after the raw adapter result exists and before the final
+     * result is returned or streamed. Push multiple transforms to run them in
+     * registration order.
+     *
+     * REQUIRED (always an array, empty when nothing registered): middleware
+     * registers by pushing onto it, so an optional array would let a host that
+     * builds its own context omit it and silently no-op every registration —
+     * generation persistence would then mark a run completed with neither its
+     * result nor its artifacts written, with nothing to observe but the missing
+     * data. Every context the library builds comes from
+     * `createGenerationContext`, which always sets `[]`.
+     */
   resultTransforms: Array<GenerationResultTransform<any, TContext>>
+  /**
+     * Activity inputs captured for middleware that needs to transform or persist
+     * the result together with reconstructable request metadata.
+     */
   artifactInputs?: unknown
 }
 
@@ -40,11 +88,21 @@ export interface GenerationResultTransformContext<TContext = unknown> {
   middleware: GenerationMiddlewareContext<TContext>
 }
 
+/**
+ * A transform middleware registers on `ctx.resultTransforms` to rewrite the raw
+ * adapter result before it is returned or streamed. Return a new result to
+ * replace it, or `undefined` to leave it unchanged.
+ */
 export type GenerationResultTransform<TResult = unknown, TContext = unknown> = (
   result: TResult,
   ctx: GenerationResultTransformContext<TContext>,
 ) => TResult | undefined | Promise<TResult | undefined>
 
+/**
+ * Token usage passed to {@link GenerationMiddleware.onUsage}. Kept as an
+ * interface extending `TokenUsage` to preserve declaration merging for this
+ * publicly exported type.
+ */
 export interface GenerationUsageInfo extends TokenUsage {}
 
 /** Information passed to {@link GenerationMiddleware.onFinish}. */
@@ -71,6 +129,35 @@ export interface GenerationErrorInfo {
   duration: number
 }
 
+/**
+ * Activity-agnostic, observe-only middleware.
+ *
+ * A thin lifecycle observer registerable on any activity via its `middleware`
+ * option. Unlike `ChatMiddleware` (which can also rewrite config, chunks, and
+ * tool calls), these hooks only observe — the right fit for the single
+ * request → response shape of media activities. Pass `otelMiddleware()` for
+ * OpenTelemetry, or implement the hooks directly for a custom backend.
+ *
+ * Hooks are awaited in registration order. A hook that throws PROPAGATES and
+ * fails the activity — matching `chat()` middleware semantics. Keep them cheap;
+ * they run inline with the request.
+ *
+ * Exactly one of `onFinish` / `onAbort` / `onError` fires per call.
+ *
+ * @example
+ * ```ts
+ * import { generateImage } from '@tanstack/ai'
+ * import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+ * import { openaiImage } from '@tanstack/ai-openai'
+ * import { trace } from '@opentelemetry/api'
+ *
+ * await generateImage({
+ *   adapter: openaiImage('gpt-image-1'),
+ *   prompt: 'A serene mountain landscape at sunset',
+ *   middleware: [otelMiddleware({ tracer: trace.getTracer('my-app') })],
+ * })
+ * ```
+ */
 export interface GenerationMiddleware<TContext = unknown> {
   /** Optional name, surfaced in diagnostics. */
   name?: string

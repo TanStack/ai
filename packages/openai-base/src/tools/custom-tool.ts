@@ -10,6 +10,9 @@ export type { CustomToolConfig }
 /** @deprecated Renamed to `CustomToolConfig`. Will be removed in a future release. */
 export type CustomTool = CustomToolConfig
 
+/**
+ * Converts a standard Tool to OpenAI CustomTool format
+ */
 export function convertCustomToolToAdapterFormat(tool: Tool): CustomToolConfig {
   const metadata = getOpenAIProviderToolMetadata(tool) as CustomToolConfig
   return {
@@ -22,6 +25,9 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomToolConfig {
   }
 }
 
+/**
+ * Creates a standard Tool from CustomTool parameters.
+ */
 export function customTool(toolData: CustomToolConfig): Tool {
   return openAIProviderTool(
     {

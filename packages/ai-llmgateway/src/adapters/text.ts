@@ -19,10 +19,27 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<LLMGatewayChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * Configuration for LLM Gateway text adapter
+ */
 export interface LLMGatewayTextConfig extends LLMGatewayClientConfig {}
 
 export type { ExternalTextProviderOptions as LLMGatewayTextProviderOptions } from '../text/text-provider-options'
 
+/**
+ * LLM Gateway Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for LLM Gateway chat/text completion. LLM Gateway
+ * exposes one OpenAI-compatible Chat Completions endpoint that routes to
+ * hundreds of models across many providers, so the adapter drives it with
+ * the OpenAI SDK via a `baseURL` override (the same pattern as `ai-grok`
+ * and `ai-groq`).
+ *
+ * Model ids are open-ended: curated ids get per-model type metadata, and
+ * any other id from https://llmgateway.io/models works with text-only
+ * defaults. A `provider/model` id (e.g. `openai/gpt-5.5`) pins routing to
+ * that provider; a bare id lets the gateway pick.
+ */
 export class LLMGatewayTextAdapter<
   TModel extends LLMGatewayModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
@@ -44,6 +61,13 @@ export class LLMGatewayTextAdapter<
     super(model, 'llmgateway', new OpenAI(withLLMGatewayDefaults(config)))
   }
 
+  /**
+     * Surfaces reasoning deltas during streaming. LLM Gateway normalizes
+     * upstream reasoning output to `delta.reasoning_content` on the OpenAI
+     * Chat Completions wire format (the DeepSeek-style field most
+     * OpenAI-compatible providers emit); some routed providers emit
+     * `delta.reasoning` instead, so both are read.
+     */
   protected override extractReasoning(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
   ): { text: string } | undefined {
@@ -58,6 +82,14 @@ export class LLMGatewayTextAdapter<
   }
 }
 
+/**
+ * Creates an LLM Gateway text adapter with explicit API key.
+ *
+ * @example
+ * ```typescript
+ * const adapter = createLLMGatewayText('gpt-5.6-terra', "llmgtwy_...");
+ * ```
+ */
 export function createLLMGatewayText<TModel extends LLMGatewayModelId>(
   model: TModel,
   apiKey: string,
@@ -66,6 +98,15 @@ export function createLLMGatewayText<TModel extends LLMGatewayModelId>(
   return new LLMGatewayTextAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an LLM Gateway text adapter with API key from
+ * `LLM_GATEWAY_API_KEY`.
+ *
+ * @example
+ * ```typescript
+ * const adapter = llmGatewayText('gpt-5.6-terra');
+ * ```
+ */
 export function llmGatewayText<TModel extends LLMGatewayModelId>(
   model: TModel,
   config?: Omit<LLMGatewayTextConfig, 'apiKey'>,

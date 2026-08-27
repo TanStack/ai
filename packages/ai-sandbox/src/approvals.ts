@@ -4,7 +4,8 @@ import type { SandboxPolicy } from './policy'
 import type { StreamChunk } from '@tanstack/ai'
 
 /** CUSTOM event name emitted when a harness action needs client approval. */
-export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
+export const /** CUSTOM event name emitted when a harness action needs client approval. */
+APPROVAL_REQUESTED_EVENT = 'approval-requested'
 
 /** A stable, opaque approval id for a harness action. */
 export function approvalId(input: {
@@ -58,6 +59,7 @@ export function resolveApproval(input: ResolveApprovalInput): ApprovalOutcome {
 
 /** Build the AG-UI `approval-requested` CUSTOM event for a harness action. */
 export function buildApprovalRequestedEvent(input: {
+  /** A stable, opaque approval id for a harness action. */
   approvalId: string
   title: string
   threadId: string

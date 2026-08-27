@@ -18,6 +18,7 @@ export interface MemoryEventRecord {
     | 'persist:completed'
     | 'error'
   timestamp: number
+  /** Most recent adapter id seen for this scope. */
   adapter: string
   /** recall:started — the recall query (last user text). */
   query?: string
@@ -72,6 +73,10 @@ export function createMemoryRegistryState(): MemoryRegistryState {
   return { scopes: {} }
 }
 
+/**
+ * Escape `:` / `\` / `_` so composite keys cannot collide when a dim contains
+ * the separator or the unset sentinel (mirrors redis scope-key hardening).
+ */
 function escapeScopeDim(value: string): string {
   return value.replace(/[\\:_]/g, '\\$&')
 }
@@ -81,6 +86,11 @@ function scopeDim(value: string | undefined): string {
   return value != null && value.length > 0 ? escapeScopeDim(value) : '_'
 }
 
+/**
+ * Stable scope key:
+ * `{tenantId|_}:{userId|_}:{threadId}:{namespace|_}`.
+ * Absent scope (e.g. `memory:error` before resolve) buckets to `(unknown)`.
+ */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
   if (!scope) return '(unknown)'
   return `${scopeDim(scope.tenantId)}:${scopeDim(scope.userId)}:${escapeScopeDim(scope.threadId)}:${scopeDim(scope.namespace)}`

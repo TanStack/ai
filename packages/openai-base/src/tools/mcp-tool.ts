@@ -23,6 +23,9 @@ export function validateMCPtool(tool: MCPToolConfig) {
   }
 }
 
+/**
+ * Converts a standard Tool to OpenAI MCPTool format
+ */
 export function convertMCPToolToAdapterFormat(tool: Tool): MCPToolConfig {
   const metadata = getOpenAIProviderToolMetadata(tool) as Omit<
     MCPToolConfig,
@@ -38,6 +41,12 @@ export function convertMCPToolToAdapterFormat(tool: Tool): MCPToolConfig {
   return convertedTool
 }
 
+/**
+ * Creates a standard Tool from MCPTool parameters.
+ *
+ * Base (non-branded) factory. Providers that need branded return types should
+ * re-wrap this in their own package.
+ */
 export function mcpTool(toolData: Omit<MCPToolConfig, 'type'>): Tool {
   validateMCPtool({ ...toolData, type: 'mcp' })
 

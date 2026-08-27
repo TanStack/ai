@@ -1,3 +1,12 @@
+/**
+ * Mistral-specific message types for the Chat Completions API.
+ *
+ * These types mirror the shape expected by the Mistral SDK (`@mistralai/mistralai`)
+ * and are used internally by the adapter to avoid tight coupling to the SDK's
+ * exported types.
+ *
+ * @see https://docs.mistral.ai/api/
+ */
 export interface ChatCompletionContentPartText {
   /** The text content. */
   text: string
@@ -7,7 +16,11 @@ export interface ChatCompletionContentPartText {
 }
 
 export interface ChatCompletionContentPartImage {
-  imageUrl: string | { url: string; detail?: 'auto' | 'low' | 'high' }
+  imageUrl: string | { url: string; /**
+   * Specifies the detail level of the image.
+   * @default 'auto'
+   */
+detail?: 'auto' | 'low' | 'high' }
 
   /** The type of the content part. */
   type: 'image_url'
@@ -45,6 +58,7 @@ export interface ChatCompletionMessageToolCall {
 export type FunctionParameters = { [key: string]: unknown }
 
 export interface FunctionDefinition {
+  /** The name of the function to call. */
   name: string
 
   /** A description of what the function does. */
@@ -61,16 +75,26 @@ export interface ChatCompletionTool {
   /** The type of the tool. */
   type: 'function'
 
+  /** The function that the model called. */
   function: FunctionDefinition
 }
 
 export interface ChatCompletionNamedToolChoice {
+  /** The type of the content part. */
   type: 'function'
   function: {
     name: string
   }
 }
 
+/**
+ * Controls which (if any) tool is called by the model.
+ *
+ * - `none` — never call tools
+ * - `auto` — model decides
+ * - `any` / `required` — model must call one or more tools
+ * - Named tool choice — forces a specific tool
+ */
 export type ChatCompletionToolChoiceOption =
   | 'none'
   | 'auto'
@@ -120,25 +144,49 @@ export interface ResponseFormatJsonSchema {
   type: 'json_schema'
   jsonSchema: {
     name: string
+    /** A description of what the function does. */
     description?: string
     schemaDefinition: { [key: string]: unknown }
+    /** Whether to enable strict schema adherence. */
     strict?: boolean
   }
 }
 
+/**
+ * Metadata for Mistral text content parts.
+ */
 export type MistralTextMetadata = Record<string, never>
 
+/**
+ * Metadata for Mistral image content parts.
+ */
 export interface MistralImageMetadata {
   detail?: 'auto' | 'low' | 'high'
 }
 
+/**
+ * Metadata for Mistral audio content parts.
+ * Mistral does not currently support audio input.
+ */
 export type MistralAudioMetadata = Record<string, never>
 
+/**
+ * Metadata for Mistral video content parts.
+ * Mistral does not currently support video input.
+ */
 export type MistralVideoMetadata = Record<string, never>
 
+/**
+ * Metadata for Mistral document content parts.
+ * Used with document understanding models via `document_url` parts.
+ */
 export type MistralDocumentMetadata = Record<string, never>
 
+/**
+ * Map of modality types to their Mistral-specific metadata types.
+ */
 export interface MistralMessageMetadataByModality {
+  /** The text content. */
   text: MistralTextMetadata
   image: MistralImageMetadata
   audio: MistralAudioMetadata

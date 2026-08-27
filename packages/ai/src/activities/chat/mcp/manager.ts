@@ -1,6 +1,23 @@
 import type { AnyServerTool } from '../tools/tool-definition'
 import type { ChatMCPOptions, MCPToolSource } from './types'
 
+/**
+ * Bind the source's `readResource` onto a ui-linked tool's `metadata.mcp` so it
+ * travels with the tool to the server-tool execution/emit site (`tool-calls.ts`).
+ *
+ * `discover()` is the single place in `@tanstack/ai` that has both a tool and
+ * its originating source, and `@tanstack/ai` must not import `@tanstack/ai-mcp`,
+ * so this is where the source handle is threaded onto the tool. Only tools that
+ * actually link a `ui://` resource (their discovery stamped
+ * `metadata.mcp.uiResourceUri`) and whose source can read resources get bound;
+ * everything else is left untouched.
+ *
+ * This mutates the discovered tool's `metadata.mcp` in place. That is safe
+ * because discovery returns fresh tool objects per `discover()` call: the bound
+ * `readResource` closes over `source`, whose connection stays live until the run
+ * drains. If discovery results were ever cached and reused across runs, this
+ * would bind a closure over an already-closed source — bind onto a copy then.
+ */
 function bindReadResource(tool: AnyServerTool, source: MCPToolSource): void {
   if (!source.readResource) return
   const meta = (
@@ -22,6 +39,12 @@ export class MCPDuplicateToolNameError extends Error {
   }
 }
 
+/**
+ * Encapsulates MCP tool discovery + connection lifecycle for chat().
+ * Built from chat()'s `mcp` option; runners only call `discover()` then
+ * `dispose()`. A manager built from `undefined` is an inert no-op
+ * (`discover()` → `[]`, `dispose()` → no-op), so runners need no branching.
+ */
 export class MCPManager {
   static from(options: ChatMCPOptions | undefined): MCPManager {
     return new MCPManager(options)
@@ -43,6 +66,11 @@ export class MCPManager {
     this.#onDiscoveryError = options?.onDiscoveryError
   }
 
+  /**
+     * Discover + merge tools from all sources. Throws on a fatal discovery error
+     * (no `onDiscoveryError`, or it re-threw) or a duplicate tool name; in that
+     * case it first closes any connected sources when the policy is 'close'.
+     */
   async discover(): Promise<Array<AnyServerTool>> {
     if (this.#sources.length === 0) return []
     try {

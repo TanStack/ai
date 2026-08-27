@@ -21,6 +21,12 @@ export interface VercelGatewayTextConfig extends VercelGatewayClientConfig {}
 
 export type { ExternalTextProviderOptions as VercelGatewayTextProviderOptions } from '../text/text-provider-options'
 
+/**
+ * Vercel AI Gateway text adapter.
+ *
+ * Talks to the public OpenAI-compatible Chat Completions API at
+ * `https://ai-gateway.vercel.sh/v1`.
+ */
 export class VercelGatewayTextAdapter<
   TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,

@@ -22,13 +22,30 @@ import type {
 import type { ChatFetcher, ChatPendingInterrupt } from './types'
 import { normalizeMessagesDates } from './message-date-normalizer'
 
+/**
+ * Associates connect-wrapped chunks with the run they were produced under.
+ * Content events (TEXT_MESSAGE_CONTENT, TOOL_CALL_*, …) carry no `runId` of
+ * their own, so the connect wrapper stamps the caller's run id here. Lets
+ * run-scoped consumers (e.g. clear-during-stream suppression) attribute those
+ * otherwise-runless chunks to their originating request.
+ */
 const chunkRunIds = new WeakMap<StreamChunk, string>()
 
+/**
+ * Resolve a chunk's run id, preferring the value on the chunk itself
+ * (RUN_STARTED / RUN_FINISHED / RUN_ERROR carry one) and falling back to the
+ * run the connect wrapper stamped it with.
+ */
 export function getChunkRunId(chunk: StreamChunk): string | undefined {
   const requestRunId = chunkRunIds.get(chunk)
   return requestRunId ?? getNormalizedChunkRunId(chunk)
 }
 
+/**
+ * Thrown when an SSE/HTTP stream ends with a non-empty unterminated buffer.
+ * Indicates the connection was cut mid-line (server crash, dropped TCP, proxy
+ * timeout) so the partial content cannot be safely parsed.
+ */
 export class StreamTruncatedError extends Error {
   constructor() {
     super(
@@ -45,6 +62,11 @@ class StreamReadError extends Error {
   }
 }
 
+/**
+ * Thrown when a durable (id-tagged) run's stream ends with no terminal event
+ * and a reconnect makes no forward progress — the run cannot complete, so the
+ * consumer must not be left silently hanging on a stream that just stops.
+ */
 export class DurableStreamIncompleteError extends Error {
   constructor() {
     super(
@@ -54,6 +76,12 @@ export class DurableStreamIncompleteError extends Error {
   }
 }
 
+/**
+ * Thrown when a durable run exceeds its reconnect ceiling. Bounds the
+ * otherwise-unbounded reconnect loop so a flapping producer (or a proxy that
+ * rolls the socket after every event) surfaces a failure instead of
+ * reconnecting without end.
+ */
 export class StreamReconnectLimitError extends Error {
   constructor(attempts: number) {
     super(
@@ -63,7 +91,20 @@ export class StreamReconnectLimitError extends Error {
   }
 }
 
+/**
+ * Reconnect bounding for resumable streams. A constant throttle delay prevents a
+ * hot loop against the origin, and the ceiling bounds a pathologically failing
+ * run — but only counts CONSECUTIVE reconnects that made no forward progress.
+ */
 export interface ReconnectOptions {
+  /**
+     * Ceiling on the number of CONSECUTIVE reconnects that deliver no new events,
+     * before failing with {@link StreamReconnectLimitError}. The counter resets to
+     * zero whenever a reconnect makes forward progress, so a healthy long run —
+     * even one behind a proxy that rolls the socket after every event — never
+     * approaches it; the ceiling only fires when the run is genuinely stuck
+     * (reconnecting repeatedly without receiving anything new). Default 5.
+     */
   maxAttempts?: number
   /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
   delayMs?: number
@@ -71,6 +112,7 @@ export interface ReconnectOptions {
 
 interface ResolvedReconnectOptions {
   maxAttempts: number
+  /** Delay between reconnect attempts, in ms, to avoid hammering. Default 250. */
   delayMs: number
 }
 
@@ -94,10 +136,28 @@ function resolveReconnectOptions(
   return { maxAttempts, delayMs }
 }
 
+/**
+ * Reconnect bookkeeping shared by every resumable-stream driver: de-dupes
+ * offsets, tracks the last acknowledged offset, honors the SSE empty-id reset
+ * convention, and bounds consecutive no-progress reconnects behind a
+ * throttling delay. Extracted out of {@link resumableStream} so a WebSocket
+ * reconnect driver can reuse the exact same semantics.
+ */
 export interface ReconnectTracker {
   /** The most recently accepted (non-duplicate, non-empty) offset, if any. */
   readonly lastEventId: string | undefined
+  /**
+     * Record an incoming offset. Returns `'reset'` for an empty id (SSE's
+     * resume-cursor reset — clears the de-dupe set and `lastEventId`),
+     * `'duplicate'` for an already-seen id, and `'new'` otherwise (including
+     * `undefined`, which is untracked — no offset to remember).
+     */
   note: (id: string | undefined) => 'new' | 'duplicate' | 'reset'
+  /**
+     * Throttle before a reconnect attempt. Resets the no-progress counter when
+     * `madeProgress` is true; otherwise increments it and throws
+     * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
+     */
   waitBeforeReconnect: (
     madeProgress: boolean,
     signal?: AbortSignal,
@@ -108,8 +168,10 @@ export interface ReconnectTracker {
 export function createReconnectTracker(
   options?: ReconnectOptions,
 ): ReconnectTracker {
+  /** Bounding for resumable-SSE reconnection (throttle delay + attempt ceiling). */
   const reconnect = resolveReconnectOptions(options)
   const seen = new Set<string>()
+  /** The most recently accepted (non-duplicate, non-empty) offset, if any. */
   let lastEventId: string | undefined
   let reconnectAttempts = 0
   return {
@@ -165,6 +227,12 @@ function generateRunId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+/**
+ * Asserts an id is present when synthesizing a terminal event. The chat
+ * client always supplies `runContext.threadId` / `runContext.runId`, so an
+ * absent id at this layer indicates the adapter was wired up by a caller
+ * that bypassed that contract — surface it rather than fabricating one.
+ */
 function requireSyntheticId(
   value: string | undefined,
   field: 'threadId' | 'runId',
@@ -177,6 +245,9 @@ function requireSyntheticId(
   return value
 }
 
+/**
+ * Merge custom headers into request headers
+ */
 function mergeHeaders(
   customHeaders?: Record<string, string> | Headers,
 ): Record<string, string> {
@@ -193,6 +264,15 @@ function mergeHeaders(
   return customHeaders
 }
 
+/**
+ * Request header carrying the client-chosen run id to a delivery-durability
+ * sink. The durable log is then keyed by the SAME id the client already holds,
+ * so a later join/resume can address the run without first reading back a
+ * server-generated id. Sent as a header — NOT a query param — so the POST URL
+ * stays byte-identical to a plain, non-durable request; a server that isn't
+ * durable simply ignores the header. (The GET join path keeps `?runId` in the
+ * query, since a GET has no body/handler contract to disturb.)
+ */
 const RUN_ID_HEADER = 'X-Run-Id'
 
 function runIdHeader(runId: string | undefined): Record<string, string> {
@@ -215,6 +295,9 @@ function withSearchParams(url: string, values: Record<string, string>): string {
   return `${base}${query.length === 0 ? '' : `?${query}`}${hash}`
 }
 
+/**
+ * Read lines from a stream (newline-delimited)
+ */
 async function* readStreamLines(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   abortSignal?: AbortSignal,
@@ -265,6 +348,12 @@ interface StreamEvent {
   id?: string
 }
 
+/**
+ * Type guard for a durable NDJSON envelope `{ id, chunk }`. NDJSON has no
+ * native event-id field, so durability rides the offset inside the payload.
+ * A bare `StreamChunk` always has a top-level `type`, and the envelope never
+ * does, so the two forms are unambiguous — a non-durable line stays bare.
+ */
 function isNdjsonEnvelope(
   value: unknown,
 ): value is { id: string; chunk: StreamChunk } {
@@ -348,6 +437,20 @@ function recordSseChunkIds(
   if (model !== undefined) state.lastModel = model
 }
 
+/**
+ * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
+ * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
+ * adapters so both track delivery offsets identically.
+ *
+ * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
+ * starting with `:` (proxies and CDNs inject these as keepalives) and the
+ * `event:` / `retry:` SSE control fields. A `[DONE]` sentinel is treated as a
+ * terminal event: a synthesized RUN_FINISHED is yielded using the most recent
+ * upstream `threadId` / `runId` (falling back to `fallbackIds`), so the
+ * consumer sees a clean terminal event with real correlation ids.
+ *
+ * A JSON parse failure throws — the consumer surfaces it as an error.
+ */
 async function* linesToSSEEvents(
   lines: AsyncIterable<string>,
   fallbackIds?: { threadId?: string; runId?: string },
@@ -375,6 +478,12 @@ async function* linesToSSEEvents(
   }
 }
 
+/**
+ * Parse NDJSON-format lines into stream events. Durable streams emit each line
+ * as an `{ id, chunk }` envelope carrying the delivery offset; non-durable
+ * streams emit bare chunks. Both are auto-detected (see {@link isNdjsonEnvelope}),
+ * so an untagged stream behaves exactly as a plain single fetch used to.
+ */
 async function* linesToNdjsonEvents(
   lines: AsyncIterable<string>,
 ): AsyncGenerator<StreamEvent> {
@@ -419,6 +528,13 @@ function errorFromXhrStatus(xhr: XMLHttpRequest): Error {
   return new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
 }
 
+/**
+ * GET the hydration endpoint for a thread and parse its JSON `{ messages,
+ * activeRun }` body. This is the transport-agnostic reconnect probe: keyed on
+ * the STABLE thread id, it returns the stored transcript and — if a run is still
+ * generating — a cursor the caller tails via `joinRun`. Shared by every fetch/
+ * XHR adapter so the client never has to know which transport is in use.
+ */
 async function fetchThreadHydration(
   fetchClient: typeof globalThis.fetch,
   url: string,
@@ -435,6 +551,11 @@ async function fetchThreadHydration(
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
+    /**
+       * Pending human-in-the-loop interrupts for the thread and the run they paused,
+       * so a reload (or another device) re-prompts the approval from the server. The
+       * client restores them exactly as a persisted resume snapshot would.
+       */
     interrupts?: {
       runId?: unknown
       pending?: unknown
@@ -463,6 +584,13 @@ async function fetchThreadHydration(
   }
 }
 
+/**
+ * GET the hydration endpoint for a generation thread and parse its JSON
+ * `{ resumeSnapshot, activeRun }` body. Mirrors {@link fetchThreadHydration} for
+ * the generation clients: keyed on the stable thread id, it returns the last
+ * generation's resume snapshot (re-validated client-side before adoption) and —
+ * if a run is still generating — a cursor. Shared by every fetch/XHR adapter.
+ */
 async function fetchGenerationHydration(
   fetchClient: typeof globalThis.fetch,
   url: string,
@@ -532,11 +660,21 @@ async function* responseToSSEChunks(
   }
 }
 
+/**
+ * A re-issuable event source. Given extra headers (a `Last-Event-ID` on a
+ * reconnect) and an abort signal, it opens the transport and yields stream
+ * events. {@link resumableStream} calls it once per attempt, so each call MUST
+ * open a fresh underlying request (a new fetch or a new XHR).
+ */
 type StreamEventSource = (
   extraHeaders: Record<string, string>,
   abortSignal?: AbortSignal,
 ) => AsyncIterable<StreamEvent>
 
+/**
+ * Build a fetch-backed {@link StreamEventSource}. `parseResponse` decodes the
+ * body into events (SSE or NDJSON) — the reconnect engine is identical for both.
+ */
 function fetchEventSource(
   fetchClient: typeof globalThis.fetch,
   url: string,
@@ -564,6 +702,18 @@ function fetchEventSource(
   }
 }
 
+/**
+ * Drive a {@link StreamEventSource} with native-style resumability. Each event's
+ * adapter-owned delivery offset (its `id`) is remembered; if the connection
+ * drops or ends before a terminal event, the source is re-opened with a
+ * `Last-Event-ID` header so the server replays strictly after the last offset.
+ * Already-seen offsets are de-duped, so an overlapping replay is safe.
+ *
+ * When the server does NOT tag events (no durability), no offset is ever seen,
+ * so no reconnect happens — behaviour is identical to a plain single request.
+ * This engine is transport-agnostic: fetch/XHR × SSE/NDJSON all share it, the
+ * only difference being the {@link StreamEventSource} they pass in.
+ */
 async function* resumableStream(
   openEventSource: StreamEventSource,
   abortSignal?: AbortSignal,
@@ -579,6 +729,7 @@ async function* resumableStream(
         : {}
 
     let sawTerminal = false
+    /** Made forward progress (a new, non-duplicate chunk) since the last (re)connect. */
     let progressed = false
     try {
       const sourceEvents = openEventSource(extraHeaders, abortSignal)
@@ -624,6 +775,11 @@ async function* resumableStream(
   }
 }
 
+/**
+ * Per-send context provided by the chat client to the connection adapter.
+ * The adapter combines this with serialized messages to build a full
+ * AG-UI `RunAgentInput` payload.
+ */
 export interface RunAgentInputContext {
   threadId: string
   runId: string
@@ -643,20 +799,64 @@ export interface RunAgentInputContext {
 }
 
 export interface ConnectConnectionAdapter {
+  /**
+     * Connect and return an async iterable of StreamChunks.
+     */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
     runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
+  /**
+     * Fetch server-driven hydration for a generation `threadId`: the last
+     * generation's resume snapshot, plus a cursor to a run still generating if
+     * one exists. The generation client calls this itself on mount when
+     * `persistence: true` (no loader/prop) and repaints the snapshot — it never
+     * auto-starts a run. Read-only JSON GET (`?threadId`), so it is
+     * transport-agnostic. Optional and feature-detected exactly like the chat
+     * `hydrate` handler.
+     */
   hydrateGeneration?: (threadId: string) => Promise<GenerationHydrationResult>
+  /**
+     * Re-attach to a run that is still generating and replay it from the start
+     * (read-only `?offset=-1&runId` against the delivery-durability log). The
+     * generation client tails this on mount when hydration reports a run still in
+     * flight, so a dropped connection or a full reload finishes the generation in
+     * place — the same durability replay the chat client uses. Optional and
+     * feature-detected; present on `fetchServerSentEvents` / `fetchHttpStream`.
+     */
   joinRun?: (
     runId: string,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>
+  /**
+     * Fetch server-driven hydration for a chat `threadId`: the stored transcript
+     * plus a cursor to an in-flight run and any pending interrupts. The chat
+     * client calls this itself on mount when `persistence: true` (no loader/prop)
+     * and repaints it — it never auto-sends. Read-only JSON GET (`?threadId`), so
+     * it is transport-agnostic. Optional and feature-detected; present on
+     * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
+     * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
+     */
   hydrate?: (threadId: string) => Promise<ChatHydrationResult>
 }
 
+/**
+ * Server-resolved hydration for a generation thread. `resumeSnapshot` is the
+ * last generation's lightweight snapshot (validated client-side before it is
+ * adopted); `activeRun` is a cursor to a run still generating for the thread
+ * (or `null`).
+ *
+ * Field-for-field compatible with `@tanstack/ai-persistence`'s
+ * `ReconstructedGeneration` (the body `reconstructGeneration` returns) — the
+ * client never imports that package, so this is a structural contract, not a
+ * shared type. Two deliberate widenings on this side: `schemaVersion` is
+ * optional (the server always writes `1`, but a hand-written fixture need not),
+ * and `status` also admits `'idle'`, which the server's mapper never emits.
+ * Only a client-local snapshot reaches it, when `stop()` retires a cancelled
+ * run.
+ */
 export interface GenerationHydrationResult {
   resumeSnapshot: {
     schemaVersion?: 1
@@ -669,6 +869,12 @@ export interface GenerationHydrationResult {
   activeRun: { runId: string } | null
 }
 
+/**
+ * Server-resolved hydration for a thread. `messages` is the stored transcript;
+ * `activeRun` is a cursor to a run still generating for the thread (or `null`).
+ * Keyed on the STABLE thread id — the client never handles a run id, so a turn
+ * that spans several runs (interrupt/tool continuations) reconnects correctly.
+ */
 export interface ChatHydrationResult {
   messages: Array<UIMessage>
   activeRun: { runId: string } | null
@@ -678,6 +884,11 @@ export interface ChatHydrationResult {
   } | null
 }
 
+/**
+ * A {@link ConnectConnectionAdapter} that also supports joining an existing run
+ * (a second tab, or re-attaching after a full reload) via `joinRun`, replaying
+ * the ordered stream from the start off the server's delivery-durability sink.
+ */
 export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdapter {
   joinRun: (
     runId: string,
@@ -687,7 +898,13 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
 }
 
 export interface SubscribeConnectionAdapter {
+  /**
+     * Subscribe to stream chunks.
+     */
   subscribe: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+  /**
+     * Send a request; chunks arrive through subscribe().
+     */
   send: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
@@ -701,6 +918,10 @@ export interface SubscribeConnectionAdapter {
   hydrate?: (threadId: string) => Promise<ChatHydrationResult>
 }
 
+/**
+ * Connection adapter union.
+ * Provide either `connect`, or `subscribe` + `send`.
+ */
 export type ConnectionAdapter =
   | ConnectConnectionAdapter
   | SubscribeConnectionAdapter
@@ -784,6 +1005,12 @@ function pushSyntheticRunError(
   }
 }
 
+/**
+ * Normalize a ConnectionAdapter to subscribe/send operations.
+ *
+ * If a connection provides native subscribe/send, that mode is used.
+ * Otherwise, connect() is wrapped using an async queue.
+ */
 export function normalizeConnectionAdapter(
   connection: ConnectionAdapter | undefined,
 ): SubscribeConnectionAdapter {
@@ -894,6 +1121,32 @@ export function normalizeConnectionAdapter(
     async send(messages, data, abortSignal, runContext) {
       const state: ConnectSendState = { hasTerminalEvent: false }
       try {
+        /**
+         * Create a direct stream connection adapter (for server functions or direct streams)
+         *
+         * @param streamFactory - A function that returns an async iterable of StreamChunks
+         * @param handlers - Optional persistence handlers (`hydrate`,
+         * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
+         * without an HTTP endpoint — each is usually a one-line server-function call
+         * @returns A connection adapter for direct streams
+         *
+         * @example
+         * ```typescript
+         * // With TanStack Start server function
+         * const connection = stream(() => serverFunction({ messages }));
+         *
+         * const client = new ChatClient({ connection });
+         *
+         * // With generation persistence over server functions
+         * const connection = stream(
+         *   () => generateImageFn({ data: input }),
+         *   {
+         *     hydrateGeneration: (threadId) => getImageHydrationFn({ data: threadId }),
+         *     joinRun: (runId) => joinImageRunFn({ data: runId }),
+         *   },
+         * );
+         * ```
+         */
         const stream = connection.connect(
           messages,
           data,
@@ -933,7 +1186,11 @@ export function normalizeConnectionAdapter(
   }
 }
 
+/**
+ * Options for fetch-based connection adapters
+ */
 export interface FetchConnectionOptions {
+  /** Extra request headers for this run (e.g. BYOK keys). POST only. */
   headers?: Record<string, string> | Headers
   credentials?: RequestCredentials
   signal?: AbortSignal
@@ -943,6 +1200,9 @@ export interface FetchConnectionOptions {
   reconnect?: ReconnectOptions
 }
 
+/**
+ * Options for XHR-based connection adapters.
+ */
 export interface XhrConnectionOptions {
   headers?: Record<string, string> | Headers
   withCredentials?: boolean
@@ -967,6 +1227,7 @@ function buildRunAgentInputBody(
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
   const wireMessages = uiMessagesToWire(messages)
+  /** Arbitrary user-controlled passthrough data. */
   const forwardedProps = {
     ...options.body,
     ...(runContext?.forwardedProps ?? {}),
@@ -990,6 +1251,40 @@ function buildRunAgentInputBody(
   }
 }
 
+/**
+ * Create a Server-Sent Events connection adapter
+ *
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, body, etc.) or a function that returns options (can be async)
+ * @returns A connection adapter for SSE streams
+ *
+ * @example
+ * ```typescript
+ * // Static URL
+ * const connection = fetchServerSentEvents('/api/chat');
+ *
+ * // Dynamic URL
+ * const connection = fetchServerSentEvents(() => `/api/chat?user=${userId}`);
+ *
+ * // With options
+ * const connection = fetchServerSentEvents('/api/chat', {
+ *   headers: { 'Authorization': 'Bearer token' }
+ * });
+ *
+ * // With dynamic options
+ * const connection = fetchServerSentEvents('/api/chat', () => ({
+ *   headers: { 'Authorization': `Bearer ${getToken()}` }
+ * }));
+ *
+ * // With additional body data
+ * const connection = fetchServerSentEvents('/api/chat', async () => ({
+ *   body: {
+ *     provider: 'openai',
+ *     model: 'gpt-5.5',
+ *   }
+ * }));
+ * ```
+ */
 export function fetchServerSentEvents(
   url: string | (() => string),
   options:
@@ -1105,6 +1400,40 @@ export function fetchServerSentEvents(
   }
 }
 
+/**
+ * Create an HTTP streaming connection adapter (for raw streaming without SSE format)
+ *
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, body, etc.) or a function that returns options (can be async)
+ * @returns A connection adapter for HTTP streams
+ *
+ * @example
+ * ```typescript
+ * // Static URL
+ * const connection = fetchHttpStream('/api/chat');
+ *
+ * // Dynamic URL
+ * const connection = fetchHttpStream(() => `/api/chat?user=${userId}`);
+ *
+ * // With options
+ * const connection = fetchHttpStream('/api/chat', {
+ *   headers: { 'Authorization': 'Bearer token' }
+ * });
+ *
+ * // With dynamic options
+ * const connection = fetchHttpStream('/api/chat', () => ({
+ *   headers: { 'Authorization': `Bearer ${getToken()}` }
+ * }));
+ *
+ * // With additional body data
+ * const connection = fetchHttpStream('/api/chat', async () => ({
+ *   body: {
+ *     provider: 'openai',
+ *     model: 'gpt-5.5',
+ *   }
+ * }));
+ * ```
+ */
 export function fetchHttpStream(
   url: string | (() => string),
   options:
@@ -1410,6 +1739,12 @@ async function resolveXhrConnectionOptions(
   return typeof options === 'function' ? await options() : options
 }
 
+/**
+ * Build an XHR-backed {@link StreamEventSource}. `parseLines` decodes the raw
+ * newline-delimited body into events (SSE or NDJSON); the reconnect engine is
+ * shared with the fetch adapters. A fresh XHR is opened per attempt, so a
+ * `Last-Event-ID` reconnect header (via `extraHeaders`) is applied at open time.
+ */
 function xhrEventSource(
   url: string,
   options: XhrConnectionOptions,
@@ -1455,6 +1790,14 @@ function xhrSSEParser(runContext: RunAgentInputContext | undefined) {
   return (lines: AsyncIterable<string>) => linesToSSEEvents(lines, fallbackIds)
 }
 
+/**
+ * Create an XMLHttpRequest-backed Server-Sent Events connection adapter.
+ *
+ * Resumable: against a durable (`id:`-tagged) server response, a dropped socket
+ * auto-reconnects with `Last-Event-ID` and de-dupes the replayed prefix, and
+ * `joinRun` attaches to an existing run from the start. A non-durable response
+ * is a single plain request, exactly as before.
+ */
 export function xhrServerSentEvents(
   url: string | (() => string),
   options: XhrConnectionOptionsResolver = {},
@@ -1529,6 +1872,14 @@ export function xhrServerSentEvents(
   }
 }
 
+/**
+ * Create an XMLHttpRequest-backed newline-delimited JSON stream adapter.
+ *
+ * Resumable: against a durable (envelope-tagged) server response, a dropped
+ * socket auto-reconnects with `Last-Event-ID` and de-dupes the replayed prefix,
+ * and `joinRun` attaches to an existing run from the start. A non-durable
+ * (bare-line) response is a single plain request, exactly as before.
+ */
 export function xhrHttpStream(
   url: string | (() => string),
   options: XhrConnectionOptionsResolver = {},
@@ -1627,6 +1978,12 @@ interface WebSocketChunkSink {
   fail: (error: unknown) => void
 }
 
+/**
+ * A push→pull bridge from socket callbacks to an async iterable: chunks queue
+ * until the consumer pulls, a recorded failure rejects the iterator, and
+ * `end()` (or the abort signal) finishes it cleanly. Shared by `webSocket()`'s
+ * `subscribe()` and `joinRun()`.
+ */
 function createChunkPipe(
   abortSignal: AbortSignal | undefined,
   onFinally: () => void,
@@ -1682,6 +2039,11 @@ function createChunkPipe(
   return { push, fail, end, iterable }
 }
 
+/**
+ * The send()-driven run currently owning auto-reconnect for a `webSocket()`
+ * connection: reconnect is scoped to the run `send()` is driving, so a drop
+ * with no established run is surfaced to subscribers rather than auto-resumed.
+ */
 interface WebSocketRunSession {
   runId: string | undefined
   readonly tracker: ReconnectTracker
@@ -1691,6 +2053,19 @@ interface WebSocketRunSession {
   signal: AbortSignal | undefined
 }
 
+/**
+ * Full-duplex, conversation-scoped WebSocket connection adapter. Pairs with the
+ * server `toWebSocketResponse` / `toWebSocketStream`. `send()` writes a
+ * RunAgentInput frame; `subscribe()` yields inbound chunks.
+ *
+ * Resumable: `send()` establishes a run session backed by a
+ * {@link createReconnectTracker}. If the socket closes before a terminal
+ * (`RUN_FINISHED`/`RUN_ERROR`) chunk is seen and the run is durable
+ * (offset-tagged `{ id, chunk }` envelopes), the socket is reopened at
+ * `?runId=&offset=<lastEventId>`, de-duping the replayed boundary. A drop with
+ * no offset ever observed (non-durable) surfaces {@link StreamReadError}
+ * instead of reconnecting — there is nothing to resume from.
+ */
 export function webSocket(
   url: string | (() => string),
   options: WebSocketConnectionOptions = {},
@@ -1920,6 +2295,17 @@ export function webSocket(
   }
 }
 
+/**
+ * Optional persistence handlers for the lightweight adapters (`stream()`,
+ * `rpcStream()`). These are one-shot, request-scoped calls with no built-in
+ * GET endpoint or second channel, so hydration and run-rejoin only exist if
+ * the app supplies them — typically thin wrappers over TanStack Start server
+ * functions backed by `@tanstack/ai-persistence` (`getGenerationHydration`)
+ * and a delivery-durability log (`memoryStream` / `replayRunStream`).
+ *
+ * Each handler is spread onto the returned adapter only when defined, so
+ * feature detection (`connection.hydrateGeneration` etc.) keeps working.
+ */
 export interface StreamConnectionHandlers {
   hydrate?: (threadId: string) => Promise<ChatHydrationResult>
   hydrateGeneration?: (threadId: string) => Promise<GenerationHydrationResult>
@@ -1951,6 +2337,14 @@ export function stream(
   }
 }
 
+/**
+ * Wrap a `ChatFetcher` as a `ConnectConnectionAdapter` so the chat client can
+ * consume it through the same `subscribe`/`send` plumbing used for SSE /
+ * HTTP-stream / RPC connections. May return either a `Response` (parsed as
+ * SSE) or an `AsyncIterable<StreamChunk>` (yielded directly).
+ *
+ * @internal
+ */
 export function fetcherToConnectionAdapter(
   fetcher: ChatFetcher,
 ): ConnectConnectionAdapter {
@@ -1991,6 +2385,11 @@ export function fetcherToConnectionAdapter(
   }
 }
 
+/**
+ * Wrap an AsyncIterable so iteration aborts when `signal` fires. Without
+ * this, a fetcher that returns a generator ignoring its signal would leave
+ * the for-await loop hanging until the iterable naturally ends.
+ */
 async function* abortableIterable<T>(
   iterable: AsyncIterable<T>,
   signal: AbortSignal,
@@ -2018,6 +2417,34 @@ async function* abortableIterable<T>(
   }
 }
 
+/**
+ * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
+ *
+ * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
+ * @param handlers - Optional persistence handlers (`hydrate`,
+ * `hydrateGeneration`, `joinRun`) that let server-driven persistence work
+ * without an HTTP endpoint — each is usually a one-line RPC call
+ * @returns A connection adapter for RPC streams
+ *
+ * @example
+ * ```typescript
+ * // With Cap'n Web RPC
+ * const connection = rpcStream((messages, data) =>
+ *   api.streamMurfResponse(messages, data)
+ * );
+ *
+ * const client = new ChatClient({ connection });
+ *
+ * // With generation persistence over RPC
+ * const connection = rpcStream(
+ *   (messages, data) => api.streamMurfResponse(messages, data),
+ *   {
+ *     hydrateGeneration: (threadId) => api.getGenerationHydration(threadId),
+ *     joinRun: (runId) => api.replayRun(runId),
+ *   },
+ * );
+ * ```
+ */
 export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,

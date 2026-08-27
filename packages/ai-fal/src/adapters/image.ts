@@ -24,6 +24,26 @@ import type {
   FalModelInput,
 } from '../model-meta'
 
+/**
+ * fal.ai image generation adapter with full type inference.
+ *
+ * Uses fal.ai's comprehensive type system to provide autocomplete
+ *
+ * and type safety for all 600+ supported models.
+ *
+ * @example
+ * ```typescript
+ * const adapter = falImage('fal-ai/flux/dev')
+ * const result = await adapter.generateImages({
+ *   model: 'fal-ai/flux/dev',
+ *   prompt: 'a cat',
+ *   modelOptions: {
+ *     num_inference_steps: 28, // Type-safe! Autocomplete works
+ *     guidance_scale: 3.5,
+ *   },
+ * })
+ * ```
+ */
 export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   TModel,
   FalImageProviderOptions<TModel>,

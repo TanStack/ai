@@ -5,6 +5,13 @@ export interface ExtractedCost {
   costDetails?: UsageCostBreakdown
 }
 
+/**
+ * Wire-key → canonical-key mapping. Snake_case keys come from the raw/UNKNOWN
+ * `response.completed` fallback in the Responses adapter; camelCase keys come
+ * from the SDK-parsed path. Both Chat Completions' prompt/completions naming
+ * and Responses' input/output naming collapse onto `upstreamInputCost` /
+ * `upstreamOutputCost`.
+ */
 const KNOWN_DETAIL_KEYS: Record<string, keyof UsageCostBreakdown> = {
   upstream_inference_cost: 'upstreamCost',
   upstreamInferenceCost: 'upstreamCost',
@@ -24,6 +31,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+/**
+ * Narrow a raw `cost_details`/`costDetails` map to the canonical fields of
+ * `UsageCostBreakdown`. Negative values (e.g. discounts) are preserved; `null`,
+ * non-finite numbers, non-numeric values, and unknown keys are dropped.
+ */
 function extractCostDetails(details: unknown): UsageCostBreakdown | undefined {
   const record = asRecord(details)
   if (!record) return undefined
@@ -41,6 +53,18 @@ function extractCostDetails(details: unknown): UsageCostBreakdown | undefined {
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/**
+ * Extract `cost`/`costDetails` from a provider usage object.
+ *
+ * - `cost` is attached only when it is a finite number — this preserves `cost === 0`
+ *   and rejects `NaN`/`Infinity`, and does not clamp negative values.
+ * - `costDetails` is attached only alongside a valid `cost` (an orphan breakdown
+ *   without a total cannot be reconciled and is dropped). Both camelCase
+ *   `costDetails` and snake_case `cost_details` are read.
+ *
+ * Returns an empty object when no usable cost is present, so call sites can spread
+ * the result unconditionally.
+ */
 export function extractUsageCost(usage: unknown): ExtractedCost {
   const record = asRecord(usage)
   if (!record) return {}

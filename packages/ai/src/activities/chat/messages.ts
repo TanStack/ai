@@ -22,6 +22,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Check if a MessagePart is a content part (text, image, audio, video, document)
+ * that maps directly to a ModelMessage ContentPart.
+ */
 function isContentPart(part: MessagePart): part is ContentPart {
   return (
     part.type === 'text' ||
@@ -81,6 +85,12 @@ function parseToolResultContent(content: string): unknown {
   }
 }
 
+/**
+ * Collapse an array of ContentParts into the most compact ModelMessage content:
+ * - Empty array → null
+ * - All text parts → joined string (or null if empty)
+ * - Mixed content → ContentPart array as-is
+ */
 function collapseContentParts(
   parts: Array<ContentPart>,
 ): string | null | Array<ContentPart> {
@@ -95,6 +105,10 @@ function collapseContentParts(
   return parts
 }
 
+/**
+ * Extract text content from ModelMessage content (string, null, or ContentPart array).
+ * Used when only the text portion is needed (e.g., tool result content).
+ */
 function getTextContent(
   content: string | null | undefined | Array<ContentPart>,
 ): string {
@@ -247,6 +261,9 @@ function convertWireModelMessage(
   return { kind: 'message', message: modelMessage, clearThinking: false }
 }
 
+/**
+ * Convert UIMessages or ModelMessages to ModelMessages
+ */
 export function convertMessagesToModelMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
@@ -287,6 +304,9 @@ export function restoreToolResultOwnership<T extends object>(message: T): T {
   if (!('role' in message)) return message
   if (message.role !== 'tool') return message
   const source = message
+  /** Provider-specific metadata that round-trips with the tool call.
+       * Untyped at this framework layer; adapters narrow it via their
+       * `TToolCallMetadata` generic. */
   const metadata = tanstackMetadata(source)
   const owned = metadata?.toolResult
   if (!isRecord(owned)) return message
@@ -320,6 +340,11 @@ export function restoreToolResultOwnership<T extends object>(message: T): T {
   return next
 }
 
+/**
+ * Rebuild a `Date` from a live `Date` or from an ISO string.
+ * `JSON.stringify` turns `Date` into a string, so persistence reload
+ * and AG-UI wire both land here as strings.
+ */
 export function coerceCreatedAt(value: unknown): Date | undefined {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? undefined : value
@@ -412,6 +437,25 @@ function assistantMetadata(
   return Object.keys(result).length > 0 ? result : undefined
 }
 
+/**
+ * Convert a UIMessage to ModelMessage(s)
+ *
+ * Walks the parts array IN ORDER to preserve the interleaving of text,
+ * tool calls, and tool results. This is critical for multi-round tool
+ * flows where the model generates text, calls a tool, gets the result,
+ * then generates more text and calls another tool.
+ *
+ * The output preserves the sequential structure:
+ *   text1 → toolCall1 → toolResult1 → text2 → toolCall2 → toolResult2
+ * becomes:
+ *   assistant: {content: "text1", toolCalls: [toolCall1]}
+ *   tool: toolResult1
+ *   assistant: {content: "text2", toolCalls: [toolCall2]}
+ *   tool: toolResult2
+ *
+ * @param uiMessage - The UIMessage to convert
+ * @returns An array of ModelMessages preserving part ordering
+ */
 export function uiMessageToModelMessages(
   uiMessage: UIMessage,
 ): Array<ModelMessage> {
@@ -430,6 +474,10 @@ export function uiMessageToModelMessages(
   return buildAssistantMessages(uiMessage)
 }
 
+/**
+ * Build a single ModelMessage for user messages (simple path).
+ * Preserves ordering of text and multimodal content parts.
+ */
 function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
   const contentParts: Array<ContentPart> = []
   for (const part of uiMessage.parts) {
@@ -475,6 +523,15 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
   )
 }
 
+/**
+ * Build ModelMessages for an assistant UIMessage, preserving the
+ * sequential interleaving of text, tool calls, and tool results.
+ *
+ * Walks parts in order. Text and tool-call parts accumulate into the
+ * current "segment". When a tool-result part is encountered, the
+ * current segment is flushed as an assistant message, then the tool
+ * result is emitted as a tool message.
+ */
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
@@ -744,6 +801,18 @@ function appendModelToolCallParts(
   }
 }
 
+/**
+ * Convert a ModelMessage to UIMessage
+ *
+ * This conversion creates a parts-based structure:
+ * - content field → TextPart
+ * - toolCalls array → ToolCallPart[]
+ * - role="tool" messages should be converted separately and merged
+ *
+ * @param modelMessage - The ModelMessage to convert
+ * @param id - Optional ID for the UIMessage (generated if not provided)
+ * @returns A UIMessage with parts
+ */
 export function modelMessageToUIMessage(
   modelMessage: ModelMessage,
   id?: string,
@@ -885,6 +954,22 @@ function snapshotWithoutParts(message: AGUIMessage, id: string): UIMessage {
   }
 }
 
+/**
+ * Normalize a single AG-UI `MESSAGES_SNAPSHOT` message into a `UIMessage`.
+ *
+ * AG-UI snapshot messages use the wire shape `{ id, role, content }` and have
+ * no `parts` array. Casting them directly to `UIMessage` is unsafe: any code
+ * that later reads `message.parts` (e.g. the devtools `onToolCallStateChange`
+ * handler) crashes with "Cannot read properties of undefined (reading 'find')".
+ *
+ * Each role is mapped to the canonical `UIMessage` shape, reusing
+ * `modelMessageToUIMessage` for the roles that share `ModelMessage`'s structure.
+ * The original AG-UI `id` is preserved so later `TEXT_MESSAGE_CONTENT` /
+ * `TOOL_CALL_*` events still route by `messageId` (falling back to a generated
+ * id only when the snapshot omits one). Messages that already carry `parts`
+ * (e.g. a TanStack server echoing `UIMessage`s back over the wire) pass through
+ * unchanged apart from ensuring an id.
+ */
 export function aguiSnapshotMessageToUIMessage(
   message: AGUIMessage | UIMessage,
 ): UIMessage {
@@ -964,6 +1049,15 @@ function snapshotStructuredOutput(
   }
 }
 
+/**
+ * Convert AG-UI user message content into `UIMessage` parts.
+ *
+ * AG-UI user content is either a plain string or a multimodal array whose text
+ * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
+ * Text entries are rewritten to the TanStack shape; image/audio/video/document
+ * entries already match `ContentPart` and pass through. `binary` entries have no
+ * TanStack equivalent and are dropped.
+ */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
@@ -982,6 +1076,14 @@ function aguiUserContentToParts(
   return parts
 }
 
+/**
+ * Convert an array of ModelMessages to UIMessages
+ *
+ * This handles merging tool result messages with their corresponding assistant messages
+ *
+ * @param modelMessages - Array of ModelMessages to convert
+ * @returns Array of UIMessages
+ */
 export function modelMessagesToUIMessages(
   modelMessages: Array<ModelMessage>,
 ): Array<UIMessage> {
@@ -1045,6 +1147,14 @@ export function modelMessagesToUIMessages(
   return uiMessages
 }
 
+/**
+ * Normalize a message (UIMessage or ModelMessage) to a UIMessage
+ * Ensures the message has an ID and createdAt timestamp
+ *
+ * @param message - Either a UIMessage or ModelMessage
+ * @param generateId - Function to generate a message ID if needed
+ * @returns A UIMessage with guaranteed id and createdAt
+ */
 export function normalizeToUIMessage(
   message: UIMessage | ModelMessage,
   generateId: () => string,
@@ -1067,6 +1177,9 @@ export function normalizeToUIMessage(
   }
 }
 
+/**
+ * Generate a unique message ID
+ */
 export function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`
 }

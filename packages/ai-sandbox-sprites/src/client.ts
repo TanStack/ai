@@ -1,3 +1,16 @@
+/**
+ * Thin client over the Sprites control plane. Sprites has no published SDK, so
+ * this talks the REST + WebSocket API
+ * directly: lifecycle (create/get/delete), URL auth, filesystem, and process
+ * execution all go through the authenticated cloud endpoint at `baseUrl`.
+ *
+ * Dependency-free: uses the global `fetch` and `WebSocket` (undici). The exec
+ * control socket needs an `Authorization` header on the upgrade request —
+ * supported via undici's non-standard `headers` constructor option, which the
+ * WHATWG `WebSocket` spec does not define — so this targets the Node runtime
+ * (>= 22.4, where the global `WebSocket` is unflagged), not spec-compliant
+ * `WebSocket` environments (browsers, Deno, edge).
+ */
 export const SPRITES_DEFAULT_BASE_URL = 'https://api.sprites.dev'
 
 /** URL authentication mode for a Sprite's always-on public URL. */
@@ -5,6 +18,7 @@ export type SpriteUrlAuth = 'public' | 'sprite'
 
 /** A Sprite as returned by the control-plane API. */
 export interface SpriteResource {
+  /** Sequential version id, e.g. `v3`. The live overlay lists as `Current`. */
   id: string
   name: string
   status: string
@@ -39,6 +53,11 @@ export interface SpritesExecOptions {
   /** Extra environment variables, merged over the Sprite defaults. */
   env?: Record<string, string>
   signal?: AbortSignal
+  /**
+     * Max ms to wait for the control socket to open before failing. Bounds the
+     * `CONNECTING`-stall case (e.g. probing a Sprite that is still restarting) so
+     * `wait()` cannot hang forever when no `signal` is supplied. Defaults to 30s.
+     */
   connectTimeoutMs?: number
 }
 
@@ -67,6 +86,12 @@ export interface SpritesClientLike {
   fsWrite: (name: string, path: string, data: Uint8Array) => Promise<void>
   fsList: (name: string, path: string) => Promise<Array<SpriteFsEntry>>
   exec: (name: string, options: SpritesExecOptions) => SpritesExecStream
+  /**
+     * Create a checkpoint and return its new version id (e.g. `v3`). The create
+     * endpoint streams NDJSON progress; we drain it to completion, then resolve
+     * the new id as the highest sequential `vN` checkpoint (autos and the live
+     * `Current` pointer are ignored).
+     */
   createCheckpoint: (
     name: string,
     options?: { comment?: string; signal?: AbortSignal },
@@ -75,12 +100,24 @@ export interface SpritesClientLike {
     name: string,
     signal?: AbortSignal,
   ) => Promise<Array<SpriteCheckpoint>>
+  /**
+     * Restore a checkpoint in place. The Sprite's writable overlay is replaced and
+     * the environment restarts, so the agent is briefly unreachable.
+     *
+     * The restore endpoint streams progress but holds the connection open across
+     * the restart (it does not close cleanly), so we must NOT drain it — we cancel
+     * the body once the restore is accepted, then poll the filesystem until the
+     * Sprite is ready again (or `readyTimeoutMs`, default 600s, elapses). Restart
+     * can take minutes; raise `readyTimeoutMs` for large overlays. The caller's
+     * `signal` cancels the wait, not just the initial request.
+     */
   restoreCheckpoint: (
     name: string,
     id: string,
     options?: {
       signal?: AbortSignal
       readyTimeoutMs?: number
+      /** Directory on the restored overlay used for the readiness probe. */
       probePath?: string
     },
   ) => Promise<void>
@@ -96,6 +133,10 @@ type WsCtor = new (
   options: { headers: Record<string, string> },
 ) => WebSocket
 
+/**
+ * A push-driven async iterable of decoded chunks. The producer pushes and calls
+ * `end()` once; consumers `for await` and terminate cleanly.
+ */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -154,6 +195,7 @@ export class SpritesClient implements SpritesClientLike {
     return { authorization: `Bearer ${this.apiKey}`, ...extra }
   }
 
+  /** Authorization header for control-plane and authenticated proxy requests. */
   authHeader(): Record<string, string> {
     return { authorization: `Bearer ${this.apiKey}` }
   }
@@ -222,6 +264,7 @@ export class SpritesClient implements SpritesClientLike {
   }
 
   async fsRead(name: string, path: string): Promise<Uint8Array> {
+    /** Public URL, e.g. `https://<name>-<suffix>.sprites.app`. */
     const url = this.spritePath(
       name,
       `/fs/read?path=${encodeURIComponent(path)}`,
@@ -379,6 +422,18 @@ export class SpritesClient implements SpritesClientLike {
     )
   }
 
+  /**
+     * Poll the filesystem until the restored overlay actually serves reads, or
+     * time out. Uses `fetch` (not the exec WebSocket) so each attempt is reliably
+     * bounded by its abort signal — during a restart the socket can stall in
+     * CONNECTING without opening or closing.
+     *
+     * Probes a write→read round-trip of a sentinel under `probePath` rather than a
+     * directory listing: right after a restore the overlay becomes *listable
+     * before file reads work* (a transient I/O error), so listing alone reports
+     * ready too early. Two consecutive round-trips are required before the sentinel
+     * is removed and the Sprite is declared ready.
+     */
   private async waitUntilReady(
     name: string,
     timeoutMs: number,

@@ -10,6 +10,9 @@ import type { GroqTranscriptionModel } from '../model-meta'
 import type { GroqTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type { GroqClientConfig } from '../utils/client'
 
+/**
+ * Configuration for the Groq Transcription adapter.
+ */
 export interface GroqTranscriptionConfig extends GroqClientConfig {}
 
 async function groqTranscriptionError(response: Response): Promise<string> {
@@ -53,6 +56,15 @@ function parseVerboseTranscription(
   }
 }
 
+/**
+ * Flattens the `openai` SDK's `HeadersLike` config value into a plain record so
+ * it can be merged into the raw `fetch` request this adapter issues. Handles
+ * the shapes callers actually pass (`Headers`, an entries array, or a plain
+ * object); null/undefined values are dropped.
+ *
+ * ponytail: doesn't unwrap the SDK's internal `NullableHeaders` class; forward
+ * that shape here if the SDK ever hands it to adapter config.
+ */
 function normalizeHeaders(
   headers: GroqTranscriptionConfig['defaultHeaders'],
 ): Record<string, string> {
@@ -100,6 +112,19 @@ interface GroqJsonTranscriptionResponse {
   x_groq?: { id?: string }
 }
 
+/**
+ * Groq Transcription (Speech-to-Text) Adapter
+ *
+ * Tree-shakeable adapter for Groq audio transcription. Supports
+ * whisper-large-v3 and whisper-large-v3-turbo.
+ *
+ * Features:
+ * - Audio file uploads (File, Blob, ArrayBuffer, base64/data URL)
+ * - Remote audio URLs passed directly via Groq's `url` field — no upload needed
+ * - Verbose JSON response with segment and word timestamps
+ * - Language detection or specification (ISO-639-1)
+ * - Confidence scores derived from segment avg_logprob
+ */
 export class GroqTranscriptionAdapter<
   TModel extends GroqTranscriptionModel,
 > extends BaseTranscriptionAdapter<TModel, GroqTranscriptionProviderOptions> {
@@ -270,6 +295,26 @@ export class GroqTranscriptionAdapter<
   }
 }
 
+/**
+ * Creates a Groq transcription adapter with an explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'whisper-large-v3-turbo')
+ * @param apiKey - Your Groq API key
+ * @param config - Optional additional configuration
+ * @returns Configured Groq transcription adapter instance
+ *
+ * @example
+ * ```typescript
+ * const adapter = createGroqTranscription('whisper-large-v3-turbo', 'gsk_...');
+ *
+ * const result = await generateTranscription({
+ *   adapter,
+ *   audio: audioFile,
+ *   language: 'en',
+ * });
+ * ```
+ */
 export function createGroqTranscription<TModel extends GroqTranscriptionModel>(
   model: TModel,
   apiKey: string,
@@ -278,6 +323,31 @@ export function createGroqTranscription<TModel extends GroqTranscriptionModel>(
   return new GroqTranscriptionAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates a Groq transcription adapter using the `GROQ_API_KEY` environment
+ * variable. Type resolution happens here at the call site.
+ *
+ * Looks for `GROQ_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (browser with injected env)
+ *
+ * @param model - The model name (e.g., 'whisper-large-v3-turbo')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Groq transcription adapter instance
+ * @throws Error if GROQ_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * const adapter = groqTranscription('whisper-large-v3-turbo');
+ *
+ * const result = await generateTranscription({
+ *   adapter,
+ *   audio: 'https://example.com/audio.mp3',
+ * });
+ *
+ * console.log(result.text)
+ * ```
+ */
 export function groqTranscription<TModel extends GroqTranscriptionModel>(
   model: TModel,
   config?: Omit<GroqTranscriptionConfig, 'apiKey'>,

@@ -7,8 +7,16 @@ import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { RunLogRecord } from './run-log'
 
 /** Re-arm window for the liveness watchdog while a run is in flight (ms). */
-const WATCHDOG_MS = 30_000
+const /** Re-arm window for the liveness watchdog while a run is in flight (ms). */
+WATCHDOG_MS = 30_000
 
+/**
+ * How long a non-terminal run may go without ANY new event before the watchdog
+ * presumes the orchestrator driving it is dead (eviction that lost the
+ * `waitUntil` promise, an uncaught fault, a hung container) and fails the run so
+ * tailing clients stop waiting forever. Generous so a legitimately slow agent
+ * step (a long tool call that emits no chunks) is not killed prematurely.
+ */
 const WATCHDOG_STALL_MS = 5 * 60_000
 
 /** What the Worker hands the coordinator to start a run. */
@@ -16,7 +24,21 @@ export interface StartRunInput {
   runId: string
   threadId: string
   messages: Array<ModelMessage>
+  /**
+     * The host the `POST /runs` trigger request arrived on, captured by the Worker
+     * (`new URL(request.url).host`). Used to derive the container's callback hosts
+     * when `PUBLIC_HOSTNAME` / `PREVIEW_HOSTNAME` are not set — see
+     * {@link resolveBridgeOrigin} / {@link resolvePreviewHost} for the rules (and the
+     * Cloudflare-specific reason request-derivation is safe to trust).
+     */
   publicHost?: string
+  /**
+     * Free-form per-run input forwarded verbatim from the trigger to the app's
+     * `adapter` / `sandbox` / `tools` resolvers (it reaches them through `config`
+     * unchanged; it is NOT persisted to the run-log). Use it to carry browser-chosen
+     * run options the base trigger has no field for — e.g. which harness to run, or a
+     * model id. The package never inspects it; the app validates whatever it reads.
+     */
   metadata?: Record<string, unknown>
 }
 
@@ -45,6 +67,12 @@ export abstract class SandboxCoordinator<
   protected readonly log: DurableObjectRunEventLog
   protected readonly controller: RunController
 
+  /**
+     * Sockets with a live {@link pump} loop. Guards against a second concurrent
+     * pump on the same socket: `acceptStream` starts one, and `webSocketMessage`
+     * would start another on any inbound client message while the first is still
+     * running — double-delivering events and racing the persisted cursor.
+     */
   private readonly pumping = new WeakSet<WebSocket>()
 
   constructor(ctx: DurableObjectState, env: TEnv) {
@@ -56,6 +84,12 @@ export abstract class SandboxCoordinator<
     })
   }
 
+  /**
+     * Produce the run's `StreamChunk` stream. The ONE model-specific method:
+     * `ChatSandboxCoordinator` runs `chat()` here; `ContainerSandboxCoordinator`
+     * drives the in-container runner. Lazily consumed by the run driver, so any
+     * setup (mint a token, start a container) can happen at the top.
+     */
   protected abstract buildRunStream(
     input: StartRunInput,
   ): AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>
@@ -158,6 +192,11 @@ export abstract class SandboxCoordinator<
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  /**
+     * Replay-then-tail loop for one socket. Each delivered event advances the
+     * socket's persisted cursor so a mid-stream reconnect resumes exactly once.
+     * No-ops if a pump is already running for this socket (see {@link pumping}).
+     */
   private pump(socket: WebSocket, runId: string, fromSeq: number): void {
     if (this.pumping.has(socket)) return
     this.pumping.add(socket)

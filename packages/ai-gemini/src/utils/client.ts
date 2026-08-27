@@ -4,6 +4,12 @@ import type { GoogleGenAIOptions } from '@google/genai'
 
 export type GeminiClientConfig = GoogleGenAIOptions
 
+/**
+ * Creates a Google Generative AI client instance.
+ *
+ * AI Studio mode needs `apiKey`. Vertex / Enterprise mode (`vertexai` or
+ * `enterprise`) uses project, location, and Google Cloud credentials instead.
+ */
 export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
   const vertexMode = config.vertexai === true || config.enterprise === true
   const needsApiKey =
@@ -16,6 +22,10 @@ export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
   return new GoogleGenAI(config)
 }
 
+/**
+ * Gets Google API key from environment variables
+ * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found
+ */
 export function getGeminiApiKeyFromEnv(): string {
   try {
     return getApiKeyFromEnv('GOOGLE_API_KEY')
@@ -30,6 +40,9 @@ export function getGeminiApiKeyFromEnv(): string {
   }
 }
 
+/**
+ * Generates a unique ID with a prefix
+ */
 export function generateId(prefix: string): string {
   return _generateId(prefix)
 }

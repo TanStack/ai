@@ -236,6 +236,10 @@ function readEntry(value: unknown): SbxLsEntry | null {
   }
 }
 
+/**
+ * Real CLI: `sbx exec [flags] SANDBOX COMMAND`. Flags after the name are
+ * treated as the command, so `-w` / `-e` must come first.
+ */
 export function sbxExecArgs(
   name: string,
   command: string,
@@ -251,6 +255,10 @@ export function sbxExecArgs(
   return args
 }
 
+/**
+ * sandboxd may print a start banner before JSON (docker/sbx-releases#201).
+ * Walk every `{` / `[` until one slice parses.
+ */
 export function parseJsonAfterBanner(stdout: string): unknown {
   let lastError: unknown
   let sawStart = false

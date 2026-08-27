@@ -38,6 +38,7 @@ function parseCreateRunBody(value: unknown): CreateRunBody {
           }
         }
         // Optional free-form pass-through (app-validated). Must be an object if present.
+        /** Forwarded verbatim to the app's resolvers — see {@link StartRunInput.metadata}. */
         let metadata: Record<string, unknown> | undefined
         if ('metadata' in value && value.metadata !== undefined) {
           if (!isRecord(value.metadata)) {
@@ -81,6 +82,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+/**
+ * Build the Worker fetch handler. `resolveCoordinator` maps `(env, threadId)` to
+ * the DO stub that owns that thread's runs.
+ */
 export function createSandboxAgentWorker<TEnv>(
   resolveCoordinator: ResolveCoordinator<TEnv>,
 ): ExportedHandler<TEnv> {

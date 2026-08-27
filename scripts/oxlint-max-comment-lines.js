@@ -5,9 +5,15 @@ function isDirective(comment) {
   return DIRECTIVE.test(comment.value.trim())
 }
 
+function isJsdoc(comment) {
+  return comment.type === 'Block' && comment.value.trimStart().startsWith('*')
+}
+
 function commentLineCount(comment) {
   return comment.loc.end.line - comment.loc.start.line + 1
 }
+
+export { isDirective, isJsdoc, commentLineCount }
 
 const plugin = {
   meta: { name: 'comment-limits' },
@@ -15,7 +21,10 @@ const plugin = {
     'max-lines': {
       meta: {
         type: 'suggestion',
-        docs: { description: 'Disallow comments longer than 2 lines' },
+        docs: {
+          description:
+            'Disallow long non-JSDoc comments. JSDoc (`/** ... */`) is allowed.',
+        },
         schema: [],
         messages: {
           tooLong:
@@ -28,7 +37,7 @@ const plugin = {
           Program() {
             const comments = sourceCode.getAllComments()
             for (const comment of comments) {
-              if (isDirective(comment)) continue
+              if (isDirective(comment) || isJsdoc(comment)) continue
               if (commentLineCount(comment) > 2) {
                 context.report({ loc: comment.loc, messageId: 'tooLong' })
               }

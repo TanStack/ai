@@ -31,6 +31,16 @@ import type {
 } from './interrupt-definition'
 import type { Interrupt, RunAgentResumeItem } from './types'
 
+/**
+ * The `Interrupt.metadata` key under which this package's resume binding
+ * travels.
+ *
+ * Exported so anything that produces an interrupt this package must later
+ * resume — an application middleware raising a generic pause, a future
+ * workflow-to-AG-UI projection — attaches the binding through
+ * {@link withInterruptBinding} rather than copying the string. Everything
+ * outside this key is the plain AG-UI envelope and is left untouched.
+ */
 export const INTERRUPT_BINDING_METADATA_KEY = 'tanstack:interruptBinding'
 
 const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
@@ -369,6 +379,7 @@ async function validateGenericResumeItem(
   responseSchema: unknown,
   errors: Array<InterruptSubmissionError>,
 ): Promise<void> {
+  /** Present for a first-party generic interrupt. */
   const genericRequest = record.genericRequest
   if (genericRequest !== undefined) {
     const batchIndex =
@@ -861,6 +872,10 @@ async function materializeResumeToolState(
   }
 }
 
+/**
+ * Validate and translate a complete interrupt batch before any tool executes.
+ * Used by ephemeral chat resume; a durable layer may share the same validator.
+ */
 export async function validateInterruptResumeBatch(
   input: ValidateInterruptResumeBatchInput,
 ): Promise<ValidatedInterruptResumeBatch> {
@@ -949,6 +964,14 @@ export async function validateInterruptResumeBatch(
   return materializeResumeToolState(input, resumeById)
 }
 
+/**
+ * Is this a binding written by a version of the protocol we understand?
+ *
+ * A missing `v` is read as {@link INTERRUPT_BINDING_VERSION} so bindings
+ * written before the field existed still resume. A `v` we don't recognise is
+ * rejected outright — a newer or foreign producer's binding must not be
+ * duck-typed into ours.
+ */
 function isSupportedBindingVersion(raw: Record<string, unknown>): boolean {
   const version = raw['v']
   if (version === undefined) return true
@@ -1100,6 +1123,15 @@ export function readUnopenedInterruptBinding(
   return undefined
 }
 
+/**
+ * Attach a resume binding to an interrupt descriptor, under
+ * {@link INTERRUPT_BINDING_METADATA_KEY}.
+ *
+ * This is the supported way to make an interrupt resumable by this package.
+ * The descriptor keeps its AG-UI shape; only `metadata` gains the namespaced
+ * key. Pass the unopened form (no `interruptedRunId` / `generation`) when
+ * emitting from inside a run — those fields are stamped as the run finishes.
+ */
 export function withInterruptBinding(
   descriptor: Interrupt,
   binding: UnopenedInterruptBinding | InterruptBinding,
@@ -1117,6 +1149,13 @@ export function withInterruptBinding(
   }
 }
 
+/**
+ * Read the opened resume binding off a descriptor, or `undefined` when the
+ * descriptor carries no binding of a version we understand.
+ *
+ * `undefined` means "this interrupt is not ours to resume" — it is not a
+ * failure to recover from by inventing a binding.
+ */
 export function readInterruptBinding(
   descriptor: Interrupt,
 ): InterruptBinding | undefined {

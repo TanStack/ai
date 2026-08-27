@@ -30,9 +30,20 @@ export type VertexAuthClient = {
   getRequestHeaders: (url?: string | URL) => Promise<Headers>
 }
 
+/**
+ * Public Vertex config for Mistral. `project` and `location` match the
+ * Gemini Vertex factories so one auth object works for both.
+ *
+ * Mistral on Vertex is regional only (`us-central1`, `europe-west4`).
+ * There is no global endpoint.
+ */
 export type MistralVertexConfig = {
   project?: string
   location?: string
+  /**
+     * Override the chat completions URL. When set, the Vertex
+     * `:rawPredict` / `:streamRawPredict` rewrite is skipped. Used by e2e.
+     */
   resolveRequestUrl?: (stream: boolean) => string
   getAccessToken?: () => Promise<string>
   authClient?: VertexAuthClient

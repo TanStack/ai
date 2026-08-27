@@ -27,6 +27,10 @@ export function mapVideoSizeToFalFormat<TModel extends string>(
   return { resolution: size } as FalModelVideoSizeInput<TModel>
 }
 
+/**
+ * Identity helper that checks each entry against the SDK's `duration` union
+ * for its own key, so a typo'd endpoint id or a stale union fails to compile.
+ */
 function durationMap<
   const T extends {
     [K in keyof T & string]: DurationOptions<FalModelVideoDuration<K>>
@@ -57,6 +61,16 @@ const KLING_3_15 = {
   ],
 } as const
 
+/**
+ * Curated map of per-model duration options for popular fal.ai video models.
+ * Values are checked at compile time against `@fal-ai/client`'s
+ * `EndpointTypeMap` input types via `durationMap`.
+ *
+ * Models not listed here fall back to `{ kind: 'none' }` — honest "we don't
+ * know" rather than guessing. The type-level `FalModelVideoDuration<TModel>`
+ * still derives from the SDK types, so autocomplete works for SDK-known
+ * models that aren't curated here.
+ */
 const FAL_VIDEO_DURATIONS = durationMap({
   'fal-ai/kling-video/v1.6/standard/text-to-video': KLING_5_10,
   'fal-ai/kling-video/v1.6/pro/text-to-video': KLING_5_10,

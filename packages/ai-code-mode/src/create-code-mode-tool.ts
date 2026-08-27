@@ -14,6 +14,9 @@ import type {
   IsolateContext,
 } from './types'
 
+/**
+ * Schema for the execute_typescript tool input
+ */
 const executeTypescriptInputSchema = z.object({
   typescriptCode: z
     .string()
@@ -24,6 +27,9 @@ const executeTypescriptInputSchema = z.object({
     ),
 })
 
+/**
+ * Schema for the execute_typescript tool output
+ */
 const executeTypescriptOutputSchema = z.object({
   success: z.boolean().describe('Whether execution completed without errors'),
   result: z
@@ -52,6 +58,30 @@ export type ExecuteTypescriptOutput = z.infer<
   typeof executeTypescriptOutputSchema
 >
 
+/**
+ * Create an execute_typescript tool that can be used alongside other agent tools.
+ *
+ * This tool allows an LLM to execute TypeScript code in a secure sandbox.
+ * Tools passed in the config become `external_*` functions available inside the sandbox.
+ *
+ * @example
+ * ```typescript
+ * import { createCodeMode } from '@tanstack/ai-code-mode'
+ * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+ *
+ * const { tool, systemPrompt } = createCodeMode({
+ *   driver: createNodeIsolateDriver(),
+ *   tools: [weatherTool, dbTool],  // Become external_fetchWeather, external_dbQuery
+ *   timeout: 30000,
+ * })
+ *
+ * chat({
+ *   systemPrompts: [myPrompt, systemPrompt],
+ *   tools: [tool, searchTool, emailTool],
+ *   messages,
+ * })
+ * ```
+ */
 export function createCodeModeTool(
   config: CodeModeToolConfig,
 ): ServerTool<
@@ -341,6 +371,9 @@ async function runCodeModeExecution(args: {
   }
 }
 
+/**
+ * Build the tool description including available external functions
+ */
 function buildToolDescription(tools: Array<CodeModeTool>): string {
   const eager = tools.filter((t) => !t.lazy)
   const hasLazy = tools.some((t) => t.lazy)

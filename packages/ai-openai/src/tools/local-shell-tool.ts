@@ -9,6 +9,10 @@ export {
 
 export type OpenAILocalShellTool = ProviderTool<'openai', 'local_shell'>
 
+/**
+ * Creates a standard Tool from LocalShellTool parameters, branded as an
+ * OpenAI provider tool.
+ */
 export function localShellTool(): OpenAILocalShellTool {
   return baseLocalShellTool() as OpenAILocalShellTool
 }

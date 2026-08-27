@@ -23,14 +23,25 @@ import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
 /** The adapter kind this activity handles */
-export const kind = 'tts' as const
+export const /** The adapter kind this activity handles */
+kind = 'tts' as const
 
+/**
+ * Extract provider options from a TTSAdapter via ~types.
+ */
 export type TTSProviderOptions<TAdapter> = TAdapter extends {
   '~types': { providerOptions: infer P extends object }
 }
   ? P
   : object
 
+/**
+ * Options for the TTS activity.
+ * The model is extracted from the adapter's model property.
+ *
+ * @template TAdapter - The TTS adapter type
+ * @template TStream - Whether to stream the output
+ */
 export interface TTSActivityOptions<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
@@ -47,17 +58,49 @@ export interface TTSActivityOptions<
   speed?: number
   /** Provider-specific options for TTS generation */
   modelOptions?: TTSProviderOptions<TAdapter>
+  /**
+     * Whether to stream the generation result.
+     * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+     * When false or not provided, returns a Promise<TTSResult>.
+     *
+     * @default false
+     */
   stream?: TStream
+  /**
+     * Enable debug logging. Pass `true` to enable all categories, `false` to
+     * silence everything including errors, or a `DebugConfig` object for granular
+     * control and/or a custom `Logger`.
+     */
   debug?: DebugOption
+  /**
+     * Observe-only middleware notified on start, usage, success, and error. Pass
+     * `otelMiddleware()` to emit OpenTelemetry spans, or implement the
+     * `GenerationMiddleware` contract for a custom backend.
+     */
   middleware?: Array<GenerationMiddleware>
   /** Stable conversation/thread id for correlating this run when persisted. */
   threadId?: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
+  /**
+     * Maximum duration of this activity invocation in milliseconds.
+     * No SDK-wide default — choose a value suitable for the provider and job.
+     * Composed with {@link abortSignal}; the first abort wins.
+     */
   timeout?: number
+  /**
+     * Caller cancellation signal (request disconnects, job/runtime cancellation).
+     * Composed with {@link timeout} into an effective signal forwarded to the
+     * adapter. Request-specific — not stored on global provider client config.
+     */
   abortSignal?: AbortSignal
 }
 
+/**
+ * Result type for the TTS activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<TTSResult>
+ */
 export type TTSActivityResult<TStream extends boolean = false> =
   TStream extends true ? AsyncIterable<StreamChunk> : Promise<TTSResult>
 
@@ -65,6 +108,36 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/**
+ * TTS activity - generates speech from text.
+ *
+ * Uses AI text-to-speech models to create audio from natural language text.
+ *
+ * @example Generate speech from text
+ * ```ts
+ * import { generateSpeech } from '@tanstack/ai'
+ * import { openaiSpeech } from '@tanstack/ai-openai'
+ *
+ * const result = await generateSpeech({
+ *   adapter: openaiSpeech('tts-1-hd'),
+ *   text: 'Hello, welcome to TanStack AI!',
+ *   voice: 'nova'
+ * })
+ *
+ * console.log(result.audio) // base64-encoded audio
+ * ```
+ *
+ * @example With format and speed options
+ * ```ts
+ * const result = await generateSpeech({
+ *   adapter: openaiSpeech('tts-1'),
+ *   text: 'This is slower speech.',
+ *   voice: 'alloy',
+ *   format: 'wav',
+ *   speed: 0.8
+ * })
+ * ```
+ */
 export function generateSpeech<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
@@ -78,6 +151,9 @@ export function generateSpeech<
   return runGenerateSpeech(options) as TTSActivityResult<TStream>
 }
 
+/**
+ * Run the core TTS generation logic (non-streaming).
+ */
 async function runGenerateSpeech<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
 >(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
@@ -222,6 +298,9 @@ async function runGenerateSpeech<
   }
 }
 
+/**
+ * Create typed options for the generateSpeech() function without executing.
+ */
 export function createSpeechOptions<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,

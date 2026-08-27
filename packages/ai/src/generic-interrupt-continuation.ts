@@ -2,6 +2,12 @@ import { INTERRUPT_PAYLOAD_METADATA_KEY } from './interrupt-definition'
 import { readUnopenedInterruptBinding } from './interrupt-resume'
 import type { Interrupt } from './types'
 
+/**
+ * `ResumeEntry.metadata` key for a first-party generic request.
+ *
+ * AG-UI `resume` only carries the answer (`interruptId`, `status`, `payload`).
+ * The original request rides here so an ephemeral server can rebuild it.
+ */
 export const INTERRUPT_CONTINUATION_METADATA_KEY =
   'tanstack:interruptContinuation' as const
 
@@ -80,6 +86,12 @@ function continuationFromRaw(
   }
 }
 
+/**
+ * Read one generic request from `resume[].metadata`.
+ *
+ * Missing key means this resume item is not a first-party generic continuation.
+ * A present key that fails the shape is a protocol error.
+ */
 export function readGenericInterruptContinuation(
   metadata: unknown,
 ): GenericInterruptContinuationReadResult {
@@ -112,6 +124,11 @@ export function wrapGenericInterruptContinuation(
   return { [INTERRUPT_CONTINUATION_METADATA_KEY]: continuation }
 }
 
+/**
+ * Build the resume-metadata continuation from an outbound AG-UI interrupt.
+ *
+ * Returns `undefined` when the descriptor is not a first-party generic item.
+ */
 export function genericInterruptContinuationFromDescriptor(
   interrupt: Interrupt,
 ): GenericInterruptContinuation | undefined {

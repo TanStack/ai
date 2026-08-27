@@ -19836,6 +19836,10 @@ export const OPENROUTER_IMAGE_MODELS = [
   OPENAI_GPT_5_4_IMAGE_2.id,
 ] as const
 
+/**
+ * Generated: chat models whose catalog `supported_parameters` include
+ * `structured_outputs`, `tools` and `tool_choice` (combined tools + outputSchema mode).
+ */
 export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
   new Set<string>([
     _ANTHROPIC_CLAUDE_FABLE_LATEST.id,

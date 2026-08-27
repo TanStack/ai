@@ -7,7 +7,8 @@ export const byteplusByok = defineByokProvider({
 })
 
 /** Seed Speech TTS/ASR. Different product and key from {@link byteplusByok}. */
-export const byteplusVoiceByok = defineByokProvider({
+export const /** Seed Speech TTS/ASR. Different product and key from {@link byteplusByok}. */
+byteplusVoiceByok = defineByokProvider({
   id: 'byteplus-voice',
   label: 'BytePlus Seed Speech',
   env: 'BYTEPLUS_VOICE_API_KEY',

@@ -66,6 +66,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * A push-driven async iterable. The streamer pushes decoded chunks and calls
+ * `end()` once; consumers `for await` over it and terminate cleanly.
+ */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -121,7 +125,9 @@ export class DaytonaHandle implements SandboxHandle {
   readonly ports: SandboxHandle['ports']
   readonly env: SandboxHandle['env']
 
+  /** The live Daytona sandbox object. */
   private readonly sandbox: Sandbox
+  /** Working directory inside the sandbox (the `/workspace` virtual root maps here). */
   private readonly workdir: string
   private readonly envVars: Record<string, string> = {}
 
@@ -146,6 +152,7 @@ export class DaytonaHandle implements SandboxHandle {
         return new Uint8Array(buf)
       },
       write: async (p, data) => {
+        /** Map the conventional `/workspace` virtual root to the sandbox workdir. */
         const abs = this.abs(p)
         const parent = abs.replace(/\/[^/]*$/, '') || '/'
         await this.sandbox.fs.createFolder(parent, '755')
@@ -221,6 +228,10 @@ export class DaytonaHandle implements SandboxHandle {
     return parseLstatOutput(r.stdout)
   }
 
+  /**
+     * Session execute has no env field. Write values to a workdir file,
+     * then source that file so the stored command never contains secrets.
+     */
   private async persistSpawnEnvFile(
     env: Record<string, string>,
   ): Promise<string | undefined> {

@@ -30,6 +30,32 @@ export interface ChatInputProps {
   submitOnEnter?: boolean
 }
 
+/**
+ * Chat input component - handles message input and submission
+ *
+ * Features:
+ * - Auto-growing textarea
+ * - Submit on Enter (Shift+Enter for new line)
+ * - Loading state management
+ * - Full render prop support for custom UIs
+ *
+ * @example
+ * ```tsx
+ * <Chat.Input placeholder="Type your message..." />
+ * ```
+ *
+ * @example Custom UI with render prop
+ * ```tsx
+ * <Chat.Input>
+ *   {({ value, onChange, onSubmit, isLoading }) => (
+ *     <div>
+ *       <textarea value={value} onChange={(e) => onChange(e.target.value)} />
+ *       <button onClick={onSubmit} disabled={isLoading}>Send</button>
+ *     </div>
+ *   )}
+ * </Chat.Input>
+ * ```
+ */
 export function ChatInput({
   children,
   className,
@@ -39,8 +65,10 @@ export function ChatInput({
 }: ChatInputProps) {
   const { sendMessage, isLoading } = useChatContext()
   const [value, setValue] = useState('')
+  /** Ref to the input element */
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
+  /** Is input disabled */
   const disabled = disabledProp || isLoading
 
   const handleSubmit = () => {

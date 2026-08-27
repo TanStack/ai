@@ -67,15 +67,30 @@ export interface MemoryHit {
   score: number
 }
 
+/**
+ * Minimal storage backend the built-in adapters run on. `add` upserts by id;
+ * `loadScope` returns the live (non-expired) records for exactly this scope.
+ */
 export interface RecordStore {
   add: (records: Array<MemoryRecord>) => Promise<void>
   loadScope: (scope: MemoryScope) => Promise<Array<MemoryRecord>>
 }
 
+/**
+ * Normalize an optional scope dimension: empty string is treated as unset so
+ * `''` and `undefined` compare equal.
+ */
 function scopeDimValue(value: string | undefined): string | undefined {
   return value != null && value !== '' ? value : undefined
 }
 
+/**
+ * Exact scope match for built-in stores. `threadId` must match, and optional
+ * `userId` / `tenantId` must match exactly on both sides (including both
+ * unset). A query that omits `tenantId` does **not** match a record written
+ * with a tenant — same isolation model as Redis composite index keys.
+ * `namespace` is reserved and ignored until a subsystem keys on it.
+ */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
   if (record.threadId !== query.threadId) return false
   if (scopeDimValue(record.userId) !== scopeDimValue(query.userId)) return false
@@ -134,6 +149,11 @@ export function isExpired(
   return record.expiresAt !== undefined && record.expiresAt < now
 }
 
+/**
+ * Reference ranking: weighted sum of semantic (0.55), lexical (0.20), recency
+ * (0.15), and importance (0.10). Unset importance contributes 0 — no mid-range
+ * fallback, so recent records don't automatically clear the `minScore` floor.
+ */
 export function defaultScoreHit(args: {
   record: MemoryRecord
   queryText: string
@@ -174,6 +194,11 @@ export function newRecordId(): string {
   }
 }
 
+/**
+ * Build the records for a completed turn: the raw user/assistant messages
+ * (importance 0.4) plus anything the optional extractor returns, embedding each
+ * when an embedder is configured.
+ */
 export async function buildTurnRecords(
   scope: MemoryScope,
   turn: MemoryTurn,
@@ -266,7 +291,9 @@ export async function recallRecords(
   query: string,
   options: BuiltinOptions,
 ): Promise<RecallResult> {
+  /** Max hits returned by recall. Defaults to 6. */
   const topK = options.topK ?? 6
+  /** Drop hits scoring below this. Defaults to 0.15. */
   const minScore = options.minScore ?? 0.15
   const now = Date.now()
 
@@ -275,6 +302,7 @@ export async function recallRecords(
     : undefined
 
   const records = await store.loadScope(scope)
+  /** Restrict recall to these kinds. Defaults to all. */
   const kinds = options.kinds
   const candidates =
     kinds && kinds.length > 0

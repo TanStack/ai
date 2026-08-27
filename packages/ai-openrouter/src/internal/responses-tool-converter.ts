@@ -1,6 +1,12 @@
 import { makeStructuredOutputCompatible } from './schema-converter'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 
+/**
+ * Responses API function tool format.
+ *
+ * Matches OpenRouter's `ResponsesRequestToolFunction` shape exactly:
+ *   { type: 'function', name: string, description?: string, parameters: object, strict?: boolean }
+ */
 export interface ResponsesFunctionTool {
   type: 'function'
   name: string
@@ -9,6 +15,17 @@ export interface ResponsesFunctionTool {
   strict: boolean | null
 }
 
+/**
+ * Converts a standard Tool to the Responses API FunctionTool format.
+ *
+ * Tool schemas are already converted to JSON Schema in the ai layer.
+ * We apply OpenAI-compatible transformations for strict mode:
+ * - All properties in required array
+ * - Optional fields made nullable
+ * - additionalProperties: false
+ *
+ * This enables strict mode for all tools automatically.
+ */
 export function convertFunctionToolToResponsesFormat(
   tool: Tool,
   schemaConverter: (

@@ -30,6 +30,12 @@ function readEnv(name: string): string | undefined {
   return nonEmpty(process.env[name])
 }
 
+/**
+ * Resolves Vertex Gemini client options.
+ *
+ * Factory fields win. Then env. Then ADC inside `@google/genai`.
+ * Does not read `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
+ */
 export function resolveVertexGeminiOptions(
   config: VertexClientConfig = {},
 ): GeminiClientConfig {

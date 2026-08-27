@@ -1,6 +1,11 @@
 import type { RunStore, StreamChunk, StreamDurability } from '@tanstack/ai'
 import type { RunEventLog } from './run-log'
 
+/**
+ * Expose a {@link RunEventLog} as core's `RunStore`, for the `runs` half of
+ * `RunDeps`. A pure rename layer — the invariants (idempotent `createOrResume`,
+ * no-op `update` on an unknown run) are the log's own.
+ */
 export function runLogStore(log: RunEventLog): RunStore {
   return {
     createOrResume: ({ runId, threadId, startedAt }) =>
@@ -30,7 +35,8 @@ function encodeOffset(runId: string, seq: number): string {
   return `${RUN_LOG_OFFSET_PREFIX}${encodeURIComponent(runId)}:${seq}`
 }
 
-function decodeOffset(offset: string): { runId: string; seq: number } {
+function decodeOffset(offset: string): { /** The run this durability adapter attaches to. */
+runId: string; seq: number } {
   if (!offset.startsWith(RUN_LOG_OFFSET_PREFIX)) {
     throw new Error(`Invalid run-log stream offset: ${offset}`)
   }
@@ -52,9 +58,26 @@ function decodeOffset(offset: string): { runId: string; seq: number } {
 export interface RunLogStreamInit {
   /** The run this durability adapter attaches to. */
   runId: string
+  /**
+     * Resume offset captured by the consumer (`resumeFrom()` returns it).
+     * Defaults to `null` (a producer / from-start reader).
+     */
   offset?: string | null
 }
 
+/**
+ * Expose one run of a {@link RunEventLog} as core's `StreamDurability`, for the
+ * `durability` half of `RunDeps`: `(runId) => runLogStream(log, { runId })`.
+ *
+ * The run must already exist — core's driver guarantees it (`createOrResume`
+ * runs before the first `append`), and a standalone consumer opens it first.
+ * `append` and `read` on an unknown run reject, per the log's own contract;
+ * `snapshot` resolves `[]`, per `StreamDurability`'s.
+ *
+ * Offsets encode the log's monotonic `seq` (versioned, run-scoped, opaque to
+ * callers). The `'-1'` (from-start) and `'now'` (tail-only) read sentinels
+ * every shipped backend honors are supported.
+ */
 export function runLogStream(
   log: RunEventLog,
   init: RunLogStreamInit,

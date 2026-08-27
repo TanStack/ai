@@ -52,11 +52,28 @@ function assignDefined<T, K extends keyof T>(
   }
 }
 
+/**
+ * Configuration for Gemini image adapter
+ */
 export interface GeminiImageConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini Image */
 export type GeminiImageModel = GeminiImageModels
 
+/**
+ * Gemini Image Generation Adapter
+ *
+ * Tree-shakeable adapter for Gemini image generation functionality.
+ * Supports Imagen 3/4 models (via generateImages API) and Gemini native
+ * image models like Nano Banana 2 (via generateContent API).
+ *
+ * Features:
+ * - Aspect ratio-based image sizing
+ * - Person generation controls
+ * - Safety filtering
+ * - Watermark options
+ * - Extended resolution tiers (Nano Banana 2)
+ */
 export class GeminiImageAdapter<
   TModel extends GeminiImageModel,
 > extends BaseImageAdapter<
@@ -195,6 +212,16 @@ export class GeminiImageAdapter<
     return this.transformGeminiResponse(model, response)
   }
 
+  /**
+     * Build the multimodal `contents` payload. Text-only prompts pass through
+     * as a plain string (the SDK accepts it directly); prompts with image
+     * parts become a single user `Content` whose `parts` mirror the prompt's
+     * interleaved order — position is meaningful to Gemini ("not like this
+     * *(image)*, more like this *(image)*").
+     *
+     * The generateContent API has no numberOfImages parameter, so when more
+     * than one image is requested a trailing instruction is appended.
+     */
   private buildContents(
     resolved: ResolvedMediaPrompt,
     numberOfImages: number | undefined,
@@ -381,6 +408,7 @@ export function createGeminiImage(
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
 export function createGeminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   apiKey: string,
@@ -404,6 +432,7 @@ export function geminiImage(
   model: 'gemini-3-pro-image-preview',
   config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<'gemini-3-pro-image-preview'>
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
 export function geminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,

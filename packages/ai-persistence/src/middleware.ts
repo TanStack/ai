@@ -64,6 +64,15 @@ import type {
 } from './types'
 import { artifactBlobKey } from './retrieve'
 
+/**
+ * How generated media is turned into durable artifacts: which pieces of a
+ * result become artifacts, what they are named, where their bytes land, and how
+ * the bytes are fetched when the provider returns a URL rather than inline data.
+ *
+ * Consumed by {@link withGenerationPersistence} through
+ * {@link WithGenerationPersistenceOptions}. Chat persistence has no artifacts —
+ * its options are {@link WithPersistenceOptions}.
+ */
 export interface ArtifactPersistenceOptions {
   extractArtifacts?: (
     input: GenerationArtifactExtractionInput,
@@ -71,10 +80,41 @@ export interface ArtifactPersistenceOptions {
     | Array<GenerationArtifactDescriptor | PersistedArtifactRef>
     | Promise<Array<GenerationArtifactDescriptor | PersistedArtifactRef>>
   nameArtifact?: (input: GenerationArtifactNameInput) => string
+  /**
+     * Map a freshly-persisted artifact ref to the durable app-origin URL that
+     * serves its bytes (your `GET` route around `retrieveArtifact` /
+     * `retrieveBlob`). The returned URL is stamped onto `ref.url` and written into
+     * the result's media field, so both the live and the restored result render
+     * durable media from your own origin instead of the provider's expiring link.
+     * Return `undefined` to leave a ref without a durable URL.
+     */
   artifactUrl?: (ref: PersistedArtifactRef) => string | undefined
+  /**
+     * Choose the blob-store key each artifact's bytes are written under, so
+     * generated media can land in your own folder structure rather than the
+     * default `artifacts/<runId>/<artifactId>`.
+     *
+     * ```ts
+     * storageKey: ({ runId, artifactId, mimeType }) =>
+     *   `video/${videoId}/frames/${runId}-${artifactId}.png`
+     * ```
+     *
+     * Server-side only, and deliberately so: a key supplied by the browser would
+     * be a path-traversal and cross-tenant-write vector.
+     *
+     * The resolved key is recorded on `ArtifactRecord.blobKey`, because once the
+     * path is arbitrary a reader can no longer recompute it. Returning a
+     * non-unique key overwrites — include `artifactId` (or something equally
+     * unique) unless you intend that.
+     */
   storageKey?: (input: {
     artifactId: string
     runId: string
+    /**
+       * Override the scope runs are filed under. Defaults to the `threadId` you
+       * passed the activity, which is normally what you want, so leave this unset
+       * unless the record belongs somewhere other than the activity's own scope.
+       */
     threadId: string
     role: PersistedArtifactRole
     activity: PersistedArtifactActivity
@@ -82,20 +122,81 @@ export interface ArtifactPersistenceOptions {
     mimeType: string
     name: string
   }) => string
+  /**
+     * Opt in to fetching prompt media referenced by URL (`role: 'input'`).
+     *
+     * Off by default, and deliberately expressed as a predicate rather than a
+     * boolean: input URLs come from the caller, so fetching them server-side
+     * turns your server into a proxy for whatever the caller names — cloud
+     * metadata endpoints, `localhost` admin services, anything your network can
+     * reach. The bytes are also redundant in the common case, since the client
+     * already had the media it referenced.
+     *
+     * Enable this only when you genuinely need a durable copy of caller-supplied
+     * media (a "paste an image URL" input box, say), and validate the target:
+     *
+     * ```ts
+     * allowInputUrl: ({ url }) => url.hostname.endsWith('.cdn.example.com')
+     * ```
+     *
+     * Requests are additionally forced through the same baseline checks every
+     * artifact fetch gets (http/https only, timeout, size cap), plus — because
+     * the target is untrusted — a loopback/private/link-local host block and
+     * `redirect: 'manual'` so a 302 cannot hop to an internal address. Those are
+     * a backstop, not a substitute for a narrow predicate: a hostname that
+     * resolves to a private address still passes a literal-IP check.
+     */
   allowInputUrl?: (input: {
     url: URL
     descriptor: GenerationArtifactDescriptor
   }) => boolean | Promise<boolean>
   /** Abort an artifact fetch after this many ms. Default 30_000. */
   artifactFetchTimeoutMs?: number
+  /**
+     * Refuse an artifact body larger than this many bytes. Default 1 GiB.
+     *
+     * This is a bound on TRANSFER, not on memory: the URL path streams into the
+     * blob store and never buffers, so a 1 GiB artifact costs a streaming store
+     * (R2, S3, filesystem) flat memory. What the cap buys is a ceiling on what a
+     * broken or hostile origin can make you pull and store — `content-length` is
+     * advisory, so without it an artifact fetch is an unbounded transfer billed
+     * to you.
+     *
+     * Pass `false` to remove the ceiling entirely. That also removes the
+     * cap-enforcing `TransformStream` wrapper, so the fetched body reaches your
+     * store exactly as `fetch` produced it — on workerd that means it keeps its
+     * native declared length and `R2Bucket.put` can single-shot it with no hint,
+     * no multipart, and nothing buffered. Do that when you trust the origins you
+     * fetch from (your provider's CDN); keep the cap when `allowInputUrl` lets
+     * callers name the URL.
+     */
   maxArtifactBytes?: number | false
+  /**
+     * `fetch` used to download artifact bytes. Defaults to the global. Inject to
+     * route downloads through a proxy or an egress-restricted agent — the most
+     * robust SSRF control available here, since it can resolve and check the
+     * address actually connected to.
+     */
   artifactFetch?: typeof globalThis.fetch
 }
 
+/**
+ * Options for {@link withGenerationPersistence}: everything in
+ * {@link ArtifactPersistenceOptions}, plus an optional scope override.
+ */
 export interface WithGenerationPersistenceOptions extends ArtifactPersistenceOptions {
   threadId?: string
 }
 
+/**
+ * The slot this generation's runs are filed under: `ctx.threadId` (the
+ * `threadId` the caller passed the activity), or the option when it overrides.
+ *
+ * Throws when neither supplies one. A run filed under no scope can never be
+ * hydrated by one, so `persistence: true` would restore nothing, forever. That
+ * is worth failing loudly for, since the alternative is a silent hole a reader
+ * cannot diagnose from behavior.
+ */
 function generationScope(
   ctx: GenerationMiddlewareContext,
   opts: WithGenerationPersistenceOptions,
@@ -151,6 +252,12 @@ export interface GenerationArtifactNameInput {
 interface RunStateEntry {
   merged: boolean
   interrupted: boolean
+  /**
+     * Resumes accepted in `onConfig` but not yet committed to the interrupt
+     * store. They are applied (resolve/cancel) only once the run reaches a
+     * successful boundary — see {@link commitPendingResumes}. Left uncommitted
+     * (still pending in the store) if the run fails or aborts first.
+     */
   pendingResumes?: {
     pending: Array<InterruptRecord>
     resumeByInterruptId: Map<string, RunAgentResumeItem>
@@ -161,6 +268,12 @@ interface RunStateEntry {
   streamingText?: string
   /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
   lastSnapshotAt?: number
+  /**
+     * The current assistant turn's stream messageId, captured from
+     * `TEXT_MESSAGE_START`. Persisted onto the assistant message so its identity
+     * survives the persist → hydrate round-trip and a reload can resume the same
+     * bubble in place.
+     */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
   completion?: {
@@ -401,6 +514,14 @@ async function applyPendingResumes(
   }
 }
 
+/**
+ * Commit the resumes stashed in `onConfig`, marking each resumed interrupt
+ * resolved/cancelled. Called only from success boundaries (`onFinish`, and the
+ * `onChunk` interrupt boundary) so a provider failure or abort between accepting
+ * the resume and reaching a boundary leaves the interrupts pending — the
+ * approval is not consumed and a retry with the same resume succeeds. Idempotent
+ * and a no-op when nothing is stashed.
+ */
 async function commitPendingResumes(
   state: RunStateEntry | undefined,
   interrupts: AIPersistence['stores']['interrupts'],
@@ -448,6 +569,14 @@ function isPersistedInterruptDescriptor(
   )
 }
 
+/**
+ * Does this pending record belong to the TanStack chat resume protocol?
+ *
+ * An external system can persist an AG-UI descriptor in the same durable
+ * thread. A descriptor without a TanStack binding or legacy tool marker stays
+ * pending for its owner, but it does not make this resume incomplete. Older
+ * opaque records remain owned because their provenance cannot be known.
+ */
 function isChatOwnedPendingInterrupt(interrupt: InterruptRecord): boolean {
   const kind = interruptKind(interrupt)
   return (
@@ -791,6 +920,14 @@ function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
   return typeof payload?.approved === 'boolean' ? payload.approved : false
 }
 
+/**
+ * Translate the persisted pending interrupts + the resume batch into the
+ * `ChatResumeToolState` the chat engine consumes. This is the server-authoritative
+ * counterpart to the engine's ephemeral (client-history) reconstruction: because
+ * the persistence flow sends empty client messages, the engine has no history to
+ * rebuild from, so persistence supplies the resume state directly (and clears
+ * `config.resume` so the ephemeral path is skipped — see `onConfig`).
+ */
 function resumeToolStateFromPending(
   pending: Array<InterruptRecord>,
   resumeByInterruptId: Map<string, RunAgentResumeItem>,
@@ -1201,6 +1338,17 @@ function blockedIpv6MappedHost(host: string): boolean | undefined {
   return undefined
 }
 
+/**
+ * Reject hosts that only make sense as an SSRF target: loopback, link-local
+ * (including the cloud metadata address), private, and unique-local ranges.
+ *
+ * Applied to caller-supplied input URLs only. Provider result URLs skip it on
+ * purpose — a self-hosted or local provider legitimately returns a `localhost`
+ * URL, and those live inside the same trust boundary as the adapter itself.
+ *
+ * This checks IP *literals*. A hostname that resolves to a private address
+ * passes, which is why `allowInputUrl` is required rather than optional.
+ */
 function isBlockedInputHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
   const isLocalhost = host === 'localhost' || host.endsWith('.localhost')
@@ -1216,6 +1364,17 @@ function isBlockedInputHost(hostname: string): boolean {
   return blockedIpv6MappedHost(host) === true
 }
 
+/**
+ * Fail the stream once more than `maxBytes` have passed through, so an
+ * unexpectedly huge artifact can't fill the blob store.
+ *
+ * Only used when the response does NOT already bound itself — a chunked reply,
+ * or a content-encoded one whose declared length describes the compressed
+ * bytes. When `content-length` describes the body the store will drain, HTTP
+ * framing is the bound and wrapping would only cost the caller the declared
+ * length: a `TransformStream`'s readable side carries none, which is what
+ * pushes a length-strict runtime (workerd + R2) onto a multipart upload.
+ */
 function capBodySize(
   body: ReadableStream<Uint8Array>,
   maxBytes: number,
@@ -1243,6 +1402,11 @@ function capBodySize(
 type ResolvedDescriptorBody = {
   body: BlobBody
   size: number
+  /**
+         * Exact byte length of a streamed body, when the origin declared one
+         * that survives decoding — forwarded to `BlobStore.put` as
+         * `BlobPutOptions.expectedLength`. Undefined when unknown.
+         */
   expectedLength?: number
   mimeType: string
   sourceUrl?: string
@@ -1436,6 +1600,11 @@ async function fetchArtifactUrlBody(
   return artifactBodyFromResponse(response, url, descriptor, maxBytes)
 }
 
+/**
+ * Resolve a descriptor to the bytes to store. Returns `undefined` when the
+ * descriptor is deliberately not persisted — today that means a caller-supplied
+ * input URL without an `allowInputUrl` opt-in.
+ */
 async function descriptorBody(
   descriptor: GenerationArtifactDescriptor,
   opts: ArtifactPersistenceOptions | undefined,
@@ -1700,6 +1869,15 @@ async function persistGenerationArtifacts(
   return stampArtifactUrls(refs, opts.artifactUrl)
 }
 
+/**
+ * Rewrite the live result's media fields to each output ref's durable serve URL
+ * (`ref.url`), so the live result matches what a reload restores. Keyed off the
+ * ref's `source.path`: `images.<i>` → `result.images[i].url`, `video` →
+ * `result.url`, `audio` (object) → `result.audio.url`. tts (a base64 string) and
+ * transcription (json) have no media-URL field, so they are left as-is; their
+ * durable bytes are reachable via `result.artifacts`. A no-op when no ref has a
+ * `url`.
+ */
 function applyDurableMediaUrls(
   result: Record<string, unknown>,
   refs: Array<PersistedArtifactRef>,
@@ -1762,6 +1940,14 @@ type StoreIsDefinitelyAbsent<
     : false
   : true
 
+/**
+ * Chat entrypoint invalid when:
+ * - `messages` is known-absent, or
+ * - `interrupts` is known-present without `runs`.
+ *
+ * Fully optional bags (`AIPersistence` with all `?` keys) stay assignable and
+ * are checked at runtime by {@link validateChatPersistenceStores}.
+ */
 type InvalidChatPersistence<TStores extends AIPersistenceStores> =
   StoreIsDefinitelyAbsent<TStores, 'messages'> extends true
     ? true
@@ -1769,6 +1955,11 @@ type InvalidChatPersistence<TStores extends AIPersistenceStores> =
       ? StoreIsDefinitelyAbsent<TStores, 'runs'>
       : false
 
+/**
+ * Generation entrypoint invalid when `generationRuns` is known-absent, or when
+ * exactly one of `artifacts` / `blobs` is present (artifact persistence needs
+ * both).
+ */
 type InvalidGenerationPersistence<TStores extends AIPersistenceStores> =
   StoreIsDefinitelyAbsent<TStores, 'generationRuns'> extends true
     ? true
@@ -1831,6 +2022,7 @@ function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
       return undefined
     }
   }
+  /** Usage accumulated across every model call in this chat invocation. */
   const usage = chunk.usage
   if (
     usage != null &&
@@ -1895,6 +2087,10 @@ function accumulateTokenUsage(
   }
 }
 
+/**
+ * Sum billed quantities when both reports use the same unit. Different units
+ * cannot be added, so the later report wins.
+ */
 function accumulateBilled(
   current: BilledUsage | undefined,
   next: BilledUsage | undefined,
@@ -1935,6 +2131,14 @@ async function failRun(
   })
 }
 
+/**
+ * Record a human-in-the-loop PAUSE.
+ *
+ * Deliberately writes NO `finishedAt`: `'interrupted'` is not a terminal status
+ * (`isTerminalRunStatus('interrupted')` is `false`), and stamping a terminal
+ * timestamp on it told every reader the run was over while it was in fact
+ * waiting for a human. Only `abortRun`/`completeRun`/`failRun` finish a run.
+ */
 export async function interruptRun(
   runs: RunStore | undefined,
   runId: string,
@@ -1946,6 +2150,11 @@ export async function interruptRun(
   })
 }
 
+/**
+ * Record that the run has ended for good — an explicit cancel, or a disconnect
+ * on a run that has nothing to reattach to. Terminal, so it carries
+ * `finishedAt`.
+ */
 export async function abortRun(
   runs: RunStore | undefined,
   runId: string,
@@ -1958,12 +2167,53 @@ export async function abortRun(
   })
 }
 
+/**
+ * Whether some middleware has declared this run detachable — i.e. it has a
+ * durable event log and a run store, so a disconnect can be survived and the
+ * run picked back up rather than destroyed.
+ *
+ * The capability is read from CORE, never from `@tanstack/ai-sandbox`: sandbox
+ * provides it, persistence consumes it, and a persistence → sandbox import
+ * would invert the layering.
+ */
 function detachableRun(ctx: ChatMiddlewareContext): boolean {
   return getDetachableRun(ctx, { optional: true }) === true
 }
 
+/**
+ * Chat-only **state** persistence middleware. Provides durable transcript,
+ * run records, and interrupts for `chat()`. Does **not** provide locks —
+ * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
+ *
+ * This middleware never mutates the chunk stream; delivery durability
+ * (replaying a disconnected/reloaded stream) is a separate transport-layer
+ * concern (see the resumable-streams docs).
+ *
+ * Requires `stores.messages`. When `stores.interrupts` is present,
+ * `stores.runs` is also required.
+ *
+ * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
+ * `messages` array it is treated as the FULL conversation history and, on
+ * finish, **overwrites** the entire stored thread. Post only the complete
+ * transcript, never a delta — sending just the newest message(s) will replace
+ * (and thereby destroy) the stored thread. To continue a stored thread without
+ * resending history, pass an empty `messages` array and the stored transcript
+ * is loaded and used.
+ */
 export interface WithPersistenceOptions {
+  /**
+     * Also persist a throttled snapshot of the in-progress assistant reply while
+     * it streams. Off by default — the transcript is otherwise persisted at the
+     * pending turn (`onStart`), interrupt boundaries, and completion (`onFinish`).
+     * Enable it to recover partial output if the process dies mid-generation, at
+     * the cost of extra writes. Snapshots are throttled to at most one per
+     * {@link WithPersistenceOptions.snapshotIntervalMs}.
+     */
   snapshotStreaming?: boolean
+  /**
+     * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
+     * is on. Defaults to 1000.
+     */
   snapshotIntervalMs?: number
 }
 
@@ -2055,6 +2305,11 @@ async function persistInterruptBoundary(
   state.interrupted = true
 }
 
+/**
+ * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
+ *   required). Known-absent `messages` or `interrupts` without `runs` fail at
+ *   compile time; fully dynamic bags are checked at runtime.
+ */
 export function withPersistence<TStores extends ChatTranscriptStores>(
   persistence: AIPersistence<TStores> & ValidChatPersistence<TStores>,
   options: WithPersistenceOptions = {},
@@ -2273,6 +2528,30 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   })
 }
 
+/**
+ * Generation-only persistence middleware. Tracks generation run status (run
+ * records keyed by `runId`) and, when `stores.artifacts` + `stores.blobs` are
+ * both provided, persists the generated media for image, audio, TTS, video, and
+ * transcription activities.
+ *
+ * Requires `stores.generationRuns`. A generation activity has no conversation,
+ * so the run is keyed on its own `runId` (`ctx.runId ?? ctx.requestId`), which
+ * is never faked from anything else.
+ *
+ * A `threadId` is REQUIRED alongside it — not as a link to a chat, but as the
+ * stable app-chosen slot successive runs of the same thing fill
+ * (`product-123-hero`, `video-9-start-frame`). It is what
+ * `stores.generationRuns.findLatestForThread` keys on, and therefore the only
+ * way a run is ever hydrated again. It comes from the `threadId` passed to the
+ * activity, or from {@link WithGenerationPersistenceOptions.threadId} when that
+ * overrides it; supplying neither throws at `onStart` rather than filing a run
+ * nothing can find.
+ *
+ * On success the terminal result metadata (ids, urls — never media bytes) and,
+ * when artifact persistence is on, the persisted artifact refs are captured onto
+ * the run record so a server-authoritative client can hydrate the last
+ * generation for a thread via {@link reconstructGeneration}.
+ */
 export function withGenerationPersistence<TStores extends AIPersistenceStores>(
   persistence: AIPersistence<TStores> & ValidGenerationPersistence<TStores>,
   opts?: WithGenerationPersistenceOptions,

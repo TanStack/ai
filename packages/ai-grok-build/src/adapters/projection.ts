@@ -27,6 +27,11 @@ function isBearerMarker(value: unknown): value is BearerRef {
   )
 }
 
+/**
+ * Resolve a single MCP header value: a `SecretRef` resolves to its plaintext, a
+ * `bearer(ref)` marker resolves to `Bearer <plaintext>`, and a plain string is
+ * passed through unchanged.
+ */
 function resolveHeaderValue(
   value: string | SecretRef | BearerRef,
   resolveSecret: (ref: SecretRef) => string,
@@ -53,6 +58,11 @@ interface GrokMcpServer {
   headers: Record<string, string>
 }
 
+/**
+ * Build grok's `mcp_servers` map from the `{ kind: 'mcp' }` skills, resolving
+ * every header value (SecretRef / bearer / string). Returns `undefined` when
+ * there are no MCP skills so the caller can skip the write.
+ */
 function buildMcpServers(
   skills: Array<WorkspaceSkill>,
   resolveSecret: (ref: SecretRef) => string,
@@ -83,6 +93,10 @@ function mcpServerNameFromHeader(line: string): string | undefined {
   return match?.[1]
 }
 
+/**
+ * Remove `[mcp_servers.<name>]` and `[mcp_servers.<name>.headers]` blocks for the
+ * given server names, preserving every other table and top-level key.
+ */
 function stripMcpServerSections(toml: string, names: Set<string>): string {
   const lines = toml.split('\n')
   const out: Array<string> = []
@@ -127,6 +141,11 @@ function renderMcpServerBlock(name: string, server: GrokMcpServer): string {
   return lines.join('\n')
 }
 
+/**
+ * Merge workspace MCP server entries into an existing `.grok/config.toml`,
+ * replacing only the named `mcp_servers` tables and leaving bridge (and other)
+ * servers intact.
+ */
 function mergeWorkspaceMcpIntoToml(
   existing: string,
   servers: Record<string, GrokMcpServer>,
@@ -150,6 +169,11 @@ export function renderGrokMcpToml(bridge: HostToolBridge): string {
   })
 }
 
+/**
+ * Write the host tool-bridge into `<cwd>/.grok/config.toml` for the next
+ * headless `grok` invocation. Re-written every run so rotated bearer tokens
+ * apply immediately.
+ */
 export async function projectGrokMcpBridge(
   sandbox: SandboxHandle,
   cwd: string,
@@ -160,6 +184,13 @@ export async function projectGrokMcpBridge(
   await sandbox.fs.write(`${grokDir}/config.toml`, renderGrokMcpToml(bridge))
 }
 
+/**
+ * Write grok's `<root>/.grok/config.toml`, re-resolving every secret. This runs
+ * on EVERY projection call (never gated by the marker) so grok always reads the
+ * current secret values and a snapshot can never serve a stale or rotated one.
+ * Existing `mcp_servers` entries (e.g. the host tool-bridge) are preserved via
+ * merge. When there are no MCP skills the write is skipped.
+ */
 async function projectMcpServers(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -181,6 +212,11 @@ async function projectMcpServers(
   await handle.fs.write(target, mergeWorkspaceMcpIntoToml(existing, servers))
 }
 
+/**
+ * Ensure each cloned `gitSkill` repo is available under grok's project skills
+ * dir (`<root>/.grok/skills/<basename>`) via a symlink, falling back to a
+ * recursive copy on platforms without `ln -s`.
+ */
 async function projectGitSkills(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
@@ -217,6 +253,11 @@ async function projectGitSkills(
   }
 }
 
+/**
+ * `agentSkill` references a public skill by bare name. Grok Build has no
+ * primitive to fetch a skill from a bare name, so we warn and skip rather than
+ * fabricate a command.
+ */
 function projectAgentSkills(projection: WorkspaceProjection): void {
   for (const skill of projection.skills) {
     if (skill.kind !== 'agent-skill') continue
@@ -228,6 +269,10 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * Grok Build has no plugin concept, so declared plugins cannot be projected. We
+ * warn once per plugin and skip rather than throw.
+ */
 function projectPlugins(projection: WorkspaceProjection): void {
   for (const name of projection.plugins) {
     console.warn(
@@ -238,6 +283,17 @@ function projectPlugins(projection: WorkspaceProjection): void {
   }
 }
 
+/**
+ * Project a `WorkspaceProjection` into the Grok Build sandbox. Safe to call on
+ * every `chatStream`. The secret-bearing MCP config is (re)written on every
+ * call, re-resolving secrets, so grok always reads current values and a snapshot
+ * can never serve a stale or rotated secret. The safe, idempotent, non-secret
+ * operations (gitSkill links, agentSkill / plugin handling) are guarded by a
+ * one-time marker so they run only on the first call after create/restore.
+ *
+ * @param handle     - The sandbox handle (`fs` + `process`).
+ * @param projection - The portable workspace inputs from `withSandbox`.
+ */
 export async function projectGrokWorkspace(
   handle: SandboxHandle,
   projection: WorkspaceProjection,

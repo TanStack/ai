@@ -13,33 +13,91 @@ import type {
   VideoDevtoolsBridgeFactory,
 } from './devtools-noop'
 
+/**
+ * Maps an `onResult` transform's raw return type to the stored output type.
+ *
+ * - A concrete return (excluding null/void/undefined) becomes the output type.
+ * - A return of only null/void/undefined falls back to TResult (the transform
+ *   reacted to the result or chose to keep it, rather than replacing it).
+ *
+ * Hooks infer `TReturn` directly from the `onResult` return position — a
+ * covariant inference site that works even for an optional nested property —
+ * which both contextually types the callback parameter as `TResult` and
+ * narrows `result`. See issue #848.
+ *
+ * @template TResult - The raw result type from the generation
+ * @template TReturn - The transform's return type (defaults to `void` when no
+ *   transform is provided)
+ */
 export type InferGenerationOutputFromReturn<TResult, TReturn> = [
   Exclude<TReturn, null | void | undefined>,
 ] extends [never]
   ? TResult
   : Exclude<TReturn, null | void | undefined>
 
+/**
+ * Infers the output type from an `onResult` callback's type.
+ *
+ * - If the callback returns a concrete type (excluding null/void/undefined), uses that type.
+ * - If the callback only returns null/void/undefined, or is not provided, falls back to TResult.
+ *
+ * @template TResult - The raw result type from the generation
+ * @template TFn - The onResult callback type (or undefined if not provided)
+ */
 export type InferGenerationOutput<TResult, TFn> = TFn extends (
   result: any,
 ) => infer R
   ? InferGenerationOutputFromReturn<TResult, R>
   : TResult
 
+/**
+ * State machine for generation clients.
+ * Simpler than ChatClientState since generation is a single request/response cycle.
+ */
 export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
 
+/**
+ * Status of a persisted/restored generation run.
+ *
+ * `running` / `complete` / `error` are the three the server-side mapper emits
+ * over the wire. `idle` is client-local only: `stop()` rewrites a `running`
+ * snapshot to it so a cancelled run is no longer resumable.
+ *
+ * @internal
+ */
 export type GenerationResumeStatus = 'idle' | 'running' | 'complete' | 'error'
 
+/**
+ * Thrown when a generation stream ends without a terminal `RUN_FINISHED` /
+ * `RUN_ERROR` chunk — a proxy/load-balancer idle timeout, a server restart
+ * mid-run, or a durable log whose terminal append never landed. The run's
+ * outcome is unknowable from the client, so it settles as an error rather than
+ * leaving the client stuck on `generating` forever.
+ */
 export const GENERATION_STREAM_TRUNCATED_MESSAGE =
   'The generation stream ended before the run finished (no RUN_FINISHED or RUN_ERROR was received) — the connection was interrupted. Generate again to retry.'
 
+/**
+ * Reported when a restored snapshot says the run completed but the activity's
+ * `reconstructResult` mapper cannot rebuild a result from it — typically an
+ * output artifact persisted without a serve `url`. Surfacing it beats a
+ * `success` status with a `null` result, which no consumer can render.
+ */
 export const GENERATION_UNRESTORABLE_RESULT_MESSAGE =
   'The stored generation completed but its result could not be rebuilt from the persisted record (its output artifact carries no serve URL, or the fields this activity needs were not persisted). Generate again to produce a fresh result.'
 
+/**
+ * Wrap a mount-hydration failure with context. Genuine failures (transport
+ * error, a 403 from the authorize gate, an unparseable body, a record the
+ * client's validator rejects) must reach the app; only a genuine miss — the
+ * server reporting no record for the thread — stays silent.
+ */
 export function createGenerationHydrationError(
   detail: string,
   cause?: unknown,
 ): Error {
   const suffix = cause instanceof Error ? `: ${cause.message}` : ''
+  /** Error message if status is 'failed' */
   const error = new Error(
     `[TanStack AI] Restoring the last generation for this thread failed — ${detail}${suffix}`,
   )
@@ -49,6 +107,13 @@ export function createGenerationHydrationError(
   return error
 }
 
+/**
+ * Map a persisted resume status to the client's live state machine on restore:
+ * complete → success, error → error, running → generating, idle → idle. A
+ * restored `running` only reaches this mapping when a `joinRun` handler can
+ * tail the run to completion; without one the client rewrites the snapshot to
+ * `error` (interrupted) before repainting, so it never sticks on `generating`.
+ */
 export function clientStateFromResumeStatus(
   status: GenerationResumeStatus,
 ): GenerationClientState {
@@ -66,8 +131,14 @@ export function clientStateFromResumeStatus(
 
 /** @internal */
 export interface GenerationResumeState {
+  /** Required by `persistence`. The stable scope runs are filed under. */
   threadId: string
   runId: string
+  /**
+     * Artifact refs observed while the run is still in flight. Non-null only while
+     * a run is streaming (`resumeState` itself is null once it ends); the final
+     * refs move onto `result.artifacts` when the run completes.
+     */
   pendingArtifacts?: Array<PersistedArtifactRef>
 }
 
@@ -75,12 +146,26 @@ export interface GenerationResumeState {
 export interface GenerationResultSnapshot {
   id?: string
   model?: string
+  /** Current status of the video generation job */
   status?: string
+  /**
+     * The provider's async job handle (e.g. a Veo/fal video job id used for
+     * status polling) — NOT the generation's own `runId`, which lives on
+     * {@link GenerationResumeState.runId}.
+     */
   providerJobId?: string
+  /** When the URL expires, if applicable */
   expiresAt?: string
+  /**
+     * The text output of a text activity (a transcription's `text` or a summary's
+     * `summary`). Persisted so a text generation restores its result on reload
+     * (text is small and not bytes). Absent for media activities, whose output
+     * restores from `artifacts`.
+     */
   text?: string
   /** Token usage, persisted so a text result that requires it can be rebuilt. */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
 }
 
@@ -99,6 +184,11 @@ export interface GenerationEventSnapshot {
 
 /** @internal */
 export interface GenerationResumeSnapshot {
+  /**
+     * Version of the snapshot shape. Written on every snapshot the client builds
+     * so future shape changes can migrate (or reject) an older record hydrated
+     * from the server. Absent means `1`.
+     */
   schemaVersion?: 1
   resumeState: GenerationResumeState | null
   status: GenerationResumeStatus
@@ -109,8 +199,47 @@ export interface GenerationResumeSnapshot {
   lastEvent?: GenerationEventSnapshot
 }
 
+/**
+ * The `persistence` / `threadId` identity shared by every generation hook.
+ *
+ * Turning persistence on **requires** a `threadId`, the stable scope runs are
+ * filed under. Without one the client would hydrate by a generated id that
+ * changes every reload, so nothing would ever restore; making it a type error
+ * means the compiler asks for the scope instead of the runtime inventing one.
+ *
+ * `threadId` is the only identity for the hook, the AG-UI wire thread, and
+ * persistence. There is no separate instance `id`.
+ *
+ * USAGE: intersect this onto a hook's parameter and subtract `persistence`
+ * and `threadId` from the options interface (plus any other keys the hook
+ * redeclares, such as `onResult`), leaving that interface a plain (non-union)
+ * object so `Pick` / `Omit` composition elsewhere keeps working:
+ *
+ * ```ts
+ * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
+ *   onResult?: (result: ImageGenerationResult) => TTransformed
+ * } & GenerationPersistenceOptions
+ * ```
+ *
+ * Do NOT bake the union into the options interface itself: a later plain `Omit`
+ * over a union collapses it to a single object type and the requirement
+ * silently disappears. `use-generation-persistence-types.test.ts` pins this.
+ */
 export type GenerationPersistenceOptions =
   | {
+      /**
+         * How this generation persists across reloads.
+         *
+         * - Omit or `false`: ephemeral, in-memory only.
+         * - `true`: server-driven. On mount the client hydrates the last generation
+         *   for its `threadId` from the server (needs a `hydrateGeneration` handler,
+         *   from the connection or the option below) and repaints that snapshot. It
+         *   never auto-starts a run.
+         *
+         * The record lives on the server, written by `withGenerationPersistence`. The
+         * browser caches nothing, so a generation's history is never duplicated into
+         * client storage.
+         */
       persistence: true
       /** Required by `persistence`. The stable scope runs are filed under. */
       threadId: string
@@ -121,6 +250,11 @@ export type GenerationPersistenceOptions =
       threadId?: string
     }
 
+/**
+ * Well-known CUSTOM event names used by generation clients.
+ * These events are emitted by the server-side streaming helpers
+ * and consumed by the client-side GenerationClient.
+ */
 export const GENERATION_EVENTS = {
   /** The generation result payload */
   RESULT: 'generation:result',
@@ -134,6 +268,9 @@ export const GENERATION_EVENTS = {
   VIDEO_STATUS: 'video:status',
 } as const
 
+/**
+ * Options passed to a fetcher function by the generation client.
+ */
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
@@ -141,24 +278,54 @@ export interface GenerationFetcherOptions {
   headers?: Record<string, string>
 }
 
+/**
+ * A direct async function that performs a generation request.
+ *
+ * Can return the result directly, or return a `Response` with an SSE body
+ * (e.g., from a TanStack Start server function using `toServerSentEventsResponse()`).
+ * When a `Response` is returned, the client will parse it as an SSE stream.
+ *
+ * @template TInput - The input type for the generation request
+ * @template TResult - The result type returned by the generation
+ */
 export type GenerationFetcher<TInput, TResult> = (
   input: TInput,
   options?: GenerationFetcherOptions,
 ) => Promise<TResult | Response>
 
+/**
+ * Transport configuration for generation clients.
+ * Supports either a connect-based streaming adapter or a direct fetcher function.
+ */
 export type GenerationTransport<TInput, TResult> =
   | { connection: ConnectConnectionAdapter; fetcher?: never }
   | { fetcher: GenerationFetcher<TInput, TResult>; connection?: never }
 
 // eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
+/**
+ * Options for the GenerationClient.
+ *
+ * @template TInput - The input type for the generation request (used by consuming code)
+ * @template TResult - The result type returned by the generation
+ * @template TOutput - The output type after optional transform (defaults to TResult)
+ */
 export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   threadId?: string
 
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
 
+  /**
+     * Optional BYOK keyring. On each generate the client prepares the resolved
+     * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+     */
   byok?: ByokClient
 
+  /**
+     * Optional provider id for this generation. If it returns a provider slug,
+     * only that key is prepared and sent. Otherwise `body.provider` is used.
+     * If no slug resolves, generate throws instead of attaching every stored key.
+     */
   byokProvider?: () => string | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
@@ -166,12 +333,44 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
 
   persistence?: boolean
 
+  /**
+     * Server-driven hydration handler, for transports that don't carry one on
+     * the connection: supply it alongside `fetcher` (or a `stream()` /
+     * `rpcStream()` connection built without handlers) so `persistence: true`
+     * can restore the last generation for `threadId` on mount. Typically a
+     * one-line TanStack Start server-function call backed by
+     * `getGenerationHydration` from `@tanstack/ai-persistence`.
+     *
+     * A connection's own `hydrateGeneration` takes precedence when both exist.
+     */
   hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
 
+  /**
+     * Re-attach handler for a run that is still generating, for transports that
+     * don't carry one on the connection. The client tails this on mount when a
+     * restored/hydrated snapshot reports a run in flight, replaying it to
+     * completion in place. Without it, a restored `running` snapshot surfaces
+     * as an (interrupted) error — an interrupted generation cannot be resumed,
+     * only re-run.
+     *
+     * A connection's own `joinRun` takes precedence when both exist.
+     */
   joinRun?: ConnectConnectionAdapter['joinRun']
 
+  /**
+     * Factory that constructs the devtools bridge. Default is a no-op
+     * factory; the real implementation lives in `@tanstack/ai-client/devtools`.
+     */
   devtoolsBridgeFactory?: GenerationDevtoolsBridgeFactory
 
+  /**
+     * Callback when a result is received. Can optionally return a transformed value
+     * that replaces the stored result.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: TResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -196,9 +395,24 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /** @internal Called when the in-flight run identity changes. `null` once no run is in flight. Mirrors the chat client's resume-state callback. */
   onResumeStateChange?: (resumeState: GenerationResumeState | null) => void
 
+  /**
+     * @internal Rebuild a typed result from a restored snapshot, injected by each
+     * specialized client/hook (which knows the concrete result shape). Called on
+     * mount restore (client store or server hydrate) so `result` repaints as if the
+     * run had just finished, with media resolved to the durable serve URL. Returns
+     * `null` when the snapshot cannot rebuild a result (then `result` stays null;
+     * `status` / `error` / `resumeState` still repaint).
+     */
   reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
 
+/**
+ * The restorable shape handed to a client's `reconstructResult` mapper: the
+ * result metadata that survived persistence plus the durable artifact refs (each
+ * carrying its serve {@link PersistedArtifactRef.url}). The specialized client
+ * turns this into its own typed result (image `images`, video `url`, text
+ * `text`, ...).
+ */
 export interface GenerationRestoredResult {
   id?: string
   model?: string
@@ -207,6 +421,7 @@ export interface GenerationRestoredResult {
   providerJobId?: string
   expiresAt?: string
   text?: string
+  /** Token usage, persisted so a text result that requires it can be rebuilt. */
   usage?: TokenUsage
   activity?: PersistedArtifactRef['source']['activity']
   artifacts: Array<PersistedArtifactRef>
@@ -329,6 +544,15 @@ function applyGenerationRunTerminal(
   }
 }
 
+/**
+ * Reduces one observed stream chunk into the lightweight resume snapshot.
+ *
+ * A `RUN_STARTED` chunk begins a fresh run, so stale `result` / `error` /
+ * `pendingArtifacts` from a previous run are dropped rather than carried into
+ * the new run's snapshot.
+ *
+ * @internal
+ */
 export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
   chunk: StreamChunk,
@@ -340,6 +564,18 @@ export function updateGenerationResumeSnapshot(
   return next
 }
 
+/**
+ * Validates an untrusted value (a hydration body resolved by the server) into a
+ * {@link GenerationResumeSnapshot}, or returns `undefined` when the value is
+ * not a usable snapshot.
+ *
+ * A hydrated record is outside the type system: it may be stale, truncated, or
+ * written by a different version. Every field is re-validated with the same
+ * narrowing the live chunk reducer uses. `lastEvent` is not restored, since it
+ * describes a transient stream position with no meaning after a reload.
+ *
+ * @internal
+ */
 export function parseGenerationResumeSnapshot(
   value: unknown,
 ): GenerationResumeSnapshot | undefined {
@@ -410,6 +646,9 @@ function generationResumeStatusField(
   }
 }
 
+/**
+ * Video status information returned during job polling.
+ */
 export interface VideoStatusInfo {
   /** Job identifier */
   jobId: string
@@ -423,6 +662,9 @@ export interface VideoStatusInfo {
   error?: string
 }
 
+/**
+ * Composite result for video generation (job completion).
+ */
 export interface VideoGenerateResult {
   /** Job identifier */
   jobId: string
@@ -436,6 +678,9 @@ export interface VideoGenerateResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
+/**
+ * Options for the VideoGenerationClient.
+ */
 export interface VideoGenerationClientOptions<
   TOutput = VideoGenerateResult,
 > extends Omit<
@@ -456,7 +701,15 @@ export interface VideoGenerationClientOptions<
   onVideoStatusChange?: (status: VideoStatusInfo | null) => void
 }
 
+/**
+ * Input for image generation.
+ */
 export interface ImageGenerateInput {
+  /**
+     * Description of the desired image(s): plain text, or an ordered array of
+     * content parts (text + image) for image-conditioned generation
+     * (image-to-image, multi-reference, edit / inpaint).
+     */
   prompt: MediaPrompt
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
@@ -466,6 +719,9 @@ export interface ImageGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for audio generation (music, sound effects).
+ */
 export interface AudioGenerateInput {
   /** Text description of the desired audio */
   prompt: string
@@ -475,6 +731,9 @@ export interface AudioGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for text-to-speech generation.
+ */
 export interface SpeechGenerateInput {
   /** The text to convert to speech */
   text: string
@@ -488,6 +747,9 @@ export interface SpeechGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for audio transcription.
+ */
 export interface TranscriptionGenerateInput {
   /** The audio data to transcribe - can be base64 string, File, Blob, or ArrayBuffer */
   audio: string | File | Blob | ArrayBuffer
@@ -501,6 +763,9 @@ export interface TranscriptionGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for text summarization.
+ */
 export interface SummarizeGenerateInput {
   /** The text to summarize */
   text: string
@@ -514,6 +779,9 @@ export interface SummarizeGenerateInput {
   modelOptions?: Record<string, any>
 }
 
+/**
+ * Input for video generation.
+ */
 export interface VideoGenerateInput {
   prompt: MediaPrompt
   /** Video size — format depends on provider (e.g., "16:9", "1280x720") */
@@ -614,6 +882,7 @@ function createPersistedArtifactRefSnapshot(
   const runId = stringField(value, 'runId')
   const name = stringField(value, 'name')
   const mimeType = stringField(value, 'mimeType')
+  /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   const size = numberField(value, 'size')
   const createdAt = stringField(value, 'createdAt')
   const activity = persistedArtifactActivityField(source, 'activity')
@@ -638,8 +907,10 @@ function createPersistedArtifactRefSnapshot(
   }
 
   const sourceUrl = durableUrlField(value, 'sourceUrl')
+  /** URL to the generated video (when completed) */
   const url = serveUrlField(value, 'url')
   const mediaType = persistedArtifactMediaTypeField(source, 'mediaType')
+  /** Job identifier */
   const jobId = stringField(source, 'jobId')
   const expiresAt = stringField(source, 'expiresAt')
 
@@ -680,6 +951,13 @@ function durableUrlField(value: object, key: string): string | undefined {
   }
 }
 
+/**
+ * Validates an app-origin serve URL, which unlike a provider URL is usually a
+ * same-origin path (`/api/.../artifact?id=...`). Accepts an absolute http(s) URL
+ * or a path-absolute same-origin URL (single leading `/`); rejects
+ * protocol-relative (`//host`), `javascript:` / `data:`, and anything else, since
+ * this value is rendered as media `src`.
+ */
 function serveUrlField(value: object, key: string): string | undefined {
   const field = stringField(value, key)
   if (!field) return undefined

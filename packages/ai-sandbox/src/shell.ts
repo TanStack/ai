@@ -1,5 +1,9 @@
 import type { SandboxHandle } from './contracts'
 
+/**
+ * Parse the output of `export -p` (or `declare -x`) into a plain env map.
+ * Shared by the stdin shell's `forkState` and the exec-backed shell.
+ */
 function parseExports(output: string): Record<string, string> {
   const env: Record<string, string> = {}
   const outputLines = output.split('\n')
@@ -26,7 +30,12 @@ function parseExports(output: string): Record<string, string> {
 export interface BootstrapShell {
   /** Run a shell command and capture its stdout + exit code. */
   run: (command: string) => Promise<{ exitCode: number; stdout: string }>
-  forkState: () => Promise<{ cwd: string; env: Record<string, string> }>
+  /**
+     * Snapshot the shell's current working directory and exported environment.
+     * Used to fork parallel exec calls that inherit the serial shell's state.
+     */
+  forkState: () => Promise<{ /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
+cwd: string; env: Record<string, string> }>
   /** End the shell session (closes stdin, kills the process). */
   dispose: () => Promise<void>
 }
@@ -35,16 +44,36 @@ export interface BootstrapShell {
 export interface BootstrapShellOptions {
   /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
   cwd?: string
+  /**
+     * Belt-and-braces deadline for a single `run()` to see its sentinel. The
+     * primary termination condition is the stdout stream ending (see
+     * {@link createBootstrapShell}); this only catches a shell that is alive,
+     * silent, and never going to answer. Generous by default because setup steps
+     * legitimately run for a long time (`npm install`, image pulls).
+     */
   commandTimeoutMs?: number
 }
 
 /** Default {@link BootstrapShellOptions.commandTimeoutMs} — 30 minutes. */
-const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
+const /** Default {@link BootstrapShellOptions.commandTimeoutMs} — 30 minutes. */
+DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
 
 /** Race marker for the per-command deadline. A symbol cannot collide with a
  *  literal stdout line (a line of text `'timeout'` would). */
-const TIMED_OUT = Symbol('bootstrap-shell-timeout')
+const /** Race marker for the per-command deadline. A symbol cannot collide with a
+ *  literal stdout line (a line of text `'timeout'` would). */
+TIMED_OUT = Symbol('bootstrap-shell-timeout')
 
+/**
+ * Spawn one `sh` process and return a {@link BootstrapShell} that drives it
+ * via the sentinel-echo protocol.
+ *
+ * Protocol: for each `run(cmd)` call, we write
+ *   `<cmd>; printf "\n__BSSH_<N>__ $?\n"` to stdin, then read stdout lines
+ * until we see a line matching `__BSSH_<N>__ <exitCode>`. Everything before
+ * that line is the command's stdout; the trailing integer is the exit code.
+ * The counter `N` is a module-level monotonic integer — no Date.now / random.
+ */
 export async function createBootstrapShell(
   handle: SandboxHandle,
   opts: BootstrapShellOptions = {},
@@ -120,6 +149,7 @@ export async function createBootstrapShell(
 
   let counter = 0
 
+  /** Run a shell command and capture its stdout + exit code. */
   async function run(
     command: string,
   ): Promise<{ exitCode: number; stdout: string }> {
@@ -183,6 +213,7 @@ export async function createBootstrapShell(
     return { cwd, env: parseExports(exportResult.stdout) }
   }
 
+  /** End the shell session (closes stdin, kills the process). */
   async function dispose(): Promise<void> {
     await proc.stdin.end()
     await proc.kill()
@@ -193,6 +224,15 @@ export async function createBootstrapShell(
   return { run, forkState, dispose }
 }
 
+/**
+ * Exec-backed {@link BootstrapShell} for providers WITHOUT a writable stdin.
+ *
+ * There is no persistent process to feed commands into, so persistence of `cd`
+ * and exported variables is reproduced by threading state across discrete
+ * {@link SandboxHandle.process.exec} calls: each `run()` executes the command in
+ * the tracked cwd+env, then captures the resulting `pwd` and `export -p` (via
+ * marker lines) so the NEXT command inherits any directory change or exports.
+ */
 export function createExecBootstrapShell(
   handle: SandboxHandle,
   opts: BootstrapShellOptions = {},

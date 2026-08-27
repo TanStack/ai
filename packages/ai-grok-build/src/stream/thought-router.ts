@@ -2,7 +2,8 @@ import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /** Harness-native tool names surfaced in Grok `thought` narration. */
-export const GROK_NATIVE_TOOL_NAMES = [
+export const /** Harness-native tool names surfaced in Grok `thought` narration. */
+GROK_NATIVE_TOOL_NAMES = [
   'run_terminal_command',
   'get_command_or_subagent_output',
   'tanstackStartRecipe',
@@ -51,7 +52,8 @@ const TOOL_ENTRY_PATTERNS: Array<{ re: RegExp; name: NativeToolName }> = [
 ]
 
 /** Distinct literals we must not split across token boundaries when flushing planning. */
-const HOLD_LITERALS = [
+const /** Distinct literals we must not split across token boundaries when flushing planning. */
+HOLD_LITERALS = [
   'run_terminal_command',
   'get_command_or_subagent_output',
   'tanstackStartRecipe',
@@ -85,6 +87,10 @@ export function findEarliestToolEntry(
   return best
 }
 
+/**
+ * How many trailing characters in `tail` must be held back because they may be
+ * the prefix of a tool-entry literal still streaming in.
+ */
 export function planningHoldback(tail: string): number {
   let hold = 0
   for (const literal of HOLD_LITERALS) {
@@ -150,6 +156,11 @@ interface ThoughtRouterContext {
   now: () => number
 }
 
+/**
+ * Incrementally split Grok `thought` deltas into AG-UI reasoning vs tool-call
+ * chunks. Grok's streaming-json format narrates tool execution inside
+ * `thought` — this router reclassifies that narration before it reaches the UI.
+ */
 export class GrokThoughtRouter {
   private buffer = ''
   private cursor = 0

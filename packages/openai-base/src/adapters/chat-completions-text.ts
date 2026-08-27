@@ -32,6 +32,12 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 
+/**
+ * Shared implementation of the OpenAI Chat Completions API. Holds the
+ * stream-accumulator + AG-UI lifecycle logic and calls the OpenAI SDK
+ * directly. Subclasses (ai-openai, ai-grok, ai-groq) construct an OpenAI
+ * client with their provider-specific `baseURL` / headers and pass it in.
+ */
 export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
@@ -182,6 +188,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+     * Extracts a rejected tool call from a provider error. Returned calls are
+     * emitted as non-executable `output-error` results so the model can repair them.
+     */
   protected extractRejectedToolCall(
     _rawEvent: unknown,
     _fallbackMessage: string,
@@ -196,6 +206,18 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return undefined
   }
 
+  /**
+     * Generate structured output using the provider's JSON Schema response format.
+     * Uses stream: false to get the complete response in one call.
+     *
+     * OpenAI-compatible APIs have strict requirements for structured output:
+     * - All properties must be in the `required` array
+     * - Optional fields should have null added to their type union
+     * - additionalProperties must be false for all objects
+     *
+     * The outputSchema is already JSON Schema (converted in the ai layer).
+     * We apply provider-specific transformations for structured output compatibility.
+     */
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -276,6 +298,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+     * Stream structured output. Single Chat Completions request with
+     * `response_format: json_schema` + `stream: true`. Emits the standard
+     * AG-UI lifecycle (`RUN_STARTED` → `REASONING_*?` → `TEXT_MESSAGE_*`
+     * carrying raw JSON deltas → terminal `CUSTOM 'structured-output.complete'`
+     * → `RUN_FINISHED`). Subclasses use the same SDK-call / reasoning /
+     * structured-output-transform hooks as `chatStream` / `structuredOutput` —
+     * no per-subclass override should be needed.
+     */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -305,6 +336,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
     const adapterName = this.name
+    /**
+       * Extract reasoning content from a stream chunk. Default returns
+       * `undefined` because the OpenAI Chat Completions chunk shape doesn't
+       * carry reasoning. The chunk param is typed `unknown` so an override can
+       * narrow to its own SDK chunk type without an `as` dance — the base only
+       * passes through `processStreamChunks`'s structurally-iterated chunk.
+       */
     const extractReasoning = (chunk: unknown) => this.extractReasoning(chunk)
     const transformOutput = (parsed: unknown) =>
       this.transformStructuredOutput(parsed)
@@ -601,6 +639,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+     * Cross-SDK abort detection for `structuredOutputStream`. Default duck-types
+     * on `name === 'APIUserAbortError'` (OpenAI SDK), `code === 'ERR_CANCELED'`,
+     * and standard `AbortError`s. Subclasses with proprietary error types (e.g.
+     * `@openrouter/sdk`'s `RequestAbortedError`) override to extend the check.
+     */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
     const e = error as { name?: unknown; code?: unknown }
@@ -611,6 +655,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     )
   }
 
+  /**
+     * Strict conversion plus the inverse null-widening map for this request.
+     * Override this when schema conversion changes, so tool-input undo matches
+     * the wire schema.
+     */
   protected makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -618,6 +667,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
+  /**
+     * Applies provider-specific transformations for structured output compatibility.
+     * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
+     * to match the wire schema.
+     */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
@@ -630,10 +684,25 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return undefined
   }
 
+  /**
+     * Final shaping pass applied to parsed structured-output JSON before it is
+     * returned to the caller. Default is a passthrough.
+     *
+     * Provider `null`s are no longer stripped here: strict-mode null-widening is
+     * now undone precisely by the engine (`undoNullWidening`, driven by the
+     * schema's null-widening map) the moment the result is captured, so a blind
+     * `transformNullsToUndefined` at the adapter would only destroy genuine
+     * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+     * provider's structured output.
+     */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
+  /**
+     * Processes streamed chunks from the Chat Completions API and yields AG-UI events.
+     * Override this in subclasses to handle provider-specific stream behavior.
+     */
   protected async *processStreamChunks(
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
@@ -657,6 +726,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     })
   }
 
+  /**
+     * Maps common TextOptions to Chat Completions API request format.
+     * Override this in subclasses to add provider-specific options.
+     */
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
@@ -722,10 +795,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+     * Modern OpenAI-compatible Chat Completions APIs support `tools` and
+     * `response_format: json_schema` together in a single streaming request
+     * (per issue #605). Subclasses can override — Groq, for instance, must
+     * return `false` because its API rejects schema + tools + stream with a
+     * 400.
+     */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
 
+  /**
+     * Converts a single ModelMessage to the Chat Completions API message format.
+     * Override this in subclasses to handle provider-specific message formats.
+     */
   protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
@@ -808,6 +892,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     }
   }
 
+  /**
+     * Converts a single ContentPart to the Chat Completions API content part format.
+     * Override this in subclasses to handle additional content types or provider-specific metadata.
+     */
   protected convertContentPart(
     part: ContentPart,
   ): ChatCompletionContentPart | null {
@@ -847,6 +935,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return null
   }
 
+  /**
+     * Normalizes message content to an array of ContentPart.
+     * Handles backward compatibility with string content.
+     */
   protected normalizeContent(
     content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
@@ -860,6 +952,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return content
   }
 
+  /**
+     * Extracts text content from a content value that may be string, null, or ContentPart array.
+     */
   protected extractTextContent(
     content: string | null | undefined | Array<ContentPart>,
   ): string {

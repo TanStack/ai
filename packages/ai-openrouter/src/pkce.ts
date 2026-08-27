@@ -40,6 +40,10 @@ export interface CompleteOpenRouterPkceFromUrlOptions {
   cleanUrl?: boolean
 }
 
+/**
+ * Duck-typed BYOK store. `ByokClient.update` matches this. The slug is always
+ * {@link openrouterByok.id}.
+ */
 export interface OpenRouterByokStore {
   update: (provider: string, key: string) => void | Promise<void>
 }
@@ -236,6 +240,10 @@ export async function completeOpenRouterPkceFromUrl(
   return key
 }
 
+/**
+ * Finish the OpenRouter PKCE callback and save the key under
+ * {@link openrouterByok.id}.
+ */
 export async function completeOpenRouterPkceIntoByok(
   byok: OpenRouterByokStore,
   options: CompleteOpenRouterPkceFromUrlOptions = {},

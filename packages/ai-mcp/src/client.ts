@@ -38,6 +38,14 @@ export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
   readonly capabilities: TServer['capabilities']
+  /**
+     * Auto-discovery: every server tool as a ServerTool. With a generated
+     * descriptor, tool names are typed as the descriptor's name literals;
+     * args/results stay untyped — use the `tools(defs)` overload for typed args.
+     *
+     * Both overloads yield {@link McpServerTool}s, so `tool.metadata.mcp` (the
+     * server's title / annotations) is typed without an annotation or a cast.
+     */
   tools: {
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
@@ -57,9 +65,29 @@ export interface MCPClient<
     name: string,
     args?: Record<string, unknown>,
   ) => Promise<Awaited<ReturnType<Client['callTool']>>>
+  /**
+     * The ORIGINAL connection descriptor this client was created from — the
+     * `transport` input and `prefix` passed to `createMCPClient`. Used by
+     * `createMcpAppCallHandler` to reconnect per-call (serverless-safe) without
+     * a separate transport-config map.
+     *
+     * `transport` is `undefined` when the client was built from a ready-made
+     * `Transport` instance rather than a serializable config — either via
+     * `createMCPClientFromTransport` (test-only) or `createMCPClient({ transport:
+     * <instance> })`. A live `Transport` instance is single-use and cannot be
+     * reconnected, so only serializable `TransportConfig`s are retained here.
+     */
   getInfo: () => {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    /**
+         * The options this client was built with, so a caller that reconstructs it
+         * from this descriptor keeps them. Without it a rebuilt client silently
+         * reverts to the SDK defaults — including the AJV validator that edge
+         * runtimes cannot compile.
+         *
+         * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+         */
     clientOptions?: ClientOptions
   }
   close: () => Promise<void>

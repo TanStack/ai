@@ -271,6 +271,9 @@ function buildEventContext(ctx: DevtoolsMiddlewareContext) {
   }
 }
 
+/**
+ * Extract text content from a ModelMessage content field.
+ */
 function getContentString(content: DevtoolsModelMessage['content']): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -287,6 +290,13 @@ function getContentString(content: DevtoolsModelMessage['content']): string {
   )
 }
 
+/**
+ * Internal devtools middleware that emits all DevTools events.
+ * Auto-injected as the FIRST middleware in the TextEngine.
+ *
+ * All hooks are observation-only — `onChunk` returns void to pass through
+ * without transforming chunks.
+ */
 export function devtoolsMiddleware(): DevtoolsChatMiddleware {
   // Local mutable state — tracked here because the devtools middleware
   // runs first, before the engine updates ctx.currentMessageId / ctx.accumulatedContent

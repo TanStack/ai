@@ -22,9 +22,20 @@ export interface DockerSandboxConfig {
   keepAliveCommand?: Array<string>
   /** Container ports to publish to the host (for `ports.connect`). */
   publishPorts?: Array<number>
+  /**
+     * Add `host.docker.internal:host-gateway` so the container can reach the
+     * host (e.g. a host-side MCP tool-bridge). Defaults to true.
+     */
   hostGateway?: boolean
   /** Remove the container on destroy (vs. just stop). Defaults to true. */
   removeOnDestroy?: boolean
+  /**
+     * Sink for non-fatal teardown diagnostics — a container-side kill that was
+     * refused, or a process that survived it. Teardown never throws, so without a
+     * logger such a failure is silent and this provider's
+     * `killableProcesses: true` claim cannot be checked. `@tanstack/ai`'s
+     * `InternalLogger` satisfies this shape as-is.
+     */
   logger?: DockerLogger
 }
 
@@ -42,6 +53,7 @@ class DockerProvider implements SandboxProvider {
     return DOCKER_CAPS
   }
 
+  /** Working directory inside the container. Defaults to `/workspace`. */
   private get workdir(): string {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
@@ -65,6 +77,7 @@ class DockerProvider implements SandboxProvider {
     sourceContainerId: string,
   ): Promise<SandboxHandle> => {
     const source = this.docker.getContainer(sourceContainerId)
+    /** Image to run, e.g. `node:22`. Pulled automatically if absent locally. */
     const image = await source.commit({
       repo: 'tanstack-ai-sandbox-fork',
       tag: `${sourceContainerId.slice(0, 12)}-${Date.now()}`,
@@ -177,6 +190,11 @@ class DockerProvider implements SandboxProvider {
   }
 }
 
+/**
+ * Docker sandbox provider — runs harness adapters inside isolated containers.
+ * Requires a reachable Docker daemon (local socket by default; override via
+ * `dockerodeOptions`).
+ */
 export function dockerSandbox(config: DockerSandboxConfig): SandboxProvider {
   return new DockerProvider(config)
 }

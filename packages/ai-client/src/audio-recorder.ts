@@ -7,11 +7,26 @@ export type AudioRecorderState = 'idle' | 'recording' | 'stopping'
 export interface AudioRecorderOptions {
   /** Constraints forwarded to `getUserMedia({ audio })`. Defaults to `true`. */
   audio?: MediaTrackConstraints | boolean
+  /**
+     * Preferred recorder mime type. Used only when
+     * `MediaRecorder.isTypeSupported` reports it; otherwise the browser default
+     * is used.
+     */
   mimeType?: string
   /** Fired on `getUserMedia` rejection (permission denied) or recorder error. */
   onError?: (error: Error) => void
 }
 
+/**
+ * Resolves the value `stop()` produces from a recorder transform callback.
+ *
+ * - If the callback returns a value — sync or async — that value's awaited type
+ *   is used (a returned `null` is a real value and is preserved).
+ * - If the callback returns nothing (`void`/`undefined`), or is absent, falls
+ *   back to {@link AudioRecording}.
+ *
+ * @template TFn - The transform callback type (or undefined if not provided)
+ */
 export type InferAudioRecordingOutput<TFn> = TFn extends (
   recording: AudioRecording,
 ) => infer R
@@ -29,9 +44,18 @@ export interface AudioRecording {
   mimeType: string
   /** Recording length in milliseconds. */
   durationMs: number
+  /**
+     * Ready-to-use audio content part for `sendMessage`/generation prompts:
+     * `{ type: 'audio', source: { type: 'data', value: base64, mimeType } }`.
+     */
   part: AudioPart
 }
 
+/**
+ * Framework-agnostic browser audio recorder. Wraps `getUserMedia` +
+ * `MediaRecorder`, returns the recorder's native output (no transcode), and
+ * builds a plug-and-play {@link AudioRecording.part}.
+ */
 export class AudioRecorder {
   private readonly options: AudioRecorderOptions
   private recorder: MediaRecorder | null = null
@@ -218,9 +242,12 @@ export class AudioRecorder {
 
   private async finalize(): Promise<void> {
     const mimeType = this.recorder?.mimeType || 'audio/webm'
+    /** Recording length in milliseconds. */
     const durationMs = Date.now() - this.startedAt
     try {
+      /** The raw recorded media blob. */
       const blob = new Blob(this.chunks, { type: mimeType })
+      /** Base64 of the recorded bytes (no `data:` prefix). */
       const base64 = arrayBufferToBase64(await blob.arrayBuffer())
       const recording: AudioRecording = {
         blob,

@@ -1,6 +1,11 @@
 import { compile } from 'json-schema-to-typescript'
 import type { ServerSurface } from './introspect'
 
+/**
+ * Convert an arbitrary server/tool name into a valid PascalCase identifier.
+ * Falls back to `Generated` for names with no alphanumeric characters and
+ * prefixes an underscore when the result would start with a digit.
+ */
 function pascal(name: string): string {
   const base = name
     .replace(/[^a-zA-Z0-9]+/g, ' ')
@@ -17,6 +22,12 @@ function tsString(value: string): string {
   return JSON.stringify(value)
 }
 
+/**
+ * Compile a JSON Schema into a TypeScript type via `json-schema-to-typescript`.
+ * Returns `'unknown'` for absent/non-object schemas. The compiled output is an
+ * `export interface <typeName> { ... }` declaration which callers inline via
+ * {@link inlineBody}.
+ */
 async function schemaToType(
   schema: unknown,
   typeName: string,
@@ -91,6 +102,12 @@ export async function emitDescriptors(input: EmitInput): Promise<string> {
   return blocks.join('\n')
 }
 
+/**
+ * Extract the `{ ... }` body from a compiled `export interface X { ... }`
+ * declaration so it can be inlined as an anonymous object type. Collapses
+ * newlines onto a single line. Falls back to `unknown` when no brace is found
+ * (e.g. the compiled type is itself `unknown`).
+ */
 function inlineBody(compiled: string): string {
   const brace = compiled.indexOf('{')
   return brace >= 0

@@ -52,6 +52,11 @@ import type { BuiltAcpPrompt } from '../messages/prompt'
 
 const DEFAULT_WORKDIR = '/workspace'
 
+/**
+ * Everything a harness needs to know to launch its ACP server inside the
+ * sandbox. Passed to {@link AcpCompatibleConfig.command} /
+ * {@link AcpCompatibleConfig.openTransport}.
+ */
 export interface AcpHarnessContext<
   TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
 > {
@@ -65,6 +70,11 @@ export interface AcpHarnessContext<
   harnessCwd: string
   /** Extra env vars configured for the harness process. */
   env: Record<string, string> | undefined
+  /**
+     * Per-call options from `chat({ modelOptions })` — the base ACP options plus
+     * whatever you declared via {@link AcpCompatibleConfig.modelOptions}. Read
+     * these to turn options into CLI flags / transport choices.
+     */
   modelOptions: TModelOptions | undefined
   /** Abort signal for the run, when one was provided. */
   signal: AbortSignal | undefined
@@ -78,24 +88,69 @@ export interface AcpCompatibleConfig<
   TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
 > {
+  /**
+     * Harness name. Used as the provider label, the log prefix, and the CUSTOM
+     * session-id event name (`<name>.session-id`).
+     */
   name: string
+  /**
+     * The models this harness accepts. Declaring them makes the returned factory
+     * type-safe — `harness('known-model')` is checked, unknown ids are rejected.
+     * Omit to accept any string.
+     */
   models?: TModels
   modelOptions?: TModelOptions
+  /**
+     * Build the shell command that launches the harness's ACP server over
+     * **stdio** inside the sandbox (e.g. `` `pi --acp -m ${model}` ``). Required
+     * unless {@link openTransport} is provided.
+     */
   command?: (
     ctx: AcpHarnessContext<AcpCompatibleProviderOptions & TModelOptions>,
   ) => string
+  /**
+     * Full transport escape hatch — open any {@link AcpSessionTransport} yourself
+     * (e.g. boot a `serve` process and connect over WebSocket, as Grok Build
+     * does). Overrides {@link command}. Put ALL teardown in the returned
+     * transport's `dispose` (stream) / process (stdio); it is disposed when the
+     * session ends.
+     */
   openTransport?: (
     ctx: AcpHarnessContext<AcpCompatibleProviderOptions & TModelOptions>,
   ) => Promise<AcpSessionTransport> | AcpSessionTransport
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
+  /**
+     * The harness's skills directory, relative to the workspace root (e.g.
+     * `'.pi/skills'`) — its native convention for where it auto-discovers skills,
+     * the way Claude Code uses `.claude/skills`. When set, `withSandbox` workspace
+     * `gitSkill`s are linked here. MCP skills don't need this: they're passed to
+     * the agent over ACP natively. Omit and `gitSkill`s are left unlinked (warned).
+     */
   skillsDir?: string
   /** Extra environment variables for the harness process. */
   env?: Record<string, string>
+  /**
+     * `'api-key'` (default) uses {@link authMethodId} (or `modelOptions.authMethodId`).
+     * `'host'` skips ACP authenticate (use the CLI login on the machine).
+     * Not inferred from the sandbox.
+     */
   authMode?: 'host' | 'api-key'
+  /**
+     * ACP auth method to select before the session starts, when the harness
+     * advertises one (e.g. `'pi-api-key'`). Overridable per call via
+     * `modelOptions.authMethodId`. Ignored when {@link authMode} is `'host'`.
+     */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
+  /**
+     * Permission strategy:
+     * - `'headless'` (default) — auto-resolve via {@link permissionMode}; the
+     *   sandbox is the boundary, so the agent runs without prompting.
+     * - `'interactive'` — same policy, but `ask`-style prompts emit an
+     *   approval-requested event so a client can approve and re-run.
+     */
   permissions?: 'headless' | 'interactive'
   /** Custom permission handler; overrides {@link permissions}/{@link permissionMode}. */
   onPermissionRequest?: PermissionHandler
@@ -103,8 +158,20 @@ export interface AcpCompatibleConfig<
   refusalMessage?: string
   /** Emit ACP `plan` updates as a CUSTOM event under this name (off by default). */
   planEventName?: string
+  /**
+     * After the run, emit the `git diff` of the working dir as a `file.changed`
+     * CUSTOM event. Requires a git repo at `cwd`. Off by default.
+     */
   emitDiff?: boolean
+  /**
+     * Harness-specific JSON-RPC notifications (vendor `_x/...` extensions). Must
+     * return without throwing — unknown extensions must not tear down the session.
+     */
   onExtNotification?: (method: string, params: Record<string, unknown>) => void
+  /**
+     * Convert chat history into the harness prompt + resume inputs. Defaults to
+     * {@link buildAcpPrompt} (trailing user message + flattened transcript).
+     */
   buildPrompt?: (
     messages: Array<ModelMessage>,
     sessionId: string | undefined,
@@ -113,6 +180,11 @@ export interface AcpCompatibleConfig<
 
 /** Per-call provider options, passed via `modelOptions` on `chat()`. */
 export interface AcpCompatibleProviderOptions {
+  /**
+     * Resume an existing harness session. The adapter emits the session id of
+     * every run via a CUSTOM `<name>.session-id` event; thread it back here to
+     * continue (only the trailing user message is sent).
+     */
   sessionId?: string
   /** Per-call override of the harness working directory. */
   cwd?: string
@@ -139,6 +211,11 @@ async function disposeTransport(transport: AcpSessionTransport): Promise<void> {
   await transport.dispose()
 }
 
+/**
+ * A generic ACP harness adapter built from {@link AcpCompatibleConfig}. Runs the
+ * configured coding-agent CLI inside the sandbox provided by `withSandbox(...)`
+ * and translates its ACP session into AG-UI `StreamChunk`s.
+ */
 export class AcpCompatibleTextAdapter<
   TModel extends string,
   TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
@@ -258,7 +335,9 @@ export class AcpCompatibleTextAdapter<
     sandbox: SandboxHandle,
   ) {
     const modelOptions = options.modelOptions
+    /** Virtual cwd for `sandbox.process.spawn` (the provider maps `/workspace`). */
     const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
+    /** Literal cwd for the harness's own `--cwd` flag / ACP `newSession`. */
     const harnessCwd = resolveHarnessCwd(sandbox, cwd)
     const runId = resolveDurableRunId(options.runId, {
       durable: false,
@@ -427,6 +506,7 @@ export class AcpCompatibleTextAdapter<
     bridgedToolNames: ReadonlySet<string>
     threadId: string
     runId: string
+    /** The sandbox the harness runs in (from `withSandbox(...)` middleware). */
     sandbox: SandboxHandle
     cwd: string
     approvalRequests: Array<AdapterYieldChunk>
@@ -782,6 +862,39 @@ export class AcpCompatibleTextAdapter<
   }
 }
 
+/**
+ * Configure an ACP-compatible harness once, then select a model per call.
+ *
+ * Mirrors `openaiCompatible`: it lets you plug ANY Agent Client Protocol agent
+ * into a TanStack AI sandbox without a dedicated adapter package.
+ *
+ * @example
+ * ```ts
+ * import { acpCompatible } from '@tanstack/ai-acp'
+ * import { chat } from '@tanstack/ai'
+ * import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+ *
+ * const pi = acpCompatible({
+ *   name: 'pi',
+ *   // declaring `models` makes pi('…') type-safe; omit to accept any string
+ *   models: ['pi-fast', 'pi-pro'],
+ *   // declare per-call options; merged with the base ACP options and exposed
+ *   // on ctx.modelOptions inside `command` / `openTransport`
+ *   modelOptions: {} as { reasoningEffort?: 'low' | 'high' },
+ *   command: ({ model, harnessCwd, modelOptions }) =>
+ *     `pi --acp -m ${model} --cwd ${harnessCwd}` +
+ *     (modelOptions?.reasoningEffort ? ` --effort ${modelOptions.reasoningEffort}` : ''),
+ *   authMethodId: 'pi-api-key',
+ * })
+ *
+ * chat({
+ *   adapter: pi('pi-pro'),
+ *   modelOptions: { reasoningEffort: 'high' }, // typed
+ *   messages,
+ *   middleware: [withSandbox(defineSandbox({ /* provider, install pi *\/ }))],
+ * })
+ * ```
+ */
 export function acpCompatible<
   const TModels extends ReadonlyArray<string> = ReadonlyArray<string>,
   TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,
@@ -796,6 +909,21 @@ export function acpCompatible<
     )
 }
 
+/**
+ * One-shot helper: build a single-model ACP-compatible harness adapter inline.
+ *
+ * @example
+ * ```ts
+ * chat({
+ *   adapter: acpCompatibleText('pi-fast', {
+ *     name: 'pi',
+ *     command: ({ model }) => `pi --acp -m ${model}`,
+ *   }),
+ *   messages,
+ *   middleware: [withSandbox(defineSandbox({ ... }))],
+ * })
+ * ```
+ */
 export function acpCompatibleText<
   TModel extends string,
   TModelOptions extends Record<string, any> = AcpCompatibleProviderOptions,

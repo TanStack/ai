@@ -49,10 +49,12 @@ export interface ThinkingPartProps {
 }
 
 export interface ToolCallRenderProps {
+  /** Custom message ID generator */
   id: string
   name: string
   arguments: string
   state: string
+  /** Approval metadata */
   approval?: any
   output?: any
 }
@@ -90,6 +92,10 @@ export interface TextPartProps {
   remarkPlugins?: PluggableList
   /** Additional rehype plugins, appended after the defaults. */
   rehypePlugins?: PluggableList
+  /**
+     * Drop the built-in plugin defaults and disable the renderer's built-in
+     * sanitizer. The caller becomes responsible for sanitization.
+     */
   disableDefaultPlugins?: boolean
 }
 
@@ -104,6 +110,7 @@ export interface ToolApprovalProps {
   approval: {
     id: string
     needsApproval: boolean
+    /** User's decision (if responded) */
     approved?: boolean
   }
   /** CSS class name */

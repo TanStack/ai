@@ -3,6 +3,11 @@ import { normalizeMessagesDates } from './message-date-normalizer'
 
 export interface WebStoragePersistenceOptions {
   keyPrefix?: string
+  /**
+     * Defaults to `JSON.stringify`. Override only for values JSON can't
+     * round-trip losslessly (a `Map`, a `bigint`, a `Date` you need back as a
+     * `Date` rather than an ISO string).
+     */
   serialize?: (value: ChatPersistedState) => string
   /** Defaults to `JSON.parse`. */
   deserialize?: (value: string) => ChatPersistedState
@@ -16,6 +21,15 @@ export interface IndexedDBPersistenceOptions {
 
 type StorageName = 'localStorage' | 'sessionStorage' | 'indexedDB'
 
+/**
+ * Thrown by a storage adapter when its backing store is absent — most commonly
+ * during server-side rendering, where `localStorage` / `sessionStorage` /
+ * `indexedDB` do not exist on `globalThis`. The adapters check availability
+ * lazily, **per operation**, so constructing an adapter never throws; the error
+ * surfaces from `getItem` / `setItem` / `removeItem` (rejected promise for
+ * IndexedDB). The chat persistence layer treats adapter failures as best-effort
+ * (storage errors never break chat setup or streaming).
+ */
 export class StorageUnavailableError extends Error {
   constructor(storageName: StorageName) {
     super(`${storageName} is not available in this environment.`)
@@ -48,6 +62,7 @@ function createWebStoragePersistence(
 ): ChatStorageAdapter<ChatPersistedState> {
   const keyPrefix = options.keyPrefix ?? 'tanstack-ai:'
   const serialize = options.serialize ?? stringifyJson
+  /** Defaults to `JSON.parse`. */
   const deserialize = options.deserialize ?? JSON.parse
   const key = (id: string) => `${keyPrefix}${id}`
 
@@ -77,18 +92,46 @@ function createWebStoragePersistence(
   }
 }
 
+/**
+ * A `ChatStorageAdapter` backed by `window.localStorage` (persists across
+ * reloads and browser restarts). Keys are namespaced with `keyPrefix`, which
+ * defaults to `tanstack-ai:`. Every operation reads `localStorage` lazily and
+ * throws {@link StorageUnavailableError} when it is absent (e.g. SSR), so the
+ * adapter can be constructed safely on the server.
+ *
+ * The `serialize` / `deserialize` codec defaults to `JSON.stringify` /
+ * `JSON.parse`, so the common case needs no codec.
+ */
 export function localStoragePersistence(
   options: WebStoragePersistenceOptions = {},
 ): ChatStorageAdapter<ChatPersistedState> {
   return createWebStoragePersistence('localStorage', options)
 }
 
+/**
+ * A `ChatStorageAdapter` backed by `window.sessionStorage` (scoped to the tab
+ * and cleared when it closes). Identical to {@link localStoragePersistence} in
+ * every other respect: the `tanstack-ai:` default `keyPrefix`, lazy
+ * per-operation {@link StorageUnavailableError} on SSR, and a JSON codec that
+ * defaults to `JSON.stringify` / `JSON.parse`.
+ */
 export function sessionStoragePersistence(
   options: WebStoragePersistenceOptions = {},
 ): ChatStorageAdapter<ChatPersistedState> {
   return createWebStoragePersistence('sessionStorage', options)
 }
 
+/**
+ * A `ChatStorageAdapter` backed by IndexedDB, for values too large for Web
+ * Storage or that benefit from structured-clone storage. All operations are
+ * async and the database opens lazily on first use; keys are namespaced with
+ * `keyPrefix` (default `tanstack-ai:`). When IndexedDB is unavailable (e.g.
+ * SSR) each operation rejects with {@link StorageUnavailableError}.
+ *
+ * No serialize/deserialize codec is needed or accepted — values are stored via
+ * IndexedDB's native structured clone, so `Date`, `Map`, `ArrayBuffer`, etc.
+ * round-trip without a JSON step.
+ */
 export function indexedDBPersistence(
   options: IndexedDBPersistenceOptions = {},
 ): ChatStorageAdapter<ChatPersistedState> {

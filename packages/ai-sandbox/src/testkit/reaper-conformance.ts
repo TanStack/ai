@@ -34,29 +34,91 @@ export interface ReaperConformanceConfig {
     handle: SandboxHandle
     dispose: () => Promise<void>
   }>
+  /**
+     * Declare that this provider cannot support the sweeps, with the reason.
+     * Registers a skipped case whose title carries the reason — a NAMED skip,
+     * visible in the reporter. Omit it and the suite runs.
+     */
   unsupported?: { reason: string }
+  /**
+     * Declare that this provider's reads take the POLL strategy rather than the
+     * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles.
+     *
+     * Only the FOLLOW half of the shell-hostile-runId case depends on it, so this
+     * does not skip a case; it names itself in that case's title and the follow
+     * read is omitted. The declaration is checked against the live handle there, in
+     * both directions, so it cannot quietly remove coverage from a provider that
+     * can in fact follow.
+     */
   followUnsupported?: { reason: string }
+  /**
+     * Declare that this provider cannot run GNU `stat -c '%Y %n'`. The three
+     * age-gate cases skip with this reason. Docker alpine is the authority on
+     * the witness line; local-process on Darwin is BSD `stat`.
+     */
   mtimeListUnsupported?: { reason: string }
 }
 
 /** Poll interval handed to providers that cannot follow a growing file. */
-const POLL_INTERVAL_MS = 50
+const /** Poll interval handed to providers that cannot follow a growing file. */
+POLL_INTERVAL_MS = 50
 
+/**
+ * Quiescence window for the reaper's first append. Short because the agent in
+ * these cases has provably stopped (the suite waited for its sentinel) — the
+ * gate still runs, it just does not need to wait 5s to observe nothing.
+ */
 const FENCE_QUIET_MS = 25
 
+/**
+ * Bound on a real journal read, so a reader that delivers nothing FAILS instead
+ * of parking CI.
+ *
+ * Never an assertion, and deliberately far above anything a healthy read needs
+ * (measured: 10–18s for the follow cases on both providers). Every use site
+ * pairs it with a `backstopped: false` witness, so a read the CLOCK ended fails
+ * naming this backstop rather than as a downstream transcript mismatch — which
+ * means this number can be raised freely and must never be the thing a case is
+ * tuned against.
+ */
 const READ_BACKSTOP_MS = 90_000
 
 /** Long enough that nothing in this suite is ever classified as expired. */
-const NEVER_EXPIRES_MS = 60 * 60 * 1000
+const /** Long enough that nothing in this suite is ever classified as expired. */
+NEVER_EXPIRES_MS = 60 * 60 * 1000
 
+/**
+ * A journal directory nothing else on the machine writes to, created fresh for
+ * EVERY case.
+ *
+ * Not `DEFAULT_JOURNAL_DIR`, and not even one directory per suite. Both sweeps
+ * under test enumerate a whole directory and then DELETE from it, so a shared
+ * directory would let one case's leftovers become another's input — and on
+ * local-process the sandbox shell shares the host's real `/tmp`, where
+ * `DEFAULT_JOURNAL_DIR` holds a developer's actual runs.
+ */
 function caseDir(): string {
   return `/tmp/tanstack-reaper-conformance-${randomUUID()}`
 }
 
+/**
+ * Unique per run, and it must be: `journalPaths` derives the filename from the
+ * runId and the journal is append-only, so a reused id appends BEHIND the
+ * previous run's `{"__exit":N}` sentinel and the new run appears to emit nothing
+ * at all (see `journal.ts`).
+ */
 function uniqueRunId(label: string): string {
   return `rp-${label}-${randomUUID()}`
 }
 
+/**
+ * Single-quote a shell word, POSIX-style — the same rule `journal.ts`'s private
+ * `shellQuote` applies.
+ *
+ * Duplicated rather than exported from production code on purpose: this exists
+ * only for this suite's `rm -rf` teardown, which is not a production operation
+ * and must not become one by growing an export for it.
+ */
 function quote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`
 }
@@ -68,6 +130,15 @@ async function removeDir(handle: SandboxHandle, dir: string): Promise<void> {
   } catch {}
 }
 
+/**
+ * Does `path` exist, according to the SANDBOX'S SHELL?
+ *
+ * `journalExistsCommand` rather than `handle.fs.exists`, for any path and not
+ * just a journal: `journal.ts` rule 3 — on local-process `fs.*` resolves `/tmp`
+ * under the sandbox root while a shell redirect hits the host's real `/tmp`, so
+ * an `fs` probe would answer about a different file and every deletion
+ * assertion in this suite would pass vacuously.
+ */
 async function fileExists(
   handle: SandboxHandle,
   path: string,
@@ -83,10 +154,26 @@ function basename(dir: string, path: string): string {
   return path.slice(dir.length + 1)
 }
 
+/**
+ * A real agent: a shell command printing one NDJSON line per delta, then
+ * exiting.
+ *
+ * `printf '%s\n' a b c` reuses the format for every operand on GNU coreutils
+ * and on BusyBox alike, so this needs no loop. The JSON contains only double
+ * quotes, so it is safe inside the POSIX single-quoted words this builds.
+ */
 function emitLines(deltas: Array<string>): string {
   return `printf '%s\\n' ${deltas.map((delta) => `'{"delta":"${delta}"}'`).join(' ')}`
 }
 
+/**
+ * Run a journaled agent to completion, so the `{"__exit":N}` sentinel is in the
+ * journal by the time this resolves.
+ *
+ * `exec`, not `spawn`: `exec` waits, and a bounded wait is the only kind this
+ * suite allows. (`SpawnHandle.wait()` is also not safe to call after the fact on
+ * every provider — see `journal-conformance.ts`.)
+ */
 async function runAgent(
   handle: SandboxHandle,
   paths: JournalPaths,
@@ -112,6 +199,10 @@ function decodeJournalRead(stdout: string): string {
   return Buffer.from(stdout.replace(/\s+/g, ''), 'base64').toString('utf8')
 }
 
+/**
+ * The `stat -c '%Y %n'` listing for `dir`, plus the raw stdout so a case can
+ * assert the WITNESS LINE itself rather than only its parsed consequence.
+ */
 async function mtimeListing(
   handle: SandboxHandle,
   dir: string,
@@ -132,6 +223,13 @@ async function mtimeListing(
   }
 }
 
+/**
+ * Is there a `<seconds> <dir>` line — `stat`'s report on its own first operand?
+ *
+ * That line, not the exit status, is the evidence the mechanism ran: BusyBox
+ * exits 1 both for an EMPTY directory (whose unexpanded glob it cannot stat) and
+ * for an unrecognised flag, and only the witness distinguishes them.
+ */
 function hasWitnessLine(stdout: string, dir: string): boolean {
   return stdout
     .split('\n')
@@ -149,6 +247,15 @@ function mtimeOf(entries: Map<string, number>, name: string): number {
   return mtimeMs
 }
 
+/**
+ * An in-process event log with real accumulated state, plus the two facts the
+ * reaper assertions need: what was appended, and how many times `close()` ran.
+ *
+ * `close()` is the load-bearing counter. `pipeToRunLog` ALWAYS calls it, so a
+ * reaper that entered the pipe to find out whether a run finished would show up
+ * here as `closes() === 1` — which ends every attached client's stream — even if
+ * it happened to append nothing.
+ */
 interface ConformanceLog {
   log: StreamDurability
   stored: () => Array<StreamChunk>
@@ -183,6 +290,15 @@ function conformanceLog(): ConformanceLog {
   }
 }
 
+/**
+ * A `RunStore` that counts its MUTATIONS, so the leave-alone case can assert
+ * that a producing run's record was not written at all.
+ *
+ * "Status still `'running'`" is too weak on its own: `driverEpoch` is bumped by
+ * `withRunClaim` before any status is written, so a reaper that claimed a live
+ * run and then bailed would still read as `'running'`. Counting `update` sees
+ * that; reading the status does not.
+ */
 interface CountingRunStore {
   runs: RunStore
   updates: () => number
@@ -216,6 +332,14 @@ function contentChunk(messageId: string, delta: string): StreamChunk {
   }
 }
 
+/**
+ * Narrow one parsed journal line into its chunk.
+ *
+ * Fields are validated and the chunk REBUILT from them rather than asserted into
+ * shape: a cast would let a provider that mangles the bytes reach
+ * `chunkFingerprint` as a structurally invalid chunk and fail somewhere
+ * unrelated.
+ */
 function toChunk(
   runId: string,
   messageId: string,
@@ -258,6 +382,17 @@ function expectedTranscript(
   return deltas.map((delta) => contentChunk(messageId, delta))
 }
 
+/**
+ * The reaper's `drive`: read the run's journal from byte 0 and translate it.
+ *
+ * The read is bounded independently of `signal` so a journal that stops growing
+ * fails the case instead of hanging CI.
+ *
+ * Returns the drive alongside `backstopped()`, the causal witness for
+ * {@link READ_BACKSTOP_MS}: the case must assert it is `false` before its
+ * transcript assertions, so a read the CLOCK ended fails naming the backstop
+ * instead of as a truncated-transcript diff.
+ */
 function driveFromJournal(
   handle: SandboxHandle,
   dir: string,
@@ -306,6 +441,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Assert `createHandle` satisfies the sweep conformance contract. Each `it` gets
+ * a fresh sandbox via `createHandle`/`dispose`, a fresh journal directory, and
+ * unique runIds, so no case can observe another's files.
+ */
 export function runReaperConformance(config: ReaperConformanceConfig): void {
   describe(`reaper conformance — ${config.name}`, () => {
     if (config.unsupported) {

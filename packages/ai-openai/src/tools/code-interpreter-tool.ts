@@ -13,6 +13,11 @@ export type OpenAICodeInterpreterTool = ProviderTool<
   'code_interpreter'
 >
 
+/**
+ * Creates a standard Tool from CodeInterpreterTool parameters, branded as an
+ * OpenAI provider tool. Delegates construction to the base factory and brands
+ * the result via a phantom-typed `ProviderTool` cast.
+ */
 export function codeInterpreterTool(
   container: CodeInterpreterToolConfig,
 ): OpenAICodeInterpreterTool {

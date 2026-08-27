@@ -9,11 +9,23 @@ import type {
 
 type MakePersistence = () => Promise<AIPersistence> | AIPersistence
 
+/**
+ * Methods that are optional on the `RunStore` contract.
+ *
+ * `findActiveRun` is deliberately NOT here: it is REQUIRED, per the evolution
+ * policy in `../types.ts`. It was optional for one release cycle and silently
+ * disabled reconnect on every backend that had not caught up.
+ */
 type OptionalRunStoreMethod = 'listByThread' | 'listReclaimable'
 
 /** Dotted `store.method` key a backend passes to declare an omitted method. */
 export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
 
+/**
+ * Unwrap a value the store contract says must be present. Fails the test with a
+ * readable message instead of a non-null assertion (banned in this package) or
+ * an early `return` that would pass silently.
+ */
 function required<TValue>(
   value: TValue | null | undefined,
   what: string,
@@ -47,10 +59,25 @@ async function drainStream(
 }
 
 export interface PersistenceConformanceOptions {
+  /**
+     * Store keys this backend intentionally does not provide. Any store that is
+     * absent from the persistence and NOT listed here fails the suite, so a
+     * dropped/misconfigured store can never pass silently.
+     */
   skip?: Array<keyof AIPersistenceStores>
+  /**
+     * OPTIONAL store methods this backend intentionally does not implement, as
+     * `'runs.listByThread'` and friends. A method that is absent and NOT listed
+     * here fails the suite; a listed one is reported as a skipped case.
+     */
   skipMethods?: Array<PersistenceConformanceMethodKey>
 }
 
+/**
+ * Register a Vitest suite that validates `makePersistence()` against the full
+ * `AIPersistence` contract — every store it provides, and none it declares
+ * skipped.
+ */
 export function runPersistenceConformance(
   name: string,
   makePersistence: MakePersistence,
@@ -68,6 +95,11 @@ export function runPersistenceConformance(
       persistence = await makePersistence()
     })
 
+    /**
+         * Return the store for `key`, or `null` when the backend intentionally
+         * skips it. Throws (failing the test) when a store is missing but was not
+         * declared in `options.skip`.
+         */
     function resolveStore<TKey extends keyof AIPersistenceStores>(
       key: TKey,
     ): NonNullable<AIPersistenceStores[TKey]> | null {
@@ -80,6 +112,15 @@ export function runPersistenceConformance(
       )
     }
 
+    /**
+         * Narrow `runs` to a store that definitely implements the optional method
+         * `methodName`, so the case can call it without a non-null assertion.
+         *
+         * Returns `false` only when the omission was declared in
+         * `options.skipMethods` (the caller then reports a skip). An undeclared
+         * omission throws, mirroring `resolveStore`: a case that cannot run must
+         * never be reported as a pass.
+         */
     function hasRunsMethod<TName extends OptionalRunStoreMethod>(
       runs: RunStore,
       methodName: TName,

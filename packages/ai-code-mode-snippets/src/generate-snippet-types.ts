@@ -1,5 +1,8 @@
 import type { Snippet } from './types'
 
+/**
+ * Convert a JSON Schema to a TypeScript type string
+ */
 function schemaToType(schema: Record<string, unknown>): string {
   if (typeof schema !== 'object') {
     return 'unknown'
@@ -81,10 +84,16 @@ function schemaToType(schema: Record<string, unknown>): string {
   return 'unknown'
 }
 
+/**
+ * Capitalize the first letter of a string
+ */
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
+/**
+ * Convert snake_case to PascalCase
+ */
 function toPascalCase(str: string): string {
   return str
     .split('_')
@@ -92,6 +101,11 @@ function toPascalCase(str: string): string {
     .join('')
 }
 
+/**
+ * Generate TypeScript type stubs for snippets.
+ * These are included in the system prompt so the LLM knows
+ * the exact type signatures of available snippets.
+ */
 export function generateSnippetTypes(snippets: Array<Snippet>): string {
   const declarations: Array<string> = []
 

@@ -14,11 +14,21 @@ import type {
 import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
+/**
+ * Provider options for audio generation, excluding fields TanStack AI handles.
+ */
 export type FalAudioProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'prompt'
 >
 
+/**
+ * Fal audio models don't agree on the name for "how long should this be."
+ * Most accept seconds via `duration`, but a few use model-specific fields —
+ * e.g. ElevenLabs wants milliseconds via `music_length_ms`, Stable Audio wants
+ * `seconds_total`. Explicit per-model entries override the default; user
+ * `modelOptions` still win over either.
+ */
 const DURATION_FRAGMENT_BUILDERS: Record<
   string,
   (seconds: number) => Record<string, unknown>
@@ -38,6 +48,21 @@ function buildDurationFragment(
   return builder ? builder(duration) : { duration }
 }
 
+/**
+ * fal.ai audio generation adapter.
+ *
+ * Supports fal.ai audio models like diffrhythm (music), sound effects, etc.
+ *
+ * @example
+ * ```typescript
+ * const adapter = falAudio('fal-ai/diffrhythm')
+ * const result = await generateAudio({
+ *   adapter,
+ *   prompt: 'An upbeat electronic track with synths',
+ *   duration: 10,
+ * })
+ * ```
+ */
 export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   TModel,
   FalAudioProviderOptions<TModel>

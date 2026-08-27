@@ -18,10 +18,23 @@ import type {
   WorkspaceDefinition,
 } from '@tanstack/ai-sandbox'
 
+/**
+ * The base Env every generated app binds: the coordinator's own namespace, the
+ * Sandbox namespace, the OPTIONAL bridge/preview hostnames (request-derived when
+ * unset), and the Anthropic key. The two modes extend this with exactly the
+ * coordinator base each one requires.
+ */
 export interface SandboxAgentEnv
   extends ChatCoordinatorEnv, ContainerCoordinatorEnv {
   /** This coordinator DO's own namespace (so the Worker can address it). */
   RUN_COORDINATOR: DurableObjectNamespace<SandboxCoordinator<SandboxAgentEnv>>
+  /**
+     * Custom domain (with a `*.<domain>` route) for browser-facing `exposePort`
+     * preview URLs. Optional: unset → request-derived (local dev → `localhost`).
+     * REQUIRED on a `*.workers.dev` deploy (no wildcard subdomains). Distinct from
+     * `PUBLIC_HOSTNAME`, which is the CONTAINER→Worker bridge host. See
+     * {@link resolvePreviewHost}.
+     */
   PREVIEW_HOSTNAME?: string
 }
 
@@ -38,8 +51,27 @@ export interface DoDrivesAgentConfig<
   mode?: 'do-drives'
   /** The harness/text adapter `chat()` runs, resolved per run. */
   adapter: (input: StartRunInput, env: TEnv) => AnyTextAdapter
+  /**
+     * Base system prompts prepended to every run's `chat()` (DO-drives only — the DO
+     * runs `chat()` itself). The natural home for transport-level guidance the agent
+     * needs regardless of what it builds — e.g. `systemPrompts: [PREVIEW_GUIDANCE]`
+     * so previews don't reload-loop. See {@link PREVIEW_GUIDANCE}.
+     */
   systemPrompts?: Array<SystemPrompt>
+  /**
+     * The sandbox the agent runs in, resolved per run. When omitted, a default
+     * Cloudflare sandbox (one per thread, no source clone, NO auth secrets) is built
+     * from the `Sandbox` binding and the resolved preview host, optionally
+     * bootstrapping `workspace`. Supply the harness's API key either here (a custom
+     * `sandbox` resolver whose workspace declares the secret) or via `workspace`
+     * below — the package binds no key of its own.
+     */
   sandbox?: (input: StartRunInput, env: TEnv) => SandboxDefinition
+  /**
+     * Workspace for the default sandbox (ignored when `sandbox` is provided). This is
+     * where a default-sandbox app declares its harness auth, e.g.
+     * `defineWorkspace({ source: { type: 'none' }, secrets: createSecrets({ ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY }) })`.
+     */
   workspace?: WorkspaceDefinition
 }
 
@@ -102,6 +134,7 @@ function resolveCoordinator<TEnv extends SandboxAgentEnv>(
 export function createCloudflareSandboxAgent<
   TEnv extends SandboxAgentEnv = SandboxAgentEnv,
 >(config: CloudflareSandboxAgentConfig<TEnv>): CloudflareSandboxAgent<TEnv> {
+  /** The Worker fetch handler — `export default` it. */
   const worker = createSandboxAgentWorker<TEnv>(resolveCoordinator)
 
   if (config.mode === 'colocated') {
@@ -122,6 +155,7 @@ export function createCloudflareSandboxAgent<
   const doDrives = config
   class ConfiguredChatCoordinator extends ChatSandboxCoordinator<TEnv> {
     protected override config(input: StartRunInput): ChatRunConfig {
+      /** chat()-provided server tools, resolved per run (DO-drives: bridged over MCP). */
       const tools = doDrives.tools?.(input, this.env)
       return {
         adapter: doDrives.adapter(input, this.env),

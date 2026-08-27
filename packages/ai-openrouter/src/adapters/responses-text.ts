@@ -54,6 +54,10 @@ import type {
   OpenRouterResponsesToolCallMetadata,
 } from '../message-types'
 
+/** Element type of `ResponsesRequest.input` when it's the array form (the
+ *  SDK union also allows a bare string). Pinning to the array element lets
+ *  the convertMessagesToInput logic narrow to the per-item discriminated
+ *  union so a TS rename surfaces here. */
 type InputsItem = Extract<InputsUnion, ReadonlyArray<unknown>>[number]
 /** ResponsesRequest input content part shape (per-content-part discriminated union). */
 type ResponsesInputContent = unknown
@@ -74,6 +78,23 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/**
+ * OpenRouter Responses (beta) Adapter — standalone implementation that talks
+ * to OpenRouter's `/v1/responses` (beta) endpoint via the `@openrouter/sdk`
+ * SDK.
+ *
+ * The wire format is OpenAI-Responses-compatible (so OpenRouter can route
+ * Responses requests to GPT, Claude, Gemini, etc.) but the SDK exposes the
+ * request/response in camelCase TS shapes (`callId`, `imageUrl`,
+ * `fileData`, `outputIndex`, `itemId`, `inputTokens`, `incompleteDetails`,
+ * etc.). This adapter operates directly in those camelCase shapes — there's
+ * no snake_case ↔ camelCase round-trip.
+ *
+ * v1 routes function tools only. Passing a `webSearchTool()` brand throws
+ * — OpenRouter's Responses API exposes richer server-tool variants
+ * (WebSearchServerToolOpenRouter / Preview20250311WebSearchServerTool /
+ * …) that will land in a follow-up.
+ */
 export class OpenRouterResponsesTextAdapter<
   TModel extends OpenRouterResponsesTextModels,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -116,6 +137,7 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
+      /** camelCased copy of the `response` payload from `response.{completed,failed,incomplete}` events. */
       const response = await this.orClient.beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
@@ -172,6 +194,10 @@ export class OpenRouterResponsesTextAdapter<
     }
   }
 
+  /**
+     * Generate structured output via OpenRouter's Responses API
+     * `text.format: { type: 'json_schema', ... }`. Uses stream: false.
+     */
   async structuredOutput(
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
@@ -259,6 +285,20 @@ export class OpenRouterResponsesTextAdapter<
     }
   }
 
+  /**
+     * Streamed structured output via OpenRouter's Responses API
+     * (`text.format: { type: 'json_schema', ... }` + `stream: true`).
+     *
+     * Mirrors {@link OpenAIBaseResponsesTextAdapter.structuredOutputStream}
+     * adapted to OpenRouter's SDK call surface
+     * (`orClient.beta.responses.send`) and to the camelCase usage shape on
+     * `response.completed` (`inputTokens` / `outputTokens` / `totalTokens`).
+     *
+     * Events flow through {@link normalizeStreamEvent} so this method reads
+     * the same canonical event shape as `processStreamChunks` (covering
+     * Speakeasy's UNKNOWN-with-`raw` fallback for events that fail strict
+     * per-variant validation upstream).
+     */
   async *structuredOutputStream(
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -347,10 +387,21 @@ export class OpenRouterResponsesTextAdapter<
     return makeStructuredOutputCompatible(schema, originalRequired)
   }
 
+  /**
+     * OpenRouter routes through a wide variety of upstream providers; some
+     * return `null` as a distinct sentinel rather than collapsing it to absent,
+     * so we passthrough and let the engine un-widen strict-mode nulls precisely.
+     * Matches the base adapters' default — kept as an explicit override because
+     * OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
+     */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
   }
 
+  /**
+     * Extract text content from a non-streaming Responses API response.
+     * Reads OpenRouter's camelCase `OpenResponsesResult` shape directly.
+     */
   protected extractTextFromResponse(response: OpenResponsesResult): string {
     let textContent = ''
     let refusal: string | undefined
@@ -358,11 +409,15 @@ export class OpenRouterResponsesTextAdapter<
     const observedItemTypes = new Set<string>()
 
     for (const rawItem of response.output) {
+      /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
       const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
       observedItemTypes.add(item.type)
       if (item.type === 'message') {
         sawMessageItem = true
-        for (const part of item.content ?? []) {
+        for (const /** SDK discriminated union — narrow with `part.type === '<variant>'`.
+   *  Shared by `response.content_part.added` and `response.content_part.done`
+   *  (`ContentPartDoneEventPart` is structurally identical). */
+part of item.content ?? []) {
           const partType = (part as { type: string }).type
           if (partType === 'output_text') {
             textContent += (part as { text?: string }).text ?? ''
@@ -395,6 +450,18 @@ export class OpenRouterResponsesTextAdapter<
     return textContent
   }
 
+  /**
+     * Processes streamed events from the OpenRouter Responses API and yields
+     * AG-UI events. Reads the SDK's camelCase event shape directly
+     * (`itemId`, `outputIndex`, `incompleteDetails`, `inputTokens`, etc.).
+     *
+     * Speakeasy's discriminated-union parser falls back to
+     * `{ raw, type: 'UNKNOWN', isUnknown: true }` when an event's strict
+     * per-variant schema rejects (missing optional fields like `sequenceNumber`
+     * that some upstreams omit). The `raw` payload is the original wire-shape
+     * event in snake_case. We translate snake_case keys to camelCase for those
+     * unknown events so the rest of the processor reads a uniform shape.
+     */
   protected async *processStreamChunks(
     stream: AsyncIterable<StreamEvents>,
     toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
@@ -415,6 +482,9 @@ export class OpenRouterResponsesTextAdapter<
     })
   }
 
+  /**
+     * Build an OpenRouter `ResponsesRequest` (camelCase) from `TextOptions`.
+     */
   protected mapOptionsToRequest(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
   ): Omit<ResponsesRequest, 'stream'> {
@@ -507,12 +577,22 @@ export class OpenRouterResponsesTextAdapter<
     return built
   }
 
+  /**
+     * Combined mode is safe only when this model and every `modelOptions.models`
+     * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+     * `:variant` suffixes are routing directives and do not change the gate.
+     */
   supportsCombinedToolsAndSchema(
     modelOptions?: OpenRouterResponsesTextProviderOptions,
   ): boolean {
     return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
+  /**
+     * Convert a list of ModelMessage to OpenRouter's `InputsUnion` array form.
+     * Emits camelCase shapes (`callId`, `imageUrl`, `videoUrl`, `fileData`,
+     * `fileUrl`).
+     */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
   ): Array<InputsItem> {

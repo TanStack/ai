@@ -59,6 +59,36 @@ function definedFields(
   return out
 }
 
+/**
+ * Creates a reactive chat instance for Svelte 5.
+ *
+ * This function wraps the ChatClient from @tanstack/ai-client and exposes
+ * reactive state using Svelte 5 runes. The returned object has reactive
+ * getters that automatically update when state changes.
+ *
+ * @example
+ * ```svelte
+ * <script>
+ *   import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
+ *
+ *   const chat = createChat({
+ *     connection: fetchServerSentEvents('/api/chat'),
+ *   })
+ * </script>
+ *
+ * <div>
+ *   {#each chat.messages as message}
+ *     <div>{message.role}: {message.parts[0].content}</div>
+ *   {/each}
+ *
+ *   {#if chat.isLoading}
+ *     <button onclick={chat.stop}>Stop</button>
+ *   {/if}
+ *
+ *   <button onclick={() => chat.sendMessage('Hello!')}>Send</button>
+ * </div>
+ * ```
+ */
 export function createChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
@@ -290,6 +320,10 @@ export function createChat<
     state?: ChatResumeState,
   ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
+  /**
+     * @deprecated Use `updateForwardedProps` instead.
+     * Both populate the same wire payload.
+     */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
   }

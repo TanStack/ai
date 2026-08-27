@@ -7,11 +7,23 @@ import type {
   TerminalRunStatus,
 } from '@tanstack/ai'
 
+/**
+ * The mutable-field patch a {@link RunStore.update} accepts, reused verbatim so
+ * the log can back a `RunStore` without restating (and drifting from) the pick.
+ */
 export type RunRecordPatch = Parameters<RunStore['update']>[1]
 
+/**
+ * Durable bookkeeping for one run in the event log: core's {@link RunRecord}
+ * plus the two fields only an event log needs.
+ */
 export interface RunLogRecord extends RunRecord {
   /** Seq of the last appended event, or `-1` when no events yet. */
   lastSeq: number
+  /**
+     * Epoch ms of the last append or status change — the activity clock a stall
+     * watchdog reads. Distinct from `finishedAt`, which is set once, at terminal.
+     */
   updatedAt: number
 }
 
@@ -22,12 +34,31 @@ export interface RunEvent {
 }
 
 export interface RunEventLogReadOptions {
+  /**
+     * Exclusive cursor: only events with `seq > fromSeq` are yielded. Pass the
+     * client's last-seen `seq` to resume; omit (or `-1`) to replay from the start.
+     */
   fromSeq?: number
   /** Stop tailing when this fires (e.g. the client disconnected). */
   signal?: AbortSignal
 }
 
+/**
+ * Append-only, `seq`-indexed log of a run's stream, with resumable reads.
+ *
+ * Contract:
+ * - `append` assigns the next `seq` (0, 1, 2, …) and returns it.
+ * - `read` yields the backlog after `fromSeq` in order, then live-tails new
+ *   events, and RETURNS once the run is terminal and the cursor has caught up.
+ * - All methods reject for an unknown `runId` except `get`, which resolves null.
+ */
 export interface RunEventLog {
+  /**
+     * Idempotently create (or return) the run record. An existing record is
+     * returned unchanged; `startedAt` (default `Date.now()`) applies only on
+     * first creation — matching core's `RunStore.createOrResume` invariant, which
+     * `runLogStore` maps directly onto this method.
+     */
   open: (input: {
     runId: string
     threadId: string
@@ -41,6 +72,16 @@ export interface RunEventLog {
     status: TerminalRunStatus,
     error?: RunError,
   ) => Promise<void>
+  /**
+     * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown `runId`
+     * is a NO-OP (never a throw, never a create) — core's `RunStore.update`
+     * invariant, which `runLogStore` maps onto this method.
+     *
+     * MUST wake blocked readers, exactly like `append`/`finish`: the record and
+     * the event log share one status field here, so a driver that terminalizes
+     * through its `RunStore` — core's `pipeToRunLog` writes its terminal status
+     * via `runs.update`, not `finish` — is ending the log with this call.
+     */
   update: (runId: string, patch: RunRecordPatch) => Promise<void>
   /** Current record, or null if the run is unknown. */
   get: (runId: string) => Promise<RunLogRecord | null>
@@ -53,10 +94,16 @@ export interface RunEventLog {
   ) => AsyncIterable<RunEvent>
 }
 
+/**
+ * The record layout this log persisted before converging on core's run
+ * vocabulary. Never constructed by current code — it exists so
+ * {@link migrateStoredRunRecord} can name what it reads out of old storage.
+ */
 interface LegacyStoredRunRecord {
   runId: string
   threadId?: string
   status: 'running' | 'done' | 'error' | 'aborted'
+  /** Seq of the last appended event, or `-1` when no events yet. */
   lastSeq: number
   error?: RunError
   createdAt: number
@@ -76,6 +123,14 @@ function isLegacyStoredRunRecord(
   return 'createdAt' in value
 }
 
+/**
+ * Convert a stored record to the converged {@link RunLogRecord} layout.
+ *
+ * Total over both layouts: a converged record passes through unchanged
+ * (`migrated: false`), a legacy one is mapped as documented in the module
+ * header (`migrated: true`) so a durable backend can write the result back and
+ * pay the conversion exactly once.
+ */
 export function migrateStoredRunRecord(
   stored: RunLogRecord | LegacyStoredRunRecord,
 ): { record: RunLogRecord; migrated: boolean } {
@@ -108,6 +163,12 @@ interface RunState {
   waiters: Set<() => void>
 }
 
+/**
+ * Single-process {@link RunEventLog}. Backs `read`'s live-tail with an internal
+ * waiter set: `append`/`finish` wake every blocked reader. Suitable for a
+ * long-running Node host, tests, and as the reference implementation a durable
+ * backend mirrors.
+ */
 export class InMemoryRunEventLog implements RunEventLog {
   private readonly runs = new Map<string, RunState>()
 
@@ -122,6 +183,7 @@ export class InMemoryRunEventLog implements RunEventLog {
   }
 
   private wake(state: RunState): void {
+    /** Resolved (and cleared) whenever an event is appended or status changes. */
     const waiters = [...state.waiters]
     state.waiters.clear()
     for (const resolve of waiters) resolve()
@@ -147,6 +209,7 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve({ ...record })
   }
 
+  /** Append one chunk; resolves with its assigned `seq`. */
   append(runId: string, chunk: StreamChunk): Promise<number> {
     const state = this.runs.get(runId)
     if (!state) {
@@ -167,6 +230,7 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve(seq)
   }
 
+  /** Move the run to a terminal status. Idempotent for the same status. */
   finish(
     runId: string,
     status: TerminalRunStatus,
@@ -196,22 +260,26 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve()
   }
 
+  /** Current record, or null if the run is unknown. */
   get(runId: string): Promise<RunLogRecord | null> {
     const state = this.runs.get(runId)
     return Promise.resolve(state ? { ...state.record } : null)
   }
 
+  /** Every run record this log holds. Backs `RunStore.findActiveRun`. */
   list(): Promise<Array<RunLogRecord>> {
     return Promise.resolve(
       [...this.runs.values()].map((state) => ({ ...state.record })),
     )
   }
 
+  /** Replay-then-tail events with `seq > fromSeq` until the run is terminal. */
   async *read(
     runId: string,
     options?: RunEventLogReadOptions,
   ): AsyncIterable<RunEvent> {
     const state = this.require(runId)
+    /** Stop tailing when this fires (e.g. the client disconnected). */
     const signal = options?.signal
     let cursor = options?.fromSeq ?? -1
     while (!signal?.aborted) {

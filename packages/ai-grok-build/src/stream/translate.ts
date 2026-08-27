@@ -13,10 +13,12 @@ import type {
 } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Grok Build session id. */
-export const SESSION_ID_EVENT = 'grok-build.session-id'
+export const /** Name of the CUSTOM event carrying the Grok Build session id. */
+SESSION_ID_EVENT = 'grok-build.session-id'
 
 /** Server name used for bridged TanStack tools. */
-export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
+export const /** Server name used for bridged TanStack tools. */
+BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 export interface TranslateContext {
   model: string
@@ -32,6 +34,9 @@ export interface TranslateContext {
   expectStructuredOutput?: boolean
 }
 
+/**
+ * Resolve the AG-UI tool-call name for a Grok Build thread item.
+ */
 export function toolNameForItem(item: GrokBuildThreadItem): string {
   if (item.type === 'mcp_tool_call') {
     return item.server === BRIDGED_MCP_SERVER_NAME

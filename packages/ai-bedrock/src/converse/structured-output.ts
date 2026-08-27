@@ -3,6 +3,11 @@ import type { DocumentType } from '@smithy/types'
 
 export const STRUCTURED_TOOL_NAME = 'structured_output'
 
+/**
+ * Converse has no native json_schema response_format. Structured output is
+ * achieved by forcing a single tool whose input schema is the requested output
+ * schema; the model's tool-use `input` is the structured result.
+ */
 export function buildStructuredToolConfig(schema: unknown): ToolConfiguration {
   return {
     tools: [

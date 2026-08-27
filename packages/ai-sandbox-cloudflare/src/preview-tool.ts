@@ -4,10 +4,22 @@ import { getSandbox } from '@cloudflare/sandbox'
 import type { Sandbox } from '@cloudflare/sandbox'
 import type { StartRunInput } from './coordinator'
 
+/**
+ * The minimum env an {@link exposePreviewTool} needs: the Sandbox namespace it
+ * addresses the run's container in. `SandboxAgentEnv` satisfies this structurally,
+ * so the factory's `tools` resolver passes its env straight in.
+ */
 export interface PreviewToolEnv {
   Sandbox: DurableObjectNamespace<Sandbox>
 }
 
+/**
+ * System-prompt guidance for any agent that exposes a dev server as a browser
+ * preview. App-agnostic: the only requirement a quick tunnel imposes is that the
+ * dev server accept the tunnel hostname (Vite/webpack reject unknown hosts by
+ * default), so the rule is "bind wide + allow all hosts", not "disable HMR" — the
+ * tunnel forwards WebSockets, so HMR works.
+ */
 export const PREVIEW_GUIDANCE: string = [
   'PREVIEW SERVERS: to show the user a running web app, start its dev server bound',
   'to 0.0.0.0 on a port OTHER than 3000 (3000 is reserved by the sandbox control',
@@ -23,6 +35,15 @@ export const PREVIEW_GUIDANCE: string = [
   'Once it is listening, call `exposePreview` with that port, then share the URL.',
 ].join('\n')
 
+/**
+ * Build the `exposePreview` server tool for one run. Starting a tunnel is a
+ * HOST-side call on the Sandbox DO stub, so an in-sandbox agent cannot make it from
+ * bash — it calls this bridged tool instead. We address the run's container by
+ * `threadId` and open (or reuse) a quick tunnel to the given port.
+ *
+ * Closes over the run's `input` + `env`, so build it inside the `tools` resolver
+ * (`tools: (input, env) => [exposePreviewTool(input, env)]`).
+ */
 export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
   return toolDefinition({
     name: 'exposePreview',

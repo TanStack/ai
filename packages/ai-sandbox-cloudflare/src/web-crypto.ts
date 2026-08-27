@@ -1,3 +1,8 @@
+/**
+ * Constant-time check of an `Authorization: Bearer <token>` header against the
+ * expected token. A length mismatch returns false early (token length is not
+ * secret); the equal-length comparison is timing-safe.
+ */
 export function timingSafeBearerEqualWeb(
   header: string | undefined,
   token: string,

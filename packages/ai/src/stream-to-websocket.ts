@@ -6,6 +6,12 @@ import type { StreamDurability } from './stream-durability'
 import type { DebugOption } from './logger/types'
 import type { ModelMessage, StreamChunk, UIMessage } from './types'
 
+/**
+ * The minimal WHATWG WebSocket surface the core needs. Cloudflare
+ * `WebSocketPair` server sockets, Deno's upgraded sockets, and `ws` (Node)
+ * sockets already satisfy it; Bun's `ServerWebSocket` (handler-object API)
+ * gets a ~10-line adapter at the call site.
+ */
 export interface WebSocketLike {
   send: (data: string) => void
   close: (code?: number, reason?: string) => void
@@ -20,6 +26,12 @@ export type InboundFrame =
   | { kind: 'run'; input: unknown }
   | { kind: 'abort'; runId: string }
 
+/**
+ * Encode one server→client frame. Durable frames carry the opaque offset in an
+ * `{ id, chunk }` envelope (identical to the NDJSON wire); non-durable frames
+ * are the bare chunk. Unambiguous because a bare chunk always has a top-level
+ * `type` and the envelope never does.
+ */
 export function encodeWsFrame(
   chunk: StreamChunk,
   id: string | undefined,
@@ -28,6 +40,11 @@ export function encodeWsFrame(
   return JSON.stringify(id === undefined ? wire : { id, chunk: wire })
 }
 
+/**
+ * Decode one client→server frame. An `{ type: 'abort', runId }` object is a
+ * control frame; anything else is treated as a `RunAgentInput` and validated
+ * downstream by `chatParamsFromRequestBody`.
+ */
 export function decodeWsFrame(data: string): InboundFrame {
   const parsed: unknown = JSON.parse(data)
   if (
@@ -53,6 +70,16 @@ export interface WsRunContext {
   signal: AbortSignal
 }
 
+/**
+ * Build the synthetic per-turn request. A conversation-scoped socket multiplexes
+ * many runs; each turn's durability adapter must key on the frame's `runId`,
+ * which we carry in the URL query (`memoryStream`/`durableStream` already read
+ * `?runId` / `?offset` there). Headers are copied from the handshake so
+ * auth/cookies survive. A handshake carrying `?offset` is a resume and never
+ * reaches a fresh turn (`resumeWebSocketStream` serves it), so the offset is
+ * scrubbed here — otherwise a mis-routed resume handshake would make the turn's
+ * durability adapter silently take the replay branch instead of running onRun.
+ */
 export function buildTurnRequest(handshake: Request, runId: string): Request {
   const url = new URL(handshake.url)
   url.searchParams.set('runId', runId)
@@ -69,10 +96,22 @@ export interface WebSocketStreamInit<TOffset extends string = string> {
   batch?: number
   /** Heartbeat ping interval in ms (default 30_000). */
   heartbeatMs?: number
+  /**
+     * Close after this many ms without any inbound frame (default 300_000).
+     * Never fires while a turn is still streaming, so a long single generation
+     * (agentic loop, >5-min turn) is safe.
+     */
   idleTimeoutMs?: number
   debug?: DebugOption
 }
 
+/**
+ * Run a full-duplex, conversation-scoped chat over an already-accepted server
+ * socket. Each inbound RunAgentInput frame starts one chat() turn (via onRun)
+ * whose chunks are pumped back as frames; the socket stays open across turns
+ * (pending client-tool resubmit, next user message) until the client closes it
+ * or the idle timeout fires. An abort control frame aborts only its turn.
+ */
 export function toWebSocketStream<TOffset extends string = string>(
   socket: WebSocketLike,
   request: Request,
@@ -81,6 +120,7 @@ export function toWebSocketStream<TOffset extends string = string>(
   const logger = resolveDebugOption(init.debug)
   const activeTurns = new Map<string, AbortController>()
   const earlyAborts = new Set<string>()
+  /** Heartbeat ping interval in ms (default 30_000). */
   const heartbeatMs = init.heartbeatMs ?? 30_000
   const idleTimeoutMs = init.idleTimeoutMs ?? 300_000
   let lastActivity = Date.now()
@@ -146,6 +186,13 @@ export function toWebSocketStream<TOffset extends string = string>(
     void handleInbound(frame.input)
   })
 
+  /**
+     * Surface a turn failure to the client as a live `RUN_ERROR` frame. The
+     * socket is conversation-scoped and stays open, so without this frame the
+     * client would see neither a terminal chunk nor a close — a permanent hang.
+     * Mirrors the HTTP transports, which synthesize the live `RUN_ERROR` when
+     * the producer rethrows (see `durableStreamSource`'s terminal contract).
+     */
   function sendRunError(error: unknown): void {
     try {
       socket.send(encodeWsFrame(runErrorChunk(error), undefined))
@@ -212,14 +259,27 @@ export function toWebSocketStream<TOffset extends string = string>(
   }
 }
 
+/**
+ * A resume is served entirely from the durability log, so there is no
+ * producer to iterate. This empty source satisfies `durableStreamSource`'s
+ * signature; on a resume it replays from the log and never touches this.
+ * Mirrors the private helper of the same name in `stream-to-response.ts`.
+ */
 function emptyDurableSource(): AsyncIterable<StreamChunk> {
   return (async function* () {})()
 }
 
+/**
+ * Read-only replay of a run's durability log over a socket (mirrors
+ * `resumeServerSentEventsResponse`). The adapter captures the offset from the
+ * request (`?offset`/`Last-Event-ID`); no model runs. Closes 1008 when there
+ * is nothing to resume.
+ */
 export function resumeWebSocketStream<TOffset extends string = string>(
   socket: WebSocketLike,
   options: {
     adapter: StreamDurability<TOffset>
+    /** Chunks buffered per durability append (default 32). */
     batch?: number
     debug?: DebugOption
   },
@@ -292,6 +352,13 @@ function upgradeResponse(client: unknown): Response {
   } as ResponseInit & { webSocket: unknown })
 }
 
+/**
+ * Cloudflare wrapper (Workers/Durable Objects): creates a `WebSocketPair`,
+ * accepts the server socket, delegates to {@link toWebSocketStream}, and
+ * returns the 101 upgrade `Response` carrying the client socket. Throws when
+ * the runtime has no `WebSocketPair` (Node, Deno, Bun) — upgrade the socket
+ * yourself and call {@link toWebSocketStream} directly there.
+ */
 export function toWebSocketResponse<TOffset extends string = string>(
   request: Request,
   init: WebSocketStreamInit<TOffset>,
@@ -301,6 +368,18 @@ export function toWebSocketResponse<TOffset extends string = string>(
   return upgradeResponse(client)
 }
 
+/**
+ * Cloudflare wrapper (Workers/Durable Objects): creates a `WebSocketPair`,
+ * accepts the server socket, delegates to {@link resumeWebSocketStream}, and
+ * returns the 101 upgrade `Response` carrying the client socket. Throws when
+ * the runtime has no `WebSocketPair` (Node, Deno, Bun) — upgrade the socket
+ * yourself and call {@link resumeWebSocketStream} directly there.
+ *
+ * @example
+ * ```ts
+ * resumeWebSocketResponse({ adapter: memoryStream(request) })
+ * ```
+ */
 export function resumeWebSocketResponse<
   TOffset extends string = string,
 >(options: {

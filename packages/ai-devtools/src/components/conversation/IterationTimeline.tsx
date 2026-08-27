@@ -29,6 +29,10 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
   const styles = useStyles()
   const s = () => styles().iterationTimeline
 
+  /**
+     * Group iterations by user messages.
+     * Memoized to avoid recomputing on unrelated store changes.
+     */
   const groups = createMemo((): Array<UserMessageGroup> => {
     const userMessages = props.messages.filter((m) => m.role === 'user')
     const iters = props.iterations
@@ -99,7 +103,8 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
 }
 
 /** Collapsible system prompt with preview */
-export const SystemPromptItem: Component<{ prompt: string; index: number }> = (
+export const /** Collapsible system prompt with preview */
+SystemPromptItem: Component<{ prompt: string; index: number }> = (
   props,
 ) => {
   const styles = useStyles()
@@ -134,7 +139,8 @@ export const SystemPromptItem: Component<{ prompt: string; index: number }> = (
 }
 
 /** Card wrapping a user message and its child iterations */
-const UserMessageGroupCard: Component<{
+const /** Card wrapping a user message and its child iterations */
+UserMessageGroupCard: Component<{
   group: UserMessageGroup
   allMessages: Array<Message>
   hoverTarget: HoverTarget | null
@@ -162,7 +168,8 @@ const UserMessageGroupCard: Component<{
   })
 
   /** Count actual tool invocations across all messages in this group */
-  const toolInvocationCounts = createMemo(() => {
+  const /** Count actual tool invocations across all messages in this group */
+toolInvocationCounts = createMemo(() => {
     const counts = new Map<string, number>()
     const allMsgIds = new Set<string>()
     const iterations = iters()

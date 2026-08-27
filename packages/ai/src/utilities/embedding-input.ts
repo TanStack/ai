@@ -1,5 +1,10 @@
 import type { EmbeddingInputItem, ImagePart } from '../types'
 
+/**
+ * One embedding input item resolved into its text and image constituents.
+ * Produced by {@link resolveEmbeddingInput}; adapters map each entry onto
+ * one provider-native input (one vector per entry).
+ */
 export interface ResolvedEmbeddingItem {
   /** Text contents of the item, in order (empty for image-only items) */
   texts: Array<string>
@@ -29,12 +34,22 @@ function resolveItem(item: EmbeddingInputItem): ResolvedEmbeddingItem {
   return { texts: [], images: [item] }
 }
 
+/**
+ * Resolve each embedding input item into its text and image constituents,
+ * preserving input order (result[i] corresponds to input[i] and to the
+ * vector at index i).
+ */
 export function resolveEmbeddingInput(
   input: Array<EmbeddingInputItem>,
 ): Array<ResolvedEmbeddingItem> {
   return input.map(resolveItem)
 }
 
+/**
+ * Extract plain text inputs for a text-only embedding model, throwing a
+ * uniform error if any item carries an image. The per-model modality typing
+ * rejects these at compile time; this guard covers untyped/dynamic callers.
+ */
 export function requireTextOnlyEmbeddingInput(
   input: Array<EmbeddingInputItem>,
   provider: string,
@@ -51,6 +66,10 @@ export function requireTextOnlyEmbeddingInput(
   })
 }
 
+/**
+ * Count text-only and image-carrying items for observability events. Never
+ * exposes input content.
+ */
 export function countEmbeddingInputModalities(
   input: Array<EmbeddingInputItem>,
 ): { textInputCount: number; imageInputCount: number } {

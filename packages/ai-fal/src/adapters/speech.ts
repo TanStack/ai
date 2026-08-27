@@ -12,11 +12,29 @@ import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
+/**
+ * Provider options for TTS, excluding fields TanStack AI handles.
+ */
 export type FalSpeechProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'prompt' | 'text'
 >
 
+/**
+ * fal.ai text-to-speech adapter.
+ *
+ * Supports fal.ai TTS models like kokoro, elevenlabs, etc.
+ *
+ * @example
+ * ```typescript
+ * const adapter = falSpeech('fal-ai/kokoro/american-english')
+ * const result = await generateSpeech({
+ *   adapter,
+ *   text: 'Hello, world!',
+ *   voice: 'af_heart',
+ * })
+ * ```
+ */
 export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
   TModel,
   FalSpeechProviderOptions<TModel>

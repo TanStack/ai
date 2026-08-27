@@ -2,7 +2,8 @@
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
 /** sha256 of the endpoints.d.ts this file was generated from. */
-export const FAL_ENDPOINTS_DTS_SHA256 =
+export const /** sha256 of the endpoints.d.ts this file was generated from. */
+FAL_ENDPOINTS_DTS_SHA256 =
   'a071f97905b8a1068f924c74108b881362f20c9054620b70359c200404e23b4e'
 
 /** Every input field name the image-input mappers may emit. */
@@ -25,6 +26,11 @@ export type FalImageFieldName =
   | 'start_image_url'
   | 'tail_image_url'
 
+/**
+ * Per-role input-field overrides. Roles: `single` / `multi` route unroled
+ * source images; the rest mirror `MediaInputRole` (`start` / `end` map the
+ * `start_frame` / `end_frame` roles).
+ */
 export interface FalImageFieldOverride {
   single?: string
   multi?: string

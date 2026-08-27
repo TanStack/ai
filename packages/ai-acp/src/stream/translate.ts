@@ -18,6 +18,12 @@ export interface AcpTranslateLabels {
   sessionIdEvent: string
   planEvent?: string
   refusalMessage?: string
+  /**
+     * When set, non-text agent message content (image / audio / resource /
+     * resource_link blocks) is surfaced as a CUSTOM event under this name instead
+     * of being dropped. Each event's `value` is `{ content: <ACP content block> }`.
+     * Omit to keep the text-only behavior.
+     */
   contentEvent?: string
 }
 

@@ -62,6 +62,10 @@ function parseLstatOutput(output: string): SandboxFsStat {
   return { type: 'other', mode: parsedMode }
 }
 
+/**
+ * A push-driven async iterable. The streamer pushes decoded chunks and calls
+ * `end()` once; consumers `for await` over it and terminate cleanly.
+ */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -116,10 +120,13 @@ export class VercelHandle implements SandboxHandle {
   readonly fs: SandboxHandle['fs']
   readonly git: SandboxHandle['git']
   readonly process: SandboxHandle['process']
+  /** Ports declared at create time (reachable via `sandbox.domain(port)`). */
   readonly ports: SandboxHandle['ports']
   readonly env: SandboxHandle['env']
 
+  /** The live Vercel sandbox object. */
   private readonly sandbox: Sandbox
+  /** Working directory inside the sandbox (the `/workspace` virtual root maps here). */
   private readonly workdir: string
   private readonly exposedPorts: Array<number>
   private readonly envVars: Record<string, string> = {}

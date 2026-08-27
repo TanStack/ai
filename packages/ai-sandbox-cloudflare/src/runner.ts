@@ -23,6 +23,11 @@ export interface ResolveAdapterInput {
 
 /** Options for {@link runInContainerHarness}. */
 export interface RunInContainerHarnessOptions {
+  /**
+     * Build the text adapter `chat()` runs for one request's `{ harness, model }`.
+     * The app supplies this so the package doesn't depend on every adapter package
+     * — e.g. `({ model }) => claudeCodeText(model)`.
+     */
   resolveAdapter: (input: ResolveAdapterInput) => AnyTextAdapter
   /** Port to listen on. Defaults to `RUNNER_PORT` env, then `8080`. */
   port?: number
@@ -49,6 +54,15 @@ function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
+/**
+ * Rebuild the request's workspace with a real `createSecrets`, pulling each
+ * referenced secret's VALUE from the container env. Secret values never cross
+ * the `POST /run` boundary (`createSecrets` stores them under a non-enumerable
+ * symbol, so serializing the workspace carries only the names) — the DO injects
+ * them into the container env via `sandbox.setEnvVars`, and we reconstitute them
+ * here. A referenced secret missing from the env is a hard error, never a silent
+ * keyless run.
+ */
 function reconstituteWorkspace(
   workspace: WorkspaceDefinition,
 ): WorkspaceDefinition {
@@ -68,6 +82,12 @@ function reconstituteWorkspace(
   return defineWorkspace({ ...workspace, secrets: createSecrets(values) })
 }
 
+/**
+ * Build the `chat()` stream that runs the harness on THIS container via the
+ * `local-process` sandbox. The agent's `chat()` tools are stubs that delegate
+ * back to the DO; everything else (the harness loop, the MCP bridge, stdin)
+ * stays on localhost.
+ */
 function runAgent(
   request: ContainerRunRequest,
   resolveAdapter: (input: ResolveAdapterInput) => AnyTextAdapter,
@@ -126,12 +146,19 @@ async function handleRun(
   }
 }
 
+/**
+ * Start the in-container harness runner: a `node:http` server with `GET /health`
+ * and `POST /run`. Call this as the container's program; the app supplies only
+ * `resolveAdapter`.
+ */
 export function runInContainerHarness(
   options: RunInContainerHarnessOptions,
 ): ContainerHarnessServer {
+  /** Port to listen on. Defaults to `RUNNER_PORT` env, then `8080`. */
   const port =
     options.port ?? Number.parseInt(process.env.RUNNER_PORT ?? '8080', 10)
 
+  /** The underlying `node:http` server (already `listen()`ing). */
   const server = createServer((req, res) => {
     const isRunRequest = req.method === 'POST' && req.url === '/run'
     if (isRunRequest) {

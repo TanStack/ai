@@ -26,6 +26,12 @@ import type {
 } from '../video/video-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
+/**
+ * Threshold for emitting a "this download will probably OOM serverless
+ * runtimes" warning. Anything larger than this (in bytes) gets surfaced via
+ * console.warn — workers and small isolates routinely run out of memory once
+ * a downloaded video is base64-encoded.
+ */
 const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
 
 function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
@@ -37,10 +43,37 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
   )
 }
 
+/**
+ * Configuration for OpenAI video adapter.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface OpenAIVideoConfig extends OpenAIClientConfig {
+  /**
+     * Opt into fetching HTTP(S) image URL inputs for Sora's `input_reference`.
+     * The endpoint requires uploaded file bytes (no URL passthrough), so an
+     * HTTP(S) URL has to be downloaded and buffered in memory — which can OOM
+     * constrained runtimes (e.g. Cloudflare Workers). When `false` (the
+     * default), HTTP(S) URL image inputs throw; pass a `data:` URI, or set this
+     * to `true` to opt into buffering.
+     */
   allowUrlFetch?: boolean
 }
 
+/**
+ * OpenAI Video Generation Adapter
+ *
+ * Tree-shakeable adapter for OpenAI video generation functionality using Sora-2.
+ * Uses a jobs/polling architecture for async video generation.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * Features:
+ * - Async job-based video generation
+ * - Status polling for job progress
+ * - URL retrieval for completed videos
+ * - Model-specific type-safe provider options
+ */
 export class OpenAIVideoAdapter<
   TModel extends OpenAIVideoModel,
 > extends BaseVideoAdapter<
@@ -149,6 +182,11 @@ export class OpenAIVideoAdapter<
     }
   }
 
+  /**
+     * The video API on the OpenAI SDK is still experimental and shipped on some
+     * SDK versions but not others; access through `videosClient` lets us treat
+     * the path uniformly even when the SDK lacks first-class typings here.
+     */
   private getVideosClient(): {
     create: (req: Record<string, any>) => Promise<{ id: string }>
     retrieve: (id: string) => Promise<{
@@ -348,6 +386,27 @@ async function videoUrlFromSdkFallthrough(
   }
 }
 
+/**
+ * Creates an OpenAI video adapter with an explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @param model - The model name (e.g., 'sora-2')
+ * @param apiKey - Your OpenAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI video adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenaiVideo('sora-2', 'your-api-key');
+ *
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A beautiful sunset over the ocean'
+ * });
+ * ```
+ */
 export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
   model: TModel,
   apiKey: string,
@@ -356,6 +415,39 @@ export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
   return new OpenAIVideoAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an OpenAI video adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `OPENAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @param model - The model name (e.g., 'sora-2')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured OpenAI video adapter instance with resolved types
+ * @throws Error if OPENAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses OPENAI_API_KEY from environment
+ * const adapter = openaiVideo('sora-2');
+ *
+ * // Create a video generation job
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A cat playing piano'
+ * });
+ *
+ * // Poll for status
+ * const status = await getVideoJobStatus({
+ *   adapter,
+ *   jobId
+ * });
+ * ```
+ */
 export function openaiVideo<TModel extends OpenAIVideoModel>(
   model: TModel,
   config?: Omit<OpenAIVideoConfig, 'apiKey'>,

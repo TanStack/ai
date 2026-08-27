@@ -89,14 +89,41 @@ interface SandboxRunState {
     >['persistence']
     completion: { waitForRunCompletion: () => Promise<void> }
   }
+  /**
+     * OPTIONAL because the state is registered BEFORE `definition.ensure()` is
+     * awaited, and `ensure` is the slowest thing in the whole run — cloning a repo
+     * into a fresh sandbox is minutes wide. That window is where the most common
+     * disconnect of all lands (a user starts a run and switches away while the UI
+     * still says "starting the sandbox"), so it is the one window the teardown and
+     * disconnect hooks most need to be able to act in. Registering only after the
+     * handle exists left exactly that window uncovered.
+     *
+     * Nothing the disconnect path does needs the handle: `detachedSince` and
+     * `sandboxKey` come from `ensureCtx`, which is built before `ensure` is called.
+     * Only `onFinish`'s snapshot needs it, and that cannot run before `setup` has
+     * completed.
+     */
   handle?: SandboxHandle
   privateHandle?: boolean
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
+  /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
+     * watcher callback, awaited before teardown so a pending diff isn't
+     * dropped when the run finishes/aborts/errors mid-computation. */
   pendingDiffs: Array<Promise<void>>
   /** Logger captured at setup, so terminal hooks can log watcher teardown. */
   logger?: InternalLogger
+  /**
+     * Durability resolved once at setup (absent when the run is not durable), so
+     * `onAbort` cannot reach a different verdict than the one `setup` published
+     * on the capability bus.
+     */
   durability?: SandboxRunDurability
+  /**
+     * Records the harness's own tool calls into the transcript, so a finished run
+     * restores its tool cards from the message store instead of only from the (live,
+     * rejoin-only) delivery log. See `./tool-history`.
+     */
   toolHistory: ToolHistoryRecorder
 }
 
@@ -163,6 +190,12 @@ function startSnapshotRenewal(state: SandboxRunState): void {
   schedule()
 }
 
+/**
+ * Stop the watcher and drain any in-flight `diff()` promises before teardown,
+ * so the final file's diff isn't dropped when a run finishes/aborts/errors
+ * mid-computation. The `pendingDiffs` await is the load-bearing line — without
+ * it a deferred diff resolves after the run is gone and its chunk is lost.
+ */
 async function drainWatcher(
   state: SandboxRunState,
   phase: 'finish' | 'pause' | 'abort' | 'error',
@@ -188,6 +221,26 @@ function canPublishPortableSnapshot(
   )
 }
 
+/**
+ * Record the two facts a later attach and the reaper both need, then publish the
+ * detach verdict core reads.
+ *
+ * Shared by the DISCONNECT subscriber registered in `setup` (the run is still
+ * going — the normal case) and `onAbort`'s detach branch (the run is being torn
+ * down while detachable), so the two can never write a different shape of detach.
+ *
+ * GUARDED, and reports failure rather than throwing. `update` is a documented
+ * no-op for an unknown runId, so a vanished record does not turn teardown into a
+ * throw; a genuinely rejecting store is the caller's to react to — `onAbort` falls
+ * through to destroying the sandbox, because a DESTROYED sandbox beats an
+ * unreachable one, while the disconnect subscriber has nothing to fall back to
+ * (the run is alive and still using the sandbox) and simply leaves the verdict
+ * unpublished.
+ *
+ * The verdict is published ONLY on success. Publishing it after a failed record
+ * write would leave core holding the log open for a takeover that can never be
+ * found, since nothing in the store points at the run.
+ */
 async function recordDetach(
   definition: SandboxDefinition,
   state: SandboxRunState,
@@ -212,6 +265,13 @@ async function recordDetach(
   return true
 }
 
+/**
+ * Whether an out-of-band cancel has been recorded for this run, in EITHER band.
+ * A user pressing Stop and a user closing the tab produce the IDENTICAL
+ * connection close, so intent is never inferred from the disconnect itself: it
+ * arrives in-process (the abort reason carried the cancel sentinel) or durably
+ * (another host recorded it on the run record).
+ */
 async function cancelIntent(
   durability: SandboxRunDurability | undefined,
   runId: string,
@@ -234,6 +294,11 @@ function tenantFrom(
   return { userId, orgId }
 }
 
+/**
+ * Durability seams for a sandboxed run. Both are optional; each independently
+ * falls back to a process-lifetime in-memory default, which is correct for a
+ * single process but NOT across replicas.
+ */
 export interface SandboxMiddlewareOptions<TOffset extends string = string> {
   snapshots?: {
     persistence: {
@@ -267,12 +332,43 @@ export interface SandboxMiddlewareOptions<TOffset extends string = string> {
     checkpoints: SandboxCheckpointStore
     policy?: SandboxSnapshotPolicy
   }
+  /**
+     * Durable instance map (which provider sandbox to resume for a key). Pass
+     * your own store to make resume survive across processes/replicas.
+     *
+     * Takes precedence over a store provided on the capability bus (see
+     * `provideSandboxInstanceStore`), so the call site wins over ambient wiring.
+     */
   instances?: SandboxInstanceStore
+  /**
+     * Distributed lock serializing resume-or-create for one key. Needed for
+     * multi-replica correctness so two concurrent runs don't both create.
+     *
+     * Prefer `withLocks` from `@tanstack/ai/locks` when other middleware also
+     * needs the lock; use this option to scope one to this sandbox. Takes
+     * precedence over a bus-provided lock.
+     */
   locks?: LockStore
+  /**
+     * Run lifecycle records. Pair with `durability.adapter` to make a run
+     * DETACHABLE: a client disconnect then leaves the agent running and records
+     * `detachedSince` instead of destroying the sandbox.
+     *
+     * Pass the SAME store chat persistence uses (`persistence.stores.runs`) so
+     * one record describes the run instead of two that can disagree.
+     *
+     * Defaults to `undefined`: an app that passes neither this nor `durability`
+     * keeps today's destroy-on-disconnect behavior exactly.
+     */
   runs?: RunStore
   durability?: SandboxDurabilityOptions<TOffset>
 }
 
+/**
+ * Resolve the ensure seams. Precedence is explicit option → capability bus →
+ * (in `ensure`) the in-memory fallback. The option wins because it is visible
+ * at the call site; the bus remains for platform/framework injection.
+ */
 function buildEnsureCtx(
   ctx: ChatMiddlewareContext,
   options: Pick<SandboxMiddlewareOptions, 'instances' | 'locks'> | undefined,
@@ -593,6 +689,7 @@ function emitWatchedFileEvent(
     watchRoot: string
     baseSha: string
     hooks: SandboxHooks | undefined
+    /** Logger captured at setup, so terminal hooks can log watcher teardown. */
     logger: InternalLogger | undefined
     runtime: ReturnType<typeof getSandboxRuntime>
     pendingDiffs: Array<Promise<void>>
@@ -875,6 +972,13 @@ async function finishSnapshotCleanup(
   if (snapshotCleanupError !== undefined) throw snapshotCleanupError
 }
 
+/**
+ * Dispatch a sandbox file event to the per-type hooks declared on the
+ * definition. Errors in individual hooks are swallowed so one bad hook
+ * cannot break the run — but are logged under the `errors` category first, so
+ * a throwing hook is observable (matching the run-scoped path in the engine
+ * and the behavior the observability docs promise).
+ */
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
   event: SandboxFileHookEvent,

@@ -47,15 +47,16 @@ export function validateSkill(
     if (RESERVED_ANTHROPIC.some((r) => lower.includes(r))) {
       add('anthropic', 'name may not contain "anthropic" or "claude"')
     }
-    if (XML_TAG.test(skill.name) || XML_TAG.test(skill.description)) {
+    const hasXmlTags =
+      XML_TAG.test(skill.name) || XML_TAG.test(skill.description)
+    if (hasXmlTags) {
       add('anthropic', 'name/description may not contain XML tags')
     }
   }
 
   if (targets.includes('openai')) {
-    // OpenAI requires exactly one case-insensitive SKILL.md per bundle — a
-    // bundle-shape constraint not visible from metadata alone. Only the
-    // metadata-checkable rule is enforced here.
+    // OpenAI's one-SKILL.md-per-bundle rule is not visible from metadata.
+    // Only the metadata-checkable name rule is enforced here.
     if (skill.name.trim() === '') add('openai', 'name must not be empty')
   }
 

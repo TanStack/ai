@@ -76,6 +76,11 @@ function isNetworkResourceType(resourceType: string | undefined): boolean {
   return resourceType !== undefined && resourceType.includes('network')
 }
 
+/**
+ * True when a rule object means "network allow-all / Open".
+ * Real `sbx policy init deny-all` also has filesystem rules with resources
+ * `**` — those must NOT count as Open.
+ */
 function ruleIsOpenNetwork(rule: Record<string, unknown>): boolean {
   const resourceType = resourceTypeOf(rule)
   const isNonNetworkRule =

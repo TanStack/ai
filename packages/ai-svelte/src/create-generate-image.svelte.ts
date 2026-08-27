@@ -15,6 +15,11 @@ import type {
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
+/**
+ * Options for the createGenerateImage function.
+ *
+ * @template TOutput - The output type after optional transform (defaults to ImageGenerationResult)
+ */
 export interface CreateGenerateImageOptions<
   TOutput = ImageGenerationResult,
 > extends Pick<
@@ -34,6 +39,13 @@ export interface CreateGenerateImageOptions<
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+     * Callback when images are generated. Can optionally return a transformed value.
+     *
+     * - Return a non-null value to transform and store it as the result
+     * - Return `null` to keep the previous result unchanged
+     * - Return nothing (`void`) to store the raw result as-is
+     */
   onResult?: (result: ImageGenerationResult) => TOutput | null | void
   /** Callback when an error occurs */
   onError?: (error: Error) => void
@@ -43,6 +55,11 @@ export interface CreateGenerateImageOptions<
   onChunk?: (chunk: StreamChunk) => void
 }
 
+/**
+ * Return type for the createGenerateImage function.
+ *
+ * @template TOutput - The output type (after optional transform)
+ */
 export interface CreateGenerateImageReturn<
   TOutput = ImageGenerationResult,
 > extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
@@ -58,6 +75,41 @@ export interface CreateGenerateImageReturn<
   generate: (input: ImageGenerateInput) => Promise<void>
 }
 
+/**
+ * Creates a reactive image generation instance for Svelte 5.
+ *
+ * Supports two transport modes:
+ * - **ConnectConnectionAdapter** -- Streaming transport (SSE, HTTP stream, custom)
+ * - **Fetcher** -- Direct async function call
+ *
+ * @example
+ * ```svelte
+ * <script>
+ *   import { createGenerateImage, fetchServerSentEvents } from '@tanstack/ai-svelte'
+ *
+ *   const imageGen = createGenerateImage({
+ *     connection: fetchServerSentEvents('/api/generate/image'),
+ *   })
+ * </script>
+ *
+ * <div>
+ *   <button onclick={() => imageGen.generate({ prompt: 'A sunset over mountains' })}>
+ *     Generate
+ *   </button>
+ *   {#if imageGen.isLoading}
+ *     <p>Generating...</p>
+ *   {/if}
+ *   {#if imageGen.error}
+ *     <p>Error: {imageGen.error.message}</p>
+ *   {/if}
+ *   {#if imageGen.result}
+ *     {#each imageGen.result.images as img}
+ *       <img src={img.url || `data:image/png;base64,${img.b64Json}`} alt="Generated" />
+ *     {/each}
+ *   {/if}
+ * </div>
+ * ```
+ */
 export function createGenerateImage<TTransformed = void>(
   options: Omit<
     CreateGenerateImageOptions,
@@ -68,6 +120,7 @@ export function createGenerateImage<TTransformed = void>(
 ): CreateGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
+  /** Display options for TanStack AI Devtools. */
   const devtools = {
     ...options.devtools,
     framework: 'svelte',
@@ -85,15 +138,19 @@ export function createGenerateImage<TTransformed = void>(
   })
 
   return {
+    /** The generation result containing images, or null */
     get result() {
       return gen.result
     },
+    /** Whether generation is in progress */
     get isLoading() {
       return gen.isLoading
     },
+    /** Current error, if any */
     get error() {
       return gen.error
     },
+    /** Current state of the generation */
     get status() {
       return gen.status
     },

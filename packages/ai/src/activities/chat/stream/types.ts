@@ -8,6 +8,9 @@ import type {
 // Re-export for backwards compatibility
 export type { ToolCallState, ToolResultState }
 
+/**
+ * Internal state for a tool call being tracked
+ */
 export interface InternalToolCallState {
   id: string
   name: string
@@ -15,15 +18,36 @@ export interface InternalToolCallState {
   state: ToolCallState
   parsedArguments?: any
   index: number
+  /** Provider-specific metadata that round-trips with the tool call
+     * (e.g. Gemini's `thoughtSignature`). Untyped at this layer because
+     * the stream processor is provider-agnostic; adapters narrow it
+     * via their `TToolCallMetadata` generic. */
   metadata?: Record<string, unknown>
 }
 
+/**
+ * Strategy for determining when to emit text updates
+ */
 export interface ChunkStrategy {
+  /**
+     * Called for each text chunk received
+     * @param chunk - The new chunk of text (delta)
+     * @param accumulated - All text accumulated so far
+     * @returns true if an update should be emitted now
+     */
   shouldEmit: (chunk: string, accumulated: string) => boolean
 
+  /**
+     * Optional: Reset strategy state (called when streaming starts)
+     */
   reset?: () => void
 }
 
+/**
+ * Per-message streaming state.
+ * Tracks the accumulation of text, tool calls, and thinking content
+ * for a single message in the stream.
+ */
 export interface MessageStreamState {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -41,6 +65,9 @@ export interface MessageStreamState {
   isComplete: boolean
 }
 
+/**
+ * Result from processing a stream
+ */
 export interface ProcessorResult {
   content: string
   thinking?: string
@@ -48,6 +75,9 @@ export interface ProcessorResult {
   finishReason?: string | null
 }
 
+/**
+ * Current state of the processor
+ */
 export interface ProcessorState {
   content: string
   thinking: string
@@ -57,6 +87,9 @@ export interface ProcessorState {
   done: boolean
 }
 
+/**
+ * Recording format for replay testing
+ */
 export interface ChunkRecording {
   version: '1.0'
   timestamp: number

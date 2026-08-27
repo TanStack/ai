@@ -131,6 +131,10 @@ function parseToolInput(args: string): unknown {
   }
 }
 
+/**
+ * Bridge Grok Build's proprietary `_x.ai/session_notification` updates into the
+ * shared ACP {@link AcpSessionUpdate} shape consumed by {@link translateAcpStream}.
+ */
 export function createGrokAcpNotificationHandler(
   onUpdate: (update: AcpSessionUpdate) => void,
 ): (method: string, params: Record<string, unknown>) => void {

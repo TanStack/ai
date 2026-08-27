@@ -81,6 +81,11 @@ export type CodexApprovalMode =
 
 const DEFAULT_WORKDIR = '/workspace'
 
+/**
+ * Providers that already isolate the agent in a VM or container where Codex
+ * cannot create a nested bubblewrap user namespace. Isolation is then the
+ * outer sandbox plus `defineSandboxPolicy`. Issue #1081 item 8.
+ */
 const NESTED_BWRAP_UNSUPPORTED = new Set(['daytona', 'cloudflare'])
 
 function defaultSandboxMode(provider: string): CodexSandboxMode {
@@ -94,6 +99,11 @@ export type CodexAuthMode = 'host' | 'api-key'
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
+  /**
+     * Codex's own sandbox mode (`--sandbox`). Defaults to `'workspace-write'`
+     * so the agent can edit the workspace — the outer TanStack sandbox is the
+     * real isolation boundary.
+     */
   sandboxMode?: CodexSandboxMode
   /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
   approvalPolicy?: CodexApprovalMode
@@ -109,6 +119,10 @@ export interface CodexTextConfig {
   additionalDirectories?: Array<string>
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
+  /**
+     * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
+     * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
+     */
   authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>
@@ -179,6 +193,7 @@ export class CodexTextAdapter<
     provider: string,
     outputSchemaPath: string | undefined,
   ): string {
+    /** Extra raw `--config key=value` overrides (values passed verbatim as TOML). */
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
@@ -191,15 +206,18 @@ export class CodexTextAdapter<
       config.sandboxMode ??
       policyFlags.sandboxMode ??
       defaultSandboxMode(provider)
+    /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
     const approvalPolicy =
       modelOptions?.approvalPolicy ??
       config.approvalPolicy ??
       policyFlags.approvalPolicy ??
       'never'
+    /** Allow network in `workspace-write` (`--config sandbox_workspace_write.network_access=`). */
     const networkAccessEnabled =
       config.networkAccessEnabled ?? policyFlags.networkAccessEnabled
     const reasoning =
       modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
+    /** Skip Codex's git-repo safety check (`--skip-git-repo-check`). Defaults to true. */
     const skipGitRepoCheck =
       modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
 
@@ -350,6 +368,7 @@ export class CodexTextAdapter<
     try {
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
+      /** Working directory inside the sandbox. Defaults to `/workspace`. */
       const cwd = this.workdir(options)
 
       const projection = options.capabilities
@@ -476,6 +495,16 @@ export class CodexTextAdapter<
   }
 }
 
+/**
+ * Creates a Codex harness adapter that runs **inside a sandbox**.
+ *
+ * It declares `requires: [SandboxCapability]` and spawns
+ * `codex exec --experimental-json` inside the sandbox (mirroring
+ * `@openai/codex-sdk`'s own CLI invocation), feeding the prompt via stdin and
+ * streaming its JSONL thread events back as AG-UI chunks. The sandbox image
+ * must provide the `codex` executable and `CODEX_API_KEY` (or a `codex login`)
+ * in its environment.
+ */
 export function codexText<TModel extends CodexModel>(
   model: TModel,
   config: CodexTextConfig = {},

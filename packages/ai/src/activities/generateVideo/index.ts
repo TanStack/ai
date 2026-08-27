@@ -38,13 +38,20 @@ import type {
 } from '../../types'
 
 /** The adapter kind this activity handles */
-export const kind = 'video' as const
+export const /** The adapter kind this activity handles */
+kind = 'video' as const
 
+/**
+ * Extract provider options from a VideoAdapter via ~types.
+ */
 export type VideoProviderOptions<TAdapter> =
   TAdapter extends VideoAdapter<any, any, any, any, any, any>
     ? TAdapter['~types']['providerOptions']
     : object
 
+/**
+ * Extract the size type for a VideoAdapter's model via ~types.
+ */
 export type VideoSizeForAdapter<TAdapter> =
   TAdapter extends VideoAdapter<
     infer TModel,
@@ -59,6 +66,12 @@ export type VideoSizeForAdapter<TAdapter> =
       : string
     : string
 
+/**
+ * Extract the prompt type a model accepts from a VideoAdapter via ~types.
+ * Mirrors `ImagePromptForModel`: models in the adapter's input-modality map
+ * get a `prompt` narrowed to text + their supported part types; adapters
+ * without a map fall back to the full MediaPrompt.
+ */
 export type VideoPromptForAdapter<TAdapter> =
   TAdapter extends VideoAdapter<
     infer TModel,
@@ -75,6 +88,11 @@ export type VideoPromptForAdapter<TAdapter> =
         : MediaPrompt
     : MediaPrompt
 
+/**
+ * Extract the duration type for a VideoAdapter's model via ~types.
+ * Mirrors `VideoSizeForAdapter`. Falls back to `number` for adapters that
+ * haven't declared per-model duration constraints.
+ */
 export type VideoDurationForAdapter<TAdapter> =
   TAdapter extends VideoAdapter<
     infer TModel,
@@ -97,6 +115,10 @@ function createId(prefix: string): string {
 }
 // ===========================
 
+/**
+ * Base options shared by all video activity operations.
+ * The model is extracted from the adapter's model property.
+ */
 interface VideoActivityBaseOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 > {
@@ -104,26 +126,125 @@ interface VideoActivityBaseOptions<
   adapter: TAdapter & { kind: typeof kind }
 }
 
+/**
+ * Options for creating a new video generation job.
+ * The model is extracted from the adapter's model property.
+ *
+ * @template TAdapter - The video adapter type
+ * @template TStream - Whether to stream the output
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export type VideoCreateOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
   TStream extends boolean = false,
 > = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
+  /**
+     * Description of the desired video. Either a plain string, or — for models
+     * that support image-conditioned generation — an ordered array of content
+     * parts interleaving text with image inputs. Image parts may carry
+     * `metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+     * 'character'`) to disambiguate intent; positional fallback otherwise. The
+     * accepted part types are narrowed per model via the adapter's
+     * input-modality map.
+     */
   prompt: VideoPromptForAdapter<TAdapter>
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
+  /**
+     * Video duration in seconds. Adapters that declare a per-model duration
+     * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
+     * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
+     * value.
+     */
   duration?: VideoDurationForAdapter<TAdapter>
+  /**
+     * Whether to stream the video generation lifecycle.
+     * When true, returns an AsyncIterable<StreamChunk> that handles the full
+     * job lifecycle: create job, poll for status, yield updates, and yield final result.
+     * When false or not provided, returns a Promise<VideoJobResult>.
+     *
+     * @default false
+     */
   stream?: TStream
   /** Polling interval in milliseconds (stream mode only). @default 2000 */
   pollingInterval?: number
   /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
   maxDuration?: number
+  /**
+     * Custom run id (stream mode only) — the id stamped on the emitted
+     * `RUN_STARTED` / `RUN_FINISHED` chunks.
+     *
+     * IGNORED by a non-streaming submit. That run spans two calls, and its id is
+     * derived from the provider's job instead, so {@link getVideoJobStatus} can
+     * recompute it from the `jobId` you already have to poll with. Honoring a
+     * custom id here would reintroduce the failure this avoids: a caller who set
+     * it on the submit and forgot it on the poll would silently open a second
+     * record while the first sat unfinished forever.
+     */
   runId?: string
+  /**
+     * Stable conversation/thread id for correlating this run when persisted.
+     *
+     * Also the `threadId` stamped on the emitted `RUN_STARTED` / `RUN_FINISHED`
+     * chunks; when omitted a throwaway id is minted for those chunks only, and
+     * the persisted run record carries NO thread link rather than a fabricated
+     * one. Pass it whenever persistence is on — it is the slot a reloading client
+     * hydrates by, so a run stored without it can only be fetched by run id.
+     */
   threadId?: string
+  /**
+     * Enable debug logging. Pass `true` to enable all categories, `false` to
+     * silence everything including errors, or a `DebugConfig` object for granular
+     * control and/or a custom `Logger`.
+     */
   debug?: DebugOption
+  /**
+     * Observe-only middleware notified on start, usage, success, and error. Pass
+     * `otelMiddleware()` to emit OpenTelemetry spans, `withGenerationPersistence()`
+     * to persist the run, or implement the `GenerationMiddleware` contract for a
+     * custom backend.
+     *
+     * In streaming mode one run covers the full create→poll→complete lifecycle:
+     * `onStart` at submission, a terminal `onFinish`/`onError` when the job
+     * settles, and `onAbort` if the consumer abandons the stream.
+     *
+     * In NON-streaming mode the call only SUBMITS the job, so it only opens the
+     * run: no terminal hook fires here, because the video does not exist yet.
+     * Pass the same `middleware` and `threadId` to {@link getVideoJobStatus}; the
+     * poll that observes a terminal job state finishes the run and is where the
+     * result and its artifacts are recorded. Nothing else has to be threaded
+     * through — both calls derive the run id from the provider's `jobId`, the one
+     * id a poller cannot be missing.
+     *
+     * Because the job id only exists once the provider accepts the job, `onStart`
+     * fires AFTER the submit request rather than before it — an observer's span
+     * therefore covers the run from acceptance onward, not the submit round-trip.
+     * A submission that FAILS has no job to key on, so it opens and immediately
+     * fails a run under this call's `requestId`: the thread's latest run reports
+     * the failure (a client hydrating the slot sees it) even though there is no
+     * job to resume.
+     */
   middleware?: Array<GenerationMiddleware>
+  /**
+     * Maximum duration of this activity invocation in milliseconds.
+     * No SDK-wide default — choose a value suitable for the provider and job.
+     * Composed with {@link abortSignal}; the first abort wins.
+     *
+     * In stream mode this bounds the full create→poll→complete lifecycle and
+     * complements {@link maxDuration} (which defaults to 10 minutes). When both
+     * are set, the shorter limit wins via signal composition against the
+     * polling deadline.
+     */
   timeout?: number
+  /**
+     * Caller cancellation signal (request disconnects, job/runtime cancellation).
+     * Composed with {@link timeout} into an effective signal forwarded to the
+     * adapter on job submission. Request-specific — not stored on global
+     * provider client config.
+     */
   abortSignal?: AbortSignal
 } & ({} extends VideoProviderOptions<TAdapter>
     ? {
@@ -133,6 +254,11 @@ export type VideoCreateOptions<
         /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter>
       })
 
+/**
+ * Options for polling the status of a video generation job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface VideoStatusOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
@@ -142,6 +268,11 @@ export interface VideoStatusOptions<
   jobId: string
 }
 
+/**
+ * Options for getting the URL of a completed video.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface VideoUrlOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
@@ -151,6 +282,12 @@ export interface VideoUrlOptions<
   jobId: string
 }
 
+/**
+ * Union type for all video activity options.
+ * Discriminated by the `request` field.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export type VideoActivityOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
@@ -161,6 +298,13 @@ export type VideoActivityOptions<
     ? VideoUrlOptions<TAdapter>
     : VideoCreateOptions<TAdapter, TStream>
 
+/**
+ * Result type for the video activity, based on request type and streaming.
+ * - If stream is true (create request): AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<VideoJobResult | VideoStatusResult | VideoUrlResult>
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export type VideoActivityResult<
   TRequest extends 'create' | 'status' | 'url' = 'create',
   TStream extends boolean = false,
@@ -172,6 +316,54 @@ export type VideoActivityResult<
       ? AsyncIterable<StreamChunk>
       : Promise<VideoJobResult>
 
+/**
+ * Generate video - creates a video generation job from a text prompt.
+ *
+ * Uses AI video generation models to create videos based on natural language descriptions.
+ * Unlike image generation, video generation is asynchronous and requires polling for completion.
+ *
+ * When `stream: true` is passed, handles the full job lifecycle automatically:
+ * create job → poll for status → stream updates → yield final result.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @example Create a video generation job
+ * ```ts
+ * import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * // Start a video generation job
+ * const { jobId } = await generateVideo({
+ *   adapter: openaiVideo('sora-2'),
+ *   prompt: 'A cat chasing a dog in a sunny park'
+ * })
+ *
+ * console.log('Job started:', jobId)
+ *
+ * // The submission only OPENS the run; the poll that sees a terminal state is
+ * // what completes it. The `jobId` is the whole correlation — pass the same
+ * // `middleware` and `threadId` when you use them.
+ * const status = await getVideoJobStatus({
+ *   adapter: openaiVideo('sora-2'),
+ *   jobId,
+ * })
+ * ```
+ *
+ * @example Stream the full video generation lifecycle
+ * ```ts
+ * import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * const stream = generateVideo({
+ *   adapter: openaiVideo('sora-2'),
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   stream: true,
+ *   pollingInterval: 3000,
+ * })
+ *
+ * return toServerSentEventsResponse(stream)
+ * ```
+ */
 export function generateVideo<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
   TStream extends boolean = false,
@@ -187,10 +379,40 @@ export function generateVideo<
   return runCreateVideoJob(options) as VideoActivityResult<'create', TStream>
 }
 
+/**
+ * The run id a non-streaming video job is filed under, derived from the
+ * provider job itself.
+ *
+ * A submit-and-poll run spans two calls in two different requests, so the two
+ * halves need to agree on an id. Deriving it from the `jobId` — the one id a
+ * poller structurally cannot be missing, because it cannot poll without it —
+ * means no correlation state has to survive the boundary and there is no
+ * "forgot to pass the run id" failure to document. The provider is part of the
+ * key so two providers' job-id spaces cannot collide, and both halves are
+ * percent-encoded so the joined string stays unambiguous (and url-safe, since
+ * run ids end up in storage keys and query strings).
+ */
 function videoRunIdForJob(provider: string, jobId: string): string {
   return `video:${encodeURIComponent(provider)}:${encodeURIComponent(jobId)}`
 }
 
+/**
+ * Internal implementation of non-streaming video job creation.
+ *
+ * Submitting a job OPENS a run, it does not complete one: the video does not
+ * exist yet, and the bytes only appear on a later poll. So this fires `onStart`
+ * and runs the result transforms over the submission result — the jobId lands
+ * on the run record, which is what lets a later request resume polling — but
+ * fires NO terminal hook. {@link getVideoJobStatus} finishes the run when the
+ * job settles, keyed on the same derived id.
+ *
+ * `onStart` therefore runs AFTER the submit request: the run's id comes from
+ * the job, which does not exist until the provider accepts it. A submission
+ * that fails has no job, so it opens and immediately fails a run under this
+ * call's `requestId` — terminal and unresumable by construction, but it puts
+ * the failure where a client hydrating the thread will see it instead of
+ * showing nothing.
+ */
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
@@ -304,6 +526,10 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+/**
+ * Internal streaming implementation for video generation.
+ * Handles the full job lifecycle: create job → poll for status → stream updates → yield final result.
+ */
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
@@ -321,7 +547,9 @@ async function* runStreamingVideoGeneration<
   const runId = options.runId ?? createId('run')
   const requestId = createId('video')
   const obsStartTime = Date.now()
+  /** Polling interval in milliseconds (stream mode only). @default 2000 */
   const pollingInterval = options.pollingInterval ?? 2000
+  /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
   const maxDuration = options.maxDuration ?? 600_000
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const abortControls = createActivityAbortControls({
@@ -498,6 +726,16 @@ async function* runStreamingVideoGeneration<
   }
 }
 
+/**
+ * Options for {@link getVideoJobStatus}.
+ *
+ * The run this poll finishes is identified by `adapter` + `jobId` alone — the
+ * same pair the submitting `generateVideo()` call derived it from — so there is
+ * no run id to thread through. Pass the submission's `threadId` and the same
+ * `middleware`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface VideoJobStatusOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 > {
@@ -509,6 +747,11 @@ export interface VideoJobStatusOptions<
   middleware?: Array<GenerationMiddleware>
 }
 
+/**
+ * The status of a video job, plus the video itself once the job completed.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
 export interface VideoJobStatusResult {
   /** Job identifier */
   jobId: string
@@ -523,6 +766,66 @@ export interface VideoJobStatusResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
+/**
+ * Get video job status - returns the current status, progress, and URL if available.
+ *
+ * This function combines status checking and URL retrieval. If the job is completed,
+ * it will automatically fetch and include the video URL.
+ *
+ * It is also where a non-streaming `generateVideo()` run ENDS: pass the same
+ * `middleware` and `threadId`, and the poll that first sees a terminal job state
+ * finishes the run (recording the result and its artifacts) or fails it. The run
+ * is identified by `adapter` + `jobId`, exactly what the submission derived it
+ * from, so there is nothing else to carry between the two calls.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @example Check job status
+ * ```ts
+ * import { getVideoJobStatus } from '@tanstack/ai'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * const result = await getVideoJobStatus({
+ *   adapter: openaiVideo('sora-2'),
+ *   jobId: 'job-123'
+ * })
+ *
+ * console.log('Status:', result.status)
+ * console.log('Progress:', result.progress)
+ * if (result.url) {
+ *   console.log('Video URL:', result.url)
+ * }
+ * ```
+ *
+ * @example Submit and poll one persisted run
+ * ```ts
+ * import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+ * import { withGenerationPersistence } from '@tanstack/ai-persistence'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * const adapter = openaiVideo('sora-2')
+ * const middleware = [withGenerationPersistence(persistence)]
+ *
+ * // Opens the run (status `running`, jobId recorded). Its run id is derived
+ * // from the provider job, so nothing has to be stored to resume it.
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   threadId,
+ *   middleware,
+ * })
+ *
+ * // Completes the SAME run once the job settles — this is what writes the
+ * // video, its artifacts, and the terminal status. Works from a different
+ * // request or process: the jobId is the only correlation.
+ * const status = await getVideoJobStatus({
+ *   adapter,
+ *   jobId,
+ *   threadId,
+ *   middleware,
+ * })
+ * ```
+ */
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoJobStatusOptions<TAdapter>): Promise<VideoJobStatusResult> {
@@ -663,6 +966,9 @@ export async function getVideoJobStatus<
   }
 }
 
+/**
+ * Create typed options for the generateVideo() function without executing.
+ */
 export function createVideoOptions<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
   TStream extends boolean = false,

@@ -19,12 +19,57 @@ export interface JournalConformanceConfig {
     handle: SandboxHandle
     dispose: () => Promise<void>
   }>
+  /**
+     * Declare that this provider cannot journal, with the reason. Registers a
+     * skipped case whose title carries the reason. Omit it and the suite runs.
+     */
   unsupported?: { reason: string }
+  /**
+     * Declare that this provider's reads take the POLL strategy rather than the
+     * FOLLOW one — i.e. `journalReadStrategy` answers `'poll'` for its handles,
+     * because it lacks `backgroundProcesses` or `killableProcesses`. The two follow
+     * cases then register as NAMED skips carrying the reason.
+     *
+     * Declare this ONLY when the provider really cannot follow. It is checked
+     * against a live handle in a case that always runs
+     * ({@link expectDeclaredStrategy}), so a wrong declaration fails the suite in
+     * either direction rather than quietly removing coverage.
+     */
   followUnsupported?: { reason: string }
 }
 
+/**
+ * Per-case timeout. Every case here spawns a real sandbox and a real agent.
+ *
+ * 180s, not the 60s this used to be, and it matches the ceiling
+ * `takeover-conformance.ts` already gives its heaviest cases. It is the one
+ * wall-clock number left in the file and it is deliberately far outside the range
+ * any healthy run needs: a case here makes half a dozen provider round-trips, and
+ * ONE `docker exec` on a loaded daemon has been measured at 9.6s (see
+ * `takeover-conformance.ts`'s `countingExec`) and at 20–45s on a saturated one, so
+ * a 60s budget put the timeout itself in the same load-sensitive class as the
+ * assertions that were removed from these cases — measured going red on cases that
+ * pass in 7–13s each on a quiet machine.
+ *
+ * This bound exists only so a genuine hang FAILS instead of parking CI; it is not
+ * an assertion about speed, and nothing here should be tuned to sit near it.
+ */
 const CASE_TIMEOUT_MS = 180_000
 
+/**
+ * Register a case that only means anything on a provider whose reads FOLLOW.
+ *
+ * `journalReadStrategy` needs a live handle and a live handle needs the async
+ * `createHandle`, so the strategy is not knowable when the cases are registered.
+ * It is therefore DECLARED, and the declaration selects `it` or `it.skip` here.
+ *
+ * This exists because the alternative — checking the strategy inside the case and
+ * returning early — is the silent-skip the module doc forbids. Such a case prints
+ * `✓` with a duration and a title claiming a property was verified while every
+ * real assertion in it (including the incremental-delivery handshake, which is
+ * the entire reason the follow path exists) was skipped. A named `it.skip` prints
+ * `↓` with the reason instead.
+ */
 function itFollows(
   config: JournalConformanceConfig,
   title: string,
@@ -42,6 +87,18 @@ function itFollows(
   )
 }
 
+/**
+ * Assert the live handle's read strategy is the one the config DECLARED.
+ *
+ * BOTH directions are defects, and neither is a skip. A provider that declared
+ * `followUnsupported` but whose handles do follow silently loses the two cases it
+ * could pass. One that declared nothing but polls would reach the follow
+ * assertions and fail them for a reason unrelated to journaling — which is what
+ * the previous `expect(handle.capabilities.killableProcesses).toBe(false)` branch
+ * did to a provider with `backgroundProcesses: false, killableProcesses: true`.
+ * Either way the config does not describe the provider, and that is worth
+ * failing.
+ */
 function expectDeclaredStrategy(
   handle: SandboxHandle,
   config: JournalConformanceConfig,
@@ -56,6 +113,17 @@ function decodeJournalRead(stdout: string): string {
   return Buffer.from(stdout.replace(/\s+/g, ''), 'base64').toString('utf8')
 }
 
+/**
+ * Block until the run's journal file exists in the sandbox.
+ *
+ * Through the shell (`journalExistsCommand`), never `handle.fs.exists` — see
+ * rule 3 in `../journal.ts`: on local-process the two resolve `/tmp`
+ * differently, so an `fs` probe would report the wrong file.
+ *
+ * Exported for `./reaper-conformance.ts`, which needs the same bounded,
+ * shell-only wait before probing a still-producing run. Internal to the testkit;
+ * not part of the `./testkit` public surface.
+ */
 export async function waitForJournal(
   handle: SandboxHandle,
   paths: JournalPaths,
@@ -75,19 +143,67 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * An absolute path inside the sandbox that no other case, suite, or machine will
+ * touch.
+ *
+ * Every character is in `[A-Za-z0-9./-]`, so these interpolate into the shell
+ * commands below as a single word without quoting. `/tmp` and not the workspace:
+ * on local-process a shell redirect reaches the host's real `/tmp` while
+ * `handle.fs` resolves under the sandbox root (see rule 3 in `../journal.ts`),
+ * and everything here is written AND read through the shell so the two never have
+ * to agree.
+ */
 function noncePath(label: string): string {
   return `/tmp/tanstack-journal-conformance-${label}-${randomUUID()}`
 }
 
 /** Iteration cap on the kill probe's loop, so nothing can outlive the suite. */
-const PROBE_MAX_TICKS = 600
+const /** Iteration cap on the kill probe's loop, so nothing can outlive the suite. */
+PROBE_MAX_TICKS = 600
 
+/**
+ * Bound on a journal read, so a reader that delivers nothing FAILS instead of
+ * parking CI.
+ *
+ * Never an assertion, and deliberately far above anything a healthy read needs
+ * (measured: 10–18s for the follow cases on both providers). Each case that uses
+ * it proves its property some other way — a causal handshake, or
+ * `backstop.aborted` — so this number can be raised freely and must never be the
+ * thing a case is tuned against.
+ */
 const READ_BACKSTOP_MS = 90_000
 
+/**
+ * How long to let an asynchronous kill land before the quiet window opens.
+ *
+ * A kill is asynchronous on every provider here — Docker signals through a
+ * second `exec`, local-process signals a process group and lets the OS reap — so
+ * one more heartbeat tick immediately after `kill()` resolves is not a survivor.
+ */
 const KILL_SETTLE_MS = 5_000
 
+/**
+ * The quiet window: how long the heartbeat must stay frozen.
+ *
+ * This is NOT a load-sensitive bound, and the asymmetry is the point. A dead
+ * process can never write again, so a slow or busy machine can only make this
+ * window MORE reliable, never less — unlike a "must happen within Nms" ceiling,
+ * which fails on load. Only a live survivor can end this window, and a live
+ * survivor writes once a second.
+ */
 const HEARTBEAT_QUIET_MS = 6_000
 
+/**
+ * Byte count of `path`, according to the SANDBOX'S OWN shell, or `null` when it
+ * cannot be read.
+ *
+ * `wc -c` through the shell, never `handle.fs`: on local-process the two resolve
+ * `/tmp` differently (rule 3), so an `fs` probe would answer about a file the
+ * sandbox never wrote and the growth below would look frozen from the first
+ * sample — a vacuous pass. Parsed strictly rather than coerced, so a shell
+ * diagnostic cannot become `NaN` and compare unequal to itself.
+ */
 async function fileSize(
   handle: SandboxHandle,
   path: string,
@@ -97,6 +213,14 @@ async function fileSize(
   return /^\d+$/.test(text) ? Number(text) : null
 }
 
+/**
+ * Wait until `path` has grown to at least `bytes`, i.e. the probe process is
+ * provably DOING WORK inside the sandbox, and answer whether it got there.
+ *
+ * Returning the observation rather than throwing keeps the verdict inside the
+ * case's own `expect`: this is the "before" half of the assertion, and it is what
+ * makes the "after" half a live detector instead of a formality.
+ */
 async function waitForTicks(
   handle: SandboxHandle,
   path: string,
@@ -112,6 +236,12 @@ async function waitForTicks(
   }
 }
 
+/**
+ * Assert `createHandle` satisfies the journal conformance contract. Each `it`
+ * gets a fresh sandbox via `createHandle`/`dispose`, so implementations may
+ * share process state across calls without cross-test bleed only if
+ * `createHandle` returns an isolated sandbox.
+ */
 export function runJournalConformance(config: JournalConformanceConfig): void {
   describe(`journal conformance — ${config.name}`, () => {
     if (config.unsupported) {

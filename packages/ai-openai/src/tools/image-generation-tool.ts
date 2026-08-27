@@ -13,6 +13,10 @@ export type OpenAIImageGenerationTool = ProviderTool<
   'image_generation'
 >
 
+/**
+ * Creates a standard Tool from ImageGenerationTool parameters, branded as an
+ * OpenAI provider tool.
+ */
 export function imageGenerationTool(
   toolData: Omit<ImageGenerationToolConfig, 'type'>,
 ): OpenAIImageGenerationTool {

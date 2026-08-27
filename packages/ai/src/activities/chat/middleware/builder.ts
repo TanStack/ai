@@ -25,21 +25,44 @@ export type RequiredNames<TList extends ReadonlyArray<AnyChatMiddleware>> =
       : never
     : never
 
+/**
+ * Branded marker surfaced when required capability names are missing from the
+ * provided set, so the compiler error names the gap instead of emitting an
+ * opaque "not assignable".
+ */
 export type MissingCapabilities<TMissing extends string> = {
   [K in `✖ Missing capability "${TMissing}": no configured middleware provides it. Add a middleware whose \`provides\` includes it (and, with createChatMiddleware().use(), order the provider before this consumer).`]: never
 }
 
+/**
+ * Missing capability names. When required names are imprecise (`string`, i.e.
+ * plain `ChatMiddleware` not authored via `defineChatMiddleware`), we cannot
+ * prove a gap, so we allow it (→ `never`). Otherwise the precise literals not
+ * present in the provided set.
+ */
 type MissingNames<TList extends ReadonlyArray<AnyChatMiddleware>> =
   string extends RequiredNames<TList>
     ? never
     : Exclude<RequiredNames<TList>, ProvidedNames<TList>>
 
+/**
+ * Resolves to `TList` when coverage holds, otherwise to a `MissingCapabilities`
+ * marker (not assignable to a middleware array) — producing a compile error at
+ * the `middleware` option that names the missing capability.
+ */
 export type CheckCoverage<TList extends ReadonlyArray<AnyChatMiddleware>> = [
   MissingNames<TList>,
 ] extends [never]
   ? TList
   : MissingCapabilities<MissingNames<TList>>
 
+/**
+ * Order-aware middleware builder. Each `.use()` requires that the middleware's
+ * required capability names are already in the accumulated provided set, then
+ * adds its provided names. `.build()` returns the ordered array.
+ *
+ * `TProvided` is the running union of provided capability name literals.
+ */
 export interface ChatMiddlewareBuilder<
   TList extends ReadonlyArray<AnyChatMiddleware>,
   TProvided extends string,

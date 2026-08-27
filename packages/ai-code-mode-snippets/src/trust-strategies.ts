@@ -1,14 +1,30 @@
 import type { SnippetStats, TrustLevel } from './types'
 
+/**
+ * Strategy for determining snippet trust levels
+ */
 export interface TrustStrategy {
+  /**
+     * Get the initial trust level for a newly created snippet
+     */
   getInitialTrustLevel: () => TrustLevel
 
+  /**
+     * Calculate the new trust level based on execution stats
+     */
   calculateTrustLevel: (
     currentLevel: TrustLevel,
     stats: SnippetStats,
   ) => TrustLevel
 }
 
+/**
+ * Default trust strategy - snippets must earn trust through successful executions
+ *
+ * - untrusted: New snippet (0 executions)
+ * - provisional: 10+ executions with ≥90% success rate
+ * - trusted: 100+ executions with ≥95% success rate
+ */
 export function createDefaultTrustStrategy(): TrustStrategy {
   return {
     getInitialTrustLevel: () => 'untrusted',
@@ -35,6 +51,11 @@ export function createDefaultTrustStrategy(): TrustStrategy {
   }
 }
 
+/**
+ * Always trusted strategy - snippets are immediately trusted upon creation
+ *
+ * Use this for development/testing or when you trust the LLM's code generation
+ */
 export function createAlwaysTrustedStrategy(): TrustStrategy {
   return {
     getInitialTrustLevel: () => 'trusted',
@@ -42,6 +63,13 @@ export function createAlwaysTrustedStrategy(): TrustStrategy {
   }
 }
 
+/**
+ * Relaxed trust strategy - faster trust promotion for development
+ *
+ * - untrusted: New snippet (0 executions)
+ * - provisional: 3+ executions with ≥80% success rate
+ * - trusted: 10+ executions with ≥90% success rate
+ */
 export function createRelaxedTrustStrategy(): TrustStrategy {
   return {
     getInitialTrustLevel: () => 'untrusted',
@@ -66,6 +94,9 @@ export function createRelaxedTrustStrategy(): TrustStrategy {
   }
 }
 
+/**
+ * Custom trust strategy with configurable thresholds
+ */
 export function createCustomTrustStrategy(config: {
   initialLevel?: TrustLevel
   provisionalThreshold?: { executions: number; successRate: number }

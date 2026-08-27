@@ -18,6 +18,10 @@ import type { SandboxKeyInput } from './key'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 
+/**
+ * Sandbox-scoped hooks declared on `defineSandbox`. File hooks fire for every
+ * create/change/delete during a chat run; lifecycle hooks fire server-side.
+ */
 export interface SandboxHooks {
   onFile?: (e: SandboxFileHookEvent) => void | Promise<void>
   onFileCreate?: (e: SandboxFileHookEvent) => void | Promise<void>
@@ -40,6 +44,11 @@ export interface SandboxLifecycle {
   keepAlive?: string
   /** Destroy the sandbox after the run completes. */
   destroyOnComplete?: boolean
+  /**
+     * Maximum age of a sandbox record before it is discarded and re-created
+     * instead of resumed. Accepts `'<n>h'` (hours) or `'<n>m'` (minutes),
+     * e.g. `'2h'` or `'30m'`.
+     */
   snapshotMaxAge?: string
 }
 
@@ -102,6 +111,7 @@ const outcomeEnsure = new WeakMap<
 >()
 
 interface SandboxEnsureExistingStage {
+  /** Compound instance key for a given run context. */
   key: string
   workspace: WorkspaceDefinition | undefined
   resolvedSecrets: Readonly<Record<string, string>> | undefined
@@ -125,6 +135,7 @@ export function stageEnsureExistingSandbox(
 ) => Promise<SandboxHandle | null> {
   const fn = existingEnsure.get(definition)
   if (fn) return (ctx, stage) => fn(ctx, stage)
+  /** Resume an existing sandbox only. Never creates or restores a sandbox. */
   const ensureExisting = definition.ensureExisting.bind(definition)
   return (ctx) => ensureExisting(ctx)
 }
@@ -141,6 +152,11 @@ export function ensureSandboxWithOutcome(
   return fn(ctx)
 }
 
+/**
+ * Parse a human-readable duration string into milliseconds.
+ * Supports `'<n>h'` (hours) and `'<n>m'` (minutes).
+ * Returns `undefined` when the input is undefined or the format is unrecognised.
+ */
 function parseMaxAgeMs(value: string | undefined): number | undefined {
   if (value === undefined) return undefined
   const hourMatch = /^(\d+)h$/.exec(value)
@@ -150,6 +166,11 @@ function parseMaxAgeMs(value: string | undefined): number | undefined {
   return undefined
 }
 
+/**
+ * Bound for the unfenced teardown `destroy` call (see `destroy` below). Long
+ * enough that a slow provider API still completes, short enough that a wedged
+ * one cannot pin the process forever.
+ */
 const DESTROY_TIMEOUT_MS = 60 * 1000
 
 // Process-lifetime fallbacks shared across all definitions so concurrent
@@ -157,6 +178,14 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
+/**
+ * Put workspace secrets onto a live handle. Resume and snapshot restore skip
+ * bootstrap, so this is the only path that re-injects them after reconnect.
+ * Create injects secrets via `provider.create({ env })`, but resume/restore
+ * return a handle whose process env is empty unless we set it here. sbx in
+ * particular has no Docker Env on resume, so this is the only way secrets
+ * come back for that provider.
+ */
 async function applyWorkspaceSecrets(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition | undefined,
@@ -181,6 +210,7 @@ async function tryReuseExistingSandbox(input: {
   maxAgeMs: number | undefined
   config: SandboxConfig
   ctx: SandboxEnsureContext
+  /** Persistence seam; falls back to an in-memory store when absent. */
   store: SandboxInstanceStore
   caps: SandboxCapabilities
 }): Promise<SandboxEnsureOutcome | null> {
@@ -292,6 +322,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     ctx: SandboxEnsureContext,
   ): Promise<SandboxEnsureOutcome> => {
     const store = ctx.store ?? fallbackStore
+    /** Lock seam; falls back to an in-memory lock when absent. */
     const locks = ctx.locks ?? fallbackLocks
     const key = computeSandboxKey(keyInputFor(ctx))
     const caps = config.provider.capabilities()
@@ -329,6 +360,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     })
   }
 
+  /** Resume-or-create the sandbox for this thread/run. */
   const ensure = async (ctx: SandboxEnsureContext): Promise<SandboxHandle> =>
     (await ensureWithOutcome(ctx)).handle
 
@@ -371,6 +403,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     ctx: SandboxEnsureContext,
   ): Promise<SandboxHandle | null> => ensureExistingWithStage(ctx)
 
+  /** Tear down the sandbox recorded for this key. */
   const destroy = async (ctx: SandboxEnsureContext): Promise<void> => {
     const store = ctx.store ?? fallbackStore
     const key = computeSandboxKey(keyInputFor(ctx))

@@ -133,6 +133,11 @@ type ValidInterruptInput<
           : unknown)
     : never
 
+/**
+ * Extracting a class method preserves the intentional bivariant assignment
+ * behavior of the public `interrupt` callback without exposing a method
+ * signature in an interface.
+ */
 declare abstract class InterruptRequestMethodSignature<
   TId extends string,
   TPayloadSchema extends PortableSchema | undefined,
@@ -276,6 +281,11 @@ const interruptRequestInputs = new WeakMap<
   Readonly<ParsedInterruptInput>
 >()
 
+/**
+ * Returns the schema input captured for a newly emitted request. This is
+ * internal because continuation state can cross a client boundary and must be
+ * parsed again when it returns to the server.
+ */
 export function getInterruptRequestInput(
   request: GenericInterruptRequest<InterruptDefinition<any, any, any, any>>,
 ): Readonly<ParsedInterruptInput> {
@@ -286,6 +296,11 @@ export function getInterruptRequestInput(
   return input
 }
 
+/**
+ * Rebuild a request from a persisted display payload that has already passed
+ * the definition's payload schema. This is internal because callers must not
+ * bypass public input validation for new requests.
+ */
 export function rehydrateInterruptRequest(
   definition: InterruptDefinition<any, any, any, any>,
   input: ParsedInterruptInput,

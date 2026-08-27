@@ -15,9 +15,18 @@ export interface WatchOptions {
   root?: string
   /** Poll interval for the exec-poll fallback, in ms. Defaults to 700. */
   intervalMs?: number
+  /**
+     * Directory-name fragments to ignore (a path containing `/<entry>/` is
+     * skipped). Defaults to `['.git', 'node_modules']`.
+     */
   ignore?: Array<string>
   /** Stop watching when this signal aborts. */
   signal?: AbortSignal
+  /**
+     * Optional logger. When present, a failed `find` poll (non-zero exit or a
+     * thrown exec) is logged instead of silently degrading the snapshot — the
+     * failure mode a plain exec-poll watcher hides.
+     */
   logger?: InternalLogger
 }
 
@@ -34,6 +43,10 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Diff two file snapshots (`Map<path, signature>`, signature = `mtime\tsize`).
+ * Pure — the heart of the exec-poll path, unit-tested in isolation.
+ */
 export function diffSnapshots(
   prev: Map<string, string>,
   next: Map<string, string>,
@@ -52,6 +65,14 @@ export function diffSnapshots(
   return events
 }
 
+/**
+ * Build the `find` command that prints `mtime\tsize\tpath` for every file.
+ * Searches `.` (relative to the exec `cwd`) rather than an absolute root: a
+ * provider's `exec` maps only `cwd` onto the real filesystem, not literal path
+ * arguments, so `find <virtual-root>` would look at a non-existent host path on
+ * mapped-root providers (e.g. local-process). Emitted `%p` values are
+ * root-normalized in {@link parseFindOutput}.
+ */
 function buildFindCommand(ignore: Array<string>): string {
   const prunes = ignore
     .map((entry) => `-not -path ${q(`*/${entry}/*`)}`)
@@ -59,6 +80,11 @@ function buildFindCommand(ignore: Array<string>): string {
   return `find . -type f ${prunes} -printf '%T@\\t%s\\t%p\\n'`
 }
 
+/**
+ * Parse `find -printf` output into a `Map<path, signature>`. `find .` prints
+ * paths like `./sub/file`; map them back under `root` so event paths match the
+ * native-watch shape (`<root>/sub/file`).
+ */
 function parseFindOutput(stdout: string, root: string): Map<string, string> {
   const base = root.replace(/\/+$/, '')
   const snapshot = new Map<string, string>()
@@ -83,12 +109,19 @@ function isIgnored(path: string, ignore: Array<string>): boolean {
   return ignore.some((entry) => path.includes(`/${entry}/`))
 }
 
+/**
+ * Start watching a sandbox workspace for file events. Picks the native
+ * `fs.watch` fast-path when the provider advertises it, otherwise polls via
+ * `find`. Returns a handle whose `stop()` tears everything down.
+ */
 export async function watchWorkspace(
   handle: SandboxHandle,
   options: WatchOptions,
 ): Promise<SandboxWatchHandle> {
+  /** Workspace root to watch. Defaults to `/workspace`. */
   const root = options.root ?? DEFAULT_WORKSPACE_ROOT
   const ignore = options.ignore ?? DEFAULT_IGNORE
+  /** Poll interval for the exec-poll fallback, in ms. Defaults to 700. */
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS
 
   // Already aborted before we start — don't begin any async work.
@@ -304,6 +337,7 @@ async function startPollWatch(
   // Don't keep the event loop alive on the watcher alone.
   if (typeof timer.unref === 'function') timer.unref()
 
+  /** Stop the watcher and release its resources. */
   const stop = (): Promise<void> => {
     if (state.running) {
       state.running = false
@@ -322,6 +356,13 @@ async function startPollWatch(
   return { stop }
 }
 
+/**
+ * Recursively collect file paths under `root`, honoring `ignore`. `rootOk` is
+ * `false` when the ROOT `list` itself failed — the seed is then untrustworthy
+ * (empty/partial), which the native watcher uses to trigger a lazy re-seed. A
+ * failed *subdirectory* list is logged but doesn't flip `rootOk` (its files are
+ * simply absent, a smaller misclassification surface).
+ */
 async function collectPaths(
   handle: SandboxHandle,
   root: string,

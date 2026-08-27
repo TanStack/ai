@@ -1,6 +1,10 @@
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import type { AcpTransportPreference } from './types'
 
+/**
+ * Pick stdio vs WebSocket for ACP based on sandbox capabilities and caller
+ * preference.
+ */
 export function resolveAcpTransportMode(
   sandbox: SandboxHandle,
   preference: AcpTransportPreference = 'auto',
