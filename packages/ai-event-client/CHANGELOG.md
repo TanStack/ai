@@ -1,5 +1,15 @@
 # @tanstack/ai-event-client
 
+## 0.11.0
+
+### Minor Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve tool-result identity, metadata, multimodal content, and timestamps across message conversions and hydration.
+
+  Correct the public `WireMessage` type. System and user messages now require content, and the union no longer includes outbound activity messages.
+
+  Keep structured multimodal content compatible with the AI devtools message store.
+
 ## 0.10.0
 
 ### Minor Changes
