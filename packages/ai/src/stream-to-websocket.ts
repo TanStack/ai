@@ -30,12 +30,12 @@ export function encodeWsFrame(
 
 export function decodeWsFrame(data: string): InboundFrame {
   const parsed: unknown = JSON.parse(data)
-  const isInvalidParsed =
+  if (
     typeof parsed === 'object' &&
     parsed !== null &&
     (parsed as { type?: unknown }).type === 'abort' &&
     typeof (parsed as { runId?: unknown }).runId === 'string'
-  if (isInvalidParsed) {
+  ) {
     return { kind: 'abort', runId: (parsed as { runId: string }).runId }
   }
   return { kind: 'run', input: parsed }
@@ -93,9 +93,9 @@ export function toWebSocketStream<TOffset extends string = string>(
   }, heartbeatMs)
   const idle = setInterval(
     () => {
-      const isEmptyActiveTurns =
+      const isIdle =
         activeTurns.size === 0 && Date.now() - lastActivity > idleTimeoutMs
-      if (isEmptyActiveTurns) {
+      if (isIdle) {
         socket.close(1000, 'idle')
       }
     },

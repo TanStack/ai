@@ -141,8 +141,7 @@ async function claimLostByEpoch(
   } catch {
     return undefined
   }
-  const isNewerEpoch = observed !== undefined && observed > claim.epoch
-  if (isNewerEpoch) {
+  if (observed !== undefined && observed > claim.epoch) {
     latch.lost = new RunClaimLostError(claim.runId, claim.epoch, observed)
     return latch.lost
   }
@@ -207,11 +206,11 @@ export function fenceRunStore(
     findActiveRun: (threadId) => runs.findActiveRun(threadId),
     update: async (runId, patch) => {
       const status = patch.status
-      const isNotTerminalClaimUpdate =
-        runId !== claim.runId ||
-        status === undefined ||
-        !isTerminalRunStatus(status)
-      if (isNotTerminalClaimUpdate) {
+      const isTerminalClaimWrite =
+        runId === claim.runId &&
+        status !== undefined &&
+        isTerminalRunStatus(status)
+      if (!isTerminalClaimWrite) {
         return runs.update(runId, patch)
       }
       const lost =

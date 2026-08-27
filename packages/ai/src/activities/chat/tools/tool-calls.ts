@@ -145,9 +145,8 @@ function parseManagedToolArgs(tool: AnyTool, toolCall: ToolCall): unknown {
       `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
     )
   }
-  const shouldSkipTool =
-    !tool.inputSchema || !isStandardSchema(tool.inputSchema)
-  if (shouldSkipTool) return args
+  if (!tool.inputSchema) return args
+  if (!isStandardSchema(tool.inputSchema)) return args
   try {
     return parseWithStandardSchema(tool.inputSchema, args)
   } catch (validationError: unknown) {
@@ -160,9 +159,8 @@ function parseManagedToolArgs(tool: AnyTool, toolCall: ToolCall): unknown {
 }
 
 function validateManagedToolOutput(tool: AnyTool, result: unknown): unknown {
-  const shouldSkipTool =
-    !tool.outputSchema || !isStandardSchema(tool.outputSchema)
-  if (shouldSkipTool) return result
+  if (!tool.outputSchema) return result
+  if (!isStandardSchema(tool.outputSchema)) return result
   try {
     return parseWithStandardSchema(tool.outputSchema, result)
   } catch (validationError: unknown) {
@@ -513,8 +511,7 @@ export async function* executeServerTool<TContext = unknown>(
 
     // Validate output against outputSchema if provided. Validates
     // `undefined`/`null` too — the schema decides whether they're valid.
-    const hasTool = tool.outputSchema && isStandardSchema(tool.outputSchema)
-    if (hasTool) {
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
@@ -587,8 +584,7 @@ function buildClientToolResult(
 ): ToolResult {
   try {
     let result = rawResult
-    const hasTool = tool.outputSchema && isStandardSchema(tool.outputSchema)
-    if (hasTool) {
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
 
@@ -639,9 +635,10 @@ function parseExecuteToolCallInput(
       }
     }
   }
-  const shouldSkipTool =
-    !tool.inputSchema || !isStandardSchema(tool.inputSchema)
-  if (shouldSkipTool) {
+  if (!tool.inputSchema) {
+    return { ok: true, input }
+  }
+  if (!isStandardSchema(tool.inputSchema)) {
     return { ok: true, input }
   }
   try {

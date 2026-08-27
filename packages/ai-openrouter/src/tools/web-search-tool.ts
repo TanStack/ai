@@ -26,9 +26,7 @@ export function convertWebSearchToolToAdapterFormat(
         parameters?: OpenRouterWebSearchServerTool['parameters']
       }
     | undefined
-  const isNotWebSearchTool =
-    !metadata || metadata.__kind !== WEB_SEARCH_TOOL_KIND
-  if (isNotWebSearchTool) {
+  if (metadata?.__kind !== WEB_SEARCH_TOOL_KIND) {
     throw new Error(
       `convertWebSearchToolToAdapterFormat: tool "${tool.name}" is not a valid webSearchTool() output (missing branded metadata).`,
     )

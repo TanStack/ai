@@ -46,15 +46,14 @@ export function extractUsageCost(usage: unknown): ExtractedCost {
   if (!record) return {}
 
   const cost = record.cost
-  const isNotFiniteCost = typeof cost !== 'number' || !Number.isFinite(cost)
-  if (isNotFiniteCost) return {}
+  if (typeof cost !== 'number' || !Number.isFinite(cost)) return {}
 
   const costDetails = extractCostDetails(
     record.costDetails ?? record.cost_details,
   )
 
   return {
-    cost: cost as number,
+    cost,
     ...(costDetails && { costDetails }),
   }
 }

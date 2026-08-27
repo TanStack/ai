@@ -150,8 +150,8 @@ function resolveTransport(transport: {
   fetcher?: ChatFetcher
 }): ConnectionAdapter {
   const { connection, fetcher } = transport
-  const isConnectionAndFetcher = connection && fetcher
-  if (isConnectionAndFetcher) {
+  const hasBothTransports = connection && fetcher
+  if (hasBothTransports) {
     throw new Error(
       'ChatClient: pass either `connection` or `fetcher`, not both.',
     )
@@ -197,9 +197,8 @@ export function normalizeQueueOption(
 
   const maxSize = option.maxSize
   if (maxSize !== undefined) {
-    const isNotMaxSizeIsIntegerOrMaxSizeCompared =
-      !Number.isInteger(maxSize) || maxSize < 0
-    if (isNotMaxSizeIsIntegerOrMaxSizeCompared) {
+    const isValidMaxSize = Number.isInteger(maxSize) && maxSize >= 0
+    if (!isValidMaxSize) {
       throw new Error(
         'ChatClient: queue.maxSize must be a non-negative integer',
       )
@@ -410,11 +409,7 @@ export class ChatClient<
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
   private processingResolve: (() => void) | null = null
-  /**
-   * `connect()` adapters push the full HTTP body into the subscribe queue, then
-   * wait until that queue is idle. After `send()` returns, every chunk from this
-   * request has been processed. Subscribe/send sockets do not drain that way.
-   */
+  /** `connect()` send() drains the subscribe queue. Sockets wait for a terminal event. */
   private connectionDrainsOnSend = false
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
@@ -778,17 +773,15 @@ export class ChatClient<
     }
     if (!options.initialResumeSnapshot) return null
     const snapshot = options.initialResumeSnapshot
-    const isNotSnapshotHasPendingInterruptsAndRunId =
-      !snapshotHasPendingInterrupts(snapshot) && snapshot.resumeState.runId
-    if (isNotSnapshotHasPendingInterruptsAndRunId) {
+    if (!snapshotHasPendingInterrupts(snapshot) && snapshot.resumeState.runId) {
       return snapshot.resumeState.runId
     }
     return null
   }
 
   attach(): void {
-    const isDisposedOrTailing = this.disposed || this.tailing
-    if (isDisposedOrTailing) return
+    const cannotAttach = this.disposed || this.tailing
+    if (cannotAttach) return
     this.ensureThreadId()
     this.tailing = true
 
@@ -796,9 +789,8 @@ export class ChatClient<
       this.maybeRejoinInFlight(this.rejoinRunId)
     }
 
-    const isNotCachesMessagesAndHydrate =
-      !this.cachesMessages && this.connection.hydrate
-    if (isNotCachesMessagesAndHydrate) {
+    const needsServerHydrate = !this.cachesMessages && this.connection.hydrate
+    if (needsServerHydrate) {
       this.hydrateFromServer()
     }
   }
@@ -842,20 +834,19 @@ export class ChatClient<
       Array.isArray(snapshot.pendingInterrupts) &&
       snapshot.pendingInterrupts.length > 0
     const runId = snapshot.resumeState?.runId
-    const isNotHasInterruptsAndRunId = !hasInterrupts && runId
-    if (isNotHasInterruptsAndRunId) {
+    if (!hasInterrupts && runId) {
       this.maybeRejoinInFlight(runId)
     }
   }
 
   private maybeRejoinInFlight(runId: string): void {
     if (!this.connection.joinRun) return
-    const isDisposedOrNotTailing = this.disposed || !this.tailing
-    if (isDisposedOrNotTailing) return
+    const isDetached = this.disposed || !this.tailing
+    if (isDetached) return
     if (this.rejoinedRunId === runId) return
     // A fresh send (or an already-running rejoin) owns the client; don't stomp it.
-    const isLoadingOrAbortController = this.isLoading || this.abortController
-    if (isLoadingOrAbortController) return
+    const hasActiveStream = this.isLoading || this.abortController
+    if (hasActiveStream) return
     this.rejoinedRunId = runId
     this.resumeInFlightRun(runId)
   }
@@ -863,8 +854,8 @@ export class ChatClient<
   private hydrateFromServer(): void {
     const hydrate = this.connection.hydrate
     if (!hydrate) return
-    const isLoadingOrAbortController = this.isLoading || this.abortController
-    if (isLoadingOrAbortController) return
+    const hasActiveStream = this.isLoading || this.abortController
+    if (hasActiveStream) return
     if (this.disposed) return
     void (async () => {
       let result: ChatHydrationResult
@@ -873,11 +864,11 @@ export class ChatClient<
       } catch {
         return
       }
-      const isDisposedOrNotTailing = this.disposed || !this.tailing
-      if (isDisposedOrNotTailing) return
+      const isDetached = this.disposed || !this.tailing
+      if (isDetached) return
       // A send may have started while the fetch was in flight — don't stomp it.
-      const isLoadingOrAbortController = this.isLoading || this.abortController
-      if (isLoadingOrAbortController) return
+      const hasActiveStream = this.isLoading || this.abortController
+      if (hasActiveStream) return
       if (result.messages.length > 0) {
         this.processor.setMessages(normalizeMessagesDates(result.messages))
       }
@@ -923,9 +914,9 @@ export class ChatClient<
   }
 
   private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
-    const isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR =
-      chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR'
-    if (isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR) return
+    const isTerminalChunk =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (!isTerminalChunk) return
     const runId =
       getChunkRunId(chunk) ?? this.clearedStreamTracker.takeRunlessRunId()
     if (!runId) return
@@ -950,9 +941,9 @@ export class ChatClient<
       this.activeRunIds.add(chunkRunId)
       this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
-      const isPersistorAndJoinRunAndNotLastResume =
+      const shouldPersistResume =
         this.persistor && this.connection.joinRun && !this.lastResume
-      if (isPersistorAndJoinRunAndNotLastResume) {
+      if (shouldPersistResume) {
         this.persistResumeSnapshot({
           threadId: this.activeResumeThreadId ?? this.threadId,
           runId: chunkRunId,
@@ -961,9 +952,9 @@ export class ChatClient<
       return
     }
 
-    const isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR =
-      chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR'
-    if (isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR) {
+    const isTerminalChunk =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (!isTerminalChunk) {
       return
     }
 
@@ -979,21 +970,23 @@ export class ChatClient<
     this.setSessionGenerating(this.activeRunIds.size > 0)
     const skipProcessingResolve =
       chunk.type === 'RUN_FINISHED' && isIntermediateToolTurn(chunk)
-    if (options?.resolveProcessing !== false && !skipProcessingResolve) {
+    const shouldResolveProcessing =
+      options?.resolveProcessing !== false && !skipProcessingResolve
+    if (shouldResolveProcessing) {
       this.resolveProcessing()
     }
   }
 
   private observeInterruptState(chunk: StreamChunk): void {
-    const isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR =
-      chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR'
-    if (isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR) {
+    const isTerminalChunk =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (!isTerminalChunk) {
       return
     }
 
-    const isActiveInterruptSubmissionAndTypeIsRUNERROR =
+    const isInterruptSubmitError =
       this.activeInterruptSubmission && chunk.type === 'RUN_ERROR'
-    if (isActiveInterruptSubmissionAndTypeIsRUNERROR) {
+    if (isInterruptSubmitError) {
       return
     }
     const runId = getChunkRunId(chunk)
@@ -1047,18 +1040,18 @@ export class ChatClient<
   }
 
   private isTrackedOrCurrentRunTerminal(runId: string | undefined): boolean {
-    const isRunIdAndRunIdIsRunId = runId && this.lastResume?.runId === runId
-    if (isRunIdAndRunIdIsRunId) return true
-    const isRunIdAndCurrentRunIdIsRunId = runId && this.currentRunId === runId
-    if (isRunIdAndCurrentRunIdIsRunId) return true
+    const isLastResumeRun = runId && this.lastResume?.runId === runId
+    if (isLastResumeRun) return true
+    const isCurrentRun = runId && this.currentRunId === runId
+    if (isCurrentRun) return true
     return Boolean(
       this.currentRunId && this.lastResume?.runId === this.currentRunId,
     )
   }
 
   private isActiveStreamRunTerminal(runId: string | undefined): boolean {
-    const isNotIsLoadingOrNotRunId = !this.isLoading || !runId
-    if (isNotIsLoadingOrNotRunId) return false
+    const hasNoActiveRun = !this.isLoading || !runId
+    if (hasNoActiveRun) return false
     return runId === this.activeResumeRunId || runId === this.currentRunId
   }
 
@@ -1066,13 +1059,13 @@ export class ChatClient<
     chunk: StreamChunk,
     runId: string | undefined,
   ): boolean {
-    const isTypeIsRUNERRORAndNotRunId = chunk.type === 'RUN_ERROR' && !runId
-    if (isTypeIsRUNERRORAndNotRunId) return true
+    const isSessionRunError = chunk.type === 'RUN_ERROR' && !runId
+    if (isSessionRunError) return true
     if (this.isTrackedOrCurrentRunTerminal(runId)) return true
     if (this.isActiveStreamRunTerminal(runId)) return true
-    const isLoadingAndTypeIsRUNFINISHEDAndNotRunId =
+    const isRunlessFinish =
       this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
-    if (isLoadingAndTypeIsRUNFINISHEDAndNotRunId) return true
+    if (isRunlessFinish) return true
     return Boolean(
       this.activeInterruptSubmission &&
       this.isLoading &&
@@ -1442,11 +1435,11 @@ export class ChatClient<
     this.setError(error)
     // Preserve request-level error semantics even if a RUN_ERROR arrives
     // slightly after loading flips false during stream teardown.
-    const isLoadingOrStatusIsSubmittedOrStatusIsStreaming =
+    const isInFlightRequest =
       this.isLoading ||
       this.status === 'submitted' ||
       this.status === 'streaming'
-    if (isLoadingOrStatusIsSubmittedOrStatusIsStreaming) {
+    if (isInFlightRequest) {
       this.setStatus('error')
     }
     if (!alreadyReported) {
@@ -1461,9 +1454,9 @@ export class ChatClient<
 
     this.consumeSubscription(signal)
       .catch((err) => {
-        const isErrIsErrorAndNameIsNotAbortError =
+        const isNonAbortError =
           err instanceof Error && err.name !== 'AbortError'
-        if (isErrIsErrorAndNameIsNotAbortError) {
+        if (isNonAbortError) {
           this.setConnectionStatus('error')
           this.resetSessionGenerating()
           this.setIsSubscribed(false)
@@ -1478,8 +1471,8 @@ export class ChatClient<
           return
         }
         this.subscriptionAbortController = null
-        const isNotAbortedAndIsSubscribed = !signal.aborted && this.isSubscribed
-        if (isNotAbortedAndIsSubscribed) {
+        const isLiveSubscription = !signal.aborted && this.isSubscribed
+        if (isLiveSubscription) {
           this.setIsSubscribed(false)
           if (this.connectionStatus !== 'error') {
             this.setConnectionStatus('disconnected')
@@ -1518,10 +1511,10 @@ export class ChatClient<
 
   private handleRejoinFailure(error: unknown, attached: boolean): boolean {
     const isAbort = this.isRejoinAbortError(error)
-    const isNotAttachedAndNotIsAbort = !attached && !isAbort
-    if (isNotAttachedAndNotIsAbort) return true
-    const isAttachedAndNotIsAbort = attached && !isAbort
-    if (isAttachedAndNotIsAbort) {
+    const isUnreachableRun = !attached && !isAbort
+    if (isUnreachableRun) return true
+    const isRejoinError = attached && !isAbort
+    if (isRejoinError) {
       this.reportStreamError(
         error instanceof Error ? error : new Error(String(error)),
       )
@@ -1530,9 +1523,9 @@ export class ChatClient<
   }
 
   private clearDeadRejoinPointer(attached: boolean, refused: boolean): void {
-    const isAttachedOrNotRefusedOrNotTailingOrDisposed =
+    const shouldKeepResumePointer =
       attached || !refused || !this.tailing || this.disposed
-    if (isAttachedOrNotRefusedOrNotTailingOrDisposed) return
+    if (shouldKeepResumePointer) return
     this.lastResume = null
     this.persistor?.persistResumeSnapshot(null)
   }
@@ -1567,9 +1560,8 @@ export class ChatClient<
           attached = true
           clearTimeout(connectTimer)
         }
-        const isNotRebuiltAndHasREJOIN_REBUILD_TRIGGERS =
-          !rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)
-        if (isNotRebuiltAndHasREJOIN_REBUILD_TRIGGERS) {
+        const needsRebuild = !rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)
+        if (needsRebuild) {
           rebuilt = true
           this.dropTrailingInFlightAssistant()
         }
@@ -1590,8 +1582,8 @@ export class ChatClient<
   private dropTrailingInFlightAssistant(): void {
     const messages = this.processor.getMessages()
     const last = messages[messages.length - 1]
-    const isLastAndRoleIsAssistant = last && last.role === 'assistant'
-    if (isLastAndRoleIsAssistant) {
+    const hasTrailingAssistant = last && last.role === 'assistant'
+    if (hasTrailingAssistant) {
       this.processor.setMessages(messages.slice(0, -1))
     }
   }
@@ -1601,10 +1593,10 @@ export class ChatClient<
     options?: { defer?: boolean },
   ): Promise<void> {
     chunk = restoreInboundChunk(chunk)
-    const isTypeIsRUNERRORAndIsActiveInterruptSubmissionFailure =
+    const isFailedInterruptSubmit =
       chunk.type === 'RUN_ERROR' &&
       this.isActiveInterruptSubmissionFailure(chunk)
-    if (isTypeIsRUNERRORAndIsActiveInterruptSubmissionFailure) {
+    if (isFailedInterruptSubmit) {
       const interruptErrors = tanstackMetadata(chunk)?.interruptErrors
       this.interruptSubmissionFailure = {
         errors: Array.isArray(interruptErrors) ? interruptErrors : [],
@@ -1615,9 +1607,9 @@ export class ChatClient<
     }
     const shouldIgnore = this.clearedStreamTracker.shouldIgnoreChunk(chunk)
     if (shouldIgnore) {
-      const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+      const isTerminalChunk =
         chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-      if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
+      if (isTerminalChunk) {
         if (getChunkRunId(chunk)) {
           this.updateRunLifecycle(chunk, { resolveProcessing: false })
         } else {
@@ -1633,10 +1625,10 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    const isDeferIsNotFalseAndTypeofDocumentIsUndefinedOrNotHidden =
+    const shouldYieldToPaint =
       options?.defer !== false &&
       (typeof document === 'undefined' || !document.hidden)
-    if (isDeferIsNotFalseAndTypeofDocumentIsUndefinedOrNotHidden) {
+    if (shouldYieldToPaint) {
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
     this.resolveJoinedRun(chunk)
@@ -1647,29 +1639,32 @@ export class ChatClient<
   ): boolean {
     const submission = this.activeInterruptSubmission
     const errors = tanstackMetadata(chunk)?.interruptErrors
-    const isNotSubmissionOrNotErrorsIsArrayOrEmptyErrors =
-      !submission || !Array.isArray(errors) || errors.length === 0
-    if (isNotSubmissionOrNotErrorsIsArrayOrEmptyErrors) {
+    if (!submission) {
+      return false
+    }
+    if (!Array.isArray(errors)) {
+      return false
+    }
+    if (errors.length === 0) {
       return false
     }
     const runId = getChunkRunId(chunk)
-    const isRunIdIsNotUndefinedAndRunIdIsNotCurrentRunId =
-      runId !== undefined && runId !== this.currentRunId
-    if (isRunIdIsNotUndefinedAndRunIdIsNotCurrentRunId) return false
-    const isTypeofThreadIdIsStringAndThreadIdIsNotThreadId =
+    const isForeignRun = runId !== undefined && runId !== this.currentRunId
+    if (isForeignRun) return false
+    if (
       typeof chunk.threadId === 'string' &&
       chunk.threadId !== submission.threadId
-    if (isTypeofThreadIdIsStringAndThreadIdIsNotThreadId) {
+    ) {
       return false
     }
     return errors.every((error) => {
-      const isMissingErrorOrTypeofErrorIsNotObjectOrTypeofThreadIdIsNotString =
+      if (
         error == null ||
         typeof error !== 'object' ||
         typeof error.threadId !== 'string' ||
         typeof error.interruptedRunId !== 'string' ||
         typeof error.generation !== 'number'
-      if (isMissingErrorOrTypeofErrorIsNotObjectOrTypeofThreadIdIsNotString) {
+      ) {
         return false
       }
       return (
@@ -1681,9 +1676,9 @@ export class ChatClient<
   }
 
   private resolveJoinedRun(chunk: StreamChunk): void {
-    const isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR =
-      chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR'
-    if (isTypeIsNotRUNFINISHEDAndTypeIsNotRUNERROR) return
+    const isTerminalChunk =
+      chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
+    if (!isTerminalChunk) return
     const runId = getChunkRunId(chunk)
     if (runId === undefined) return
     const resolve = this.joinedRunWaiters.get(runId)
@@ -1697,10 +1692,10 @@ export class ChatClient<
       this.subscribe()
       return
     }
-    const isNotSubscriptionAbortControllerOrAborted =
+    const needsSubscriptionRestart =
       !this.subscriptionAbortController ||
       this.subscriptionAbortController.signal.aborted
-    if (isNotSubscriptionAbortControllerOrAborted) {
+    if (needsSubscriptionRestart) {
       this.subscribe({ restart: true })
     }
   }
@@ -1783,8 +1778,8 @@ export class ChatClient<
     content: string | MultimodalContent,
     body?: Record<string, any>,
   ): Promise<boolean> {
-    const isLoadingOrDeliverClaim = this.isLoading || this.deliverClaim
-    if (isLoadingOrDeliverClaim) {
+    const isDeliverBusy = this.isLoading || this.deliverClaim
+    if (isDeliverBusy) {
       return false
     }
     this.deliverClaim = true
@@ -1833,13 +1828,12 @@ export class ChatClient<
     id?: string,
   ): void {
     const { maxSize, onOverflow } = this.queueConfig
-    const isMaxSizeIsNotUndefinedAndLengthCompared =
+    const isQueueFull =
       maxSize !== undefined && this.messageQueue.length >= maxSize
-    if (isMaxSizeIsNotUndefinedAndLengthCompared) {
+    if (isQueueFull) {
       // maxSize 0 is a hard cap (never queue). drop-oldest cannot make room.
-      const isOnOverflowIsRejectOrMaxSizeIsZero =
-        onOverflow === 'reject' || maxSize === 0
-      if (isOnOverflowIsRejectOrMaxSizeIsZero) {
+      const cannotMakeRoom = onOverflow === 'reject' || maxSize === 0
+      if (cannotMakeRoom) {
         return
       }
       this.messageQueue.shift() // drop-oldest
@@ -2010,9 +2004,9 @@ export class ChatClient<
       await this.connection.send(messages, mergedBody, signal, runContext)
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
-      const isGenerationIsNotStreamGenerationOrAborted =
+      const isStaleStream =
         generation !== this.streamGeneration || signal.aborted
-      if (isGenerationIsNotStreamGenerationOrAborted) {
+      if (isStaleStream) {
         return
       }
 
@@ -2065,9 +2059,9 @@ export class ChatClient<
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
       }
-      const isErrorIsByokBlockedErrorAndReasonIsLocked =
+      const isByokLocked =
         error instanceof ByokBlockedError && error.reason === 'locked'
-      if (isErrorIsByokBlockedErrorAndReasonIsLocked) {
+      if (isByokLocked) {
         this.byok?.request(error.provider, 'locked')
       }
       if (generation === this.streamGeneration) {
@@ -2082,12 +2076,12 @@ export class ChatClient<
           runTerminalEventEmitted = true
         }
       }
-      const isGenerationIsStreamGeneration =
+      const shouldRethrowByok =
         generation === this.streamGeneration &&
         (error instanceof ByokMissingError ||
           error instanceof ByokBlockedError ||
           error instanceof ByokUnresolvedProviderError)
-      if (isGenerationIsStreamGeneration) {
+      if (shouldRethrowByok) {
         throw error
       }
     }
@@ -2147,13 +2141,13 @@ export class ChatClient<
 
   subscribe(options?: { restart?: boolean }): void {
     const restart = options?.restart === true
-    const isSubscribedAndNotRestart = this.isSubscribed && !restart
-    if (isSubscribedAndNotRestart) {
+    const isAlreadySubscribed = this.isSubscribed && !restart
+    if (isAlreadySubscribed) {
       return
     }
 
-    const isSubscribedAndRestart = this.isSubscribed && restart
-    if (isSubscribedAndRestart) {
+    const shouldRestartSubscription = this.isSubscribed && restart
+    if (shouldRestartSubscription) {
       this.abortSubscriptionLoop()
     }
 
@@ -2225,8 +2219,8 @@ export class ChatClient<
       currentRunId: this.currentRunId,
     })
     // Always cancel in-flight work so clear works without message persistence.
-    const isLoadingOrHadLocalStream = this.isLoading || hadLocalStream
-    if (isLoadingOrHadLocalStream) {
+    const hasLocalWork = this.isLoading || hadLocalStream
+    if (hasLocalWork) {
       this.cancelInFlightStream({ setReadyStatus: true })
       this.resetSessionGenerating({ preserveClearedStreamTracking: true })
     } else if (this.activeRunIds.size > 0) {
@@ -2262,9 +2256,7 @@ export class ChatClient<
     continuationGeneration: number,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
-    const isClientToolAndStateIsNotOutputError =
-      clientTool && result.state !== 'output-error'
-    if (isClientToolAndStateIsNotOutputError) {
+    if (clientTool && result.state !== 'output-error') {
       try {
         result = {
           ...result,
@@ -2330,9 +2322,7 @@ export class ChatClient<
     clientTool: AnyClientTool,
     output: any,
   ): any {
-    const isOutputSchemaAndIsStandardSchema =
-      clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)
-    if (isOutputSchemaAndIsStandardSchema) {
+    if (clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)) {
       return parseWithStandardSchema(clientTool.outputSchema, output)
     }
 
@@ -2419,9 +2409,8 @@ export class ChatClient<
     if (this.hasPendingInterrupts()) return
 
     // Prevent duplicate continuation attempts
-    const isContinuationPendingOrIsLoading =
-      this.continuationPending || this.isLoading
-    if (isContinuationPendingOrIsLoading) {
+    const isContinuationBusy = this.continuationPending || this.isLoading
+    if (isContinuationBusy) {
       this.continuationSkipped = true
       return
     }
@@ -2436,9 +2425,8 @@ export class ChatClient<
         this.continuationPending = false
       }
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
-      const isContinuationSkippedAndSucceeded =
-        this.continuationSkipped && succeeded
-      if (isContinuationSkippedAndSucceeded) {
+      const needsRetryContinuation = this.continuationSkipped && succeeded
+      if (needsRetryContinuation) {
         this.continuationSkipped = false
         await this.checkForContinuation()
       }
@@ -2449,9 +2437,9 @@ export class ChatClient<
     // A pending interrupt owns the next send. Auto-continuing after a
     // completed server tool would start a sibling run and hide the card.
     if (this.lastResume) return false
-    const isActiveInterruptSubmissionAndHasPendingInterrupts =
+    const isInterruptOwned =
       this.activeInterruptSubmission && this.hasPendingInterrupts()
-    if (isActiveInterruptSubmissionAndHasPendingInterrupts) {
+    if (isInterruptOwned) {
       return false
     }
     if (this.interruptManager.getInterrupts().length > 0) return false
@@ -2476,11 +2464,11 @@ export class ChatClient<
   }
 
   private async drainQueue(): Promise<void> {
-    const isMessageQueueDrainingOrIsLoadingOrEmptyMessageQueue =
+    const cannotDrainQueue =
       this.messageQueueDraining ||
       this.isLoading ||
       this.messageQueue.length === 0
-    if (isMessageQueueDrainingOrIsLoadingOrEmptyMessageQueue) {
+    if (cannotDrainQueue) {
       return
     }
 
@@ -2500,9 +2488,9 @@ export class ChatClient<
             merged.body,
           )
           // Failed/aborted deliver flushes the rest of the queue in streamResponse.
-          const isNotCompletedOrShouldAbortMessageQueueDrain =
+          const shouldStopDrain =
             !completed || this.shouldAbortMessageQueueDrain()
-          if (isNotCompletedOrShouldAbortMessageQueueDrain) {
+          if (shouldStopDrain) {
             return
           }
         }
@@ -2522,9 +2510,9 @@ export class ChatClient<
         this.emitQueueChange()
         const completed = await this.deliverMessage(next.content, next.body)
         // Failed/aborted deliver flushes the rest of the queue in streamResponse.
-        const isNotCompletedOrShouldAbortMessageQueueDrain2 =
+        const shouldStopDrain =
           !completed || this.shouldAbortMessageQueueDrain()
-        if (isNotCompletedOrShouldAbortMessageQueueDrain2) {
+        if (shouldStopDrain) {
           return
         }
       }
@@ -2614,9 +2602,9 @@ export class ChatClient<
       context?: TContext | undefined
     },
   ): void {
-    const isConnectionIsUndefinedAndFetcherIsUndefined =
+    const hasNoTransportUpdate =
       options.connection === undefined && options.fetcher === undefined
-    if (isConnectionIsUndefinedAndFetcherIsUndefined) {
+    if (hasNoTransportUpdate) {
       return
     }
     const wasSubscribed = this.isSubscribed

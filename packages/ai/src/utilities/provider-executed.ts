@@ -4,11 +4,11 @@ export function getProviderExecutedMetadata(
   toolCall: { metadata?: unknown } | null | undefined,
 ): ProviderExecutedToolMetadata | null {
   const metadata = toolCall?.metadata
-  const isInvalidMetadata =
+  if (
     typeof metadata === 'object' &&
     metadata !== null &&
     (metadata as ProviderExecutedToolMetadata).providerExecuted === true
-  if (isInvalidMetadata) {
+  ) {
     return metadata as ProviderExecutedToolMetadata
   }
   return null

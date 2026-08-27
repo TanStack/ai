@@ -16,9 +16,9 @@ function isMistralVertexLocation(
 function isMissingGoogleAuthLibrary(error: unknown): boolean {
   if (error instanceof Error && 'code' in error) {
     const code = error.code
-    const isModuleNotFound =
+    const isUnresolvedImport =
       code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
-    if (isModuleNotFound) {
+    if (isUnresolvedImport) {
       return error.message.includes('google-auth-library')
     }
     return false

@@ -13,9 +13,9 @@ function isMissingGoogleAuthLibrary(error: unknown): boolean {
     return false
   }
   const code = error.code
-  const isNotModuleNotFound =
-    code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND'
-  if (isNotModuleNotFound) {
+  const isUnresolvedImport =
+    code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
+  if (!isUnresolvedImport) {
     return false
   }
   return error.message.includes('google-auth-library')

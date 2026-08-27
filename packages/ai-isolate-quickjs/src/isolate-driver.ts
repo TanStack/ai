@@ -57,8 +57,8 @@ function injectBinding(
 
     const resolveWithPayload = (payloadJson: string) => {
       execState.pendingCancels.delete(cancel)
-      const vmOrPromiseIsDead = !vm.alive || !promise.alive
-      if (vmOrPromiseIsDead) return
+      const isIsolateDead = !vm.alive || !promise.alive
+      if (isIsolateDead) return
       const payloadHandle = vm.newString(payloadJson)
       promise.resolve(payloadHandle)
       payloadHandle.dispose()

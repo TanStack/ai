@@ -360,8 +360,8 @@ async function captureWalk(
       `Snapshot entry disappeared '${relative}'`,
     )
   assertSupported(stat, relative)
-  const isNotFileOrDir = stat.type !== 'file' && stat.type !== 'dir'
-  if (isNotFileOrDir)
+  const isUnsupportedEntry = stat.type !== 'file' && stat.type !== 'dir'
+  if (isUnsupportedEntry)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
       `Unsupported entry '${relative}'`,
@@ -390,8 +390,7 @@ export async function captureSandboxFiles(
     )
   const rootPath = bundle.workspaceRoot ?? DEFAULT_ROOT
   const root = await lstat(handle, rootPath)
-  const isMissingRootDir = !root || root.type !== 'dir'
-  if (isMissingRootDir)
+  if (root === undefined || root.type !== 'dir')
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
       'Snapshot workspace is missing or is not a directory',
@@ -424,10 +423,10 @@ function assertManifestAncestorsAllowed(
 ): void {
   const pathAncestors = parents(path)
   for (const ancestor of pathAncestors) {
-    const isProtectedOrExcluded =
+    const isBlockedAncestor =
       isProtectedPath(ancestor, policy.workspaceHash) ||
       policy.exclude?.(ancestor, 'dir')
-    if (isProtectedOrExcluded)
+    if (isBlockedAncestor)
       throw new SandboxSnapshotError(
         'SANDBOX_SNAPSHOT_INVALID_PATH',
         `Excluded snapshot ancestor '${ancestor}'`,
@@ -440,10 +439,10 @@ function assertManifestPathIncluded(
   kind: SandboxSnapshotEntry['kind'],
   policy: SandboxSnapshotPolicy,
 ): void {
-  const isNotIncludedPath =
+  const isExcludedPath =
     !included(path, kind, policy) ||
     (kind === 'dir' && policy.include?.(path, 'dir') === false)
-  if (isNotIncludedPath)
+  if (isExcludedPath)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_PATH',
       `Excluded snapshot path '${path}'`,
@@ -525,8 +524,8 @@ async function loadBlobs(
 ): Promise<Map<string, Uint8Array>> {
   const blobs = new Map<string, Uint8Array>()
   for (const entry of entries) {
-    const isMissingBlob = entry.kind === 'file' && !blobs.has(entry.blobKey)
-    if (isMissingBlob) {
+    const needsBlobLoad = entry.kind === 'file' && !blobs.has(entry.blobKey)
+    if (needsBlobLoad) {
       const object = await bundle.blobs.get(entry.blobKey)
       if (!object)
         throw new SandboxSnapshotError(
@@ -602,8 +601,7 @@ async function scanDestination(
   rootPath: string,
 ): Promise<Array<CurrentEntry>> {
   const root = await lstat(handle, rootPath)
-  const isMissingRootDir = !root || root.type !== 'dir'
-  if (isMissingRootDir)
+  if (root === undefined || root.type !== 'dir')
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
       'Snapshot workspace is missing or is not a directory',

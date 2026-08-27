@@ -35,9 +35,11 @@ export function tanstackMetadata(
       ? nested
       : (value as MetadataRecord)
   const tanstack = metadata.tanstack
-  const isInvalidTanstack =
-    tanstack == null || typeof tanstack !== 'object' || Array.isArray(tanstack)
-  if (isInvalidTanstack) {
+  if (
+    tanstack == null ||
+    typeof tanstack !== 'object' ||
+    Array.isArray(tanstack)
+  ) {
     return undefined
   }
   return tanstack as TanStackMetadata

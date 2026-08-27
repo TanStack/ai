@@ -69,9 +69,9 @@ export class LazyToolManager {
     }
 
     // Add discovery tool if there are still undiscovered lazy tools
-    const hasDiscoveryTool =
+    const canAddDiscoveryTool =
       this.discoveryTool && this.discoveredTools.size < this.lazyToolMap.size
-    if (hasDiscoveryTool) {
+    if (canAddDiscoveryTool) {
       active.push(this.discoveryTool)
     }
 
@@ -82,11 +82,11 @@ export class LazyToolManager {
     activeTools: ReadonlyArray<AnyTool>,
     pendingToolCallNames: ReadonlyArray<string>,
   ): ReadonlyArray<AnyTool> {
-    const hasDiscoveryTool =
+    const canAttachDiscoveryTool =
       this.discoveryTool &&
       pendingToolCallNames.includes(DISCOVERY_TOOL_NAME) &&
       !activeTools.some((t) => t.name === DISCOVERY_TOOL_NAME)
-    if (hasDiscoveryTool) {
+    if (canAttachDiscoveryTool) {
       return [...activeTools, this.discoveryTool]
     }
     return activeTools
@@ -133,25 +133,24 @@ export class LazyToolManager {
 
     // Find corresponding tool result messages
     for (const msg of messages) {
-      const isTool =
+      const isDiscoveryResult =
         msg.role === 'tool' &&
         msg.toolCallId &&
         discoveryCallIds.has(msg.toolCallId)
-      if (isTool) {
+      if (isDiscoveryResult) {
         try {
           const content =
             typeof msg.content === 'string'
               ? msg.content
               : JSON.stringify(msg.content)
           const parsed = JSON.parse(content)
-          const isInvalidParsed = parsed && Array.isArray(parsed.tools)
-          if (isInvalidParsed) {
+          if (parsed && Array.isArray(parsed.tools)) {
             for (const tool of parsed.tools) {
-              const isString =
+              if (
                 tool &&
                 typeof tool.name === 'string' &&
                 this.lazyToolMap.has(tool.name)
-              if (isString) {
+              ) {
                 this.discoveredTools.add(tool.name)
               }
             }

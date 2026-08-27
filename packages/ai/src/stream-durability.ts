@@ -43,8 +43,8 @@ function decodeMemoryOffset(offset: string): MemoryOffset {
   }
   const runId = decodeURIComponent(encoded.slice(0, separator))
   const seq = Number(encoded.slice(separator + 1))
-  const shouldSkipIsSafeInteger = !Number.isSafeInteger(seq) || seq < 1
-  if (shouldSkipIsSafeInteger) {
+  const isBadSeq = !Number.isSafeInteger(seq) || seq < 1
+  if (isBadSeq) {
     throw new Error(`Invalid memory stream offset: ${offset}`)
   }
   return { runId, seq }
@@ -71,8 +71,8 @@ export function resolveResumeRunId(request: Request): string | null {
 }
 
 function assertValidRunId(runId: string): string {
-  const isEmptyRunId = runId.length === 0 || /[\r\n]/.test(runId)
-  if (isEmptyRunId) {
+  const isBadRunId = runId.length === 0 || /[\r\n]/.test(runId)
+  if (isBadRunId) {
     throw new Error(
       `Invalid runId (must be non-empty and contain no CR/LF): ${JSON.stringify(runId)}`,
     )
@@ -84,9 +84,9 @@ function resolveMemoryRunId(
   request: Request,
   resumeOffset: string | null,
 ): string {
-  const isMissingResumeOffset =
+  const hasConcreteOffset =
     resumeOffset !== null && resumeOffset !== '-1' && resumeOffset !== 'now'
-  if (isMissingResumeOffset) {
+  if (hasConcreteOffset) {
     return assertValidRunId(decodeMemoryOffset(resumeOffset).runId)
   }
   const requestedRunId = resolveResumeRunId(request)
@@ -139,11 +139,11 @@ const memoryLogs = new Map<string, MemoryLog>()
 
 function sweepMemoryLogs(now: number): void {
   for (const [id, log] of memoryLogs) {
-    const hasLog =
+    const isExpiredLog =
       log.complete &&
       log.completedAt !== undefined &&
       now - log.completedAt > COMPLETED_LOG_TTL_MS
-    if (hasLog) {
+    if (isExpiredLog) {
       memoryLogs.delete(id)
     }
   }
@@ -317,13 +317,12 @@ export function memoryStream(
         while (index < log.entries.length) {
           const entry = log.entries[index]
           index += 1
-          const hasEntry = entry && entry.seq > threshold
-          if (hasEntry) {
+          if (entry && entry.seq > threshold) {
             yield { offset: entry.offset, chunk: entry.chunk }
           }
         }
-        const shouldSkipLog = log.complete || signal?.aborted
-        if (shouldSkipLog) return
+        const isReadDone = log.complete || signal?.aborted
+        if (isReadDone) return
 
         const deadlineForFirstChunk =
           log.entries.length === 0 ? firstChunkDeadlineMs : undefined

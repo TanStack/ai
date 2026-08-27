@@ -79,16 +79,14 @@ function resolveReconnectOptions(
 ): ResolvedReconnectOptions {
   const maxAttempts = options?.maxAttempts ?? 5
   const delayMs = options?.delayMs ?? 250
-  const isNotMaxAttemptsIsIntegerOrMaxAttemptsCompared =
-    !Number.isInteger(maxAttempts) || maxAttempts < 0
-  if (isNotMaxAttemptsIsIntegerOrMaxAttemptsCompared) {
+  const isInvalidMaxAttempts = !Number.isInteger(maxAttempts) || maxAttempts < 0
+  if (isInvalidMaxAttempts) {
     throw new Error(
       `Invalid reconnect.maxAttempts: ${maxAttempts}. Must be a non-negative integer.`,
     )
   }
-  const isNotDelayMsIsFiniteOrDelayMsCompared =
-    !Number.isFinite(delayMs) || delayMs < 0
-  if (isNotDelayMsIsFiniteOrDelayMsCompared) {
+  const isInvalidDelayMs = !Number.isFinite(delayMs) || delayMs < 0
+  if (isInvalidDelayMs) {
     throw new Error(
       `Invalid reconnect.delayMs: ${delayMs}. Must be a non-negative finite number.`,
     )
@@ -148,8 +146,8 @@ export function createReconnectTracker(
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  const isMsComparedOrAborted = ms <= 0 || signal?.aborted
-  if (isMsComparedOrAborted) return Promise.resolve()
+  const shouldSkipDelay = ms <= 0 || signal?.aborted
+  if (shouldSkipDelay) return Promise.resolve()
   return new Promise((resolve) => {
     const onAbort = () => {
       clearTimeout(timer)
@@ -252,8 +250,8 @@ async function* readStreamLines(
 
     buffer += decoder.decode()
 
-    const isTrimAndNotAborted = buffer.trim() && !abortSignal?.aborted
-    if (isTrimAndNotAborted) {
+    const hasLeftoverBytes = buffer.trim() && !abortSignal?.aborted
+    if (hasLeftoverBytes) {
       throw new StreamTruncatedError()
     }
   } finally {
@@ -304,9 +302,8 @@ interface SseEventParseState {
 }
 
 function readSseIdLine(line: string): string | false {
-  const isLineIsNotIdAndNotLineStartsWithId =
-    line !== 'id' && !line.startsWith('id:')
-  if (isLineIsNotIdAndNotLineStartsWithId) return false
+  const isIdLine = line === 'id' || line.startsWith('id:')
+  if (!isIdLine) return false
   const rawId = line === 'id' ? '' : line.slice(3)
   return rawId.startsWith(' ') ? rawId.slice(1) : rawId
 }
@@ -485,9 +482,7 @@ async function fetchGenerationHydration(
   if (raw === null) {
     return { resumeSnapshot: null, activeRun: null }
   }
-  const isTypeofRawIsNotObjectOrRawIsArray =
-    typeof raw !== 'object' || Array.isArray(raw)
-  if (isTypeofRawIsNotObjectOrRawIsArray) {
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(
       `Generation hydration expected a JSON object from ${url}, received ${Array.isArray(raw) ? 'an array' : typeof raw}.`,
     )
@@ -590,20 +585,20 @@ async function* resumableStream(
       for await (const { chunk, id } of sourceEvents) {
         if (tracker.note(id) === 'duplicate') continue
         progressed = true
-        const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+        const isTerminalChunk =
           chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-        if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
+        if (isTerminalChunk) {
           sawTerminal = true
         }
         yield chunk
       }
     } catch (error) {
       if (abortSignal?.aborted) return
-      const isErrorIsStreamTruncatedErrorOrErrorIsStreamReadError =
+      const canReconnect =
         (error instanceof StreamTruncatedError ||
           error instanceof StreamReadError) &&
         tracker.lastEventId !== undefined
-      if (isErrorIsStreamTruncatedErrorOrErrorIsStreamReadError) {
+      if (canReconnect) {
         await tracker.waitBeforeReconnect(progressed, abortSignal)
         continue
       }
@@ -723,9 +718,9 @@ function noteConnectChunk(chunk: StreamChunk, state: ConnectSendState): void {
   if ('runId' in chunk && typeof chunk.runId === 'string') {
     state.upstreamRunId = chunk.runId
   }
-  const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+  const isTerminalChunk =
     chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-  if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
+  if (isTerminalChunk) {
     state.hasTerminalEvent = true
   }
 }
@@ -736,9 +731,8 @@ function pushSyntheticRunFinished(
   runContext: RunAgentInputContext | undefined,
   push: (chunk: StreamChunk, runId?: string) => void,
 ): void {
-  const isAbortedOrHasTerminalEvent =
-    abortSignal?.aborted || state.hasTerminalEvent
-  if (isAbortedOrHasTerminalEvent) return
+  const shouldSkipSynthetic = abortSignal?.aborted || state.hasTerminalEvent
+  if (shouldSkipSynthetic) return
   push(
     withTanstackMetadata(
       {
@@ -766,9 +760,8 @@ function pushSyntheticRunError(
   err: unknown,
   push: (chunk: StreamChunk, runId?: string) => void,
 ): void {
-  const isAbortedOrHasTerminalEvent =
-    abortSignal?.aborted || state.hasTerminalEvent
-  if (isAbortedOrHasTerminalEvent) return
+  const shouldSkipSynthetic = abortSignal?.aborted || state.hasTerminalEvent
+  if (shouldSkipSynthetic) return
   try {
     const message =
       err instanceof Error ? err.message : 'Unknown error in connect()'
@@ -802,16 +795,15 @@ export function normalizeConnectionAdapter(
   const hasSubscribe = 'subscribe' in connection
   const hasSend = 'send' in connection
 
-  const hasConnectAndHasSubscribeOrHasSend =
-    hasConnect && (hasSubscribe || hasSend)
-  if (hasConnectAndHasSubscribeOrHasSend) {
+  const hasMixedModes = hasConnect && (hasSubscribe || hasSend)
+  if (hasMixedModes) {
     throw new Error(
       'Connection adapter must provide either connect or both subscribe and send, not both modes',
     )
   }
 
-  const hasSubscribeAndHasSend = hasSubscribe && hasSend
-  if (hasSubscribeAndHasSend) {
+  const isSubscribeMode = hasSubscribe && hasSend
+  if (isSubscribeMode) {
     const joinRun = (connection as SubscribeConnectionAdapter).joinRun?.bind(
       connection,
     )
@@ -851,9 +843,7 @@ export function normalizeConnectionAdapter(
   async function waitUntilSubscriberIdle(
     abortSignal?: AbortSignal,
   ): Promise<void> {
-    // Idle means the subscriber is waiting for the next chunk, so the
-    // previous chunk has left processIncomingChunk. Empty waiters with an
-    // empty buffer is in-flight delivery, not idle.
+    // Idle: subscriber is waiting. Empty waiters with a buffer is in-flight, not idle.
     const idle = () =>
       activeBuffer.length === 0 &&
       (activeWaiters.length > 0 || abortSignal?.aborted)
@@ -866,7 +856,9 @@ export function normalizeConnectionAdapter(
       if (idle()) return
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
       macrotaskWaits++
-      if (activeWaiters.length === 0 && macrotaskWaits >= 32) return
+      const exceededWaitBudget =
+        activeWaiters.length === 0 && macrotaskWaits >= 32
+      if (exceededWaitBudget) return
     }
   }
 
@@ -1237,8 +1229,7 @@ function cleanupXhr(
   xhr.onabort = null
   xhr.onloadend = null
 
-  const isAbortSignalAndOnAbort = abortSignal && onAbort
-  if (isAbortSignalAndOnAbort) {
+  if (abortSignal && onAbort) {
     abortSignal.removeEventListener('abort', onAbort)
   }
 }
@@ -1262,9 +1253,9 @@ function readXhrLines(
   }
 
   const enqueueDelta = () => {
-    const isStatusIsNot0AndStatusComparedOrStatusCompared =
+    const isHttpError =
       xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)
-    if (isStatusIsNot0AndStatusComparedOrStatusCompared) {
+    if (isHttpError) {
       error = errorFromXhrStatus(xhr)
       done = true
       return
@@ -1290,13 +1281,13 @@ function readXhrLines(
 
   const finish = () => {
     enqueueDelta()
-    const isStatusIsNot0AndStatusComparedOrStatusCompared =
+    const isHttpError =
       xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)
-    if (isStatusIsNot0AndStatusComparedOrStatusCompared) {
+    if (isHttpError) {
       error = errorFromXhrStatus(xhr)
     } else {
-      const isTrimAndNotAborted = buffer.trim() && !aborted
-      if (isTrimAndNotAborted) {
+      const hasLeftoverBytes = buffer.trim() && !aborted
+      if (hasLeftoverBytes) {
         error = new StreamTruncatedError()
       }
     }
@@ -1352,8 +1343,8 @@ function readXhrLines(
         }
 
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        const isDoneOrAborted = done || abortSignal?.aborted
-        if (isDoneOrAborted) {
+        const isComplete = done || abortSignal?.aborted
+        if (isComplete) {
           return
         }
 
@@ -1766,9 +1757,9 @@ export function webSocket(
         if (session.runId === undefined) {
           session.runId = getChunkRunId(chunk)
         }
-        const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+        const isTerminalChunk =
           chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-        if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
+        if (isTerminalChunk) {
           session.sawTerminal = true
         }
       }
@@ -1784,9 +1775,8 @@ export function webSocket(
         failAll(new StreamReadError(new Error('WebSocket connection closed')))
         return
       }
-      const isAbortedOrSawTerminal =
-        session.signal?.aborted || session.sawTerminal
-      if (isAbortedOrSawTerminal) return
+      const isSessionDone = session.signal?.aborted || session.sawTerminal
+      if (isSessionDone) return
       const lastEventId = session.tracker.lastEventId
       if (lastEventId === undefined) {
         currentSession = undefined
@@ -1795,8 +1785,7 @@ export function webSocket(
       }
       void reconnect(session, lastEventId)
     }
-    const isPriorAndReadyStateCompared = prior && prior.readyState <= 1
-    if (isPriorAndReadyStateCompared) prior.close()
+    if (prior && prior.readyState <= 1) prior.close()
     return ws
   }
 
@@ -1818,8 +1807,8 @@ export function webSocket(
     }
     if (session.signal?.aborted) return
     if (currentSession !== session) return
-    const isSocketAndReadyStateCompared = socket && socket.readyState <= 1
-    if (isSocketAndReadyStateCompared) return
+    const hasOpenSocket = socket && socket.readyState <= 1
+    if (hasOpenSocket) return
     session.progressed = false
     const base = typeof url === 'function' ? url() : url
     const target = withSearchParams(base, {

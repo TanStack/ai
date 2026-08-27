@@ -23,8 +23,7 @@ export function convertWebFetchToolToAdapterFormat(
         parameters?: WebFetchServerTool['parameters']
       }
     | undefined
-  const isNotWebFetchTool = !metadata || metadata.__kind !== WEB_FETCH_TOOL_KIND
-  if (isNotWebFetchTool) {
+  if (metadata?.__kind !== WEB_FETCH_TOOL_KIND) {
     throw new Error(
       `convertWebFetchToolToAdapterFormat: tool "${tool.name}" is not a valid webFetchTool() output (missing branded metadata).`,
     )

@@ -443,8 +443,7 @@ export function applyHookEvent(
 
   const activeHookId = state.activeHookId
   if (activeHookId) {
-    const isMissingActiveHook = !state.hooks[activeHookId]
-    if (isMissingActiveHook) {
+    if (!state.hooks[activeHookId]) {
       state.activeHookId = null
     }
   }
@@ -750,8 +749,7 @@ function syncRunsFromSnapshot(
   const rawRuns = (snapshot.state as { runs?: unknown }).runs
   if (!Array.isArray(rawRuns)) return
   for (const candidate of rawRuns) {
-    const isInvalidRun = !candidate || typeof candidate !== 'object'
-    if (isInvalidRun) continue
+    if (!candidate || typeof candidate !== 'object') continue
     const run = candidate as {
       id?: unknown
       status?: unknown

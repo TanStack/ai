@@ -226,13 +226,11 @@ async function cancelIntent(
 function tenantFrom(
   context: unknown,
 ): { userId?: string; orgId?: string } | undefined {
-  const isNotContextObject = context === null || typeof context !== 'object'
-  if (isNotContextObject) return undefined
+  if (context === null || typeof context !== 'object') return undefined
   const c = context as Record<string, unknown>
   const userId = typeof c.userId === 'string' ? c.userId : undefined
   const orgId = typeof c.orgId === 'string' ? c.orgId : undefined
-  const isMissingTenant = userId === undefined && orgId === undefined
-  if (isMissingTenant) return undefined
+  if (userId === undefined && orgId === undefined) return undefined
   return { userId, orgId }
 }
 
@@ -312,11 +310,11 @@ async function acquireSnapshotResources(
     ? resolveSandboxSnapshotPolicy(snapshotConfig.policy, snapshotWorkspaceHash)
     : undefined
   if (!snapshotConfig) return { snapshotConfig, snapshotPolicy }
-  const isMissingSnapshotStores =
+  const lacksSnapshotStores =
     !snapshotConfig.persistence?.stores?.messages ||
     !snapshotConfig.persistence.stores.artifacts ||
     !snapshotConfig.persistence.stores.blobs
-  if (isMissingSnapshotStores)
+  if (lacksSnapshotStores)
     throw new Error(
       'Sandbox snapshots require persistence stores.messages, stores.artifacts, and stores.blobs',
     )
@@ -732,9 +730,15 @@ async function publishPortableSnapshot(
   const config = state.snapshotConfig
   const runtime = state.snapshotRuntime
   const lease = state.snapshotLease
-  const isMissingRunContext = !config || !runtime || !handle || !lease
-  if (isMissingRunContext) {
-    if (state.snapshotLost) throw state.snapshotLost
+  if (state.snapshotLost && (!config || !runtime || !handle || !lease)) {
+    throw state.snapshotLost
+  }
+  if (
+    config === undefined ||
+    runtime === undefined ||
+    handle === undefined ||
+    lease === undefined
+  ) {
     return
   }
   if (!canPublishPortableSnapshot(state, lease)) return
@@ -801,11 +805,11 @@ async function captureAfterRunNativeSnapshot(
   ensureCtx: SandboxEnsureContext,
 ): Promise<void> {
   const lifecycle = definition.lifecycle
-  const shouldSnapshotAfterRun =
+  if (
     lifecycle?.snapshot === 'after-run' &&
     handle?.capabilities.snapshots &&
     handle.snapshot
-  if (shouldSnapshotAfterRun) {
+  ) {
     const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
     const store = ensureCtx.store
     if (store) {

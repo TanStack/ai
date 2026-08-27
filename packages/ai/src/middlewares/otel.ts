@@ -130,8 +130,7 @@ function serializeContent(content: unknown): string {
   if (!Array.isArray(content)) return ''
   const parts: Array<string> = []
   for (const part of content) {
-    const isInvalidPart = !part || typeof part !== 'object'
-    if (isInvalidPart) continue
+    if (!part || typeof part !== 'object') continue
     const type = (part as { type?: string }).type
     switch (type) {
       case 'text':
@@ -496,9 +495,9 @@ export function otelMiddleware(
     },
 
     onConfig(ctx, config) {
-      const hasCtx =
+      const skipConfigSpan =
         ctx.phase !== 'beforeModel' && ctx.phase !== 'structuredOutput'
-      if (hasCtx) return
+      if (skipConfigSpan) return
       safeCall('otel.onConfig', () => {
         startIterationSpan(ctx, config)
       })
@@ -510,9 +509,9 @@ export function otelMiddleware(
         const state = stateByCtx.get(ctx)
         if (!state) return
 
-        const isTEXTMESSAGECONTENT =
+        const shouldCaptureText =
           captureContent && chunk.type === 'TEXT_MESSAGE_CONTENT'
-        if (isTEXTMESSAGECONTENT) {
+        if (shouldCaptureText) {
           appendAssistantText(state, chunk.delta)
         }
 
@@ -540,9 +539,9 @@ export function otelMiddleware(
           span.setAttributes(usageAttributes(tokenUsage))
         }
 
-        const hasCaptureContent =
+        const hasBufferedText =
           captureContent && state.assistantTextBuffer.length > 0
-        if (hasCaptureContent) {
+        if (hasBufferedText) {
           const completion = redactContent(state.assistantTextBuffer)
           const outputJson = JSON.stringify([
             { role: 'assistant', content: completion },
@@ -681,8 +680,8 @@ export function otelMiddleware(
         const outcome = info.ok ? 'success' : 'error'
         toolSpan.setAttribute('tanstack.ai.tool.outcome', outcome)
 
-        const hasInfo = !info.ok && info.error !== undefined
-        if (hasInfo) {
+        const shouldRecordToolError = !info.ok && info.error !== undefined
+        if (shouldRecordToolError) {
           toolSpan.recordException(info.error as Exception)
           const msg = errorMessage(info.error)
           toolSpan.setStatus({

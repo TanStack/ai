@@ -11,22 +11,16 @@ export interface ByokMissingBody {
 }
 
 export function isByokMissingBody(value: unknown): value is ByokMissingBody {
-  const isInvalid = typeof value !== 'object' || value === null
-  if (isInvalid) return false
+  if (typeof value !== 'object' || value === null) return false
   if (!('error' in value)) return false
   const error = value.error
-  const isInvalid2 = typeof error !== 'object' || error === null
-  if (isInvalid2) return false
-  const hasType = !('type' in error) || error.type !== 'byok_missing'
-  if (hasType) return false
-  const hasProvider =
-    !('provider' in error) || typeof error.provider !== 'string'
-  if (hasProvider) {
+  if (typeof error !== 'object' || error === null) return false
+  if (!('type' in error) || error.type !== 'byok_missing') return false
+  if (!('provider' in error) || typeof error.provider !== 'string') {
     return false
   }
   if (!isProviderId(error.provider)) return false
-  const hasMessage = !('message' in error) || typeof error.message !== 'string'
-  if (hasMessage) return false
+  if (!('message' in error) || typeof error.message !== 'string') return false
   return true
 }
 

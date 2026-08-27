@@ -249,8 +249,7 @@ function applyResumeIdentity(
 ): void {
   const threadId = chunkCorrelationId(chunk, 'threadId')
   const runId = chunkCorrelationId(chunk, 'runId')
-  const isThreadIdAndRunId = threadId && runId
-  if (isThreadIdAndRunId) {
+  if (threadId && runId) {
     next.resumeState = { threadId, runId }
     next.status = 'running'
     return
@@ -347,23 +346,20 @@ export function parseGenerationResumeSnapshot(
   if (!isObject(value)) return undefined
 
   const schemaVersion = Reflect.get(value, 'schemaVersion')
-  const isSchemaVersionIsNotUndefinedAndSchemaVersionIsNot1 =
-    schemaVersion !== undefined && schemaVersion !== 1
-  if (isSchemaVersionIsNotUndefinedAndSchemaVersionIsNot1) return undefined
+  const isUnsupportedSchema = schemaVersion !== undefined && schemaVersion !== 1
+  if (isUnsupportedSchema) return undefined
 
   const status = generationResumeStatusField(value, 'status')
   if (!status) return undefined
 
   const rawResumeState = Reflect.get(value, 'resumeState')
   let resumeState: GenerationResumeState | null = null
-  const hasRawResumeStateAndRawResumeStateIsNotUndefined =
-    rawResumeState !== null && rawResumeState !== undefined
-  if (hasRawResumeStateAndRawResumeStateIsNotUndefined) {
+  if (rawResumeState !== null && rawResumeState !== undefined) {
     if (!isObject(rawResumeState)) return undefined
     const threadId = stringField(rawResumeState, 'threadId')
     const runId = stringField(rawResumeState, 'runId')
-    const isNotThreadIdOrNotRunId = !threadId || !runId
-    if (isNotThreadIdOrNotRunId) return undefined
+    if (!threadId) return undefined
+    if (!runId) return undefined
     resumeState = { threadId, runId }
   }
 
@@ -568,9 +564,7 @@ export function createGenerationResultSnapshot(
   if (typeof expiresAt === 'string') {
     snapshot.expiresAt = expiresAt
   } else {
-    const isExpiresAtIsDateAndNotGetTimeIsNaN =
-      expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime())
-    if (isExpiresAtIsDateAndNotGetTimeIsNaN) {
+    if (expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime())) {
       snapshot.expiresAt = expiresAt.toISOString()
     }
   }
@@ -626,20 +620,20 @@ function createPersistedArtifactRefSnapshot(
   const path = stringField(source, 'path')
   const provider = stringField(source, 'provider')
   const model = stringField(source, 'model')
-  const isNotRoleOrNotArtifactIdOrNotThreadIdOrNotRunIdOrNotNameOrNotMimeType =
-    !role ||
-    !artifactId ||
-    !threadId ||
-    !runId ||
-    !name ||
-    !mimeType ||
-    size === undefined ||
-    !createdAt ||
-    !activity ||
-    !path ||
-    !provider ||
-    !model
-  if (isNotRoleOrNotArtifactIdOrNotThreadIdOrNotRunIdOrNotNameOrNotMimeType) {
+  const isCompleteArtifact =
+    role &&
+    artifactId &&
+    threadId &&
+    runId &&
+    name &&
+    mimeType &&
+    size !== undefined &&
+    createdAt &&
+    activity &&
+    path &&
+    provider &&
+    model
+  if (!isCompleteArtifact) {
     return undefined
   }
 
@@ -674,8 +668,8 @@ function createPersistedArtifactRefSnapshot(
 
 function durableUrlField(value: object, key: string): string | undefined {
   const field = stringField(value, key)
-  const isNotFieldOrLengthCompared = !field || field.length > 2048
-  if (isNotFieldOrLengthCompared) return undefined
+  if (!field) return undefined
+  if (field.length > 2048) return undefined
   try {
     const url = new URL(field)
     return url.protocol === 'http:' || url.protocol === 'https:'
@@ -688,12 +682,11 @@ function durableUrlField(value: object, key: string): string | undefined {
 
 function serveUrlField(value: object, key: string): string | undefined {
   const field = stringField(value, key)
-  const isNotFieldOrLengthCompared = !field || field.length > 2048
-  if (isNotFieldOrLengthCompared) return undefined
-  const isFieldStartsWithEmptyAndNotFieldStartsWithEmptyAndNotFieldIncludes =
+  if (!field) return undefined
+  if (field.length > 2048) return undefined
+  const isRelativeUrl =
     field.startsWith('/') && !field.startsWith('//') && !field.includes('\\')
-  if (isFieldStartsWithEmptyAndNotFieldStartsWithEmptyAndNotFieldIncludes)
-    return field
+  if (isRelativeUrl) return field
   try {
     const url = new URL(field)
     return url.protocol === 'http:' || url.protocol === 'https:'

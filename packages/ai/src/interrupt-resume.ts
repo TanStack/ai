@@ -90,9 +90,7 @@ function normalizeIssuePath(
 ): ReadonlyArray<string | number> | undefined {
   if (!path) return undefined
   return path.map((segment) => {
-    const shouldSkipSegment =
-      typeof segment === 'string' || typeof segment === 'number'
-    if (shouldSkipSegment) {
+    if (typeof segment === 'string' || typeof segment === 'number') {
       return segment
     }
     const record = objectValue(segment)
@@ -226,9 +224,8 @@ function validateDescriptorSchema(
 ): unknown {
   const schema = descriptorResponseSchema(record)
   const responseSchemaHash = binding.responseSchemaHash
-  const isMissingSchema =
-    schema === undefined && responseSchemaHash === undefined
-  if (isMissingSchema) {
+  const hasNoSchema = schema === undefined && responseSchemaHash === undefined
+  if (hasNoSchema) {
     return undefined
   }
   const isIncompleteSchema =
@@ -276,11 +273,11 @@ function validateBindingCorrelation(
   errors: Array<InterruptSubmissionError>,
 ): void {
   const binding = record.binding
-  const hasBinding =
+  const isStaleCorrelation =
     binding.interruptedRunId !== input.interruptedRunId ||
     binding.generation !== input.generation ||
     binding.interruptId !== record.interruptId
-  if (hasBinding) {
+  if (isStaleCorrelation) {
     errors.push(
       interruptItemError(
         input,
@@ -333,9 +330,9 @@ function validateResumeStatus(
   errors: Array<InterruptSubmissionError>,
 ): boolean {
   const entryStatus: unknown = entry.status
-  const shouldSkipEntryStatus =
+  const isKnownResumeStatus =
     entryStatus === 'resolved' || entryStatus === 'cancelled'
-  if (shouldSkipEntryStatus) return true
+  if (isKnownResumeStatus) return true
   errors.push(
     interruptItemError(
       input,
@@ -376,7 +373,7 @@ async function validateGenericResumeItem(
   if (genericRequest !== undefined) {
     const batchIndex =
       binding.kind === 'generic' ? binding.batchIndex : undefined
-    const isInvalidBinding =
+    const isStaleGenericBinding =
       binding.kind !== 'generic' ||
       binding.definitionId !== genericRequest.definition.id ||
       binding.key !== genericRequest.key ||
@@ -384,7 +381,7 @@ async function validateGenericResumeItem(
       batchIndex === undefined ||
       !Number.isInteger(batchIndex) ||
       batchIndex < 0
-    if (isInvalidBinding) {
+    if (isStaleGenericBinding) {
       errors.push(
         interruptItemError(
           input,
@@ -556,8 +553,8 @@ async function validateApprovalPayload(
       label: `Approval ${record.interruptId} envelope is invalid`,
     })
   }
-  const hasApproved = approved && envelope?.editedArgs !== undefined
-  if (hasApproved) {
+  const hasEditedArgs = approved && envelope?.editedArgs !== undefined
+  if (hasEditedArgs) {
     if (tool.inputSchema === undefined) {
       errors.push(
         interruptItemError(
@@ -663,9 +660,9 @@ async function validateOnePendingRecord(input: {
   const { request, record, entry, errors } = input
   const binding = record.binding
   if (!entry) {
-    const hasInput =
+    const isSatisfiedClientTool =
       input.genericBatchSatisfied && binding.kind === 'client-tool-execution'
-    if (hasInput) {
+    if (isSatisfiedClientTool) {
       return
     }
     input.markIncomplete()
@@ -838,10 +835,10 @@ async function materializeResumeToolState(
     }
     const resolution = approvalResolutionFromEntry(entry)
     approvals.set(binding.toolCallId, resolution)
-    const isApproved =
+    const isDenied =
       resolution === false ||
       (typeof resolution === 'object' && !resolution.approved)
-    if (isApproved) {
+    if (isDenied) {
       deniedToolResults.set(
         binding.toolCallId,
         typeof resolution === 'object' ? resolution.payload : undefined,
@@ -973,14 +970,14 @@ function readGenericUnopenedBinding(
     key !== undefined ||
     batchIndex !== undefined ||
     payloadSchemaHash !== undefined
-  const isInvalidHasFirstPartyFields =
+  const isPartialFirstParty =
     hasFirstPartyFields &&
     (!definitionId ||
       !key ||
       typeof batchIndex !== 'number' ||
       !Number.isInteger(batchIndex) ||
       batchIndex < 0)
-  if (isInvalidHasFirstPartyFields) {
+  if (isPartialFirstParty) {
     return undefined
   }
   return {
@@ -1028,8 +1025,8 @@ function readToolApprovalUnopenedBinding(
 ): UnopenedInterruptBinding | undefined {
   const inputSchemaHash = stringField(raw, 'inputSchemaHash')
   const approvalSchemaHash = stringField(raw, 'approvalSchemaHash')
-  const shouldSkipInputSchemaHash = !inputSchemaHash || !approvalSchemaHash
-  if (shouldSkipInputSchemaHash) return undefined
+  if (!inputSchemaHash) return undefined
+  if (!approvalSchemaHash) return undefined
   return {
     v: INTERRUPT_BINDING_VERSION,
     kind: 'tool-approval',
@@ -1051,9 +1048,8 @@ export function readUnopenedInterruptBinding(
   const raw = metadata
     ? objectValue(metadata[interruptBindingMetadataKey])
     : null
-  const shouldSkipRaw =
-    !raw || stringField(raw, 'interruptId') !== descriptor.id
-  if (shouldSkipRaw) {
+  if (!raw) return undefined
+  if (stringField(raw, 'interruptId') !== descriptor.id) {
     return undefined
   }
   if (!isSupportedBindingVersion(raw)) return undefined
@@ -1061,11 +1057,11 @@ export function readUnopenedInterruptBinding(
   const interruptId = stringField(raw, 'interruptId')
   const responseSchemaHash = stringField(raw, 'responseSchemaHash')
   const expiresAt = stringField(raw, 'expiresAt')
-  const shouldSkipInterruptId = !interruptId || responseSchemaHash === ''
-  if (shouldSkipInterruptId) return undefined
-  const isInvalidExpiresAt =
+  if (!interruptId) return undefined
+  if (responseSchemaHash === '') return undefined
+  const hasBadExpiry =
     expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt))
-  if (isInvalidExpiresAt) {
+  if (hasBadExpiry) {
     return undefined
   }
   if (kind === 'generic') {
@@ -1079,8 +1075,8 @@ export function readUnopenedInterruptBinding(
   if (!responseSchemaHash) return undefined
   const toolName = stringField(raw, 'toolName')
   const toolCallId = stringField(raw, 'toolCallId')
-  const shouldSkipToolName = !toolName || !toolCallId
-  if (shouldSkipToolName) return undefined
+  if (!toolName) return undefined
+  if (!toolCallId) return undefined
   if (kind === 'client-tool-execution') {
     return readClientToolUnopenedBinding(
       interruptId,
@@ -1133,12 +1129,12 @@ export function readInterruptBinding(
   if (!raw) return undefined
   const interruptedRunId = stringField(raw, 'interruptedRunId')
   const generation = raw['generation']
-  const isInvalidInterruptedRunId =
-    !interruptedRunId ||
+  if (!interruptedRunId) return undefined
+  const hasBadGeneration =
     typeof generation !== 'number' ||
     !Number.isInteger(generation) ||
     generation < 0
-  if (isInvalidInterruptedRunId) {
+  if (hasBadGeneration) {
     return undefined
   }
   return { ...unopened, interruptedRunId, generation }
@@ -1146,9 +1142,8 @@ export function readInterruptBinding(
 
 export function withoutInterruptBinding(descriptor: Interrupt): Interrupt {
   const metadata = objectValue(descriptor.metadata)
-  const shouldSkipMetadata =
-    !metadata || !(interruptBindingMetadataKey in metadata)
-  if (shouldSkipMetadata) return descriptor
+  if (!metadata) return descriptor
+  if (!(interruptBindingMetadataKey in metadata)) return descriptor
   const publicMetadata = { ...metadata }
   delete publicMetadata[interruptBindingMetadataKey]
   return { ...descriptor, metadata: publicMetadata }

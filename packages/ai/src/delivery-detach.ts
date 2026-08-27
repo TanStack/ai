@@ -8,8 +8,7 @@ export function publishRunDetachedSignal(
 }
 
 export function wasRunDetached(stream: unknown): boolean {
-  const isInvalidStream = typeof stream !== 'object' || stream === null
-  if (isInvalidStream) return false
+  if (typeof stream !== 'object' || stream === null) return false
   const signal = detachSignals.get(stream)
   if (signal === undefined) return false
   try {

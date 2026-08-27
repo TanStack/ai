@@ -264,6 +264,7 @@ export class GeminiTextAdapter<
     }
 
     function* processThoughtPart(part: Part): Generator<AdapterYieldChunk> {
+      if (!part.text) return
       if (!hasEmittedStepStarted) {
         hasEmittedStepStarted = true
         stepId = generateId(adapterName)
@@ -291,7 +292,7 @@ export class GeminiTextAdapter<
         }
       }
 
-      accumulatedThinking += part.text ?? ''
+      accumulatedThinking += part.text
       if (!reasoningMessageId) return
       yield {
         type: EventType.REASONING_MESSAGE_CONTENT,

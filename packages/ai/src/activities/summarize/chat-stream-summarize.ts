@@ -90,8 +90,8 @@ function applyDefaultTemperature(
       merged.options && typeof merged.options === 'object'
         ? (merged.options as Record<string, unknown>)
         : undefined
-    const hasTemperature = existing && 'temperature' in existing
-    if (hasTemperature) return merged
+    const alreadyHasTemperature = existing && 'temperature' in existing
+    if (alreadyHasTemperature) return merged
     merged.options = { temperature, ...existing }
     return merged
   }
@@ -118,10 +118,10 @@ function applyMaxLength(
       merged.options && typeof merged.options === 'object'
         ? (merged.options as Record<string, unknown>)
         : undefined
-    const shouldSkipCallerSetFlatLimit =
+    const hasCallerTokenLimit =
       callerSetFlatLimit ||
       (existing && typeof existing.num_predict === 'number')
-    if (shouldSkipCallerSetFlatLimit) {
+    if (hasCallerTokenLimit) {
       return merged
     }
     merged.options = { num_predict: maxLength, ...existing }

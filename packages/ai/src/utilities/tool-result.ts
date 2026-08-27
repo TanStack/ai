@@ -9,20 +9,18 @@ const CONTENT_PART_TYPES = new Set([
 ])
 
 export function isContentPart(value: unknown): value is ContentPart {
-  const isInvalid = typeof value !== 'object' || value === null
-  if (isInvalid) return false
+  if (typeof value !== 'object' || value === null) return false
   const part = value as Record<string, unknown>
-  const isInvalidPart =
+  const isUnknownPartType =
     typeof part.type !== 'string' || !CONTENT_PART_TYPES.has(part.type)
-  if (isInvalidPart) {
+  if (isUnknownPartType) {
     return false
   }
   if (part.type === 'text') {
     return typeof part.content === 'string'
   }
   const source = part.source
-  const isInvalidSource = typeof source !== 'object' || source === null
-  if (isInvalidSource) return false
+  if (typeof source !== 'object' || source === null) return false
   const src = source as Record<string, unknown>
   if (typeof src.value !== 'string') return false
   if (src.type === 'data') return typeof src.mimeType === 'string'

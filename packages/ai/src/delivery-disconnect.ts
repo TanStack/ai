@@ -8,8 +8,7 @@ export function publishRunDisconnectHandler(
 }
 
 export function notifyRunDisconnected(stream: unknown): void {
-  const isInvalidStream = typeof stream !== 'object' || stream === null
-  if (isInvalidStream) return
+  if (typeof stream !== 'object' || stream === null) return
   const handler = disconnectHandlers.get(stream)
   if (handler === undefined) return
   try {

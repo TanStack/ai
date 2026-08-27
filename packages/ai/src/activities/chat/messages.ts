@@ -58,12 +58,12 @@ function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
       ? bag
       : undefined
   const encrypted = encryptedValueFrom(toolCall)
-  const isInvalidBag = bag === null && encrypted === undefined
-  if (isInvalidBag) {
+  const shouldClearMetadata = bag === null && encrypted === undefined
+  if (shouldClearMetadata) {
     return { ...toolCall, metadata: null }
   }
-  const isMissingFromBag = fromBag === undefined && encrypted === undefined
-  if (isMissingFromBag) return toolCall
+  const hasNoMetadata = fromBag === undefined && encrypted === undefined
+  if (hasNoMetadata) return toolCall
   return {
     ...toolCall,
     metadata: {
@@ -98,8 +98,7 @@ function collapseContentParts(
 function getTextContent(
   content: string | null | undefined | Array<ContentPart>,
 ): string {
-  const isInvalid = content === null || content === undefined
-  if (isInvalid) return ''
+  if (content === null || content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((part): part is TextPart => part.type === 'text')
@@ -206,11 +205,11 @@ function convertWireModelMessage(
     restoreToolResultOwnership(msg),
   )
   const role = (modelMessage as { role: string }).role
-  const hasTool =
+  const isAnchoredToolResult =
     role === 'tool' &&
     modelMessage.toolCallId &&
     anchoredToolCallIds.has(modelMessage.toolCallId)
-  if (hasTool) {
+  if (isAnchoredToolResult) {
     return { kind: 'skip' }
   }
   if (role === 'reasoning') {
@@ -285,14 +284,15 @@ function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
 }
 
 export function restoreToolResultOwnership<T extends object>(message: T): T {
-  const hasRole = !('role' in message) || message.role !== 'tool'
-  if (hasRole) return message
+  if (!('role' in message)) return message
+  if (message.role !== 'tool') return message
   const source = message
   const metadata = tanstackMetadata(source)
   const owned = metadata?.toolResult
   if (!isRecord(owned)) return message
-  const hasContent = 'content' in owned && !isContentPartArray(owned.content)
-  if (hasContent) return message
+  const hasPlainContent =
+    'content' in owned && !isContentPartArray(owned.content)
+  if (hasPlainContent) return message
   const next = { ...message }
   if (!('id' in owned)) Reflect.deleteProperty(next, 'id')
   if (!('createdAt' in owned)) Reflect.deleteProperty(next, 'createdAt')
@@ -497,8 +497,8 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     const hasToolCalls = current.toolCalls.length > 0
     const hasThinking = pendingThinking.length > 0
 
-    const hasForce = force || hasContent || hasToolCalls || hasThinking
-    if (hasForce) {
+    const shouldFlush = force || hasContent || hasToolCalls || hasThinking
+    if (shouldFlush) {
       messageList.push({
         ...assistantFields,
         role: 'assistant',
@@ -515,13 +515,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   }
 
   function handleContentPart(part: MessagePart): boolean {
-    const isText =
+    const isInputPart =
       part.type === 'text' ||
       part.type === 'image' ||
       part.type === 'audio' ||
       part.type === 'video' ||
       part.type === 'document'
-    if (isText) {
+    if (isInputPart) {
       current.contentParts.push(part)
       return true
     }
@@ -547,10 +547,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   function handleToolResultPart(part: MessagePart): boolean {
     if (part.type !== 'tool-result') return false
     flushSegment(messageList.length === 0)
-    const hasPart =
+    const canEmitToolResult =
       (part.state === 'complete' || part.state === 'error') &&
       !emittedToolResultIds.has(part.toolCallId)
-    if (hasPart) {
+    if (canEmitToolResult) {
       messageList.push({
         ...(part.id !== undefined && { id: part.id }),
         ...optionalCreatedAt(part),
@@ -578,9 +578,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       })
       return
     }
-    const shouldSkipPart =
+    const isIncompleteStructuredOutput =
       part.type !== 'structured-output' || part.status !== 'complete'
-    if (shouldSkipPart) return
+    if (isIncompleteStructuredOutput) return
     const serialized =
       part.raw !== ''
         ? part.raw
@@ -620,9 +620,7 @@ function appendImplicitToolResults(
 ): void {
   for (const part of uiMessage.parts) {
     if (part.type !== 'tool-call') continue
-    const hasPart =
-      part.output !== undefined && !emittedToolResultIds.has(part.id)
-    if (hasPart) {
+    if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
         role: 'tool',
         content: normalizeToolResult(part.output),
@@ -912,9 +910,7 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   let metadata: NonNullable<UIMessage['metadata']> | undefined
   if ('metadata' in source) {
     const raw = source.metadata
-    const isInvalidRaw =
-      raw != null && typeof raw === 'object' && !Array.isArray(raw)
-    if (isInvalidRaw) {
+    if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
       metadata = raw as NonNullable<UIMessage['metadata']>
       next = { ...next, metadata }
     }
@@ -923,14 +919,14 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   const createdAt =
     coerceCreatedAt(next.createdAt) ??
     (metadata !== undefined ? createdAtFromMetadata(metadata) : undefined)
-  const hasCreatedAt =
+  const shouldSetCreatedAt =
     createdAt !== undefined && !Object.is(createdAt, next.createdAt)
-  if (hasCreatedAt) {
+  if (shouldSetCreatedAt) {
     next = { ...next, createdAt }
   } else {
-    const hasCreatedAt2 =
+    const shouldDropCreatedAt =
       createdAt === undefined && next.createdAt !== undefined
-    if (hasCreatedAt2) {
+    if (shouldDropCreatedAt) {
       const { createdAt: _invalid, ...rest } = next
       next = rest
     }

@@ -44,9 +44,7 @@ export function resolveVertexGeminiOptions(
   const apiKey = nonEmpty(config.apiKey) ?? readEnv('GOOGLE_VERTEX_API_KEY')
 
   if (apiKey === undefined) {
-    const missingProjectOrLocation =
-      project === undefined || location === undefined
-    if (missingProjectOrLocation) {
+    if (project === undefined || location === undefined) {
       throw new VertexAuthError(
         'Vertex Gemini needs project and location, or an express apiKey. Pass project and location on the factory, or set GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION. For express mode, pass apiKey or set GOOGLE_VERTEX_API_KEY.',
       )

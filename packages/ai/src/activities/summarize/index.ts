@@ -204,8 +204,7 @@ async function runSummarize(
 
 /** Read a `usage` off a transformed result without asserting its shape. */
 function usageOf(result: unknown): SummarizationResult['usage'] | undefined {
-  const isInvalidResult = typeof result !== 'object' || result === null
-  if (isInvalidResult) return undefined
+  if (typeof result !== 'object' || result === null) return undefined
   const usage = (result as { usage?: unknown }).usage
   return typeof usage === 'object' && usage !== null
     ? (usage as SummarizationResult['usage'])
@@ -299,9 +298,9 @@ async function* runNativeSummarizeStream(
   let settled = false
   try {
     for await (const chunk of stream) {
-      const isCUSTOM =
+      const isGenerationResult =
         chunk.type === 'CUSTOM' && chunk.name === 'generation:result'
-      if (isCUSTOM) {
+      if (isGenerationResult) {
         const result = await applyGenerationResultTransforms<unknown>(
           mwCtx,
           chunk.value,

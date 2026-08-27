@@ -12,9 +12,8 @@ export function renderLazyCatalogEntry(
   description: string,
   includeDescription: LazyToolsConfig['includeDescription'] = 'none',
 ): string {
-  const shouldSkipIncludeDescription =
-    includeDescription === 'none' || !description.trim()
-  if (shouldSkipIncludeDescription) return name
+  const skipDescription = includeDescription === 'none' || !description.trim()
+  if (skipDescription) return name
   const desc =
     includeDescription === 'first-sentence'
       ? firstSentence(description)

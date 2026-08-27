@@ -37,9 +37,7 @@ function reviveMessageCreatedAt(message: UIMessage): UIMessage {
 }
 
 function revivePersistedState(state: ChatPersistedState): ChatPersistedState {
-  const isMissingStateOrTypeofStateIsNotObject =
-    state == null || typeof state !== 'object'
-  if (isMissingStateOrTypeofStateIsNotObject) return state
+  if (state == null || typeof state !== 'object') return state
   if (!Array.isArray(state.messages)) return state
   return { ...state, messages: state.messages.map(reviveMessageCreatedAt) }
 }

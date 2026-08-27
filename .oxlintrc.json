@@ -272,7 +272,8 @@
           }
         ],
         "comment-limits/max-lines": "error",
-        "named-if/require-named-condition": "error"
+        "named-if/require-named-condition": "error",
+        "named-if/no-mechanical-name": "error"
       },
       "plugins": ["typescript"]
     }

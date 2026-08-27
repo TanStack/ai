@@ -8,8 +8,7 @@ function createId(prefix: string): string {
 }
 
 function artifactsFromResult(result: unknown): Array<unknown> | undefined {
-  const isInvalidResult = typeof result !== 'object' || result === null
-  if (isInvalidResult) return undefined
+  if (typeof result !== 'object' || result === null) return undefined
   const artifacts = (result as { artifacts?: unknown }).artifacts
   return Array.isArray(artifacts) && artifacts.length > 0
     ? artifacts

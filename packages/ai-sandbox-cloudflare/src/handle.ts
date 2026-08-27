@@ -202,8 +202,8 @@ export class CloudflareHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    const isMissingPath = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
-    if (isMissingPath) return undefined
+    const pathNotFound = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (pathNotFound) return undefined
     if (r.exitCode !== 0) {
       throw new Error(`lstat failed: ${r.stderr.trim()}`)
     }

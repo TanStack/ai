@@ -25,8 +25,8 @@ export interface StreamedFunctionCallMetadata {
 }
 
 interface ResponsesStreamLog {
-  provider: (message: string, extra?: unknown) => void
-  errors: (message: string, extra?: unknown) => void
+  provider: (message: string, extra?: Record<string, unknown>) => void
+  errors: (message: string, extra?: Record<string, unknown>) => void
 }
 
 interface ResponsesLoopOptions {
@@ -123,13 +123,10 @@ function streamDeltaToString(
 }
 
 function isAbortError(error: unknown): boolean {
-  const isNotNamedError =
-    typeof error !== 'object' || error === null || !('name' in error)
-  if (isNotNamedError) {
+  if (typeof error !== 'object' || error === null || !('name' in error)) {
     return false
   }
-  const errName = (error as { name: unknown }).name
-  return errName === 'AbortError' || errName === 'RequestAbortedError'
+  return error.name === 'AbortError' || error.name === 'RequestAbortedError'
 }
 
 function* emitRunStartedIfNeeded(

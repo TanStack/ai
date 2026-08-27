@@ -89,9 +89,9 @@ function ruleIsOpenNetwork(rule: Record<string, unknown>): boolean {
   if (isOpenPreset) return true
 
   const decision = String(rule.decision ?? rule.action ?? 'allow').toLowerCase()
-  const isDenyOrAsk =
+  const isRestrictiveRule =
     decision === 'deny' || decision === 'ask' || decision === 'prompt'
-  if (isDenyOrAsk) {
+  if (isRestrictiveRule) {
     return false
   }
 

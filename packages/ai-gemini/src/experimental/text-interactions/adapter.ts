@@ -31,7 +31,6 @@ import type {
 } from '@tanstack/ai'
 
 import type {
-  GeminiInteractionsCustomEvent,
   GeminiInteractionsCustomEventValue,
   GeminiInteractionsStream,
 } from './events'
@@ -136,11 +135,9 @@ export class GeminiTextInteractionsAdapter<
     let completedTryBlock = false
 
     const captureInteractionId = (chunk: AdapterYieldChunk) => {
-      const isNotInteractionIdEvent =
-        chunk.type !== EventType.CUSTOM || chunk.name !== 'gemini.interactionId'
-      if (isNotInteractionIdEvent) {
-        return
-      }
+      const isInteractionId =
+        chunk.type === EventType.CUSTOM && chunk.name === 'gemini.interactionId'
+      if (!isInteractionId) return
       const value =
         chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
       interactionIdByThread.set(threadId, value.interactionId)
@@ -404,9 +401,8 @@ function convertMessagesToInteractionsInput(
     ? messagesAfterLastAssistant(messages)
     : messages
 
-  const isMissingFollowUpMessages =
-    hasPreviousInteraction && source.length === 0
-  if (isMissingFollowUpMessages) {
+  const hasNoFollowUp = hasPreviousInteraction && source.length === 0
+  if (hasNoFollowUp) {
     throw new Error(
       'Gemini Interactions adapter: modelOptions.previous_interaction_id was provided but no new messages were found after the last assistant turn. Append at least one user or tool message before chaining.',
     )
@@ -465,8 +461,7 @@ function serializeToolResultContent(
   content: ModelMessage['content'] | undefined,
 ): string {
   if (typeof content === 'string') return content
-  const isMissingContent = content === null || content === undefined
-  if (isMissingContent) {
+  if (content === null || content === undefined) {
     throw new Error(
       'Gemini Interactions adapter: tool message has no content. The Interactions API requires a string `result` on function_result steps — return a string from your tool implementation (encode JSON/multimodal output yourself).',
     )

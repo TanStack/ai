@@ -107,6 +107,21 @@ function collectUsedNames(node, names) {
   }
 }
 
+function mechanicalScore(name) {
+  const parts = name.split(/(?=[A-Z])/)
+  let score = 0
+  for (const part of parts) {
+    if (/^(And|Or|Not|Typeof|TypeIs|Missing|Is)$/i.test(part)) score += 1
+  }
+  if (/OrTypeof|TypeIs|IsNotIs|Compared$|\d$/.test(name)) score += 2
+  if (name.length > 48) score += 2
+  return score
+}
+
+function isMechanicalName(name) {
+  return mechanicalScore(name) >= 2
+}
+
 function isLogicalIfTest(node) {
   const inner = unwrap(node)
   if (!inner) return false
@@ -159,6 +174,18 @@ function hasTypeGuard(node) {
   return false
 }
 
+export {
+  unwrap,
+  rootName,
+  collectNarrowedNames,
+  collectUsedNames,
+  isLogicalIfTest,
+  isExitStatement,
+  hasTypeGuard,
+  isMechanicalName,
+  mechanicalScore,
+}
+
 const plugin = {
   meta: { name: 'named-if' },
   rules: {
@@ -200,6 +227,37 @@ const plugin = {
             }
 
             context.report({ node: node.test, messageId: 'nameIt' })
+          },
+        }
+      },
+    },
+    'no-mechanical-name': {
+      meta: {
+        type: 'suggestion',
+        docs: {
+          description:
+            'Forbid script-concatenated condition names. Name the intent.',
+        },
+        schema: [],
+        messages: {
+          rename:
+            'Rename this condition to describe intent (e.g. isTerminalChunk), not the tokens.',
+        },
+      },
+      create(context) {
+        return {
+          VariableDeclarator(node) {
+            if (!node.id || node.id.type !== 'Identifier') return
+            if (!node.init) return
+            const init = unwrap(node.init)
+            const isCompound =
+              init?.type === 'LogicalExpression' ||
+              (init?.type === 'UnaryExpression' &&
+                init.operator === '!' &&
+                unwrap(init.argument)?.type === 'LogicalExpression')
+            if (!isCompound) return
+            if (!isMechanicalName(node.id.name)) return
+            context.report({ node: node.id, messageId: 'rename' })
           },
         }
       },

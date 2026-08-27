@@ -67,8 +67,8 @@ function parseFindOutput(stdout: string, root: string): Map<string, string> {
     if (line === '') continue
     const firstTab = line.indexOf('\t')
     const secondTab = line.indexOf('\t', firstTab + 1)
-    const isMissingTab = firstTab === -1 || secondTab === -1
-    if (isMissingTab) continue
+    const isMalformedLine = firstTab === -1 || secondTab === -1
+    if (isMalformedLine) continue
     const mtime = line.slice(0, firstTab)
     const size = line.slice(firstTab + 1, secondTab)
     const rel = line.slice(secondTab + 1).replace(/^\.\/?/, '')

@@ -126,9 +126,7 @@ const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
 function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
   return interrupts.some((interrupt) => {
     const metadata = interrupt.metadata
-    const isInvalidMetadata =
-      !metadata || typeof metadata !== 'object' || Array.isArray(metadata)
-    if (isInvalidMetadata) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
       return false
     }
     const binding = metadata[INTERRUPT_BINDING_METADATA_KEY]
@@ -558,16 +556,15 @@ export class StreamProcessor {
     const ids = Array.from(this.activeMessageIds).reverse()
     for (const id of ids) {
       const state = this.messageStates.get(id)
-      const isAssistant = state && state.role === 'assistant'
-      if (isAssistant) {
+      const isAssistantState = state && state.role === 'assistant'
+      if (isAssistantState) {
         return id
       }
     }
     // finalizeStream() clears activeMessageIds but keeps messageStates.
-    // Leftover reasoning after an early RUN_FINISHED must resume that
-    // assistant. A new user turn calls prepareAssistantMessage(), which
-    // clears messageStates first.
-    for (const [id, state] of [...this.messageStates].reverse()) {
+    // Resume leftover reasoning on that assistant after an early RUN_FINISHED.
+    const previousStates = [...this.messageStates].reverse()
+    for (const [id, state] of previousStates) {
       if (state.role === 'assistant') {
         return id
       }
@@ -618,8 +615,7 @@ export class StreamProcessor {
           existingMsg.parts.length > 0
             ? existingMsg.parts[existingMsg.parts.length - 1]
             : null
-        const isText = lastPart && lastPart.type === 'text'
-        if (isText) {
+        if (lastPart && lastPart.type === 'text') {
           state.currentSegmentText = lastPart.content
           state.lastEmittedText = lastPart.content
           state.totalTextContent = lastPart.content
@@ -647,11 +643,11 @@ export class StreamProcessor {
   }
 
   private mergeMessageMetadata(messageId: string, incoming: unknown): void {
-    const isInvalidIncoming =
+    if (
       incoming == null ||
       typeof incoming !== 'object' ||
       Array.isArray(incoming)
-    if (isInvalidIncoming) {
+    ) {
       return
     }
     const message = this.messages.find((msg) => msg.id === messageId)
@@ -732,10 +728,8 @@ export class StreamProcessor {
         pendingState = this.createMessageState(messageId, uiRole)
         this.activeMessageIds.add(messageId)
       } else if (pendingState.hasToolCallsSinceTextStart) {
-        // A tool call (e.g. TOOL_CALL_START with parentMessageId) marked
-        // this message before its "real" TEXT_MESSAGE_START arrived — same
-        // reset Case 2 performs, so the segment accumulator doesn't carry
-        // stale tool-call state into the text that follows.
+        // Tool-call start marked this message before TEXT_MESSAGE_START.
+        // Reset the segment so stale tool-call state does not leak into text.
         if (pendingState.currentSegmentText !== pendingState.lastEmittedText) {
           this.emitTextUpdateForMessage(messageId)
         }
@@ -851,9 +845,9 @@ export class StreamProcessor {
         pending.push(msg)
         continue
       }
-      const hasMsg =
+      const canMergeThinking =
         msg.role === 'assistant' && pending.length > 0 && !isToolResultOnly(msg)
-      if (hasMsg) {
+      if (canMergeThinking) {
         out.push({
           ...msg,
           parts: [...pending.flatMap(thinkingParts), ...msg.parts],
@@ -934,12 +928,12 @@ export class StreamProcessor {
       }
 
       const parts = [...target.parts]
-      const isToolCall =
+      const needsCarriedToolCall =
         !snapshotToolCallIds.has(toolResultPart.toolCallId) &&
         !parts.some(
           (p) => p.type === 'tool-call' && p.id === toolResultPart.toolCallId,
         )
-      if (isToolCall) {
+      if (needsCarriedToolCall) {
         const prev = prevToolCalls.get(toolResultPart.toolCallId)
         if (prev) {
           // Insert the carried-over tool-call before its tool-result (pushed
@@ -982,7 +976,7 @@ export class StreamProcessor {
 
         // Prefer a pre-snapshot call that already carried output/complete —
         // the client observed TOOL_CALL_END/RESULT before the snapshot wipe.
-        const isIncompletePrev =
+        const preferPrevOutput =
           prev &&
           (prev.output !== undefined ||
             prev.state === 'complete' ||
@@ -991,7 +985,7 @@ export class StreamProcessor {
             part.state === 'input-complete' ||
             part.state === 'input-streaming' ||
             part.state === 'awaiting-input')
-        if (isIncompletePrev) {
+        if (preferPrevOutput) {
           next = {
             ...part,
             ...(prev.output !== undefined ? { output: prev.output } : {}),
@@ -1002,8 +996,7 @@ export class StreamProcessor {
         }
 
         // Apply sibling tool-result when the call still has no output.
-        const hasResult = result && next.output === undefined
-        if (hasResult) {
+        if (result && next.output === undefined) {
           let output: unknown
           if (Array.isArray(result.content)) {
             output = result.content
@@ -1089,9 +1082,9 @@ export class StreamProcessor {
       chunkPortion,
       state.currentSegmentText,
     )
-    const shouldEmit2 =
+    const canEmitText =
       shouldEmit && state.currentSegmentText !== state.lastEmittedText
-    if (shouldEmit2) {
+    if (canEmitText) {
       this.emitTextUpdateForMessage(messageId)
     }
   }
@@ -1175,8 +1168,8 @@ export class StreamProcessor {
     existingToolCall.arguments += chunk.delta || ''
 
     // Update state
-    const hasWasAwaitingInput = wasAwaitingInput && chunk.delta
-    if (hasWasAwaitingInput) {
+    const startStreamingArgs = wasAwaitingInput && chunk.delta
+    if (startStreamingArgs) {
       existingToolCall.state = 'input-streaming'
     }
 
@@ -1221,11 +1214,8 @@ export class StreamProcessor {
 
     // Transition the tool call to input-complete (the authoritative completion signal)
     const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
-    const hasExistingToolCall =
-      existingToolCall && existingToolCall.state !== 'input-complete'
-    if (hasExistingToolCall) {
-      const hasInput = input !== undefined && !existingToolCall.arguments
-      if (hasInput) {
+    if (existingToolCall && existingToolCall.state !== 'input-complete') {
+      if (input !== undefined && !existingToolCall.arguments) {
         try {
           existingToolCall.arguments = JSON.stringify(input)
         } catch {
@@ -1361,9 +1351,9 @@ export class StreamProcessor {
           : this.findToolCallName(toolCallId)
       const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
 
-      const hasKind =
+      const isApprovalInterrupt =
         kind === 'approval' || interrupt.reason === 'approval_required'
-      if (hasKind) {
+      if (isApprovalInterrupt) {
         const resolvedMessageId =
           this.getActiveAssistantMessageId() ??
           this.toolCallToMessage.get(toolCallId) ??
@@ -1393,9 +1383,9 @@ export class StreamProcessor {
         continue
       }
 
-      const hasKind2 =
+      const isClientToolInterrupt =
         kind === 'client_tool' || interrupt.reason === 'client_tool_input'
-      if (hasKind2) {
+      if (isClientToolInterrupt) {
         // Generic interrupts in the same batch decide `toolResume`. Do not
         // run client tools until that policy is `continue`.
         if (hasGeneric) continue
@@ -1538,9 +1528,7 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'REASONING_ENCRYPTED_VALUE' }>,
   ): void {
     const encryptedValue = chunk.encryptedValue
-    const isInvalidEncryptedValue =
-      typeof encryptedValue !== 'string' || encryptedValue === ''
-    if (isInvalidEncryptedValue) return
+    if (typeof encryptedValue !== 'string' || encryptedValue === '') return
 
     if (chunk.subtype === 'tool-call') {
       this.attachToolCallSignature(chunk.entityId, encryptedValue)
@@ -1574,9 +1562,9 @@ export class StreamProcessor {
     this.messages = this.messages.map((msg) => {
       let changed = false
       const parts = msg.parts.map((part) => {
-        const shouldSkipPart =
+        const isOtherToolCall =
           part.type !== 'tool-call' || part.id !== toolCallId
-        if (shouldSkipPart) return part
+        if (isOtherToolCall) return part
         changed = true
         return {
           ...part,
@@ -1890,8 +1878,8 @@ export class StreamProcessor {
 
   private flushStructuredOutputUpdate(messageId: string): void {
     const batch = this.structuredOutputUpdateBatches.get(messageId)
-    const shouldSkipBatch = !batch || batch.chunkCount === 0
-    if (shouldSkipBatch) return
+    if (!batch) return
+    if (batch.chunkCount === 0) return
 
     this.structuredOutputUpdateBatches.delete(messageId)
     this.emitStructuredOutputChange(messageId, 'update', batch.delta)

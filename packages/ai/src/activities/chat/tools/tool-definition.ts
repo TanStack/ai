@@ -10,7 +10,7 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 
-export declare const toolApprovalCapability: unique symbol
+declare const toolApprovalCapability: unique symbol
 
 export interface ToolApprovalCapabilityMarker<
   TNeedsApproval extends boolean,
@@ -238,9 +238,9 @@ export function toolDefinition<
     TApprovalSchema
   >,
 ): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> {
-  const hasConfig =
+  const isOrphanApprovalSchema =
     config.approvalSchema !== undefined && config.needsApproval !== true
-  if (hasConfig) {
+  if (isOrphanApprovalSchema) {
     throw new TypeError('approvalSchema requires needsApproval: true.')
   }
   const inputSchema = config.inputSchema as TInput

@@ -168,12 +168,11 @@ export class InMemoryRunStore implements RunStore {
     let active: RunRecord | null = null
     const runs = this.runs.values()
     for (const run of runs) {
-      const shouldSkipRun =
+      const isInactiveRun =
         run.threadId !== threadId || run.status !== 'running'
-      if (shouldSkipRun) continue
-      const isInvalidActive =
-        active === null || run.startedAt > active.startedAt
-      if (isInvalidActive) active = run
+      if (isInactiveRun) continue
+      const isNewerRun = active === null || run.startedAt > active.startedAt
+      if (isNewerRun) active = run
     }
     return Promise.resolve(active)
   }

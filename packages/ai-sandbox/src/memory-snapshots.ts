@@ -233,8 +233,7 @@ function validateEntries(checkpoint: SandboxCheckpoint): void {
   const paths = new Set<string>()
   const kinds = new Map<string, 'file' | 'dir'>()
   for (const entry of checkpoint.files as ReadonlyArray<unknown>) {
-    const isNotEntryObject = entry === null || typeof entry !== 'object'
-    if (isNotEntryObject) {
+    if (entry === null || typeof entry !== 'object') {
       throw new SandboxCheckpointInvalidEntryError(
         'Checkpoint entry must be an object',
       )
@@ -297,9 +296,7 @@ function validateArtifacts(checkpoint: SandboxCheckpoint): void {
     )
   }
   for (const artifact of checkpoint.artifacts as ReadonlyArray<unknown>) {
-    const isNotArtifactObject =
-      artifact === null || typeof artifact !== 'object'
-    if (isNotArtifactObject) {
+    if (artifact === null || typeof artifact !== 'object') {
       throw new SandboxCheckpointInvalidEntryError(
         'Checkpoint artifact must be an object',
       )

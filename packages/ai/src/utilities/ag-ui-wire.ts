@@ -158,11 +158,11 @@ function appendToolCallFanout(
   usedWireIds: Set<string>,
 ): void {
   const approved = part.approval?.approved
-  const isIncompleteExplicitToolResults =
+  const skipFanout =
     explicitToolResults.has(part.id) ||
     (part.output === undefined &&
       (part.state !== 'approval-responded' || approved === undefined))
-  if (isIncompleteExplicitToolResults) {
+  if (skipFanout) {
     return
   }
   const result =
@@ -391,8 +391,7 @@ function messageMetadata(
 
   const toolCallMetadata: Record<string, unknown> = {}
   for (const part of parts) {
-    const hasPart = part.type === 'tool-call' && part.metadata !== undefined
-    if (hasPart) {
+    if (part.type === 'tool-call' && part.metadata !== undefined) {
       toolCallMetadata[part.id] = part.metadata
     }
   }
@@ -415,10 +414,10 @@ function serializedStructuredOutput(
   includeSnapshotStructuredOutput: boolean,
 ): TanStackMessageMetadata['structuredOutput'] | undefined {
   for (const p of parts) {
-    const isStructuredOutput =
+    const isLiveStructuredOutput =
       p.type === 'structured-output' &&
       (includeSnapshotStructuredOutput || p.status !== 'complete')
-    if (isStructuredOutput) {
+    if (isLiveStructuredOutput) {
       return structuredOutputMetadata(p, includeSnapshotStructuredOutput)
     }
   }
@@ -451,11 +450,11 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
     if (p.type === 'text') {
       out.push(p.content)
     } else {
-      const isStructuredOutput =
+      const isCompleteStructuredText =
         p.type === 'structured-output' &&
         p.status === 'complete' &&
         p.raw !== ''
-      if (isStructuredOutput) {
+      if (isCompleteStructuredText) {
         out.push(p.raw)
       }
     }
@@ -481,12 +480,12 @@ function collectUserContent(
     if (p.type === 'text') {
       out.push({ type: 'text', text: p.content })
     } else {
-      const isImage =
+      const isMediaPart =
         p.type === 'image' ||
         p.type === 'audio' ||
         p.type === 'video' ||
         p.type === 'document'
-      if (isImage) {
+      if (isMediaPart) {
         out.push(p)
       }
     }
@@ -495,9 +494,11 @@ function collectUserContent(
 }
 
 function thoughtSignatureFromMetadata(metadata: unknown): string | undefined {
-  const isInvalidMetadata =
-    metadata == null || typeof metadata !== 'object' || Array.isArray(metadata)
-  if (isInvalidMetadata) {
+  if (
+    metadata == null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata)
+  ) {
     return undefined
   }
   if (!('thoughtSignature' in metadata)) return undefined
@@ -553,8 +554,8 @@ function toolWireId(
   assistantIds: ReadonlySet<string>,
 ): string {
   const derived = deriveToolMessageId(toolCallId)
-  const isIncompleteId = id === undefined || assistantIds.has(id)
-  if (isIncompleteId) return derived
+  if (id === undefined) return derived
+  if (assistantIds.has(id)) return derived
   return id
 }
 

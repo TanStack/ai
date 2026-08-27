@@ -10,8 +10,8 @@ import type { ChatStreamChoice, ChatStreamChunk } from '@openrouter/sdk/models'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 
 interface ChatStreamLog {
-  provider: (message: string, extra?: unknown) => void
-  errors: (message: string, extra?: unknown) => void
+  provider: (message: string, extra?: Record<string, unknown>) => void
+  errors: (message: string, extra?: Record<string, unknown>) => void
 }
 
 interface ChatLoopOptions {
@@ -66,13 +66,10 @@ function currentModel(lastModel: string | undefined, fallback: string): string {
 }
 
 function isAbortError(error: unknown): boolean {
-  const isNotNamedError =
-    typeof error !== 'object' || error === null || !('name' in error)
-  if (isNotNamedError) {
+  if (typeof error !== 'object' || error === null || !('name' in error)) {
     return false
   }
-  const errName = (error as { name: unknown }).name
-  return errName === 'AbortError' || errName === 'RequestAbortedError'
+  return error.name === 'AbortError' || error.name === 'RequestAbortedError'
 }
 
 function parseToolCallInput(
@@ -110,9 +107,9 @@ function mapChatFinishReason(
   if (emittedAnyToolCallEnd) return 'tool_calls'
   if (pendingFinishReason === 'tool_calls') return 'stop'
   if (pendingFinishReason === 'length') return 'length'
-  const isContentFilterOrError =
+  const isFilteredFinish =
     pendingFinishReason === 'content_filter' || pendingFinishReason === 'error'
-  if (isContentFilterOrError) {
+  if (isFilteredFinish) {
     return 'content_filter'
   }
   return 'stop'

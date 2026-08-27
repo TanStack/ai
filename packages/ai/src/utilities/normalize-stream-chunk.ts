@@ -43,9 +43,7 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       (chunk.metadata as { thoughtSignature?: unknown } | undefined)
         ?.thoughtSignature,
     )
-    const hasThoughtSignature =
-      thoughtSignature !== undefined && chunk.toolCallId
-    if (hasThoughtSignature) {
+    if (thoughtSignature !== undefined && chunk.toolCallId) {
       extras.push(
         reasoningEncryptedValue({
           subtype: 'tool-call',
@@ -75,8 +73,7 @@ function copySpecFields(
     }
   }
   if (chunk.type === EventType.TOOL_CALL_START) {
-    const hasSpecChunk = specChunk.toolCallName === undefined && chunk.toolName
-    if (hasSpecChunk) {
+    if (specChunk.toolCallName === undefined && chunk.toolName) {
       specChunk.toolCallName = chunk.toolName
     }
   }
@@ -93,10 +90,10 @@ function copySpecFields(
 
 function leftoverSkipKeys(chunk: AdapterYieldChunk): Set<string> {
   const skipLeftover = new Set(['result', 'error', 'tanstack:interruptErrors'])
-  const hasChunk =
+  const isDeltaChunk =
     chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
     chunk.type === EventType.TOOL_CALL_ARGS
-  if (hasChunk) {
+  if (isDeltaChunk) {
     skipLeftover.add('model')
     skipLeftover.add('content')
     skipLeftover.add('args')
@@ -113,11 +110,11 @@ function collectTanstackMetadata(
   specChunk: Record<string, unknown>,
 ): MetadataRecord {
   const tanstack: MetadataRecord = {}
-  const hasChunk =
+  const canStoreModel =
     chunk.model !== undefined &&
     chunk.type !== EventType.TEXT_MESSAGE_CONTENT &&
     chunk.type !== EventType.TOOL_CALL_ARGS
-  if (hasChunk) {
+  if (canStoreModel) {
     tanstack.model = chunk.model
   }
   if (chunk.finishReason !== undefined) {
@@ -127,9 +124,9 @@ function collectTanstackMetadata(
   if (interruptErrors !== undefined) {
     tanstack.interruptErrors = interruptErrors
   }
-  const hasChunk2 =
+  const canStoreIds =
     chunk.type === EventType.CUSTOM || chunk.type === EventType.RUN_ERROR
-  if (hasChunk2) {
+  if (canStoreIds) {
     if (chunk.threadId !== undefined) {
       tanstack.threadId = chunk.threadId
     }
@@ -141,8 +138,8 @@ function collectTanstackMetadata(
   const skipLeftover = leftoverSkipKeys(chunk)
   const keys = Object.keys(chunk)
   for (const key of keys) {
-    const shouldSkipSpecKeys = specKeys.has(key) || skipLeftover.has(key)
-    if (shouldSkipSpecKeys) continue
+    const isKnownKey = specKeys.has(key) || skipLeftover.has(key)
+    if (isKnownKey) continue
     if (tanstack[key] !== undefined) continue
     const value = source[key]
     if (value !== undefined) {

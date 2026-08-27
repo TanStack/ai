@@ -82,12 +82,12 @@ export function defaultSpawn(
 }
 
 export function mapSbxError(error: unknown, binary: string): Error {
-  const isMissingBinary =
-    Boolean(error) &&
+  if (
     typeof error === 'object' &&
+    error !== null &&
     'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
-  if (isMissingBinary) {
+    error.code === 'ENOENT'
+  ) {
     return new Error(INSTALL_HELP)
   }
   if (error instanceof Error) return error
@@ -256,8 +256,8 @@ export function parseJsonAfterBanner(stdout: string): unknown {
   let sawStart = false
   for (let i = 0; i < stdout.length; i++) {
     const ch = stdout[i]
-    const isNotJsonStart = ch !== '{' && ch !== '['
-    if (isNotJsonStart) continue
+    const isJsonStart = ch === '{' || ch === '['
+    if (!isJsonStart) continue
     sawStart = true
     try {
       return JSON.parse(stdout.slice(i)) as unknown

@@ -58,8 +58,7 @@ function reconstituteWorkspace(
   const values: Record<string, string> = {}
   for (const name of names) {
     const value = process.env[name]
-    const isMissingSecret = value === undefined || value === ''
-    if (isMissingSecret) {
+    if (value === undefined || value === '') {
       throw new Error(
         `runInContainerHarness: secret "${name}" is not set in the container env`,
       )

@@ -42,10 +42,10 @@ function sha256Hex(input: string): string {
   for (let offset = 0; offset < total; offset += 64) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4)
     for (let i = 16; i < 64; i++) {
-      const x15 = w[i - 15] ?? 0
-      const x2 = w[i - 2] ?? 0
-      const s0 = rotr(x15, 7) ^ rotr(x15, 18) ^ (x15 >>> 3)
-      const s1 = rotr(x2, 17) ^ rotr(x2, 19) ^ (x2 >>> 10)
+      const farWord = w[i - 15] ?? 0
+      const nearWord = w[i - 2] ?? 0
+      const s0 = rotr(farWord, 7) ^ rotr(farWord, 18) ^ (farWord >>> 3)
+      const s1 = rotr(nearWord, 17) ^ rotr(nearWord, 19) ^ (nearWord >>> 10)
       w[i] = ((w[i - 16] ?? 0) + s0 + (w[i - 7] ?? 0) + s1) >>> 0
     }
 
@@ -105,13 +105,10 @@ export function defaultInterruptHash(canonicalJson: string): string {
 
 function canonical(value: unknown, active: WeakSet<object>): string {
   if (value === null) return 'null'
-  const shouldSkipCanonical =
-    typeof value === 'string' || typeof value === 'boolean'
-  if (shouldSkipCanonical) {
+  if (typeof value === 'string' || typeof value === 'boolean') {
     return JSON.stringify(value)
   }
-  const canonical2 = typeof value === 'number' && Number.isFinite(value)
-  if (canonical2) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
     return JSON.stringify(value)
   }
   if (typeof value !== 'object') {
@@ -120,11 +117,11 @@ function canonical(value: unknown, active: WeakSet<object>): string {
   if (active.has(value)) {
     throw new TypeError('Interrupt values must not cycle.')
   }
-  const isInvalidGetPrototypeOf =
+  const hasExoticPrototype =
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) !== Object.prototype &&
     Object.getPrototypeOf(value) !== null
-  if (isInvalidGetPrototypeOf) {
+  if (hasExoticPrototype) {
     throw new TypeError('Interrupt values must use plain JSON objects.')
   }
 
@@ -162,9 +159,7 @@ export function digestInterruptJson(
 }
 
 function freezeTree(value: unknown): void {
-  const isInvalidIsFrozen =
-    value === null || typeof value !== 'object' || Object.isFrozen(value)
-  if (isInvalidIsFrozen) {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) {
     return
   }
   Object.values(value).forEach(freezeTree)

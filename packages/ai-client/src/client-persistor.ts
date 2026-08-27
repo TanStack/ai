@@ -12,8 +12,7 @@ function normalizePersistedState(
   raw: ChatPersistedState | Array<UIMessage> | null | undefined,
 ): ChatPersistedState | undefined {
   if (Array.isArray(raw)) return { messages: raw }
-  const isRawAndMessagesIsArray = raw && Array.isArray(raw.messages)
-  if (isRawAndMessagesIsArray) return raw
+  if (raw && Array.isArray(raw.messages)) return raw
   return undefined
 }
 
@@ -66,9 +65,8 @@ export class ChatPersistor {
   /** Persist the current state as one combined `{ messages, resume? }` record. */
   private writeState(): void {
     const messages = [...this.lastMessages]
-    const isEmptyMessagesAndNotLastResume =
-      messages.length === 0 && !this.lastResume
-    if (isEmptyMessagesAndNotLastResume) {
+    const isEmptyState = messages.length === 0 && !this.lastResume
+    if (isEmptyState) {
       const generation = this.generation
       this.runOperation(() => {
         if (generation !== this.generation) {
@@ -124,9 +122,10 @@ export class ChatPersistor {
     const hydrationGeneration = this.messagesGeneration
     persistedState
       .then((state) => {
-        const isNotStateOrMessagesGenerationIsNotHydrationGeneration =
-          !state || this.messagesGeneration !== hydrationGeneration
-        if (isNotStateOrMessagesGenerationIsNotHydrationGeneration) {
+        if (!state) {
+          return
+        }
+        if (this.messagesGeneration !== hydrationGeneration) {
           return
         }
         this.lastResume = state.resume ?? null

@@ -14,8 +14,7 @@ export function getByokKey(
   if (typeof provider === 'string') return null
   for (const name of provider.env ?? []) {
     const envValue = process.env[name]
-    const hasEnvValue = typeof envValue === 'string' && envValue.length > 0
-    if (hasEnvValue) return envValue
+    if (typeof envValue === 'string' && envValue.length > 0) return envValue
   }
   return null
 }

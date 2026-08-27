@@ -105,8 +105,8 @@ export async function* alignToStoredLog<TOffset extends string = string>(
     for (;;) {
       const entry = entries[cursor]
       const expected = stored[cursor]
-      const isMissingAlignPair = entry === undefined || expected === undefined
-      if (isMissingAlignPair) {
+      const reachedLogEnd = entry === undefined || expected === undefined
+      if (reachedLogEnd) {
         forwarded += 1
         yield chunk
         break
@@ -134,11 +134,11 @@ export async function* alignToStoredLog<TOffset extends string = string>(
 
   while (cursor < stored.length) {
     const entry = entries[cursor]
-    const isMissingOutOfBandTail =
+    if (
       entry === undefined ||
       isOutOfBand === undefined ||
       !isOutOfBand(entry.chunk)
-    if (isMissingOutOfBandTail) {
+    ) {
       throw new Error(
         `journal replay is shorter than the stored log: ${stored.length - cursor} stored chunk(s) from index ${cursor} were not reproduced`,
       )

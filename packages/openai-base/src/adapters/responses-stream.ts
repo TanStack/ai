@@ -380,9 +380,9 @@ function* handleFailedOrIncomplete(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  const isFailedOrIncomplete =
+  const isTerminalFailure =
     chunk.type === 'response.failed' || chunk.type === 'response.incomplete'
-  if (!isFailedOrIncomplete) {
+  if (!isTerminalFailure) {
     return
   }
   if (!('response' in chunk)) return
@@ -422,9 +422,9 @@ function* handleOutputTextDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  const isNotOutputTextDelta =
-    chunk.type !== 'response.output_text.delta' || !chunk.delta
-  if (isNotOutputTextDelta) return
+  const isOutputTextDelta =
+    chunk.type === 'response.output_text.delta' && chunk.delta
+  if (!isOutputTextDelta) return
   const textDelta = joinDelta(chunk.delta)
   if (!textDelta) return
   yield* closeReasoning(ctx)
@@ -447,11 +447,11 @@ function* handleReasoningTextDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  const isNotReasoningTextDelta =
-    (chunk.type !== 'response.reasoning_text.delta' &&
-      chunk.type !== 'response.reasoning.delta') ||
-    !chunk.delta
-  if (isNotReasoningTextDelta) {
+  const isReasoningTextDelta =
+    (chunk.type === 'response.reasoning_text.delta' ||
+      chunk.type === 'response.reasoning.delta') &&
+    chunk.delta
+  if (!isReasoningTextDelta) {
     return
   }
   yield* emitReasoningDelta(ctx, joinDelta(chunk.delta))
@@ -461,9 +461,9 @@ function* handleReasoningSummaryDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  const isNotReasoningSummaryDelta =
-    chunk.type !== 'response.reasoning_summary_text.delta' || !chunk.delta
-  if (isNotReasoningSummaryDelta) {
+  const isReasoningSummaryDelta =
+    chunk.type === 'response.reasoning_summary_text.delta' && chunk.delta
+  if (!isReasoningSummaryDelta) {
     return
   }
   const summaryDelta = typeof chunk.delta === 'string' ? chunk.delta : ''
@@ -554,8 +554,8 @@ function* handleOutputItemAdded(
   if (chunk.type !== 'response.output_item.added') return
   const item = chunk.item
   const itemId = item.id
-  const isNotFunctionCall = item.type !== 'function_call' || !itemId
-  if (isNotFunctionCall) return
+  const isFunctionCall = item.type === 'function_call' && itemId
+  if (!isFunctionCall) return
   const metadata = upsertFunctionCallMetadata(ctx, item, chunk.output_index)
   if (!metadata) return
   yield* emitToolCallStart(ctx, metadata, itemId, chunk.output_index)
@@ -565,9 +565,9 @@ function* handleFunctionCallArgsDelta(
   ctx: ResponsesStreamContext,
   chunk: ResponsesStreamChunk,
 ): Generator<AdapterYieldChunk> {
-  const isNotFunctionCallArgsDelta =
-    chunk.type !== 'response.function_call_arguments.delta' || !chunk.delta
-  if (isNotFunctionCallArgsDelta) {
+  const isFunctionCallArgsDelta =
+    chunk.type === 'response.function_call_arguments.delta' && chunk.delta
+  if (!isFunctionCallArgsDelta) {
     return
   }
   const metadata = ctx.toolCallMetadata.get(chunk.item_id)
@@ -649,8 +649,8 @@ function* handleOutputItemDone(
   if (chunk.type !== 'response.output_item.done') return
   const item = chunk.item
   const itemId = item.id
-  const isNotFunctionCall = item.type !== 'function_call' || !itemId
-  if (isNotFunctionCall) return
+  const isFunctionCall = item.type === 'function_call' && itemId
+  if (!isFunctionCall) return
   const metadata = upsertFunctionCallMetadata(ctx, item, chunk.output_index)
   if (!metadata) return
   yield* emitToolCallStart(ctx, metadata, itemId, metadata.index)
@@ -714,8 +714,8 @@ function* backfillCompletedFunctionCall(
   const metadata = upsertFunctionCallMetadata(ctx, item, 0)
   if (!metadata) return
   yield* emitToolCallStart(ctx, metadata, item.id, metadata.index)
-  const alreadyEndedOrNotStarted = !metadata.started || metadata.ended
-  if (alreadyEndedOrNotStarted) return
+  const skipBackfill = !metadata.started || metadata.ended
+  if (skipBackfill) return
   const name = metadata.name || ''
   const rawArgs = functionCallRawArgs(item, metadata)
   const parsedInput = parseAndNormalizeArgs(

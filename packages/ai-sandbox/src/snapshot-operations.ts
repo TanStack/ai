@@ -103,9 +103,7 @@ async function withWriterLease<T>(
   let stopped = false
 
   const scheduleRenewal = (): void => {
-    const isMissingRenewal =
-      renewWriter === undefined || renewAfterMs === undefined
-    if (isMissingRenewal) return
+    if (renewWriter === undefined || renewAfterMs === undefined) return
     renewalTimer = setTimeout(() => {
       renewalTimer = undefined
       renewalTask = (async () => {
@@ -203,9 +201,9 @@ function requireSnapshotPersistence<TPersistence extends SnapshotPersistence>(
   persistence: TPersistence,
 ): TPersistence {
   const stores = persistence.stores
-  const isMissingSnapshotStores =
+  const lacksSnapshotStores =
     !stores?.messages || !stores.artifacts || !stores.blobs
-  if (isMissingSnapshotStores) {
+  if (lacksSnapshotStores) {
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_MISSING_PERSISTENCE_STORES',
       'Sandbox snapshots require persistence stores.messages, stores.artifacts, and stores.blobs',

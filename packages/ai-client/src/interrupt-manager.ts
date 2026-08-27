@@ -208,9 +208,9 @@ function hasReservedFirstPartyBindingMarker(interrupt: Interrupt): boolean {
   if (!isUnknownObject(interrupt.metadata)) return false
   const binding = interrupt.metadata[INTERRUPT_BINDING_METADATA_KEY]
   if (!isUnknownObject(binding)) return false
-  const isVIsNotUndefinedAndVIsNotINTERRUPT_BINDING_VERSION =
+  const isUnsupportedBindingVersion =
     binding['v'] !== undefined && binding['v'] !== INTERRUPT_BINDING_VERSION
-  if (isVIsNotUndefinedAndVIsNotINTERRUPT_BINDING_VERSION) {
+  if (isUnsupportedBindingVersion) {
     return false
   }
   return (
@@ -227,9 +227,9 @@ function hasReservedFirstPartyBindingMarker(interrupt: Interrupt): boolean {
 function hasFirstPartyGenericMarker(interrupt: Interrupt): boolean {
   if (!isUnknownObject(interrupt.metadata)) return false
   const binding = interrupt.metadata[INTERRUPT_BINDING_METADATA_KEY]
-  const isNotIsUnknownObjectOrKindIsNotGeneric =
-    !isUnknownObject(binding) || binding['kind'] !== 'generic'
-  if (isNotIsUnknownObjectOrKindIsNotGeneric) return false
+  const isGenericBinding =
+    isUnknownObject(binding) && binding['kind'] === 'generic'
+  if (!isGenericBinding) return false
   return (
     'definitionId' in binding ||
     'key' in binding ||
@@ -414,11 +414,11 @@ function submissionErrorMatchesActiveBatch(
   error: InterruptSubmissionError,
   submission: InterruptManagerSubmission,
 ): boolean {
-  const isThreadIdIsNotThreadIdOrInterruptedRunIdIsNotInterruptedRunId =
+  const isForeignBatch =
     error.threadId !== submission.threadId ||
     error.interruptedRunId !== submission.interruptedRunId ||
     error.generation !== submission.generation
-  if (isThreadIdIsNotThreadIdOrInterruptedRunIdIsNotInterruptedRunId) {
+  if (isForeignBatch) {
     return false
   }
   const interruptIds = submission.resolutions.map(
@@ -484,11 +484,11 @@ function isGenericFallbackResumable(
 ): boolean {
   if (legacyResumable) return true
   if (candidate === undefined) return false
-  const isInterruptIdIsNotIdOrInterruptedRunIdIsNotInterruptedRunId =
+  const isMismatchedBinding =
     candidate.interruptId !== interrupt.id ||
     candidate.interruptedRunId !== hydration.interruptedRunId ||
     candidate.generation !== hydration.generation
-  if (isInterruptIdIsNotIdOrInterruptedRunIdIsNotInterruptedRunId) {
+  if (isMismatchedBinding) {
     return false
   }
   if (candidate.kind !== 'generic') return true
@@ -759,9 +759,8 @@ export class InterruptManager<
     const legacyResumable =
       candidate === undefined && isLegacyInterruptMetadata(interrupt)
 
-    const candidateIsUndefinedAndNotLegacyResumable =
-      candidate === undefined && !legacyResumable
-    if (candidateIsUndefinedAndNotLegacyResumable) {
+    const isUnownedInterrupt = candidate === undefined && !legacyResumable
+    if (isUnownedInterrupt) {
       return this.hydrateUnownedInterrupt(interrupt, hydration)
     }
 
@@ -853,15 +852,17 @@ export class InterruptManager<
     candidate: InterruptBinding | undefined,
     structurallyCorrelated: boolean,
   ): RuntimeInterrupt | undefined {
-    const candidateIsUndefinedOrNotHasFirstPartyGenericMarker =
-      candidate === undefined ||
-      !hasFirstPartyGenericMarker(interrupt) ||
-      (structurallyCorrelated &&
+    const isMismatchedGeneric =
+      candidate !== undefined &&
+      hasFirstPartyGenericMarker(interrupt) &&
+      !(
+        structurallyCorrelated &&
         candidate.kind === 'generic' &&
         candidate.definitionId !== undefined &&
         candidate.key !== undefined &&
-        candidate.batchIndex !== undefined)
-    if (candidateIsUndefinedOrNotHasFirstPartyGenericMarker) {
+        candidate.batchIndex !== undefined
+      )
+    if (!isMismatchedGeneric) {
       return undefined
     }
     return {
@@ -885,22 +886,20 @@ export class InterruptManager<
     candidate: InterruptBinding | undefined,
     structurallyCorrelated: boolean,
   ): RuntimeInterrupt | undefined {
-    const isNotStructurallyCorrelatedOrCandidateIsUndefinedOrKindIsNotToolApproval =
-      !structurallyCorrelated ||
-      candidate === undefined ||
-      candidate.kind !== 'tool-approval'
-    if (
-      isNotStructurallyCorrelatedOrCandidateIsUndefinedOrKindIsNotToolApproval
-    ) {
+    const isToolApprovalBinding =
+      structurallyCorrelated &&
+      candidate !== undefined &&
+      candidate.kind === 'tool-approval'
+    if (!isToolApprovalBinding) {
       return undefined
     }
     const tool = this.tools?.find(
       (configured) => configured.name === candidate.toolName,
     )
-    const isNeedsApprovalIsNotTrueOrToolCallIdIsNotToolCallId =
+    const isInvalidApprovalTool =
       tool?.needsApproval !== true ||
       interrupt.toolCallId !== candidate.toolCallId
-    if (isNeedsApprovalIsNotTrueOrToolCallIdIsNotToolCallId) {
+    if (isInvalidApprovalTool) {
       return undefined
     }
     try {
@@ -908,11 +907,11 @@ export class InterruptManager<
         tool.approvalSchema,
         tool.inputSchema,
       )
-      const hashSchemaInputIsInputSchemaHash =
+      const hasMatchingApprovalSchemas =
         hashSchemaInput(tool.inputSchema) === candidate.inputSchemaHash &&
         approval.approvalSchemaHash === candidate.approvalSchemaHash &&
         approval.responseSchemaHash === candidate.responseSchemaHash
-      if (hashSchemaInputIsInputSchemaHash) {
+      if (hasMatchingApprovalSchemas) {
         return {
           descriptor: interrupt,
           binding: cloneAndDeepFreezeJson(candidate),
@@ -935,22 +934,22 @@ export class InterruptManager<
     candidate: InterruptBinding | undefined,
     structurallyCorrelated: boolean,
   ): RuntimeInterrupt | undefined {
-    const isNotStructurallyCorrelatedOrCandidateIsUndefined =
-      !structurallyCorrelated ||
-      candidate === undefined ||
-      candidate.kind !== 'client-tool-execution'
-    if (isNotStructurallyCorrelatedOrCandidateIsUndefined) {
+    const isClientToolBinding =
+      structurallyCorrelated &&
+      candidate !== undefined &&
+      candidate.kind === 'client-tool-execution'
+    if (!isClientToolBinding) {
       return undefined
     }
     const tool = this.tools?.find(
       (configured) => configured.name === candidate.toolName,
     )
     // Binding-gated, for the same reason as tool approvals above.
-    const isToolIsUndefinedOrToolCallIdIsNotToolCallId =
+    const isInvalidClientTool =
       tool === undefined ||
       interrupt.toolCallId !== candidate.toolCallId ||
       hashSchemaInput(tool.outputSchema) !== candidate.outputSchemaHash
-    if (isToolIsUndefinedOrToolCallIdIsNotToolCallId) {
+    if (isInvalidClientTool) {
       return undefined
     }
     return {
@@ -970,15 +969,15 @@ export class InterruptManager<
     candidate: InterruptBinding | undefined,
     firstPartyIndexes: ReadonlyMap<number, number>,
   ): RuntimeInterrupt | undefined {
-    const candidateIsUndefinedOrKindIsNotGenericOrDefinitionIdIsUndefined =
-      candidate === undefined ||
-      candidate.kind !== 'generic' ||
-      candidate.definitionId === undefined ||
-      candidate.key === undefined ||
-      candidate.batchIndex === undefined ||
-      candidate.key.length === 0 ||
-      firstPartyIndexes.get(candidate.batchIndex) === 1
-    if (candidateIsUndefinedOrKindIsNotGenericOrDefinitionIdIsUndefined) {
+    const isDuplicateGeneric =
+      candidate !== undefined &&
+      candidate.kind === 'generic' &&
+      candidate.definitionId !== undefined &&
+      candidate.key !== undefined &&
+      candidate.batchIndex !== undefined &&
+      candidate.key.length > 0 &&
+      firstPartyIndexes.get(candidate.batchIndex) !== 1
+    if (!isDuplicateGeneric) {
       return undefined
     }
     return {
@@ -1278,12 +1277,12 @@ export class InterruptManager<
         isClientOwnedInterrupt(item) &&
         !(hasGeneric && item.kind === 'client-tool-execution'),
     )
-    const isEmptyOursOrSome =
+    const isBatchIncomplete =
       ours.length === 0 ||
       ours.some(
         (item) => item.resolution === undefined || item.status !== 'staged',
       )
-    if (isEmptyOursOrSome) {
+    if (isBatchIncomplete) {
       return
     }
     const hydration = this.requireHydration()
@@ -1388,9 +1387,7 @@ export class InterruptManager<
     item: RuntimeInterrupt,
     payload: unknown,
   ): ValidationResult | Promise<ValidationResult> {
-    const isNotIsUnknownObjectOrTypeofApprovedIsNotBoolean =
-      !isUnknownObject(payload) || typeof payload['approved'] !== 'boolean'
-    if (isNotIsUnknownObjectOrTypeofApprovedIsNotBoolean) {
+    if (!isUnknownObject(payload) || typeof payload['approved'] !== 'boolean') {
       return {
         code: 'invalid-payload',
         message: 'Tool approval resolutions require an approved boolean.',
@@ -1398,17 +1395,15 @@ export class InterruptManager<
     }
     const approved = payload['approved']
     const editedArgs = payload['editedArgs']
-    const isNotApprovedAndEditedArgsIsNotUndefined =
-      !approved && editedArgs !== undefined
-    if (isNotApprovedAndEditedArgsIsNotUndefined) {
+    const hasRejectedEdits = !approved && editedArgs !== undefined
+    if (hasRejectedEdits) {
       return {
         code: 'invalid-edited-args',
         message: 'Rejected tool approvals cannot edit tool arguments.',
       }
     }
-    const isApprovedAndEditedArgsIsNotUndefined =
-      approved && editedArgs !== undefined
-    if (isApprovedAndEditedArgsIsNotUndefined) {
+    const hasEditedArgs = approved && editedArgs !== undefined
+    if (hasEditedArgs) {
       const editedValidation = validateWithSchema(
         item.tool?.inputSchema,
         editedArgs,
@@ -1439,17 +1434,16 @@ export class InterruptManager<
     const approved = envelope['approved'] === true
     const schema = this.approvalBranchSchema(item.tool, approved)
     const branchPayload = envelope['payload']
-    const isSchemaIsUndefinedAndBranchPayloadIsNotUndefined =
+    const hasUnexpectedPayload =
       schema === undefined && branchPayload !== undefined
-    if (isSchemaIsUndefinedAndBranchPayloadIsNotUndefined) {
+    if (hasUnexpectedPayload) {
       return {
         code: 'invalid-payload',
         message: 'This approval branch does not accept a payload.',
       }
     }
-    const isSchemaIsNotUndefinedAndBranchPayloadIsUndefined =
-      schema !== undefined && branchPayload === undefined
-    if (isSchemaIsNotUndefinedAndBranchPayloadIsUndefined) {
+    const needsPayload = schema !== undefined && branchPayload === undefined
+    if (needsPayload) {
       return {
         code: 'invalid-payload',
         message: 'This approval branch requires a payload.',
@@ -1506,8 +1500,8 @@ export class InterruptManager<
         item.kind === 'tool-approval' &&
         this.approvalBranchSchema(item.tool, approved) === undefined,
     )
-    const isNotEligibleOrEmptyResolvable = !eligible || resolvable.length === 0
-    if (isNotEligibleOrEmptyResolvable) {
+    const canBulkResolve = eligible && resolvable.length > 0
+    if (!canBulkResolve) {
       this.addRootError(
         'unsupported-bulk-operation',
         'Boolean bulk resolution requires payloadless tool approvals.',
@@ -1562,7 +1556,7 @@ export class InterruptManager<
           break
         }
       }
-      const isFailureIsUndefinedAndSome =
+      const isIncompleteTransaction =
         failure === undefined &&
         this.items.some(
           (item) =>
@@ -1570,7 +1564,7 @@ export class InterruptManager<
             item.kind !== 'client-tool-execution' &&
             (item.resolution === undefined || item.status !== 'staged'),
         )
-      if (isFailureIsUndefinedAndSome) {
+      if (isIncompleteTransaction) {
         failure = {
           code: 'incomplete-batch',
           message: 'Interrupt transaction did not resolve every item.',
@@ -1610,13 +1604,13 @@ export class InterruptManager<
   }
 
   private assertItemMutable(transaction?: TransactionToken): void {
-    const isTransactionAndNotActive = transaction && !transaction.active
-    if (isTransactionAndNotActive) {
+    const isInactiveTransaction = transaction && !transaction.active
+    if (isInactiveTransaction) {
       throw new Error('Interrupt transaction is inactive.')
     }
-    const isActiveTransactionAndTransactionIsNotActiveTransaction =
+    const isForeignTransaction =
       this.activeTransaction && transaction !== this.activeTransaction
-    if (isActiveTransactionAndTransactionIsNotActiveTransaction) {
+    if (isForeignTransaction) {
       throw new Error('Interrupt transaction is inactive.')
     }
     if (this.resuming) {
@@ -1697,11 +1691,11 @@ export class InterruptManager<
     let retryable = false
     const batchErrors: Array<BatchInterruptError> = []
     for (const submissionError of correlatedErrors) {
-      const isCodeIsStaleOrCodeIsExpiredOrCodeIsConflict =
+      const isNonRetryable =
         submissionError.code === 'stale' ||
         submissionError.code === 'expired' ||
         submissionError.code === 'conflict'
-      if (isCodeIsStaleOrCodeIsExpiredOrCodeIsConflict) {
+      if (isNonRetryable) {
         nonRetryable = true
       }
       retryable ||= submissionError.retryable
@@ -1727,9 +1721,7 @@ export class InterruptManager<
     this.rootErrors = mergedBatchErrors.rootErrors
     this.submissionRootErrors = mergedBatchErrors.submissionRootErrors
     for (const item of this.items) {
-      const isClientOwnedInterruptAndStatusIsSubmitting =
-        isClientOwnedInterrupt(item) && item.status === 'submitting'
-      if (isClientOwnedInterruptAndStatusIsSubmitting) {
+      if (isClientOwnedInterrupt(item) && item.status === 'submitting') {
         item.status = 'error'
       }
     }

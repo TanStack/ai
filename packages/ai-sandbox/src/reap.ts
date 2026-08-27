@@ -245,9 +245,7 @@ async function reclaimTerminalRun<TOffset extends string>(
   ctx: ReapContext<TOffset>,
   status: RunStatus,
 ): Promise<{ outcome?: 'reclaim-failed'; error?: unknown }> {
-  const shouldSkipReclaim =
-    !isTerminalRunStatus(status) || ctx.options.reclaim === undefined
-  if (shouldSkipReclaim) {
+  if (!isTerminalRunStatus(status) || ctx.options.reclaim === undefined) {
     return {}
   }
   try {

@@ -199,10 +199,10 @@ export class MiddlewareRunner<
             cancel: 1,
             stop: 2,
           }
-          const isIncompleteToolResume =
+          const shouldTakeResume =
             toolResume === undefined ||
             priority[next.toolResume] > priority[toolResume]
-          if (isIncompleteToolResume) {
+          if (shouldTakeResume) {
             toolResume = next.toolResume
           }
         }
@@ -238,8 +238,8 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const result = await mw.onConfig(ctx, current)
-        const hasTransform = result !== undefined && result !== null
-        if (hasTransform) {
+        const hasConfigPatch = result !== undefined && result !== null
+        if (hasConfigPatch) {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
@@ -259,9 +259,9 @@ export class MiddlewareRunner<
             hookName: 'onConfig',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasConfigPatch,
           })
-          if (hasTransform) {
+          if (hasConfigPatch) {
             aiEventClient.emit('middleware:config:transformed', {
               ...base,
               middlewareName: mw.name || 'unnamed',
@@ -285,8 +285,8 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const result = await mw.onStructuredOutputConfig(ctx, current)
-        const hasTransform = result !== undefined && result !== null
-        if (hasTransform) {
+        const hasStructuredPatch = result !== undefined && result !== null
+        if (hasStructuredPatch) {
           current = { ...current, ...result }
           if (!skip) {
             this.logger.config(
@@ -306,9 +306,9 @@ export class MiddlewareRunner<
             hookName: 'onStructuredOutputConfig',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasStructuredPatch,
           })
-          if (hasTransform) {
+          if (hasStructuredPatch) {
             aiEventClient.emit('middleware:config:transformed', {
               ...base,
               middlewareName: mw.name || 'unnamed',
@@ -462,7 +462,7 @@ export class MiddlewareRunner<
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         const decision = await mw.onBeforeToolCall(ctx, hookCtx)
-        const hasTransform = decision !== undefined && decision !== null
+        const hasDecision = decision !== undefined && decision !== null
         if (!skip) {
           this.logger.middleware(
             `hook=onBeforeToolCall middleware=${mw.name ?? 'unnamed'}`,
@@ -474,10 +474,10 @@ export class MiddlewareRunner<
             hookName: 'onBeforeToolCall',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform,
+            hasTransform: hasDecision,
           })
         }
-        if (hasTransform) {
+        if (hasDecision) {
           return decision
         }
       }
@@ -617,8 +617,8 @@ export class MiddlewareRunner<
         const failure = await this.captureTerminalHook(mw, 'onAbort', () =>
           hook.call(mw, ctx, info),
         )
-        const hasFailure = failure === undefined && !skip
-        if (hasFailure) {
+        const hookSucceeded = failure === undefined && !skip
+        if (hookSucceeded) {
           this.logger.middleware(
             `hook=onAbort middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onAbort' },
@@ -648,8 +648,8 @@ export class MiddlewareRunner<
         const failure = await this.captureTerminalHook(mw, 'onError', () =>
           hook.call(mw, ctx, info),
         )
-        const hasFailure = failure === undefined && !skip
-        if (hasFailure) {
+        const hookSucceeded = failure === undefined && !skip
+        if (hookSucceeded) {
           this.logger.middleware(
             `hook=onError middleware=${mw.name ?? 'unnamed'}`,
             { middleware: mw.name ?? 'unnamed', hook: 'onError' },

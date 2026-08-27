@@ -154,7 +154,7 @@ interface StructuralInterruptFailure {
 }
 
 function hasInterruptErrorFields(value: object): boolean {
-  const hasScope =
+  if (
     !('scope' in value) ||
     !('code' in value) ||
     !('message' in value) ||
@@ -163,7 +163,7 @@ function hasInterruptErrorFields(value: object): boolean {
     !('threadId' in value) ||
     !('interruptedRunId' in value) ||
     !('generation' in value)
-  if (hasScope) {
+  ) {
     return false
   }
   return (
@@ -1025,9 +1025,9 @@ class TextEngine<
         yield* this.runStructuredFinalization()
       }
     }
-    const shouldSkipTerminalHookCalled =
+    const skipTerminalHooks =
       this.terminalHookCalled || this.toolPhase === 'wait' || this.isCancelled()
-    if (shouldSkipTerminalHookCalled) {
+    if (skipTerminalHooks) {
       return
     }
     if (this.finalizationError) {
@@ -1064,12 +1064,12 @@ class TextEngine<
   }
 
   private async *handleRunFailure(error: unknown): AsyncGenerator<StreamChunk> {
-    const hasContinuationRunId =
+    if (
       error instanceof Error &&
       error.name === 'InterruptReplaySignal' &&
       'continuationRunId' in error &&
       typeof error.continuationRunId === 'string'
-    if (hasContinuationRunId) {
+    ) {
       this.terminalHookCalled = true
       yield* this.pipeThroughMiddleware({
         type: EventType.RUN_FINISHED,
@@ -1124,8 +1124,8 @@ class TextEngine<
   }
 
   private async cleanupRun(): Promise<void> {
-    const hasTerminalHookCalled = !this.terminalHookCalled && this.isCancelled()
-    if (hasTerminalHookCalled) {
+    const shouldAbortHook = !this.terminalHookCalled && this.isCancelled()
+    if (shouldAbortHook) {
       this.terminalHookCalled = true
       const reason = this.resolveAbortReason()
       await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
@@ -1263,35 +1263,35 @@ class TextEngine<
   }
 
   private noteCombinedStructuredStart(raw: AdapterYieldChunk): void {
-    const shouldSkipRaw =
+    const skipCombinedStart =
       raw.type !== EventType.CUSTOM || raw.name !== 'structured-output.start'
-    if (shouldSkipRaw) {
+    if (skipCombinedStart) {
       return
     }
     this.combinedStartEmitted = true
     const startValue = raw.value
-    const hasMessageId =
+    if (
       startValue &&
       typeof startValue === 'object' &&
       'messageId' in startValue &&
       typeof startValue.messageId === 'string'
-    if (hasMessageId) {
+    ) {
       this.combinedStructuredMessageId = startValue.messageId
       this.captureStructuredOutputMessageIdentity(startValue.messageId)
     }
   }
 
   private applyEventSourcedComplete(raw: AdapterYieldChunk): AdapterYieldChunk {
-    const shouldSkipFinalStructuredOutput =
+    const skipEventComplete =
       this.finalStructuredOutput?.source !== 'event' ||
       raw.type !== EventType.CUSTOM ||
       raw.name !== 'structured-output.complete'
-    if (shouldSkipFinalStructuredOutput) {
+    if (skipEventComplete) {
       return raw
     }
     const parsed = readStructuredOutputCompleteValue(raw.value)
-    const shouldSkipParsed = !parsed || !this.finalStructuredOutput
-    if (shouldSkipParsed) return raw
+    if (!parsed) return raw
+    if (!this.finalStructuredOutput) return raw
     const object = this.finalStructuredOutput.normalize
       ? this.finalStructuredOutput.normalize(parsed.object)
       : parsed.object
@@ -1303,9 +1303,7 @@ class TextEngine<
       this.combinedStructuredMessageId = completeMessageId
       this.captureStructuredOutputMessageIdentity(completeMessageId)
     }
-    const isInvalidParsed =
-      object !== parsed.object && value && typeof value === 'object'
-    if (isInvalidParsed) {
+    if (object !== parsed.object && value && typeof value === 'object') {
       return { ...raw, value: { ...value, object } }
     }
     return raw
@@ -1314,13 +1312,13 @@ class TextEngine<
   private async *maybeSynthesizeCombinedStart(
     raw: AdapterYieldChunk,
   ): AsyncGenerator<StreamChunk> {
-    const shouldSkipFinalStructuredOutput =
+    const skipSynthStart =
       this.finalStructuredOutput?.nativeCombined !== true ||
       !this.finalStructuredOutput.yieldChunks ||
       this.finalStructuredOutput.source === 'event' ||
       this.combinedStartEmitted ||
       raw.type !== EventType.TEXT_MESSAGE_START
-    if (shouldSkipFinalStructuredOutput) {
+    if (skipSynthStart) {
       return
     }
     this.combinedStartEmitted = true
@@ -1353,11 +1351,11 @@ class TextEngine<
       const chunks = normalizeStreamChunk(outputChunk as AdapterYieldChunk)
       for (const spec of chunks) {
         restorePublicUsage(spec)
-        const isSuppressAgentLifecycle =
+        const skipAgentLifecycle =
           suppressAgentLifecycle &&
           (spec.type === EventType.RUN_STARTED ||
             spec.type === EventType.RUN_FINISHED)
-        if (isSuppressAgentLifecycle) {
+        if (skipAgentLifecycle) {
           continue
         }
         if (spec.type === EventType.RUN_FINISHED) {
@@ -1403,9 +1401,7 @@ class TextEngine<
     switch (chunk.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START': {
-        const hasMessageId =
-          typeof chunk.messageId === 'string' && chunk.messageId !== ''
-        if (hasMessageId) {
+        if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
           this.captureStreamMessageIdentity(chunk.messageId)
         }
         break
@@ -1522,9 +1518,9 @@ class TextEngine<
     this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
     const state = end.state ?? tanstackMetadata(end)?.state
-    const isIncompleteState =
+    const skipResultReplay =
       state !== 'output-error' || end.result === undefined
-    if (isIncompleteState) return
+    if (skipResultReplay) return
     this.handleToolCallResultEvent({
       type: EventType.TOOL_CALL_RESULT,
       toolCallId: chunk.toolCallId,
@@ -1791,8 +1787,8 @@ class TextEngine<
       this.discardDeferredToolCallRunFinishedChunks()
 
       if (allResults.length > 0) {
-        const chunks2 = this.buildToolResultChunks(allResults, finishEvent)
-        for (const chunk of chunks2) {
+        const resultChunks = this.buildToolResultChunks(allResults, finishEvent)
+        for (const chunk of resultChunks) {
           yield* this.pipeThroughMiddleware(chunk)
         }
       }
@@ -1826,8 +1822,8 @@ class TextEngine<
     const toolCalls = this.toolCallManager.getToolCalls()
     const finishEvent = this.finishedEvent
 
-    const isEmptyFinishEvent = !finishEvent || toolCalls.length === 0
-    if (isEmptyFinishEvent) {
+    const hasNoToolTurn = !finishEvent || toolCalls.length === 0
+    if (hasNoToolTurn) {
       this.lastTurnToolCallCount = 0
       this.setToolPhase('stop')
       return
@@ -2149,9 +2145,9 @@ class TextEngine<
       structuredId,
       splitStructuredMessage,
     })
-    const hasMessages =
+    const noNewTerminalMessages =
       messages.length === startedLength && existingStructuredIndex < 0
-    if (hasMessages) {
+    if (noNewTerminalMessages) {
       return
     }
     this.messages = messages
@@ -2276,10 +2272,10 @@ class TextEngine<
   ): void {
     const thinking =
       this.accumulatedThinking.length > 0 ? this.accumulatedThinking : undefined
-    const hasCurrentTurnAlreadyRecorded =
+    const shouldRecordCurrentTurn =
       !currentTurnAlreadyRecorded &&
       (this.accumulatedContent !== '' || thinking)
-    if (hasCurrentTurnAlreadyRecorded) {
+    if (shouldRecordCurrentTurn) {
       messages.push({
         role: 'assistant',
         content: this.accumulatedContent || null,
@@ -2309,21 +2305,19 @@ class TextEngine<
 
     for (const message of originalMessages) {
       // Check for UIMessage format (parts array) - extract client tool results and approvals
-      const isAssistant = message.role === 'assistant' && message.parts
-      if (isAssistant) {
+      if (message.role === 'assistant' && message.parts) {
         for (const part of message.parts) {
           if (part.type === 'tool-call') {
             // Extract client tool results (tools without approval that have output)
-            const hasPart = part.output !== undefined && !part.approval
-            if (hasPart) {
+            if (part.output !== undefined && !part.approval) {
               clientToolResults.set(part.id, part.output)
             }
             // Extract approval responses from UIMessage format parts
-            const hasPart2 =
+            const hasApprovalResponse =
               part.approval?.id &&
               part.approval?.approved !== undefined &&
               part.state === 'approval-responded'
-            if (hasPart2) {
+            if (hasApprovalResponse) {
               approvals.set(part.approval.id, part.approval.approved)
             }
           }
@@ -2363,11 +2357,11 @@ class TextEngine<
             output = message.content
           }
         }
-        const hasOutput =
+        const isPendingExecution =
           output &&
           typeof output === 'object' &&
           (output as any).pendingExecution === true
-        if (hasOutput) {
+        if (isPendingExecution) {
           continue
         }
         clientToolResults.set(message.toolCallId, output)
@@ -2617,13 +2611,11 @@ class TextEngine<
         errors: structured.errors,
       }
     }
-    const hasErrors = error && typeof error === 'object' && 'errors' in error
-    if (hasErrors) {
+    if (error && typeof error === 'object' && 'errors' in error) {
       const errors = error.errors
       if (Array.isArray(errors)) {
         const first = errors[0]
-        const hasFirst = first && typeof first === 'object'
-        if (hasFirst) {
+        if (first && typeof first === 'object') {
           const message =
             'message' in first && typeof first.message === 'string'
               ? first.message
@@ -2798,8 +2790,8 @@ class TextEngine<
         input = {}
       }
       const approvalId = `approval_${toolCall.id}`
-      const hasTool = tool.needsApproval && !approvals.has(approvalId)
-      if (hasTool) {
+      const needsApproval = tool.needsApproval && !approvals.has(approvalId)
+      if (needsApproval) {
         approvalRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
@@ -2807,11 +2799,11 @@ class TextEngine<
           approvalId,
         })
       } else {
-        const hasTool2 =
+        const needsClientResult =
           !tool.execute &&
           !clientToolResults.has(toolCall.id) &&
           !this.resumeCancelledToolCallIds.has(toolCall.id)
-        if (hasTool2) {
+        if (needsClientResult) {
           clientRequests.push({
             toolCallId: toolCall.id,
             toolName: toolCall.function.name,
@@ -2918,9 +2910,9 @@ class TextEngine<
       )
 
       const placeholderIdx = this.messages.findIndex((m) => {
-        const shouldSkipM =
+        const isOtherToolMessage =
           m.role !== 'tool' || m.toolCallId !== result.toolCallId
-        if (shouldSkipM) {
+        if (isOtherToolMessage) {
           return false
         }
         if (typeof m.content !== 'string') return false
@@ -3104,8 +3096,8 @@ class TextEngine<
   }
 
   notifyDisconnected(): void {
-    const shouldSkipDisconnected = this.disconnected || this.terminalHookCalled
-    if (shouldSkipDisconnected) return
+    const alreadyDisconnected = this.disconnected || this.terminalHookCalled
+    if (alreadyDisconnected) return
     this.disconnected = true
     for (const listener of this.disconnectListeners) {
       this.runDisconnectListener(listener)
@@ -3193,11 +3185,11 @@ class TextEngine<
     }
 
     const extractMessageId = (c: StreamChunk): string | null => {
-      const shouldSkipC =
+      const isTextMessageEvent =
         c.type === EventType.TEXT_MESSAGE_START ||
         c.type === EventType.TEXT_MESSAGE_CONTENT ||
         c.type === EventType.TEXT_MESSAGE_END
-      if (shouldSkipC) {
+      if (isTextMessageEvent) {
         return typeof c.messageId === 'string' && c.messageId !== ''
           ? c.messageId
           : null
@@ -3223,11 +3215,11 @@ class TextEngine<
       this.middlewareRunner.runOnChunk(this.middlewareCtx, synthChunk)
 
     const noteAdapterStart = (chunk: StreamChunk): void => {
-      const isState =
+      const isStructuredStart =
         !state.startEmitted &&
         chunk.type === EventType.CUSTOM &&
         chunk.name === 'structured-output.start'
-      if (isState) {
+      if (isStructuredStart) {
         state.startEmitted = true
       }
       if (state.structuredMessageId) return
@@ -3238,9 +3230,9 @@ class TextEngine<
     }
 
     const shouldSynthesizeStart = (chunk: StreamChunk): boolean => {
-      const shouldSkipState =
+      const alreadyStarted =
         state.startEmitted || !this.finalStructuredOutput?.yieldChunks
-      if (shouldSkipState) {
+      if (alreadyStarted) {
         return false
       }
       return (
@@ -3252,11 +3244,11 @@ class TextEngine<
     }
 
     const normalizeCompleteChunk = (chunk: StreamChunk): StreamChunk => {
-      const shouldSkipChunk =
+      const skipCompleteNormalize =
         chunk.type !== EventType.CUSTOM ||
         chunk.name !== 'structured-output.complete' ||
         !this.finalStructuredOutput
-      if (shouldSkipChunk) {
+      if (skipCompleteNormalize) {
         return chunk
       }
       const parsed = readStructuredOutputCompleteValue(chunk.value)
@@ -3272,9 +3264,7 @@ class TextEngine<
           : {}),
       }
       const value = chunk.value
-      const isInvalidParsed =
-        object !== parsed.object && value && typeof value === 'object'
-      if (isInvalidParsed) {
+      if (object !== parsed.object && value && typeof value === 'object') {
         return { ...chunk, value: { ...value, object } }
       }
       return chunk
@@ -3324,8 +3314,8 @@ class TextEngine<
     for await (const raw of providerStream) {
       if (this.isCancelled()) break
       yield* processFinalizationChunk.call(this, raw)
-      const shouldSkipIsCancelled = this.isCancelled() || this.finalizationError
-      if (shouldSkipIsCancelled) break
+      const stopFinalization = this.isCancelled() || this.finalizationError
+      if (stopFinalization) break
     }
 
     if (this.isCancelled()) return
@@ -3650,17 +3640,17 @@ class TextEngine<
       if (!tool) continue
       toolsByCallId.set(toolCall.id, tool)
       toolInputs.set(toolCall.id, parseEphemeralToolInput(toolCall))
-      const hasTool =
+      const isResumedClientTool =
         !tool.execute && resumeInterruptIds.has(`client_tool_${toolCall.id}`)
-      if (hasTool) {
+      if (isResumedClientTool) {
         clientExecutionCallIds.add(toolCall.id)
       }
     }
     for (const toolCall of pendingToolCalls) {
       const tool = toolsByCallId.get(toolCall.id)
-      const hasTool2 =
+      const needsEphemeralApproval =
         tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)
-      if (hasTool2) {
+      if (needsEphemeralApproval) {
         approvalRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
@@ -3671,11 +3661,11 @@ class TextEngine<
     }
     for (const toolCall of pendingToolCalls) {
       const tool = toolsByCallId.get(toolCall.id)
-      const hasTool3 =
+      const needsEphemeralClientRun =
         tool !== undefined &&
         !tool.execute &&
         (!tool.needsApproval || clientExecutionCallIds.has(toolCall.id))
-      if (hasTool3) {
+      if (needsEphemeralClientRun) {
         clientRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
@@ -3803,8 +3793,9 @@ class TextEngine<
           `Generic interrupt definition ${entry.definitionId} is unavailable.`,
         )
       }
-      const shouldSkipIds = ids.has(id) || batchIndexes.has(entry.batchIndex)
-      if (shouldSkipIds) {
+      const isDuplicateContinuation =
+        ids.has(id) || batchIndexes.has(entry.batchIndex)
+      if (isDuplicateContinuation) {
         return fail(
           'Generic interrupt continuation contains duplicate entries.',
         )
@@ -3836,10 +3827,10 @@ class TextEngine<
       const emitted = createInterruptBinding(request, {
         batchIndex: entry.batchIndex,
       })
-      const shouldSkipEntry =
+      const schemaMismatch =
         entry.responseSchemaHash !== emitted.descriptor.responseSchemaHash ||
         entry.payloadSchemaHash !== emitted.descriptor.payloadSchemaHash
-      if (shouldSkipEntry) {
+      if (schemaMismatch) {
         return fail(
           `Generic interrupt continuation ${id} does not match its definition.`,
         )
@@ -4390,8 +4381,7 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
 }
 
 function readCustomEventMessageId(value: unknown): string | undefined {
-  const isInvalid = typeof value !== 'object' || value === null
-  if (isInvalid) return undefined
+  if (typeof value !== 'object' || value === null) return undefined
   if (!('messageId' in value)) return undefined
   const messageId = value.messageId
   return typeof messageId === 'string' && messageId !== ''
@@ -4402,10 +4392,8 @@ function readCustomEventMessageId(value: unknown): string | undefined {
 function readStructuredOutputCompleteValue(
   value: unknown,
 ): { object: unknown; raw: string; reasoning?: string } | null {
-  const isInvalid = typeof value !== 'object' || value === null
-  if (isInvalid) return null
-  const hasObject = !('object' in value) || !('raw' in value)
-  if (hasObject) return null
+  if (typeof value !== 'object' || value === null) return null
+  if (!('object' in value) || !('raw' in value)) return null
   const raw = (value as { raw: unknown }).raw
   if (typeof raw !== 'string') return null
   const reasoningField = (value as { reasoning?: unknown }).reasoning

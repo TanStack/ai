@@ -233,8 +233,8 @@ const DEFAULT_DURABILITY_BATCH = 32
 
 function resolveBatchSize(batch: number | undefined): number {
   if (batch === undefined) return DEFAULT_DURABILITY_BATCH
-  const isInvalidBatch = !Number.isInteger(batch) || batch <= 0
-  if (isInvalidBatch) {
+  const isBadBatchSize = !Number.isInteger(batch) || batch <= 0
+  if (isBadBatchSize) {
     throw new Error(
       `Invalid durability batch size: ${batch}. Must be a positive integer.`,
     )
@@ -274,13 +274,13 @@ export function durableStreamSource<TOffset extends string>(
   const getId = (chunk: StreamChunk): string | undefined => idByChunk.get(chunk)
 
   const validateOffset = (offset: TOffset): void => {
-    const isEmptyOffset =
+    const isBadOffset =
       offset.length === 0 ||
       offset.includes('\0') ||
       offset.includes('\r') ||
       offset.includes('\n') ||
       offset !== offset.trim()
-    if (isEmptyOffset) {
+    if (isBadOffset) {
       throw new Error(
         `Invalid durability offset for SSE id: ${JSON.stringify(offset)}`,
       )
@@ -339,9 +339,9 @@ export function durableStreamSource<TOffset extends string>(
         terminalPersisted = true
       }
       for (const chunk of toForward) {
-        const isRUNFINISHED =
+        const isTerminalChunk =
           chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-        if (isRUNFINISHED) {
+        if (isTerminalChunk) {
           terminalForwarded = true
         }
         yield chunk
@@ -360,9 +360,9 @@ export function durableStreamSource<TOffset extends string>(
       for await (const chunk of stream) {
         if (isAborted(abortController.signal)) break
         batch.push(chunk)
-        const hasBatch =
+        const shouldFlush =
           batch.length >= batchSize || isDurabilityFlushBoundary(chunk)
-        if (hasBatch) {
+        if (shouldFlush) {
           yield* flush()
         }
       }
@@ -400,14 +400,14 @@ export function durableStreamSource<TOffset extends string>(
 
     async function persistTerminalIfNeeded(detached: boolean): Promise<void> {
       const cancelled = isAborted(abortController.signal)
-      const shouldSkipDetached =
+      const skipTerminalPersist =
         detached ||
         !needsTerminalPersistence(
           terminalPersisted,
           cancelled,
           hasTerminalCause,
         )
-      if (shouldSkipDetached) {
+      if (skipTerminalPersist) {
         return
       }
       const cause = hasTerminalCause ? terminalCause : { name: 'AbortError' }

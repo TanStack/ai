@@ -5,11 +5,11 @@ import { isTanstackUsage, rebuildTokenUsage } from './ag-ui-usage'
 import { tanstackMetadata } from './merge-metadata'
 
 export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
-  const isInvalidChunk =
+  const needsUsageRebuild =
     (chunk.type === EventType.RUN_FINISHED ||
       chunk.type === EventType.RUN_ERROR) &&
     (Array.isArray(chunk.usage) || isTanstackUsage(chunk.usage))
-  if (isInvalidChunk) {
+  if (needsUsageRebuild) {
     const rebuilt = rebuildTokenUsage(
       chunk.usage,
       tanstackMetadata(chunk)?.usage,
@@ -19,17 +19,17 @@ export function restorePublicUsage(chunk: StreamChunk): StreamChunk {
     }
   }
 
-  const isChunk =
+  const needsToolNameFromCall =
     chunk.type === EventType.TOOL_CALL_START &&
     chunk.toolName === undefined &&
     chunk.toolCallName
-  if (isChunk) {
+  if (needsToolNameFromCall) {
     chunk.toolName = chunk.toolCallName
   }
 
-  const isChunk2 =
+  const needsToolInputFromMetadata =
     chunk.type === EventType.TOOL_CALL_END && chunk.input === undefined
-  if (isChunk2) {
+  if (needsToolInputFromMetadata) {
     const input = tanstackMetadata(chunk)?.input
     if (input !== undefined) {
       chunk.input = input
@@ -50,10 +50,10 @@ export function restoreInboundChunk(chunk: StreamChunk): AdapterYieldChunk {
 
   const entries = Object.entries(tanstack)
   for (const [key, value] of entries) {
-    const shouldSkipKey = key === 'usage' || key === 'interruptErrors'
-    if (shouldSkipKey) continue
-    const hasNext = next[key] === undefined && value !== undefined
-    if (hasNext) {
+    const isReservedKey = key === 'usage' || key === 'interruptErrors'
+    if (isReservedKey) continue
+    const canCopyField = next[key] === undefined && value !== undefined
+    if (canCopyField) {
       next[key] = value
     }
   }

@@ -602,8 +602,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   protected isAbortError(error: unknown): boolean {
-    const isNotErrorObject = !error || typeof error !== 'object'
-    if (isNotErrorObject) return false
+    if (!error || typeof error !== 'object') return false
     const e = error as { name?: unknown; code?: unknown }
     return (
       e.name === 'APIUserAbortError' ||

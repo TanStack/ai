@@ -81,8 +81,8 @@ export class AudioRecorder {
   }
 
   async start(): Promise<void> {
-    const is_stateIsNotIdleOrStarting = this._state !== 'idle' || this.starting
-    if (is_stateIsNotIdleOrStarting) {
+    const cannotStart = this._state !== 'idle' || this.starting
+    if (cannotStart) {
       return
     }
     this.starting = true
@@ -197,9 +197,9 @@ export class AudioRecorder {
       try {
         recorder.stop()
       } catch (err) {
-        const isErrIsDOMExceptionAndNameIsInvalidStateError =
+        const isInvalidStateError =
           err instanceof DOMException && err.name === 'InvalidStateError'
-        if (!isErrIsDOMExceptionAndNameIsInvalidStateError) {
+        if (!isInvalidStateError) {
           this.notifyError(
             err instanceof Error ? err : new Error('Failed to stop recorder'),
           )

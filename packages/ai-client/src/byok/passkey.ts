@@ -21,15 +21,11 @@ interface StoredRecord {
 }
 
 function sanitizeKeyring(value: unknown): Keyring {
-  const isTypeofValueIsNotObjectOrMissingValue =
-    typeof value !== 'object' || value === null
-  if (isTypeofValueIsNotObjectOrMissingValue) return {}
+  if (typeof value !== 'object' || value === null) return {}
   const keys: Keyring = {}
   const objectEntries = Object.entries(value)
   for (const [provider, key] of objectEntries) {
-    const isProviderIdAndTypeofKeyIsStringAndNonemptyKey =
-      isProviderId(provider) && typeof key === 'string' && key.length > 0
-    if (isProviderIdAndTypeofKeyIsStringAndNonemptyKey) {
+    if (isProviderId(provider) && typeof key === 'string' && key.length > 0) {
       keys[provider] = key
     }
   }
@@ -41,8 +37,8 @@ function previewOf(keys: Keyring): KeyPreview {
   const preview: KeyPreview = {}
   const objectEntries = Object.entries(keys)
   for (const [provider, key] of objectEntries) {
-    const isNotKeyOrNotIsProviderId = !key || !isProviderId(provider)
-    if (isNotKeyOrNotIsProviderId) continue
+    if (!key) continue
+    if (!isProviderId(provider)) continue
     // Keys of length ≤ 4 would make last-4 the whole secret — store presence only.
     preview[provider] = key.length > 4 ? key.slice(-4) : ''
   }
@@ -310,8 +306,8 @@ export function passkeyStorage(
       const hasKeys = Object.values(keys).some(Boolean)
       // First save with an empty keyring is a no-op — avoids a passkey ceremony
       // when another storage tier writes an empty ring.
-      const isNotHasKeysAndNotExisting = !hasKeys && !existing
-      if (isNotHasKeysAndNotExisting) return
+      const isEmptyFirstSave = !hasKeys && !existing
+      if (isEmptyFirstSave) return
 
       const { key, credentialId, salt } = await ensureKey()
       const { iv, ciphertext } = await encryptKeyring(key, keys)
@@ -338,9 +334,8 @@ export function defaultByokStorage(
   const secure =
     typeof globalThis.isSecureContext !== 'boolean' ||
     globalThis.isSecureContext
-  const isNotIsPasskeyStorageSupportedOrNotSecure =
-    !isPasskeyStorageSupported() || !secure
-  if (isNotIsPasskeyStorageSupportedOrNotSecure) {
+  const canUsePasskeys = isPasskeyStorageSupported() && secure
+  if (!canUsePasskeys) {
     return {
       ...memoryStorage(),
       warning:

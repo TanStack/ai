@@ -6,8 +6,8 @@ export interface JSONParser {
 
 export class PartialJSONParser implements JSONParser {
   parse(jsonString: string): any {
-    const isEmptyJsonString = !jsonString || jsonString.trim() === ''
-    if (isEmptyJsonString) {
+    const isBlank = !jsonString || jsonString.trim() === ''
+    if (isBlank) {
       return undefined
     }
 

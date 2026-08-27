@@ -841,14 +841,14 @@ async function createWebRTCConnection(
     },
 
     sendImage(imageData: string, mimeType: string) {
-      const isAlreadyUrlOrDataUri =
+      const isWrappedImage =
         imageData.startsWith('http://') ||
         imageData.startsWith('https://') ||
         imageData.startsWith('data:')
       const imageContent = {
         type: 'input_image',
         image_url: {
-          url: isAlreadyUrlOrDataUri
+          url: isWrappedImage
             ? imageData
             : `data:${mimeType};base64,${imageData}`,
         },

@@ -157,8 +157,8 @@ export class SpritesHandle implements SandboxHandle {
 
   private async lstat(path: string): Promise<SandboxFsStat | undefined> {
     const r = await this.exec(lstatCommand(path))
-    const pathIsMissing = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
-    if (pathIsMissing) return undefined
+    const pathNotFound = r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING
+    if (pathNotFound) return undefined
     if (r.exitCode !== 0) {
       throw new Error(`lstat failed: ${errText(r)}`)
     }

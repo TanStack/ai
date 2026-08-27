@@ -22,8 +22,8 @@ export function updateTextPart(
     const parts = [...msg.parts]
     const lastPart = parts.length > 0 ? parts[parts.length - 1] : null
 
-    const isText = lastPart && lastPart.type === 'text'
-    if (isText) {
+    const canExtendText = lastPart && lastPart.type === 'text'
+    if (canExtendText) {
       // Update the last text part (continuing same text segment)
       parts[parts.length - 1] = { type: 'text', content }
     } else {
@@ -299,8 +299,7 @@ export function completeStructuredOutputPart(
         ? (parts[existingIndex] as StructuredOutputPart).raw
         : ''
     let resolvedRaw = raw || existingRaw
-    const hasResolvedRaw = resolvedRaw === '' && data !== undefined
-    if (hasResolvedRaw) {
+    if (resolvedRaw === '' && data !== undefined) {
       try {
         resolvedRaw = JSON.stringify(data)
       } catch {}

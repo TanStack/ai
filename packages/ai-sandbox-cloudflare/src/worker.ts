@@ -33,9 +33,7 @@ function parseCreateRunBody(value: unknown): CreateRunBody {
         // The chat engine validates message shape; we only assert it is an array of
         // objects here so the request fails fast with a clear 400 on garbage input.
         for (const message of value.messages) {
-          const isInvalidMessage =
-            message === null || typeof message !== 'object'
-          if (isInvalidMessage) {
+          if (message === null || typeof message !== 'object') {
             throw new Error('each message must be an object')
           }
         }

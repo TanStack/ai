@@ -62,8 +62,8 @@ async function* untilAborted<T>(
   try {
     for (;;) {
       const next = await Promise.race([iterator.next(), aborted])
-      const isAbortedOrDone = next === ABORTED || next.done === true
-      if (isAbortedOrDone) return
+      if (next === ABORTED) return
+      if (next.done === true) return
       yield next.value
     }
   } finally {

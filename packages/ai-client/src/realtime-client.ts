@@ -327,8 +327,7 @@ export class RealtimeClient {
             pendingUserTranscript: isFinal ? null : transcript,
           })
           // Add user message when transcript is finalized
-          const isFinalAndTranscript = isFinal && transcript
-          if (isFinalAndTranscript) {
+          if (isFinal && transcript) {
             this.addMessage({
               id: this.generateId(),
               role: 'user',

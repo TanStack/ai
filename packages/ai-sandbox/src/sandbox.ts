@@ -202,11 +202,11 @@ async function tryReuseExistingSandbox(input: {
     })
     return { handle: resumed, outcome: 'resumed' }
   }
-  const canRestoreSnapshot =
+  if (
     existing.latestSnapshotId &&
     caps.snapshots &&
     config.provider.restoreSnapshot
-  if (canRestoreSnapshot) {
+  ) {
     const restored = await config.provider.restoreSnapshot({
       snapshotId: existing.latestSnapshotId,
       workspace: config.workspace,
@@ -256,9 +256,11 @@ async function createBootstrappedSandbox(input: {
   }
 
   let latestSnapshotId: string | undefined
-  const shouldSnapshotAfterSetup =
-    effectiveSnapshot === 'after-setup' && caps.snapshots && created.snapshot
-  if (shouldSnapshotAfterSetup) {
+  if (
+    effectiveSnapshot === 'after-setup' &&
+    caps.snapshots &&
+    created.snapshot
+  ) {
     latestSnapshotId = (await created.snapshot('after-setup')).id
   }
 
@@ -345,10 +347,11 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     return locks.withLock(`sandbox:${key}`, async () => {
       const existing = await store.get(key)
       const maxAgeMs = parseMaxAgeMs(snapshotMaxAge)
-      const isExpiredOrMissing =
+      if (
         !existing ||
         (maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs)
-      if (isExpiredOrMissing) return null
+      )
+        return null
       const resumed = await resume({
         id: existing.providerSandboxId,
         signal: ctx.signal,

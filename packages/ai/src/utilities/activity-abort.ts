@@ -34,8 +34,7 @@ function createTimeoutReason(ms: number): Error {
 /** Normalize an abort reason into an Error the activity can reject with. */
 export function toAbortError(reason: unknown): Error {
   if (reason instanceof Error) return reason
-  const hasReason = typeof reason === 'string' && reason.length > 0
-  if (hasReason) {
+  if (typeof reason === 'string' && reason.length > 0) {
     const err = new Error(reason)
     err.name = 'AbortError'
     return err
@@ -60,9 +59,9 @@ export function createActivityAbortControls(options: {
   let timeoutSignal: AbortSignal | undefined
 
   if (options.timeout !== undefined) {
-    const isInvalidOptions =
+    const isBadTimeout =
       !Number.isFinite(options.timeout) || options.timeout < 0
-    if (isInvalidOptions) {
+    if (isBadTimeout) {
       throw new Error(
         `Invalid activity timeout: expected a non-negative finite number, got ${String(options.timeout)}`,
       )
@@ -143,8 +142,7 @@ export function isActivityAbortError(
   signal?: AbortSignal,
 ): boolean {
   if (signal?.aborted) return true
-  const isInvalid = !error || typeof error !== 'object'
-  if (isInvalid) return false
+  if (!error || typeof error !== 'object') return false
   const name = (error as { name?: unknown }).name
   return typeof name === 'string' && ABORT_ERROR_NAMES.has(name)
 }

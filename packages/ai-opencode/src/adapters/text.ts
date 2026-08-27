@@ -120,8 +120,8 @@ async function* emitOpencodeStructuredOutput(
 
 function splitModel(model: string): { providerID: string; modelID: string } {
   const slash = model.indexOf('/')
-  const missingProviderOrModel = slash <= 0 || slash === model.length - 1
-  if (missingProviderOrModel) {
+  const isInvalidModelId = slash <= 0 || slash === model.length - 1
+  if (isInvalidModelId) {
     throw new Error(
       `OpenCode models must be addressed as "provider/model" (e.g. "anthropic/claude-sonnet-4-5"); received "${model}".`,
     )

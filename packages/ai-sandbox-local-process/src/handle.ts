@@ -400,12 +400,13 @@ export class LocalProcessHandle implements SandboxHandle {
         try {
           stat = await fsp.lstat(this.resolve(p))
         } catch (error) {
-          const isMissingFile =
+          if (
             error !== null &&
             typeof error === 'object' &&
             'code' in error &&
             error.code === 'ENOENT'
-          if (isMissingFile) return undefined
+          )
+            return undefined
           throw error
         }
         const type = stat.isFile()

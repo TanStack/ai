@@ -30,12 +30,12 @@ export function parseJsonFromAssistantText(raw: string): unknown {
 
 function extractLastJsonSlice(text: string): string | undefined {
   for (let end = text.length - 1; end >= 0; end--) {
-    const hasText = text[end] !== '}' && text[end] !== ']'
-    if (hasText) continue
+    const foundCloser = text[end] === '}' || text[end] === ']'
+    if (!foundCloser) continue
     for (let start = end; start >= 0; start--) {
       const opener = text[start]
-      const hasOpener = opener !== '{' && opener !== '['
-      if (hasOpener) continue
+      const foundOpener = opener === '{' || opener === '['
+      if (!foundOpener) continue
       const slice = text.slice(start, end + 1)
       try {
         JSON.parse(slice)

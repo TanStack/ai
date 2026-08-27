@@ -101,8 +101,7 @@ function generationScope(
   opts: WithGenerationPersistenceOptions,
 ): string {
   const threadId = opts.threadId ?? ctx.threadId
-  const isMissingThreadId = threadId === undefined || threadId.length === 0
-  if (isMissingThreadId) {
+  if (threadId === undefined || threadId.length === 0) {
     throw new Error(
       'Generation persistence requires a `threadId`, the stable scope successive ' +
         'runs are filed under. Pass it to the activity, e.g. ' +
@@ -309,8 +308,8 @@ function validatePendingResumes(
   }
   const firstPending = pending[0]
   if (firstPending === undefined) return resumeByInterruptId
-  const isMissingResume = !resume || resume.length === 0
-  if (isMissingResume) {
+  const hasNoResume = !resume || resume.length === 0
+  if (hasNoResume) {
     return failure(
       firstPending.interruptId,
       'unknown-interrupt',
@@ -406,8 +405,8 @@ async function commitPendingResumes(
   state: RunStateEntry | undefined,
   interrupts: AIPersistence['stores']['interrupts'],
 ): Promise<void> {
-  const cannotCommitResumes = !state?.pendingResumes || !interrupts
-  if (cannotCommitResumes) return
+  if (!state?.pendingResumes) return
+  if (!interrupts) return
   const { pending, resumeByInterruptId } = state.pendingResumes
   await applyPendingResumes(pending, resumeByInterruptId, interrupts)
   state.pendingResumes = undefined
@@ -571,6 +570,13 @@ function rehydratePersistedGenericRequest(
 ): GenericResumeRecord['genericRequest'] {
   const metadata = objectValue(descriptor.metadata)
   const payload = metadata?.['tanstack:interruptPayload']
+  if (!binding.key) {
+    throw durableGenericFailure(
+      ctx,
+      persisted,
+      `Persisted generic interrupt ${persisted.interruptId} is invalid: missing key.`,
+    )
+  }
   let request: GenericResumeRecord['genericRequest']
   try {
     request = rehydrateInterruptRequest(definition, {
@@ -703,9 +709,7 @@ function collectGenericResumeRecords(
   for (const record of records) {
     if (!isGenericResumeRecord(record)) continue
     const batchIndex = record.binding.batchIndex
-    const isDuplicateOrMissingBatchIndex =
-      batchIndex === undefined || batchIndexes.has(batchIndex)
-    if (isDuplicateOrMissingBatchIndex) {
+    if (batchIndex === undefined || batchIndexes.has(batchIndex)) {
       throw new InterruptResumeValidationError([
         {
           scope: 'batch',
@@ -919,6 +923,7 @@ function sourcePartDescriptors(
   const source = objectValue(record?.source)
   if (!record) return []
   if (!source) return []
+  if (type === undefined) return []
   switch (type) {
     case 'image':
     case 'audio':
@@ -960,9 +965,8 @@ function promptInputDescriptors(
   const descriptors: Array<GenerationArtifactDescriptor> = []
   for (const part of prompt) {
     const type = stringField(objectValue(part) ?? {}, 'type')
-    const isNotMediaPart =
-      type !== 'image' && type !== 'audio' && type !== 'video'
-    if (isNotMediaPart) continue
+    const isMediaPart = type === 'image' || type === 'audio' || type === 'video'
+    if (!isMediaPart) continue
     const index = counts[type] ?? 0
     counts[type] = index + 1
     descriptors.push(
@@ -1168,8 +1172,8 @@ function blockedIpv4Literal(host: string): boolean | undefined {
   const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
   if (!ipv4) return undefined
   const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
-  const isLoopbackOrPrivateA = a === 127 || a === 0 || a === 10
-  if (isLoopbackOrPrivateA) return true
+  const isBlockedA = a === 127 || a === 0 || a === 10
+  if (isBlockedA) return true
   const isLinkLocal = a === 169 && b === 254
   if (isLinkLocal) return true // link-local + cloud metadata
   const isPrivateClassB = a === 172 && b >= 16 && b <= 31
@@ -1295,9 +1299,8 @@ async function assertAllowedInputArtifactUrl(
   descriptor: GenerationArtifactDescriptor,
   opts: ArtifactPersistenceOptions | undefined,
 ): Promise<void> {
-  const isNotHttpUrl =
-    target.protocol !== 'https:' && target.protocol !== 'http:'
-  if (isNotHttpUrl) {
+  const isHttpUrl = target.protocol === 'https:' || target.protocol === 'http:'
+  if (!isHttpUrl) {
     throw new Error(
       `Refusing to fetch artifact over ${target.protocol} (${descriptor.path}).`,
     )
@@ -1668,9 +1671,9 @@ async function persistGenerationArtifacts(
   )
   if (descriptors.length === 0) return existingRefs
 
-  const isMissingArtifactStores =
+  const hasNoArtifactStores =
     !persistence.stores.artifacts || !persistence.stores.blobs
-  if (isMissingArtifactStores) {
+  if (hasNoArtifactStores) {
     throw new Error(
       'Generation artifact persistence requires stores.artifacts and stores.blobs.',
     )

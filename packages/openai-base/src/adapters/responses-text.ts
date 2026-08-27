@@ -108,9 +108,9 @@ function assertInlinePdf(
       ? documentValue.slice(documentValue.indexOf(',') + 1)
       : ''
     : documentValue
-  const isNotPdfBytes =
+  const isInvalidPdfBytes =
     Boolean(documentBase64) && !documentBase64.startsWith(PDF_BASE64_MAGIC)
-  if (isNotPdfBytes) {
+  if (isInvalidPdfBytes) {
     throw new Error(
       `${adapterName} document parts only support application/pdf ` +
         `(inline data does not start with the %PDF header)`,
@@ -439,10 +439,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     type StructuredChunk = ResponseStreamEvent | LegacyReasoningDeltaEvent
 
     const handleCreatedOrProgress = (chunk: StructuredChunk): void => {
-      const isCreatedOrProgress =
+      const isLifecycleEvent =
         chunk.type === 'response.created' ||
         chunk.type === 'response.in_progress'
-      if (!isCreatedOrProgress) {
+      if (!isLifecycleEvent) {
         return
       }
       if (!('response' in chunk)) return
@@ -734,8 +734,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   protected isAbortError(error: unknown): boolean {
-    const isNotErrorObject = !error || typeof error !== 'object'
-    if (isNotErrorObject) return false
+    if (!error || typeof error !== 'object') return false
     const e = error as { name?: unknown; code?: unknown }
     return (
       e.name === 'APIUserAbortError' ||

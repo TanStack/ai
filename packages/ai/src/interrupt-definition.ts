@@ -321,11 +321,11 @@ function schemaJson(schema: unknown, name: string): CanonicalSchemaJson {
     if (Array.isArray(exported)) {
       throw new TypeError('The exported schema must be a plain JSON object.')
     }
-    const isInvalidExported =
+    if (
       !exported ||
       typeof exported !== 'object' ||
       ![Object.prototype, null].includes(Object.getPrototypeOf(exported))
-    if (isInvalidExported) {
+    ) {
       throw new TypeError('The exported schema must be a plain JSON object.')
     }
     const converted: Record<string, unknown> = {}
@@ -360,17 +360,14 @@ function validateJson(value: unknown, label: string): void {
 }
 
 function validateNonEmptyString(value: unknown, label: string): string {
-  const isEmpty = typeof value !== 'string' || value.trim() === ''
-  if (isEmpty) {
+  if (typeof value !== 'string' || value.trim() === '') {
     throw new TypeError(`${label} must be a non-empty string.`)
   }
   return value
 }
 
 function validateExpiresAt(value: unknown): string {
-  const isInvalidNumber =
-    typeof value !== 'string' || !Number.isFinite(Date.parse(value))
-  if (isInvalidNumber) {
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
     throw new TypeError('Interrupt expiresAt must be a valid date string.')
   }
   return value

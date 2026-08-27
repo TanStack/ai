@@ -201,12 +201,12 @@ async function checkoutGitSha(
 }
 
 function rethrowMissingGitBin(error: unknown): never {
-  const isMissingGitBin =
-    Boolean(error) &&
+  if (
     typeof error === 'object' &&
+    error !== null &&
     'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
-  if (isMissingGitBin) {
+    error.code === 'ENOENT'
+  ) {
     throw new Error(MISSING_GIT_BIN)
   }
   throw error

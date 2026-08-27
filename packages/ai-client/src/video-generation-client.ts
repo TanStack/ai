@@ -234,9 +234,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           'VideoGenerationClient requires either a connection or fetcher option',
         )
       }
-      const isNotAbortedAndStatusIsSuccess =
-        !signal.aborted && this.status === 'success'
-      if (isNotAbortedAndStatusIsSuccess) {
+      const isSuccessfulRun = !signal.aborted && this.status === 'success'
+      if (isSuccessfulRun) {
         this.devtoolsBridge.finishRun(
           this.devtoolsBridge.getActiveRunId() ?? runId,
           'run:completed',
@@ -249,9 +248,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
       }
-      const isErrorIsByokBlockedErrorAndReasonIsLocked =
+      const isByokLocked =
         error instanceof ByokBlockedError && error.reason === 'locked'
-      if (isErrorIsByokBlockedErrorAndReasonIsLocked) {
+      if (isByokLocked) {
         this.byok?.request(error.provider, 'locked')
       }
       this.setError(error)
@@ -318,9 +317,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     }
 
     // An aborted read is a deliberate stop/dispose, not a truncation.
-    const isNotSawTerminalChunkAndNotAborted =
-      !state.sawTerminalChunk && !signal.aborted
-    if (isNotSawTerminalChunkAndNotAborted) {
+    const isTruncatedStream = !state.sawTerminalChunk && !signal.aborted
+    if (isTruncatedStream) {
       throw new Error(GENERATION_STREAM_TRUNCATED_MESSAGE)
     }
   }
@@ -405,9 +403,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
-    const isResumeSnapshotAndStatusIsRunning =
+    const hasRunningSnapshot =
       this.resumeSnapshot && this.resumeSnapshot.status === 'running'
-    if (isResumeSnapshotAndStatusIsRunning) {
+    if (hasRunningSnapshot) {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
         resumeState: null,
@@ -735,8 +733,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     }
     const joinRun = this.connection?.joinRun ?? this.joinRunHandler
     const runId = activeRunId ?? snapshot.resumeState?.runId
-    const isRunIdAndJoinRun = runId && joinRun
-    if (isRunIdAndJoinRun) {
+    if (runId && joinRun) {
       this.repaintFromSnapshot(snapshot)
       this.rejoinInFlight(runId)
       return
@@ -795,9 +792,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     if (this.status !== 'error') this.setStatus('error')
     this.setError(error)
     if (this.resumeSnapshot?.status === 'error') return
-    const isNotResumeSnapshotAndNotServerDriven =
-      !this.resumeSnapshot && !this.serverDriven
-    if (isNotResumeSnapshotAndNotServerDriven) return
+    const hasNoResumeTarget = !this.resumeSnapshot && !this.serverDriven
+    if (hasNoResumeTarget) return
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -819,13 +815,12 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   private maybeHydrateFromServer(): void {
-    const isNotServerDrivenOrServerHydrationStarted =
-      !this.serverDriven || this.serverHydrationStarted
-    if (isNotServerDrivenOrServerHydrationStarted) return
+    const shouldHydrate = this.serverDriven && !this.serverHydrationStarted
+    if (!shouldHydrate) return
     this.serverHydrationStarted = true
-    const isHydrateGenerationOrHydrateGenerationHandler =
+    const hydrateHandler =
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
-    if (isHydrateGenerationOrHydrateGenerationHandler) {
+    if (hydrateHandler) {
       this.hydrateFromServer()
     } else {
       // `persistence: true` without any hydrate source can never restore
@@ -841,9 +836,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       this.connection?.hydrateGeneration ?? this.hydrateGenerationHandler
     if (!hydrate) return
     // A send that already started owns the client; don't stomp it.
-    const isResumeSnapshotOrIsLoadingOrStatusIsNotIdle =
+    const isClientBusy =
       this.resumeSnapshot || this.isLoading || this.status !== 'idle'
-    if (isResumeSnapshotOrIsLoadingOrStatusIsNotIdle) return
+    if (isClientBusy) return
     void (async () => {
       let res: GenerationHydrationResult
       try {
@@ -869,18 +864,18 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         return
       }
       // Re-check: a send may have started while the fetch was in flight.
-      const isResumeSnapshotOrIsLoadingOrStatusIsNotIdle =
+      const isClientBusy =
         this.resumeSnapshot || this.isLoading || this.status !== 'idle'
-      if (isResumeSnapshotOrIsLoadingOrStatusIsNotIdle) return
+      if (isClientBusy) return
       // A run still generating on the server: re-attach and finish it in place.
       this.repaintRestoredSnapshot(snapshot, res.activeRun?.runId)
     })()
   }
 
   private failHydration(error: Error): void {
-    const isResumeSnapshotOrIsLoadingOrStatusIsNotIdle =
+    const isClientBusy =
       this.resumeSnapshot || this.isLoading || this.status !== 'idle'
-    if (isResumeSnapshotOrIsLoadingOrStatusIsNotIdle) return
+    if (isClientBusy) return
     this.setStatus('error')
     this.setError(error)
     this.callbacksRef.onError?.(error)
@@ -896,8 +891,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const joinRun = this.connection?.joinRun ?? this.joinRunHandler
     if (!joinRun) return
     if (this.rejoinedRunId === runId) return
-    const isLoadingOrAbortController = this.isLoading || this.abortController
-    if (isLoadingOrAbortController) return
+    const hasActiveStream = this.isLoading || this.abortController
+    if (hasActiveStream) return
     this.rejoinedRunId = runId
     const controller = new AbortController()
     this.abortController = controller

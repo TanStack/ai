@@ -140,8 +140,7 @@ export async function handleBridgeJsonRpc(
   core: ToolBridgeCore,
   message: unknown,
 ): Promise<unknown> {
-  const isInvalidRpcMessage = message === null || typeof message !== 'object'
-  if (isInvalidRpcMessage) {
+  if (message === null || typeof message !== 'object') {
     return {
       jsonrpc: '2.0',
       id: null,

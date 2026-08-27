@@ -20,8 +20,7 @@ interface MemoryRecordRow {
 
 /** Best-effort extraction of `{ records: [...] }` from the opaque snapshot data. */
 function extractRecords(data: unknown): Array<MemoryRecordRow> {
-  const isMissingData = !data || typeof data !== 'object'
-  if (isMissingData) return []
+  if (!data || typeof data !== 'object') return []
   const records = (data as { records?: unknown }).records
   if (!Array.isArray(records)) return []
   return records.filter(

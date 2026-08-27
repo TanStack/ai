@@ -13,14 +13,12 @@ export interface NormalizedSystemPrompt<TMetadata = unknown> {
 export function normalizeSystemPrompts<TMetadata = unknown>(
   prompts: ReadonlyArray<SystemPrompt> | undefined,
 ): Array<NormalizedSystemPrompt<TMetadata>> {
-  const isEmptyPrompts = !prompts || prompts.length === 0
-  if (isEmptyPrompts) return []
+  if (!prompts) return []
+  if (prompts.length === 0) return []
   return prompts.map((p, i) => {
     if (typeof p === 'string') return { content: p }
     const candidate = p as unknown
-    const isInvalidCandidate =
-      candidate === null || typeof candidate !== 'object'
-    if (isInvalidCandidate) {
+    if (candidate === null || typeof candidate !== 'object') {
       throw new TypeError(
         `systemPrompts[${i}]: expected a string or { content, metadata? }, got ${candidate === null ? 'null' : typeof candidate}`,
       )

@@ -120,8 +120,8 @@ function transformStructuredObject(
   originalRequired: Array<string>,
   map: NullWideningMap,
 ): void {
-  const isInvalidResult = result.type !== 'object' || !result.properties
-  if (isInvalidResult) return
+  const isNonObjectSchema = result.type !== 'object' || !result.properties
+  if (isNonObjectSchema) return
   const properties: Record<string, JSONSchema> = { ...result.properties }
   const allPropertyNames = Object.keys(properties)
   const propertyMaps: Record<string, NullWideningMap> = {}
@@ -153,8 +153,8 @@ function transformStructuredArray(
   result: JSONSchema,
   map: NullWideningMap,
 ): void {
-  const shouldSkipResult = result.type !== 'array' || !result.items
-  if (shouldSkipResult) return
+  const isNonArraySchema = result.type !== 'array' || !result.items
+  if (isNonArraySchema) return
   const items = Array.isArray(result.items) ? result.items[0] : result.items
   if (!items) return
   const nestedItems = makeStructuredOutputCompatible(
@@ -186,14 +186,15 @@ function toTypedJsonSchema(schema: SchemaInput): JSONSchema | undefined {
       target: 'draft-07',
     })
     const result: JSONSchema = toJsonSchema(jsonSchema)
-    const hasProperties = 'properties' in result && !result.type
-    if (hasProperties) result.type = 'object'
-    const hasProperties2 = result.type === 'object' && !('properties' in result)
-    if (hasProperties2) {
+    const needsObjectType = 'properties' in result && !result.type
+    if (needsObjectType) result.type = 'object'
+    const needsProperties =
+      result.type === 'object' && !('properties' in result)
+    if (needsProperties) {
       result.properties = {}
     }
-    const hasRequired = result.type === 'object' && !('required' in result)
-    if (hasRequired) {
+    const needsRequired = result.type === 'object' && !('required' in result)
+    if (needsRequired) {
       result.required = []
     }
     return result
@@ -220,18 +221,17 @@ export function convertSchemaToJsonSchema(
 
   const { forStructuredOutput = false } = options
 
-  const shouldSkipForStructuredOutput =
+  const isPlainJsonSchema =
     !forStructuredOutput &&
     !isStandardJSONSchema(schema) &&
     !isStandardSchema(schema)
-  if (shouldSkipForStructuredOutput) {
+  if (isPlainJsonSchema) {
     return schema
   }
 
   const base = toTypedJsonSchema(schema)
   // Non-object inputs can't be widened; surface them untouched.
-  const isInvalidBase = !base || typeof base !== 'object'
-  if (isInvalidBase) return base
+  if (!base || typeof base !== 'object') return base
   if (!forStructuredOutput) return base
   return makeStructuredOutputCompatible(base, base.required || []).schema
 }
@@ -244,8 +244,7 @@ export function convertSchemaForStructuredOutput(
 } {
   if (!schema) return { jsonSchema: undefined, nullWideningMap: undefined }
   const base = toTypedJsonSchema(schema)
-  const isInvalidBase = !base || typeof base !== 'object'
-  if (isInvalidBase) {
+  if (!base || typeof base !== 'object') {
     return { jsonSchema: base, nullWideningMap: undefined }
   }
   const { schema: jsonSchema, nullWidening } = makeStructuredOutputCompatible(

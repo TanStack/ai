@@ -170,9 +170,6 @@ export function createCodeModeTool(
         )
       }
 
-      // Create a fresh sandbox context for this execution
-      let isolateContext: IsolateContext | null = null
-
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
         timestamp: Date.now(),
@@ -191,9 +188,6 @@ export function createCodeModeTool(
           driver,
           timeout,
           memoryLimit,
-          setIsolateContext: (next) => {
-            isolateContext = next
-          },
           finish,
         })
       } catch (error) {
@@ -204,11 +198,6 @@ export function createCodeModeTool(
           },
           'unhandled',
         )
-      } finally {
-        // Always clean up the sandbox context
-        if (isolateContext) {
-          await isolateContext.dispose()
-        }
       }
     },
   )
@@ -227,7 +216,7 @@ function codeModeCaughtError(
 
 function emitCodeModeConsoleLogs(
   logs: Array<string> | undefined,
-  emitCustomEvent: (name: string, payload: unknown) => void,
+  emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
 ): void {
   if (!logs) return
   if (logs.length === 0) return
@@ -258,11 +247,10 @@ async function runCodeModeExecution(args: {
   onSecretParameter: CodeModeToolConfig['onSecretParameter']
   secretDedupCache: Set<string>
   staticBindings: ReturnType<typeof toolsToBindings>
-  emitCustomEvent: (name: string, payload: unknown) => void
+  emitCustomEvent: ToolExecutionContext['emitCustomEvent']
   driver: CodeModeToolConfig['driver']
   timeout: number
   memoryLimit: number
-  setIsolateContext: (context: IsolateContext) => void
   finish: (result: CodeModeToolResult, phase: string) => CodeModeToolResult
 }): Promise<CodeModeToolResult> {
   let strippedCode: string
@@ -317,38 +305,40 @@ async function runCodeModeExecution(args: {
       'create-context',
     )
   }
-  args.setIsolateContext(isolateContext)
+  try {
+    const executionResult = await isolateContext.execute(strippedCode)
+    emitCodeModeConsoleLogs(executionResult.logs, args.emitCustomEvent)
 
-  const executionResult = await isolateContext.execute(strippedCode)
-  emitCodeModeConsoleLogs(executionResult.logs, args.emitCustomEvent)
+    if (executionResult.success) {
+      return args.finish(
+        {
+          success: true,
+          result: executionResult.value,
+          logs: executionResult.logs,
+        },
+        'execute',
+      )
+    }
 
-  if (executionResult.success) {
     return args.finish(
       {
-        success: true,
-        result: executionResult.value,
+        success: false,
+        error: executionResult.error
+          ? {
+              message: executionResult.error.message,
+              name: executionResult.error.name,
+              ...(executionResult.error.stack !== undefined && {
+                stack: executionResult.error.stack,
+              }),
+            }
+          : { message: 'Unknown execution error', name: 'UnknownError' },
         logs: executionResult.logs,
       },
       'execute',
     )
+  } finally {
+    await isolateContext.dispose()
   }
-
-  return args.finish(
-    {
-      success: false,
-      error: executionResult.error
-        ? {
-            message: executionResult.error.message,
-            name: executionResult.error.name,
-            ...(executionResult.error.stack !== undefined && {
-              stack: executionResult.error.stack,
-            }),
-          }
-        : { message: 'Unknown execution error', name: 'UnknownError' },
-      logs: executionResult.logs,
-    },
-    'execute',
-  )
 }
 
 function buildToolDescription(tools: Array<CodeModeTool>): string {

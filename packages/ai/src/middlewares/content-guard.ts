@@ -118,8 +118,8 @@ function createBufferedStrategy(
 
     const filtered = applyRules(rawAccumulated, rules)
 
-    const hasBlockOnMatch = blockOnMatch && filtered !== rawAccumulated
-    if (hasBlockOnMatch) {
+    const shouldBlock = blockOnMatch && filtered !== rawAccumulated
+    if (shouldBlock) {
       if (onFiltered) {
         onFiltered({
           messageId: lastMessageId,
@@ -134,8 +134,8 @@ function createBufferedStrategy(
 
     const remaining = filtered.slice(emittedFilteredLength)
     if (remaining.length > 0) {
-      const hasFiltered = filtered !== rawAccumulated && onFiltered
-      if (hasFiltered) {
+      const canNotifyFilter = filtered !== rawAccumulated && onFiltered
+      if (canNotifyFilter) {
         onFiltered({
           messageId: lastMessageId,
           original: rawAccumulated,
@@ -169,9 +169,9 @@ function createBufferedStrategy(
 
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       // Flush buffer on stream end events
-      const isTEXTMESSAGEEND =
+      const isFlushEvent =
         chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED'
-      if (isTEXTMESSAGEEND) {
+      if (isFlushEvent) {
         const flushed = flushBuffer()
         if (flushed) return [flushed, chunk]
         return // pass through end event
@@ -181,9 +181,9 @@ function createBufferedStrategy(
 
       // Flush buffer on message boundary change
       const pending: Array<StreamChunk> = []
-      const hasLastMessageId =
+      const isMessageBoundary =
         lastMessageId && chunk.messageId !== lastMessageId
-      if (hasLastMessageId) {
+      if (isMessageBoundary) {
         const flushed = flushBuffer()
         if (flushed) pending.push(flushed)
       }
@@ -199,8 +199,8 @@ function createBufferedStrategy(
         return pending.length > 0 ? pending : null
       }
 
-      const hasBlockOnMatch = blockOnMatch && filtered !== rawAccumulated
-      if (hasBlockOnMatch) {
+      const shouldBlock = blockOnMatch && filtered !== rawAccumulated
+      if (shouldBlock) {
         if (onFiltered) {
           onFiltered({
             messageId: chunk.messageId,
@@ -214,8 +214,8 @@ function createBufferedStrategy(
 
       const newDelta = filtered.slice(emittedFilteredLength, safeFilteredEnd)
 
-      const hasFiltered = filtered !== rawAccumulated && onFiltered
-      if (hasFiltered) {
+      const canNotifyFilter = filtered !== rawAccumulated && onFiltered
+      if (canNotifyFilter) {
         onFiltered({
           messageId: chunk.messageId,
           original: rawAccumulated,

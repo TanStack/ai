@@ -75,10 +75,9 @@ function appendVideoImageByRole(
     )
   }
   const url = imagePartToUrl(part)
-  const isReferenceOrCharacterRole =
-    role === 'reference' || role === 'character'
+  const isReferenceRole = role === 'reference' || role === 'character'
   if (role === 'end_frame') ends.push(url)
-  else if (isReferenceOrCharacterRole) references.push(url)
+  else if (isReferenceRole) references.push(url)
   // Unroled parts default to the start frame (image-to-video).
   else starts.push(url)
 }

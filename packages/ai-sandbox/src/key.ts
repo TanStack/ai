@@ -28,8 +28,7 @@ function fnv1a(input: string): string {
 
 /** Canonical, key-sorted JSON so logically-equal inputs hash identically. */
 function canonical(value: unknown): string {
-  const isNotObject = value === null || typeof value !== 'object'
-  if (isNotObject) return JSON.stringify(value)
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   const keys = Object.keys(value).sort()
   return `{${keys

@@ -113,8 +113,7 @@ export function resolveSandboxDurability<TOffset extends string = string>(
 ): SandboxRunDurability | undefined {
   const runs = options?.runs
   const durability = options?.durability
-  const isMissingDurability = runs === undefined || durability === undefined
-  if (isMissingDurability) return undefined
+  if (runs === undefined || durability === undefined) return undefined
   return {
     runs,
     adapter: durability.adapter,

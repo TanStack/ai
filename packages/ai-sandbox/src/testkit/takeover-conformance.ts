@@ -106,9 +106,7 @@ function toChunk(
   messageId: string,
   value: unknown,
 ): StreamChunk {
-  const isNotDeltaObject =
-    typeof value !== 'object' || value === null || !('delta' in value)
-  if (isNotDeltaObject) {
+  if (typeof value !== 'object' || value === null || !('delta' in value)) {
     throw new Error(
       `takeover conformance: run ${runId} journal line is not an agent event: ${JSON.stringify(value)}`,
     )

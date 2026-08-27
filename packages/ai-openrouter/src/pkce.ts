@@ -108,16 +108,12 @@ export function loadOpenRouterPkcePending(): OpenRouterPkcePending | null {
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    const isNotObject = typeof parsed !== 'object' || parsed === null
-    if (isNotObject) return null
-    const record = parsed as Record<string, unknown>
-    const isMissingPkceFields =
-      !('codeVerifier' in record) || !('codeChallengeMethod' in record)
-    if (isMissingPkceFields) {
+    if (typeof parsed !== 'object' || parsed === null) return null
+    if (!('codeVerifier' in parsed) || !('codeChallengeMethod' in parsed)) {
       return null
     }
-    if (!('callbackUrl' in record)) return null
-    const { codeVerifier, codeChallengeMethod, callbackUrl } = record
+    if (!('callbackUrl' in parsed)) return null
+    const { codeVerifier, codeChallengeMethod, callbackUrl } = parsed
     if (typeof codeVerifier !== 'string') return null
     if (codeChallengeMethod !== 'S256') return null
     if (typeof callbackUrl !== 'string') return null

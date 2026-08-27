@@ -173,9 +173,7 @@ export function createAIDevtoolsGenerationPreview(
     return textPreviewFromResult(input.result)
   }
 
-  const isMissingResultOrResultIsUndefined =
-    input.result === null || input.result === undefined
-  if (isMissingResultOrResultIsUndefined) {
+  if (input.result === null || input.result === undefined) {
     return { kind: 'empty' }
   }
 
@@ -194,9 +192,7 @@ function imagePreviewFromResult(result: unknown): AIDevtoolsGenerationPreview {
     .map((image) => mediaItemFromSource(image, 'image/png'))
     .filter(isGenerationMediaItem)
 
-  const isEmptyItemsAndHasResultAndResultIsNotUndefined =
-    items.length === 0 && result !== null && result !== undefined
-  if (isEmptyItemsAndHasResultAndResultIsNotUndefined) {
+  if (items.length === 0 && result !== null && result !== undefined) {
     const directItem = mediaItemFromSource(result, 'image/png')
     if (directItem) {
       items.push(directItem)
@@ -262,9 +258,7 @@ function textPreviewFromResult(result: unknown): AIDevtoolsGenerationPreview {
     return { kind: 'text', text }
   }
 
-  const isMissingResultOrResultIsUndefined =
-    result === null || result === undefined
-  if (isMissingResultOrResultIsUndefined) {
+  if (result === null || result === undefined) {
     return { kind: 'empty' }
   }
 
@@ -357,9 +351,7 @@ function mimeTypeFromAudioFormat(format: string | undefined): string {
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {
-  const isNotValueOrTypeofValueIsNotObjectOrValueIsArray =
-    !value || typeof value !== 'object' || Array.isArray(value)
-  if (isNotValueOrTypeofValueIsNotObjectOrValueIsArray) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return undefined
   }
   return value as UnknownRecord
@@ -646,8 +638,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private prepareForEmit(): boolean {
-    const isDisposedOrSuperseded = this.disposed || this.superseded
-    if (isDisposedOrSuperseded) {
+    const isInactive = this.disposed || this.superseded
+    if (isInactive) {
       return false
     }
     this.activate()
@@ -675,9 +667,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
     const activeBridgeByHookId = getActiveBridgeRegistry()
     const activeBridge = activeBridgeByHookId.get(this.options.hookId)
-    const isActiveBridgeAndActiveBridgeIsNotValue =
-      activeBridge && activeBridge !== this
-    if (isActiveBridgeAndActiveBridgeIsNotValue) {
+    if (activeBridge && activeBridge !== this) {
       if (typeof activeBridge.supersede === 'function') {
         activeBridge.supersede()
       } else {
@@ -708,15 +698,14 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   private handleRequestState(
     event: AIDevtoolsEvent<{ targetHookId?: string }>,
   ): void {
-    const isDisposedOrSuperseded = this.disposed || this.superseded
-    if (isDisposedOrSuperseded) {
+    const isInactive = this.disposed || this.superseded
+    if (isInactive) {
       return
     }
 
     const targetHookId = event.payload.targetHookId
-    const isTargetHookIdAndTargetHookIdIsNotHookId =
-      targetHookId && targetHookId !== this.options.hookId
-    if (isTargetHookIdAndTargetHookIdIsNotHookId) {
+    const isOtherHook = targetHookId && targetHookId !== this.options.hookId
+    if (isOtherHook) {
       return
     }
 
@@ -740,8 +729,8 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 
   private matchesFixtureTarget(fixture: AIDevtoolsToolFixture): boolean {
-    const isNotHookIdAndNotThreadId = !fixture.hookId && !fixture.threadId
-    if (isNotHookIdAndNotThreadId) {
+    const hasNoTarget = !fixture.hookId && !fixture.threadId
+    if (hasNoTarget) {
       return false
     }
 
@@ -749,10 +738,10 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       return fixture.hookId === this.options.hookId
     }
 
-    const isThreadIdAndNotThreadIdOrThreadIdIsNotThreadId =
+    const isOtherThread =
       fixture.threadId &&
       (!this.options.threadId || fixture.threadId !== this.options.threadId)
-    if (isThreadIdAndNotThreadIdOrThreadIdIsNotThreadId) {
+    if (isOtherThread) {
       return false
     }
     return true
@@ -896,16 +885,15 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
       return
     }
 
-    const isTypeIsRUNFINISHEDOrTypeIsRUNERROR =
+    const isTerminalChunk =
       chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-    if (isTypeIsRUNFINISHEDOrTypeIsRUNERROR) {
+    if (isTerminalChunk) {
       const runId =
         chunk.type === 'RUN_FINISHED'
           ? chunk.runId
           : (chunk as { runId?: string }).runId
-      const isNotRunIdOrRunIdIsCurrentRunId =
-        !runId || runId === this.currentRunId
-      if (isNotRunIdOrRunIdIsCurrentRunId) {
+      const isOwnRun = !runId || runId === this.currentRunId
+      if (isOwnRun) {
         const context = this.getCurrentRunEventContext()
         if (context) {
           this.lastRunEventContext = context
@@ -934,15 +922,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
    * adapter supports introspection.
    */
   private emitMemoryState(rawValue: unknown): void {
-    const isNotRawValueOrTypeofRawValueIsNotObject =
-      !rawValue || typeof rawValue !== 'object'
-    if (isNotRawValueOrTypeofRawValueIsNotObject) return
+    if (!rawValue || typeof rawValue !== 'object') return
     const value = rawValue as MemoryStateEventValue
     const scope = value.scope
     const adapter = value.adapter
-    const isNotScopeOrTypeofAdapterIsNotString =
-      !scope || typeof adapter !== 'string'
-    if (isNotScopeOrTypeofAdapterIsNotString) return
+    if (!scope || typeof adapter !== 'string') return
     const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
 
     emitAIDevtoolsEvent('memory:retrieve:started', {
@@ -1236,9 +1220,10 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     messages: Array<UIMessage>,
   ): { message: UIMessage; toolCallId: string } | undefined {
     const sourceMessage = fixture.message
-    const isNotSourceMessageOrNotPartsIsArray =
-      !sourceMessage || !Array.isArray(sourceMessage.parts)
-    if (isNotSourceMessageOrNotPartsIsArray) {
+    if (!sourceMessage) {
+      return undefined
+    }
+    if (!Array.isArray(sourceMessage.parts)) {
       return undefined
     }
 
@@ -1283,9 +1268,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   ): Map<string, string> {
     const ids = new Map<string, string>()
     for (const part of parts) {
-      const isNotIsRecordOrTypeIsNotToolCall =
-        !isRecord(part) || part.type !== 'tool-call'
-      if (isNotIsRecordOrTypeIsNotToolCall) continue
+      const isToolCallPart = isRecord(part) && part.type === 'tool-call'
+      if (!isToolCallPart) continue
       if (typeof part.id !== 'string') continue
       ids.set(part.id, this.resolveFixtureToolCallId(part.id, messages))
     }
@@ -1296,9 +1280,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     messageId: string | undefined,
     messages: Array<UIMessage>,
   ): string {
-    const isMessageIdAndNotSome =
-      messageId && !messages.some((message) => message.id === messageId)
-    if (isMessageIdAndNotSome) {
+    if (messageId && !messages.some((message) => message.id === messageId)) {
       return messageId
     }
     return this.chatOptions.generateId('fixture-msg')
@@ -1308,9 +1290,7 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     toolCallId: string | undefined,
     messages: Array<UIMessage>,
   ): string {
-    const isToolCallIdAndNotHasToolCallId =
-      toolCallId && !hasToolCallId(messages, toolCallId)
-    if (isToolCallIdAndNotHasToolCallId) {
+    if (toolCallId && !hasToolCallId(messages, toolCallId)) {
       return toolCallId
     }
     return this.chatOptions.generateId('fixture-tool-call')
@@ -1334,11 +1314,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringifyFixtureValue(value: unknown): string {
   if (typeof value === 'string') return value
-  const isValueIsUndefinedOrTypeofValueIsFunctionOrTypeofValueIsSymbol =
+  if (
     value === undefined ||
     typeof value === 'function' ||
     typeof value === 'symbol'
-  if (isValueIsUndefinedOrTypeofValueIsFunctionOrTypeofValueIsSymbol) {
+  ) {
     return String(value)
   }
   try {
@@ -1404,9 +1384,7 @@ function hydrateToolCallOutputs(
     }
   }
 
-  const isMappedToolCallIdAndOutputIsNotUndefined =
-    fixtureOutput.mappedToolCallId && fixtureOutput.output !== undefined
-  if (isMappedToolCallIdAndOutputIsNotUndefined) {
+  if (fixtureOutput.mappedToolCallId && fixtureOutput.output !== undefined) {
     const toolCall = parts.find(
       (candidate): candidate is ToolCallPart =>
         candidate.type === 'tool-call' &&
@@ -1787,9 +1765,7 @@ export class VideoDevtoolsBridge<
     patch: VideoRunPatch<TOutput>,
   ): void {
     super.upsertRun(runId, patch)
-    const isPatchHasJobIdOrPatchHasVideoStatus =
-      'jobId' in patch || 'videoStatus' in patch
-    if (!isPatchHasJobIdOrPatchHasVideoStatus) return
+    if (!('jobId' in patch || 'videoStatus' in patch)) return
 
     const index = this.devtoolsRuns.findIndex((run) => run.id === runId)
     if (index < 0) return

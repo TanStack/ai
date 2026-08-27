@@ -261,8 +261,8 @@ async function createWebRTCConnection(
       parts: [],
     }
     for (const item of output || []) {
-      const isNotMessageItem = item.type !== 'message' || !item.content
-      if (isNotMessageItem) continue
+      const isMessageItem = item.type === 'message' && item.content
+      if (!isMessageItem) continue
       const content = item.content as Array<Record<string, unknown>>
       for (const part of content) appendOpenAIRealtimePart(message, part)
     }

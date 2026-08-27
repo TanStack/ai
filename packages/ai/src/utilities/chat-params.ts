@@ -73,9 +73,9 @@ function assertAGUIMessage(
       }
       break
     case 'user': {
-      const isInvalidContent =
+      const isBadUserContent =
         typeof value.content !== 'string' && !Array.isArray(value.content)
-      if (isInvalidContent) {
+      if (isBadUserContent) {
         invalidBody(
           `${at}.content must be a string or an array of content parts`,
         )
@@ -154,8 +154,8 @@ function validateResumeEntry(
   const at = `resume[${index}]`
   if (!isRecord(value)) invalidBody(`${at} must be an object`)
   const status = value.status
-  const hasResolved = status !== 'resolved' && status !== 'cancelled'
-  if (hasResolved) {
+  const isUnknownResumeStatus = status !== 'resolved' && status !== 'cancelled'
+  if (isUnknownResumeStatus) {
     invalidBody(`${at}.status must be "resolved" or "cancelled"`)
   }
   const entry: RunAgentResumeItem = {
@@ -203,9 +203,9 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
       ? undefined
       : requireArray(body.resume, 'resume').map(validateResumeEntry)
 
-  const hasBody =
+  const isBadForwardedProps =
     body.forwardedProps !== undefined && !isRecord(body.forwardedProps)
-  if (hasBody) {
+  if (isBadForwardedProps) {
     invalidBody('forwardedProps must be an object')
   }
 

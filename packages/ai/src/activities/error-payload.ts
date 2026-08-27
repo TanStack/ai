@@ -5,8 +5,7 @@ const ABORT_ERROR_NAMES = new Set([
 ])
 
 export function isAbortShapedError(error: unknown): boolean {
-  const isAbortShapedError2 = error && typeof error === 'object'
-  if (isAbortShapedError2) {
+  if (error && typeof error === 'object') {
     const name = (error as { name?: unknown }).name
     return typeof name === 'string' && ABORT_ERROR_NAMES.has(name)
   }
@@ -15,9 +14,7 @@ export function isAbortShapedError(error: unknown): boolean {
 
 function normalizeCode(codeField: unknown): string | undefined {
   if (typeof codeField === 'string') return codeField
-  const hasCodeField =
-    typeof codeField === 'number' && Number.isFinite(codeField)
-  if (hasCodeField) {
+  if (typeof codeField === 'number' && Number.isFinite(codeField)) {
     return String(codeField)
   }
   return undefined
@@ -29,9 +26,7 @@ function extractCode(source: {
 }): string | undefined {
   const fromCode = normalizeCode(source.code)
   if (fromCode !== undefined) return fromCode
-  const isNumber =
-    typeof source.status === 'number' && Number.isFinite(source.status)
-  if (isNumber) {
+  if (typeof source.status === 'number' && Number.isFinite(source.status)) {
     return String(source.status)
   }
   return undefined
@@ -50,8 +45,7 @@ export function toRunErrorPayload(
       code: extractCode(error as Error & { code?: unknown; status?: unknown }),
     }
   }
-  const isInvalid = typeof error === 'object' && error !== null
-  if (isInvalid) {
+  if (typeof error === 'object' && error !== null) {
     const messageField = (error as { message?: unknown }).message
     return {
       message:
@@ -61,29 +55,27 @@ export function toRunErrorPayload(
       code: extractCode(error as { code?: unknown; status?: unknown }),
     }
   }
-  const hasText = typeof error === 'string' && error.length > 0
-  if (hasText) {
+  if (typeof error === 'string' && error.length > 0) {
     return { message: error, code: undefined }
   }
   return { message: fallbackMessage, code: undefined }
 }
 
 export function toRunErrorRawEvent(error: unknown): unknown {
-  const isInvalid = !error || typeof error !== 'object'
-  if (isInvalid) return undefined
+  if (!error || typeof error !== 'object') return undefined
   const e = error as {
     rawEvent?: unknown
     error?: unknown
     metadata?: unknown
   }
-  const isMissingE = e.rawEvent !== undefined && e.rawEvent !== null
-  if (isMissingE) return e.rawEvent
-  const isInvalidE =
+  const hasRawEvent = e.rawEvent !== undefined && e.rawEvent !== null
+  if (hasRawEvent) return e.rawEvent
+  const hasNestedError =
     e.error !== undefined && e.error !== null && typeof e.error === 'object'
-  if (isInvalidE) {
+  if (hasNestedError) {
     return e.error
   }
-  const isMissingE2 = e.metadata !== undefined && e.metadata !== null
-  if (isMissingE2) return e.metadata
+  const hasMetadata = e.metadata !== undefined && e.metadata !== null
+  if (hasMetadata) return e.metadata
   return undefined
 }

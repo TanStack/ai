@@ -14,11 +14,11 @@ function resolveMetaStrategy(): MetaStrategy {
     // A locked-down runtime with a throwing `userAgent` getter is not workerd;
     // fall through to the remaining checks rather than crash the log call.
   }
-  const isInvalidEslint =
+  const isNodeRuntime =
     typeof process !== 'undefined' &&
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a partial process global (bundler shims) may lack versions
     typeof process.versions?.node === 'string'
-  if (isInvalidEslint) {
+  if (isNodeRuntime) {
     return 'dir'
   }
   return 'arg'
@@ -38,8 +38,7 @@ function stringifyMetaSafely(value: unknown): string {
             stack: entry.stack,
           }
         }
-        const isInvalidEntry = typeof entry === 'object' && entry !== null
-        if (isInvalidEntry) {
+        if (typeof entry === 'object' && entry !== null) {
           if (seen.has(entry)) return '[Circular]'
           seen.add(entry)
         }
