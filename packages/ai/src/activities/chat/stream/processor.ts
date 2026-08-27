@@ -729,6 +729,15 @@ export class StreamProcessor {
         return id
       }
     }
+    // finalizeStream() clears activeMessageIds but keeps messageStates.
+    // Leftover reasoning after an early RUN_FINISHED must resume that
+    // assistant. A new user turn calls prepareAssistantMessage(), which
+    // clears messageStates first.
+    for (const [id, state] of [...this.messageStates].reverse()) {
+      if (state.role === 'assistant') {
+        return id
+      }
+    }
     return null
   }
 
@@ -748,14 +757,20 @@ export class StreamProcessor {
     // Try to find state by preferred ID
     if (preferredId) {
       const state = this.getMessageState(preferredId)
-      if (state) return { messageId: preferredId, state }
+      if (state) {
+        this.activeMessageIds.add(preferredId)
+        return { messageId: preferredId, state }
+      }
     }
 
     // Try active assistant message
     const activeId = this.getActiveAssistantMessageId()
     if (activeId) {
       const state = this.getMessageState(activeId)
-      if (state) return { messageId: activeId, state }
+      if (state) {
+        this.activeMessageIds.add(activeId)
+        return { messageId: activeId, state }
+      }
     }
 
     // Check if a message with preferredId already exists (reconnect/resume case).

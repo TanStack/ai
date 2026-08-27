@@ -4605,6 +4605,35 @@ describe('StreamProcessor', () => {
       expect(processor.getState().done).toBe(true)
     })
 
+    it('appends leftover reasoning after a stop RUN_FINISHED onto the same thinking part', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(
+        ev.reasoningContent(
+          'The user is asking for a beginner guitar recommen.',
+        ),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+      processor.processChunk(ev.reasoningContent(' $1,299.'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      const thinkingParts = messages[0]!.parts.filter(
+        (part) => part.type === 'thinking',
+      )
+      expect(thinkingParts).toHaveLength(1)
+      const thinkingPart = thinkingParts[0]
+      if (thinkingPart?.type !== 'thinking') {
+        throw new Error('expected a thinking part')
+      }
+      expect(thinkingPart.content).toBe(
+        'The user is asking for a beginner guitar recommen. $1,299.',
+      )
+    })
+
     it('does not fire onStreamEnd on a sequential tool_calls terminal', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
