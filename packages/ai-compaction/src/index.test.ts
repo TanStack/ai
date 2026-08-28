@@ -206,6 +206,23 @@ describe('withCompaction', () => {
     expect(onCompact).not.toHaveBeenCalled()
   })
 
+  it('runs summarize once per beforeModel call with no metadata store', async () => {
+    const summarize = vi.fn(async () => 'the gist')
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      onCompact,
+    })
+    const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
+
+    await runOnConfig(mw, msgs, phaseContext('init'))
+    await runOnConfig(mw, msgs, phaseContext('beforeModel'))
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(onCompact).toHaveBeenCalledOnce()
+  })
+
   it('reuses a persisted checkpoint for an unchanged canonical prefix', async () => {
     const store = memoryStore()
     const summarize = vi.fn(async () => 'the gist')

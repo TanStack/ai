@@ -190,7 +190,7 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 
 - **The system prompt is never dropped.** `chat()` keeps it separate from `messages`, so compaction only touches the conversation.
 - **Tool calls stay paired with their results.** The built-in strategies never leave an orphaned tool result, so the request stays valid.
-- **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again.
+- **It runs before every model call.** Compaction skips `init`. It runs on `beforeModel` and `structuredOutput`. Each later call can compact again.
 - **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
 ## DevTools
