@@ -2,7 +2,7 @@ import type { ConnectionAdapter } from '@tanstack/ai-client'
 import type { UIMessage } from '../types'
 import type { PluggableList } from '@crazydos/vue-markdown'
 
-/** @deprecated Use `createChatUI()` from `@tanstack/ai-vue-ui`. Deprecated in 0.3.0. Removed in 1.0.0. */
+/** @deprecated Since 0.3.0. Use `createChatHook()` from `@tanstack/ai-vue/ui` instead. Removed in 1.0.0. */
 export interface ChatProps {
   /** CSS class name for the root element */
   class?: string

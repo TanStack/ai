@@ -234,7 +234,7 @@ on.
 | [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)       | Vue composables for chat and generations                                 |
 | [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte) | Svelte 5 factories for chat and generations                              |
 | [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact) | Preact hooks for chat                                                    |
-| `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`    | Headless UI components for chat interfaces                               |
+| `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui` | Headless UI components for chat interfaces. The old `@tanstack/ai-*-ui` packages are deprecated. |
 
 ## Advanced Docs
 

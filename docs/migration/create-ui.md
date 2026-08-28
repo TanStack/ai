@@ -1,46 +1,61 @@
 ---
-title: Migrate to createChatUI
+title: Chat UI packages
 id: migrate-create-ui
 order: 5
-description: "Move chat-state ownership out of the old Chat component and onto createChatUI with a typed component map."
+description: "Move from @tanstack/ai-*-ui to the framework /ui subpath, then call createChatHook and render chat.AppChat."
 keywords:
   - tanstack ai
+  - createChatHook
   - createChatUI
   - migration
   - deprecation
 ---
 
-The old `Chat` component owned chat state and lost configured types. `createChatUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. Then call `createChatHook({ options, chatComponents })` and render `<chat.AppChat />`.
 
-This is a semantic migration. There is no codemod.
+The same move applies to Solid, Vue, and Svelte.
+
+> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`, and `@tanstack/ai-svelte-ui` re-export the new `/ui` subpath until each package's `1.0.0`. `npm install` prints a warning. Import from `/ui` in new code.
 
 ## What changes
 
-1. You call `useChat` or `createChat` yourself.
-2. You supply every visible component.
-3. Tool inputs stay optional while they stream.
-4. Tool approvals come from `chat.interrupts`.
-5. Unknown runtime keys can use a fallback or render nothing.
-6. `createChatUI()` must run at module scope so identity stays stable.
+1. Chat UI lives on the framework package: `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui`.
+2. You call `createChatHook({ options, chatComponents })` once at module scope.
+3. You call `useAppChat()` in the screen (Svelte: `createAppChat()`).
+4. You render `<chat.AppChat />` (Vue and Svelte pass `ui` into `UIChat`).
+5. You supply every visible component. There is no default markup.
+
+This is a mechanical import change plus a factory rename. There is no codemod.
 
 ## Why
 
-The old APIs drop configured types, keep unused properties, use a deprecated approval path, cover only part of the message protocol, and own chat state. Two orchestration models duplicate fixes.
+A separate `*-ui` package split chat UI from the framework package. Form uses `createFormHook` on `@tanstack/react-form`. Table uses `createTableHook` on `@tanstack/react-table`. Chat now uses the same shape on `@tanstack/ai-react/ui`.
+
+The old `Chat` component also owned chat state and dropped configured types. `createChatHook` keeps types from your `chatOptions`.
 
 ## Minimum versions
 
-- `@tanstack/ai-react/ui` 0.9.0
-- `@tanstack/ai-solid/ui` 0.8.0
-- `@tanstack/ai-vue/ui` 0.3.0
-- `@tanstack/ai-svelte/ui` 0.2.0
+New imports:
 
-Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
+- `@tanstack/ai-react` (next minor) `/ui`
+- `@tanstack/ai-solid` (next minor) `/ui`
+- `@tanstack/ai-vue` (next minor) `/ui`
+- `@tanstack/ai-svelte` (next minor) `/ui`
+
+Deprecated re-exports, removed in `1.0.0`:
+
+- `@tanstack/ai-react-ui` 0.9.0
+- `@tanstack/ai-solid-ui` 0.8.0
+- `@tanstack/ai-vue-ui` 0.3.0
+- `@tanstack/ai-svelte-ui` 0.2.0
+
+Old orchestration exports (`Chat` with a `connection` prop) stay importable until `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
 
 ## Before
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react/ui'
+import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
 
 const connection = fetchServerSentEvents('/api/chat')
 
@@ -104,19 +119,32 @@ export function NewChat() {
 
 ## Steps
 
-1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createChatHook({ options: chatOptions, chatComponents: { layout, message, parts, tools, interrupts } })` next to that object.
-3. Call the bound `useAppChat` from `createChatHook` in the screen component.
-4. Register `layout`, `message`, `parts`, `tools`, and `interrupts` on `chatComponents`. This matches Form and Table.
-5. Render `<chat.AppChat />`.
+1. Replace `@tanstack/ai-react-ui` with `@tanstack/ai-react/ui` (Solid, Vue, Svelte: same swap).
+2. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
+3. Call `createChatHook({ options: chatOptions, chatComponents })` next to that object.
+4. Call `useAppChat` in the screen component. Pass `threadId` here when you need more than one chat.
+5. Render `<chat.AppChat />`. On Vue and Svelte, pass `ui` into `UIChat`.
+
+Register `layout`, `message`, `parts`, `tools`, and `interrupts` on `chatComponents`. This matches Form `fieldComponents` and Table `cellComponents`.
 
 ## Gotchas
+
+Do now:
+
+- The deprecated packages re-export `/ui`. An old import path still compiles. Switch the import so the warning goes away.
+- `useChat` is not re-exported from the shim. Import it from `@tanstack/ai-react` (or the matching framework package).
+- Lower-level `createChatUI(options, chatComponents)` still exists on `/ui` for manual traversal. Prefer `createChatHook` for screens.
+
+Types and interrupts:
 
 - A shared `chatOptions` variable does not need `as const`.
 - A mapped tool can read `interrupt` and render the approval itself. That approval stays off the list. A component on `interrupts.tools` uses the list.
 - Generic interrupts live under `interrupts.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
 - TypeScript requires a `tools` component for every tool name and an `interrupts.generic` component for every interrupt id. `generic.fallback` is optional.
-- Matched `tool-result` parts are hidden in automatic traversal. Unmatched results stay visible.
 - Nested providers use the nearest chat instance.
+
+## Coexistence
+
+Old `*-ui` packages and new `/ui` imports can live in the same app until `1.0.0`. Do not mix them in one chat tree. Pick one factory per screen.
 
 See the [React UI guide](../ui/react) for a full map.

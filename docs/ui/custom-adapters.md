@@ -25,7 +25,7 @@ Your adapter owns:
 3. Render callbacks, slots, or snippets
 4. Development warnings for missing mapped keys
 
-Do not add default markup. Do not add a new store. The app owns `useChat` or `createChat`.
+Do not add default markup. Do not add a new store. The app owns `useAppChat` from `createChatHook`, or `useChat` / `createChat`.
 
 Call `selectChatUI({ messages, interrupts, inlineToolNames })`. Automatic traversal skips a `tool-result` only when `matched` is true. Keep unmatched results.
 

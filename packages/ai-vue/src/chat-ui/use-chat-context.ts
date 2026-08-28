@@ -5,7 +5,7 @@ import type { InjectionKey } from 'vue'
 export const CHAT_KEY = Symbol() as InjectionKey<UseChatReturn>
 
 /**
- * @deprecated Use `createChatUI()` from `@tanstack/ai-vue-ui`. Deprecated in 0.3.0. Removed in 1.0.0.
+ * @deprecated Since 0.3.0. Use `createChatHook()` from `@tanstack/ai-vue/ui` instead. Removed in 1.0.0.
  * Composable to access chat context
  * @throws Error if used outside of Chat component
  */

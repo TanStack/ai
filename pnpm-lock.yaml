@@ -2502,6 +2502,25 @@ importers:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  packages/ai-react-ui:
+    dependencies:
+      '@tanstack/ai-react':
+        specifier: workspace:^
+        version: link:../ai-react
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.18
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
   packages/ai-sandbox:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -2705,6 +2724,22 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
 
+  packages/ai-solid-ui:
+    dependencies:
+      '@tanstack/ai-solid':
+        specifier: workspace:^
+        version: link:../ai-solid
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
+      solid-js:
+        specifier: ^1.9.10
+        version: 1.9.10
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
   packages/ai-svelte:
     dependencies:
       '@tanstack/ai-client':
@@ -2732,6 +2767,37 @@ importers:
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26)
+      svelte:
+        specifier: ^5.56.9
+        version: 5.56.9(@typescript-eslint/types@8.59.4)
+      svelte-check:
+        specifier: ^4.2.0
+        version: 4.3.4(picomatch@4.0.5)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(typescript@5.9.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
+  packages/ai-svelte-ui:
+    dependencies:
+      '@tanstack/ai-svelte':
+        specifier: workspace:^
+        version: link:../ai-svelte
+    devDependencies:
+      '@sveltejs/package':
+        specifier: ^2.3.10
+        version: 2.5.7(svelte@5.56.9(@typescript-eslint/types@8.59.4))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^7.3.0
+        version: 7.3.0(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.3
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
       svelte:
         specifier: ^5.56.9
         version: 5.56.9(@typescript-eslint/types@8.59.4)
@@ -2855,6 +2921,22 @@ importers:
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
+
+  packages/ai-vue-ui:
+    dependencies:
+      '@tanstack/ai-vue':
+        specifier: workspace:^
+        version: link:../ai-vue
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+      vue:
+        specifier: ^3.5.25
+        version: 3.5.25(typescript@7.0.2)
 
   packages/openai-base:
     dependencies:
@@ -26111,7 +26193,6 @@ snapshots:
       '@vue/compiler-ssr': 3.5.25
       '@vue/shared': 3.5.25
       vue: 3.5.25(typescript@7.0.2)
-    optional: true
 
   '@vue/shared@3.5.25': {}
 
@@ -34672,7 +34753,6 @@ snapshots:
       '@vue/shared': 3.5.25
     optionalDependencies:
       typescript: 7.0.2
-    optional: true
 
   w3c-xmlserializer@5.0.0:
     dependencies:

@@ -2,16 +2,18 @@
 title: Svelte Chat UI
 id: typed-headless-ui-svelte
 order: 4
-description: "Build a typed, headless Svelte 5 chat UI with createChatUI, snippets, and static components."
+description: "Build a typed, headless Svelte 5 chat UI with createChatHook, snippets, and static components."
 keywords:
   - tanstack ai
-  - createChatUI
+  - createChatHook
   - svelte
   - headless ui
   - ToolProps
 ---
 
 Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
+
+> **Deprecated.** Do not install `@tanstack/ai-svelte-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
 The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
@@ -61,7 +63,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ## Type a component in its own file
 
-Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatUI`.
+Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatHook`.
 
 ```svelte
 <script lang="ts">

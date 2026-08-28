@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** @deprecated Use `createChatUI()` from `@tanstack/ai-vue-ui`. Deprecated in 0.3.0. Removed in 1.0.0. */
+/** @deprecated Since 0.3.0. Use `createChatHook()` from `@tanstack/ai-vue/ui` instead. Removed in 1.0.0. */
 import { provide } from 'vue'
 import { useChat } from '../use-chat'
 import { CHAT_KEY } from './use-chat-context'

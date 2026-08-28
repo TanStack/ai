@@ -2,16 +2,18 @@
 title: Solid Chat UI
 id: typed-headless-ui-solid
 order: 2
-description: "Build a typed, headless Solid chat UI with createChatUI. Accessors stay tracked. Your app owns useChat."
+description: "Build a typed, headless Solid chat UI with createChatHook. Accessors stay tracked."
 keywords:
   - tanstack ai
-  - createChatUI
+  - createChatHook
   - solid
   - headless ui
   - ToolProps
 ---
 
 Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. Your app calls `useAppChat()` to create the instance. Render `<chat.AppChat />`. Do not destructure reactive props.
+
+> **Deprecated.** Do not install `@tanstack/ai-solid-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
 The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
@@ -69,7 +71,7 @@ Use `ToolProps` the same way as React. Keep the `props` object so Solid can trac
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatUI, type ToolProps } from '@tanstack/ai-solid/ui'
+import { createChatHook, type ToolProps } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -91,11 +93,14 @@ export function WeatherTool(
   return <strong>{props.part.input?.city}</strong>
 }
 
-export const UI = createChatUI(chatOptions, {
-  layout: (props) => props.renderMessages(),
-  message: (props) => <article>{props.renderParts()}</article>,
-  parts: { fallback: () => null },
-  tools: { getWeather: WeatherTool },
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    layout: (props) => props.renderMessages(),
+    message: (props) => <article>{props.renderParts()}</article>,
+    parts: { fallback: () => null },
+    tools: { getWeather: WeatherTool },
+  },
 })
 ```
 
@@ -103,41 +108,44 @@ Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is alre
 
 Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
 
-Mapped components do not receive `chat` as a prop. Call `UI.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+Mapped components do not receive `chat` as a prop. Call `useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
 
-## Read chat from `UI.useChatContext()`
+## Read chat from `useChatContext()`
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid/ui'
+import { fetchServerSentEvents } from '@tanstack/ai-solid'
+import { createChatHook } from '@tanstack/ai-solid/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
 function StatusLine() {
-  const chat = UI.useChatContext()
+  const chat = useChatContext()
   return <p>{chat.messages.length} messages</p>
 }
 
-const UI = createChatUI(chatOptions, {
-  layout: (props) => (
-    <>
-      <StatusLine />
-      {props.renderMessages()}
-    </>
-  ),
-  message: (props) => <article>{props.renderParts()}</article>,
-  parts: { fallback: () => null },
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    layout: (props) => (
+      <>
+        <StatusLine />
+        {props.renderMessages()}
+      </>
+    ),
+    message: (props) => <article>{props.renderParts()}</article>,
+    parts: { fallback: () => null },
+  },
 })
 
 export function ChatScreen() {
-  const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} />
+  const chat = useAppChat()
+  return <chat.AppChat />
 }
 ```
 
-Call `UI.useChatContext()` only inside `UI.Chat` or `UI.Provider`.
+Call `useChatContext()` only inside `AppChat` or `Provider`.
 
 ## Interrupts
 

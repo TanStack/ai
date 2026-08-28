@@ -15,7 +15,7 @@ keywords:
 
 SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for the headless client.
 
-For a typed headless chat UI, see [Solid Chat UI](../ui/solid) and [Migrate to createChatUI](../migration/create-ui).
+For a typed headless chat UI, see [Solid Chat UI](../ui/solid) and [Chat UI packages](../migration/create-ui).
 
 ## Installation
 
