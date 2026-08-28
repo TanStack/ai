@@ -174,7 +174,13 @@ function messageMetadata(
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
   const tanstack: MetadataRecord = { ...(tanstackMetadata(msg) ?? {}) }
-  if (msg.createdAt) tanstack.createdAt = msg.createdAt.toISOString()
+  const createdAt: unknown = msg.createdAt
+  if (createdAt instanceof Date && !Number.isNaN(createdAt.getTime())) {
+    tanstack.createdAt = createdAt.toISOString()
+  } else if (typeof createdAt === 'string' && createdAt.length > 0) {
+    // JSON hydrate (reconstructChat) leaves createdAt as an ISO string.
+    tanstack.createdAt = createdAt
+  }
 
   const leftover = unfinishedStructuredOutput(parts)
   if (leftover) tanstack.structuredOutput = leftover

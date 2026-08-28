@@ -342,6 +342,33 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('writes createdAt when JSON hydrate left it as an ISO string', () => {
+    const parsed: unknown = JSON.parse(
+      JSON.stringify({
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'hi' }],
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+      }),
+    )
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('id' in parsed) ||
+      !('role' in parsed) ||
+      !('parts' in parsed)
+    ) {
+      throw new Error('invalid hydrate fixture')
+    }
+    expect(typeof parsed.createdAt).toBe('string')
+    const wire = uiMessagesToWire([parsed])
+    expect(wire[0]).toMatchObject({
+      id: 'u1',
+      role: 'user',
+      metadata: { tanstack: { createdAt: '2026-08-20T00:00:00.000Z' } },
+    })
+  })
+
   it('does not put parts or createdAt Date on assistant anchors', () => {
     const wire = uiMessagesToWire([
       {
