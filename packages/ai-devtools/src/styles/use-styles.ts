@@ -3650,6 +3650,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         grid-template-columns: repeat(2, minmax(320px, 1fr));
         gap: ${size[3]};
         align-items: start;
+        padding-left: ${size[3]};
         padding-right: ${size[3]};
         @media (max-width: 760px) {
           grid-template-columns: 1fr;

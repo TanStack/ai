@@ -269,6 +269,12 @@ composite identity. A stored `null` is indistinguishable from absence at the typ
 level, so wrap a value you must persist as `null` (e.g. `{ value: null }`), or
 reject nullish values outright the way the SQLite store above does.
 
+`withPersistence` also provides this store through the core
+`MetadataCapability`. Middleware can use it for derived state without depending
+on `@tanstack/ai-persistence`. For example, `withCompaction` stores validated
+context checkpoints here. Do not place the canonical transcript in metadata;
+the `messages` store owns it.
+
 ## GenerationRunStore
 
 The generation counterpart to `RunStore`. Keyed by its own `runId`, with

@@ -788,6 +788,7 @@ class TextEngine<
   private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
+  private providerMessages: Array<ModelMessage>
   private iterationCount = 0
   /** Cumulative tool calls counted in this run (emitted + pending resume). */
   private toolCallCount = 0
@@ -846,6 +847,9 @@ class TextEngine<
   >
   private readonly middlewareCtx: ChatMiddlewareContext<TContext>
   private readonly sandboxFileQueue: Array<StreamChunk> = []
+  private readonly middlewareCustomQueue: Array<StreamChunk> = []
+  private middlewareCustomWaiters: Array<() => void> = []
+  private drainingMiddlewareCustom = false
   private readonly deferredPromises: Array<Promise<unknown>> = []
   private abortReason?: string
   private readonly middlewareAbortController?: AbortController
@@ -936,6 +940,7 @@ class TextEngine<
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
     this.messages = convertMessagesToModelMessages(config.params.messages)
+    this.providerMessages = this.messages
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
     assertUniqueToolNames(config.params.tools || [])
@@ -993,6 +998,14 @@ class TextEngine<
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
+      },
+      emitCustomEvent: (name, value) => {
+        this.middlewareCustomQueue.push(
+          this.createCustomEventChunk(name, value),
+        )
+        const waiters = this.middlewareCustomWaiters
+        this.middlewareCustomWaiters = []
+        for (const waiter of waiters) waiter()
       },
       context: config.context as TContext,
       defer: (promise: Promise<unknown>) => {
@@ -1129,21 +1142,24 @@ class TextEngine<
 
     try {
       // Provision capabilities before any consumer (onConfig onward) can read them
-      await this.middlewareRunner.runSetup(this.middlewareCtx)
+      yield* this.runWhileYielding(
+        this.middlewareRunner.runSetup(this.middlewareCtx),
+      )
 
       // Run initial onConfig (phase = init)
       this.middlewareCtx.phase = 'init'
       const initialConfig = this.buildMiddlewareConfig()
-      const transformedConfig = await this.middlewareRunner.runOnConfig(
-        this.middlewareCtx,
-        initialConfig,
+      const transformedConfig = yield* this.runWhileYielding(
+        this.middlewareRunner.runOnConfig(this.middlewareCtx, initialConfig),
       )
       this.applyMiddlewareConfig(transformedConfig)
       await this.applyEphemeralInterruptResume(transformedConfig)
       await this.applyDurableGenericInterruptResolution()
 
       // Run onStart (devtools middleware emits text:request:started and initial messages here)
-      await this.middlewareRunner.runOnStart(this.middlewareCtx)
+      yield* this.runWhileYielding(
+        this.middlewareRunner.runOnStart(this.middlewareCtx),
+      )
 
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
@@ -1190,18 +1206,16 @@ class TextEngine<
             iteration: this.middlewareCtx.iteration,
           })
 
-          await this.beginCycle()
+          yield* this.runWhileYielding(this.beginCycle())
 
           if (this.cyclePhase === 'processText') {
             // Run onConfig before each model call (phase = beforeModel)
             this.middlewareCtx.phase = 'beforeModel'
             this.middlewareCtx.iteration = this.iterationCount
             const iterConfig = this.buildMiddlewareConfig()
-            const iterTransformedConfig =
-              await this.middlewareRunner.runOnConfig(
-                this.middlewareCtx,
-                iterConfig,
-              )
+            const iterTransformedConfig = yield* this.runWhileYielding(
+              this.middlewareRunner.runOnConfig(this.middlewareCtx, iterConfig),
+            )
             this.applyMiddlewareConfig(iterTransformedConfig)
 
             if (
@@ -1240,7 +1254,7 @@ class TextEngine<
           }
 
           this.endCycle()
-        } while (await this.shouldContinue())
+        } while (yield* this.runWhileYielding(this.shouldContinue()))
       }
 
       this.logger.agentLoop('run finished', {
@@ -1498,7 +1512,7 @@ class TextEngine<
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.messages,
+      messages: this.providerMessages,
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
@@ -1633,6 +1647,7 @@ class TextEngine<
             continue
           }
           if (spec.type === EventType.RUN_STARTED) {
+            if (this.hasPublicRunStarted) continue
             this.hasPublicRunStarted = true
           }
           this.logger.output(`type=${spec.type}`, { chunk: spec })
@@ -1647,6 +1662,7 @@ class TextEngine<
 
       // Drain any sandbox.file events emitted while processing this chunk.
       yield* this.drainSandboxFileQueue()
+      yield* this.drainMiddlewareCustomQueue()
 
       if (this.earlyTermination) {
         break
@@ -1655,6 +1671,7 @@ class TextEngine<
 
     // Drain any remaining sandbox.file events emitted after the stream ended.
     yield* this.drainSandboxFileQueue()
+    yield* this.drainMiddlewareCustomQueue()
   }
 
   private handleStreamChunk(chunk: AdapterYieldChunk): void {
@@ -2049,12 +2066,14 @@ class TextEngine<
     const allResults = [...executionResult.results, ...deferredErrorResults]
 
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
-    await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
-      toolCalls: pendingToolCalls,
-      results: allResults,
-      needsApproval: executionResult.needsApproval,
-      needsClientExecution: executionResult.needsClientExecution,
-    })
+    yield* this.runWhileYielding(
+      this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
+        toolCalls: pendingToolCalls,
+        results: allResults,
+        needsApproval: executionResult.needsApproval,
+        needsClientExecution: executionResult.needsClientExecution,
+      }),
+    )
 
     if (
       executionResult.needsApproval.length > 0 ||
@@ -2231,23 +2250,26 @@ class TextEngine<
     const allResults = [...executionResult.results, ...deferredErrorResults]
 
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
-    await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
-      toolCalls,
-      results: allResults,
-      needsApproval: executionResult.needsApproval,
-      needsClientExecution: executionResult.needsClientExecution,
-    })
+    yield* this.runWhileYielding(
+      this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {
+        toolCalls,
+        results: allResults,
+        needsApproval: executionResult.needsApproval,
+        needsClientExecution: executionResult.needsClientExecution,
+      }),
+    )
 
     const afterToolBoundaryChunks = this.buildToolResultChunks(
       allResults,
       finishEvent,
     )
-    const afterToolRequests =
-      await this.middlewareRunner.runOnInterruptBoundary(
+    const afterToolRequests = yield* this.runWhileYielding(
+      this.middlewareRunner.runOnInterruptBoundary(
         this.middlewareCtx as ChatMiddlewareContext<TContext> & {
           phase: 'afterTools'
         },
-      )
+      ),
+    )
     if (afterToolRequests.length > 0) {
       for (const chunk of afterToolBoundaryChunks) {
         yield* this.pipeThroughMiddleware(chunk)
@@ -2949,10 +2971,12 @@ class TextEngine<
     this.middlewareCtx.phase = phase
     const boundaryRequests =
       requests ??
-      (await this.middlewareRunner.runOnInterruptBoundary(
-        this.middlewareCtx as ChatMiddlewareContext<TContext> & {
-          phase: typeof phase
-        },
+      (yield* this.runWhileYielding(
+        this.middlewareRunner.runOnInterruptBoundary(
+          this.middlewareCtx as ChatMiddlewareContext<TContext> & {
+            phase: typeof phase
+          },
+        ),
       ))
     if (boundaryRequests.length === 0) return false
     for (const request of boundaryRequests) {
@@ -3471,9 +3495,11 @@ class TextEngine<
     }
 
     // 1) onStructuredOutputConfig — middleware can transform messages, options, outputSchema
-    structuredConfig = await this.middlewareRunner.runOnStructuredOutputConfig(
-      this.middlewareCtx,
-      structuredConfig,
+    structuredConfig = yield* this.runWhileYielding(
+      this.middlewareRunner.runOnStructuredOutputConfig(
+        this.middlewareCtx,
+        structuredConfig,
+      ),
     )
 
     // 2) onConfig — phase-aware general-purpose middleware re-runs at the
@@ -3482,9 +3508,11 @@ class TextEngine<
     // call — same constraint applies — but the view is consistent with the
     // ChatMiddlewareConfig shape).
     const { outputSchema: pinnedSchema, ...chatConfigSlice } = structuredConfig
-    const postOnConfig = await this.middlewareRunner.runOnConfig(
-      this.middlewareCtx,
-      { ...chatConfigSlice, tools: baseConfig.tools },
+    const postOnConfig = yield* this.runWhileYielding(
+      this.middlewareRunner.runOnConfig(this.middlewareCtx, {
+        ...chatConfigSlice,
+        tools: baseConfig.tools,
+      }),
     )
 
     // Apply merged config back to engine state
@@ -3496,7 +3524,7 @@ class TextEngine<
     const structuredCallOptions = {
       chatOptions: {
         model: this.params.model,
-        messages: this.messages,
+        messages: this.providerMessages,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
         systemPrompts: postOnConfig.systemPrompts,
@@ -3975,6 +4003,7 @@ class TextEngine<
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
+      providerMessages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
       resume: this.params.resume,
@@ -4399,6 +4428,7 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
+    this.providerMessages = config.providerMessages ?? config.messages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)
     this.tools = config.tools
@@ -4431,6 +4461,7 @@ class TextEngine<
       for (const spec of normalizeStreamChunk(output as AdapterYieldChunk)) {
         restorePublicUsage(spec)
         if (spec.type === EventType.RUN_STARTED) {
+          if (this.hasPublicRunStarted) continue
           this.hasPublicRunStarted = true
         }
         yield spec
@@ -4451,6 +4482,69 @@ class TextEngine<
       chunk,
     )
     yield* this.emitPublicChunks(afterMw)
+    if (!this.drainingMiddlewareCustom) {
+      yield* this.drainMiddlewareCustomQueue()
+    }
+  }
+
+  /**
+   * Drain CUSTOM chunks pushed by `ctx.emitCustomEvent` through middleware
+   * and into the public stream. If the run has not yet sent `RUN_STARTED`,
+   * emit that first so CUSTOM events are not the first wire event.
+   */
+  private async *drainMiddlewareCustomQueue(): AsyncGenerator<StreamChunk> {
+    if (this.drainingMiddlewareCustom) return
+    if (this.middlewareCustomQueue.length === 0) return
+    this.drainingMiddlewareCustom = true
+    try {
+      yield* this.emitSyntheticRunStarted(this.createSyntheticFinishedEvent())
+      while (this.middlewareCustomQueue.length > 0) {
+        const chunk = this.middlewareCustomQueue.shift()
+        if (chunk) yield* this.pipeThroughMiddleware(chunk)
+      }
+    } finally {
+      this.drainingMiddlewareCustom = false
+    }
+  }
+
+  /**
+   * Await `work` while yielding any `emitCustomEvent` chunks as they arrive.
+   */
+  private async *runWhileYielding<T>(
+    work: Promise<T>,
+  ): AsyncGenerator<StreamChunk, T> {
+    let settled = false
+    let result: T | undefined
+    let error: unknown
+    const done = work.then(
+      (value) => {
+        settled = true
+        result = value
+      },
+      (err: unknown) => {
+        settled = true
+        error = err
+      },
+    )
+
+    while (!settled) {
+      yield* this.drainMiddlewareCustomQueue()
+      if (settled) break
+      await Promise.race([
+        done,
+        new Promise<void>((resolve) => {
+          if (this.middlewareCustomQueue.length > 0) {
+            resolve()
+            return
+          }
+          this.middlewareCustomWaiters.push(resolve)
+        }),
+      ])
+    }
+
+    yield* this.drainMiddlewareCustomQueue()
+    if (error !== undefined) throw error
+    return result as T
   }
 
   /**
@@ -4487,17 +4581,18 @@ class TextEngine<
     },
     void
   > {
-    let next = await generator.next()
-    while (!next.done) {
+    let pending = generator.next()
+    while (true) {
+      const next = yield* this.runWhileYielding(pending)
+      if (next.done) return next.value
       yield* this.pipeThroughMiddleware(next.value)
-      next = await generator.next()
+      pending = generator.next()
     }
-    return next.value
   }
 
   private createCustomEventChunk(
     eventName: string,
-    value: Record<string, any>,
+    value: Record<string, unknown>,
   ): CustomEvent {
     return {
       type: EventType.CUSTOM,

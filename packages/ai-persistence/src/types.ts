@@ -1,5 +1,6 @@
 import type {
   ModelMessage,
+  MetadataStore,
   PersistedArtifactRef,
   RunStatus,
   RunStore,
@@ -11,7 +12,7 @@ import type {
 // `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
 // pair a client-visible `threadId` with a server-trusted `userId`/`tenantId`
 // before authorizing load/save (e.g. via `reconstructChat({ authorize })`).
-export type { Scope }
+export type { MetadataStore, Scope }
 
 // ===========================================================================
 // Store contracts
@@ -290,37 +291,6 @@ export interface InterruptStore {
   listByRun: (runId: string) => Promise<Array<InterruptRecord>>
   /** Pending interrupts for a run, ordered by `requestedAt` ascending. */
   listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
-}
-
-/**
- * Namespaced key/value store for arbitrary JSON metadata (app-owned).
- *
- * The first argument is an **app-defined namespace string**, not the shared
- * {@link Scope} identity type from `@tanstack/ai`. Composite identity is
- * `(namespace, key)` as two independent fields (SQL backends use a composite
- * primary key; the in-memory store uses nested maps). Do not encode both into a
- * single delimited string — `${namespace}:${key}` collides when either part
- * contains `:`.
- *
- * The same `key` under different namespaces is independent.
- */
-export interface MetadataStore {
-  /**
-   * Return the stored value for `(namespace, key)`, or `null` if absent.
-   *
-   * CAVEAT: the return type is `unknown | null`, where `| null` collapses into
-   * `unknown` — a stored value of `null` is therefore **indistinguishable from
-   * absence** at the type level. Callers that must persist a real `null`
-   * distinctly from "not set" should wrap it (e.g. store `{ value: null }`).
-   */
-  get: (namespace: string, key: string) => Promise<unknown | null>
-  /** Insert or overwrite the value for `(namespace, key)`. */
-  set: (namespace: string, key: string, value: unknown) => Promise<void>
-  /**
-   * Remove `(namespace, key)`. A no-op if absent. Does not affect other
-   * namespaces.
-   */
-  delete: (namespace: string, key: string) => Promise<void>
 }
 
 // ===========================================================================

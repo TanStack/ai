@@ -5,7 +5,7 @@ title: ReasoningMessageStartEvent
 
 # Interface: ReasoningMessageStartEvent
 
-Defined in: [packages/ai/src/types.ts:1604](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1604)
+Defined in: [packages/ai/src/types.ts:1622](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1622)
 
 Emitted when a reasoning message starts.
 

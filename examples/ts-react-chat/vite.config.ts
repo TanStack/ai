@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
@@ -5,6 +7,13 @@ import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { webSocketChatPlugin } from './src/lib/websocket-chat-plugin.ts'
+
+// Server routes read process.env. Vite does not copy unprefixed .env keys
+// into the SSR process. Load them here. Already-set vars win.
+for (const name of ['.env.local', '.env']) {
+  const path = resolve(import.meta.dirname, name)
+  if (existsSync(path)) process.loadEnvFile(path)
+}
 
 // `dockerode` is a server-only dependency that pulls in optional native addons
 // (`ssh2` → `cpu-features`, a `.node` binary that this install does not compile).

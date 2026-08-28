@@ -213,6 +213,12 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void
+  /**
+   * Push a `CUSTOM` chunk onto the chat stream immediately.
+   * The engine yields it as soon as it can (including while `onConfig`
+   * is still awaiting work such as a summarize call).
+   */
+  emitCustomEvent: (name: string, value: Record<string, any>) => void
   /** Runtime context provided by chat() options */
   context: TContext
   /**
@@ -305,7 +311,10 @@ export interface ChatMiddlewareContext<TContext = unknown> {
  * that middleware is allowed to modify.
  */
 export interface ChatMiddlewareConfig {
+  /** Canonical conversation history. Middleware and persistence read this. */
   messages: Array<ModelMessage>
+  /** Provider-only context. Defaults to `messages` when it is not set. */
+  providerMessages?: Array<ModelMessage> | undefined
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   resume?: Array<RunAgentResumeItem> | undefined

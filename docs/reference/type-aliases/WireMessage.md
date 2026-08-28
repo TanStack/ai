@@ -6,7 +6,7 @@ title: WireMessage
 # Type Alias: WireMessage
 
 ```ts
-type WireMessage =
+type WireMessage = 
   | WireSystemMessage
   | WireUserMessage
   | WireAssistantMessage
@@ -14,4 +14,4 @@ type WireMessage =
   | WireReasoningMessage;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L70)
+Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L65)

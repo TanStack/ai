@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
+  ChatMiddleware,
   ModelMessage,
   StreamChunk,
   Tool,
@@ -136,6 +137,70 @@ describe('withPersistence (state-only)', () => {
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('completed')
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('saves canonical history when middleware compacts provider messages', async () => {
+    const persistence = memoryPersistence()
+    const { adapter, calls } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+
+    const dropOldest: ChatMiddleware = {
+      name: 'drop-oldest',
+      onConfig(ctx, config) {
+        if (ctx.phase !== 'beforeModel' || config.messages.length <= 1) return
+        return { providerMessages: config.messages.slice(1) }
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'DROP_ME_FIRST' },
+          { role: 'user', content: 'KEEP_ME_LAST' },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [dropOldest, withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    expect(thread).toEqual([
+      { role: 'user', content: 'DROP_ME_FIRST' },
+      { role: 'user', content: 'KEEP_ME_LAST' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        messages: [{ role: 'user', content: 'KEEP_ME_LAST' }],
+      }),
+    )
+  })
+
+  it('does not add ids to caller messages while saving', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+    const userMessage: ModelMessage = { role: 'user', content: 'hello' }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [userMessage],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(userMessage).toEqual({ role: 'user', content: 'hello' })
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hello' },
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
   })

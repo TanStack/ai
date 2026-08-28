@@ -852,6 +852,13 @@ export class ChatClient<
           if (eventType === 'memory:state') {
             this.devtoolsBridge.recordMemoryState(data)
           }
+          if (
+            eventType === 'compaction:started' ||
+            eventType === 'compaction:state' ||
+            eventType === 'compaction:ended'
+          ) {
+            this.devtoolsBridge.recordCompactionEvent(eventType, data)
+          }
           if (eventType === 'skills:state') {
             this.devtoolsBridge.recordSkillsState(data)
           }
