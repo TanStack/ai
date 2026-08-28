@@ -5,7 +5,7 @@ title: UIResourceEvent
 
 # Interface: UIResourceEvent
 
-Defined in: [packages/ai/src/types.ts:1433](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1433)
+Defined in: [packages/ai/src/types.ts:1451](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1451)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -22,7 +22,7 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
+Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
 
 #### Inherited from
 
@@ -36,7 +36,7 @@ Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/
 name: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:1434](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1434)
+Defined in: [packages/ai/src/types.ts:1452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1452)
 
 #### Overrides
 
@@ -52,7 +52,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
+Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
 
 #### Inherited from
 
@@ -66,7 +66,7 @@ Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1435](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1435)
+Defined in: [packages/ai/src/types.ts:1453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1453)
 
 #### meta?
 

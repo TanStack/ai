@@ -5,7 +5,7 @@ title: RerankOptions
 
 # Interface: RerankOptions\<TProviderOptions\>
 
-Defined in: [packages/ai/src/types.ts:1761](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1761)
+Defined in: [packages/ai/src/types.ts:1779](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1779)
 
 Options passed to a [RerankAdapter](RerankAdapter.md). Documents reach the adapter
 already serialized to strings — the `rerank()` activity stringifies object
@@ -26,7 +26,7 @@ deal with the caller's document type.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:1774](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1774)
+Defined in: [packages/ai/src/types.ts:1792](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1792)
 
 Forwarded to the provider request for cancellation.
 
@@ -38,7 +38,7 @@ Forwarded to the provider request for cancellation.
 documents: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1768](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1768)
+Defined in: [packages/ai/src/types.ts:1786](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1786)
 
 Documents to rerank, pre-serialized to strings by the activity.
 
@@ -50,7 +50,7 @@ Documents to rerank, pre-serialized to strings by the activity.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:1780](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1780)
+Defined in: [packages/ai/src/types.ts:1798](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1798)
 
 Internal logger threaded from the rerank() entry point. Adapters must call
 logger.request() before the provider call and logger.errors() in catch
@@ -64,7 +64,7 @@ blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1764](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1764)
+Defined in: [packages/ai/src/types.ts:1782](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1782)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [packages/ai/src/types.ts:1764](https://github.com/TanStack/ai/blob/
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:1772](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1772)
+Defined in: [packages/ai/src/types.ts:1790](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1790)
 
 Provider-specific options forwarded by the rerank() activity.
 
@@ -86,7 +86,7 @@ Provider-specific options forwarded by the rerank() activity.
 query: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1766](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1766)
+Defined in: [packages/ai/src/types.ts:1784](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1784)
 
 The search query documents are scored against.
 
@@ -98,6 +98,6 @@ The search query documents are scored against.
 optional topN?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1770](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1770)
+Defined in: [packages/ai/src/types.ts:1788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1788)
 
 Return only the top N results. Passed through to the provider.

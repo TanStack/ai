@@ -5,7 +5,7 @@ title: Embedding
 
 # Interface: Embedding
 
-Defined in: [packages/ai/src/types.ts:2450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2450)
+Defined in: [packages/ai/src/types.ts:2468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2468)
 
 A single embedding vector.
 
@@ -17,7 +17,7 @@ A single embedding vector.
 index: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2454)
+Defined in: [packages/ai/src/types.ts:2472](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2472)
 
 Position of the source item in the (normalized) input array
 
@@ -29,6 +29,6 @@ Position of the source item in the (normalized) input array
 vector: number[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2452)
+Defined in: [packages/ai/src/types.ts:2470](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2470)
 
 The embedding vector

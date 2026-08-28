@@ -3,6 +3,8 @@ import {
   fromSpecTokenUsage,
   getDetachableRun,
   InterruptResumeValidationError,
+  MetadataCapability,
+  provideMetadata,
   readInterruptBinding,
   validateInterruptResumeBatch,
   wasCancelRequested,
@@ -1961,6 +1963,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const provides = [
     PersistenceCapability,
     PersistenceCompletionCapability,
+    ...(persistence.stores.metadata ? [MetadataCapability] : []),
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
 
@@ -1969,6 +1972,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     provides,
     setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
+      if (persistence.stores.metadata) {
+        provideMetadata(ctx, persistence.stores.metadata)
+      }
 
       let resolveCompletion: () => void = () => undefined
       let rejectCompletion: (error: unknown) => void = () => undefined

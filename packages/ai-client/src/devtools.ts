@@ -8,6 +8,7 @@ import { DefaultChatClientEventEmitter } from './events'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
 import type {
   AIDevtoolsEventVisibility,
+  CompactionMessagePreview,
   MemoryScopeLite,
 } from '@tanstack/ai-event-client'
 import type {
@@ -57,6 +58,127 @@ interface MemoryStateEventValue {
       source?: string
       createdAt?: string
     }>
+  }
+}
+
+function readCompactionBoundaryValue(rawValue: unknown): {
+  before?: number
+  after?: number
+  messagesBefore?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+} {
+  if (!rawValue || typeof rawValue !== 'object') return {}
+  return {
+    ...('before' in rawValue && typeof rawValue.before === 'number'
+      ? { before: rawValue.before }
+      : {}),
+    ...('after' in rawValue && typeof rawValue.after === 'number'
+      ? { after: rawValue.after }
+      : {}),
+    ...('messagesBefore' in rawValue &&
+    typeof rawValue.messagesBefore === 'number'
+      ? { messagesBefore: rawValue.messagesBefore }
+      : {}),
+    ...('messagesAfter' in rawValue &&
+    typeof rawValue.messagesAfter === 'number'
+      ? { messagesAfter: rawValue.messagesAfter }
+      : {}),
+    ...('reusedCheckpoint' in rawValue &&
+    typeof rawValue.reusedCheckpoint === 'boolean'
+      ? { reusedCheckpoint: rawValue.reusedCheckpoint }
+      : {}),
+    ...('maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? { maxTokens: rawValue.maxTokens }
+      : {}),
+    ...('strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? { strategyKey: rawValue.strategyKey }
+      : {}),
+    ...('durationMs' in rawValue && typeof rawValue.durationMs === 'number'
+      ? { durationMs: rawValue.durationMs }
+      : {}),
+  }
+}
+
+function readPreviewList(
+  value: unknown,
+): Array<CompactionMessagePreview> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const previews: Array<CompactionMessagePreview> = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    if (!('role' in item) || !('tokens' in item) || !('text' in item)) continue
+    if (
+      typeof item.role !== 'string' ||
+      typeof item.tokens !== 'number' ||
+      typeof item.text !== 'string'
+    ) {
+      continue
+    }
+    previews.push({
+      role: item.role,
+      tokens: item.tokens,
+      text: item.text,
+    })
+  }
+  return previews
+}
+
+function readCompactionStateValue(rawValue: unknown): {
+  before: number
+  after: number
+  messagesBefore: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+  maxTokens?: number
+  strategyKey?: string
+  dropped?: Array<CompactionMessagePreview>
+  result?: Array<CompactionMessagePreview>
+} | null {
+  if (!rawValue || typeof rawValue !== 'object') return null
+  if (
+    !('before' in rawValue) ||
+    !('after' in rawValue) ||
+    !('messagesBefore' in rawValue) ||
+    !('messagesAfter' in rawValue)
+  ) {
+    return null
+  }
+  if (
+    typeof rawValue.before !== 'number' ||
+    typeof rawValue.after !== 'number' ||
+    typeof rawValue.messagesBefore !== 'number' ||
+    typeof rawValue.messagesAfter !== 'number'
+  ) {
+    return null
+  }
+  const reusedCheckpoint =
+    'reusedCheckpoint' in rawValue && rawValue.reusedCheckpoint === true
+  const maxTokens =
+    'maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? rawValue.maxTokens
+      : undefined
+  const strategyKey =
+    'strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? rawValue.strategyKey
+      : undefined
+  const dropped =
+    'dropped' in rawValue ? readPreviewList(rawValue.dropped) : undefined
+  const result =
+    'result' in rawValue ? readPreviewList(rawValue.result) : undefined
+  return {
+    before: rawValue.before,
+    after: rawValue.after,
+    messagesBefore: rawValue.messagesBefore,
+    messagesAfter: rawValue.messagesAfter,
+    reusedCheckpoint,
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+    ...(strategyKey ? { strategyKey } : {}),
+    ...(dropped ? { dropped } : {}),
+    ...(result ? { result } : {}),
   }
 }
 
@@ -760,6 +882,9 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'memory:retrieve:started'
       | 'memory:retrieve:completed'
       | 'memory:snapshot'
+      | 'compaction:started'
+      | 'compaction:state'
+      | 'compaction:ended'
       | 'skills:snapshot'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
@@ -819,6 +944,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
+  /** Transported compaction CUSTOM events, replayed when a panel opens. */
+  private readonly lastCompactionEvents: Array<{
+    eventType: string
+    value: unknown
+  }> = []
   /** Last transported `skills:state` value, replayed when a panel opens. */
   private lastSkillsStateValue: unknown = null
 
@@ -987,6 +1117,55 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
+  /**
+   * Record a transported compaction CUSTOM event. Called from the chat
+   * client's `onCustomEvent` handler so server-side compaction reaches the
+   * browser DevTools panel.
+   */
+  recordCompactionEvent(eventType: string, rawValue: unknown): void {
+    this.lastCompactionEvents.push({ eventType, value: rawValue })
+    if (this.lastCompactionEvents.length > 60) {
+      this.lastCompactionEvents.splice(0, this.lastCompactionEvents.length - 60)
+    }
+    this.emitCompactionEvent(eventType, rawValue)
+  }
+
+  recordCompactionState(rawValue: unknown): void {
+    this.recordCompactionEvent('compaction:state', rawValue)
+  }
+
+  private emitCompactionEvent(eventType: string, rawValue: unknown): void {
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    if (eventType === 'compaction:started') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:started', {
+        ...this.createEnvelope(
+          'compaction:started',
+          'client-state',
+          runContext,
+        ),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:ended') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:ended', {
+        ...this.createEnvelope('compaction:ended', 'client-state', runContext),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:state') {
+      const value = readCompactionStateValue(rawValue)
+      if (!value) return
+      emitAIDevtoolsEvent('compaction:state', {
+        ...this.createEnvelope('compaction:state', 'client-state', runContext),
+        ...value,
+      })
+    }
+  }
+
   private emitSkillsState(rawValue: unknown): void {
     if (!rawValue || typeof rawValue !== 'object') return
     const value = rawValue as SkillsStateEventValue
@@ -1003,6 +1182,9 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
+    }
+    for (const event of this.lastCompactionEvents) {
+      this.emitCompactionEvent(event.eventType, event.value)
     }
     if (this.lastSkillsStateValue != null) {
       this.emitSkillsState(this.lastSkillsStateValue)

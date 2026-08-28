@@ -1,5 +1,26 @@
 # @tanstack/ai
 
+## 0.52.0
+
+### Minor Changes
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Keep canonical chat history separate from compacted provider context. Reuse
+  validated compaction checkpoints through an optional persistence metadata store.
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Add `ctx.emitCustomEvent` on chat middleware context. The engine yields
+  `CUSTOM` chunks while hooks such as `onConfig` are still running, so a long
+  middleware step can send progress before it finishes. Compaction uses this
+  to emit `compaction:started` before the strategy returns.
+
+### Patch Changes
+
+- [#1257](https://github.com/TanStack/ai/pull/1257) [`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc) - Preserve draft-07 tuple `items` arrays during structured-output conversion.
+
+  Keep a single widening map for homogeneous arrays so `undoNullWidening` applies it to every element.
+
+- Updated dependencies [[`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai-event-client@0.11.2
+
 ## 0.51.0
 
 ### Minor Changes

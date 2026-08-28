@@ -991,6 +991,61 @@ export interface VideoUsageEvent extends BaseEventContext {
 }
 
 // ---------------------------------------------------------------------------
+// Compaction events
+// ---------------------------------------------------------------------------
+
+/** One message in a compaction preview list. */
+export interface CompactionMessagePreview {
+  role: string
+  tokens: number
+  text: string
+}
+
+/** Emitted when `withCompaction` starts rewriting provider context. */
+export interface CompactionStartedEvent extends BaseEventContext {
+  before?: number
+  messagesBefore?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+}
+
+/** Emitted when `withCompaction` has a compacted transcript to inspect. */
+export interface CompactionStateEvent extends BaseEventContext {
+  /** Estimated tokens before compaction. */
+  before: number
+  /** Estimated tokens after compaction. */
+  after: number
+  /** Message count before compaction. */
+  messagesBefore: number
+  /** Message count after compaction. */
+  messagesAfter: number
+  /** True when a persisted checkpoint supplied the compacted prefix. */
+  reusedCheckpoint: boolean
+  /** Token budget that triggered compaction. */
+  maxTokens?: number
+  /** Strategy identity from `withCompaction`. */
+  strategyKey?: string
+  /** Messages removed or rewritten. */
+  dropped?: Array<CompactionMessagePreview>
+  /** Messages the model will see after compaction. */
+  result?: Array<CompactionMessagePreview>
+}
+
+/** Emitted when `withCompaction` finishes rewriting provider context. */
+export interface CompactionEndedEvent extends BaseEventContext {
+  after?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+}
+
+/** @deprecated Use {@link CompactionStateEvent}. */
+export type CompactionAppliedEvent = CompactionStateEvent
+
+// ---------------------------------------------------------------------------
 // Memory events
 // ---------------------------------------------------------------------------
 
@@ -1338,6 +1393,12 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+
+  // Compaction events
+  'compaction:started': CompactionStartedEvent
+  'compaction:state': CompactionStateEvent
+  'compaction:ended': CompactionEndedEvent
+  'compaction:applied': CompactionAppliedEvent
 
   // Memory events
   'memory:retrieve:started': MemoryRetrieveStartedEvent

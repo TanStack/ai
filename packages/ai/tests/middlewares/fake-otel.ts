@@ -261,6 +261,7 @@ export function makeCtx(
     iteration: 0,
     chunkIndex: 0,
     abort: () => {},
+    emitCustomEvent: () => {},
     context: undefined,
     defer: () => {},
     provider: 'openai',

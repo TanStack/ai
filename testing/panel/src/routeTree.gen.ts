@@ -19,6 +19,7 @@ import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ImageRouteImport } from './routes/image'
+import { Route as CompactionRouteImport } from './routes/compaction'
 import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -34,6 +35,8 @@ import { Route as ApiMemoryChatRouteImport } from './routes/api.memory-chat'
 import { Route as ApiLoadTraceRouteImport } from './routes/api.load-trace'
 import { Route as ApiListTracesRouteImport } from './routes/api.list-traces'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiCompactionInspectRouteImport } from './routes/api.compaction-inspect'
+import { Route as ApiCompactionChatRouteImport } from './routes/api.compaction-chat'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAddonChatRouteImport } from './routes/api.addon-chat'
 
@@ -85,6 +88,11 @@ const MemoryRoute = MemoryRouteImport.update({
 const ImageRoute = ImageRouteImport.update({
   id: '/image',
   path: '/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompactionRoute = CompactionRouteImport.update({
+  id: '/compaction',
+  path: '/compaction',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AddonManagerRoute = AddonManagerRouteImport.update({
@@ -162,6 +170,16 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompactionInspectRoute = ApiCompactionInspectRouteImport.update({
+  id: '/api/compaction-inspect',
+  path: '/api/compaction-inspect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCompactionChatRoute = ApiCompactionChatRouteImport.update({
+  id: '/api/compaction-chat',
+  path: '/api/compaction-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -176,6 +194,7 @@ const ApiAddonChatRoute = ApiAddonChatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
+  '/compaction': typeof CompactionRoute
   '/image': typeof ImageRoute
   '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
@@ -188,6 +207,8 @@ export interface FileRoutesByFullPath {
   '/video': typeof VideoRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-chat': typeof ApiCompactionChatRoute
+  '/api/compaction-inspect': typeof ApiCompactionInspectRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
@@ -205,6 +226,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
+  '/compaction': typeof CompactionRoute
   '/image': typeof ImageRoute
   '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
@@ -217,6 +239,8 @@ export interface FileRoutesByTo {
   '/video': typeof VideoRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-chat': typeof ApiCompactionChatRoute
+  '/api/compaction-inspect': typeof ApiCompactionInspectRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
@@ -235,6 +259,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/addon-manager': typeof AddonManagerRoute
+  '/compaction': typeof CompactionRoute
   '/image': typeof ImageRoute
   '/memory': typeof MemoryRoute
   '/simulator': typeof SimulatorRoute
@@ -247,6 +272,8 @@ export interface FileRoutesById {
   '/video': typeof VideoRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-chat': typeof ApiCompactionChatRoute
+  '/api/compaction-inspect': typeof ApiCompactionInspectRoute
   '/api/image': typeof ApiImageRoute
   '/api/list-traces': typeof ApiListTracesRoute
   '/api/load-trace': typeof ApiLoadTraceRoute
@@ -266,6 +293,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/addon-manager'
+    | '/compaction'
     | '/image'
     | '/memory'
     | '/simulator'
@@ -278,6 +306,8 @@ export interface FileRouteTypes {
     | '/video'
     | '/api/addon-chat'
     | '/api/chat'
+    | '/api/compaction-chat'
+    | '/api/compaction-inspect'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
@@ -295,6 +325,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/addon-manager'
+    | '/compaction'
     | '/image'
     | '/memory'
     | '/simulator'
@@ -307,6 +338,8 @@ export interface FileRouteTypes {
     | '/video'
     | '/api/addon-chat'
     | '/api/chat'
+    | '/api/compaction-chat'
+    | '/api/compaction-inspect'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
@@ -324,6 +357,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/addon-manager'
+    | '/compaction'
     | '/image'
     | '/memory'
     | '/simulator'
@@ -336,6 +370,8 @@ export interface FileRouteTypes {
     | '/video'
     | '/api/addon-chat'
     | '/api/chat'
+    | '/api/compaction-chat'
+    | '/api/compaction-inspect'
     | '/api/image'
     | '/api/list-traces'
     | '/api/load-trace'
@@ -354,6 +390,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddonManagerRoute: typeof AddonManagerRoute
+  CompactionRoute: typeof CompactionRoute
   ImageRoute: typeof ImageRoute
   MemoryRoute: typeof MemoryRoute
   SimulatorRoute: typeof SimulatorRoute
@@ -366,6 +403,8 @@ export interface RootRouteChildren {
   VideoRoute: typeof VideoRoute
   ApiAddonChatRoute: typeof ApiAddonChatRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiCompactionChatRoute: typeof ApiCompactionChatRoute
+  ApiCompactionInspectRoute: typeof ApiCompactionInspectRoute
   ApiImageRoute: typeof ApiImageRoute
   ApiListTracesRoute: typeof ApiListTracesRoute
   ApiLoadTraceRoute: typeof ApiLoadTraceRoute
@@ -451,6 +490,13 @@ declare module '@tanstack/react-router' {
       path: '/image'
       fullPath: '/image'
       preLoaderRoute: typeof ImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compaction': {
+      id: '/compaction'
+      path: '/compaction'
+      fullPath: '/compaction'
+      preLoaderRoute: typeof CompactionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/addon-manager': {
@@ -558,6 +604,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/compaction-inspect': {
+      id: '/api/compaction-inspect'
+      path: '/api/compaction-inspect'
+      fullPath: '/api/compaction-inspect'
+      preLoaderRoute: typeof ApiCompactionInspectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/compaction-chat': {
+      id: '/api/compaction-chat'
+      path: '/api/compaction-chat'
+      fullPath: '/api/compaction-chat'
+      preLoaderRoute: typeof ApiCompactionChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -578,6 +638,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddonManagerRoute: AddonManagerRoute,
+  CompactionRoute: CompactionRoute,
   ImageRoute: ImageRoute,
   MemoryRoute: MemoryRoute,
   SimulatorRoute: SimulatorRoute,
@@ -590,6 +651,8 @@ const rootRouteChildren: RootRouteChildren = {
   VideoRoute: VideoRoute,
   ApiAddonChatRoute: ApiAddonChatRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiCompactionChatRoute: ApiCompactionChatRoute,
+  ApiCompactionInspectRoute: ApiCompactionInspectRoute,
   ApiImageRoute: ApiImageRoute,
   ApiListTracesRoute: ApiListTracesRoute,
   ApiLoadTraceRoute: ApiLoadTraceRoute,

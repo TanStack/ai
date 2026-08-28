@@ -1,5 +1,19 @@
 # @tanstack/ai-client
 
+## 0.29.2
+
+### Patch Changes
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Show compaction in TanStack AI DevTools. `withCompaction` injects
+  `compaction:started`, `compaction:state`, and `compaction:ended` CUSTOM
+  stream events. State includes before/after counts, the token budget, and
+  dropped vs sent message previews. The chat client re-emits the same three
+  events. The AI panel has a Compaction tab and started/state/ended steps on
+  the iteration.
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+  - @tanstack/ai-event-client@0.11.2
+
 ## 0.29.1
 
 ### Patch Changes

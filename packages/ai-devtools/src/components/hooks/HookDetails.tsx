@@ -39,6 +39,7 @@ import {
 } from './preview-messages'
 import { GenerationPanel, GenerationPreview } from './GenerationPanel'
 import { MemoryPanel } from './MemoryPanel'
+import { CompactionPanel } from './CompactionPanel'
 import { SkillsPanel } from './SkillsPanel'
 import type { HoverOrigin, HoverTarget, PreviewJsonItem } from './preview-model'
 import type {
@@ -50,7 +51,13 @@ import type {
 import type { Conversation, Message, ToolCall } from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'
 
-type DetailTab = 'conversation' | 'tools' | 'state' | 'memory' | 'skills'
+type DetailTab =
+  | 'conversation'
+  | 'tools'
+  | 'state'
+  | 'memory'
+  | 'compaction'
+  | 'skills'
 type MessagePart = NonNullable<Message['parts']>[number]
 const scrollAnimations = new WeakMap<HTMLElement, number>()
 
@@ -157,6 +164,7 @@ export const HookDetails: Component = () => {
       isGenerationHook() &&
       (activeTab() === 'tools' ||
         activeTab() === 'memory' ||
+        activeTab() === 'compaction' ||
         activeTab() === 'skills')
     ) {
       setActiveTab('conversation')
@@ -214,8 +222,10 @@ export const HookDetails: Component = () => {
         <HookOverview
           onSelectHook={(selectedHook) => {
             selectHook(selectedHook.id)
-            if (state.conversations[selectedHook.id]) {
-              selectConversation(selectedHook.id)
+            const conversationId =
+              selectedHook.id || selectedHook.clientId || selectedHook.threadId
+            if (conversationId && state.conversations[conversationId]) {
+              selectConversation(conversationId)
             }
           }}
         />
@@ -262,6 +272,12 @@ export const HookDetails: Component = () => {
               <TabButton
                 label="Memory"
                 tab="memory"
+                activeTab={activeTab()}
+                onSelect={setActiveTab}
+              />
+              <TabButton
+                label="Compaction"
+                tab="compaction"
                 activeTab={activeTab()}
                 onSelect={setActiveTab}
               />
@@ -317,6 +333,9 @@ export const HookDetails: Component = () => {
               </Show>
               <Show when={activeTab() === 'memory'}>
                 <MemoryPanel />
+              </Show>
+              <Show when={activeTab() === 'compaction'}>
+                <CompactionPanel hook={activeHook()} />
               </Show>
               <Show when={activeTab() === 'skills'}>
                 <SkillsPanel />
