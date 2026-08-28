@@ -164,7 +164,7 @@ A React SPA that connects to **Go, Rust, PHP, Zig, Bash, and Python chat servers
 **Tech Stack:**
 
 - React + Vite (SPA)
-- `@tanstack/ai-react` + `@tanstack/ai-react-ui`
+- `@tanstack/ai-react` + `@tanstack/ai-react/ui`
 - Go chat server (`net/http`, `:8001`)
 - Rust chat server (Axum, `:8002`)
 - PHP chat server (built-in server + curl, `:8003`)

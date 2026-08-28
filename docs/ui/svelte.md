@@ -11,9 +11,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte-ui`. Call `createChatUI(chatOptions)` once. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
+Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
 
-`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -21,8 +21,8 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```svelte
 <script lang="ts">
-  import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
-  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { fetchServerSentEvents } from '@tanstack/ai-svelte'
+  import { createChatHook, UIChat } from '@tanstack/ai-svelte/ui'
   import { toolDefinition } from '@tanstack/ai'
   import { z } from 'zod'
   import Layout from './Layout.svelte'
@@ -42,17 +42,19 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
     tools: [getWeather],
   }
 
-  const ui = createChatUI(chatOptions)
-  const chat = createChat(chatOptions)
-  const components = ui.defineComponents({
-    layout: Layout,
-    message: Message,
-    parts: { fallback: Fallback },
-    tools: { getWeather: Weather },
+  const { createAppChat, ui } = createChatHook({
+    options: chatOptions,
+    chatComponents: {
+      layout: Layout,
+      message: Message,
+      parts: { fallback: Fallback },
+      tools: { getWeather: Weather },
+    },
   })
+  const chat = createAppChat()
 </script>
 
-<UIChat {ui} {chat} {components} />
+<UIChat {ui} {chat} />
 ```
 
 `Layout.svelte` receives snippets `messages`, `interrupts`, and `input`. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
@@ -63,7 +65,7 @@ Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions
 
 ```svelte
 <script lang="ts">
-  import type { ToolProps } from '@tanstack/ai-svelte-ui'
+  import type { ToolProps } from '@tanstack/ai-svelte/ui'
   import { chatOptions } from './chat-options'
 
   let { part }: ToolProps<typeof chatOptions, 'getWeather'> = $props()
@@ -76,23 +78,23 @@ Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is alre
 
 Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
 
-Mapped components do not receive `chat` as a prop. Call `ui.useChat()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+Mapped components do not receive `chat` as a prop. Call `ui.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
 
-## Read chat from `ui.useChat()`
+## Read chat from `ui.useChatContext()`
 
-Import the same `ui` descriptor in a child file. Call `ui.useChat()` only under `UIChat` or `UIProvider`.
+Import the same `ui` descriptor in a child file. Call `ui.useChatContext()` only under `UIChat` or `UIProvider`.
 
 ```svelte
 <script lang="ts">
   import { ui } from './chat-ui'
 
-  const chat = ui.useChat()
+  const chat = ui.useChatContext()
 </script>
 
 <p>{chat.messages.length} messages</p>
 ```
 
-`createChat(chatOptions)` owns the state. `ui.useChat()` reads the instance you passed into `UIChat`. A call outside that tree throws.
+`createChat(chatOptions)` owns the state. `ui.useChatContext()` reads the instance you passed into `UIChat`. A call outside that tree throws.
 
 ## Interrupts
 

@@ -1,5 +1,5 @@
 import { CompassIcon } from 'lucide-react'
-import type { LayoutProps } from '@tanstack/ai-react-ui'
+import type { LayoutProps } from '@tanstack/ai-react/ui'
 import type { ContentPart } from '@tanstack/ai/client'
 import {
   Conversation,
@@ -8,8 +8,8 @@ import {
   ConversationScrollButton,
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
-import { UI } from '@/chat/options'
 import type { chatOptions } from '@/chat/options'
+import { useChatContext } from './ui-components'
 
 const LISBON_PHOTO =
   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80'
@@ -39,7 +39,7 @@ export function ChatLayout({
   renderInterrupts,
   renderInput,
 }: LayoutProps<typeof chatOptions>) {
-  const chat = UI.useChat()
+  const chat = useChatContext()
   if (chat.error) {
     return <p className="p-6 text-sm text-destructive">{chat.error.message}</p>
   }

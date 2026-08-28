@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref } from 'vue'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -83,117 +83,120 @@ const chatOptions = {
   },
 }
 
-const ui = createChatUI(chatOptions)
-const chat = useChat(chatOptions)
 const draft = ref('')
 
-const components = ui.defineComponents({
-  layout: defineComponent(
-    (_, { slots }) =>
-      () =>
-        h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
-          slots.messages?.(),
-          slots.input?.(),
-        ]),
-  ),
-  message: defineComponent({
-    props: ['message'],
-    setup(props) {
-      return () =>
-        h('article', { 'data-role': props.message.role }, [
-          ...(props.message.parts ?? []).map(
-            (part: { type: string; content?: string }) =>
-              part.type === 'text' ? h('p', part.content) : null,
-          ),
-        ])
-    },
-  }),
-  input: defineComponent({
-    setup() {
-      return () =>
-        h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
-          h(
-            'form',
-            {
-              onSubmit: (event: Event) => {
-                event.preventDefault()
-                const text = draft.value.trim()
-                if (!text) return
-                draft.value = ''
-                void chat.sendMessage(text)
-              },
-            },
-            [
-              h('input', {
-                class:
-                  'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
-                placeholder: 'Ask about guitars...',
-                value: draft.value,
-                onInput: (event: Event) => {
-                  const target = event.target
-                  if (target instanceof HTMLInputElement)
-                    draft.value = target.value
+const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    layout: defineComponent(
+      (_, { slots }) =>
+        () =>
+          h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
+            slots.messages?.(),
+            slots.input?.(),
+          ]),
+    ),
+    message: defineComponent({
+      props: ['message'],
+      setup(props) {
+        return () =>
+          h('article', { 'data-role': props.message.role }, [
+            ...(props.message.parts ?? []).map(
+              (part: { type: string; content?: string }) =>
+                part.type === 'text' ? h('p', part.content) : null,
+            ),
+          ])
+      },
+    }),
+    input: defineComponent({
+      setup() {
+        return () =>
+          h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
+            h(
+              'form',
+              {
+                onSubmit: (event: Event) => {
+                  event.preventDefault()
+                  const text = draft.value.trim()
+                  if (!text) return
+                  draft.value = ''
+                  void chat.sendMessage(text)
                 },
-              }),
-            ],
-          ),
-        ])
+              },
+              [
+                h('input', {
+                  class:
+                    'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
+                  placeholder: 'Ask about guitars...',
+                  value: draft.value,
+                  onInput: (event: Event) => {
+                    const target = event.target
+                    if (target instanceof HTMLInputElement)
+                      draft.value = target.value
+                  },
+                }),
+              ],
+            ),
+          ])
+      },
+    }),
+    parts: { fallback: defineComponent(() => () => null) },
+    tools: {
+      recommendGuitar: defineComponent({
+        props: ['part'],
+        setup(props) {
+          return () => h('p', props.part.input?.id)
+        },
+      }),
+      getPersonalGuitarPreference: defineComponent({
+        props: ['part'],
+        setup(props) {
+          return () => h('p', props.part.output?.preference)
+        },
+      }),
+      addToWishList: defineComponent({
+        props: ['part', 'interrupt'],
+        setup(props) {
+          return () =>
+            h('p', [
+              props.part.input?.guitarId,
+              props.interrupt?.status === 'pending'
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: () => props.interrupt?.resolveInterrupt(true),
+                    },
+                    'Approve',
+                  )
+                : null,
+            ])
+        },
+      }),
+      addToCart: defineComponent({
+        props: ['part', 'interrupt'],
+        setup(props) {
+          return () =>
+            h('p', [
+              props.part.input?.guitarId,
+              props.interrupt?.status === 'pending'
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: () => props.interrupt?.resolveInterrupt(true),
+                    },
+                    'Approve',
+                  )
+                : null,
+            ])
+        },
+      }),
     },
-  }),
-  parts: { fallback: defineComponent(() => () => null) },
-  tools: {
-    recommendGuitar: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('p', props.part.input?.id)
-      },
-    }),
-    getPersonalGuitarPreference: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('p', props.part.output?.preference)
-      },
-    }),
-    addToWishList: defineComponent({
-      props: ['part', 'interrupt'],
-      setup(props) {
-        return () =>
-          h('p', [
-            props.part.input?.guitarId,
-            props.interrupt?.status === 'pending'
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: () => props.interrupt?.resolveInterrupt(true),
-                  },
-                  'Approve',
-                )
-              : null,
-          ])
-      },
-    }),
-    addToCart: defineComponent({
-      props: ['part', 'interrupt'],
-      setup(props) {
-        return () =>
-          h('p', [
-            props.part.input?.guitarId,
-            props.interrupt?.status === 'pending'
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: () => props.interrupt?.resolveInterrupt(true),
-                  },
-                  'Approve',
-                )
-              : null,
-          ])
-      },
-    }),
   },
 })
+
+const chat = useAppChat()
 </script>
 
 <template>
@@ -225,13 +228,13 @@ const components = ui.defineComponents({
             <span
               class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
             >
-              @tanstack/ai-vue-ui
+              @tanstack/ai-vue/ui
             </span>
           </div>
         </div>
       </div>
 
-      <UIChat :ui="ui" :chat="chat" :components="components" />
+      <UIChat :ui="ui" :chat="chat" />
     </div>
   </div>
 </template>

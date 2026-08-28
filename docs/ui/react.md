@@ -12,11 +12,13 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react-ui`, then call `createChatUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
+Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
+
+The factory returns `useAppChat` and `useChatContext`. Call `useAppChat()` in the screen to create the instance. Render `<chat.AppChat />`. Call `useChatContext()` inside a mapped component when it needs live chat. That value is the instance that `chat.AppChat` provides.
 
 You supply every visible component. There is no default markup, style, or copy.
 
-`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
 ## Server
 
@@ -41,8 +43,8 @@ export async function POST(request: Request) {
 ## Client
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
 import { defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -74,15 +76,15 @@ const chatOptions = {
   outputSchema: z.object({ answer: z.string() }),
 }
 
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
   layout: function Layout({
     renderMessages,
     renderInterrupts,
     renderInput,
   }) {
-    const chat = UI.useChat()
+    const chat = useChatContext()
     if (chat.error) return <p>{chat.error.message}</p>
     if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
     if (chat.messages.length === 0) return <p>Empty</p>
@@ -98,7 +100,7 @@ const components = UI.defineComponents({
     return <article data-role={message.role}>{renderParts()}</article>
   },
   input: function Input() {
-    const chat = UI.useChat()
+    const chat = useChatContext()
     return (
       <form
         onSubmit={(event) => {
@@ -156,11 +158,17 @@ const components = UI.defineComponents({
       fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
     },
   },
+  },
 })
 
-export function ChatScreen() {
-  const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+export function Support() {
+  const chat = useAppChat({ threadId: 'support-1' })
+  return <chat.AppChat />
+}
+
+export function Sidebar() {
+  const chat = useAppChat({ threadId: 'sidebar' })
+  return <chat.AppChat />
 }
 ```
 
@@ -174,7 +182,7 @@ Part components work the same way. `PartProps<typeof chatOptions, 'text'>` alrea
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI, type PartProps, type ToolProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type PartProps, type ToolProps } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -208,9 +216,7 @@ export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
   return <p>{part.content}</p>
 }
 
-const UI = createChatUI(chatOptions)
-
-export const components = UI.defineComponents({
+export const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages }) => renderMessages(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   parts: { text: TextPart, fallback: () => null },
@@ -219,7 +225,7 @@ export const components = UI.defineComponents({
 ```
 
 1. Put `chatOptions` in a shared module.
-2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react-ui`.
+2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react/ui`.
 3. Type the component with `ToolProps<typeof chatOptions, 'getWeather'>` or `PartProps<typeof chatOptions, 'text'>`.
 4. Pass that component into `tools.getWeather` or `parts.text`.
 
@@ -230,7 +236,7 @@ For an interrupt, use `InterruptProps`. Pass a tool name or a registered interru
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI, type InterruptProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type InterruptProps } from '@tanstack/ai-react/ui'
 import { defineInterrupt } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -255,9 +261,7 @@ export function ChoosePlan({
   )
 }
 
-const UI = createChatUI(chatOptions)
-
-export const components = UI.defineComponents({
+export const UI = createChatUI(chatOptions, {
   layout: ({ renderInterrupts }) => renderInterrupts(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   parts: { fallback: () => null },
@@ -277,48 +281,53 @@ Other prop types from the same package:
 - `PartProps` with a part key such as `'text'`
 - `InterruptProps` for tool approvals, registered generic interrupts, and `generic.fallback`. Pass a tool name or interrupt id as the second type argument.
 
-## Read chat from `UI.useChat()`
+## Read chat from `useChatContext()`
 
-Mapped components do not receive `chat` as a prop. Call `UI.useChat()` inside a component when it needs live chat. That call opts the component into chat re-renders. Nested children can call it too.
+Mapped components do not receive `chat` as a prop. Call `useChatContext()` inside a component when it needs live chat. That call opts the component into chat re-renders. Nested children can call it too. Widgets in other files should call `createChatHookContexts()` first so they do not import the factory result (circular import).
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const UI = createChatUI(chatOptions)
-
 function StatusLine() {
-  const chat = UI.useChat()
+  const chat = useChatContext()
   if (chat.error) return <p>{chat.error.message}</p>
   if (chat.isLoading) return <p>Loading</p>
   return <p>{chat.messages.length} messages</p>
 }
 
-const components = UI.defineComponents({
-  layout: ({ renderMessages, renderInput }) => (
-    <main>
-      <StatusLine />
-      {renderMessages()}
-      {renderInput()}
-    </main>
-  ),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
-  parts: { fallback: () => null },
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    layout: ({ renderMessages, renderInput }) => (
+      <main>
+        <StatusLine />
+        {renderMessages()}
+        {renderInput()}
+      </main>
+    ),
+    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    parts: { fallback: () => null },
+  },
 })
 
 export function ChatScreen() {
-  const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  const chat = useAppChat()
+  return <chat.AppChat />
 }
 ```
 
-Call `UI.useChat()` only inside `UI.Chat` or `UI.Provider`. A call outside that tree throws.
+Call `useChatContext()` only inside `AppChat` or `Provider`. A call outside that tree throws.
 
-`useChat(chatOptions)` from `@tanstack/ai-react` still owns the state. `UI.useChat()` only reads the instance that you passed into the provider.
+`useAppChat` from `createChatHook` owns the state. `useChatContext()` only reads the instance that `chat.AppChat` provides.
+
+When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. Then that file can import `useChatContext` from the contexts module.
+
+Part and interrupt widgets take `part` and `interrupt` as props. Type them with `PartProps`, `ToolProps`, or `InterruptProps`. Do not read those values from context.
 
 ## Tool approvals: inline or list
 
@@ -332,7 +341,7 @@ Read `interrupt` on the tool. Render the approval in that same component. Do not
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI, type ToolProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -348,8 +357,6 @@ const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
   tools: [purchaseItem],
 }
-
-const UI = createChatUI(chatOptions)
 
 function PurchaseItem({
   part,
@@ -367,7 +374,7 @@ function PurchaseItem({
   )
 }
 
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages, renderInterrupts }) => (
     <main>
       {renderMessages()}
@@ -383,7 +390,7 @@ const components = UI.defineComponents({
 
 export function InlineApprovalChat() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
@@ -395,7 +402,7 @@ Register the approval under `interrupts.tools`. That component appears in the in
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -412,9 +419,7 @@ const chatOptions = {
   tools: [purchaseItem],
 }
 
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages, renderInterrupts }) => (
     <main>
       {renderMessages()}
@@ -439,7 +444,7 @@ const components = UI.defineComponents({
 
 export function ListApprovalChat() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
@@ -454,7 +459,7 @@ Map them under `interrupts.generic`:
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { defineInterrupt } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -469,9 +474,7 @@ const chatOptions = {
   interrupts: [choosePlan],
 }
 
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderInterrupts }) => renderInterrupts(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   parts: { fallback: () => null },
@@ -494,25 +497,23 @@ const components = UI.defineComponents({
 
 export function GenericInterruptChat() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
-You can mix this map with `interrupts.tools` in the same `defineComponents` call.
+You can mix this map with `interrupts.tools` in the same factory call.
 
 ## Manual traversal
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages }) => renderMessages(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   parts: { fallback: () => null },
@@ -521,7 +522,7 @@ const components = UI.defineComponents({
 export function ManualChat() {
   const chat = useChat(chatOptions)
   return (
-    <UI.Provider chat={chat} components={components}>
+    <UI.Provider chat={chat}>
       <UI.Messages>
         {(messages) =>
           messages.map((message) => (
@@ -541,5 +542,23 @@ export function ManualChat() {
 ```
 
 Unknown runtime tool names warn once in development and render nothing. Add a `parts.fallback` for unknown part types.
+
+Automatic dispatch is the default. You can also pick a registered widget at the call site, like Form `field.TextField` and Table `cell.TextCell`:
+
+```tsx
+<UI.Message message={message}>
+  {(parts) =>
+    parts.map((part, index) => (
+      <UI.Part key={index} part={part}>
+        {(p) => (part.key === 'toolCall' ? <p.getWeather /> : <p.Render />)}
+      </UI.Part>
+    ))
+  }
+</UI.Message>
+```
+
+`p.getWeather` and `p.text` are the widgets you passed to the factory. `p.Render` walks this one part the automatic way. `UI.Input` is mixed onto the kit when you register `input`.
+
+If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
 
 See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapters](./custom-adapters).

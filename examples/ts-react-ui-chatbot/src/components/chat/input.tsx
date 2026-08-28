@@ -13,7 +13,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { byok } from '@/chat/byok'
-import { UI } from '@/chat/options'
+import { useChatContext } from '@/chat/ui-context'
 import {
   PromptInput,
   PromptInputButton,
@@ -69,7 +69,7 @@ async function fileToDraft(file: File): Promise<Draft> {
 }
 
 export function ChatPromptInput() {
-  const chat = UI.useChat()
+  const chat = useChatContext()
   const [model, setModel] = useState<ChatModelId>(selectedModel)
   const [text, setText] = useState('')
   const [drafts, setDrafts] = useState<Array<Draft>>([])

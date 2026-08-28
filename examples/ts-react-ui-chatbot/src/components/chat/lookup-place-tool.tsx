@@ -1,4 +1,4 @@
-import type { ToolProps } from '@tanstack/ai-react-ui'
+import type { ToolProps } from '@tanstack/ai-react/ui'
 import {
   Source,
   Sources,

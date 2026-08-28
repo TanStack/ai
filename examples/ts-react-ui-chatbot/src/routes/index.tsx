@@ -1,19 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useChat } from '@tanstack/ai-react'
-import { UI } from '@/chat/options'
-import { chatOptions } from '@/chat/options'
 import { selectedModel } from '@/chat/model'
-import { components } from '@/components/chat/ui-components'
+import { useAppChat } from '@/components/chat/ui-components'
 
 export const Route = createFileRoute('/')({
   component: TripDesk,
 })
 
 function TripDesk() {
-  const chat = useChat({
-    ...chatOptions,
-    get forwardedProps() {
-      return { model: selectedModel }
+  const chat = useAppChat({
+    forwardedProps: {
+      model: selectedModel,
     },
   })
 
@@ -32,7 +28,7 @@ function TripDesk() {
           src="/brand/logos/tanstack-landscape-white.svg"
         />
       </header>
-      <UI.Chat chat={chat} components={components} />
+      <chat.AppChat />
     </div>
   )
 }

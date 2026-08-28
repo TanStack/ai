@@ -127,9 +127,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
-      '@tanstack/ai-react-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-react-ui
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -742,9 +739,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
-      '@tanstack/ai-react-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-react-ui
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox
@@ -1188,9 +1182,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
-      '@tanstack/ai-react-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-react-ui
       '@tanstack/react-devtools':
         specifier: ^0.9.10
         version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.18))(@types/react@19.2.18)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -1300,9 +1291,6 @@ importers:
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../../packages/ai-solid
-      '@tanstack/ai-solid-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-solid-ui
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.155.0
         version: 1.155.0(@electric-sql/pglite@0.4.3)(aws4fetch@1.0.20)(better-sqlite3@12.11.1)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260317.1)(@electric-sql/pglite@0.4.3)(@opentelemetry/api@1.9.1)(@prisma/client@7.9.0(prisma@7.9.0(@types/react@19.2.18)(better-sqlite3@12.11.1)(magicast@0.5.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(better-sqlite3@12.11.1)(bun-types@1.3.14)(mysql2@3.15.3)(postgres@3.4.7)(prisma@7.9.0(@types/react@19.2.18)(better-sqlite3@12.11.1)(magicast@0.5.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))(mysql2@3.15.3)(rolldown@1.1.5)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
@@ -1409,9 +1397,6 @@ importers:
       '@tanstack/ai-svelte':
         specifier: workspace:*
         version: link:../../packages/ai-svelte
-      '@tanstack/ai-svelte-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-svelte-ui
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -1485,9 +1470,6 @@ importers:
       '@tanstack/ai-vue':
         specifier: workspace:*
         version: link:../../packages/ai-vue
-      '@tanstack/ai-vue-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-vue-ui
       marked:
         specifier: ^15.0.6
         version: 15.0.12
@@ -2473,6 +2455,21 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:^
         version: link:../ai-client
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.7)(react@19.2.3)
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      rehype-raw:
+        specifier: ^7.0.0
+        version: 7.0.0
+      rehype-sanitize:
+        specifier: ^6.0.0
+        version: 6.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
     devDependencies:
       '@mcp-ui/client':
         specifier: ^7.1.1
@@ -2495,43 +2492,6 @@ importers:
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26)
-      react:
-        specifier: ^19.2.3
-        version: 19.2.3
-      vite:
-        specifier: ^8.2.1
-        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-
-  packages/ai-react-ui:
-    dependencies:
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.7)(react@19.2.3)
-      rehype-highlight:
-        specifier: ^7.0.2
-        version: 7.0.2
-      rehype-raw:
-        specifier: ^7.0.0
-        version: 7.0.0
-      rehype-sanitize:
-        specifier: ^6.0.0
-        version: 6.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-    devDependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../ai-client
-      '@tanstack/ai-react':
-        specifier: workspace:*
-        version: link:../ai-react
-      '@types/react':
-        specifier: ^19.2.7
-        version: 19.2.7
-      '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.10)
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -2692,6 +2652,21 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:^
         version: link:../ai-client
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      rehype-raw:
+        specifier: ^7.0.0
+        version: 7.0.0
+      rehype-sanitize:
+        specifier: ^6.0.0
+        version: 6.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      solid-markdown:
+        specifier: ^2.1.0
+        version: 2.1.1(solid-js@1.9.10)
     devDependencies:
       '@solidjs/testing-library':
         specifier: ^0.8.10
@@ -2716,53 +2691,19 @@ importers:
         version: 1.9.10
       tsdown:
         specifier: ^0.17.0-beta.6
-        version: 0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3)
+        version: 0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3)(vue-tsc@2.2.12(typescript@5.9.3))
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-
-  packages/ai-solid-ui:
-    dependencies:
-      rehype-highlight:
-        specifier: ^7.0.2
-        version: 7.0.2
-      rehype-raw:
-        specifier: ^7.0.0
-        version: 7.0.0
-      rehype-sanitize:
-        specifier: ^6.0.0
-        version: 6.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-      solid-markdown:
-        specifier: ^2.1.0
-        version: 2.1.1(solid-js@1.9.10)
-    devDependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:*
-        version: link:../ai-client
-      '@tanstack/ai-solid':
-        specifier: workspace:*
-        version: link:../ai-solid
-      '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.10)
-      happy-dom:
-        specifier: ^20.11.2
-        version: 20.11.2
-      solid-js:
-        specifier: ^1.9.10
-        version: 1.9.10
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
       vite-plugin-solid:
         specifier: ^2.11.14
         version: 2.11.14(solid-js@1.9.10)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/ai-svelte:
     dependencies:
@@ -2791,40 +2732,6 @@ importers:
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26)
-      svelte:
-        specifier: ^5.56.9
-        version: 5.56.9(@typescript-eslint/types@8.59.4)
-      svelte-check:
-        specifier: ^4.2.0
-        version: 4.3.4(picomatch@4.0.5)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(typescript@5.9.3)
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^8.2.1
-        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-
-  packages/ai-svelte-ui:
-    dependencies:
-      '@tanstack/ai-client':
-        specifier: workspace:^
-        version: link:../ai-client
-      '@tanstack/ai-svelte':
-        specifier: workspace:^
-        version: link:../ai-svelte
-    devDependencies:
-      '@sveltejs/package':
-        specifier: ^2.3.10
-        version: 2.5.7(svelte@5.56.9(@typescript-eslint/types@8.59.4))
-      '@sveltejs/vite-plugin-svelte':
-        specifier: ^7.3.0
-        version: 7.3.0(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-      '@types/node':
-        specifier: ^24.10.1
-        version: 24.10.3
-      '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.10)
       svelte:
         specifier: ^5.56.9
         version: 5.56.9(@typescript-eslint/types@8.59.4)
@@ -2893,9 +2800,21 @@ importers:
 
   packages/ai-vue:
     dependencies:
+      '@crazydos/vue-markdown':
+        specifier: ^1.1.4
+        version: 1.1.4(vue@3.5.25(typescript@5.9.3))
       '@tanstack/ai-client':
         specifier: workspace:^
         version: link:../ai-client
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
+      rehype-raw:
+        specifier: ^7.0.0
+        version: 7.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -2906,6 +2825,9 @@ importers:
       '@types/node':
         specifier: ^24.10.1
         version: 24.10.3
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.8
+        version: 6.0.8(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))(vue@3.5.25(typescript@5.9.3))
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)
@@ -2917,47 +2839,16 @@ importers:
         version: 27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26)
       tsdown:
         specifier: ^0.17.0-beta.6
-        version: 0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3)
+        version: 0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3)(vue-tsc@2.2.12(typescript@5.9.3))
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-      vitest:
-        specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-      vue:
-        specifier: ^3.5.25
-        version: 3.5.25(typescript@5.9.3)
-
-  packages/ai-vue-ui:
-    dependencies:
-      '@crazydos/vue-markdown':
-        specifier: ^1.1.4
-        version: 1.1.4(vue@3.5.25(typescript@5.9.3))
-      '@tanstack/ai-client':
-        specifier: workspace:^
-        version: link:../ai-client
-      '@tanstack/ai-vue':
-        specifier: workspace:^
-        version: link:../ai-vue
-      rehype-highlight:
-        specifier: ^7.0.2
-        version: 7.0.2
-      rehype-raw:
-        specifier: ^7.0.0
-        version: 7.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-    devDependencies:
-      '@vitejs/plugin-vue':
-        specifier: ^6.0.8
-        version: 6.0.8(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))(vue@3.5.25(typescript@5.9.3))
-      '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.10)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0)(postcss@8.5.26))(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       vue:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
@@ -3152,9 +3043,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
-      '@tanstack/ai-react-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-react-ui
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox
@@ -3288,9 +3176,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
-      '@tanstack/ai-react-ui':
-        specifier: workspace:*
-        version: link:../../packages/ai-react-ui
       '@tanstack/ai-skills':
         specifier: workspace:*
         version: link:../../packages/ai-skills
@@ -11967,7 +11852,6 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -32893,7 +32777,7 @@ snapshots:
   robust-predicates@3.0.3:
     optional: true
 
-  rolldown-plugin-dts@0.18.3(oxc-resolver@11.21.3)(rolldown@1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1))(typescript@5.9.3):
+  rolldown-plugin-dts@0.18.3(oxc-resolver@11.21.3)(rolldown@1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1))(typescript@5.9.3)(vue-tsc@2.2.12(typescript@5.9.3)):
     dependencies:
       '@babel/generator': 7.28.5
       '@babel/parser': 7.29.0
@@ -32907,6 +32791,7 @@ snapshots:
       rolldown: 1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     optionalDependencies:
       typescript: 5.9.3
+      vue-tsc: 2.2.12(typescript@5.9.3)
     transitivePeerDependencies:
       - oxc-resolver
 
@@ -33923,7 +33808,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3):
+  tsdown@0.17.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(oxc-resolver@11.21.3)(publint@0.3.16)(typescript@5.9.3)(vue-tsc@2.2.12(typescript@5.9.3)):
     dependencies:
       ansis: 4.2.0
       cac: 6.7.14
@@ -33933,7 +33818,7 @@ snapshots:
       import-without-cache: 0.2.3
       obug: 2.1.1
       rolldown: 1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
-      rolldown-plugin-dts: 0.18.3(oxc-resolver@11.21.3)(rolldown@1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1))(typescript@5.9.3)
+      rolldown-plugin-dts: 0.18.3(oxc-resolver@11.21.3)(rolldown@1.0.0-beta.53(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1))(typescript@5.9.3)(vue-tsc@2.2.12(typescript@5.9.3))
       semver: 7.7.3
       tinyexec: 1.0.2
       tinyglobby: 0.2.17

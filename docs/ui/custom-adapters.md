@@ -31,4 +31,4 @@ Call `selectChatUI({ messages, interrupts, inlineToolNames })`. Automatic traver
 
 Warn once per missing runtime key in development. Each build tool detects development mode differently, so the adapter prints the warning.
 
-See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters for the public names to match: `Chat`, `Provider`, `Messages`, `Message`, `Part`, `Interrupts`, `Interrupt`, and `defineComponents`.
+See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters for the public names to match: `Chat`, `Provider`, `Messages`, `Message`, `Part`, `Interrupts`, `Interrupt`, `useChatContext`, and `createChatHookContexts`.

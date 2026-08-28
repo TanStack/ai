@@ -1,10 +1,6 @@
 <script lang="ts">
-  import {
-    createChat,
-    fetchServerSentEvents,
-    clientTools,
-  } from '@tanstack/ai-svelte'
-  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { fetchServerSentEvents, clientTools } from '@tanstack/ai-svelte'
+  import { createChatHook, UIChat } from '@tanstack/ai-svelte/ui'
   import {
     addToCartToolDef,
     addToWishListToolDef,
@@ -56,23 +52,25 @@
     tools,
   }
 
-  const ui = createChatUI(chatOptions)
-  const chat = createChat(chatOptions)
-  const components = ui.defineComponents({
-    layout: Layout,
-    message: Message,
-    parts: { fallback: Fallback },
-    tools: {
-      recommendGuitar: Tool,
-      getPersonalGuitarPreference: Tool,
-      addToWishList: Tool,
-      addToCart: Tool,
+  const { createAppChat, ui } = createChatHook({
+    options: chatOptions,
+    chatComponents: {
+      layout: Layout,
+      message: Message,
+      parts: { fallback: Fallback },
+      tools: {
+        recommendGuitar: Tool,
+        getPersonalGuitarPreference: Tool,
+        addToWishList: Tool,
+        addToCart: Tool,
+      },
     },
   })
+  const chat = createAppChat()
 </script>
 
 <svelte:head>
-  <title>TanStack AI - Svelte createChatUI</title>
+  <title>TanStack AI - Svelte createChatHook</title>
 </svelte:head>
 
-<UIChat {ui} {chat} {components} />
+<UIChat {ui} {chat} />

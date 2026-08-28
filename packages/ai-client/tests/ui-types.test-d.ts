@@ -3,6 +3,7 @@ import type {
   ChatUIData,
   ChatUIInterrupt,
   ChatUIInterruptOf,
+  ChatUISelectedPartOf,
   ChatUIToolPart,
   RegisteredUIInterrupt,
 } from '../src/ui'
@@ -35,3 +36,7 @@ expectTypeOf<PurchaseApproval['toolName']>().toEqualTypeOf<'purchaseItem'>()
 
 type AnyInterrupt = ChatUIInterruptOf<typeof chatOptions>
 expectTypeOf<AnyInterrupt>().toEqualTypeOf<ChatUIInterrupt>()
+
+type TextSelected = ChatUISelectedPartOf<typeof chatOptions, 'text'>
+expectTypeOf<TextSelected['part']['type']>().toEqualTypeOf<'text'>()
+expectTypeOf<TextSelected['part']['content']>().toEqualTypeOf<string>()

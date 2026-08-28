@@ -206,6 +206,18 @@ export type ChatUISelectedPart =
   | ChatUISelectedResultPart
   | ChatUISelectedGenericPart
 
+export type ChatUISelectedPartOf<
+  TOptions,
+  TKey extends ChatUIPartKey = ChatUIPartKey,
+> = TKey extends 'toolCall'
+  ? ChatUIToolPart<TOptions>
+  : TKey extends 'toolResult'
+    ? ChatUISelectedResultPart
+    : {
+        key: TKey
+        part: ChatUIPartOf<TOptions, TKey>
+      }
+
 export type ChatUISelectedMessage = {
   message: UIMessage
   parts: Array<ChatUISelectedPart>
