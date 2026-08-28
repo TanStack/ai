@@ -1,6 +1,7 @@
 import { expectTypeOf, it } from 'vitest'
 import { createChatUI } from '../src/create-ui'
 import type {
+  ChatUIFactoryConfig,
   ChatUIHost,
   InterruptProps,
   PartProps,
@@ -47,16 +48,17 @@ it('types tool and interrupt component props from chatOptions', () => {
     { title: string } | undefined
   >()
 
-  const UI = createChatUI(chatOptions)
-
-  UI.defineComponents({
+  const UI = createChatUI(chatOptions, {
     layout: ({ renderMessages }) => {
-      expectTypeOf(UI.useChat()).toEqualTypeOf<ChatUIHost<typeof chatOptions>>()
-      expectTypeOf(UI.useChat().sendMessage).toBeFunction()
-      expectTypeOf(UI.useChat().queue).toBeArray()
+      expectTypeOf(UI.useChatContext()).toEqualTypeOf<
+        ChatUIHost<typeof chatOptions>
+      >()
+      expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
+      expectTypeOf(UI.useChatContext().queue).toBeArray()
       return renderMessages()
     },
     message: ({ renderParts }) => renderParts(),
+    input: () => null,
     parts: {
       text: ({ part }) => {
         expectTypeOf(part.type).toEqualTypeOf<'text'>()
@@ -101,7 +103,11 @@ it('types tool and interrupt component props from chatOptions', () => {
     },
   })
 
-  UI.defineComponents({
+  expectTypeOf(UI.Input).toEqualTypeOf<
+    ChatUIFactoryConfig<typeof chatOptions>['input']
+  >()
+
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -116,7 +122,7 @@ it('types tool and interrupt component props from chatOptions', () => {
     },
   })
 
-  UI.defineComponents({
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -132,10 +138,13 @@ it('types tool and interrupt component props from chatOptions', () => {
     },
   })
 
-  const Untyped = createChatUI({})
-  Untyped.defineComponents({
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-  })
+  const Untyped = createChatUI(
+    {},
+    {
+      layout: () => null,
+      message: () => null,
+      parts: { fallback: () => null },
+    },
+  )
+  expectTypeOf(Untyped.Chat).toBeFunction()
 })

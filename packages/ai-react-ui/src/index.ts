@@ -27,6 +27,7 @@
 export {
   createChatUI,
   type ChatUIComponents,
+  type ChatUIFactoryConfig,
   type ChatUIHost,
   type InputProps,
   type InterruptProps,
@@ -35,6 +36,10 @@ export {
   type PartProps,
   type ToolProps,
 } from './create-ui'
+export {
+  createChatUIContexts,
+  type ChatUIContexts,
+} from './create-ui-contexts'
 
 // Main components
 export { Chat, useChatContext, type ChatProps } from './chat'

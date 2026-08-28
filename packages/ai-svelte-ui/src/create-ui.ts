@@ -78,13 +78,13 @@ export type ChatUIComponents<TOptions> = {
         }
       })
 
+export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions>
+
 export type UIDescriptor<TOptions = unknown> = {
   key: symbol
   warn: (key: string, message: string) => void
-  defineComponents: (
-    components: ChatUIComponents<TOptions>,
-  ) => ChatUIComponents<TOptions>
-  useChat: () => ChatUIHost<TOptions>
+  components: ChatUIComponents<TOptions>
+  useChatContext: () => ChatUIHost<TOptions>
 }
 
 export type UIContextValue<TOptions = unknown> = {
@@ -115,16 +115,15 @@ function createWarnOnce() {
 
 export function createChatUI<const TOptions>(
   options: TOptions,
+  components: ChatUIFactoryConfig<TOptions>,
 ): UIDescriptor<TOptions> {
   void options
   const ui: UIRuntime<TOptions> = {
     key: Symbol('tanstack-ai-ui-chat'),
     componentsKey: Symbol('tanstack-ai-ui-components'),
     warn: createWarnOnce(),
-    defineComponents(components) {
-      return components
-    },
-    useChat() {
+    components,
+    useChatContext() {
       return getChatContext(ui)
     },
   }

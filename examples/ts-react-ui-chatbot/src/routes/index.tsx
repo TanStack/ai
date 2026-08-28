@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { UI, useChat } from '@/chat/options'
+import { useChat } from '@/chat/options'
 import { selectedModel } from '@/chat/model'
-import { components } from '@/components/chat/ui-components'
+import { UI } from '@/components/chat/ui-components'
 
 export const Route = createFileRoute('/')({
   component: TripDesk,
@@ -29,7 +29,7 @@ function TripDesk() {
           src="/brand/logos/tanstack-landscape-white.svg"
         />
       </header>
-      <UI.Chat chat={chat} components={components} />
+      <UI.Chat chat={chat} />
     </div>
   )
 }

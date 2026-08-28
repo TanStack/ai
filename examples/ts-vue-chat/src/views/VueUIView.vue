@@ -83,11 +83,10 @@ const chatOptions = {
   },
 }
 
-const ui = createChatUI(chatOptions)
 const chat = useChat(chatOptions)
 const draft = ref('')
 
-const components = ui.defineComponents({
+const ui = createChatUI(chatOptions, {
   layout: defineComponent(
     (_, { slots }) =>
       () =>
@@ -231,7 +230,7 @@ const components = ui.defineComponents({
         </div>
       </div>
 
-      <UIChat :ui="ui" :chat="chat" :components="components" />
+      <UIChat :ui="ui" :chat="chat" />
     </div>
   </div>
 </template>

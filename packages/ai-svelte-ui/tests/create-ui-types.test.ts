@@ -4,7 +4,7 @@ import type { ChatUIHost, InterruptProps, ToolProps } from '../src/create-ui'
 import { chatOptions } from '../../ai-client/tests/ui-fixtures'
 
 describe('Svelte createChatUI types', () => {
-  it('infers defineComponents from a bare options variable', () => {
+  it('infers the component map from chatOptions', () => {
     type PurchaseInterrupt = InterruptProps<typeof chatOptions, 'purchaseItem'>
     expectTypeOf<
       PurchaseInterrupt['interrupt']['toolName']
@@ -18,11 +18,7 @@ describe('Svelte createChatUI types', () => {
       NonNullable<PurchaseTool['interrupt']>['originalArgs']
     >().toEqualTypeOf<{ item: string }>()
 
-    const ui = createChatUI(chatOptions)
-    expectTypeOf(ui.useChat).returns.toEqualTypeOf<
-      ChatUIHost<typeof chatOptions>
-    >()
-    ui.defineComponents({
+    const ui = createChatUI(chatOptions, {
       layout: {},
       message: {},
       parts: { fallback: {} },
@@ -38,8 +34,11 @@ describe('Svelte createChatUI types', () => {
         },
       },
     })
+    expectTypeOf(ui.useChatContext).returns.toEqualTypeOf<
+      ChatUIHost<typeof chatOptions>
+    >()
 
-    ui.defineComponents({
+    createChatUI(chatOptions, {
       layout: {},
       message: {},
       parts: { fallback: {} },
@@ -54,7 +53,7 @@ describe('Svelte createChatUI types', () => {
       },
     })
 
-    ui.defineComponents({
+    createChatUI(chatOptions, {
       layout: {},
       message: {},
       parts: { fallback: {} },
@@ -70,12 +69,14 @@ describe('Svelte createChatUI types', () => {
       },
     })
 
-    const untyped = createChatUI({})
-    untyped.defineComponents({
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-    })
-    expectTypeOf(ui.defineComponents).toBeFunction()
+    const untyped = createChatUI(
+      {},
+      {
+        layout: {},
+        message: {},
+        parts: { fallback: {} },
+      },
+    )
+    expectTypeOf(untyped.useChatContext).toBeFunction()
   })
 })

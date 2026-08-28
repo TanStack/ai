@@ -13,14 +13,15 @@
     // ponytail: Svelte components are not generic, so ChatUIHost<TOptions> cannot
     // accept a typed createChat() host with tool-approval interrupts.
     chat: any
-    components: ChatUIComponents<unknown>
+    components?: ChatUIComponents<unknown>
   } = $props()
 
-  const Layout = $derived(components.layout as any)
-  const Input = $derived(components.input as any)
+  const bound = $derived(components ?? ui.components)
+  const Layout = $derived(bound.layout as any)
+  const Input = $derived(bound.input as any)
 </script>
 
-<UIProvider {ui} {chat} {components}>
+<UIProvider {ui} {chat} components={bound}>
   <Layout>
     {#snippet messages()}
       <UIMessages {ui} />

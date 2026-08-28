@@ -1,7 +1,7 @@
 import { render } from 'solid-js/web'
 import { describe, expect, it, vi } from 'vitest'
 import { createChatUI } from '../src/create-ui'
-import type { ChatUIHost } from '../src/create-ui'
+import type { ChatUIFactoryConfig, ChatUIHost } from '../src/create-ui'
 import {
   chatOptions,
   createSolidChatResult,
@@ -23,27 +23,28 @@ function renderHtml(node: () => unknown) {
   return container.innerHTML
 }
 
+const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
+  layout: (props) => <>{props.renderMessages()}</>,
+  message: (props) => <article>{props.renderParts()}</article>,
+  parts: { fallback: (props) => <span>{props.part.type}</span> },
+  tools: {
+    getWeather: (props) => <strong>{props.part.input?.city}</strong>,
+    purchaseItem: () => null,
+  },
+  interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
+}
+
 describe('Solid createChatUI', () => {
   it('renders automatic and manual traversal', () => {
-    const UI = createChatUI(chatOptions)
+    const UI = createChatUI(chatOptions, baseConfig)
     const chat = host([messageWithToolResults])
-    const components = UI.defineComponents({
-      layout: (props) => <>{props.renderMessages()}</>,
-      message: (props) => <article>{props.renderParts()}</article>,
-      parts: { fallback: (props) => <span>{props.part.type}</span> },
-      tools: {
-        getWeather: (props) => <strong>{props.part.input?.city}</strong>,
-        purchaseItem: () => null,
-      },
-      interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
-    })
 
-    expect(
-      renderHtml(() => <UI.Chat chat={chat} components={components} />),
-    ).toContain('<strong>Paris</strong>')
+    expect(renderHtml(() => <UI.Chat chat={chat} />)).toContain(
+      '<strong>Paris</strong>',
+    )
     expect(
       renderHtml(() => (
-        <UI.Provider chat={chat} components={components}>
+        <UI.Provider chat={chat}>
           <UI.Messages>
             {(messages) => <span>{messages().length}</span>}
           </UI.Messages>
@@ -54,20 +55,10 @@ describe('Solid createChatUI', () => {
 
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = createChatUI(chatOptions)
+    const UI = createChatUI(chatOptions, baseConfig)
     const chat = host([unknownToolMessage])
-    const components = UI.defineComponents({
-      layout: (props) => props.renderMessages(),
-      message: (props) => props.renderParts(),
-      parts: { fallback: () => null },
-      tools: {
-        getWeather: () => null,
-        purchaseItem: () => null,
-      },
-      interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
-    })
-    renderHtml(() => <UI.Chat chat={chat} components={components} />)
-    renderHtml(() => <UI.Chat chat={chat} components={components} />)
+    renderHtml(() => <UI.Chat chat={chat} />)
+    renderHtml(() => <UI.Chat chat={chat} />)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })

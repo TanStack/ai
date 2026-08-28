@@ -5,6 +5,8 @@
 '@tanstack/ai-svelte': minor
 '@tanstack/ai-react-ui': minor
 '@tanstack/ai-solid-ui': minor
+'@tanstack/ai-vue-ui': minor
+'@tanstack/ai-svelte-ui': minor
 ---
 
-Add `createChatHook(chatOptions)`. It returns a bound `useChat` (or `createChat` in Svelte) so the screen does not pass the same options object into `useChat` and `createChatUI`.
+Align chat UI with Form and Table. `createChatHook` returns a bound `useChat`. `createChatUI` now takes widgets at factory time, mixes them onto Part / Interrupt / `UI.Input`, and exposes `createChatUIContexts` plus `useChatContext`.

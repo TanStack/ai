@@ -65,9 +65,7 @@ const chatOptions = {
 }
 
 const { useChat } = createChatHook(chatOptions)
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages, renderInput }) => (
     <main>
       {renderMessages()}
@@ -76,7 +74,7 @@ const components = UI.defineComponents({
   ),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   input: () => {
-    const chat = UI.useChat()
+    const chat = UI.useChatContext()
     return (
     <form
       onSubmit={(event) => {
@@ -98,17 +96,17 @@ const components = UI.defineComponents({
 
 export function NewChat() {
   const chat = useChat()
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
 ## Steps
 
 1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` next to that object.
+2. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions, { layout, message, parts, tools, interrupts })` next to that object.
 3. Call the bound `useChat` from `createChatHook` in the screen component. `useChat(chatOptions)` from `@tanstack/ai-react` still works if you prefer to pass the object at the call site.
-4. Define `layout`, `message`, `parts`, `tools`, and `interrupts` in `defineComponents`.
-5. Replace `<Chat>` with `<UI.Chat chat={chat} components={components} />`.
+4. Register `layout`, `message`, `parts`, `tools`, and `interrupts` on the factory. This matches Form and Table.
+5. Replace `<Chat>` with `<UI.Chat chat={chat} />`.
 
 ## Gotchas
 

@@ -42,7 +42,7 @@ type ChatHookOverrides<
  *
  * function Support() {
  *   const chat = useChat({ threadId: 'support-1' })
- *   return <UI.Chat chat={chat} components={components} />
+ *   return <UI.Chat chat={chat} />
  * }
  * ```
  */

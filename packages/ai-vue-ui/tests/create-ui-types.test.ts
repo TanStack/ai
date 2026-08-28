@@ -17,12 +17,7 @@ it('requires every tool name and interrupt id', () => {
     NonNullable<PurchaseTool['interrupt']>['originalArgs']
   >().toEqualTypeOf<{ item: string }>()
 
-  const ui = createChatUI(chatOptions)
-  expectTypeOf(ui.useChat).returns.toEqualTypeOf<
-    ChatUIHost<typeof chatOptions>
-  >()
-
-  ui.defineComponents({
+  const ui = createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -44,8 +39,11 @@ it('requires every tool name and interrupt id', () => {
       },
     },
   })
+  expectTypeOf(ui.useChatContext).returns.toEqualTypeOf<
+    ChatUIHost<typeof chatOptions>
+  >()
 
-  ui.defineComponents({
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -60,7 +58,7 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  ui.defineComponents({
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -76,10 +74,13 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  const untyped = createChatUI({})
-  untyped.defineComponents({
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-  })
+  const untyped = createChatUI(
+    {},
+    {
+      layout: () => null,
+      message: () => null,
+      parts: { fallback: () => null },
+    },
+  )
+  expectTypeOf(untyped.useChatContext).toBeFunction()
 })

@@ -9,26 +9,24 @@ const chatOptions = {
   tools: clientTools,
 }
 
-const UI = createChatUI(chatOptions)
-
-function SolidUIPage() {
-  const chat = useChat(chatOptions)
-  const [draft, setDraft] = createSignal('')
-  const components = UI.defineComponents({
-    layout: (props) => (
-      <div class="flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-gray-900">
-        <div class="flex-1 overflow-y-auto px-4 py-4">
-          {props.renderMessages()}
-        </div>
-        {props.renderInput()}
+const UI = createChatUI(chatOptions, {
+  layout: (props) => (
+    <div class="flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-gray-900">
+      <div class="flex-1 overflow-y-auto px-4 py-4">
+        {props.renderMessages()}
       </div>
-    ),
-    message: (props) => (
-      <article class="mb-2 p-4" data-role={props.message.role}>
-        {props.renderParts()}
-      </article>
-    ),
-    input: () => (
+      {props.renderInput()}
+    </div>
+  ),
+  message: (props) => (
+    <article class="mb-2 p-4" data-role={props.message.role}>
+      {props.renderParts()}
+    </article>
+  ),
+  input: function Input() {
+    const chat = UI.useChatContext()
+    const [draft, setDraft] = createSignal('')
+    return (
       <form
         class="border-t border-orange-500/20 bg-gray-800 p-4"
         onSubmit={(event) => {
@@ -46,46 +44,49 @@ function SolidUIPage() {
           onInput={(event) => setDraft(event.currentTarget.value)}
         />
       </form>
+    )
+  },
+  parts: {
+    fallback: (props) =>
+      props.part.type === 'text' ? <p>{props.part.content}</p> : null,
+  },
+  tools: {
+    recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
+    getPersonalGuitarPreference: (props) => (
+      <p>{props.part.output?.preference}</p>
     ),
-    parts: {
-      fallback: (props) =>
-        props.part.type === 'text' ? <p>{props.part.content}</p> : null,
-    },
-    tools: {
-      recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
-      getPersonalGuitarPreference: (props) => (
-        <p>{props.part.output?.preference}</p>
-      ),
-      addToWishList: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-      addToCart: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-    },
-  })
+    addToWishList: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
+    addToCart: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
+  },
+})
 
-  return <UI.Chat chat={chat} components={components} />
+function SolidUIPage() {
+  const chat = useChat(chatOptions)
+  return <UI.Chat chat={chat} />
 }
 
 export const Route = createFileRoute('/solid-ui')({

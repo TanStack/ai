@@ -56,9 +56,8 @@
     tools,
   }
 
-  const ui = createChatUI(chatOptions)
   const chat = createChat(chatOptions)
-  const components = ui.defineComponents({
+  const ui = createChatUI(chatOptions, {
     layout: Layout,
     message: Message,
     parts: { fallback: Fallback },
@@ -75,4 +74,4 @@
   <title>TanStack AI - Svelte createChatUI</title>
 </svelte:head>
 
-<UIChat {ui} {chat} {components} />
+<UIChat {ui} {chat} />

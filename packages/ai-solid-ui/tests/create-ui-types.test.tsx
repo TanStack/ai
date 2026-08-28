@@ -19,12 +19,12 @@ it('requires every tool name and interrupt id', () => {
     item: string
   }>()
 
-  const UI = createChatUI(chatOptions)
-
-  UI.defineComponents({
+  const UI = createChatUI(chatOptions, {
     layout: (props) => {
-      expectTypeOf(UI.useChat()).toEqualTypeOf<ChatUIHost<typeof chatOptions>>()
-      expectTypeOf(UI.useChat().sendMessage).toBeFunction()
+      expectTypeOf(UI.useChatContext()).toEqualTypeOf<
+        ChatUIHost<typeof chatOptions>
+      >()
+      expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
       return props.renderMessages()
     },
     message: (props) => props.renderParts(),
@@ -63,7 +63,7 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  UI.defineComponents({
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -78,7 +78,7 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  UI.defineComponents({
+  createChatUI(chatOptions, {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -94,10 +94,13 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  const Untyped = createChatUI({})
-  Untyped.defineComponents({
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-  })
+  const Untyped = createChatUI(
+    {},
+    {
+      layout: () => null,
+      message: () => null,
+      parts: { fallback: () => null },
+    },
+  )
+  expectTypeOf(Untyped.Chat).toBeFunction()
 })

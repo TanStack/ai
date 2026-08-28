@@ -1,4 +1,10 @@
-import { UI } from '@/chat/options'
+import { createChatUI } from '@tanstack/ai-react-ui'
+import { chatOptions } from '@/chat/options'
+import {
+  chatContext,
+  interruptContext,
+  partContext,
+} from '@/chat/ui-context'
 import { BookStayApproval, BookStayTool } from './book-stay-tool'
 import { ConfirmPaymentTool } from './confirm-payment-tool'
 import { ChatPromptInput } from './input'
@@ -20,7 +26,10 @@ import { StructuredOutputPart } from './structured-output'
 import { TextPart } from './text-part'
 import { ThinkingPart } from './thinking-part'
 
-export const components = UI.defineComponents({
+export const UI = createChatUI(chatOptions, {
+  chatContext,
+  partContext,
+  interruptContext,
   layout: ChatLayout,
   message: ChatMessage,
   input: ChatPromptInput,

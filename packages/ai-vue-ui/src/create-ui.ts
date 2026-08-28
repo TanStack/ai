@@ -19,6 +19,7 @@ import type {
   ChatUIPartKey,
   ChatUIPartOf,
   ChatUISchemaOf,
+  ChatUISelectedPart,
   ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
@@ -73,20 +74,16 @@ export type InterruptProps<
 type GenericInterruptComponents<TOptions> =
   ChatUIHasNamedInterrupts<TOptions> extends true
     ? {
-        [K in ChatUINamedInterruptId<TOptions>]: Component<
-          InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
-        >
+        [K in ChatUINamedInterruptId<TOptions>]: Component
       } & {
-        fallback?: Component<InterruptProps<TOptions>>
+        fallback?: Component
       }
     : {
-        fallback?: Component<InterruptProps<TOptions>>
+        fallback?: Component
       }
 
 type ToolApprovalMap<TOptions> = {
-  [K in ChatUIToolName<TOptions>]?: Component<
-    InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
-  >
+  [K in ChatUIToolName<TOptions>]?: Component
 }
 
 export type ChatUIComponents<TOptions> = {
@@ -94,19 +91,19 @@ export type ChatUIComponents<TOptions> = {
   message: Component
   input?: Component
   parts: {
-    [K in ChatUIPartKey]?: Component<PartProps<TOptions, K>>
+    [K in ChatUIPartKey]?: Component
   } & {
-    fallback?: Component<PartProps<TOptions>>
+    fallback?: Component
   }
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
       tools: {
-        [K in ChatUIToolName<TOptions>]: Component<ToolProps<TOptions, K>>
+        [K in ChatUIToolName<TOptions>]: Component
       }
     }
   : {
       tools?: {
-        [K in ChatUIToolName<TOptions>]?: Component<ToolProps<TOptions, K>>
+        [K in ChatUIToolName<TOptions>]?: Component
       }
     }) &
   (ChatUIHasNamedInterrupts<TOptions> extends true
@@ -123,13 +120,21 @@ export type ChatUIComponents<TOptions> = {
         }
       })
 
+export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions> & {
+  chatKey?: InjectionKey<ChatUIHost<any>>
+  partKey?: InjectionKey<ChatUISelectedPart>
+  interruptKey?: InjectionKey<ChatUIInterrupt>
+}
+
 export type UIDescriptor<TOptions = unknown> = {
   key: InjectionKey<ChatUIHost<TOptions>>
+  partKey: InjectionKey<ChatUISelectedPart>
+  interruptKey: InjectionKey<ChatUIInterrupt>
   warn: (key: string, message: string) => void
-  defineComponents: (
-    components: ChatUIComponents<TOptions>,
-  ) => ChatUIComponents<TOptions>
-  useChat: () => ChatUIHost<TOptions>
+  components: ChatUIComponents<TOptions>
+  useChatContext: () => ChatUIHost<TOptions>
+  usePartContext: () => ChatUISelectedPart
+  useInterruptContext: () => ChatUIInterrupt
 }
 
 type VueChatUIComponents = {
@@ -253,24 +258,100 @@ function renderSelectedPart(
   return h(PartComponent, { part: selected.part })
 }
 
+export function createChatUIContexts() {
+  const chatKey = Symbol('tanstack-ai-ui-chat') as InjectionKey<ChatUIHost<any>>
+  const partKey = Symbol('tanstack-ai-ui-part') as InjectionKey<ChatUISelectedPart>
+  const interruptKey = Symbol(
+    'tanstack-ai-ui-interrupt',
+  ) as InjectionKey<ChatUIInterrupt>
+  function useChatContext() {
+    const chat = inject(chatKey)
+    if (!chat) {
+      throw new Error(
+        '`useChatContext` must be used within UIProvider or UIChat.',
+      )
+    }
+    return chat
+  }
+  function usePartContext() {
+    const selected = inject(partKey)
+    if (!selected) {
+      throw new Error(
+        '`usePartContext` must be used within UIPart or an automatic part.',
+      )
+    }
+    return selected
+  }
+  function useInterruptContext() {
+    const interrupt = inject(interruptKey)
+    if (!interrupt) {
+      throw new Error('`useInterruptContext` must be used within UIInterrupt.')
+    }
+    return interrupt
+  }
+  return {
+    chatKey,
+    partKey,
+    interruptKey,
+    useChatContext,
+    usePartContext,
+    useInterruptContext,
+  }
+}
+
 export function createChatUI<const TOptions>(
   options: TOptions,
+  config: ChatUIFactoryConfig<TOptions>,
 ): UIDescriptor<TOptions> {
   void options
+  const {
+    chatKey,
+    partKey,
+    interruptKey,
+    ...components
+  } = config
   const ui: UIRuntime<TOptions> = {
-    key: Symbol('tanstack-ai-ui-chat') as InjectionKey<ChatUIHost<TOptions>>,
+    key:
+      chatKey ??
+      (Symbol('tanstack-ai-ui-chat') as InjectionKey<ChatUIHost<TOptions>>),
+    partKey:
+      partKey ??
+      (Symbol('tanstack-ai-ui-part') as InjectionKey<ChatUISelectedPart>),
+    interruptKey:
+      interruptKey ??
+      (Symbol('tanstack-ai-ui-interrupt') as InjectionKey<ChatUIInterrupt>),
     componentsKey: Symbol(
       'tanstack-ai-ui-components',
     ) as InjectionKey<ComponentsValue>,
     warn: createWarnOnce(),
-    defineComponents(components) {
-      return components
-    },
-    useChat() {
+    components,
+    useChatContext() {
       return useChatContext(ui)
+    },
+    usePartContext() {
+      const selected = inject(ui.partKey)
+      if (!selected) {
+        throw new Error(
+          '`usePartContext` must be used within UIPart or an automatic part.',
+        )
+      }
+      return selected
+    },
+    useInterruptContext() {
+      const interrupt = inject(ui.interruptKey)
+      if (!interrupt) {
+        throw new Error(
+          '`useInterruptContext` must be used within UIInterrupt.',
+        )
+      }
+      return interrupt
     },
   }
   return ui
+}
+
+function resolveComponents(ui: UIDescriptor<any>, components?: VueChatUIComponents) {
+  return components ?? (ui.components as VueChatUIComponents)
 }
 
 export const UIProvider = defineComponent({
@@ -280,15 +361,16 @@ export const UIProvider = defineComponent({
     chat: { type: Object, required: true },
     components: {
       type: Object as PropType<VueChatUIComponents>,
-      required: true,
+      required: false,
     },
   },
   setup(props, { slots }) {
+    const components = resolveComponents(props.ui, props.components)
     provide(props.ui.key, props.chat as ChatUIHost<any>)
     provide((props.ui as UIRuntime).componentsKey, {
-      components: props.components,
+      components,
       warn: props.ui.warn,
-      inlineToolNames: inlineNames(props.components as ChatUIComponents<any>),
+      inlineToolNames: inlineNames(components as ChatUIComponents<any>),
     })
     return () => slots.default?.()
   },
@@ -451,27 +533,28 @@ export const UIChat = defineComponent({
     chat: { type: Object, required: true },
     components: {
       type: Object as PropType<VueChatUIComponents>,
-      required: true,
+      required: false,
     },
   },
   setup(props) {
-    return () =>
-      h(
+    return () => {
+      const components = resolveComponents(props.ui, props.components)
+      return h(
         UIProvider,
-        { ui: props.ui, chat: props.chat, components: props.components },
+        { ui: props.ui, chat: props.chat, components },
         {
           default: () =>
             h(
-              props.components.layout,
+              components.layout,
               {},
               {
                 messages: () => h(UIMessages, { ui: props.ui }),
                 interrupts: () => h(UIInterrupts, { ui: props.ui }),
-                input: () =>
-                  props.components.input ? h(props.components.input) : null,
+                input: () => (components.input ? h(components.input) : null),
               },
             ),
         },
       )
+    }
   },
 })

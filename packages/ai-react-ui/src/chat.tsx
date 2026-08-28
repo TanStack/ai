@@ -16,7 +16,7 @@ const ChatContext = createContext<UseChatReturn | null>(null)
  * Hook to access chat context
  * @throws Error if used outside of Chat component
  */
-/** @deprecated Use `createChatUI().useChat()` instead. Deprecated in 0.9.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI().useChatContext()` instead. Deprecated in 0.9.0. Removed in 1.0.0. */
 export function useChatContext() {
   const context = useContext(ChatContext)
   if (!context) {

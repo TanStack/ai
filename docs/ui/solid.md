@@ -13,7 +13,7 @@ keywords:
 
 Install `@tanstack/ai-solid-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once at module scope. Your app calls `useChat()` to create the instance. Do not destructure reactive props.
 
-`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets as the second argument to `createChatUI`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -38,9 +38,7 @@ const chatOptions = {
 }
 
 const { useChat } = createChatHook(chatOptions)
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: (props) => (
     <>
       {props.renderMessages()}
@@ -59,7 +57,7 @@ const components = UI.defineComponents({
 
 export function ChatScreen() {
   const chat = useChat()
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
@@ -91,9 +89,7 @@ export function WeatherTool(
   return <strong>{props.part.input?.city}</strong>
 }
 
-const UI = createChatUI(chatOptions)
-
-export const components = UI.defineComponents({
+export const UI = createChatUI(chatOptions, {
   layout: (props) => props.renderMessages(),
   message: (props) => <article>{props.renderParts()}</article>,
   parts: { fallback: () => null },
@@ -105,9 +101,9 @@ Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is alre
 
 Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
 
-Mapped components do not receive `chat` as a prop. Call `UI.useChat()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+Mapped components do not receive `chat` as a prop. Call `UI.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
 
-## Read chat from `UI.useChat()`
+## Read chat from `UI.useChatContext()`
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
@@ -117,14 +113,12 @@ const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const UI = createChatUI(chatOptions)
-
 function StatusLine() {
-  const chat = UI.useChat()
+  const chat = UI.useChatContext()
   return <p>{chat.messages.length} messages</p>
 }
 
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: (props) => (
     <>
       <StatusLine />
@@ -137,11 +131,11 @@ const components = UI.defineComponents({
 
 export function ChatScreen() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 ```
 
-Call `UI.useChat()` only inside `UI.Chat` or `UI.Provider`.
+Call `UI.useChatContext()` only inside `UI.Chat` or `UI.Provider`.
 
 ## Interrupts
 

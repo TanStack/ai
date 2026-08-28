@@ -150,11 +150,9 @@ const chatOptions = {
   fetcher,
 }
 
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
+const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages, renderInterrupts, renderInput }) => {
-    const chat = UI.useChat()
+    const chat = UI.useChatContext()
     return (
       <main>
         {chat.error ? (
@@ -168,7 +166,7 @@ const components = UI.defineComponents({
   },
   message: ({ renderParts }) => <article>{renderParts()}</article>,
   input: function Input() {
-    const chat = UI.useChat()
+    const chat = UI.useChatContext()
     const [ready, setReady] = useState(false)
     useEffect(() => {
       setReady(true)
@@ -231,7 +229,7 @@ const components = UI.defineComponents({
 
 function HeadlessUIPage() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
+  return <UI.Chat chat={chat} />
 }
 
 export const Route = createFileRoute('/headless-ui')({

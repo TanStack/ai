@@ -1,6 +1,7 @@
 export { createChatUI, getUIContext } from './create-ui'
 export type {
   ChatUIComponents,
+  ChatUIFactoryConfig,
   ChatUIHost,
   InputProps,
   InterruptProps,

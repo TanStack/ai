@@ -8,6 +8,7 @@ import ToolApproval from './tool-approval.vue'
 
 export {
   createChatUI,
+  createChatUIContexts,
   UIChat,
   UIProvider,
   UIMessages,
@@ -16,6 +17,7 @@ export {
   UIInterrupts,
   UIInterrupt,
   type ChatUIComponents,
+  type ChatUIFactoryConfig,
   type ChatUIHost,
   type InputProps,
   type InterruptProps,

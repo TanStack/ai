@@ -8,7 +8,7 @@ import {
   ConversationScrollButton,
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
-import { UI } from '@/chat/options'
+import { useChatContext } from '@/chat/ui-context'
 import type { chatOptions } from '@/chat/options'
 
 const LISBON_PHOTO =
@@ -39,7 +39,7 @@ export function ChatLayout({
   renderInterrupts,
   renderInput,
 }: LayoutProps<typeof chatOptions>) {
-  const chat = UI.useChat()
+  const chat = useChatContext()
   if (chat.error) {
     return <p className="p-6 text-sm text-destructive">{chat.error.message}</p>
   }

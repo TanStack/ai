@@ -13,7 +13,7 @@ keywords:
 
 Install `@tanstack/ai-svelte-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once. Your app calls `createChat()` to create the instance. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
 
-`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets as the second argument to `createChatUI`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -43,9 +43,8 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
   }
 
   const { createChat } = createChatHook(chatOptions)
-  const ui = createChatUI(chatOptions)
   const chat = createChat()
-  const components = ui.defineComponents({
+  const ui = createChatUI(chatOptions, {
     layout: Layout,
     message: Message,
     parts: { fallback: Fallback },
@@ -53,7 +52,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
   })
 </script>
 
-<UIChat {ui} {chat} {components} />
+<UIChat {ui} {chat} />
 ```
 
 `Layout.svelte` receives snippets `messages`, `interrupts`, and `input`. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
@@ -77,23 +76,23 @@ Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is alre
 
 Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
 
-Mapped components do not receive `chat` as a prop. Call `ui.useChat()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
+Mapped components do not receive `chat` as a prop. Call `ui.useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
 
-## Read chat from `ui.useChat()`
+## Read chat from `ui.useChatContext()`
 
-Import the same `ui` descriptor in a child file. Call `ui.useChat()` only under `UIChat` or `UIProvider`.
+Import the same `ui` descriptor in a child file. Call `ui.useChatContext()` only under `UIChat` or `UIProvider`.
 
 ```svelte
 <script lang="ts">
   import { ui } from './chat-ui'
 
-  const chat = ui.useChat()
+  const chat = ui.useChatContext()
 </script>
 
 <p>{chat.messages.length} messages</p>
 ```
 
-`createChat(chatOptions)` owns the state. `ui.useChat()` reads the instance you passed into `UIChat`. A call outside that tree throws.
+`createChat(chatOptions)` owns the state. `ui.useChatContext()` reads the instance you passed into `UIChat`. A call outside that tree throws.
 
 ## Interrupts
 
