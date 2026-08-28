@@ -15,7 +15,7 @@ Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. Then
 
 The same move applies to Solid, Vue, and Svelte.
 
-> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`, and `@tanstack/ai-svelte-ui` re-export the new `/ui` subpath until each package's `1.0.0`. `npm install` prints a warning. Import from `/ui` in new code.
+> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` re-export the new `/ui` subpath until each package's `1.0.0`. `npm install` prints a warning. Import from `/ui` in new code. Svelte never published a `*-ui` package. Use `@tanstack/ai-svelte/ui`.
 
 ## What changes
 
@@ -47,7 +47,6 @@ Deprecated re-exports, removed in `1.0.0`:
 - `@tanstack/ai-react-ui` 0.9.0
 - `@tanstack/ai-solid-ui` 0.8.0
 - `@tanstack/ai-vue-ui` 0.3.0
-- `@tanstack/ai-svelte-ui` 0.2.0
 
 Old orchestration exports (`Chat` with a `connection` prop) stay importable until `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
 
@@ -119,7 +118,7 @@ export function NewChat() {
 
 ## Steps
 
-1. Replace `@tanstack/ai-react-ui` with `@tanstack/ai-react/ui` (Solid, Vue, Svelte: same swap).
+1. Replace `@tanstack/ai-react-ui` with `@tanstack/ai-react/ui`. Solid and Vue use the same swap. Svelte has no `*-ui` package. Import `@tanstack/ai-svelte/ui`.
 2. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
 3. Call `createChatHook({ options: chatOptions, chatComponents })` next to that object.
 4. Call `useAppChat` in the screen component. Pass `threadId` here when you need more than one chat.
