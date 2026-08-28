@@ -66,6 +66,7 @@ function CompactionPage() {
   const { messages, sendMessage, isLoading, error } = useChat({
     connection: fetchServerSentEvents('/api/compaction'),
     threadId: 'compaction-demo',
+    persistence: true,
     forwardedProps,
     devtools: { name: 'Compaction' },
     onCustomEvent: (eventType, data) => {
@@ -105,8 +106,11 @@ function CompactionPage() {
         <p className="text-sm text-gray-400">
           Chat until the transcript passes maxTokens. Then open TanStack
           DevTools (bottom-right), pick the AI plugin, and open the Compaction
-          tab. API keys come from <code className="text-gray-300">.env</code>.
-          You do not paste a key here.
+          tab. Reload after a compact: the chat still shows every message.
+          Compaction only changes what the model sees. Persistence is SQLite at{' '}
+          <code className="text-gray-300">.data/compaction-chat.db</code>. API
+          keys come from <code className="text-gray-300">.env</code>. You do not
+          paste a key here.
         </p>
         <div>
           <label className="mb-2 block text-sm text-gray-400">
@@ -174,7 +178,9 @@ function CompactionPage() {
             {lastCompact.messagesBefore} → {lastCompact.messagesAfter} messages
             ({lastCompact.before} → {lastCompact.after} tokens)
             {lastCompact.strategyKey ? ` · ${lastCompact.strategyKey}` : ''}
+            {lastCompact.reusedCheckpoint ? ' · reused checkpoint' : ''}
             {compactEvents.length > 0 ? ` · ${compactEvents.join(' → ')}` : ''}
+            {` · ${messages.length} stored`}
           </div>
         )}
       </div>
@@ -184,7 +190,7 @@ function CompactionPage() {
           <p className="mt-8 text-center text-sm text-gray-500">
             Send a few long messages. Once the running transcript passes{' '}
             {maxTokens} estimated tokens, older messages are compacted for the
-            model only. The chat still shows the full transcript.
+            model only. Reload after that. The stored transcript stays complete.
           </p>
         ) : (
           messages.map(({ id, role, parts }) => (

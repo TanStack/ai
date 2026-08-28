@@ -213,7 +213,7 @@ The conversation timeline also keeps `onCompactStart`, `onCompact`, and
 
 Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Select the Compaction hook, then open the Compaction tab.
 
-The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns. That page also shows a compact banner in the chat. The canonical transcript stays complete. The banner is example UI, not part of `useChat`.
+The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns. It also uses `withPersistence` (SQLite). Reload after a compact: the chat still shows every message. The banner is example UI, not part of `useChat`.
 
 ## Compaction and persistence
 

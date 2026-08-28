@@ -11,6 +11,8 @@ import {
   summarizeOldest,
   withCompaction,
 } from '@tanstack/ai-compaction'
+import { reconstructChat, withPersistence } from '@tanstack/ai-persistence'
+import { sqlitePersistence } from '../lib/sqlite-persistence'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
@@ -69,13 +71,27 @@ function adapterFor(provider: Provider, model: string): AnyTextAdapter {
   }
 }
 
+let persistence: ReturnType<typeof sqlitePersistence> | undefined
+function compactionPersistence() {
+  return (persistence ??= sqlitePersistence({
+    url: './.data/compaction-chat.db',
+    migrate: true,
+  }))
+}
+
 /**
  * Chat endpoint for `/compaction`. Uses a small `maxTokens` so compaction
  * fires after a few turns. Keys come from `examples/ts-react-chat/.env`.
+ * `withPersistence` saves the full transcript (SQLite). Compaction only
+ * rewrites `providerMessages`. Reload still shows every message.
  */
 export const Route = createFileRoute('/api/compaction')({
   server: {
     handlers: {
+      GET: ({ request }) =>
+        reconstructChat(compactionPersistence(), request, {
+          authorize: async (threadId) => threadId.length > 0,
+        }),
       POST: async ({ request }) => {
         const requestSignal = request.signal
         if (requestSignal.aborted) {
@@ -138,7 +154,12 @@ export const Route = createFileRoute('/api/compaction')({
             adapter,
             tools: [],
             systemPrompts: [SYSTEM_PROMPT],
-            middleware: [withCompaction({ maxTokens, strategy })],
+            threadId: params.threadId,
+            runId: params.runId,
+            middleware: [
+              withPersistence(compactionPersistence()),
+              withCompaction({ maxTokens, strategy }),
+            ],
             agentLoopStrategy: maxIterations(5),
             messages: params.messages,
             abortController,
