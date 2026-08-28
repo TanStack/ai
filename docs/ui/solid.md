@@ -11,17 +11,17 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once at module scope. Your app calls `useChat()` to create the instance. Do not destructure reactive props.
+Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. Your app calls `useAppChat()` to create the instance. Render `<chat.AppChat />`. Do not destructure reactive props.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets as the second argument to `createChatUI`, the same way Form and Table register components.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
 ## Client
 
 ```tsx
-import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-solid'
+import { createChatHook } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -37,8 +37,9 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const { useChat } = createChatHook(chatOptions)
-const UI = createChatUI(chatOptions, {
+const { useAppChat } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
   layout: (props) => (
     <>
       {props.renderMessages()}
@@ -53,11 +54,12 @@ const UI = createChatUI(chatOptions, {
   tools: {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,
   },
+  },
 })
 
-export function ChatScreen() {
-  const chat = useChat()
-  return <UI.Chat chat={chat} />
+export function Support() {
+  const chat = useAppChat({ threadId: 'support-1' })
+  return <chat.AppChat />
 }
 ```
 
@@ -67,7 +69,7 @@ Use `ToolProps` the same way as React. Keep the `props` object so Solid can trac
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatUI, type ToolProps } from '@tanstack/ai-solid-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -107,7 +109,7 @@ Mapped components do not receive `chat` as a prop. Call `UI.useChatContext()` wh
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

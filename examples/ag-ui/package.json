@@ -21,7 +21,6 @@
   "dependencies": {
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/ai-react-ui": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

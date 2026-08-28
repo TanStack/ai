@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref } from 'vue'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -83,10 +83,11 @@ const chatOptions = {
   },
 }
 
-const chat = useChat(chatOptions)
 const draft = ref('')
 
-const ui = createChatUI(chatOptions, {
+const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
   layout: defineComponent(
     (_, { slots }) =>
       () =>
@@ -192,7 +193,10 @@ const ui = createChatUI(chatOptions, {
       },
     }),
   },
+  },
 })
+
+const chat = useAppChat()
 </script>
 
 <template>
@@ -224,7 +228,7 @@ const ui = createChatUI(chatOptions, {
             <span
               class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
             >
-              @tanstack/ai-vue-ui
+              @tanstack/ai-vue/ui
             </span>
           </div>
         </div>

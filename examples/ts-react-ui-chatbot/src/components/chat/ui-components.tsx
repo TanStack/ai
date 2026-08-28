@@ -1,4 +1,4 @@
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatHook } from '@tanstack/ai-react/ui'
 import { chatOptions } from '@/chat/options'
 import {
   chatContext,
@@ -26,37 +26,40 @@ import { StructuredOutputPart } from './structured-output'
 import { TextPart } from './text-part'
 import { ThinkingPart } from './thinking-part'
 
-export const UI = createChatUI(chatOptions, {
-  chatContext,
-  partContext,
-  interruptContext,
-  layout: ChatLayout,
-  message: ChatMessage,
-  input: ChatPromptInput,
-  parts: {
-    text: TextPart,
-    thinking: ThinkingPart,
-    structuredOutput: StructuredOutputPart,
-    image: ImagePart,
-    audio: AudioPart,
-    video: VideoPart,
-    document: DocumentPart,
-    toolResult: ToolResultPart,
-    uiResource: UIResourcePart,
-    fallback: FallbackPart,
-  },
-  tools: {
-    lookupPlace: LookupPlaceTool,
-    bookStay: BookStayTool,
-    confirmPayment: ConfirmPaymentTool,
-  },
-  interrupts: {
-    tools: {
-      bookStay: BookStayApproval,
+export const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    chatContext,
+    partContext,
+    interruptContext,
+    layout: ChatLayout,
+    message: ChatMessage,
+    input: ChatPromptInput,
+    parts: {
+      text: TextPart,
+      thinking: ThinkingPart,
+      structuredOutput: StructuredOutputPart,
+      image: ImagePart,
+      audio: AudioPart,
+      video: VideoPart,
+      document: DocumentPart,
+      toolResult: ToolResultPart,
+      uiResource: UIResourcePart,
+      fallback: FallbackPart,
     },
-    generic: {
-      chooseBudget: ChooseBudget,
-      fallback: FallbackInterrupt,
+    tools: {
+      lookupPlace: LookupPlaceTool,
+      bookStay: BookStayTool,
+      confirmPayment: ConfirmPaymentTool,
+    },
+    interrupts: {
+      tools: {
+        bookStay: BookStayApproval,
+      },
+      generic: {
+        chooseBudget: ChooseBudget,
+        fallback: FallbackInterrupt,
+      },
     },
   },
 })

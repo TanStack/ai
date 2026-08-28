@@ -11,9 +11,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once. Your app calls `createChat()` to create the instance. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
+Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets as the second argument to `createChatUI`, the same way Form and Table register components.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -21,8 +21,8 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```svelte
 <script lang="ts">
-  import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-svelte'
-  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { fetchServerSentEvents } from '@tanstack/ai-svelte'
+  import { createChatHook, UIChat } from '@tanstack/ai-svelte/ui'
   import { toolDefinition } from '@tanstack/ai'
   import { z } from 'zod'
   import Layout from './Layout.svelte'
@@ -42,14 +42,16 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
     tools: [getWeather],
   }
 
-  const { createChat } = createChatHook(chatOptions)
-  const chat = createChat()
-  const ui = createChatUI(chatOptions, {
-    layout: Layout,
-    message: Message,
-    parts: { fallback: Fallback },
-    tools: { getWeather: Weather },
+  const { createAppChat, ui } = createChatHook({
+    options: chatOptions,
+    chatComponents: {
+      layout: Layout,
+      message: Message,
+      parts: { fallback: Fallback },
+      tools: { getWeather: Weather },
+    },
   })
+  const chat = createAppChat()
 </script>
 
 <UIChat {ui} {chat} />
@@ -63,7 +65,7 @@ Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions
 
 ```svelte
 <script lang="ts">
-  import type { ToolProps } from '@tanstack/ai-svelte-ui'
+  import type { ToolProps } from '@tanstack/ai-svelte/ui'
   import { chatOptions } from './chat-options'
 
   let { part }: ToolProps<typeof chatOptions, 'getWeather'> = $props()

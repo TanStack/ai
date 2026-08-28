@@ -28,6 +28,10 @@
     "./mcp-apps": {
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
+    },
+    "./ui": {
+      "types": "./dist/esm/ui.d.ts",
+      "import": "./dist/esm/ui.js"
     }
   },
   "files": [
@@ -59,16 +63,25 @@
     "media-generation"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:^"
+    "@tanstack/ai-client": "workspace:^",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",
     "@tanstack/ai": "workspace:^",
     "@types/react": ">=18.0.0",
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "@mcp-ui/client": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   },
@@ -81,6 +94,7 @@
     "@vitest/coverage-v8": "4.1.10",
     "jsdom": "^27.4.0",
     "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "vite": "^8.2.1"
   }
 }

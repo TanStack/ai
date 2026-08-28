@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-solid'
+import { createChatHook } from '@tanstack/ai-solid/ui'
 import { createSignal } from 'solid-js'
 import { clientTools } from '@/lib/guitar-tools'
 
@@ -9,7 +9,9 @@ const chatOptions = {
   tools: clientTools,
 }
 
-const UI = createChatUI(chatOptions, {
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
   layout: (props) => (
     <div class="flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-gray-900">
       <div class="flex-1 overflow-y-auto px-4 py-4">
@@ -24,7 +26,7 @@ const UI = createChatUI(chatOptions, {
     </article>
   ),
   input: function Input() {
-    const chat = UI.useChatContext()
+    const chat = useChatContext()
     const [draft, setDraft] = createSignal('')
     return (
       <form
@@ -82,11 +84,12 @@ const UI = createChatUI(chatOptions, {
       </p>
     ),
   },
+  },
 })
 
 function SolidUIPage() {
-  const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} />
+  const chat = useAppChat()
+  return <chat.AppChat />
 }
 
 export const Route = createFileRoute('/solid-ui')({

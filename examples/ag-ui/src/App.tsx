@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { ConnectionAdapter } from '@tanstack/ai-react'
-import { ChatMessage, createChatUI } from '@tanstack/ai-react-ui'
+import { ChatMessage, createChatUI } from '@tanstack/ai-react/ui'
 
 const LabelsContext = createContext({ placeholder: '', emptyLabel: '' })
 

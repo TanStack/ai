@@ -3,10 +3,8 @@
 '@tanstack/ai-solid': minor
 '@tanstack/ai-vue': minor
 '@tanstack/ai-svelte': minor
-'@tanstack/ai-react-ui': minor
-'@tanstack/ai-solid-ui': minor
-'@tanstack/ai-vue-ui': minor
-'@tanstack/ai-svelte-ui': minor
 ---
 
-Align chat UI with Form and Table. `createChatHook` returns a bound `useChat`. `createChatUI` now takes widgets at factory time, mixes them onto Part / Interrupt / `UI.Input`, and exposes `createChatUIContexts` plus `useChatContext`.
+Chat UI now lives on the framework packages at `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`.
+
+`createChatHook({ options, chatComponents })` returns `useAppChat` (Svelte: `createAppChat`) and `useChatContext`. `useAppChat()` mixes `AppChat` onto the instance so you render `<chat.AppChat />`.

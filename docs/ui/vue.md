@@ -11,9 +11,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once. Your app calls `useChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+Install `@tanstack/ai-vue`. Import the UI factory from `@tanstack/ai-vue/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `useAppChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets as the second argument to `createChatUI`, the same way Form and Table register components.
+The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -21,8 +21,8 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```ts
 import { defineComponent, h } from 'vue'
-import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-vue'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -38,8 +38,9 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const { useChat } = createChatHook(chatOptions)
-const ui = createChatUI(chatOptions, {
+const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
   layout: defineComponent((_, { slots }) => () =>
     h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
   ),
@@ -60,11 +61,12 @@ const ui = createChatUI(chatOptions, {
       },
     }),
   },
+  },
 })
 
 export default defineComponent({
   setup() {
-    const chat = useChat()
+    const chat = useAppChat({ threadId: 'support-1' })
     return () => h(UIChat, { ui, chat })
   },
 })
@@ -79,7 +81,7 @@ Use `ToolProps` on the component props. Share the same `chatOptions` object that
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents } from '@tanstack/ai-vue'
-import { createChatUI, type ToolProps } from '@tanstack/ai-vue-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-vue/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -124,7 +126,7 @@ Call `ui.useChatContext()` inside a child of `UIChat` or `UIProvider`.
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

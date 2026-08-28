@@ -1,4 +1,4 @@
-import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { byok } from './byok'
 import { chatInterrupts } from './interrupts'
 import { itinerarySchema } from './schema'
@@ -12,5 +12,3 @@ export const chatOptions = {
   byok,
   byokProvider: () => 'openai' as const,
 }
-
-export const { useChat } = createChatHook(chatOptions)

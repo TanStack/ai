@@ -38,7 +38,6 @@
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/ai-react-ui": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-skills": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",

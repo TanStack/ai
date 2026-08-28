@@ -8,7 +8,7 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { EventType } from '@tanstack/ai/client'
 import type { ChatFetcher } from '@tanstack/ai-client'
 import { z } from 'zod'

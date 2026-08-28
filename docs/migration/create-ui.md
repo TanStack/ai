@@ -29,10 +29,10 @@ The old APIs drop configured types, keep unused properties, use a deprecated app
 
 ## Minimum versions
 
-- `@tanstack/ai-react-ui` 0.9.0
-- `@tanstack/ai-solid-ui` 0.8.0
-- `@tanstack/ai-vue-ui` 0.3.0
-- `@tanstack/ai-svelte-ui` 0.2.0
+- `@tanstack/ai-react/ui` 0.9.0
+- `@tanstack/ai-solid/ui` 0.8.0
+- `@tanstack/ai-vue/ui` 0.3.0
+- `@tanstack/ai-svelte/ui` 0.2.0
 
 Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
 
@@ -40,7 +40,7 @@ Old orchestration exports stay importable until each package's `1.0.0`. `TextPar
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
+import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react/ui'
 
 const connection = fetchServerSentEvents('/api/chat')
 
@@ -57,56 +57,58 @@ export function OldChat() {
 ## After
 
 ```tsx
-import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const { useChat } = createChatHook(chatOptions)
-const UI = createChatUI(chatOptions, {
-  layout: ({ renderMessages, renderInput }) => (
-    <main>
-      {renderMessages()}
-      {renderInput()}
-    </main>
-  ),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: () => {
-    const chat = UI.useChatContext()
-    return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        const field = event.currentTarget.elements.namedItem('message')
-        if (!(field instanceof HTMLInputElement)) return
-        const text = field.value.trim()
-        if (!text) return
-        field.value = ''
-        void chat.sendMessage(text)
-      }}
-    >
-      <input name="message" />
-    </form>
-    )
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  chatComponents: {
+    layout: ({ renderMessages, renderInput }) => (
+      <main>
+        {renderMessages()}
+        {renderInput()}
+      </main>
+    ),
+    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    input: () => {
+      const chat = useChatContext()
+      return (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLInputElement)) return
+            const text = field.value.trim()
+            if (!text) return
+            field.value = ''
+            void chat.sendMessage(text)
+          }}
+        >
+          <input name="message" />
+        </form>
+      )
+    },
+    parts: { fallback: () => null },
   },
-  parts: { fallback: () => null },
 })
 
 export function NewChat() {
-  const chat = useChat()
-  return <UI.Chat chat={chat} />
+  const chat = useAppChat({ threadId: 'support-1' })
+  return <chat.AppChat />
 }
 ```
 
 ## Steps
 
 1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions, { layout, message, parts, tools, interrupts })` next to that object.
-3. Call the bound `useChat` from `createChatHook` in the screen component. `useChat(chatOptions)` from `@tanstack/ai-react` still works if you prefer to pass the object at the call site.
-4. Register `layout`, `message`, `parts`, `tools`, and `interrupts` on the factory. This matches Form and Table.
-5. Replace `<Chat>` with `<UI.Chat chat={chat} />`.
+2. Call `createChatHook({ options: chatOptions, chatComponents: { layout, message, parts, tools, interrupts } })` next to that object.
+3. Call the bound `useAppChat` from `createChatHook` in the screen component.
+4. Register `layout`, `message`, `parts`, `tools`, and `interrupts` on `chatComponents`. This matches Form and Table.
+5. Render `<chat.AppChat />`.
 
 ## Gotchas
 

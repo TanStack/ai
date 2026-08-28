@@ -1,5 +1,5 @@
 import { CompassIcon } from 'lucide-react'
-import type { LayoutProps } from '@tanstack/ai-react-ui'
+import type { LayoutProps } from '@tanstack/ai-react/ui'
 import type { ContentPart } from '@tanstack/ai/client'
 import {
   Conversation,
@@ -8,8 +8,8 @@ import {
   ConversationScrollButton,
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
-import { useChatContext } from '@/chat/ui-context'
 import type { chatOptions } from '@/chat/options'
+import { useChatContext } from './ui-components';
 
 const LISBON_PHOTO =
   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80'

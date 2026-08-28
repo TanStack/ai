@@ -1,4 +1,4 @@
-import type { InterruptProps } from '@tanstack/ai-react-ui'
+import type { InterruptProps } from '@tanstack/ai-react/ui'
 import { Button } from '@/components/ui/button'
 import type { chatOptions } from '@/chat/options'
 
