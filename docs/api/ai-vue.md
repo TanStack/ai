@@ -23,6 +23,24 @@ For a typed headless chat UI, see [Vue Chat UI](../ui/vue) and [Migrate to creat
 npm install @tanstack/ai-vue
 ```
 
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-vue";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { useChat } = createChatHook(chatOptions);
+
+const chat = useChat({ threadId: "support-1" });
+```
+
+`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound composable if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
+
 ## `useChat(options?)`
 
 Main composable for managing chat state in Vue with full type safety.

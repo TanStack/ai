@@ -58,7 +58,7 @@ export { TextPart, type TextPartProps } from './text-part'
 export { ThinkingPart, type ThinkingPartProps } from './thinking-part'
 
 // Re-export hooks from @tanstack/ai-solid for convenience
-export { useChat } from '@tanstack/ai-solid'
+export { createChatHook, useChat } from '@tanstack/ai-solid'
 
 // Re-export types from @tanstack/ai-solid
 export type {

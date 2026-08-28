@@ -11,7 +11,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid-ui`, then call `createChatUI(chatOptions)` once at module scope. Do not destructure reactive props.
+Install `@tanstack/ai-solid-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once at module scope. Your app calls `useChat()` to create the instance. Do not destructure reactive props.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
@@ -20,7 +20,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 ## Client
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-solid'
 import { createChatUI } from '@tanstack/ai-solid-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
@@ -37,6 +37,7 @@ const chatOptions = {
   tools: [getWeather],
 }
 
+const { useChat } = createChatHook(chatOptions)
 const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
@@ -57,7 +58,7 @@ const components = UI.defineComponents({
 })
 
 export function ChatScreen() {
-  const chat = useChat(chatOptions)
+  const chat = useChat()
   return <UI.Chat chat={chat} components={components} />
 }
 ```

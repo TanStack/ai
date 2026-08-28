@@ -57,13 +57,14 @@ export function OldChat() {
 ## After
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatUI } from '@tanstack/ai-react-ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
+const { useChat } = createChatHook(chatOptions)
 const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
@@ -96,7 +97,7 @@ const components = UI.defineComponents({
 })
 
 export function NewChat() {
-  const chat = useChat(chatOptions)
+  const chat = useChat()
   return <UI.Chat chat={chat} components={components} />
 }
 ```
@@ -104,8 +105,8 @@ export function NewChat() {
 ## Steps
 
 1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createChatUI(chatOptions)` next to that object.
-3. Call `useChat(chatOptions)` in the screen component.
+2. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` next to that object.
+3. Call the bound `useChat` from `createChatHook` in the screen component. `useChat(chatOptions)` from `@tanstack/ai-react` still works if you prefer to pass the object at the call site.
 4. Define `layout`, `message`, `parts`, `tools`, and `interrupts` in `defineComponents`.
 5. Replace `<Chat>` with `<UI.Chat chat={chat} components={components} />`.
 

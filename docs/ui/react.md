@@ -12,7 +12,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react-ui`, then call `createChatUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
+Install `@tanstack/ai-react-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once at module scope. Your app calls the bound `useChat` from the hook factory to create the instance. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
 
 You supply every visible component. There is no default markup, style, or copy.
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 ## Client
 
 ```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatUI } from '@tanstack/ai-react-ui'
 import { defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
@@ -74,6 +74,7 @@ const chatOptions = {
   outputSchema: z.object({ answer: z.string() }),
 }
 
+const { useChat } = createChatHook(chatOptions)
 const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
@@ -159,7 +160,7 @@ const components = UI.defineComponents({
 })
 
 export function ChatScreen() {
-  const chat = useChat(chatOptions)
+  const chat = useChat()
   return <UI.Chat chat={chat} components={components} />
 }
 ```

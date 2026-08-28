@@ -23,6 +23,27 @@ For a typed headless chat UI, see [Solid Chat UI](../ui/solid) and [Migrate to c
 npm install @tanstack/ai-solid
 ```
 
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```tsx
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-solid";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { useChat } = createChatHook(chatOptions);
+
+function ChatScreen() {
+  const chat = useChat({ threadId: "support-1" });
+  return null;
+}
+```
+
+`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound primitive if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
+
 ## `useChat(options?)`
 
 Main primitive for managing chat state in SolidJS with full type safety.

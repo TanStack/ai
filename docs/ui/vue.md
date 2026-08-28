@@ -11,7 +11,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue-ui`. Call `createChatUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+Install `@tanstack/ai-vue-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once. Your app calls `useChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
@@ -21,7 +21,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```ts
 import { defineComponent, h } from 'vue'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
+import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-vue'
 import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
@@ -38,6 +38,7 @@ const chatOptions = {
   tools: [getWeather],
 }
 
+const { useChat } = createChatHook(chatOptions)
 const ui = createChatUI(chatOptions)
 
 const components = ui.defineComponents({
@@ -65,7 +66,7 @@ const components = ui.defineComponents({
 
 export default defineComponent({
   setup() {
-    const chat = useChat(chatOptions)
+    const chat = useChat()
     return () => h(UIChat, { ui, chat, components })
   },
 })

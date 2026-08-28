@@ -11,7 +11,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte-ui`. Call `createChatUI(chatOptions)` once. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
+Install `@tanstack/ai-svelte-ui`. Call `createChatHook(chatOptions)` and `createChatUI(chatOptions)` once. Your app calls `createChat()` to create the instance. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
@@ -21,7 +21,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```svelte
 <script lang="ts">
-  import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
+  import { createChatHook, fetchServerSentEvents } from '@tanstack/ai-svelte'
   import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
   import { toolDefinition } from '@tanstack/ai'
   import { z } from 'zod'
@@ -42,8 +42,9 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
     tools: [getWeather],
   }
 
+  const { createChat } = createChatHook(chatOptions)
   const ui = createChatUI(chatOptions)
-  const chat = createChat(chatOptions)
+  const chat = createChat()
   const components = ui.defineComponents({
     layout: Layout,
     message: Message,
