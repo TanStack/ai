@@ -5,7 +5,7 @@ title: StreamProcessorEvents
 
 # Interface: StreamProcessorEvents
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L77)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L78)
 
 Events emitted by the StreamProcessor
 
@@ -17,7 +17,7 @@ Events emitted by the StreamProcessor
 optional onApprovalRequest?: (args) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:92](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L92)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:93](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L93)
 
 #### Parameters
 
@@ -51,7 +51,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:92](https://git
 optional onCustomEvent?: (eventType, data, context) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L100)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L101)
 
 #### Parameters
 
@@ -81,7 +81,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:100](https://gi
 optional onError?: (error) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L84)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L85)
 
 #### Parameters
 
@@ -101,7 +101,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:84](https://git
 optional onMessagesChange?: (messages) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L79)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L80)
 
 #### Parameters
 
@@ -121,7 +121,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:79](https://git
 optional onStreamEnd?: (message) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L83)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L84)
 
 #### Parameters
 
@@ -141,7 +141,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:83](https://git
 optional onStreamStart?: () => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L82)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L83)
 
 #### Returns
 
@@ -155,7 +155,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:82](https://git
 optional onStructuredOutputChange?: (args) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L119)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L120)
 
 #### Parameters
 
@@ -209,7 +209,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:119](https://gi
 optional onTextUpdate?: (messageId, content) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L107)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L108)
 
 #### Parameters
 
@@ -233,7 +233,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:107](https://gi
 optional onThinkingUpdate?: (messageId, stepId, content) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L114)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:115](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L115)
 
 #### Parameters
 
@@ -261,7 +261,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:114](https://gi
 optional onToolCall?: (args) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L87)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L88)
 
 #### Parameters
 
@@ -291,7 +291,7 @@ Defined in: [packages/ai/src/activities/chat/stream/processor.ts:87](https://git
 optional onToolCallStateChange?: (messageId, toolCallId, state, args) => void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L108)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L109)
 
 #### Parameters
 

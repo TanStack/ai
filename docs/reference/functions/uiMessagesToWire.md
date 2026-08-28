@@ -9,7 +9,7 @@ title: uiMessagesToWire
 function uiMessagesToWire(messages, options?): WireMessage[];
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L88)
+Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L81)
 
 Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
 `RunAgentInput.messages` wire shape. Anchors are spec-only (`id`, `role`,
