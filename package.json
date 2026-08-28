@@ -44,7 +44,7 @@
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
     "generate:fal-image-fields": "tsx scripts/generate-fal-image-field-map.ts",
     "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
-    "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts && tsx scripts/fetch-vercel-gateway-models.ts",
+    "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts && tsx scripts/fetch-vercel-gateway-models.ts && tsx scripts/fetch-lovable-gateway-models.ts",
     "regenerate:models": "tsx scripts/convert-openrouter-models.ts && tsx scripts/convert-vercel-gateway-models.ts",
     "sync-docs-config": "node scripts/sync-docs-config.ts",
     "copy:readme": "node scripts/copy-readme.js",

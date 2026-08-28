@@ -2,6 +2,14 @@
 
 Thanks for contributing! This guide covers everything you need to get from a fresh clone to a merged PR.
 
+## Before you start
+
+- Search the [open and closed issues](https://github.com/TanStack/ai/issues?q=is%3Aissue) and [open and closed pull requests](https://github.com/TanStack/ai/pulls?q=is%3Apr) before starting work to avoid duplicating an existing report or contribution.
+- Keep each pull request focused on one change or topic. Pull requests that combine unrelated changes will be closed with a request to split them into separately reviewable contributions.
+- Every pull request must follow the [TanStack AI pull request template](.github/pull_request_template.md). Write a concise description that clearly explains what changed and why, and complete the template without removing or bypassing its required sections.
+- You may use AI tools to help generate code, but you remain responsible for understanding, testing, and verifying every submitted change. Do not submit unreviewed, low-quality, or irrelevant generated code.
+- Do not mass-submit unrelated or low-quality AI-generated pull requests. We treat that behavior as spam and may close the pull requests, block the contributor, and report the GitHub account.
+
 ## Prerequisites
 
 - **pnpm**: 11.9.0 or newer. Use the version pinned in `packageManager` (`pnpm@11.9.0`).
@@ -43,7 +51,7 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 `pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
 
-1. Fetches OpenRouter and Vercel AI Gateway catalogs.
+1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs.
 2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
 3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
 4. Writes a patch changeset for the packages that changed.
@@ -188,7 +196,7 @@ If you're building a community/third-party adapter that lives outside this repo,
 
 ## Reporting issues / getting help
 
-- Bugs: open a GitHub issue with a minimal repro (the bug report template in `.github/issue_template/bug_report.yml` walks you through it).
+- Bugs: first search the [open and closed issues](https://github.com/TanStack/ai/issues?q=is%3Aissue), then use the [bug report template](https://github.com/TanStack/ai/issues/new?template=bug_report.yml) with a minimal reproduction if the bug has not already been reported.
 - Questions / discussions: [TanStack Discord](https://tlinz.com/discord).
 - Security: follow the disclosure process in `SECURITY.md` (if applicable) or email the maintainers directly.
 

@@ -238,17 +238,25 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
 })
 
 describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', () => {
-  // Invariant: a rendered ui:// widget (MCP Apps) is a client-only presentation
-  // part and must NEVER round-trip into model input on the next turn. The widget
-  // is untrusted, sandboxed HTML — leaking it into conversation history is both
-  // token bloat and a prompt-injection vector. This pins the invariant by its
-  // observable effect: neither the resource uri nor its HTML body may appear in
-  // the produced ModelMessages, so any impl that pushed the widget into model
-  // content (instead of dropping it in buildAssistantMessages) fails here.
-  it('excludes a ui-resource part from the produced model messages', () => {
+  // Invariant: a rendered ui:// widget (MCP Apps) is untrusted sandboxed HTML.
+  // It must never enter model *content* or toolCalls (next-turn LLM input).
+  // Persistence still needs the widget, so it lives only under
+  // metadata.tanstack.uiResources and is lifted back into UI parts on hydrate.
+  it('excludes a ui-resource part from model content', () => {
     const WIDGET_URI = 'ui://weather/widget'
     const WIDGET_HTML = '<script>alert(1)</script><b>72°F</b>'
-    const messages = [
+    const uiResource = {
+      type: 'ui-resource' as const,
+      resource: {
+        uri: WIDGET_URI,
+        mimeType: 'text/html',
+        text: WIDGET_HTML,
+      },
+      serverId: 'weather',
+      toolCallId: 'tc1',
+      toolName: 'getWeather',
+    }
+    const messages: Array<UIMessage> = [
       {
         id: 'a1',
         role: 'assistant',
@@ -267,33 +275,24 @@ describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', ()
             content: '{"tempF":72}',
             state: 'complete',
           },
-          {
-            type: 'ui-resource',
-            resource: {
-              uri: WIDGET_URI,
-              mimeType: 'text/html',
-              text: WIDGET_HTML,
-            },
-            serverId: 'weather',
-            toolCallId: 'tc1',
-            toolName: 'getWeather',
-          },
+          uiResource,
         ],
-      } as UIMessage,
+      },
     ]
 
     const result = convertMessagesToModelMessages(messages)
+    const assistant = result.find((msg) => msg.role === 'assistant')
+    const content = JSON.stringify(assistant?.content ?? null)
+    const toolCalls = JSON.stringify(assistant?.toolCalls ?? [])
 
-    // Nothing the widget carried (its uri OR its HTML body) may appear anywhere
-    // in the serialized model messages — neither as a string content nor inside
-    // a ContentPart[]. These two are the load-bearing assertions: they fail if a
-    // broken impl pushes the resource into model content.
-    const serialized = JSON.stringify(result)
-    expect(serialized).not.toContain(WIDGET_URI)
-    expect(serialized).not.toContain(WIDGET_HTML)
-
-    // The legitimate text + tool flow still survives the conversion.
-    expect(serialized).toContain('Here is the weather')
-    expect(result.some((m) => m.role === 'tool')).toBe(true)
+    expect(content).not.toContain(WIDGET_URI)
+    expect(content).not.toContain(WIDGET_HTML)
+    expect(toolCalls).not.toContain(WIDGET_URI)
+    expect(toolCalls).not.toContain(WIDGET_HTML)
+    expect(assistant?.metadata).toMatchObject({
+      tanstack: { uiResources: [uiResource] },
+    })
+    expect(content).toContain('Here is the weather')
+    expect(result.some((msg) => msg.role === 'tool')).toBe(true)
   })
 })

@@ -1,5 +1,13 @@
 # @tanstack/ai-claude-code
 
+## 0.6.0
+
+### Minor Changes
+
+- [#1153](https://github.com/TanStack/ai/pull/1153) [`257213b`](https://github.com/TanStack/ai/commit/257213b110601c4e09cd33501ce06240eab0fd4d) - Expose Claude Code setting sources and loaded skills in session metadata.
+
+  `settingSources` defaults to `['project']`. Workspace projections (instructions, skills, MCP config) now load, and a local-process run no longer picks up the host's `~/.claude`. Pass `['user', 'project', 'local']` for CLI-equivalent behavior. Plugin projection installs at project scope.
+
 ## 0.5.0
 
 ### Minor Changes

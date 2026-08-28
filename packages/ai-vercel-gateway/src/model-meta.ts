@@ -62,7 +62,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'anthropic/claude-sonnet-4.6',
   'anthropic/claude-sonnet-5',
   'arcee-ai/trinity-large-thinking',
-  'arcee-ai/trinity-mini',
   'bytedance/seed-1.6',
   'bytedance/seed-1.8',
   'cohere/command-a',
@@ -126,13 +125,13 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'minimax/minimax-m2.5',
   'minimax/minimax-m2.5-highspeed',
   'minimax/minimax-m2.7',
+  'minimax/minimax-m2.7-free',
   'minimax/minimax-m2.7-highspeed',
   'minimax/minimax-m3',
+  'minimax/minimax-m3-free',
   'mistral/codestral',
   'mistral/devstral-2',
   'mistral/devstral-small-2',
-  'mistral/magistral-medium',
-  'mistral/magistral-small',
   'mistral/ministral-14b',
   'mistral/ministral-3b',
   'mistral/ministral-8b',
@@ -156,7 +155,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b',
   'nvidia/nemotron-3-ultra-550b-a55b',
   'nvidia/nemotron-3.5-lightning',
-  'nvidia/nemotron-3.5-lightning-free',
   'nvidia/nemotron-nano-12b-v2-vl',
   'nvidia/nemotron-nano-9b-v2',
   'openai/gpt-3.5-turbo',
@@ -171,7 +169,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/gpt-4o-fast',
   'openai/gpt-4o-mini',
   'openai/gpt-4o-mini-fast',
-  'openai/gpt-4o-mini-search-preview',
   'openai/gpt-4o-mini-transcribe',
   'openai/gpt-4o-transcribe',
   'openai/gpt-5',
@@ -209,6 +206,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/gpt-5.6-terra-fast',
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
+  'openai/gpt-oss-safeguard-120b',
   'openai/gpt-oss-safeguard-20b',
   'openai/gpt-realtime-1.5',
   'openai/gpt-realtime-2',
@@ -217,7 +215,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/gpt-realtime-whisper',
   'openai/o1',
   'openai/o3',
-  'openai/o3-deep-research',
   'openai/o3-fast',
   'openai/o3-mini',
   'openai/o3-pro',
@@ -821,11 +818,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'arcee-ai/trinity-mini': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'bytedance/seed-1.6': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1319,6 +1311,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'minimax/minimax-m2.7-free': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'minimax/minimax-m2.7-highspeed': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1330,6 +1332,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'minimax/minimax-m3': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'minimax/minimax-m3-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1353,26 +1365,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'mistral/magistral-medium': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'mistral/magistral-small': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
     >
   'mistral/ministral-14b': VercelGatewayCommonOptions &
     Pick<
@@ -1541,16 +1533,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'nvidia/nemotron-3.5-lightning-free': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'nvidia/nemotron-nano-12b-v2-vl': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1627,11 +1609,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'openai/gpt-4o-mini-fast': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'openai/gpt-4o-mini-search-preview': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
@@ -1982,6 +1959,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'openai/gpt-oss-safeguard-120b': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'openai/gpt-oss-safeguard-20b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2032,16 +2019,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'openai/o3-deep-research': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -2550,7 +2527,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'anthropic/claude-sonnet-4.6': readonly ['text', 'image', 'document']
   'anthropic/claude-sonnet-5': readonly ['text', 'image', 'document']
   'arcee-ai/trinity-large-thinking': readonly ['text']
-  'arcee-ai/trinity-mini': readonly ['text']
   'bytedance/seed-1.6': readonly ['text', 'image']
   'bytedance/seed-1.8': readonly ['text', 'image']
   'cohere/command-a': readonly ['text']
@@ -2593,7 +2569,12 @@ export type VercelGatewayModelInputModalitiesByName = {
   ]
   'google/gemini-3.6-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-3.7-flash': readonly ['text', 'image', 'document', 'video']
-  'google/gemini-omni-flash-preview': readonly ['text', 'image', 'document']
+  'google/gemini-omni-flash-preview': readonly [
+    'text',
+    'image',
+    'document',
+    'video',
+  ]
   'google/gemma-4-26b-a4b-it': readonly ['text', 'image', 'document']
   'google/gemma-4-31b-it': readonly ['text', 'image', 'document']
   'inception/mercury-2': readonly ['text']
@@ -2619,13 +2600,13 @@ export type VercelGatewayModelInputModalitiesByName = {
   'minimax/minimax-m2.5': readonly ['text']
   'minimax/minimax-m2.5-highspeed': readonly ['text']
   'minimax/minimax-m2.7': readonly ['text']
+  'minimax/minimax-m2.7-free': readonly ['text']
   'minimax/minimax-m2.7-highspeed': readonly ['text']
   'minimax/minimax-m3': readonly ['text', 'image', 'document']
+  'minimax/minimax-m3-free': readonly ['text', 'image']
   'mistral/codestral': readonly ['text']
   'mistral/devstral-2': readonly ['text']
   'mistral/devstral-small-2': readonly ['text', 'image']
-  'mistral/magistral-medium': readonly ['text', 'image']
-  'mistral/magistral-small': readonly ['text', 'image']
   'mistral/ministral-14b': readonly ['text', 'image', 'document']
   'mistral/ministral-3b': readonly ['text', 'image']
   'mistral/ministral-8b': readonly ['text', 'image']
@@ -2654,7 +2635,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'nvidia/nemotron-3-super-120b-a12b': readonly ['text']
   'nvidia/nemotron-3-ultra-550b-a55b': readonly ['text']
   'nvidia/nemotron-3.5-lightning': readonly ['text']
-  'nvidia/nemotron-3.5-lightning-free': readonly ['text']
   'nvidia/nemotron-nano-12b-v2-vl': readonly ['text', 'image']
   'nvidia/nemotron-nano-9b-v2': readonly ['text']
   'openai/gpt-3.5-turbo': readonly ['text']
@@ -2669,7 +2649,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/gpt-4o-fast': readonly ['text', 'image', 'document']
   'openai/gpt-4o-mini': readonly ['text', 'image', 'document']
   'openai/gpt-4o-mini-fast': readonly ['text', 'image', 'document']
-  'openai/gpt-4o-mini-search-preview': readonly ['text']
   'openai/gpt-4o-mini-transcribe': readonly ['text', 'audio']
   'openai/gpt-4o-transcribe': readonly ['text', 'audio']
   'openai/gpt-5': readonly ['text', 'image', 'document']
@@ -2707,6 +2686,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/gpt-5.6-terra-fast': readonly ['text', 'image', 'document']
   'openai/gpt-oss-120b': readonly ['text']
   'openai/gpt-oss-20b': readonly ['text']
+  'openai/gpt-oss-safeguard-120b': readonly ['text']
   'openai/gpt-oss-safeguard-20b': readonly ['text']
   'openai/gpt-realtime-1.5': readonly ['text', 'audio']
   'openai/gpt-realtime-2': readonly ['text', 'audio']
@@ -2715,7 +2695,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/gpt-realtime-whisper': readonly ['text', 'audio']
   'openai/o1': readonly ['text', 'image', 'document']
   'openai/o3': readonly ['text', 'image', 'document']
-  'openai/o3-deep-research': readonly ['text', 'image', 'document']
   'openai/o3-fast': readonly ['text', 'image', 'document']
   'openai/o3-mini': readonly ['text']
   'openai/o3-pro': readonly ['text', 'image', 'document']
