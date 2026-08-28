@@ -5,7 +5,7 @@ title: RunFinishedEvent
 
 # Interface: RunFinishedEvent
 
-Defined in: [packages/ai/src/types.ts:1187](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1187)
+Defined in: [packages/ai/src/types.ts:1205](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1205)
 
 Emitted when a run completes successfully.
 
@@ -25,7 +25,7 @@ Spec `usage[]` is provider/model token counts. TanStack leftovers live in
 optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1196](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1196)
+Defined in: [packages/ai/src/types.ts:1214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1214)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -37,7 +37,7 @@ Restored on the client from `metadata.tanstack`.
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1197](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1197)
+Defined in: [packages/ai/src/types.ts:1215](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1215)
 
 #### Type Declaration
 
@@ -55,7 +55,7 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1194](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1194)
+Defined in: [packages/ai/src/types.ts:1212](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1212)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -67,7 +67,7 @@ Restored on the client from `metadata.tanstack`.
 type: RUN_FINISHED;
 ```
 
-Defined in: [packages/ai/src/types.ts:1191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1191)
+Defined in: [packages/ai/src/types.ts:1209](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1209)
 
 ***
 
@@ -79,4 +79,4 @@ optional usage?:
   | SpecTokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1192](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1192)
+Defined in: [packages/ai/src/types.ts:1210](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1210)

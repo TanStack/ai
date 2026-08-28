@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
@@ -34,12 +35,14 @@ import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
+import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
+import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
@@ -103,6 +106,11 @@ const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
+  id: '/tool-first-text',
+  path: '/tool-first-text',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
@@ -222,6 +230,11 @@ const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   path: '/api/tools-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiToolFirstTextWireRoute = ApiToolFirstTextWireRouteImport.update({
+  id: '/api/tool-first-text-wire',
+  path: '/api/tool-first-text-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiToolCallLifecycleWireRoute =
   ApiToolCallLifecycleWireRouteImport.update({
     id: '/api/tool-call-lifecycle-wire',
@@ -255,6 +268,11 @@ const ApiProviderToolDispatchWireRoute =
     path: '/api/provider-tool-dispatch-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
+  id: '/api/portable-skills-wire',
+  path: '/api/portable-skills-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPersistenceDurabilityRoute =
   ApiPersistenceDurabilityRouteImport.update({
     id: '/api/persistence-durability',
@@ -559,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -610,12 +629,14 @@ export interface FileRoutesByFullPath {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -646,6 +667,7 @@ export interface FileRoutesByTo {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -697,12 +719,14 @@ export interface FileRoutesByTo {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -734,6 +758,7 @@ export interface FileRoutesById {
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -785,12 +810,14 @@ export interface FileRoutesById {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
+  '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -823,6 +850,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -874,12 +902,14 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -910,6 +940,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -961,12 +992,14 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -997,6 +1030,7 @@ export interface FileRouteTypes {
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
     | '/$provider/$feature'
@@ -1048,12 +1082,14 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
+    | '/api/tool-first-text-wire'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -1085,6 +1121,7 @@ export interface RootRouteChildren {
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
@@ -1136,12 +1173,14 @@ export interface RootRouteChildren {
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
+  ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
+  ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -1163,6 +1202,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tool-first-text': {
+      id: '/tool-first-text'
+      path: '/tool-first-text'
+      fullPath: '/tool-first-text'
+      preLoaderRoute: typeof ToolFirstTextRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistence-durability': {
@@ -1326,6 +1372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiToolsTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tool-first-text-wire': {
+      id: '/api/tool-first-text-wire'
+      path: '/api/tool-first-text-wire'
+      fullPath: '/api/tool-first-text-wire'
+      preLoaderRoute: typeof ApiToolFirstTextWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tool-call-lifecycle-wire': {
       id: '/api/tool-call-lifecycle-wire'
       path: '/api/tool-call-lifecycle-wire'
@@ -1366,6 +1419,13 @@ declare module '@tanstack/react-router' {
       path: '/api/provider-tool-dispatch-wire'
       fullPath: '/api/provider-tool-dispatch-wire'
       preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/portable-skills-wire': {
+      id: '/api/portable-skills-wire'
+      path: '/api/portable-skills-wire'
+      fullPath: '/api/portable-skills-wire'
+      preLoaderRoute: typeof ApiPortableSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/persistence-durability': {
@@ -1826,6 +1886,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
@@ -1877,12 +1938,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
+  ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
+  ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,

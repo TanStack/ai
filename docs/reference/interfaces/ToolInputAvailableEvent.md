@@ -5,7 +5,7 @@ title: ToolInputAvailableEvent
 
 # ~~Interface: ToolInputAvailableEvent~~
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
+Defined in: [packages/ai/src/types.ts:1440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1440)
 
 ## Deprecated
 
@@ -24,7 +24,7 @@ compatibility event remains readable until 1.0.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
+Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/
 name: "tool-input-available";
 ```
 
-Defined in: [packages/ai/src/types.ts:1423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1423)
+Defined in: [packages/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1441)
 
 #### Overrides
 
@@ -54,7 +54,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
+Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
 
 #### Inherited from
 
@@ -68,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1424](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1424)
+Defined in: [packages/ai/src/types.ts:1442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1442)
 
 #### ~~input~~
 

@@ -89,6 +89,7 @@ export class NoOpChatDevtoolsBridge {
   recordMemoryState(_value: unknown): void {}
   recordCompactionEvent(_eventType: string, _value: unknown): void {}
   recordCompactionState(_value: unknown): void {}
+  recordSkillsState(_value: unknown): void {}
   beginRun(_runId: string, _threadId: string): void {}
   getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
     return undefined

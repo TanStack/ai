@@ -551,8 +551,8 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -595,8 +595,8 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -1646,6 +1646,48 @@
       "output": "0.0000033",
       "input_cache_read": "0.00000011",
       "varies_by_provider": true
+    }
+  },
+  {
+    "id": "alibaba/qwen3.8-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "alibaba",
+    "name": "Qwen 3.8 Flash",
+    "description": "Qwen3.8-Flash is Qwen’s fast, cost-efficient multimodal model, combining advanced reasoning and generation with a native 1M-token context window. Built for coding, agentic workflows, and visual understanding, it handles large codebases, long documents, charts, videos, and desktop applications.",
+    "context_window": 991000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000016",
+      "output": "0.00000047",
+      "input_cache_read": "0.000000016",
+      "input_cache_write": "0.0000002"
     }
   },
   {
@@ -4241,14 +4283,70 @@
       "input": ["text", "image"],
       "output": ["video"]
     },
+    "video_capabilities": {
+      "supported_operations": [
+        "text-to-video",
+        "image-to-video",
+        "first-last-frame",
+        "reference-to-video"
+      ],
+      "supported_resolutions": ["480p", "720p"],
+      "supported_aspect_ratios": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+      "supported_durations_seconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "generate_audio": true,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 9,
+          "max_file_size_mb": 30,
+          "supported_formats": ["jpeg", "png", "webp", "bmp", "tiff", "gif"],
+          "supported_sources": ["url"],
+          "min_dimension_pixels": 300,
+          "max_dimension_pixels": 6000,
+          "min_aspect_ratio": "2:5",
+          "max_aspect_ratio": "5:2"
+        },
+        "video": {
+          "max_count": 3,
+          "max_file_size_mb": 50,
+          "supported_formats": ["mp4", "mov"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 2,
+          "max_duration_seconds": 15,
+          "min_dimension_pixels": 300,
+          "max_dimension_pixels": 6000
+        },
+        "audio": {
+          "max_file_size_mb": 15,
+          "supported_formats": ["wav", "mp3"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 2,
+          "max_duration_seconds": 15
+        }
+      }
+    },
     "pricing": {
       "video_token_pricing": {
-        "no_video_input": {
-          "cost_per_million_tokens": "3.5"
-        },
-        "with_video_input": {
-          "cost_per_million_tokens": "2.1"
-        },
+        "tiers": [
+          {
+            "resolution": "480p",
+            "no_video_input": {
+              "cost_per_million_tokens": "3.5"
+            },
+            "with_video_input": {
+              "cost_per_million_tokens": "2.1"
+            }
+          },
+          {
+            "resolution": "720p",
+            "no_video_input": {
+              "cost_per_million_tokens": "3.5"
+            },
+            "with_video_input": {
+              "cost_per_million_tokens": "2.1"
+            }
+          }
+        ],
         "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
       }
     }
@@ -5126,7 +5224,22 @@
     "pricing": {
       "input": "0.00000022",
       "output": "0.00000066",
-      "input_cache_read": "0.000000007"
+      "input_cache_read": "0.000000007",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 60,
+            "end_minute_utc": 240,
+            "days_of_week": [1, 2, 3, 4, 5]
+          },
+          {
+            "start_minute_utc": 360,
+            "end_minute_utc": 600,
+            "days_of_week": [1, 2, 3, 4, 5]
+          }
+        ]
+      }
     }
   },
   {
@@ -5217,6 +5330,15 @@
       "input": "0.00000066",
       "output": "0.00000198",
       "input_cache_read": "0.000000066",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 0,
+            "end_minute_utc": 840
+          }
+        ]
+      },
       "varies_by_provider": true
     }
   },
@@ -6445,6 +6567,50 @@
     }
   },
   {
+    "id": "google/gemini-3.5-transcribe",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "google",
+    "name": "Gemini 3.5 Transcribe",
+    "description": "Transcription by google",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.000012",
+      "audio_input_token_cost": "0.000002"
+    }
+  },
+  {
+    "id": "google/gemini-3.5-transcribe-live",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "google",
+    "name": "Gemini 3.5 Transcribe Live",
+    "description": "Live transcription by Google",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.0000000001",
+      "transcription_duration_cost_per_second": "0.00015"
+    }
+  },
+  {
     "id": "google/gemini-3.6-flash",
     "object": "model",
     "created": 1755815280,
@@ -6552,6 +6718,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2026-03",
     "pricing": {
       "input": "0.00000075",
       "output": "0.00000375",
@@ -7246,6 +7419,74 @@
       "input": "0.00000006",
       "output": "0.00000018",
       "input_cache_read": "0.000000012"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-fin",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787788800,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash Fin",
+    "description": "Ling 3.0 Flash Fin is InclusionAI’s finance-enhanced MoE language model, combining 124 billion total parameters with approximately 5.1 billion active parameters for efficient financial reasoning. Its 256K context window, function calling, and support for complex, multi-step investment workflows make it ideal for financial research, analysis, long-horizon planning, and execution, while retaining strong capabilities in coding and mathematics.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-fin-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787788800,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash Fin (Free)",
+    "description": "Ling 3.0 Flash Fin is InclusionAI’s finance-enhanced MoE language model, combining 124 billion total parameters with approximately 5.1 billion active parameters for efficient financial reasoning. Its 256K context window, function calling, and support for complex, multi-step investment workflows make it ideal for financial research, analysis, long-horizon planning, and execution, while retaining strong capabilities in coding and mathematics.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -8120,7 +8361,31 @@
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
-      "input_cache_read": "0.00000004"
+      "input_cache_read": "0.00000004",
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "meta/muse-image-1.0",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "meta",
+    "name": "Muse Image 1.0",
+    "description": "Muse Image is the first image generation model from Meta Superintelligence Labs, it uses advanced reasoning to understand complex prompts, seamlessly blending multiple photos into high-quality creations you can download and share anywhere.\n",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["image-generation", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "image": "0.01"
     }
   },
   {
@@ -9567,7 +9832,7 @@
     "context_window": 1000000,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -9607,7 +9872,7 @@
     "context_window": 81920,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9632,7 +9897,7 @@
     "context_window": 81920,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9785,8 +10050,8 @@
     "context_window": 262144,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9805,8 +10070,8 @@
     "temperature": true,
     "pricing": {
       "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.00000001",
+      "output": "0.00000015",
+      "input_cache_read": "0.00000005",
       "varies_by_provider": true
     }
   },
@@ -17569,6 +17834,42 @@
       "input": "0.0000014",
       "output": "0.0000044",
       "input_cache_read": "0.00000026"
+    }
+  },
+  {
+    "id": "zai/glm-5.3-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "zai",
+    "name": "GLM 5.3 Flash",
+    "description": "GLM-5.3-Flash is Z.ai’s native multimodal coding model, featuring 320B total parameters, 18B activated parameters, and a 1M-token context window. Its efficient hybrid attention architecture supports visual coding, tool use, and end-to-end professional workflows across code, browsers, documents, and graphical interfaces.",
+    "context_window": 1000000,
+    "max_tokens": 131000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "some",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000015",
+      "output": "0.0000005",
+      "input_cache_read": "0.00000003",
+      "varies_by_provider": true
     }
   },
   {

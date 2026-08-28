@@ -41,6 +41,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'alibaba/qwen3.7-plus',
   'alibaba/qwen3.8-2.4t-a95b',
   'alibaba/qwen3.8-27b',
+  'alibaba/qwen3.8-flash',
   'alibaba/qwen3.8-max',
   'amazon/nova-2-lite',
   'amazon/nova-lite',
@@ -97,6 +98,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3.1-pro-preview',
   'google/gemini-3.5-flash',
   'google/gemini-3.5-flash-lite',
+  'google/gemini-3.5-transcribe',
+  'google/gemini-3.5-transcribe-live',
   'google/gemini-3.6-flash',
   'google/gemini-3.7-flash',
   'google/gemini-omni-flash-preview',
@@ -105,6 +108,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inception/mercury-2',
   'inception/mercury-coder-small',
   'inclusionai/ling-3.0-flash',
+  'inclusionai/ling-3.0-flash-fin',
+  'inclusionai/ling-3.0-flash-fin-free',
   'interfaze/interfaze-beta',
   'kwaipilot/kat-coder-air-v2.5',
   'kwaipilot/kat-coder-pro-v1',
@@ -269,6 +274,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'zai/glm-5.2',
   'zai/glm-5.2-fast',
   'zai/glm-5.3',
+  'zai/glm-5.3-flash',
   'zai/glm-5v-turbo',
 ] as const
 
@@ -381,6 +387,7 @@ export const VERCEL_GATEWAY_IMAGE_MODELS = [
   'bytedance/seedream-4.5',
   'bytedance/seedream-5.0-lite',
   'bytedance/seedream-5.0-pro',
+  'meta/muse-image-1.0',
   'openai/gpt-image-1',
   'openai/gpt-image-1-mini',
   'openai/gpt-image-1.5',
@@ -619,6 +626,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'alibaba/qwen3.8-27b': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'alibaba/qwen3.8-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1066,6 +1083,8 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'google/gemini-3.5-transcribe': VercelGatewayCommonOptions
+  'google/gemini-3.5-transcribe-live': VercelGatewayCommonOptions
   'google/gemini-3.6-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1132,6 +1151,26 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.0-flash': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'inclusionai/ling-3.0-flash-fin': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'inclusionai/ling-3.0-flash-fin-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2466,6 +2505,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'zai/glm-5.3-flash': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'zai/glm-5v-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2506,6 +2555,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'alibaba/qwen3.7-plus': readonly ['text', 'image', 'document']
   'alibaba/qwen3.8-2.4t-a95b': readonly ['text', 'image']
   'alibaba/qwen3.8-27b': readonly ['text', 'image', 'document', 'video']
+  'alibaba/qwen3.8-flash': readonly ['text', 'image', 'document']
   'alibaba/qwen3.8-max': readonly ['text', 'image']
   'amazon/nova-2-lite': readonly ['text', 'image', 'document']
   'amazon/nova-lite': readonly ['text', 'image', 'document']
@@ -2567,6 +2617,8 @@ export type VercelGatewayModelInputModalitiesByName = {
     'document',
     'video',
   ]
+  'google/gemini-3.5-transcribe': readonly ['text', 'audio']
+  'google/gemini-3.5-transcribe-live': readonly ['text', 'audio']
   'google/gemini-3.6-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-3.7-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-omni-flash-preview': readonly [
@@ -2580,6 +2632,8 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inception/mercury-2': readonly ['text']
   'inception/mercury-coder-small': readonly ['text']
   'inclusionai/ling-3.0-flash': readonly ['text']
+  'inclusionai/ling-3.0-flash-fin': readonly ['text']
+  'inclusionai/ling-3.0-flash-fin-free': readonly ['text']
   'interfaze/interfaze-beta': readonly ['text', 'image', 'document']
   'kwaipilot/kat-coder-air-v2.5': readonly ['text', 'image']
   'kwaipilot/kat-coder-pro-v1': readonly ['text']
@@ -2753,6 +2807,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'zai/glm-5.2': readonly ['text']
   'zai/glm-5.2-fast': readonly ['text']
   'zai/glm-5.3': readonly ['text']
+  'zai/glm-5.3-flash': readonly ['text', 'image']
   'zai/glm-5v-turbo': readonly ['text', 'image', 'document']
 }
 

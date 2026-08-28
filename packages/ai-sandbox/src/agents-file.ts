@@ -11,6 +11,7 @@
  * file by name (CLAUDE.md for Claude Code, GEMINI.md for Gemini CLI, …).
  * We write a single authoritative AGENTS.md and point each name at it.
  */
+import { walkSkillDirs } from '@tanstack/ai-skills'
 import type { SandboxHandle } from './contracts'
 import type { WorkspaceSkill } from './workspace'
 
@@ -49,10 +50,6 @@ export interface DiscoveredSkillDir {
   dir: string
 }
 
-const SKILL_FILE = 'SKILL.md'
-const SKIP_DIR_NAMES = new Set(['.git', 'node_modules'])
-const MAX_SKILL_WALK_DEPTH = 6
-
 function basenameOf(path: string): string {
   const segments = path.split('/').filter((segment) => segment !== '')
   return segments[segments.length - 1] ?? path
@@ -66,46 +63,22 @@ function basenameOf(path: string): string {
  * A flat clone with `SKILL.md` at the root is returned as one entry named
  * after the clone. If no `SKILL.md` is found, the clone itself is returned
  * so existing basename projection still works.
+ *
+ * The tree walk itself is the shared `walkSkillDirs` from `@tanstack/ai-skills`
+ * (parameterized over an injected lister — here `handle.fs.list`). The
+ * empty→clone-dir fallback is kept here because it is correct for harness
+ * projection but wrong for a skills catalog, so it must not live in the shared
+ * helper.
  */
 export async function discoverSkillDirs(
   handle: SandboxHandle,
   cloneDir: string,
 ): Promise<Array<DiscoveredSkillDir>> {
-  const found: Array<DiscoveredSkillDir> = []
-  await walkSkillDirs(handle, cloneDir, found, 0)
+  const found = await walkSkillDirs((dir) => handle.fs.list(dir), cloneDir)
   if (found.length === 0) {
     return [{ name: basenameOf(cloneDir), dir: cloneDir }]
   }
   return found
-}
-
-async function walkSkillDirs(
-  handle: SandboxHandle,
-  dir: string,
-  found: Array<DiscoveredSkillDir>,
-  depth: number,
-): Promise<void> {
-  if (depth > MAX_SKILL_WALK_DEPTH) return
-  let entries: Awaited<ReturnType<SandboxHandle['fs']['list']>>
-  try {
-    entries = await handle.fs.list(dir)
-  } catch {
-    return
-  }
-  const hasSkill = entries.some(
-    (entry) =>
-      entry.type === 'file' &&
-      entry.name.toLowerCase() === SKILL_FILE.toLowerCase(),
-  )
-  if (hasSkill) {
-    found.push({ name: basenameOf(dir), dir })
-    return
-  }
-  for (const entry of entries) {
-    if (entry.type !== 'dir') continue
-    if (entry.name.startsWith('.') || SKIP_DIR_NAMES.has(entry.name)) continue
-    await walkSkillDirs(handle, entry.path, found, depth + 1)
-  }
 }
 
 /** Format workspace scripts as a `## Workspace scripts` markdown section. */

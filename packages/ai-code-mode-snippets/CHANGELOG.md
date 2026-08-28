@@ -1,5 +1,21 @@
 # @tanstack/ai-code-mode-snippets
 
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+  - @tanstack/ai-code-mode@0.4.6
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/ai-code-mode@0.4.5
+
 ## 0.4.4
 
 ### Patch Changes

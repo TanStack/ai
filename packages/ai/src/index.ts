@@ -104,6 +104,8 @@ export type {
 // MCP error classes (value exports — usable with instanceof)
 export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
 export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
+export { SkillLimitError } from './utilities/errors'
+export type { SkillLimitErrorInit } from './utilities/errors'
 
 // Schema conversion (Standard JSON Schema compliant)
 export {

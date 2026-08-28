@@ -34,6 +34,11 @@ export interface AIDevtoolsDisplayOptions {
  * payload of the `memory:state` CUSTOM chunk. Kept local so `ai-client` doesn't
  * depend on `ai-memory`; the memory middleware is the producer.
  */
+interface SkillsStateEventValue {
+  catalog?: Array<{ name: string; description: string }>
+  activated?: Array<string>
+}
+
 interface MemoryStateEventValue {
   scope: MemoryScopeLite
   adapter: string
@@ -570,6 +575,49 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
   return registry
 }
 
+/**
+ * `{...options}` turns `get hookId()` into a data property. Chat/generation
+ * clients mint `threadId` after construct (`ensureThreadId` on mount), so a
+ * spread would freeze `hookId: ''` and DevTools could never select the hook.
+ */
+function withLiveClientIdentity<TSnapshot extends object>(
+  identity: Pick<
+    AIDevtoolsBridgeOptions<TSnapshot>,
+    | 'hookId'
+    | 'clientId'
+    | 'threadId'
+    | 'metadata'
+    | 'getTools'
+    | 'applyToolFixture'
+  >,
+  rest: Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getSnapshot'> &
+    Partial<
+      Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getTools' | 'applyToolFixture'>
+    >,
+): AIDevtoolsBridgeOptions<TSnapshot> {
+  return {
+    get hookId() {
+      return identity.hookId
+    },
+    get clientId() {
+      return identity.clientId
+    },
+    get threadId() {
+      return identity.threadId
+    },
+    metadata: identity.metadata,
+    getSnapshot: rest.getSnapshot,
+    ...(rest.getTools || identity.getTools
+      ? { getTools: rest.getTools ?? identity.getTools }
+      : {}),
+    ...(rest.applyToolFixture || identity.applyToolFixture
+      ? {
+          applyToolFixture: rest.applyToolFixture ?? identity.applyToolFixture,
+        }
+      : {}),
+  }
+}
+
 export class ClientDevtoolsBridge<TSnapshot extends object> {
   protected readonly options: AIDevtoolsBridgeOptions<TSnapshot>
   private readonly unsubscribers: Array<Unsubscribe> = []
@@ -837,6 +885,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'compaction:started'
       | 'compaction:state'
       | 'compaction:ended'
+      | 'skills:snapshot'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -898,17 +947,24 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   /** Transported compaction CUSTOM events, replayed when a panel opens. */
   private lastCompactionEvents: Array<{ eventType: string; value: unknown }> =
     []
+  /** Last transported `skills:state` value, replayed when a panel opens. */
+  private lastSkillsStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
-    super({
-      ...options,
-      // Thunk defers `this.applyFixture` lookup until after `super` returns.
-      applyToolFixture: (fixture) => this.applyFixture(fixture),
-    })
+    super(
+      withLiveClientIdentity(options, {
+        getSnapshot: options.getSnapshot,
+        // Thunk defers `this.applyFixture` lookup until after `super` returns.
+        applyToolFixture: (fixture) => this.applyFixture(fixture),
+      }),
+    )
     this.chatOptions = options
     // Auto-attaches run/thread context and auto-emits a snapshot after each
     // event so callers can keep using `this.events.X(...)` with no context arg.
-    this.events = new ChatDevtoolsAwareEventEmitter(options.clientId, this)
+    this.events = new ChatDevtoolsAwareEventEmitter(
+      () => options.clientId,
+      this,
+    )
   }
 
   // --- Stream / run context API -------------------------------------------
@@ -1000,6 +1056,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   recordMemoryState(rawValue: unknown): void {
     this.lastMemoryStateValue = rawValue
     this.emitMemoryState(rawValue)
+  }
+
+  recordSkillsState(rawValue: unknown): void {
+    this.lastSkillsStateValue = rawValue
+    this.emitSkillsState(rawValue)
   }
 
   /**
@@ -1103,12 +1164,28 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
+  private emitSkillsState(rawValue: unknown): void {
+    if (!rawValue || typeof rawValue !== 'object') return
+    const value = rawValue as SkillsStateEventValue
+    const catalog = Array.isArray(value.catalog) ? value.catalog : []
+    const activated = Array.isArray(value.activated) ? value.activated : []
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    emitAIDevtoolsEvent('skills:snapshot', {
+      ...this.createEnvelope('skills:snapshot', 'client-state', runContext),
+      catalog,
+      activated,
+    })
+  }
+
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
     }
     for (const event of this.lastCompactionEvents) {
       this.emitCompactionEvent(event.eventType, event.value)
+    }
+    if (this.lastSkillsStateValue != null) {
+      this.emitSkillsState(this.lastSkillsStateValue)
     }
   }
 
@@ -1590,10 +1667,11 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   protected readonly getCoreState: () => GenerationDevtoolsCoreState<TOutput>
 
   constructor(options: GenerationDevtoolsBridgeOptions<TOutput>) {
-    super({
-      ...options,
-      getSnapshot: () => this.buildSnapshot(),
-    })
+    super(
+      withLiveClientIdentity(options, {
+        getSnapshot: () => this.buildSnapshot(),
+      }),
+    )
     this.maxRuns = options.maxRuns ?? 20
     this.getCoreState = options.getCoreState
   }
@@ -1939,10 +2017,18 @@ export class VideoDevtoolsBridge<
 // so resolveStreamId() works without the chat client telling it.
 class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   constructor(
-    clientId: string,
+    private readonly getClientId: () => string,
     private readonly helper: ChatDevtoolsBridge,
   ) {
-    super(clientId)
+    super(getClientId())
+  }
+
+  protected override emitEvent(
+    eventName: string,
+    data?: Record<string, any>,
+  ): void {
+    this.clientId = this.getClientId()
+    super.emitEvent(eventName, data)
   }
 
   private afterEmit(streamId?: string): void {

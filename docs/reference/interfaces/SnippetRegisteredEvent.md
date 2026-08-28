@@ -5,7 +5,7 @@ title: SnippetRegisteredEvent
 
 # Interface: SnippetRegisteredEvent
 
-Defined in: [packages/ai/src/types.ts:1510](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1510)
+Defined in: [packages/ai/src/types.ts:1528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1528)
 
 Custom event for extensibility.
 
@@ -26,7 +26,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
+Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
 
 #### Inherited from
 
@@ -40,7 +40,7 @@ Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/
 name: "snippet:registered";
 ```
 
-Defined in: [packages/ai/src/types.ts:1511](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1511)
+Defined in: [packages/ai/src/types.ts:1529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1529)
 
 #### Overrides
 
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
+Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1512](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1512)
+Defined in: [packages/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1530)
 
 #### description
 

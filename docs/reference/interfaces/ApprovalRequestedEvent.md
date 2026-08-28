@@ -5,7 +5,7 @@ title: ApprovalRequestedEvent
 
 # ~~Interface: ApprovalRequestedEvent~~
 
-Defined in: [packages/ai/src/types.ts:1402](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1402)
+Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
 
 ## Deprecated
 
@@ -24,7 +24,7 @@ compatibility event remains readable until 1.0.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
+Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/
 name: "approval-requested";
 ```
 
-Defined in: [packages/ai/src/types.ts:1403](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1403)
+Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
 
 #### Overrides
 
@@ -54,7 +54,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
+Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
 
 #### Inherited from
 
@@ -68,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1404)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 #### ~~approval~~
 

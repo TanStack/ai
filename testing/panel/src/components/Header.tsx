@@ -13,6 +13,7 @@ import {
   Mic,
   Package,
   Scissors,
+  Sparkles,
   Video,
   Volume2,
   X,
@@ -154,6 +155,24 @@ export default function Header() {
               <span className="font-medium">Compaction</span>
               <span className="text-xs px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
                 context
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/skills"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Skills</span>
+              <span className="text-xs px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
+                load_skill
               </span>
             </div>
           </Link>

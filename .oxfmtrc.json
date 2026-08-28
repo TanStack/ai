@@ -15,6 +15,7 @@
     "**/dist",
     "**/docs",
     "packages/ai-fal/src/image/generated/",
+    "scripts/lovable-gateway.models.json",
     "pnpm-lock.yaml",
     ".angular",
     ".github"

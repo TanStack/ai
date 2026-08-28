@@ -1695,7 +1695,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         border: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
         border-radius: ${border.radius.sm};
         background: ${t(colors.white, colors.darkGray[900])};
-        min-height: 260px;
         max-height: 420px;
         overflow: auto;
         padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
@@ -2570,7 +2569,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         gap: ${size[3]};
         align-items: start;
         & > * {
-          min-height: 280px;
+          max-height: 420px;
           border: 1px solid oklch(0.28 0.03 260);
           border-radius: 6px;
           background: oklch(0.18 0.02 260);
@@ -3634,7 +3633,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       stepJsonPanel: css`
         margin: ${size[1.5]} ${size[3]};
-        min-height: 280px;
         max-height: 520px;
         overflow: auto;
         padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
