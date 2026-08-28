@@ -8,12 +8,10 @@ export const Route = createFileRoute('/')({
 
 function TripDesk() {
   const chat = useAppChat({
-    "forwardedProps": {
-      "model": selectedModel,
+    forwardedProps: {
+      model: selectedModel,
     },
-
   })
-
 
   return (
     <div className="mx-auto flex h-svh w-full max-w-3xl flex-col">

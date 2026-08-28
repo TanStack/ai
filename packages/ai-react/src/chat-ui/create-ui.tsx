@@ -247,9 +247,7 @@ export function createChatUI<const TOptions>(
   const PartContext = (partContextOption ??
     defaultChatUIContexts.partContext) as Context<ChatUISelectedPart | null>
   const InterruptContext = (interruptContextOption ??
-    defaultChatUIContexts.interruptContext) as Context<
-    ChatUIInterrupt | null
-  >
+    defaultChatUIContexts.interruptContext) as Context<ChatUIInterrupt | null>
   const inlineToolNames = collectInlineToolNames(
     interrupts?.tools as Record<string, unknown> | undefined,
     Object.keys(tools ?? {}),
@@ -290,9 +288,7 @@ export function createChatUI<const TOptions>(
   function bindPart(Component: ComponentType<PartProps<TOptions>>) {
     return function BoundPart() {
       const selected = usePartContext()
-      return (
-        <Component part={selected.part as PartProps<TOptions>['part']} />
-      )
+      return <Component part={selected.part as PartProps<TOptions>['part']} />
     }
   }
 
@@ -313,7 +309,11 @@ export function createChatUI<const TOptions>(
   function bindInterrupt(Component: ComponentType<InterruptProps<TOptions>>) {
     return function BoundInterrupt() {
       const interrupt = useInterruptContext()
-      return <Component interrupt={interrupt as InterruptProps<TOptions>['interrupt']} />
+      return (
+        <Component
+          interrupt={interrupt as InterruptProps<TOptions>['interrupt']}
+        />
+      )
     }
   }
 
@@ -359,9 +359,7 @@ export function createChatUI<const TOptions>(
     chat: ChatUIHost<TOptions>
     children?: ReactNode
   }) {
-    return (
-      <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
-    )
+    return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
   }
 
   function Chat({ chat }: { chat: ChatUIHost<TOptions> }) {
@@ -485,10 +483,7 @@ export function createChatUI<const TOptions>(
         | ComponentType<ToolProps<TOptions>>
         | undefined
       if (!Tool) {
-        warn(
-          `tool:${name}`,
-          `[tanstack-ai-ui] Missing tools.${name} component`,
-        )
+        warn(`tool:${name}`, `[tanstack-ai-ui] Missing tools.${name} component`)
         return null
       }
       return (
@@ -535,9 +530,7 @@ export function createChatUI<const TOptions>(
     children,
   }: {
     part: MessagePart | ChatUISelectedPart
-    children?: (
-      mixed: ChatUISelectedPart & PartMixins<TOptions>,
-    ) => ReactNode
+    children?: (mixed: ChatUISelectedPart & PartMixins<TOptions>) => ReactNode
   }) {
     const chat = useChatContext()
     const selected = isSelectedPart(part)
@@ -549,7 +542,11 @@ export function createChatUI<const TOptions>(
     if (!selected) return null
     return (
       <PartContext.Provider value={selected}>
-        {children ? children(mixPart(selected)) : <SelectedPartInner selected={selected} />}
+        {children ? (
+          children(mixPart(selected))
+        ) : (
+          <SelectedPartInner selected={selected} />
+        )}
       </PartContext.Provider>
     )
   }
@@ -580,10 +577,9 @@ export function createChatUI<const TOptions>(
   }: {
     interrupt: ChatUIInterrupt
   }) {
-    const Component = resolveInterruptComponent(
-      interrupt,
-      interrupts,
-    ) as ComponentType<InterruptProps<TOptions>> | undefined
+    const Component = resolveInterruptComponent(interrupt, interrupts) as
+      | ComponentType<InterruptProps<TOptions>>
+      | undefined
     if (!Component) {
       warn(
         `interrupt:${interrupt.id}`,
@@ -604,9 +600,7 @@ export function createChatUI<const TOptions>(
     children,
   }: {
     interrupt: ChatUIInterrupt
-    children?: (
-      mixed: ChatUIInterrupt & InterruptMixins<TOptions>,
-    ) => ReactNode
+    children?: (mixed: ChatUIInterrupt & InterruptMixins<TOptions>) => ReactNode
   }) {
     return (
       <InterruptContext.Provider value={interrupt}>

@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts'
-import type { ChatUIFactoryConfig, ChatUIHost } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIFactoryConfig,
+  ChatUIHost,
+} from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
   createChatResult,
@@ -341,9 +344,7 @@ describe('createChatUI', () => {
       UI.useChatContext()
       return null
     }
-    expect(() => renderToStaticMarkup(<Broken />)).toThrow(
-      /useChatContext/,
-    )
+    expect(() => renderToStaticMarkup(<Broken />)).toThrow(/useChatContext/)
   })
 
   it('isolates nested chats when createChatHookContexts is passed in', () => {
@@ -366,9 +367,7 @@ describe('createChatUI', () => {
 
     const markup = renderToStaticMarkup(
       <Outer.Provider chat={host({ messages: [] })}>
-        <Inner.Chat
-          chat={host({ messages: [messageWithToolResults] })}
-        />
+        <Inner.Chat chat={host({ messages: [messageWithToolResults] })} />
       </Outer.Provider>,
     )
     expect(markup).toContain('data-inner')

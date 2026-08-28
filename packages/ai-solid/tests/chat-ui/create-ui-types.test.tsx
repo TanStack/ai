@@ -1,7 +1,11 @@
 import { expectTypeOf, it } from 'vitest'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatUI } from '../../src/chat-ui/create-ui'
-import type { ChatUIHost, InterruptProps, ToolProps } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIHost,
+  InterruptProps,
+  ToolProps,
+} from '../../src/chat-ui/create-ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
 
 it('requires every tool name and interrupt id', () => {

@@ -2,7 +2,10 @@ import { render } from 'solid-js/web'
 import { describe, expect, it, vi } from 'vitest'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
-import type { ChatUIFactoryConfig, ChatUIHost } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIFactoryConfig,
+  ChatUIHost,
+} from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
   createSolidChatResult,

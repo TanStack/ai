@@ -1,6 +1,9 @@
 import { createContext, useContext } from 'react'
 import type { Context } from 'react'
-import type { ChatUIInterrupt, ChatUISelectedPart } from '@tanstack/ai-client/ui'
+import type {
+  ChatUIInterrupt,
+  ChatUISelectedPart,
+} from '@tanstack/ai-client/ui'
 import type { UseChatReturn } from '../types'
 
 /**

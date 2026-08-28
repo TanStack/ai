@@ -9,7 +9,7 @@ import {
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
 import type { chatOptions } from '@/chat/options'
-import { useChatContext } from './ui-components';
+import { useChatContext } from './ui-components'
 
 const LISBON_PHOTO =
   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80'

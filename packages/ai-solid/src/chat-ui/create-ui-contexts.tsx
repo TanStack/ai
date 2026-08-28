@@ -1,6 +1,9 @@
 import { createContext, useContext } from 'solid-js'
 import type { Context } from 'solid-js'
-import type { ChatUIInterrupt, ChatUISelectedPart } from '@tanstack/ai-client/ui'
+import type {
+  ChatUIInterrupt,
+  ChatUISelectedPart,
+} from '@tanstack/ai-client/ui'
 import type { UseChatReturn } from '../types'
 
 export interface ChatUIContexts {

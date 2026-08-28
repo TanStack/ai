@@ -276,9 +276,7 @@ export function createChatUI<const TOptions>(
   function bindPart(Component: Component<PartProps<TOptions>>) {
     return function BoundPart() {
       const selected = usePartContext()
-      return (
-        <Component part={selected.part as PartProps<TOptions>['part']} />
-      )
+      return <Component part={selected.part as PartProps<TOptions>['part']} />
     }
   }
 
@@ -450,10 +448,7 @@ export function createChatUI<const TOptions>(
         | Component<ToolProps<TOptions>>
         | undefined
       if (!Tool) {
-        warn(
-          `tool:${name}`,
-          `[tanstack-ai-ui] Missing tools.${name} component`,
-        )
+        warn(`tool:${name}`, `[tanstack-ai-ui] Missing tools.${name} component`)
         return null
       }
       return (
@@ -544,10 +539,9 @@ export function createChatUI<const TOptions>(
   }
 
   function InterruptInner(props: { interrupt: ChatUIInterrupt }) {
-    const Component = resolveInterruptComponent(
-      props.interrupt,
-      interrupts,
-    ) as Component<InterruptProps<TOptions>> | undefined
+    const Component = resolveInterruptComponent(props.interrupt, interrupts) as
+      | Component<InterruptProps<TOptions>>
+      | undefined
     if (!Component) {
       warn(
         `interrupt:${props.interrupt.id}`,

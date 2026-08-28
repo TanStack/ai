@@ -88,111 +88,111 @@ const draft = ref('')
 const { useAppChat, ui } = createChatHook({
   options: chatOptions,
   chatComponents: {
-  layout: defineComponent(
-    (_, { slots }) =>
-      () =>
-        h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
-          slots.messages?.(),
-          slots.input?.(),
-        ]),
-  ),
-  message: defineComponent({
-    props: ['message'],
-    setup(props) {
-      return () =>
-        h('article', { 'data-role': props.message.role }, [
-          ...(props.message.parts ?? []).map(
-            (part: { type: string; content?: string }) =>
-              part.type === 'text' ? h('p', part.content) : null,
-          ),
-        ])
-    },
-  }),
-  input: defineComponent({
-    setup() {
-      return () =>
-        h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
-          h(
-            'form',
-            {
-              onSubmit: (event: Event) => {
-                event.preventDefault()
-                const text = draft.value.trim()
-                if (!text) return
-                draft.value = ''
-                void chat.sendMessage(text)
-              },
-            },
-            [
-              h('input', {
-                class:
-                  'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
-                placeholder: 'Ask about guitars...',
-                value: draft.value,
-                onInput: (event: Event) => {
-                  const target = event.target
-                  if (target instanceof HTMLInputElement)
-                    draft.value = target.value
+    layout: defineComponent(
+      (_, { slots }) =>
+        () =>
+          h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
+            slots.messages?.(),
+            slots.input?.(),
+          ]),
+    ),
+    message: defineComponent({
+      props: ['message'],
+      setup(props) {
+        return () =>
+          h('article', { 'data-role': props.message.role }, [
+            ...(props.message.parts ?? []).map(
+              (part: { type: string; content?: string }) =>
+                part.type === 'text' ? h('p', part.content) : null,
+            ),
+          ])
+      },
+    }),
+    input: defineComponent({
+      setup() {
+        return () =>
+          h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
+            h(
+              'form',
+              {
+                onSubmit: (event: Event) => {
+                  event.preventDefault()
+                  const text = draft.value.trim()
+                  if (!text) return
+                  draft.value = ''
+                  void chat.sendMessage(text)
                 },
-              }),
-            ],
-          ),
-        ])
+              },
+              [
+                h('input', {
+                  class:
+                    'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
+                  placeholder: 'Ask about guitars...',
+                  value: draft.value,
+                  onInput: (event: Event) => {
+                    const target = event.target
+                    if (target instanceof HTMLInputElement)
+                      draft.value = target.value
+                  },
+                }),
+              ],
+            ),
+          ])
+      },
+    }),
+    parts: { fallback: defineComponent(() => () => null) },
+    tools: {
+      recommendGuitar: defineComponent({
+        props: ['part'],
+        setup(props) {
+          return () => h('p', props.part.input?.id)
+        },
+      }),
+      getPersonalGuitarPreference: defineComponent({
+        props: ['part'],
+        setup(props) {
+          return () => h('p', props.part.output?.preference)
+        },
+      }),
+      addToWishList: defineComponent({
+        props: ['part', 'interrupt'],
+        setup(props) {
+          return () =>
+            h('p', [
+              props.part.input?.guitarId,
+              props.interrupt?.status === 'pending'
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: () => props.interrupt?.resolveInterrupt(true),
+                    },
+                    'Approve',
+                  )
+                : null,
+            ])
+        },
+      }),
+      addToCart: defineComponent({
+        props: ['part', 'interrupt'],
+        setup(props) {
+          return () =>
+            h('p', [
+              props.part.input?.guitarId,
+              props.interrupt?.status === 'pending'
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: () => props.interrupt?.resolveInterrupt(true),
+                    },
+                    'Approve',
+                  )
+                : null,
+            ])
+        },
+      }),
     },
-  }),
-  parts: { fallback: defineComponent(() => () => null) },
-  tools: {
-    recommendGuitar: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('p', props.part.input?.id)
-      },
-    }),
-    getPersonalGuitarPreference: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('p', props.part.output?.preference)
-      },
-    }),
-    addToWishList: defineComponent({
-      props: ['part', 'interrupt'],
-      setup(props) {
-        return () =>
-          h('p', [
-            props.part.input?.guitarId,
-            props.interrupt?.status === 'pending'
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: () => props.interrupt?.resolveInterrupt(true),
-                  },
-                  'Approve',
-                )
-              : null,
-          ])
-      },
-    }),
-    addToCart: defineComponent({
-      props: ['part', 'interrupt'],
-      setup(props) {
-        return () =>
-          h('p', [
-            props.part.input?.guitarId,
-            props.interrupt?.status === 'pending'
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: () => props.interrupt?.resolveInterrupt(true),
-                  },
-                  'Approve',
-                )
-              : null,
-          ])
-      },
-    }),
-  },
   },
 })
 

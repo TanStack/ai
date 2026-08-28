@@ -1,10 +1,6 @@
 import { createChatHook } from '@tanstack/ai-react/ui'
 import { chatOptions } from '@/chat/options'
-import {
-  chatContext,
-  interruptContext,
-  partContext,
-} from '@/chat/ui-context'
+import { chatContext, interruptContext, partContext } from '@/chat/ui-context'
 import { BookStayApproval, BookStayTool } from './book-stay-tool'
 import { ConfirmPaymentTool } from './confirm-payment-tool'
 import { ChatPromptInput } from './input'

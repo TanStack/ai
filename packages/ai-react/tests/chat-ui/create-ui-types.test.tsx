@@ -81,7 +81,9 @@ it('types tool and interrupt component props from chatOptions', () => {
     expectTypeOf(chat).toMatchTypeOf<ChatUIHost<typeof chatOptions>>()
     expectTypeOf(chat.sendMessage).toBeFunction()
     expectTypeOf(chat.AppChat).not.toBeAny()
-    expectTypeOf<ComponentProps<typeof chat.AppChat>>().not.toHaveProperty('chat')
+    expectTypeOf<ComponentProps<typeof chat.AppChat>>().not.toHaveProperty(
+      'chat',
+    )
 
     const message = chat.messages[0]
     if (message?.role === 'assistant') {

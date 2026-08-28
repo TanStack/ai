@@ -134,10 +134,9 @@ export type UIDescriptor<TOptions = unknown> = {
   warn: (key: string, message: string) => void
   components: ChatUIComponents<TOptions>
   useChatContext: () => ChatUIHost<TOptions>
-  usePartContext: <TKey extends ChatUIPartKey = ChatUIPartKey>() => ChatUISelectedPartOf<
-    TOptions,
-    TKey
-  >
+  usePartContext: <
+    TKey extends ChatUIPartKey = ChatUIPartKey,
+  >() => ChatUISelectedPartOf<TOptions, TKey>
   useInterruptContext: <
     TName extends ChatUIInterruptName<TOptions> = ChatUIInterruptName<TOptions>,
   >() => ChatUIInterruptOf<TOptions, TName>
@@ -274,7 +273,9 @@ function renderSelectedPart(
  */
 export function createChatHookContexts() {
   const chatKey = Symbol('tanstack-ai-ui-chat') as InjectionKey<ChatUIHost<any>>
-  const partKey = Symbol('tanstack-ai-ui-part') as InjectionKey<ChatUISelectedPart>
+  const partKey = Symbol(
+    'tanstack-ai-ui-part',
+  ) as InjectionKey<ChatUISelectedPart>
   const interruptKey = Symbol(
     'tanstack-ai-ui-interrupt',
   ) as InjectionKey<ChatUIInterrupt>
@@ -300,12 +301,7 @@ export function createChatUI<const TOptions>(
   config: ChatUIFactoryConfig<NoInfer<TOptions>>,
 ): UIDescriptor<TOptions> {
   void options
-  const {
-    chatKey,
-    partKey,
-    interruptKey,
-    ...components
-  } = config
+  const { chatKey, partKey, interruptKey, ...components } = config
   const ui: UIRuntime<TOptions> = {
     key:
       chatKey ??
@@ -334,7 +330,8 @@ export function createChatUI<const TOptions>(
       return selected as ChatUISelectedPartOf<TOptions, TKey>
     },
     useInterruptContext<
-      TName extends ChatUIInterruptName<TOptions> = ChatUIInterruptName<TOptions>,
+      TName extends ChatUIInterruptName<TOptions> =
+        ChatUIInterruptName<TOptions>,
     >() {
       const interrupt = inject(ui.interruptKey)
       if (!interrupt) {
@@ -348,7 +345,10 @@ export function createChatUI<const TOptions>(
   return ui
 }
 
-function resolveComponents(ui: UIDescriptor<any>, components?: VueChatUIComponents) {
+function resolveComponents(
+  ui: UIDescriptor<any>,
+  components?: VueChatUIComponents,
+) {
   return components ?? (ui.components as VueChatUIComponents)
 }
 

@@ -100,12 +100,8 @@ describe('Vue createChatUI', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([unknownToolMessage])
-    await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat })),
-    )
-    await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat })),
-    )
+    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
+    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
     expect(
       warn.mock.calls.filter((call) =>
         String(call[0]).includes('[tanstack-ai-ui]'),

@@ -1,6 +1,10 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { createChatUI } from '../../src/chat-ui/create-ui'
-import type { ChatUIHost, InterruptProps, ToolProps } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIHost,
+  InterruptProps,
+  ToolProps,
+} from '../../src/chat-ui/create-ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
 
 describe('Svelte createChatUI types', () => {
