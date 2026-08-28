@@ -945,8 +945,10 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
   /** Transported compaction CUSTOM events, replayed when a panel opens. */
-  private lastCompactionEvents: Array<{ eventType: string; value: unknown }> =
-    []
+  private readonly lastCompactionEvents: Array<{
+    eventType: string
+    value: unknown
+  }> = []
   /** Last transported `skills:state` value, replayed when a panel opens. */
   private lastSkillsStateValue: unknown = null
 
