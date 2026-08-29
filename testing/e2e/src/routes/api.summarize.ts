@@ -10,6 +10,7 @@ import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
 import { grokVertexSummarize } from '@tanstack/ai-grok/vertex'
 import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
+import { createOrcaRouterSummarize } from '@tanstack/ai-orcarouter'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { createLovableSummarize } from '@tanstack/ai-lovable'
@@ -99,6 +100,11 @@ function createSummarizeAdapter(
       }),
     llmgateway: () =>
       createLLMGatewaySummarize('gpt-5.6-terra', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    orcarouter: () =>
+      createOrcaRouterSummarize('openai/gpt-5.5-pro', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

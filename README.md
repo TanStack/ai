@@ -205,6 +205,7 @@ Official adapters include:
 | Package                                                                              | Use it for                                                                     |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
 | [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking         |
+| [`@tanstack/ai-orcarouter`](https://tanstack.com/ai/latest/docs/adapters/orcarouter) | OrcaRouter chat, tool calling, and structured outputs with adaptive routing, failover, and gateway security |
 | [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools |
 | [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, structured outputs, and Vertex Claude  |
 | [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                        |

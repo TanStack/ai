@@ -30,6 +30,7 @@
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
     "@tanstack/ai-llmgateway": "workspace:*",
+    "@tanstack/ai-orcarouter": "workspace:*",
     "@tanstack/ai-lovable": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-memory": "workspace:*",

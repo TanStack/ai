@@ -929,6 +929,11 @@
           "addedAt": "2026-07-29"
         },
         {
+          "label": "OrcaRouter Adapter",
+          "to": "adapters/orcarouter",
+          "addedAt": "2026-08-29"
+        },
+        {
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
