@@ -2579,6 +2579,136 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('round-trips a reasoning item id with its function_call (#1212)', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_required_1',
+            summary: [],
+          },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'Need the weather tool.',
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_rs',
+            call_id: 'call_rs',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_rs',
+          output_index: 1,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_required_1',
+                summary: [
+                  { type: 'summary_text', text: 'Need the weather tool.' },
+                ],
+              },
+              {
+                type: 'function_call',
+                id: 'fc_item_rs',
+                call_id: 'call_rs',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_rs',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondInput = mockResponsesCreate.mock.calls[1]![0].input as Array<{
+        type: string
+        id?: string
+      }>
+      const reasoningIndex = secondInput.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_required_1',
+      )
+      const functionCallIndex = secondInput.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_item_rs',
+      )
+      expect(reasoningIndex).toBeGreaterThanOrEqual(0)
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+      expect(secondInput[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_required_1',
+        summary: [{ type: 'summary_text', text: 'Need the weather tool.' }],
+      })
+    })
+
     it('converts a multimodal tool result to a structured function_call_output', async () => {
       const streamChunks = [
         {

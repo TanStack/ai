@@ -837,6 +837,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
+    // Responses pairs a function_call with the preceding reasoning item.
+    // The next turn must send that item back or the API 400s (#1212).
+    let reasoningItemId: string | undefined
+    const captureReasoningItemId = (item: { type?: string; id?: string }) => {
+      if (item.type === 'reasoning' && item.id) {
+        reasoningItemId = item.id
+      }
+    }
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
     // cuts off without a response.completed event.
@@ -899,12 +907,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model: currentModel,
           timestamp,
           content: accumulatedReasoning,
+          ...(reasoningItemId && { signature: reasoningItemId }),
         }
       }
       reasoningMessageId = undefined
       stepId = null
       hasClosedReasoning = false
       accumulatedReasoning = ''
+      reasoningItemId = undefined
     }
 
     const emitReasoningDelta = function* (
@@ -997,6 +1007,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           hasEmittedTextMessageStart = false
           reasoningMessageId = undefined
           hasClosedReasoning = false
+          reasoningItemId = undefined
           stepId = null
           accumulatedContent = ''
           accumulatedReasoning = ''
@@ -1224,6 +1235,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
+          captureReasoningItemId(item)
           if (item.type === 'function_call' && item.id) {
             // Track the item as soon as we see it so subsequent arg deltas
             // aren't logged as orphans, but only emit TOOL_CALL_START when
@@ -1388,6 +1400,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // whose START + END therefore never fired).
         if (chunk.type === 'response.output_item.done') {
           const item = chunk.item
+          captureReasoningItemId(item)
           if (item.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
@@ -1510,6 +1523,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // below still routes the run's finishReason to 'tool_calls' —
           // leaving consumers waiting for tool results they never saw start.
           for (const item of chunk.response.output) {
+            captureReasoningItemId(item)
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
@@ -1832,6 +1846,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        // Replay reasoning items before the function_call they belong to.
+        // A reasoning model stamps `id: rs_…` on the thinking signature;
+        // omitting that item is a 400 (#1212).
+        for (const thinking of message.thinking ?? []) {
+          if (!thinking.signature) continue
+          result.push({
+            type: 'reasoning',
+            id: thinking.signature,
+            summary: thinking.content
+              ? [{ type: 'summary_text', text: thinking.content }]
+              : [],
+          })
+        }
+
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
         if (message.toolCalls && message.toolCalls.length > 0) {
