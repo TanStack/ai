@@ -122,7 +122,7 @@ AWS_SESSION_TOKEN=...   # optional, for temporary credentials
 | `defaultHeaders` | `Record<string, string>` | none | Headers sent with every request |
 | `endpoint` | `'runtime' \| 'mantle'` | `'runtime'` | Bedrock endpoint to target (Chat Completions path only) |
 
-The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. On mantle, Gemma models use `/openai/v1` and other models use `/v1`. The Responses API always targets mantle.
+The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. On mantle, Gemma 4 models use `/openai/v1` and other models (including Gemma 3) use `/v1`. The Responses API always targets mantle.
 
 ## Behind a proxy
 
