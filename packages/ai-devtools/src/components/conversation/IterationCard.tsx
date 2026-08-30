@@ -169,6 +169,9 @@ const MiddlewareStep: Component<{
     if (ev().wasDropped) return 'DROP'
     if (ev().hookName === 'onChunk' && ev().hasTransform) return 'TRANSFORM'
     if (ev().hookName === 'onConfig' && ev().hasTransform) return 'TRANSFORM'
+    if (ev().hookName === 'onCompactStart') return 'START'
+    if (ev().hookName === 'onCompact') return 'COMPACT'
+    if (ev().hookName === 'onCompactEnd') return 'END'
     if (ev().hookName === 'onBeforeToolCall' && ev().hasTransform)
       return 'DECISION'
     return null
@@ -181,7 +184,13 @@ const MiddlewareStep: Component<{
 
   return (
     <>
-      <div class={s().step}>
+      <div
+        class={s().step}
+        style={hasChanges() ? { cursor: 'pointer' } : undefined}
+        onClick={() => {
+          if (hasChanges()) setExpanded(!expanded())
+        }}
+      >
         <span class={`${s().stepPrefix} ${s().stepPrefixMiddleware}`}>
           Middleware
         </span>
@@ -196,10 +205,7 @@ const MiddlewareStep: Component<{
           <span class={s().mwSuffix}>{suffix()}</span>
         </Show>
         <Show when={hasChanges()}>
-          <span
-            class={s().stepExpandToggle}
-            onClick={() => setExpanded(!expanded())}
-          >
+          <span class={s().stepExpandToggle}>
             {expanded() ? 'hide changes' : 'show changes'}
           </span>
         </Show>

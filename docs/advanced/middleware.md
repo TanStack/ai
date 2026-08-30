@@ -157,13 +157,18 @@ const dynamicTemperature: ChatMiddleware = {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | `ModelMessage[]` | Conversation history |
+| `messages` | `ModelMessage[]` | Canonical conversation history. Persistence and `ctx.messages` use this field. |
+| `providerMessages` | `ModelMessage[]` | Temporary context sent to the provider. Defaults to `messages`. |
 | `systemPrompts` | `string[]` | System prompts |
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+
+Return `providerMessages` when a transform must affect only the model call. For
+compatibility, returning `messages` also updates provider input unless the same
+result sets `providerMessages` explicitly.
 
 ### onStructuredOutputConfig
 
@@ -195,7 +200,8 @@ const injectDefs: ChatMiddleware = {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | `ModelMessage[]` | Conversation history sent to the final call |
+| `messages` | `ModelMessage[]` | Canonical conversation history |
+| `providerMessages` | `ModelMessage[]` | Temporary context sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
@@ -686,6 +692,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
+| `emitCustomEvent(name, value)` | `function` | Push a `CUSTOM` chunk onto the chat stream now. The engine yields it while the current hook is still running, including during `onConfig`. |
 | `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
 
@@ -968,6 +975,32 @@ See [Built-in Middleware](./built-in-middleware) for full options and examples f
 
 ## Recipes
 
+### Live custom events
+
+A long `onConfig` hook can send progress to the client while it waits. Call `ctx.emitCustomEvent` when the work starts, then again when it finishes:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+async function prepare() {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 1);
+  });
+}
+
+const progress: ChatMiddleware = {
+  name: "progress",
+  async onConfig(ctx) {
+    if (ctx.phase !== "beforeModel") return;
+    ctx.emitCustomEvent("job:started", { step: "prepare" });
+    await prepare();
+    ctx.emitCustomEvent("job:ended", { step: "prepare" });
+  },
+};
+```
+
+The engine yields each `CUSTOM` chunk as soon as you call `emitCustomEvent`. If `RUN_STARTED` is not on the wire yet, the engine sends it first. Read these events on the client the same way as tool `emitCustomEvent` calls. See [Custom Events](../protocol/custom-events).
+
 ### Rate Limiting
 
 Limit the number of tool calls per request:
@@ -1140,6 +1173,7 @@ import type {
 ## Next Steps
 
 - [Built-in Middleware](./built-in-middleware) — `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
+- [Compaction](./compaction): keep long chats under the context limit with `withCompaction`
 - [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`- [Tools](../tools/tools) — Learn about the isomorphic tool system
 - [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
 - [Streaming](../chat/streaming) — How streaming works in TanStack AI

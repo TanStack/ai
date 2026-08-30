@@ -24,6 +24,7 @@
     "@tanstack/ai-byteplus": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-compaction": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",

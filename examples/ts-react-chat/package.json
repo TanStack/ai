@@ -27,6 +27,7 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",
+    "@tanstack/ai-compaction": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",

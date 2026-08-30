@@ -264,6 +264,7 @@ export function makeMiddlewareCtx(input: {
     chunkIndex: 0,
     signal: controller.signal,
     abort: (reason) => controller.abort(reason),
+    emitCustomEvent: () => {},
     context: {},
     defer: () => {},
     activity: 'chat',

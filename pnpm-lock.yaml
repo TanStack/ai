@@ -697,6 +697,9 @@ importers:
       '@tanstack/ai-codex':
         specifier: workspace:*
         version: link:../../packages/ai-codex
+      '@tanstack/ai-compaction':
+        specifier: workspace:*
+        version: link:../../packages/ai-compaction
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs
@@ -1788,6 +1791,15 @@ importers:
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
+  packages/ai-compaction:
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
 
   packages/ai-devtools:
     dependencies:
@@ -2952,6 +2964,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/ai-client
+      '@tanstack/ai-compaction':
+        specifier: workspace:*
+        version: link:../../packages/ai-compaction
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs
@@ -3103,6 +3118,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/ai-client
+      '@tanstack/ai-compaction':
+        specifier: workspace:*
+        version: link:../../packages/ai-compaction
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../../packages/ai-event-client

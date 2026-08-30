@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-cloudflare",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "Cloudflare sandbox provider for TanStack AI — run harness adapters inside Cloudflare Containers (edge) through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
