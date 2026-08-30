@@ -1,0 +1,14 @@
+{
+  "name": "@tanstack/ai-cli-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "vitest run",
+    "test:e2e:dev": "vitest"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tanstack/ai-cli": "workspace:*",
+    "vitest": "^4.0.14"
+  }
+}
