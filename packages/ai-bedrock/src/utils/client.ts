@@ -27,9 +27,9 @@ const DEFAULT_REGION = 'us-east-1'
 /** OpenAI SDK requires a non-empty apiKey even when a signed fetch overrides Authorization. */
 const SIGV4_PLACEHOLDER_KEY = 'bedrock-sigv4'
 
-/** Gemma on mantle is served at `/openai/v1`, not `/v1` (AWS model card). */
+/** Gemma 4 on mantle is served at `/openai/v1`. Gemma 3 stays on `/v1`. */
 function mantlePathForModel(model: string | undefined): string {
-  return typeof model === 'string' && model.startsWith('google.gemma-')
+  return typeof model === 'string' && model.startsWith('google.gemma-4-')
     ? '/openai/v1'
     : '/v1'
 }

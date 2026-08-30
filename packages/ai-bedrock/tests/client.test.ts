@@ -29,7 +29,7 @@ describe('withBedrockDefaults', () => {
     expect(out.baseURL).toBe('https://bedrock-mantle.eu-west-1.api.aws/v1')
   })
 
-  it('uses /openai/v1 on mantle for google.gemma-* (#925)', () => {
+  it('uses /openai/v1 on mantle for google.gemma-4-* (#925)', () => {
     const out = withBedrockDefaults(
       { apiKey: 'k', region: 'eu-central-1', endpoint: 'mantle' },
       undefined,
@@ -38,6 +38,15 @@ describe('withBedrockDefaults', () => {
     expect(out.baseURL).toBe(
       'https://bedrock-mantle.eu-central-1.api.aws/openai/v1',
     )
+  })
+
+  it('keeps /v1 on mantle for google.gemma-3-*', () => {
+    const out = withBedrockDefaults(
+      { apiKey: 'k', region: 'eu-central-1', endpoint: 'mantle' },
+      undefined,
+      'google.gemma-3-12b-it',
+    )
+    expect(out.baseURL).toBe('https://bedrock-mantle.eu-central-1.api.aws/v1')
   })
 
   it('keeps /v1 on mantle for other models', () => {
