@@ -2,27 +2,23 @@
   import UIProvider from './ui-provider.svelte'
   import UIMessages from './ui-messages.svelte'
   import UIInterrupts from './ui-interrupts.svelte'
-  import type { ChatUIComponents, UIDescriptor } from './create-ui'
+  import { createDescriptor, type ChatUIComponents } from './create-ui'
 
   let {
-    ui,
     chat,
     components,
   }: {
-    ui: UIDescriptor
-    // ponytail: Svelte components are not generic, so ChatUIHost<TOptions> cannot
-    // accept a typed createChat() host with tool-approval interrupts.
     chat: any
-    components?: ChatUIComponents<unknown>
+    components: ChatUIComponents<unknown>
   } = $props()
 
-  const bound = $derived(components ?? ui.components)
-  const Layout = $derived(bound.layout as any)
-  const Input = $derived(bound.input as any)
+  const ui = createDescriptor(components)
+  const Layout = $derived(components.layout as any)
+  const Input = $derived(components.input as any)
 </script>
 
-<UIProvider {ui} {chat} components={bound}>
-  <Layout>
+<UIProvider {ui} {chat} {components}>
+  <Layout {chat}>
     {#snippet messages()}
       <UIMessages {ui} />
     {/snippet}
@@ -31,7 +27,7 @@
     {/snippet}
     {#snippet input()}
       {#if Input}
-        <Input />
+        <Input {chat} />
       {/if}
     {/snippet}
   </Layout>

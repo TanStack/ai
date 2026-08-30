@@ -9,7 +9,6 @@ import {
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
 import type { chatOptions } from '@/chat/options'
-import { useChatContext } from './ui-components'
 
 const LISBON_PHOTO =
   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80'
@@ -35,11 +34,11 @@ const PROMPTS: Array<{ label: string; content?: Array<ContentPart> }> = [
 ]
 
 export function ChatLayout({
+  chat,
   renderMessages,
   renderInterrupts,
   renderInput,
 }: LayoutProps<typeof chatOptions>) {
-  const chat = useChatContext()
   if (chat.error) {
     return <p className="p-6 text-sm text-destructive">{chat.error.message}</p>
   }

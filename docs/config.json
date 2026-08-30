@@ -219,31 +219,31 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "Svelte",
           "to": "ui/svelte",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "Custom Adapters",
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-08-30"
         }
       ]
     },
@@ -889,7 +889,7 @@
           "label": "Chat UI packages",
           "to": "migration/create-ui",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-28"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "From Vercel AI SDK",

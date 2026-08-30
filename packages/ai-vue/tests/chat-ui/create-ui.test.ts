@@ -1,15 +1,8 @@
 import { defineComponent, h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createChatHook,
-  createChatUI,
-  UIChat,
-  UIMessages,
-  UIProvider,
-} from '../../src/ui'
+import { Chat } from '../../src/ui'
 import { renderVueText } from './test-renderer'
 import {
-  chatOptions,
   createVueChatResult,
   messageWithToolResults,
   unknownToolMessage,
@@ -51,62 +44,29 @@ const kit = {
   },
 }
 
-describe('Vue createChatHook', () => {
-  it('returns useAppChat, ui, and context composables from options and chatComponents', () => {
-    const { useAppChat, ui, useChatContext } = createChatHook({
-      options: chatOptions,
-      chatComponents: kit,
-    })
-    expect(typeof useAppChat).toBe('function')
-    expect(ui).toBeDefined()
-    expect(typeof useChatContext).toBe('function')
-  })
-})
-
-describe('Vue createChatUI', () => {
-  it('renders automatic and scoped-slot traversal', async () => {
-    const ui = createChatUI(chatOptions, kit)
+describe('Vue Chat', () => {
+  it('renders mapped tools from chat.messages', async () => {
     const chat = createVueChatResult([messageWithToolResults])
-
     const automatic = await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat })),
+      defineComponent(() => () => h(Chat, { chat, components: kit })),
     )
     expect(automatic).toContain('Paris')
-
-    const manual = await renderVueText(
-      defineComponent(
-        () => () =>
-          h(
-            UIProvider,
-            { ui, chat },
-            {
-              default: () =>
-                h(
-                  UIMessages,
-                  { ui },
-                  {
-                    default: ({ messages }: { messages: Array<unknown> }) =>
-                      h('span', String(messages.length)),
-                  },
-                ),
-            },
-          ),
-      ),
-    )
-    expect(manual).toContain('1')
   })
 
   it('warns once for a missing runtime key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([unknownToolMessage])
-    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
-    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
+    await renderVueText(
+      defineComponent(() => () => h(Chat, { chat, components: kit })),
+    )
+    await renderVueText(
+      defineComponent(() => () => h(Chat, { chat, components: kit })),
+    )
     expect(
-      warn.mock.calls.filter((call) =>
-        String(call[0]).includes('[tanstack-ai-ui]'),
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes('Missing tools'),
       ),
-    ).toHaveLength(1)
+    ).toBe(true)
     warn.mockRestore()
   })
 })

@@ -5,7 +5,7 @@ order: 5
 description: "Build a framework adapter on @tanstack/ai-client/ui. The core is types and selectors only."
 keywords:
   - tanstack ai
-  - createChatUI
+  - Chat
   - custom adapter
   - headless ui
 ---
@@ -20,15 +20,15 @@ The subpath gives you:
 
 Your adapter owns:
 
-1. Native components and context
+1. Native components
 2. Native reactivity
 3. Render callbacks, slots, or snippets
 4. Development warnings for missing mapped keys
 
-Do not add default markup. Do not add a new store. The app owns `useAppChat` from `createChatHook`, or `useChat` / `createChat`.
+Do not add default markup. Do not add a new store. The app owns `useChat` or `createChat`.
 
 Call `selectChatUI({ messages, interrupts, inlineToolNames })`. Automatic traversal skips a `tool-result` only when `matched` is true. Keep unmatched results.
 
-Warn once per missing runtime key in development. Each build tool detects development mode differently, so the adapter prints the warning.
+Warn once per missing runtime key in development.
 
-See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters for the public names to match: `Chat`, `Provider`, `Messages`, `Message`, `Part`, `Interrupts`, `Interrupt`, `useChatContext`, and `createChatHookContexts`.
+See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters. The public names to match are `Chat` and `ChatUIComponents`.

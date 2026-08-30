@@ -1,26 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  Chat,
-  ChatInput,
-  ChatMessage,
-  ChatMessages,
-  TextPart,
-  ThinkingPart,
-  createChatUI,
-  createChatHook,
-  createChatHookContexts,
-} from '../../src/ui'
+import { Chat, useChatContext } from '../../src/ui'
+import { createChatHook } from '../../src/create-chat-hook'
 
 describe('public coexistence', () => {
-  it('exports old and new APIs before 1.0', () => {
+  it('exports Chat UI and the options-only createChatHook', () => {
     expect(Chat).toBeDefined()
-    expect(ChatInput).toBeDefined()
-    expect(ChatMessage).toBeDefined()
-    expect(ChatMessages).toBeDefined()
-    expect(TextPart).toBeDefined()
-    expect(ThinkingPart).toBeDefined()
-    expect(createChatUI).toBeDefined()
+    expect(useChatContext).toBeDefined()
     expect(createChatHook).toBeDefined()
-    expect(createChatHookContexts).toBeDefined()
   })
 })

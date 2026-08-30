@@ -2,28 +2,26 @@
 title: Solid Chat UI
 id: typed-headless-ui-solid
 order: 2
-description: "Build a typed, headless Solid chat UI with createChatHook. Accessors stay tracked."
+description: "Render a typed chat tree with Chat and a component map. Keep accessors tracked."
 keywords:
   - tanstack ai
-  - createChatHook
+  - Chat
   - solid
   - headless ui
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. Your app calls `useAppChat()` to create the instance. Render `<chat.AppChat />`. Do not destructure reactive props.
+Install `@tanstack/ai-solid`. Import `Chat` from `@tanstack/ai-solid/ui`. Call `useChat(chatOptions)` in the screen. Pass a module-level `components` object into `Chat`. Do not destructure reactive props.
 
 > **Deprecated.** Do not install `@tanstack/ai-solid-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
-
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
 ## Client
 
 ```tsx
-import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatHook } from '@tanstack/ai-solid/ui'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import { Chat, type ChatUIComponents } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -39,9 +37,7 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const { useAppChat } = createChatHook({
-  options: chatOptions,
-  chatComponents: {
+const components = {
   layout: (props) => (
     <>
       {props.renderMessages()}
@@ -56,103 +52,12 @@ const { useAppChat } = createChatHook({
   tools: {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,
   },
-  },
-})
+} satisfies ChatUIComponents<typeof chatOptions>
 
 export function Support() {
-  const chat = useAppChat({ threadId: 'support-1' })
-  return <chat.AppChat />
+  const chat = useChat(chatOptions)
+  return <Chat chat={chat} components={components} />
 }
 ```
 
-## Type a component in its own file
-
-Use `ToolProps` the same way as React. Keep the `props` object so Solid can track it.
-
-```tsx
-import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatHook, type ToolProps } from '@tanstack/ai-solid/ui'
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
-
-const getWeather = toolDefinition({
-  name: 'getWeather',
-  description: 'Look up weather',
-  inputSchema: z.object({ city: z.string() }),
-  outputSchema: z.object({ temperature: z.number() }),
-}).client()
-
-const chatOptions = {
-  connection: fetchServerSentEvents('/api/chat'),
-  tools: [getWeather],
-}
-
-export function WeatherTool(
-  props: ToolProps<typeof chatOptions, 'getWeather'>,
-) {
-  return <strong>{props.part.input?.city}</strong>
-}
-
-export const { useAppChat } = createChatHook({
-  options: chatOptions,
-  chatComponents: {
-    layout: (props) => props.renderMessages(),
-    message: (props) => <article>{props.renderParts()}</article>,
-    parts: { fallback: () => null },
-    tools: { getWeather: WeatherTool },
-  },
-})
-```
-
-Part components use `PartProps<typeof chatOptions, 'text'>`. Then `part` is already a text part.
-
-Interrupt components use `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` matches the definition.
-
-Mapped components do not receive `chat` as a prop. Call `useChatContext()` when a component needs live chat. That call opts the component into chat updates. Nested children can call it too.
-
-## Read chat from `useChatContext()`
-
-```tsx
-import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatHook } from '@tanstack/ai-solid/ui'
-
-const chatOptions = {
-  connection: fetchServerSentEvents('/api/chat'),
-}
-
-function StatusLine() {
-  const chat = useChatContext()
-  return <p>{chat.messages.length} messages</p>
-}
-
-const { useAppChat, useChatContext } = createChatHook({
-  options: chatOptions,
-  chatComponents: {
-    layout: (props) => (
-      <>
-        <StatusLine />
-        {props.renderMessages()}
-      </>
-    ),
-    message: (props) => <article>{props.renderParts()}</article>,
-    parts: { fallback: () => null },
-  },
-})
-
-export function ChatScreen() {
-  const chat = useAppChat()
-  return <chat.AppChat />
-}
-```
-
-Call `useChatContext()` only inside `AppChat` or `Provider`.
-
-## Interrupts
-
-Tool approvals sit in the tool when you read `props.interrupt`. Put a component on `interrupts.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
-
-The full map is on the [React page](./react).
-
-Manual list: `<UI.Messages>{(messages) => <span>{messages().length}</span>}</UI.Messages>`.
-
-Pass `props.chat`, `props.part`, and `props.renderParts()` without destructure.
+Use `ToolProps` the same way as React. Keep the `props` object so Solid can track it. `layout` and `input` receive `chat` as a prop. Nested children can call `useChatContext()` inside `Chat`.

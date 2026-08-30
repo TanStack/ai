@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { UIChat } from '../../../src/ui'
-  import { chat, components, ui } from './fixture-data'
+  import { Chat } from '../../../src/ui'
+  import { chat, components } from './fixture-data'
 </script>
 
-<UIChat {ui} {chat} {components} />
+<Chat {chat} {components} />

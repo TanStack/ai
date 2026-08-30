@@ -1,10 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { createChatUI } from '../../src/chat-ui/create-ui'
-import { createChatHook } from '../../src/chat-ui/create-chat-hook'
-import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts'
+import { Chat, useChatContext } from '../../src/chat-ui/create-ui'
 import type {
-  ChatUIFactoryConfig,
+  ChatUIComponents,
   ChatUIHost,
 } from '../../src/chat-ui/create-ui'
 import {
@@ -28,7 +26,7 @@ function host(
   >
 }
 
-const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
+const baseComponents: ChatUIComponents<typeof chatOptions> = {
   layout: ({ renderMessages, renderInterrupts, renderInput }) => (
     <>
       {renderMessages()}
@@ -50,154 +48,115 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
   },
 }
 
-function makeUI(
-  patch?: Partial<ChatUIFactoryConfig<typeof chatOptions>> & {
-    parts?: ChatUIFactoryConfig<typeof chatOptions>['parts']
-    tools?: ChatUIFactoryConfig<typeof chatOptions>['tools']
-    interrupts?: ChatUIFactoryConfig<typeof chatOptions>['interrupts']
-    input?: ChatUIFactoryConfig<typeof chatOptions>['input']
-    layout?: ChatUIFactoryConfig<typeof chatOptions>['layout']
-    message?: ChatUIFactoryConfig<typeof chatOptions>['message']
+function render(
+  chat: ChatUIHost<typeof chatOptions>,
+  patch?: Partial<ChatUIComponents<typeof chatOptions>> & {
+    parts?: ChatUIComponents<typeof chatOptions>['parts']
+    tools?: ChatUIComponents<typeof chatOptions>['tools']
+    interrupts?: ChatUIComponents<typeof chatOptions>['interrupts']
   },
 ) {
-  return createChatUI(chatOptions, {
-    ...baseConfig,
+  const components: ChatUIComponents<typeof chatOptions> = {
+    ...baseComponents,
     ...patch,
-    parts: { ...baseConfig.parts, ...patch?.parts },
-    tools: { ...baseConfig.tools, ...patch?.tools },
+    parts: { ...baseComponents.parts, ...patch?.parts },
+    tools: { ...baseComponents.tools, ...patch?.tools },
     interrupts: {
       tools: {
-        ...baseConfig.interrupts.tools,
+        ...baseComponents.interrupts.tools,
         ...patch?.interrupts?.tools,
       },
       generic: {
-        ...baseConfig.interrupts.generic,
+        ...baseComponents.interrupts.generic,
         ...patch?.interrupts?.generic,
       },
     },
-  })
+  }
+  return renderToStaticMarkup(<Chat chat={chat} components={components} />)
 }
 
-describe('createChatHook', () => {
-  it('mixes AppChat onto the instance from options and chatComponents', () => {
-    const { useAppChat, useChatContext } = createChatHook({
-      options: chatOptions,
-      chatComponents: baseConfig,
-    })
-    expect(typeof useAppChat).toBe('function')
-    expect(typeof useChatContext).toBe('function')
-
-    function Screen() {
-      const chat = useAppChat({
-        initialMessages: [messageWithToolResults] as ChatUIHost<
-          typeof chatOptions
-        >['messages'],
-      })
-      return <chat.AppChat />
-    }
-
-    const markup = renderToStaticMarkup(<Screen />)
-    expect(markup).toContain('<strong>Paris</strong>')
-  })
-})
-
-describe('createChatUI', () => {
-  it('renders automatic and manual trees', () => {
-    const UI = makeUI()
-    const chat = host({ messages: [messageWithToolResults] })
-    const automatic = renderToStaticMarkup(<UI.Chat chat={chat} />)
-    expect(automatic).toContain('<strong>Paris</strong>')
-
-    const manual = renderToStaticMarkup(
-      <UI.Provider chat={chat}>
-        <UI.Messages>
-          {(messages) => <span>{messages.length}</span>}
-        </UI.Messages>
-      </UI.Provider>,
+describe('Chat', () => {
+  it('renders mapped tools from chat.messages', () => {
+    expect(render(host({ messages: [messageWithToolResults] }))).toContain(
+      '<strong>Paris</strong>',
     )
-    expect(manual).toContain('<span>1</span>')
   })
 
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = makeUI()
     const chat = host({ messages: [unknownToolMessage] })
-    renderToStaticMarkup(<UI.Chat chat={chat} />)
-    renderToStaticMarkup(<UI.Chat chat={chat} />)
+    render(chat)
+    render(chat)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {
-    const UI = makeUI({
-      parts: {
-        toolResult: ({ part }) =>
-          part.type === 'tool-result' ? <em>{String(part.content)}</em> : null,
-        fallback: () => null,
-      },
+    const parts = {
+      toolResult: ({ part }: { part: { type: string; content?: unknown } }) =>
+        part.type === 'tool-result' ? <em>{String(part.content)}</em> : null,
+      fallback: () => null,
+    }
+    const matched = render(host({ messages: [messageWithToolResults] }), {
+      parts,
       tools: {
         getWeather: () => <strong>weather</strong>,
         purchaseItem: () => null,
       },
     })
-
-    const matched = renderToStaticMarkup(
-      <UI.Chat chat={host({ messages: [messageWithToolResults] })} />,
-    )
     expect(matched).toContain('<strong>weather</strong>')
     expect(matched).not.toContain('<em>')
 
-    const unmatched = renderToStaticMarkup(
-      <UI.Chat chat={host({ messages: [orphanResultMessage] })} />,
-    )
+    const unmatched = render(host({ messages: [orphanResultMessage] }), {
+      parts,
+      tools: {
+        getWeather: () => <strong>weather</strong>,
+        purchaseItem: () => null,
+      },
+    })
     expect(unmatched).toContain('<em>standalone</em>')
   })
 
-  it('puts list approvals in Interrupts when interrupts.tools has the tool', () => {
-    const UI = makeUI({
-      tools: {
-        getWeather: () => null,
-        purchaseItem: () => <div>tool</div>,
-      },
-      interrupts: {
+  it('puts list approvals in the interrupt list when interrupts.tools has the tool', () => {
+    const markup = render(
+      host({
+        messages: [purchaseApprovalMessage],
+        interrupts: [purchaseApprovalInterrupt],
+      }),
+      {
         tools: {
-          purchaseItem: () => <b>list-approval</b>,
+          getWeather: () => null,
+          purchaseItem: () => <div>tool</div>,
         },
-        generic: { choosePlan: () => null, fallback: () => null },
+        interrupts: {
+          tools: {
+            purchaseItem: () => <b>list-approval</b>,
+          },
+          generic: { choosePlan: () => null, fallback: () => null },
+        },
       },
-    })
-
-    const listMarkup = renderToStaticMarkup(
-      <UI.Chat
-        chat={host({
-          messages: [purchaseApprovalMessage],
-          interrupts: [purchaseApprovalInterrupt],
-        })}
-      />,
     )
-    expect(listMarkup).toContain('list-approval')
-    expect(listMarkup).toContain('tool')
+    expect(markup).toContain('list-approval')
+    expect(markup).toContain('tool')
   })
 
   it('lets a tool render its approval from interrupt without a registered interrupt component', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = makeUI({
-      tools: {
-        getWeather: () => null,
-        purchaseItem: ({ interrupt }) =>
-          interrupt ? <b>{interrupt.toolName}</b> : <span>tool</span>,
+    const markup = render(
+      host({
+        messages: [purchaseApprovalMessage],
+        interrupts: [purchaseApprovalInterrupt],
+      }),
+      {
+        tools: {
+          getWeather: () => null,
+          purchaseItem: ({ interrupt }) =>
+            interrupt ? <b>{interrupt.toolName}</b> : <span>tool</span>,
+        },
+        interrupts: {
+          generic: { choosePlan: () => null, fallback: () => <i>list</i> },
+        },
       },
-      interrupts: {
-        generic: { choosePlan: () => null, fallback: () => <i>list</i> },
-      },
-    })
-    const markup = renderToStaticMarkup(
-      <UI.Chat
-        chat={host({
-          messages: [purchaseApprovalMessage],
-          interrupts: [purchaseApprovalInterrupt],
-        })}
-      />,
     )
     expect(markup).toContain('<b>purchaseItem</b>')
     expect(markup).not.toContain('<i>list</i>')
@@ -210,168 +169,44 @@ describe('createChatUI', () => {
   })
 
   it('renders registered generic interrupts and sends the rest to fallback', () => {
-    const UI = makeUI({
-      layout: ({ renderInterrupts }) => renderInterrupts(),
-      interrupts: {
-        generic: {
-          choosePlan: () => <span>plan</span>,
-          fallback: () => <span>fallback</span>,
+    const markup = render(
+      host({
+        interrupts: [genericInterrupt, unboundInterrupt],
+      }),
+      {
+        layout: ({ renderInterrupts }) => renderInterrupts(),
+        interrupts: {
+          generic: {
+            choosePlan: () => <span>plan</span>,
+            fallback: () => <span>fallback</span>,
+          },
         },
       },
-    })
-
-    const markup = renderToStaticMarkup(
-      <UI.Chat
-        chat={host({
-          interrupts: [genericInterrupt, unboundInterrupt],
-        })}
-      />,
     )
     expect(markup).toContain('plan')
     expect(markup).toContain('fallback')
   })
 
   it('omits input when no input component exists', () => {
-    const UI = makeUI({
+    const markup = render(host({}), {
       layout: ({ renderInput }) => <main>{renderInput()}</main>,
     })
-    const markup = renderToStaticMarkup(<UI.Chat chat={host({})} />)
     expect(markup).toBe('<main></main>')
   })
 
-  it('mixes Input onto the UI kit when one is registered', () => {
-    const UI = makeUI({
-      input: () => <textarea defaultValue="prompt" />,
+  it('passes chat into the input component', () => {
+    const markup = render(host({}), {
+      input: ({ chat }) => <span>{chat.messages.length}</span>,
     })
-    const Input = UI.Input
-    if (!Input) throw new Error('expected Input')
-    const markup = renderToStaticMarkup(
-      <UI.Provider chat={host({})}>
-        <Input />
-      </UI.Provider>,
-    )
-    expect(markup).toContain('prompt')
+    expect(markup).toContain('<span>0</span>')
   })
 
-  it('lets Message children pick a mixed part or tool widget', () => {
-    const UI = makeUI({
-      parts: {
-        fallback: () => <span>fallback</span>,
-        text: ({ part }) =>
-          part.type === 'text' ? <em>{part.content}</em> : null,
-      },
-    })
-    const chat = host({ messages: [messageWithToolResults] })
-    const markup = renderToStaticMarkup(
-      <UI.Provider chat={chat}>
-        <UI.Messages>
-          {(messages) =>
-            messages.map((message) => (
-              <UI.Message key={message.id} message={message}>
-                {(parts) =>
-                  parts.map((part, index) => (
-                    <UI.Part key={index} part={part}>
-                      {(p) =>
-                        part.key === 'toolCall' ? (
-                          <p.getWeather />
-                        ) : (
-                          <p.Render />
-                        )
-                      }
-                    </UI.Part>
-                  ))
-                }
-              </UI.Message>
-            ))
-          }
-        </UI.Messages>
-      </UI.Provider>,
-    )
-    expect(markup).toContain('<strong>Paris</strong>')
-  })
-
-  it('lets Interrupt children pick a mixed interrupt widget', () => {
-    const UI = makeUI({
-      layout: ({ renderInterrupts }) => renderInterrupts(),
-      interrupts: {
-        generic: {
-          choosePlan: () => <span>plan</span>,
-          fallback: () => <span>fallback</span>,
-        },
-      },
-    })
-    const markup = renderToStaticMarkup(
-      <UI.Provider
-        chat={host({
-          interrupts: [genericInterrupt],
-        })}
-      >
-        <UI.Interrupts>
-          {(interrupts) =>
-            interrupts.map((interrupt) => (
-              <UI.Interrupt key={interrupt.id} interrupt={interrupt}>
-                {(item) => {
-                  const ChoosePlan = item.choosePlan
-                  return <ChoosePlan />
-                }}
-              </UI.Interrupt>
-            ))
-          }
-        </UI.Interrupts>
-      </UI.Provider>,
-    )
-    expect(markup).toContain('plan')
-  })
-
-  it('reads chat from nested provider context and throws outside a provider', () => {
-    const UI = makeUI({
-      layout: () => {
-        const chat = UI.useChatContext()
-        return <p>{chat.messages.length}</p>
-      },
-    })
-
-    const inner = host({ messages: [messageWithToolResults] })
-    const outer = host({ messages: [] })
-    const markup = renderToStaticMarkup(
-      <UI.Provider chat={outer}>
-        <UI.Chat chat={inner} />
-      </UI.Provider>,
-    )
-    expect(markup).toContain('<p>1</p>')
-
+  it('throws useChatContext outside Chat', () => {
     function Broken() {
-      UI.useChatContext()
+      useChatContext()
       return null
     }
     expect(() => renderToStaticMarkup(<Broken />)).toThrow(/useChatContext/)
-  })
-
-  it('isolates nested chats when createChatHookContexts is passed in', () => {
-    const innerContexts = createChatHookContexts()
-    const Outer = makeUI({
-      layout: () => {
-        const chat = Outer.useChatContext()
-        return <p data-outer="">{chat.messages.length}</p>
-      },
-    })
-    const Inner = makeUI({
-      chatContext: innerContexts.chatContext,
-      partContext: innerContexts.partContext,
-      interruptContext: innerContexts.interruptContext,
-      layout: () => {
-        const chat = Inner.useChatContext()
-        return <p data-inner="">{chat.messages.length}</p>
-      },
-    })
-
-    const markup = renderToStaticMarkup(
-      <Outer.Provider chat={host({ messages: [] })}>
-        <Inner.Chat chat={host({ messages: [messageWithToolResults] })} />
-      </Outer.Provider>,
-    )
-    expect(markup).toContain('data-inner')
-    expect(markup).toContain('<p data-inner="">1</p>')
   })
 
   it('renders a tool component for every ToolCallState', () => {
@@ -384,34 +219,31 @@ describe('createChatUI', () => {
       'complete',
       'error',
     ]
-    const UI = makeUI({
-      tools: {
-        getWeather: ({ part }) => <span>{part.state}</span>,
-        purchaseItem: () => null,
-      },
-    })
-
     for (const state of states) {
-      const markup = renderToStaticMarkup(
-        <UI.Chat
-          chat={host({
-            messages: [
-              {
-                id: state,
-                role: 'assistant',
-                parts: [
-                  {
-                    type: 'tool-call',
-                    id: `call-${state}`,
-                    name: 'getWeather',
-                    arguments: '{}',
-                    state,
-                  },
-                ],
-              },
-            ],
-          })}
-        />,
+      const markup = render(
+        host({
+          messages: [
+            {
+              id: state,
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'tool-call',
+                  id: `call-${state}`,
+                  name: 'getWeather',
+                  arguments: '{}',
+                  state,
+                },
+              ],
+            },
+          ],
+        }),
+        {
+          tools: {
+            getWeather: ({ part }) => <span>{part.state}</span>,
+            purchaseItem: () => null,
+          },
+        },
       )
       expect(markup).toContain(`<span>${state}</span>`)
     }

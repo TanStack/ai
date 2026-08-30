@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref } from 'vue'
-import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
+import { Chat } from '@tanstack/ai-vue/ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -85,9 +85,7 @@ const chatOptions = {
 
 const draft = ref('')
 
-const { useAppChat, ui } = createChatHook({
-  options: chatOptions,
-  chatComponents: {
+const chatComponents = {
     layout: defineComponent(
       (_, { slots }) =>
         () =>
@@ -98,18 +96,18 @@ const { useAppChat, ui } = createChatHook({
     ),
     message: defineComponent({
       props: ['message'],
-      setup(props) {
+      setup(props, { slots }) {
         return () =>
-          h('article', { 'data-role': props.message.role }, [
-            ...(props.message.parts ?? []).map(
-              (part: { type: string; content?: string }) =>
-                part.type === 'text' ? h('p', part.content) : null,
-            ),
-          ])
+          h(
+            'article',
+            { 'data-role': props.message.role },
+            slots.parts?.() ?? slots.default?.(),
+          )
       },
     }),
     input: defineComponent({
-      setup() {
+      props: ['chat'],
+      setup(props) {
         return () =>
           h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
             h(
@@ -120,7 +118,7 @@ const { useAppChat, ui } = createChatHook({
                   const text = draft.value.trim()
                   if (!text) return
                   draft.value = ''
-                  void chat.sendMessage(text)
+                  void props.chat.sendMessage(text)
                 },
               },
               [
@@ -193,10 +191,9 @@ const { useAppChat, ui } = createChatHook({
         },
       }),
     },
-  },
-})
+}
 
-const chat = useAppChat()
+const chat = useChat(chatOptions)
 </script>
 
 <template>
@@ -234,7 +231,7 @@ const chat = useAppChat()
         </div>
       </div>
 
-      <UIChat :ui="ui" :chat="chat" />
+      <Chat :chat="chat" :components="chatComponents" />
     </div>
   </div>
 </template>

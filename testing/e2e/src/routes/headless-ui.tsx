@@ -8,7 +8,7 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react/ui'
+import { Chat, type ChatUIComponents } from '@tanstack/ai-react/ui'
 import { EventType } from '@tanstack/ai/client'
 import type { ChatFetcher } from '@tanstack/ai-client'
 import { z } from 'zod'
@@ -150,9 +150,8 @@ const chatOptions = {
   fetcher,
 }
 
-const UI = createChatUI(chatOptions, {
-  layout: ({ renderMessages, renderInterrupts, renderInput }) => {
-    const chat = UI.useChatContext()
+const chatComponents = {
+  layout: ({ chat, renderMessages, renderInterrupts, renderInput }) => {
     return (
       <main>
         {chat.error ? (
@@ -165,8 +164,7 @@ const UI = createChatUI(chatOptions, {
     )
   },
   message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: function Input() {
-    const chat = UI.useChatContext()
+  input: function Input({ chat }) {
     const [ready, setReady] = useState(false)
     useEffect(() => {
       setReady(true)
@@ -225,11 +223,11 @@ const UI = createChatUI(chatOptions, {
   interrupts: {
     generic: { choosePlan: () => null, fallback: () => null },
   },
-})
+} satisfies ChatUIComponents<typeof chatOptions>
 
 function HeadlessUIPage() {
   const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} />
+  return <Chat chat={chat} components={chatComponents} />
 }
 
 export const Route = createFileRoute('/headless-ui')({

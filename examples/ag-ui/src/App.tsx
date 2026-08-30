@@ -1,67 +1,68 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { ConnectionAdapter } from '@tanstack/ai-react'
-import { ChatMessage, createChatUI } from '@tanstack/ai-react/ui'
+import { Chat } from '@tanstack/ai-react/ui'
+import type { ChatUIComponents } from '@tanstack/ai-react/ui'
 
 const LabelsContext = createContext({ placeholder: '', emptyLabel: '' })
 
-const UI = createChatUI(
-  {},
-  {
-    layout: ({ renderMessages, renderInput }) => {
-      const current = UI.useChatContext()
-      const { emptyLabel } = useContext(LabelsContext)
-      return (
-        <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
-          {current.error ? (
-            <p className="p-4 text-sm text-red-300">{current.error.message}</p>
-          ) : current.messages.length === 0 ? (
-            <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
-              {emptyLabel}
-            </div>
-          ) : (
-            <div className="flex-1 space-y-4 overflow-y-auto p-4">
-              {renderMessages()}
-            </div>
-          )}
-          <div className="border-t border-slate-800 p-4">{renderInput()}</div>
-        </div>
-      )
-    },
-    message: ({ message }) => <ChatMessage message={message} />,
-    input: function Input() {
-      const chat = UI.useChatContext()
-      const { placeholder } = useContext(LabelsContext)
-      const [draft, setDraft] = useState('')
-      return (
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const text = draft.trim()
-            if (!text) return
-            setDraft('')
-            void chat.sendMessage(text)
-          }}
-        >
-          <input
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-            placeholder={placeholder}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <button
-            className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950"
-            type="submit"
-          >
-            Send
-          </button>
-        </form>
-      )
-    },
-    parts: { fallback: () => null },
+const chatComponents = {
+  layout: ({ chat, renderMessages, renderInput }) => {
+    const { emptyLabel } = useContext(LabelsContext)
+    return (
+      <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
+        {chat.error ? (
+          <p className="p-4 text-sm text-red-300">{chat.error.message}</p>
+        ) : chat.messages.length === 0 ? (
+          <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
+            {emptyLabel}
+          </div>
+        ) : (
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            {renderMessages()}
+          </div>
+        )}
+        <div className="border-t border-slate-800 p-4">{renderInput()}</div>
+      </div>
+    )
   },
-)
+  message: ({ message, renderParts }) => (
+    <div data-role={message.role}>{renderParts()}</div>
+  ),
+  input: function Input({ chat }) {
+    const { placeholder } = useContext(LabelsContext)
+    const [draft, setDraft] = useState('')
+    return (
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const text = draft.trim()
+          if (!text) return
+          setDraft('')
+          void chat.sendMessage(text)
+        }}
+      >
+        <input
+          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <button
+          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950"
+          type="submit"
+        >
+          Send
+        </button>
+      </form>
+    )
+  },
+  parts: {
+    text: ({ part }) => (part.type === 'text' ? <p>{part.content}</p> : null),
+    fallback: () => null,
+  },
+} satisfies ChatUIComponents<{}>
 
 function AgUiChat({
   connection,
@@ -75,7 +76,7 @@ function AgUiChat({
   const chat = useChat({ connection })
   return (
     <LabelsContext.Provider value={{ placeholder, emptyLabel }}>
-      <UI.Chat chat={chat} />
+      <Chat chat={chat} components={chatComponents} />
     </LabelsContext.Provider>
   )
 }

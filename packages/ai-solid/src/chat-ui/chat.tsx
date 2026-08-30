@@ -56,7 +56,7 @@ export interface ChatProps {
 }
 
 /**
- * @deprecated Since 0.8.0. Use `createChatHook()` from `@tanstack/ai-solid/ui` instead.
+ * @deprecated Since 0.8.0. Use `Chat` from `@tanstack/ai-solid/ui` with `useChat` from `@tanstack/ai-solid`.
  * See https://tanstack.com/ai/latest/docs/migration/create-ui
  * Removed in 1.0.0.
  *

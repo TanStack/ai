@@ -1,9 +1,6 @@
-import type { ComponentProps } from 'react'
 import { expectTypeOf, it } from 'vitest'
-import { createChatHook } from '../../src/chat-ui/create-chat-hook'
-import { createChatUI } from '../../src/chat-ui/create-ui'
 import type {
-  ChatUIFactoryConfig,
+  ChatUIComponents,
   ChatUIHost,
   InterruptProps,
   PartProps,
@@ -50,81 +47,12 @@ it('types tool and interrupt component props from chatOptions', () => {
     { title: string } | undefined
   >()
 
-  const { useAppChat, useChatContext } = createChatHook({
-    options: chatOptions,
-    chatComponents: {
-      layout: ({ renderMessages }) => {
-        expectTypeOf(useChatContext()).toEqualTypeOf<
-          ChatUIHost<typeof chatOptions>
-        >()
-        return renderMessages()
-      },
-      message: ({ renderParts }) => renderParts(),
-      parts: { fallback: () => null },
-      tools: {
-        getWeather: () => null,
-        purchaseItem: () => null,
-      },
-      interrupts: {
-        generic: {
-          choosePlan: () => null,
-          fallback: () => null,
-        },
-      },
-    },
-  })
-  expectTypeOf(useAppChat).not.toBeAny()
-  expectTypeOf(useChatContext).toBeFunction()
-
-  const checkBoundHook = () => {
-    const chat = useAppChat()
-    expectTypeOf(chat).toMatchTypeOf<ChatUIHost<typeof chatOptions>>()
-    expectTypeOf(chat.sendMessage).toBeFunction()
-    expectTypeOf(chat.AppChat).not.toBeAny()
-    expectTypeOf<ComponentProps<typeof chat.AppChat>>().not.toHaveProperty(
-      'chat',
-    )
-
-    const message = chat.messages[0]
-    if (message?.role === 'assistant') {
-      for (const part of message.parts) {
-        if (part.type === 'tool-call') {
-          expectTypeOf(part.name).toEqualTypeOf<'getWeather' | 'purchaseItem'>()
-        }
-      }
-    }
-  }
-  void checkBoundHook
-
-  createChatHook({
-    options: chatOptions,
-    chatComponents: {
-      layout: () => null,
-      message: () => null,
-      parts: { fallback: () => null },
-      // @ts-expect-error Every configured tool needs a component.
-      tools: {
-        getWeather: () => null,
-      },
-      interrupts: {
-        generic: {
-          choosePlan: () => null,
-        },
-      },
-    },
-  })
-
-  const UI = createChatUI(chatOptions, {
-    layout: ({ renderMessages }) => {
-      expectTypeOf(UI.useChatContext()).toEqualTypeOf<
-        ChatUIHost<typeof chatOptions>
-      >()
-      expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
-      expectTypeOf(UI.useChatContext().queue).toBeArray()
+  const components = {
+    layout: ({ chat, renderMessages }) => {
+      expectTypeOf(chat).toEqualTypeOf<ChatUIHost<typeof chatOptions>>()
       return renderMessages()
     },
     message: ({ renderParts }) => renderParts(),
-    input: () => null,
     parts: {
       text: ({ part }) => {
         expectTypeOf(part.type).toEqualTypeOf<'text'>()
@@ -167,17 +95,13 @@ it('types tool and interrupt component props from chatOptions', () => {
         fallback: () => null,
       },
     },
-  })
+  } satisfies ChatUIComponents<typeof chatOptions>
+  void components
 
-  expectTypeOf(UI.Input).toEqualTypeOf<
-    ChatUIFactoryConfig<typeof chatOptions>['input']
-  >()
-
-  createChatUI(chatOptions, {
+  const missingTool = {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
-    // @ts-expect-error Every configured tool needs a component.
     tools: {
       getWeather: () => null,
     },
@@ -186,9 +110,11 @@ it('types tool and interrupt component props from chatOptions', () => {
         choosePlan: () => null,
       },
     },
-  })
+  }
+  // @ts-expect-error Every configured tool needs a component.
+  missingTool satisfies ChatUIComponents<typeof chatOptions>
 
-  createChatUI(chatOptions, {
+  const missingInterrupt = {
     layout: () => null,
     message: () => null,
     parts: { fallback: () => null },
@@ -197,20 +123,11 @@ it('types tool and interrupt component props from chatOptions', () => {
       purchaseItem: () => null,
     },
     interrupts: {
-      // @ts-expect-error Every registered interrupt id needs a component.
       generic: {
         fallback: () => null,
       },
     },
-  })
-
-  const Untyped = createChatUI(
-    {},
-    {
-      layout: () => null,
-      message: () => null,
-      parts: { fallback: () => null },
-    },
-  )
-  expectTypeOf(Untyped.Chat).toBeFunction()
+  }
+  // @ts-expect-error Every registered interrupt id needs a component.
+  missingInterrupt satisfies ChatUIComponents<typeof chatOptions>
 })

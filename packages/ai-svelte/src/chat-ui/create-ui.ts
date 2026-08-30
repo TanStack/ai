@@ -78,7 +78,7 @@ export type ChatUIComponents<TOptions> = {
         }
       })
 
-export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions>
+
 
 export type UIDescriptor<TOptions = unknown> = {
   key: symbol
@@ -113,11 +113,9 @@ function createWarnOnce() {
   }
 }
 
-export function createChatUI<const TOptions>(
-  options: TOptions,
-  components: ChatUIFactoryConfig<NoInfer<TOptions>>,
+export function createDescriptor<const TOptions>(
+  components: ChatUIComponents<TOptions>,
 ): UIDescriptor<TOptions> {
-  void options
   const ui: UIRuntime<TOptions> = {
     key: Symbol('tanstack-ai-ui-chat'),
     componentsKey: Symbol('tanstack-ai-ui-components'),
