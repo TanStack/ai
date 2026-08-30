@@ -29,7 +29,7 @@ A separate `*-ui` package split chat UI from the framework package. The old `Cha
 
 ## Before
 
-```tsx
+```tsx ignore
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
 

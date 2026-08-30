@@ -145,7 +145,6 @@ function unwrap<T>(value: T | { value: T } | (() => T)): T {
 
 const warnedKeys = new Set<string>()
 function warnMissing(key: string, message: string) {
-  if (process.env.NODE_ENV === 'production') return
   if (warnedKeys.has(key)) return
   warnedKeys.add(key)
   console.warn(message)

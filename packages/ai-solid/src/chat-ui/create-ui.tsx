@@ -133,7 +133,6 @@ const ChatTreeContext = createContext<ChatTree>()
 
 const warnedKeys = new Set<string>()
 function warnMissing(key: string, message: string) {
-  if (process.env.NODE_ENV === 'production') return
   if (warnedKeys.has(key)) return
   warnedKeys.add(key)
   console.warn(message)
@@ -154,7 +153,7 @@ export function useChatContext(): ChatUIHost {
 function SelectedPart(props: { selected: ChatUISelectedPart }) {
   const tree = useChatTree()
   const selected = () => props.selected
-  return createMemo(() => {
+  const node = createMemo(() => {
     const current = selected()
     if (current.key === 'toolCall') {
       const name = current.part.name
@@ -186,7 +185,8 @@ function SelectedPart(props: { selected: ChatUISelectedPart }) {
       return null
     }
     return <PartComponent part={current.part as PartProps<any>['part']} />
-  }) as unknown as JSX.Element
+  })
+  return <>{node()}</>
 }
 
 function AutomaticParts(props: { message: UIMessage }) {
