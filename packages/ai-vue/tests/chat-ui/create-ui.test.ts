@@ -63,9 +63,7 @@ describe('Vue Chat', () => {
       defineComponent(() => () => h(Chat, { chat, components: kit })),
     )
     expect(
-      warn.mock.calls.some((call) =>
-        String(call[0]).includes('Missing tools'),
-      ),
+      warn.mock.calls.some((call) => String(call[0]).includes('Missing tools')),
     ).toBe(true)
     warn.mockRestore()
   })

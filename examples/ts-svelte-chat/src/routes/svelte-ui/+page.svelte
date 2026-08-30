@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { fetchServerSentEvents, clientTools, createChat } from '@tanstack/ai-svelte'
+  import {
+    fetchServerSentEvents,
+    clientTools,
+    createChat,
+  } from '@tanstack/ai-svelte'
   import { Chat } from '@tanstack/ai-svelte/ui'
   import {
     addToCartToolDef,

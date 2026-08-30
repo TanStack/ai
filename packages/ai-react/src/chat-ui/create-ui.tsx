@@ -24,7 +24,11 @@ import type {
   ChatUIToolName,
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
-import type { ToolCallPart, ToolResultPart, UIMessage } from '@tanstack/ai-client'
+import type {
+  ToolCallPart,
+  ToolResultPart,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { UseChatReturn } from '../types'
 
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
@@ -208,11 +212,7 @@ const SelectedPartInner = memo(function SelectedPartInner({
   return <PartComponent part={selected.part as PartProps<any>['part']} />
 }, selectedPartPropsEqual)
 
-function AutomaticParts({
-  message,
-}: {
-  message: ChatUIMessages<any>[number]
-}) {
+function AutomaticParts({ message }: { message: ChatUIMessages<any>[number] }) {
   const { chat, inlineToolNames } = useChatTree()
   const selected = selectMessageUI(message, {
     interrupts: chat.interrupts ?? [],

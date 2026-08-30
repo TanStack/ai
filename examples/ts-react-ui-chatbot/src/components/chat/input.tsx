@@ -69,9 +69,7 @@ async function fileToDraft(file: File): Promise<Draft> {
   }
 }
 
-export function ChatPromptInput({
-  chat,
-}: InputProps<typeof chatOptions>) {
+export function ChatPromptInput({ chat }: InputProps<typeof chatOptions>) {
   const [model, setModel] = useState<ChatModelId>(selectedModel)
   const [text, setText] = useState('')
   const [drafts, setDrafts] = useState<Array<Draft>>([])

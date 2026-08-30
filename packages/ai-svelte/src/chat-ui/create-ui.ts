@@ -78,8 +78,6 @@ export type ChatUIComponents<TOptions> = {
         }
       })
 
-
-
 export type UIDescriptor<TOptions = unknown> = {
   key: symbol
   warn: (key: string, message: string) => void

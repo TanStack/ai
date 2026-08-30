@@ -23,7 +23,11 @@ import type {
   ChatUIToolName,
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
-import type { ToolCallPart, ToolResultPart, UIMessage } from '@tanstack/ai-client'
+import type {
+  ToolCallPart,
+  ToolResultPart,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { UseChatReturn } from '../types'
 
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
@@ -198,11 +202,7 @@ function AutomaticParts(props: { message: UIMessage }) {
     })
     return automaticPartsForMessage(selected)
   })
-  return (
-    <For each={parts()}>
-      {(part) => <SelectedPart selected={part} />}
-    </For>
-  )
+  return <For each={parts()}>{(part) => <SelectedPart selected={part} />}</For>
 }
 
 function Messages() {
@@ -265,7 +265,9 @@ export function Chat<TOptions>(props: {
     get inlineToolNames() {
       const tools = (props.components as ChatUIComponents<any>).tools
       return collectInlineToolNames(
-        props.components.interrupts?.tools as Record<string, unknown> | undefined,
+        props.components.interrupts?.tools as
+          | Record<string, unknown>
+          | undefined,
         Object.keys(tools ?? {}),
       )
     },

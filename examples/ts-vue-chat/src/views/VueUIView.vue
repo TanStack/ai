@@ -86,111 +86,111 @@ const chatOptions = {
 const draft = ref('')
 
 const chatComponents = {
-    layout: defineComponent(
-      (_, { slots }) =>
-        () =>
-          h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
-            slots.messages?.(),
-            slots.input?.(),
-          ]),
-    ),
-    message: defineComponent({
-      props: ['message'],
-      setup(props, { slots }) {
-        return () =>
+  layout: defineComponent(
+    (_, { slots }) =>
+      () =>
+        h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
+          slots.messages?.(),
+          slots.input?.(),
+        ]),
+  ),
+  message: defineComponent({
+    props: ['message'],
+    setup(props, { slots }) {
+      return () =>
+        h(
+          'article',
+          { 'data-role': props.message.role },
+          slots.parts?.() ?? slots.default?.(),
+        )
+    },
+  }),
+  input: defineComponent({
+    props: ['chat'],
+    setup(props) {
+      return () =>
+        h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
           h(
-            'article',
-            { 'data-role': props.message.role },
-            slots.parts?.() ?? slots.default?.(),
-          )
+            'form',
+            {
+              onSubmit: (event: Event) => {
+                event.preventDefault()
+                const text = draft.value.trim()
+                if (!text) return
+                draft.value = ''
+                void props.chat.sendMessage(text)
+              },
+            },
+            [
+              h('input', {
+                class:
+                  'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
+                placeholder: 'Ask about guitars...',
+                value: draft.value,
+                onInput: (event: Event) => {
+                  const target = event.target
+                  if (target instanceof HTMLInputElement)
+                    draft.value = target.value
+                },
+              }),
+            ],
+          ),
+        ])
+    },
+  }),
+  parts: { fallback: defineComponent(() => () => null) },
+  tools: {
+    recommendGuitar: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.input?.id)
       },
     }),
-    input: defineComponent({
-      props: ['chat'],
+    getPersonalGuitarPreference: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.output?.preference)
+      },
+    }),
+    addToWishList: defineComponent({
+      props: ['part', 'interrupt'],
       setup(props) {
         return () =>
-          h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
-            h(
-              'form',
-              {
-                onSubmit: (event: Event) => {
-                  event.preventDefault()
-                  const text = draft.value.trim()
-                  if (!text) return
-                  draft.value = ''
-                  void props.chat.sendMessage(text)
-                },
-              },
-              [
-                h('input', {
-                  class:
-                    'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
-                  placeholder: 'Ask about guitars...',
-                  value: draft.value,
-                  onInput: (event: Event) => {
-                    const target = event.target
-                    if (target instanceof HTMLInputElement)
-                      draft.value = target.value
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
                   },
-                }),
-              ],
-            ),
+                  'Approve',
+                )
+              : null,
           ])
       },
     }),
-    parts: { fallback: defineComponent(() => () => null) },
-    tools: {
-      recommendGuitar: defineComponent({
-        props: ['part'],
-        setup(props) {
-          return () => h('p', props.part.input?.id)
-        },
-      }),
-      getPersonalGuitarPreference: defineComponent({
-        props: ['part'],
-        setup(props) {
-          return () => h('p', props.part.output?.preference)
-        },
-      }),
-      addToWishList: defineComponent({
-        props: ['part', 'interrupt'],
-        setup(props) {
-          return () =>
-            h('p', [
-              props.part.input?.guitarId,
-              props.interrupt?.status === 'pending'
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: () => props.interrupt?.resolveInterrupt(true),
-                    },
-                    'Approve',
-                  )
-                : null,
-            ])
-        },
-      }),
-      addToCart: defineComponent({
-        props: ['part', 'interrupt'],
-        setup(props) {
-          return () =>
-            h('p', [
-              props.part.input?.guitarId,
-              props.interrupt?.status === 'pending'
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: () => props.interrupt?.resolveInterrupt(true),
-                    },
-                    'Approve',
-                  )
-                : null,
-            ])
-        },
-      }),
-    },
+    addToCart: defineComponent({
+      props: ['part', 'interrupt'],
+      setup(props) {
+        return () =>
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
+                  },
+                  'Approve',
+                )
+              : null,
+          ])
+      },
+    }),
+  },
 }
 
 const chat = useChat(chatOptions)

@@ -1,10 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { Chat, useChatContext } from '../../src/chat-ui/create-ui'
-import type {
-  ChatUIComponents,
-  ChatUIHost,
-} from '../../src/chat-ui/create-ui'
+import type { ChatUIComponents, ChatUIHost } from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
   createChatResult,

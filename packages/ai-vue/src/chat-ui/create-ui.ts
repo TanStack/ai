@@ -23,7 +23,11 @@ import type {
   ChatUIToolName,
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
-import type { ToolCallPart, ToolResultPart, UIMessage } from '@tanstack/ai-client'
+import type {
+  ToolCallPart,
+  ToolResultPart,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { UseChatReturn } from '../types'
 
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
@@ -217,9 +221,9 @@ export const Chat = defineComponent({
       const Input = props.components.input
       const MessageComponent = props.components.message
       const messages = unwrap(props.chat.messages as never) as Array<UIMessage>
-      const interrupts = unwrap((props.chat.interrupts ?? []) as never) as Array<
-        ChatTree extends never ? never : any
-      >
+      const interrupts = unwrap(
+        (props.chat.interrupts ?? []) as never,
+      ) as Array<ChatTree extends never ? never : any>
       const inlineToolNames = tree.inlineToolNames
 
       const messageNodes = messages.map((message) => {
