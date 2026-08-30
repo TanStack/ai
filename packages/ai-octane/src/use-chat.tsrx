@@ -11,11 +11,8 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
   QueuedMessage,
   SendMessageOptions,
@@ -29,9 +26,6 @@ import type {
   UseChatOptions,
   UseChatReturn,
 } from './types'
-
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -49,43 +43,9 @@ export function useChat<
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
-  const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [status, setStatus] = useState<ChatClientState>('ready')
-  const [isSubscribed, setIsSubscribed] = useState(false)
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>('disconnected')
-  const [sessionGenerating, setSessionGenerating] = useState(false)
-  const [queue, setQueue] = useState<Array<QueuedMessage>>([])
-  const [runId, setRunId] = useState<string | null>(null)
-  const [interruptState, setInterruptState] = useState<
-    ChatInterruptState<TTools, TInterrupts>
-  >(() => ({
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  }))
-
-  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
-  type Final = InferSchemaType<NonNullable<TSchema>>
-
-  // Track the rendered snapshot so a replacement client only synchronizes
-  // state when its messages actually differ.
-  const messagesRef = useRef<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
   const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
   const seenClientRef = useRef<ChatClient | null>(null)
-
-  // Update ref synchronously during render so it's always current when useMemo runs.
-  messagesRef.current = messages
-
-  // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
     useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
@@ -213,6 +173,33 @@ export function useChat<
     return { client: instance, initialization: initializationState }
   }, [clientId])
 
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+
+  // Constructor hydration (sync store / resume snapshot) must be on the first
+  // paint. `useEffect` runs after paint, so seed from the snapshot here.
+  const firstPaint = client.getSnapshot()
+  const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
+    firstPaint.messages as Array<UIMessage<TTools>>,
+  )
+  const [isLoading, setIsLoading] = useState(firstPaint.isLoading)
+  const [error, setError] = useState(firstPaint.error)
+  const [status, setStatus] = useState(firstPaint.status)
+  const [isSubscribed, setIsSubscribed] = useState(firstPaint.isSubscribed)
+  const [connectionStatus, setConnectionStatus] = useState(
+    firstPaint.connectionStatus,
+  )
+  const [sessionGenerating, setSessionGenerating] = useState(
+    firstPaint.sessionGenerating,
+  )
+  const [queue, setQueue] = useState<Array<QueuedMessage>>(
+    firstPaint.queue as Array<QueuedMessage>,
+  )
+  const [runId, setRunId] = useState(firstPaint.runId)
+  const [interruptState, setInterruptState] = useState(
+    firstPaint.interruptState,
+  )
+
   useEffect(() => {
     activeClientRef.current = client
     try {
@@ -234,14 +221,14 @@ export function useChat<
   useEffect(() => {
     const applySnapshot = () => {
       const next = client.getSnapshot()
-      setMessages(next.messages)
+      setMessages(next.messages as Array<UIMessage<TTools>>)
       setIsLoading(next.isLoading)
       setError(next.error)
       setStatus(next.status)
       setIsSubscribed(next.isSubscribed)
       setConnectionStatus(next.connectionStatus)
       setSessionGenerating(next.sessionGenerating)
-      setQueue(next.queue)
+      setQueue(next.queue as Array<QueuedMessage>)
       setRunId(next.runId)
       setInterruptState(next.interruptState)
     }

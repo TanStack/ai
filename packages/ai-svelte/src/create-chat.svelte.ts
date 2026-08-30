@@ -171,14 +171,14 @@ export function createChat<
 
   function applySnapshot() {
     const next = client.getSnapshot()
-    messages = next.messages
+    messages = next.messages as Array<UIMessage<TTools>>
     isLoading = next.isLoading
     error = next.error
     status = next.status
     isSubscribed = next.isSubscribed
     connectionStatus = next.connectionStatus
     sessionGenerating = next.sessionGenerating
-    queue = next.queue
+    queue = next.queue as Array<QueuedMessage>
     runId = next.runId
     interruptState = next.interruptState
   }

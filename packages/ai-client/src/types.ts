@@ -373,16 +373,16 @@ export interface ChatClientSnapshot<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
 > {
-  messages: Array<UIMessage<TTools>>
-  status: ChatClientState
-  isLoading: boolean
-  error: Error | undefined
-  isSubscribed: boolean
-  connectionStatus: ConnectionStatus
-  sessionGenerating: boolean
-  queue: Array<QueuedMessage>
-  runId: string | null
-  interruptState: ChatInterruptState<TTools, TInterrupts>
+  readonly messages: ReadonlyArray<UIMessage<TTools>>
+  readonly status: ChatClientState
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly isSubscribed: boolean
+  readonly connectionStatus: ConnectionStatus
+  readonly sessionGenerating: boolean
+  readonly queue: ReadonlyArray<QueuedMessage>
+  readonly runId: string | null
+  readonly interruptState: ChatInterruptState<TTools, TInterrupts>
 }
 
 /**

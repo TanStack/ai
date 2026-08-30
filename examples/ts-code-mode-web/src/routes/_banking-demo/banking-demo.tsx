@@ -28,7 +28,7 @@ import type {
   UIUpdate,
 } from '@/lib/reports/types'
 
-export const Route = createFileRoute('/_banking-demo/banking-demo')({
+export const Route = createFileRoute('/_banking-demo/banking-demo' as any)({
   component: BankingDemoPage,
 })
 

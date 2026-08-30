@@ -16,7 +16,7 @@ import {
 import { refreshComponent } from '@/lib/reports/refresh-component'
 import { evaluateWatchersForSignals } from '@/lib/reports/evaluate-watchers'
 
-export const Route = createFileRoute('/_reporting/api/report-event')({
+export const Route = createFileRoute('/_reporting/api/report-event' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {

@@ -199,7 +199,7 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-export const Route = createFileRoute('/_banking-demo/api/banking-demo')({
+export const Route = createFileRoute('/_banking-demo/api/banking-demo' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {

@@ -210,6 +210,43 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(initialMessages)
     })
 
+    it('throws on in-place messages.push and accepts setMessages', () => {
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+        ],
+      })
+
+      expect(Object.isFrozen(result.current.messages)).toBe(true)
+      expect(() => {
+        Array.prototype.push.call(result.current.messages, {
+          id: 'x',
+          role: 'user',
+          parts: [{ type: 'text', content: 'nope' }],
+          createdAt: new Date(),
+        })
+      }).toThrow(TypeError)
+
+      act(() => {
+        result.current.setMessages([
+          ...result.current.messages,
+          {
+            id: 'ok',
+            role: 'user',
+            parts: [{ type: 'text', content: 'ok' }],
+            createdAt: new Date(),
+          },
+        ])
+      })
+      expect(result.current.messages).toHaveLength(2)
+    })
+
     it('should initialize with persisted messages', async () => {
       const adapter = createMockConnectionAdapter()
       const persistedMessages: Array<UIMessage> = [

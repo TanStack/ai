@@ -1535,7 +1535,7 @@ export class ChatClient<
 
   private freezeSnapshotMessages(
     messages: Array<UIMessage<TTools>>,
-  ): Array<UIMessage<TTools>> {
+  ): ReadonlyArray<UIMessage<TTools>> {
     return Object.freeze(
       messages.map((message) =>
         Object.freeze({
@@ -1545,12 +1545,12 @@ export class ChatClient<
           ),
         }),
       ),
-    ) as Array<UIMessage<TTools>>
+    ) as ReadonlyArray<UIMessage<TTools>>
   }
 
   private freezeSnapshotQueue(
     queue: Array<QueuedMessage>,
-  ): Array<QueuedMessage> {
+  ): ReadonlyArray<QueuedMessage> {
     return Object.freeze(
       queue.map((item) =>
         Object.freeze({
@@ -1573,7 +1573,7 @@ export class ChatClient<
             : {}),
         }),
       ),
-    ) as Array<QueuedMessage>
+    ) as ReadonlyArray<QueuedMessage>
   }
 
   private readSnapshot(): ChatClientSnapshot<TTools, TInterrupts> {
@@ -1608,7 +1608,7 @@ export class ChatClient<
   subscribeSnapshot = (listener: () => void): (() => void) =>
     subscribeAtom(this.snapshotAtom, listener)
 
-  /** Current UI snapshot. */
+  /** Current UI snapshot. Frozen. Nested messages and queue entries are copies. */
   getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
     this.snapshotAtom.get()
 

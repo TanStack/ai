@@ -89,7 +89,7 @@ export function useChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Create ChatClient instance with callbacks to sync state.
+  // Build the client once per clientId. User callbacks read latest options.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
   // is read at call time. Direct assignment would freeze the callback to the
   // reference we saw at creation; the wrapper lets reactive `options` or
@@ -165,14 +165,14 @@ export function useChat<
 
   const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
     const next = target.getSnapshot()
-    setMessages(next.messages)
+    setMessages(next.messages as Array<UIMessage<TTools>>)
     setIsLoading(next.isLoading)
     setError(next.error)
     setStatus(next.status)
     setIsSubscribed(next.isSubscribed)
     setConnectionStatus(next.connectionStatus)
     setSessionGenerating(next.sessionGenerating)
-    setQueue(next.queue)
+    setQueue(next.queue as Array<QueuedMessage>)
     setRunId(next.runId)
     setInterruptState(next.interruptState)
   }

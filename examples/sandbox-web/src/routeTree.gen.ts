@@ -11,8 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRunRouteImport } from './routes/api.run'
-import { Route as ApiRunActiveRouteImport } from './routes/api.run.active'
 import { Route as ApiRunCancelRouteImport } from './routes/api.run.cancel'
+import { Route as ApiRunActiveRouteImport } from './routes/api.run.active'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,14 +24,14 @@ const ApiRunRoute = ApiRunRouteImport.update({
   path: '/api/run',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiRunActiveRoute = ApiRunActiveRouteImport.update({
-  id: '/active',
-  path: '/active',
-  getParentRoute: () => ApiRunRoute,
-} as any)
 const ApiRunCancelRoute = ApiRunCancelRouteImport.update({
   id: '/cancel',
   path: '/cancel',
+  getParentRoute: () => ApiRunRoute,
+} as any)
+const ApiRunActiveRoute = ApiRunActiveRouteImport.update({
+  id: '/active',
+  path: '/active',
   getParentRoute: () => ApiRunRoute,
 } as any)
 
@@ -83,18 +83,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRunRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/run/active': {
-      id: '/api/run/active'
-      path: '/active'
-      fullPath: '/api/run/active'
-      preLoaderRoute: typeof ApiRunActiveRouteImport
-      parentRoute: typeof ApiRunRoute
-    }
     '/api/run/cancel': {
       id: '/api/run/cancel'
       path: '/cancel'
       fullPath: '/api/run/cancel'
       preLoaderRoute: typeof ApiRunCancelRouteImport
+      parentRoute: typeof ApiRunRoute
+    }
+    '/api/run/active': {
+      id: '/api/run/active'
+      path: '/active'
+      fullPath: '/api/run/active'
+      preLoaderRoute: typeof ApiRunActiveRouteImport
       parentRoute: typeof ApiRunRoute
     }
   }

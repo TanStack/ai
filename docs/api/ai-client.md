@@ -275,11 +275,14 @@ id, so a later `attach()` continues where it left off. See
 
 #### `getSnapshot()`
 
-Returns the current UI snapshot: messages, status, loading, error, queue, run
-id, subscription, connection, session generating, and interrupt state.
+Returns the current frozen `ChatClientSnapshot`. The field names are
+`messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`,
+`connectionStatus`, `sessionGenerating`, and `interruptState`. Nested
+`messages` and `queue` entries are copies. In-place `messages.push` throws.
+Use `setMessages`.
 
-`subscribeSnapshot(listener)` calls `listener` after that snapshot changes. It
-does not fire with the current value. Read `getSnapshot()` first. This is not
+`subscribeSnapshot(listener)` returns an unsubscribe function. It does not
+fire with the current value. Read `getSnapshot()` first. This is not
 `subscribe()`, which starts the live connection loop.
 
 ```typescript
@@ -296,7 +299,7 @@ function logSnapshot() {
 
 logSnapshot();
 
-const stop = client.subscribeSnapshot(() => {
+const unsubscribe = client.subscribeSnapshot(() => {
   logSnapshot();
 });
 
@@ -304,9 +307,12 @@ client.attach();
 client.sendMessage("Hello");
 ```
 
-`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`,
-and `ByokClient` use `subscribe(listener)` / `getSnapshot()` for the same job.
-Their `subscribe` name does not collide with a live connection method.
+`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, and
+`ByokClient` use `subscribe(listener)` / `getSnapshot()`. The listener takes
+no argument. Call `getSnapshot()` inside it.
+
+`AudioRecorder.subscribe` still passes the new state:
+`subscribe((state) => ...)`. `getSnapshot()` returns that same state value.
 
 #### `stop()`
 

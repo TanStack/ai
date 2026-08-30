@@ -29,7 +29,12 @@ import type {
   GenerationDevtoolsBridge,
   GenerationDevtoolsBridgeOptions,
 } from './devtools'
-import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import {
+  cloneSnapshotValue,
+  createAtom,
+  patchAtom,
+  subscribeAtom,
+} from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
 import type {
   GenerationClientOptions,
@@ -610,7 +615,7 @@ export class GenerationClient<
   subscribe = (listener: () => void): (() => void) =>
     subscribeAtom(this.snapshotAtom, listener)
 
-  /** Current UI snapshot. */
+  /** Current UI snapshot. Frozen envelope. `result` is a shallow copy. */
   getSnapshot = (): GenerationClientSnapshot<TOutput> => this.snapshotAtom.get()
 
   getResult(): TOutput | null {
@@ -685,7 +690,9 @@ export class GenerationClient<
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
-        patchAtom(this.snapshotAtom, { result: this.result })
+        patchAtom(this.snapshotAtom, {
+          result: cloneSnapshotValue(this.result),
+        })
         if (controller && !this.ownsRun(controller)) return
         this.callbacksRef.onResultChange?.(this.result)
         if (controller && !this.ownsRun(controller)) return
@@ -699,7 +706,7 @@ export class GenerationClient<
     // `TOutput` defaults to `TResult`, so the runtime cast is sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
-    patchAtom(this.snapshotAtom, { result: this.result })
+    patchAtom(this.snapshotAtom, { result: cloneSnapshotValue(this.result) })
     if (controller && !this.ownsRun(controller)) return
     this.callbacksRef.onResultChange?.(this.result)
     if (controller && !this.ownsRun(controller)) return
@@ -844,7 +851,11 @@ export class GenerationClient<
       return
     }
     this.lastEmittedResumeState = signature
-    patchAtom(this.snapshotAtom, { runId: resumeState?.runId ?? null })
+    if (resumeState?.runId) {
+      patchAtom(this.snapshotAtom, { runId: resumeState.runId })
+    } else if (!this.isLoading) {
+      patchAtom(this.snapshotAtom, { runId: null })
+    }
     if (controller && !this.ownsRun(controller)) return
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }

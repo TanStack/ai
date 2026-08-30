@@ -69,11 +69,11 @@ export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
  * {@link GenerationClient.getSnapshot}.
  */
 export interface GenerationClientSnapshot<TOutput = unknown> {
-  result: TOutput | null
-  isLoading: boolean
-  error: Error | undefined
-  status: GenerationClientState
-  runId: string | null
+  readonly result: TOutput | null
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly status: GenerationClientState
+  readonly runId: string | null
 }
 
 /**
@@ -83,8 +83,8 @@ export interface GenerationClientSnapshot<TOutput = unknown> {
 export interface VideoGenerationClientSnapshot<
   TOutput = unknown,
 > extends GenerationClientSnapshot<TOutput> {
-  jobId: string | null
-  videoStatus: VideoStatusInfo | null
+  readonly jobId: string | null
+  readonly videoStatus: VideoStatusInfo | null
 }
 
 /**

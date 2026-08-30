@@ -6,6 +6,7 @@ import type {
   ResolvableChatInterrupt,
   ChatResumeState,
   InferredClientContext,
+  QueuedMessage,
   SendMessageOptions,
 } from '@tanstack/ai-client'
 import type {
@@ -394,7 +395,7 @@ export function useChat<
   const renderedMessages = snapshot.messages
 
   return {
-    messages: renderedMessages,
+    messages: renderedMessages as Array<UIMessage<TTools>>,
     sendMessage,
     append,
     reload,
@@ -409,7 +410,7 @@ export function useChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
-    queue: snapshot.queue,
+    queue: snapshot.queue as Array<QueuedMessage>,
     cancelQueued,
     runId: snapshot.runId,
     interrupts: snapshot.interruptState.interrupts,

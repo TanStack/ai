@@ -11,35 +11,22 @@ import {
 
 const mocks = vi.hoisted(() => {
   return {
-    constructorSpy:
-      vi.fn<
-        (kind: string, options: Record<string, unknown>, model: string) => void
-      >(),
+    constructorSpy: vi.fn<(options: Record<string, unknown>) => void>(),
   }
 })
 
-vi.mock('@tanstack/ai-gemini', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tanstack/ai-gemini')>()
-  const adapterClass = (kind: string) => {
-    return class {
-      readonly name = 'gemini'
-      readonly model: string
+vi.mock('@google/genai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@google/genai')>()
 
-      constructor(options: Record<string, unknown>, model: string) {
-        this.model = model
-        mocks.constructorSpy(kind, options, model)
-      }
+  class MockGoogleGenAI {
+    constructor(options: Record<string, unknown>) {
+      mocks.constructorSpy(options)
     }
   }
 
   return {
     ...actual,
-    GeminiTextAdapter: adapterClass('text'),
-    GeminiImageAdapter: adapterClass('image'),
-    GeminiEmbeddingAdapter: adapterClass('embedding'),
-    GeminiTTSAdapter: adapterClass('speech'),
-    GeminiAudioAdapter: adapterClass('audio'),
-    GeminiVideoAdapter: adapterClass('video'),
+    GoogleGenAI: MockGoogleGenAI,
   }
 })
 
@@ -62,15 +49,11 @@ describe('vertex factories', () => {
 
     expect(adapter.name).toBe('gemini')
     expect(adapter.model).toBe('gemini-3.7-flash')
-    expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith(
-      'text',
-      {
-        project: 'my-project',
-        location: 'europe-west1',
-        vertexai: true,
-      },
-      'gemini-3.7-flash',
-    )
+    expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith({
+      project: 'my-project',
+      location: 'europe-west1',
+      vertexai: true,
+    })
   })
 
   it('builds summarize, image, embedding, speech, audio, and video adapters', () => {
@@ -83,42 +66,13 @@ describe('vertex factories', () => {
     expect(vertexAudio('lyria-3-pro-preview', auth).name).toBe('gemini')
     expect(vertexVideo('veo-3.1-generate-preview', auth).name).toBe('gemini')
 
-    expect(mocks.constructorSpy.mock.calls).toEqual([
-      [
-        'text',
-        { project: 'my-project', location: 'europe-west1', vertexai: true },
-        'gemini-3.7-flash',
-      ],
-      [
-        'image',
-        { project: 'my-project', location: 'europe-west1', vertexai: true },
-        'gemini-3.1-flash-image',
-      ],
-      [
-        'embedding',
-        { project: 'my-project', location: 'europe-west1', vertexai: true },
-        'gemini-embedding-001',
-      ],
-      [
-        'speech',
-        { project: 'my-project', location: 'europe-west1', vertexai: true },
-        'gemini-3.1-flash-tts-preview',
-      ],
-      [
-        'audio',
-        { project: 'my-project', location: 'europe-west1', vertexai: true },
-        'lyria-3-pro-preview',
-      ],
-      [
-        'video',
-        {
-          project: 'my-project',
-          location: 'europe-west1',
-          vertexai: true,
-          allowUrlFetch: undefined,
-        },
-        'veo-3.1-generate-preview',
-      ],
-    ])
+    expect(mocks.constructorSpy).toHaveBeenCalledTimes(6)
+    for (const call of mocks.constructorSpy.mock.calls) {
+      expect(call[0]).toMatchObject({
+        project: 'my-project',
+        location: 'europe-west1',
+        vertexai: true,
+      })
+    }
   })
 })

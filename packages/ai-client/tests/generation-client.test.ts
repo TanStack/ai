@@ -246,6 +246,57 @@ describe('GenerationClient', () => {
       expect(client.getStatus()).toBe('success')
     })
 
+    it('keeps the local run id when a stream chunk has no resume pointer', async () => {
+      const gate = createDeferred()
+      const chunks: Array<StreamChunk> = [
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:progress',
+          value: { percent: 1 },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { id: '1' },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
+          timestamp: Date.now(),
+        },
+      ]
+      const connection = {
+        async *connect() {
+          yield chunks[0]!
+          await gate.promise
+          for (const chunk of chunks.slice(1)) {
+            yield chunk
+          }
+        },
+      }
+
+      const client = new GenerationClient({ connection })
+      const pending = client.generate({ prompt: 'test' })
+      await waitForCondition(() => {
+        expect(client.getSnapshot().isLoading).toBe(true)
+      })
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
+      expect(client.getSnapshot().runId).not.toBe('')
+      gate.resolve()
+      await pending
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
     it('should handle RUN_ERROR from stream', async () => {
       const onError = vi.fn()
 

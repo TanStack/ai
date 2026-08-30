@@ -46,6 +46,12 @@ describe('client UI snapshots', () => {
     expect(client.getSnapshot().status).toBe('success')
     expect(client.getSnapshot().result).toEqual({ id: '1' })
     expect(client.getSnapshot()).not.toBe(snapshot)
+    const published = client.getSnapshot().result
+    expect(published).toEqual({ id: '1' })
+    if (published) {
+      Reflect.set(published, 'id', 'mutated')
+    }
+    expect(client.getResult()).toEqual({ id: '1' })
     stop()
   })
 
@@ -70,6 +76,8 @@ describe('client UI snapshots', () => {
     expect(listener).toHaveBeenCalled()
     expect(client.getSnapshot().status).toBe('success')
     expect(client.getSnapshot().result).toEqual(result)
+    expect(client.getSnapshot().jobId).toBe('job-1')
+    expect(client.getSnapshot().videoStatus?.status).toBe('completed')
     expect(client.getSnapshot()).not.toBe(snapshot)
     const completed = client.getSnapshot()
     expect(Object.isFrozen(completed.videoStatus)).toBe(true)

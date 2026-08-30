@@ -74,7 +74,7 @@ export function injectChat<
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
-  const queue = signal<Array<QueuedMessage>>([])
+  const queue = signal<ReadonlyArray<QueuedMessage>>([])
   const runId = signal<string | null>(null)
   const interruptState = signal<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
@@ -150,7 +150,7 @@ export function injectChat<
 
   const applySnapshot = () => {
     const next = client.getSnapshot()
-    messages.set(next.messages)
+    messages.set(next.messages as Array<UIMessage<TTools>>)
     isLoading.set(next.isLoading)
     error.set(next.error)
     status.set(next.status)

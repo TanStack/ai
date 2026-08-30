@@ -68,7 +68,7 @@ export function useChat<
     useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
 
-  // Create ChatClient instance with callbacks to sync state
+  // Create ChatClient once per clientId. User callbacks read latest options.
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
       const messagesToUse = options.initialMessages || []
@@ -136,10 +136,10 @@ export function useChat<
         }
         return currentInstance
       }
-      // ChatClient may publish while its constructor is running or while async
-      // persistence resolves before commit. Preserve those exact notifications
-      // until this render commits; invoking them here would run state setters and
-      // user callbacks for a client React may abandon.
+      // Queue user callbacks until this instance is the committed client.
+      // Invoking them here would run onChunk/onFinish/onError for a client
+      // React may abandon. Browser persistence is gated until attach so the
+      // first paint stays on initialMessages / initialResumeSnapshot.
       const initializationState = {
         ready: false,
         callbacks: [] as Array<() => void>,

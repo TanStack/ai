@@ -58,6 +58,7 @@
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
+    "@google/genai": "^2.10.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1"

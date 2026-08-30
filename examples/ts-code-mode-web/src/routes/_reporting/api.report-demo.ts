@@ -4,7 +4,7 @@ import {
   simulateDeposit,
 } from '@/lib/reports/create-handler-bindings'
 
-export const Route = createFileRoute('/_reporting/api/report-demo')({
+export const Route = createFileRoute('/_reporting/api/report-demo' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {

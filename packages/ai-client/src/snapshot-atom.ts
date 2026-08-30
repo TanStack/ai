@@ -9,6 +9,12 @@ function freezeSnapshot<T>(value: T): T {
     : value
 }
 
+/** Shallow copy, then freeze. Use for published snapshot fields that must not alias client internals. */
+export function cloneSnapshotValue<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value
+  return Object.freeze(Array.isArray(value) ? [...value] : { ...value }) as T
+}
+
 export function createAtom<T>(initialValue: T): Atom<T> {
   const atom = createStoreAtom(freezeSnapshot(initialValue))
   const set = atom.set.bind(atom)

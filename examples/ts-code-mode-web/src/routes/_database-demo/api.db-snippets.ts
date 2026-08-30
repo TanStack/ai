@@ -14,7 +14,7 @@ const snippetStorage = createFileSnippetStorage({
   trustStrategy,
 })
 
-export const Route = createFileRoute('/_database-demo/api/db-snippets')({
+export const Route = createFileRoute('/_database-demo/api/db-snippets' as any)({
   server: {
     handlers: {
       GET: async () => {
