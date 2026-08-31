@@ -11,7 +11,14 @@ const AUTOMATED =
 
 const REPO = 'TanStack/ai'
 
-type StoredComment = { id: number; issueNumber: number; body: string }
+const MACHINE = 'tanstack-ai-bot'
+
+type StoredComment = {
+  id: number
+  issueNumber: number
+  body: string
+  user: { login: string }
+}
 
 function createFakeGitHub(initial: Array<StoredComment> = []) {
   const comments: Array<StoredComment> = initial.map((comment) => ({
@@ -42,6 +49,7 @@ function createFakeGitHub(initial: Array<StoredComment> = []) {
           id: nextId,
           issueNumber,
           body: readBody(body),
+          user: { login: MACHINE },
         }
         nextId += 1
         comments.push(comment)
@@ -105,9 +113,11 @@ describe('upsertReviewComment', () => {
     const { client, comments } = createFakeGitHub()
     const body = buildReviewComment(sampleInput())
 
-    await upsertReviewComment(client, REPO, 42, body)
+    await upsertReviewComment(client, REPO, 42, body, MACHINE)
 
-    expect(comments).toEqual([{ id: 1, issueNumber: 42, body }])
+    expect(comments).toEqual([
+      { id: 1, issueNumber: 42, body, user: { login: MACHINE } },
+    ])
     expect(comments[0]?.body).toContain(COMMENT_MARKER)
     expect(comments[0]?.body).toContain(AUTOMATED)
   })
@@ -122,8 +132,8 @@ describe('upsertReviewComment', () => {
       label: 'ai-needs-work',
     })
 
-    await upsertReviewComment(client, REPO, 42, first)
-    await upsertReviewComment(client, REPO, 42, second)
+    await upsertReviewComment(client, REPO, 42, first, MACHINE)
+    await upsertReviewComment(client, REPO, 42, second, MACHINE)
 
     expect(comments).toHaveLength(1)
     expect(comments[0]?.id).toBe(1)
@@ -135,15 +145,50 @@ describe('upsertReviewComment', () => {
 
   it('does not patch a comment that lacks the marker', async () => {
     const { client, comments } = createFakeGitHub([
-      { id: 7, issueNumber: 42, body: 'human review notes' },
+      {
+        id: 7,
+        issueNumber: 42,
+        body: 'human review notes',
+        user: { login: 'alice' },
+      },
     ])
     const body = buildReviewComment(sampleInput())
 
-    await upsertReviewComment(client, REPO, 42, body)
+    await upsertReviewComment(client, REPO, 42, body, MACHINE)
 
     expect(comments).toEqual([
-      { id: 7, issueNumber: 42, body: 'human review notes' },
-      { id: 8, issueNumber: 42, body },
+      {
+        id: 7,
+        issueNumber: 42,
+        body: 'human review notes',
+        user: { login: 'alice' },
+      },
+      { id: 8, issueNumber: 42, body, user: { login: MACHINE } },
+    ])
+  })
+
+  it('does not patch an attacker comment that copies the marker', async () => {
+    const attackerBody = `pwn\n${COMMENT_MARKER}`
+    const { client, comments } = createFakeGitHub([
+      {
+        id: 3,
+        issueNumber: 42,
+        body: attackerBody,
+        user: { login: 'attacker' },
+      },
+    ])
+    const body = buildReviewComment(sampleInput())
+
+    await upsertReviewComment(client, REPO, 42, body, MACHINE)
+
+    expect(comments).toEqual([
+      {
+        id: 3,
+        issueNumber: 42,
+        body: attackerBody,
+        user: { login: 'attacker' },
+      },
+      { id: 4, issueNumber: 42, body, user: { login: MACHINE } },
     ])
   })
 })

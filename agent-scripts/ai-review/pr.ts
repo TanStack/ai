@@ -102,8 +102,17 @@ export async function fetchPullRequestFiles(
   repo: string,
   number: number,
 ) {
-  const path = `/repos/${repo}/pulls/${number}/files`
-  return parseFiles(await client.rest('GET', path), path)
+  const perPage = 100
+  const all = []
+  let page = 1
+  while (true) {
+    const path = `/repos/${repo}/pulls/${number}/files?per_page=${perPage}&page=${page}`
+    const batch = parseFiles(await client.rest('GET', path), path)
+    all.push(...batch)
+    if (batch.length < perPage) break
+    page += 1
+  }
+  return all
 }
 
 /**

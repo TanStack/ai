@@ -58,7 +58,14 @@ function createFakeGitHub(
     },
     async rest(method, path) {
       if (method === 'GET' && path === pullPath) return pull
-      if (method === 'GET' && path === filesPath) return files
+      if (method === 'GET' && path.startsWith(`${filesPath}?`)) {
+        if (!Array.isArray(files)) return files
+        const params = new URL(`https://api.github.com${path}`).searchParams
+        const page = Number(params.get('page') ?? '1')
+        const perPage = Number(params.get('per_page') ?? '100')
+        const start = (page - 1) * perPage
+        return files.slice(start, start + perPage)
+      }
       throw new Error(`unexpected ${method} ${path}`)
     },
   } satisfies GitHubClient
@@ -116,6 +123,17 @@ describe('fetchPullRequest', () => {
     await expect(loadPull({ files: null })).rejects.toThrow(
       /did not return an array/,
     )
+  })
+
+  it('aggregates every page when the PR has more than 100 files', async () => {
+    const files = []
+    for (let i = 1; i <= 101; i++) {
+      files.push({ filename: `src/f${i}.ts`, patch: `@@ +${i} @@` })
+    }
+    const result = await loadPull({ files })
+    expect(result.files).toHaveLength(101)
+    expect(result.files[0]?.path).toBe('src/f1.ts')
+    expect(result.files[100]?.path).toBe('src/f101.ts')
   })
 })
 

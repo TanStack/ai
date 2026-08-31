@@ -121,7 +121,13 @@ function createFakeGitHub(
     },
     async rest(method, path, body) {
       if (method === 'GET' && path === pullPath) return pull
-      if (method === 'GET' && path === filesPath) return files
+      if (method === 'GET' && path.startsWith(`${filesPath}?`)) {
+        const params = new URL(`https://api.github.com${path}`).searchParams
+        const page = Number(params.get('page') ?? '1')
+        const perPage = Number(params.get('per_page') ?? '100')
+        const start = (page - 1) * perPage
+        return files.slice(start, start + perPage)
+      }
 
       const listMatch = /^\/repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments$/.exec(
         path,
@@ -285,6 +291,55 @@ describe('runReviewJob', () => {
     expect(result).toEqual({ skipped: true, reason: 'draft' })
     expect(comments).toEqual([])
     expect(gitCalls).toEqual([])
+  })
+
+  it('skips an issue_comment that is not the /ai-review command', async () => {
+    const { result, comments, gitCalls } = await runJob({
+      eventName: 'issue_comment',
+      event: {
+        issue: {
+          number: NUMBER,
+          pull_request: {
+            url: 'https://api.github.com/repos/TanStack/ai/pulls/42',
+          },
+        },
+        comment: {
+          body: 'please review this',
+          user: { login: 'alem' },
+        },
+      },
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'not-command' })
+    expect(comments).toEqual([])
+    expect(gitCalls).toEqual([])
+  })
+
+  it('runs a maintainer /ai-review comment in manual mode', async () => {
+    const { result, comments } = await runJob({
+      eventName: 'issue_comment',
+      event: {
+        issue: {
+          number: NUMBER,
+          pull_request: {
+            url: 'https://api.github.com/repos/TanStack/ai/pulls/42',
+          },
+        },
+        comment: {
+          body: '/ai-review',
+          user: { login: 'alem' },
+        },
+      },
+      review: readyReview,
+    })
+
+    expect(result).toEqual({
+      skipped: false,
+      verdict: { verdict: 'ready', issues: [] },
+      label: 'ai-ready',
+      pushLanded: false,
+    })
+    expect(comments).toHaveLength(1)
   })
 
   it('skips an issue_comment from a non-maintainer', async () => {

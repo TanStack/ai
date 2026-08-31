@@ -19,7 +19,7 @@ import type { GitHubClient } from '../../scripts/maintainer/github.ts'
 import type { ToolsetConfig } from '../../scripts/maintainer/types.ts'
 import {
   buildReviewComment,
-  COMMENT_MARKER,
+  isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
 import { parseReviewEvent } from './event.ts'
@@ -77,23 +77,33 @@ export function parseHeadShaFromComment(body: string) {
   return match?.[1] ?? null
 }
 
-function isIssueComment(value: unknown): value is { body: string } {
-  return isRecord(value) && typeof value.body === 'string'
+function parseListedComment(value: unknown) {
+  if (!isRecord(value) || typeof value.body !== 'string') return null
+  const user = isRecord(value.user) ? value.user : null
+  const userLogin =
+    user !== null && typeof user.login === 'string' ? user.login : null
+  return { body: value.body, userLogin }
 }
 
 async function fetchAlreadyReviewedSha(
   client: GitHubClient,
   repo: string,
   issueNumber: number,
+  machineUserLogin: string,
 ) {
   const list = await client.rest(
     'GET',
     `/repos/${repo}/issues/${issueNumber}/comments`,
   )
   if (!Array.isArray(list)) return null
-  const existing = list
-    .filter(isIssueComment)
-    .find((comment) => comment.body.includes(COMMENT_MARKER))
+  const comments = []
+  for (const item of list) {
+    const comment = parseListedComment(item)
+    if (comment !== null) comments.push(comment)
+  }
+  const existing = comments.find((comment) =>
+    isBotReviewComment(comment, machineUserLogin),
+  )
   if (existing === undefined) return null
   return parseHeadShaFromComment(existing.body)
 }
@@ -247,7 +257,13 @@ export async function runReviewJob(opts: {
     }),
     label,
   })
-  await upsertReviewComment(opts.client, opts.repo, pr.number, body)
+  await upsertReviewComment(
+    opts.client,
+    opts.repo,
+    pr.number,
+    body,
+    opts.machineUserLogin,
+  )
   await setReviewState(opts.client, opts.repo, pr.number, label)
   return { skipped: false as const, verdict, label, pushLanded }
 }
@@ -284,7 +300,7 @@ async function resolveReviewToken() {
 function requireEnv(name: string) {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
-    throw new Error('missing AI_REVIEW_TOKEN or XAI_API_KEY')
+    throw new Error(`missing ${name}`)
   }
   return value
 }
@@ -334,6 +350,7 @@ export async function main() {
     client,
     repo,
     parsed.prNumber,
+    machineUserLogin,
   )
   await runReviewJob({
     client,

@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -57,6 +64,28 @@ describe('readWorktreeFile / writeWorktreeFile', () => {
     ).rejects.toThrow()
     await expect(
       readFile(join(root, '.github/workflows/ai-review.yml'), 'utf8'),
+    ).rejects.toThrow()
+  })
+
+  it('throws when an in-root symlink points outside the worktree', async () => {
+    const { base, root } = await makeWorktree()
+    const outside = join(base, 'outside')
+    await mkdir(outside)
+    await writeFile(join(outside, 'secret.txt'), 'outside-secret')
+    try {
+      await symlink(outside, join(root, 'link'))
+    } catch {
+      return
+    }
+
+    await expect(readWorktreeFile(root, 'link/secret.txt')).rejects.toThrow(
+      /escapes worktree root/,
+    )
+    await expect(
+      writeWorktreeFile(root, 'link/changed.txt', 'outside-write'),
+    ).rejects.toThrow(/escapes worktree root/)
+    await expect(
+      readFile(join(outside, 'changed.txt'), 'utf8'),
     ).rejects.toThrow()
   })
 })

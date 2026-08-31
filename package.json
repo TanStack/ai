@@ -66,13 +66,13 @@
     ]
   },
   "devDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-grok": "workspace:*",
     "@aws-sdk/client-bedrock": "^3.1057.0",
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
     "@stylistic/eslint-plugin": "^5.10.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-grok": "workspace:*",
     "@tanstack/typedoc-config": "0.3.4",
     "@tanstack/vite-config": "0.6.0",
     "@types/node": "^24.10.1",

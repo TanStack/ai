@@ -78,7 +78,10 @@
     },
     "test:ai-review": {
       "cache": true,
-      "inputs": ["{workspaceRoot}/agent-scripts/ai-review/**/*"]
+      "inputs": [
+        "{workspaceRoot}/agent-scripts/ai-review/**/*",
+        "{workspaceRoot}/scripts/maintainer/**/*"
+      ]
     },
     "test:dts": {
       "cache": true,
