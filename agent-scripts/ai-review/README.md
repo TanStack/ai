@@ -51,7 +51,7 @@ A full agent run needs `AI_REVIEW_TOKEN`, `XAI_API_KEY`, `GITHUB_EVENT_NAME`, `G
 
 ## Failed run
 
-Open the **AI review** workflow log. The job prints each stream chunk and the verdict there.
+Open the **AI review** workflow log. The job prints text, reasoning, tool input/output, and the verdict. It does not print raw chunks.
 
 Common causes:
 

@@ -39,6 +39,7 @@ import {
   isPullRequestLabeledEvent,
   parseReviewEvent,
 } from './event.ts'
+import { createReviewStreamLogger } from './log.ts'
 import { commitAll, headRemoteUrl, pushHead } from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
@@ -193,8 +194,9 @@ export function createGrokReview() {
       ],
     })
     let object: unknown
+    const log = createReviewStreamLogger()
     for await (const chunk of stream) {
-      console.log(JSON.stringify(chunk))
+      log.chunk(chunk)
       if (
         chunk.type === 'CUSTOM' &&
         chunk.name === 'structured-output.complete' &&
@@ -204,6 +206,7 @@ export function createGrokReview() {
         object = chunk.value.object
       }
     }
+    log.flush()
     if (object === undefined) {
       throw new Error('chat() did not emit structured-output.complete')
     }
