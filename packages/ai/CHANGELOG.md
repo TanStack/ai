@@ -1,5 +1,12 @@
 # @tanstack/ai
 
+## 0.52.1
+
+### Patch Changes
+
+- [#1271](https://github.com/TanStack/ai/pull/1271) [`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd) - Keep the first text delta when a message speaks after a tool call and the text
+  arrives in more than one chunk.
+
 ## 0.52.0
 
 ### Minor Changes

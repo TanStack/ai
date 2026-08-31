@@ -1,5 +1,17 @@
 # @tanstack/ai-bedrock
 
+## 0.3.4
+
+### Patch Changes
+
+- [#1278](https://github.com/TanStack/ai/pull/1278) [`c3d4376`](https://github.com/TanStack/ai/commit/c3d4376b96548c0224c003b7dd24a665f4c247be) - fix: forward usage from Converse structuredOutputStream()
+
+  `ConverseTextAdapter.structuredOutputStream()` iterated the Converse event stream without a `metadata` branch, so the trailing usage event was ignored and `RUN_FINISHED` carried no token counts on the streaming structured-output path. The normal chat path (`processConverseStream`) and the non-stream `structuredOutput()` already handled it; this brings the third path in line.
+
+- Updated dependencies [[`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd)]:
+  - @tanstack/ai@0.52.1
+  - @tanstack/openai-base@0.10.8
+
 ## 0.3.3
 
 ### Patch Changes
