@@ -68,17 +68,6 @@
           "updatedAt": "2026-08-24"
         },
         {
-          "label": "Message Queue",
-          "to": "chat/queueing",
-          "addedAt": "2026-08-26"
-        },
-        {
-          "label": "Thinking & Reasoning",
-          "to": "chat/thinking-content",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
-        },
-        {
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
@@ -94,6 +83,17 @@
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
+        },
+        {
+          "label": "Message Queue",
+          "to": "chat/queueing",
+          "addedAt": "2026-08-26"
         }
       ],
       "tab": "guides"
@@ -195,56 +195,36 @@
       "tab": "guides"
     },
     {
-      "label": "Skills",
+      "label": "Middleware",
       "children": [
         {
-          "label": "Portable Agent Skills",
-          "to": "skills/agent-skills",
-          "addedAt": "2026-08-22",
-          "updatedAt": "2026-08-23"
+          "label": "Middleware",
+          "to": "advanced/middleware",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-27"
         },
         {
-          "label": "Skill Sources",
-          "to": "skills/skill-sources",
-          "addedAt": "2026-08-22"
+          "label": "Built-in Middleware",
+          "to": "advanced/built-in-middleware",
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-07-21"
         },
         {
-          "label": "Write a Skill Source",
-          "to": "skills/writing-adapters",
-          "addedAt": "2026-08-22"
-        }
-      ],
-      "tab": "guides"
-    },
-    {
-      "label": "MCP",
-      "children": [
-        {
-          "label": "MCP Server Tools",
-          "to": "tools/mcp",
-          "addedAt": "2026-06-05",
-          "updatedAt": "2026-07-31"
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-08-04"
         },
         {
-          "label": "Managed MCP with chat()",
-          "to": "tools/mcp-managed",
-          "addedAt": "2026-06-05"
+          "label": "OpenTelemetry",
+          "to": "advanced/otel",
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-08-08"
         },
         {
-          "label": "Manual MCP",
-          "to": "tools/mcp-manual",
-          "addedAt": "2026-06-05"
-        },
-        {
-          "label": "MCP Type Generation",
-          "to": "tools/mcp-codegen",
-          "addedAt": "2026-06-05"
-        },
-        {
-          "label": "MCP Apps",
-          "to": "mcp/apps",
-          "addedAt": "2026-06-24",
-          "updatedAt": "2026-08-24"
+          "label": "Compaction",
+          "to": "advanced/compaction",
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-08-27"
         }
       ],
       "tab": "guides"
@@ -295,6 +275,61 @@
           "updatedAt": "2026-08-14"
         }
       ]
+    },
+    {
+      "label": "MCP",
+      "children": [
+        {
+          "label": "MCP Server Tools",
+          "to": "tools/mcp",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-31"
+        },
+        {
+          "label": "Managed MCP with chat()",
+          "to": "tools/mcp-managed",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "Manual MCP",
+          "to": "tools/mcp-manual",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Type Generation",
+          "to": "tools/mcp-codegen",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-08-24"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Skills",
+      "children": [
+        {
+          "label": "Portable Agent Skills",
+          "to": "skills/agent-skills",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-08-23"
+        },
+        {
+          "label": "Skill Sources",
+          "to": "skills/skill-sources",
+          "addedAt": "2026-08-22"
+        },
+        {
+          "label": "Write a Skill Source",
+          "to": "skills/writing-adapters",
+          "addedAt": "2026-08-22"
+        }
+      ],
+      "tab": "guides"
     },
     {
       "label": "Resumable Streams",
@@ -729,41 +764,6 @@
           "addedAt": "2026-08-04"
         }
       ]
-    },
-    {
-      "label": "Middleware",
-      "children": [
-        {
-          "label": "Middleware",
-          "to": "advanced/middleware",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-27"
-        },
-        {
-          "label": "Built-in Middleware",
-          "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03",
-          "updatedAt": "2026-07-21"
-        },
-        {
-          "label": "Locks",
-          "to": "advanced/locks",
-          "addedAt": "2026-08-04"
-        },
-        {
-          "label": "OpenTelemetry",
-          "to": "advanced/otel",
-          "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-08"
-        },
-        {
-          "label": "Compaction",
-          "to": "advanced/compaction",
-          "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-27"
-        }
-      ],
-      "tab": "guides"
     },
     {
       "label": "Advanced",
