@@ -158,14 +158,14 @@ export function createGrokReview() {
       }),
       lifecycle: { reuse: 'none', destroyOnComplete: false },
     })
-    const result = await chat({
+    const stream = chat({
       adapter: grokBuildText('grok-4.6', {
         authMode: 'api-key',
         protocol: 'streaming-json',
         cwd: input.worktreeRoot,
         grokExecutable: join(homedir(), '.grok', 'bin', 'grok'),
       }),
-      debug: true,
+      stream: true,
       tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
       middleware: [withSandbox(sandbox)],
@@ -192,7 +192,22 @@ export function createGrokReview() {
         },
       ],
     })
-    const verdict = parseVerdict(result)
+    let object: unknown
+    for await (const chunk of stream) {
+      console.log(JSON.stringify(chunk))
+      if (
+        chunk.type === 'CUSTOM' &&
+        chunk.name === 'structured-output.complete' &&
+        isRecord(chunk.value) &&
+        'object' in chunk.value
+      ) {
+        object = chunk.value.object
+      }
+    }
+    if (object === undefined) {
+      throw new Error('chat() did not emit structured-output.complete')
+    }
+    const verdict = parseVerdict(object)
     console.log('ai-review verdict', JSON.stringify(verdict, null, 2))
     return verdict
   }
