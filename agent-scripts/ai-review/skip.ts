@@ -1,4 +1,7 @@
-import { isBotLogin } from '../../scripts/maintainer/config.ts'
+import {
+  isBotLogin,
+  isRosterMaintainer,
+} from '../../scripts/maintainer/config.ts'
 import type { ToolsetConfig } from '../../scripts/maintainer/types.ts'
 
 type SkipInput = {
@@ -15,8 +18,9 @@ type SkipInput = {
 /**
  * Decide whether this AI review run should skip, and why.
  *
- * Auto mode skips drafts, bot PR authors, machine-user head commits, and a
- * head SHA that was already reviewed, in that order. Manual mode never skips.
+ * Auto mode skips drafts, bot PR authors, roster maintainers, machine-user
+ * head commits, and a head SHA that was already reviewed, in that order.
+ * Manual mode never skips.
  */
 export function shouldSkip(input: SkipInput) {
   if (input.mode === 'manual') {
@@ -29,6 +33,10 @@ export function shouldSkip(input: SkipInput) {
 
   if (isBotLogin(input.authorLogin, input.config)) {
     return { skip: true, reason: 'bot-author' }
+  }
+
+  if (isRosterMaintainer(input.authorLogin, input.config)) {
+    return { skip: true, reason: 'maintainer-author' }
   }
 
   const isBotHeadCommit =

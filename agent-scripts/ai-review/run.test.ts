@@ -23,6 +23,7 @@ function samplePull(
   overrides: {
     draft?: boolean
     maintainer_can_modify?: boolean
+    login?: string
   } = {},
 ) {
   return {
@@ -31,7 +32,7 @@ function samplePull(
     body: 'Handle empty messages.',
     html_url: 'https://github.com/TanStack/ai/pull/42',
     draft: overrides.draft ?? false,
-    user: { login: 'alice' },
+    user: { login: overrides.login ?? 'alice' },
     head: {
       sha: SHA,
       ref: HEAD_REF,
@@ -289,6 +290,16 @@ describe('runReviewJob', () => {
     })
 
     expect(result).toEqual({ skipped: true, reason: 'draft' })
+    expect(comments).toEqual([])
+    expect(gitCalls).toEqual([])
+  })
+
+  it('skips an auto run from a roster maintainer and does not post a comment', async () => {
+    const { result, comments, gitCalls } = await runJob({
+      pull: samplePull({ login: 'alem' }),
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'maintainer-author' })
     expect(comments).toEqual([])
     expect(gitCalls).toEqual([])
   })

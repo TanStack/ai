@@ -49,6 +49,13 @@ describe('shouldSkip', () => {
       })
     })
 
+    it('skips a roster maintainer PR author', () => {
+      expect(reviewSkip({ authorLogin: 'alem' })).toEqual({
+        skip: true,
+        reason: 'maintainer-author',
+      })
+    })
+
     it('skips when the head commit is from the machine user', () => {
       expect(reviewSkip({ headCommitAuthorLogin: 'TanStack-AI-Bot' })).toEqual({
         skip: true,
@@ -100,6 +107,15 @@ describe('shouldSkip', () => {
       ).toEqual({ skip: true, reason: 'bot-author' })
     })
 
+    it('prefers maintainer-author over bot-head-commit', () => {
+      expect(
+        reviewSkip({
+          authorLogin: 'alem',
+          headCommitAuthorLogin: MACHINE,
+        }),
+      ).toEqual({ skip: true, reason: 'maintainer-author' })
+    })
+
     it('prefers bot-head-commit over same-sha', () => {
       expect(
         reviewSkip({
@@ -111,12 +127,12 @@ describe('shouldSkip', () => {
   })
 
   describe('manual', () => {
-    it('never skips for draft, bot author, bot head commit, or same SHA', () => {
+    it('never skips for draft, bot author, maintainer author, bot head commit, or same SHA', () => {
       expect(
         reviewSkip({
           mode: 'manual',
           isDraft: true,
-          authorLogin: 'renovate',
+          authorLogin: 'alem',
           headCommitAuthorLogin: MACHINE,
           alreadyReviewedSha: SHA,
         }),
