@@ -11,7 +11,7 @@ keywords:
   - deprecation
 ---
 
-Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. Then call `createChatHook({ options, chatComponents })` and render `<chat.AppChat />`.
+Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. Then call `createChatHook({ options, ...components })` and render `<chat.AppChat />`.
 
 The same move applies to Solid, Vue, and Svelte.
 
@@ -20,7 +20,7 @@ The same move applies to Solid, Vue, and Svelte.
 ## What changes
 
 1. Chat UI lives on the framework package: `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui`.
-2. You call `createChatHook({ options, chatComponents })` once at module scope.
+2. You call `createChatHook({ options, ...components })` once at module scope.
 3. You call `useAppChat()` in the screen (Svelte: `createAppChat()`).
 4. You render `<chat.AppChat />` (Vue and Svelte pass `ui` into `UIChat`).
 5. You supply every visible component. There is no default markup.
@@ -80,7 +80,7 @@ const chatOptions = {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Messages, Input }) => (
       <main>
         <Messages />
@@ -106,8 +106,8 @@ const { useAppChat, useChatContext } = createChatHook({
         </form>
       )
     },
-    parts: { fallback: () => null },
   },
+  partsComponents: { fallback: () => null },
 })
 
 export function NewChat() {
@@ -120,11 +120,11 @@ export function NewChat() {
 
 1. Replace `@tanstack/ai-react-ui` with `@tanstack/ai-react/ui`. Solid and Vue use the same swap. Svelte has no `*-ui` package. Import `@tanstack/ai-svelte/ui`.
 2. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-3. Call `createChatHook({ options: chatOptions, chatComponents })` next to that object.
+3. Call `createChatHook({ options: chatOptions, ...components })` next to that object.
 4. Call `useAppChat` in the screen component. Pass `threadId` here when you need more than one chat.
 5. Render `<chat.AppChat />`. On Vue and Svelte, pass `ui` into `UIChat`.
 
-Register `layout`, `message`, `parts`, `tools`, and `interrupts` on `chatComponents`. This matches Form `fieldComponents` and Table `cellComponents`.
+Register `components` (`layout`, `message`, `input`), `partsComponents`, `toolsComponents`, and `interruptsComponents` directly on the factory call. This matches Form `fieldComponents` and Table `cellComponents`.
 
 ## Gotchas
 
@@ -132,14 +132,14 @@ Do now:
 
 - The deprecated packages re-export `/ui`. An old import path still compiles. Switch the import so the warning goes away.
 - `useChat` is not re-exported from the shim. Import it from `@tanstack/ai-react` (or the matching framework package).
-- Lower-level `createChatUI(options, chatComponents)` still exists on `/ui` for manual traversal. Prefer `createChatHook` for screens.
+- Lower-level `createChatUI(options, config)` still exists on `/ui` for manual traversal. Prefer `createChatHook` for screens.
 
 Types and interrupts:
 
 - A shared `chatOptions` variable does not need `as const`.
 - A mapped tool can read `interrupt` and render the approval itself. That approval stays off the list. A component on `interrupts.tools` uses the list.
-- Generic interrupts live under `interrupts.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
-- TypeScript requires a `tools` component for every tool name and an `interrupts.generic` component for every interrupt id. `generic.fallback` is optional.
+- Generic interrupts live under `interruptsComponents.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
+- TypeScript requires a `toolsComponents` component for every tool name and an `interruptsComponents.generic` component for every interrupt id. `generic.fallback` is optional.
 - Nested providers use the nearest chat instance.
 
 ## Coexistence

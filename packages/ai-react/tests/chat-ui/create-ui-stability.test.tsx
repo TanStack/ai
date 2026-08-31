@@ -24,21 +24,23 @@ it('hands `message` the same `Parts` component across re-renders', () => {
   const seen: Array<MessageProps<typeof chatOptions>['Parts']> = []
 
   const UI = createChatUI(chatOptions, {
-    layout: ({ Messages }) => <Messages />,
-    message: ({ Parts }) => {
-      seen.push(Parts)
-      return (
-        <article>
-          <Parts />
-        </article>
-      )
+    components: {
+      layout: ({ Messages }) => <Messages />,
+      message: ({ Parts }) => {
+        seen.push(Parts)
+        return (
+          <article>
+            <Parts />
+          </article>
+        )
+      },
     },
-    parts: { fallback: ({ part }) => <span>{part.type}</span> },
-    tools: {
+    partsComponents: { fallback: ({ part }) => <span>{part.type}</span> },
+    toolsComponents: {
       getWeather: ({ part }) => <strong>{part.input?.city}</strong>,
       purchaseItem: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: { choosePlan: () => null, fallback: () => null },
     },
   })

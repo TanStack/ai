@@ -25,18 +25,20 @@ it('requires every tool name and interrupt id', () => {
   }>()
 
   const UI = createChatUI(chatOptions, {
-    layout: (props) => {
-      expectTypeOf(UI.useChatContext()).toEqualTypeOf<
-        ChatUIHost<typeof chatOptions>
-      >()
-      expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
-      return <props.Messages />
+    components: {
+      layout: (props) => {
+        expectTypeOf(UI.useChatContext()).toEqualTypeOf<
+          ChatUIHost<typeof chatOptions>
+        >()
+        expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
+        return <props.Messages />
+      },
+      message: (props) => <props.Parts />,
     },
-    message: (props) => <props.Parts />,
-    parts: {
+    partsComponents: {
       fallback: () => null,
     },
-    tools: {
+    toolsComponents: {
       getWeather: (props) => {
         expectTypeOf(props.part.input).toEqualTypeOf<
           { city: string } | undefined
@@ -55,7 +57,7 @@ it('requires every tool name and interrupt id', () => {
       // @ts-expect-error This tool is not in chatOptions.
       unknownTool: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: (props) => {
           props.interrupt.resolveInterrupt('approved')
@@ -69,14 +71,16 @@ it('requires every tool name and interrupt id', () => {
   })
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
     // @ts-expect-error Every configured tool needs a component.
-    tools: {
+    toolsComponents: {
       getWeather: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: () => null,
       },
@@ -84,14 +88,16 @@ it('requires every tool name and interrupt id', () => {
   })
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-    tools: {
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
       getWeather: () => null,
       purchaseItem: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       // @ts-expect-error Every registered interrupt id needs a component.
       generic: {
         fallback: () => null,
@@ -102,16 +108,18 @@ it('requires every tool name and interrupt id', () => {
   const Untyped = createChatUI(
     {},
     {
-      layout: () => null,
-      message: () => null,
-      parts: { fallback: () => null },
+      components: {
+        layout: () => null,
+        message: () => null,
+      },
+      partsComponents: { fallback: () => null },
     },
   )
   expectTypeOf(Untyped.Chat).toBeFunction()
 
   const { useAppChat, useChatContext } = createChatHook({
     options: chatOptions,
-    chatComponents: {
+    components: {
       layout: (props) => {
         expectTypeOf(useChatContext()).toEqualTypeOf<
           ChatUIHost<typeof chatOptions>
@@ -119,16 +127,16 @@ it('requires every tool name and interrupt id', () => {
         return <props.Messages />
       },
       message: (props) => <props.Parts />,
-      parts: { fallback: () => null },
-      tools: {
-        getWeather: () => null,
-        purchaseItem: () => null,
-      },
-      interrupts: {
-        generic: {
-          choosePlan: () => null,
-          fallback: () => null,
-        },
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
+      getWeather: () => null,
+      purchaseItem: () => null,
+    },
+    interruptsComponents: {
+      generic: {
+        choosePlan: () => null,
+        fallback: () => null,
       },
     },
   })

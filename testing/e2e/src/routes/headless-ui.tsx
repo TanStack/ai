@@ -157,56 +157,60 @@ const { chatContext, partContext, interruptContext, useChatContext } =
   createChatHookContexts()
 
 const UI = createChatUI(chatOptions, {
-  chatContext,
-  partContext,
-  interruptContext,
-  input: function ChatComposer() {
-    const chat = useChatContext()
-    const [ready, setReady] = useState(false)
-    useEffect(() => {
-      setReady(true)
-    }, [])
-    return (
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          const field = event.currentTarget.elements.namedItem('message')
-          if (!(field instanceof HTMLInputElement)) return
-          const text = field.value.trim()
-          if (!text) return
-          field.value = ''
-          void chat.sendMessage(text)
-        }}
-      >
-        <label>
-          Message
-          <input aria-label="Message" name="message" data-testid="chat-input" />
-        </label>
-        <button type="submit" data-testid="send-button" disabled={!ready}>
-          Send
-        </button>
-      </form>
-    )
+  context: {
+    chatContext,
+    partContext,
+    interruptContext,
   },
-  layout: ({ Messages, Interrupts, Input }) => {
-    const chat = useChatContext()
-    return (
-      <main>
-        {chat.error ? (
-          <pre data-testid="chat-error">{chat.error.message}</pre>
-        ) : null}
-        <Messages />
-        <Interrupts />
-        <Input />
-      </main>
-    )
+  components: {
+    input: function ChatComposer() {
+      const chat = useChatContext()
+      const [ready, setReady] = useState(false)
+      useEffect(() => {
+        setReady(true)
+      }, [])
+      return (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLInputElement)) return
+            const text = field.value.trim()
+            if (!text) return
+            field.value = ''
+            void chat.sendMessage(text)
+          }}
+        >
+          <label>
+            Message
+            <input aria-label="Message" name="message" data-testid="chat-input" />
+          </label>
+          <button type="submit" data-testid="send-button" disabled={!ready}>
+            Send
+          </button>
+        </form>
+      )
+    },
+    layout: ({ Messages, Interrupts, Input }) => {
+      const chat = useChatContext()
+      return (
+        <main>
+          {chat.error ? (
+            <pre data-testid="chat-error">{chat.error.message}</pre>
+          ) : null}
+          <Messages />
+          <Interrupts />
+          <Input />
+        </main>
+      )
+    },
+    message: ({ Parts }) => (
+      <article>
+        <Parts />
+      </article>
+    ),
   },
-  message: ({ Parts }) => (
-    <article>
-      <Parts />
-    </article>
-  ),
-  parts: {
+  partsComponents: {
     text: ({ part }) => (part.type === 'text' ? <p>{part.content}</p> : null),
     toolResult: ({ part }) =>
       part.type === 'tool-result' ? (
@@ -214,7 +218,7 @@ const UI = createChatUI(chatOptions, {
       ) : null,
     fallback: () => null,
   },
-  tools: {
+  toolsComponents: {
     purchaseItem: ({ part, interrupt }) => (
       <div data-testid="purchase-tool">
         {part.input?.item}
@@ -235,7 +239,7 @@ const UI = createChatUI(chatOptions, {
       </div>
     ),
   },
-  interrupts: {
+  interruptsComponents: {
     generic: { choosePlan: () => null, fallback: () => null },
   },
 })

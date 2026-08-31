@@ -12,7 +12,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
+Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, ...components })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
 
 > **Deprecated.** Do not install `@tanstack/ai-react-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
@@ -20,7 +20,7 @@ The factory returns `useAppChat` and `useChatContext`. Call `useAppChat()` in th
 
 You supply every visible component. There is no default markup, style, or copy.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional.
 
 ## Server
 
@@ -80,7 +80,7 @@ const chatOptions = {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
   layout: function Layout({ Messages, Interrupts, Input }) {
     const chat = useChatContext()
     if (chat.error) return <p>{chat.error.message}</p>
@@ -115,46 +115,46 @@ const { useAppChat, useChatContext } = createChatHook({
       </form>
     )
   },
-  parts: {
-    text: ({ part }) => <p>{part.content}</p>,
-    structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
-    toolResult: ({ part }) => <em>{String(part.content)}</em>,
-    fallback: ({ part }) => <span>{part.type}</span>,
   },
-  tools: {
-    getWeather: ({ part, result }) => {
-      if (part.state === 'awaiting-input') return <p>Waiting</p>
-      if (part.state === 'input-streaming') return <p>Streaming input</p>
-      if (part.state === 'input-complete') return <p>{part.input?.city}</p>
-      if (part.state === 'approval-requested') return <p>Need approval</p>
-      if (part.state === 'approval-responded') return <p>Responded</p>
-      if (part.state === 'error') return <p>Error</p>
-      return (
-        <p>
-          {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
-        </p>
-      )
-    },
-    purchaseItem: ({ part, interrupt }) => (
-      <div>
-        {part.input?.item}
-        {interrupt?.status === 'pending' ? (
-          <button onClick={() => interrupt.resolveInterrupt(true)}>
-            Approve
-          </button>
-        ) : null}
-      </div>
-    ),
+  partsComponents: {
+  text: ({ part }) => <p>{part.content}</p>,
+  structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
+  toolResult: ({ part }) => <em>{String(part.content)}</em>,
+  fallback: ({ part }) => <span>{part.type}</span>,
   },
-  interrupts: {
-    generic: {
-      choosePlan: ({ interrupt }) => (
-        <button onClick={() => interrupt.resolveInterrupt('approved')}>
-          {interrupt.payload?.title ?? 'Choose plan'}
+  toolsComponents: {
+  getWeather: ({ part, result }) => {
+    if (part.state === 'awaiting-input') return <p>Waiting</p>
+    if (part.state === 'input-streaming') return <p>Streaming input</p>
+    if (part.state === 'input-complete') return <p>{part.input?.city}</p>
+    if (part.state === 'approval-requested') return <p>Need approval</p>
+    if (part.state === 'approval-responded') return <p>Responded</p>
+    if (part.state === 'error') return <p>Error</p>
+    return (
+      <p>
+        {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
+      </p>
+    )
+  },
+  purchaseItem: ({ part, interrupt }) => (
+    <div>
+      {part.input?.item}
+      {interrupt?.status === 'pending' ? (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
         </button>
-      ),
-      fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
-    },
+      ) : null}
+    </div>
+  ),
+  },
+  interruptsComponents: {
+  generic: {
+    choosePlan: ({ interrupt }) => (
+      <button onClick={() => interrupt.resolveInterrupt('approved')}>
+        {interrupt.payload?.title ?? 'Choose plan'}
+      </button>
+    ),
+    fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
   },
   },
 })
@@ -180,7 +180,7 @@ A tool map grows fast. Move a tool into its own file and type the props with `To
 
 `ToolProps` takes your `chatOptions` type and the tool name. Then `part.input` and `part.output` stay exact.
 
-Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `parts` map. `fallback` still sees every part type.
+Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `partsComponents` map. `fallback` still sees every part type.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -220,12 +220,12 @@ export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
 
 export const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Messages }) => <Messages />,
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { text: TextPart, fallback: () => null },
-    tools: { getWeather: WeatherTool },
   },
+  partsComponents: { text: TextPart, fallback: () => null },
+  toolsComponents: { getWeather: WeatherTool },
 })
 ```
 
@@ -268,14 +268,14 @@ export function ChoosePlan({
 
 export const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Interrupts }) => <Interrupts />,
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { fallback: () => null },
-    interrupts: {
-      generic: {
-        choosePlan: ChoosePlan,
-      },
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ChoosePlan,
     },
   },
 })
@@ -310,7 +310,7 @@ function StatusLine() {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Messages }) => (
       <main>
         <StatusLine />
@@ -318,8 +318,8 @@ const { useAppChat, useChatContext } = createChatHook({
       </main>
     ),
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { fallback: () => null },
   },
+  partsComponents: { fallback: () => null },
 })
 
 export function ChatScreen() {
@@ -332,7 +332,7 @@ Call `useChatContext()` only inside `AppChat` or `Provider`. A call outside that
 
 `useAppChat` from `createChatHook` owns the state. `useChatContext()` only reads the instance that `chat.AppChat` provides.
 
-When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. Then that file can import `useChatContext` from the contexts module.
+When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. Then that file can import `useChatContext` from the contexts module.
 
 Part and interrupt widgets take `part` and `interrupt` as props. Type them with `PartProps`, `ToolProps`, or `InterruptProps`. Do not read those values from context.
 
@@ -383,7 +383,7 @@ function PurchaseItem({
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Messages, Interrupts }) => (
       <main>
         <Messages />
@@ -391,10 +391,10 @@ const { useAppChat } = createChatHook({
       </main>
     ),
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { fallback: () => null },
-    tools: {
-      purchaseItem: PurchaseItem,
-    },
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: PurchaseItem,
   },
 })
 
@@ -431,7 +431,7 @@ const chatOptions = {
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Messages, Interrupts }) => (
       <main>
         <Messages />
@@ -439,18 +439,18 @@ const { useAppChat } = createChatHook({
       </main>
     ),
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { fallback: () => null },
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
+  },
+  interruptsComponents: {
     tools: {
-      purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
-    },
-    interrupts: {
-      tools: {
-        purchaseItem: ({ interrupt }) => (
-          <button onClick={() => interrupt.resolveInterrupt(true)}>
-            Approve
-          </button>
-        ),
-      },
+      purchaseItem: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ),
     },
   },
 })
@@ -465,7 +465,7 @@ export function ListApprovalChat() {
 
 Generic interrupts always render in the list (`<Interrupts />` / `<UI.Interrupts>`). They never render inside a tool.
 
-Map them under `interrupts.generic`:
+Map them under `interruptsComponents.generic`:
 
 - A registered id such as `choosePlan`: the component for that definition
 - `fallback`: every other list interrupt, including an unknown generic id and an unbound interrupt this chat does not own
@@ -489,24 +489,24 @@ const chatOptions = {
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: ({ Interrupts }) => <Interrupts />,
     message: ({ Parts }) => <article><Parts /></article>,
-    parts: { fallback: () => null },
-    interrupts: {
-      generic: {
-        choosePlan: ({ interrupt }) => (
-          <button onClick={() => interrupt.resolveInterrupt('approved')}>
-            {interrupt.payload?.title ?? 'Choose plan'}
-          </button>
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt('approved')}>
+          {interrupt.payload?.title ?? 'Choose plan'}
+        </button>
+      ),
+      fallback: ({ interrupt }) =>
+        interrupt.kind === 'unbound' ? (
+          <p>Paused elsewhere: {interrupt.reason}</p>
+        ) : (
+          <p>{interrupt.reason}</p>
         ),
-        fallback: ({ interrupt }) =>
-          interrupt.kind === 'unbound' ? (
-            <p>Paused elsewhere: {interrupt.reason}</p>
-          ) : (
-            <p>{interrupt.reason}</p>
-          ),
-      },
     },
   },
 })
@@ -542,13 +542,15 @@ const chatOptions = {
 }
 
 const UI = createChatUI(chatOptions, {
-  layout: ({ Messages }) => <Messages />,
-  message: ({ Parts }) => <article><Parts /></article>,
-  parts: {
+  components: {
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: {
     text: ({ part }) => <p>{part.content}</p>,
     fallback: () => null,
   },
-  tools: {
+  toolsComponents: {
     getWeather: ({ part }) => <p>{part.input?.city}</p>,
   },
 })
@@ -603,6 +605,6 @@ function PickedWidgets({
 
 `p.getWeather` and `p.text` are the widgets you passed to the factory. `p.Render` walks this one part the automatic way. `UI.Input` is mixed onto the kit when you register `input`.
 
-If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
+If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
 
 See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapters](./custom-adapters).

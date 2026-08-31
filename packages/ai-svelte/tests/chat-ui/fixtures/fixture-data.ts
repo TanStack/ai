@@ -11,14 +11,16 @@ import Fallback from './fallback.svelte'
 import Empty from './empty.svelte'
 
 export const ui = createChatUI(chatOptions, {
-  layout: Layout,
-  message: Message,
-  parts: { fallback: Fallback },
-  tools: {
+  components: {
+    layout: Layout,
+    message: Message,
+  },
+  partsComponents: { fallback: Fallback },
+  toolsComponents: {
     getWeather: Weather,
     purchaseItem: Empty,
   },
-  interrupts: { generic: { choosePlan: Empty, fallback: Empty } },
+  interruptsComponents: { generic: { choosePlan: Empty, fallback: Empty } },
 })
 export const chat: ReturnType<typeof createSvelteChatResult> =
   createSvelteChatResult([messageWithToolResults])

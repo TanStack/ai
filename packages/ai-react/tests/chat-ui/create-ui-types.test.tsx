@@ -52,7 +52,7 @@ it('types tool and interrupt component props from chatOptions', () => {
 
   const { useAppChat, useChatContext } = createChatHook({
     options: chatOptions,
-    chatComponents: {
+    components: {
       layout: ({ Messages }) => {
         expectTypeOf(useChatContext()).toEqualTypeOf<
           ChatUIHost<typeof chatOptions>
@@ -60,16 +60,16 @@ it('types tool and interrupt component props from chatOptions', () => {
         return <Messages />
       },
       message: ({ Parts }) => <Parts />,
-      parts: { fallback: () => null },
-      tools: {
-        getWeather: () => null,
-        purchaseItem: () => null,
-      },
-      interrupts: {
-        generic: {
-          choosePlan: () => null,
-          fallback: () => null,
-        },
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
+      getWeather: () => null,
+      purchaseItem: () => null,
+    },
+    interruptsComponents: {
+      generic: {
+        choosePlan: () => null,
+        fallback: () => null,
       },
     },
   })
@@ -98,34 +98,36 @@ it('types tool and interrupt component props from chatOptions', () => {
 
   createChatHook({
     options: chatOptions,
-    chatComponents: {
+    components: {
       layout: () => null,
       message: () => null,
-      parts: { fallback: () => null },
-      // @ts-expect-error Every configured tool needs a component.
-      tools: {
-        getWeather: () => null,
-      },
-      interrupts: {
-        generic: {
-          choosePlan: () => null,
-        },
+    },
+    partsComponents: { fallback: () => null },
+    // @ts-expect-error Every configured tool needs a component.
+    toolsComponents: {
+      getWeather: () => null,
+    },
+    interruptsComponents: {
+      generic: {
+        choosePlan: () => null,
       },
     },
   })
 
   const UI = createChatUI(chatOptions, {
-    layout: ({ Messages }) => {
-      expectTypeOf(UI.useChatContext()).toEqualTypeOf<
-        ChatUIHost<typeof chatOptions>
-      >()
-      expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
-      expectTypeOf(UI.useChatContext().queue).toBeArray()
-      return <Messages />
+    components: {
+      layout: ({ Messages }) => {
+        expectTypeOf(UI.useChatContext()).toEqualTypeOf<
+          ChatUIHost<typeof chatOptions>
+        >()
+        expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
+        expectTypeOf(UI.useChatContext().queue).toBeArray()
+        return <Messages />
+      },
+      message: ({ Parts }) => <Parts />,
+      input: () => null,
     },
-    message: ({ Parts }) => <Parts />,
-    input: () => null,
-    parts: {
+    partsComponents: {
       text: ({ part }) => {
         expectTypeOf(part.type).toEqualTypeOf<'text'>()
         expectTypeOf(part.content).toEqualTypeOf<string>()
@@ -141,7 +143,7 @@ it('types tool and interrupt component props from chatOptions', () => {
         return null
       },
     },
-    tools: {
+    toolsComponents: {
       getWeather: ({ part, result }) => {
         expectTypeOf(part.input).toEqualTypeOf<{ city: string } | undefined>()
         expectTypeOf(part.output).toEqualTypeOf<
@@ -154,7 +156,7 @@ it('types tool and interrupt component props from chatOptions', () => {
       // @ts-expect-error This tool is not in chatOptions.
       unknownTool: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: ({ interrupt }) => {
           interrupt.resolveInterrupt('approved')
@@ -173,14 +175,16 @@ it('types tool and interrupt component props from chatOptions', () => {
   expectTypeOf(UI.Input).toEqualTypeOf<(() => null) | undefined>()
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
     // @ts-expect-error Every configured tool needs a component.
-    tools: {
+    toolsComponents: {
       getWeather: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: () => null,
       },
@@ -188,14 +192,16 @@ it('types tool and interrupt component props from chatOptions', () => {
   })
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-    tools: {
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
       getWeather: () => null,
       purchaseItem: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       // @ts-expect-error Every registered interrupt id needs a component.
       generic: {
         fallback: () => null,
@@ -206,56 +212,86 @@ it('types tool and interrupt component props from chatOptions', () => {
   const Untyped = createChatUI(
     {},
     {
-      layout: () => null,
-      message: () => null,
-      parts: { fallback: () => null },
+      components: {
+        layout: () => null,
+        message: () => null,
+      },
+      partsComponents: { fallback: () => null },
     },
   )
   expectTypeOf(Untyped.Chat).toBeFunction()
 })
 
 it('exposes `Input` on layout props only when an input component is registered', () => {
-  const base = {
-    message: ({ Parts }: MessageProps<typeof chatOptions>) => <Parts />,
-    parts: { fallback: () => null },
-    tools: { getWeather: () => null, purchaseItem: () => null },
-    interrupts: {
+  const rest = {
+    partsComponents: { fallback: () => null },
+    toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+    interruptsComponents: {
       generic: { choosePlan: () => null, fallback: () => null },
     },
   } as const
+  const message = ({ Parts }: MessageProps<typeof chatOptions>) => <Parts />
 
   createChatUI(chatOptions, {
-    ...base,
-    input: () => <textarea />,
-    layout: ({ Messages, Input }) => (
-      <>
-        <Messages />
-        <Input />
-      </>
-    ),
+    ...rest,
+    components: {
+      message,
+      input: () => <textarea />,
+      layout: ({ Messages, Input }) => (
+        <>
+          <Messages />
+          <Input />
+        </>
+      ),
+    },
   })
 
   createChatUI(chatOptions, {
-    ...base,
-    // @ts-expect-error `Input` is absent when no input component is registered
-    layout: ({ Input }) => <Input />,
+    ...rest,
+    components: {
+      message,
+      // @ts-expect-error `Input` is absent when no input component is registered
+      layout: ({ Input }) => <Input />,
+    },
+  })
+
+  // Nesting `layout` and `input` under `components` makes the inference
+  // order-independent: `input` declared after `layout`, as a `function`
+  // expression, still registers. Flattening this back would regress it.
+  createChatUI(chatOptions, {
+    ...rest,
+    components: {
+      message,
+      layout: ({ Messages, Input }) => {
+        return (
+          <>
+            <Messages />
+            <Input />
+          </>
+        )
+      },
+      input: function ChatComposer() {
+        return <textarea />
+      },
+    },
   })
 })
 
 it('applies the same conditional `Input` rule to createChatHook', () => {
-  const base = {
-    message: ({ Parts }: MessageProps<typeof chatOptions>) => <Parts />,
-    parts: { fallback: () => null },
-    tools: { getWeather: () => null, purchaseItem: () => null },
-    interrupts: {
+  const rest = {
+    partsComponents: { fallback: () => null },
+    toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+    interruptsComponents: {
       generic: { choosePlan: () => null, fallback: () => null },
     },
   } as const
+  const message = ({ Parts }: MessageProps<typeof chatOptions>) => <Parts />
 
   createChatHook({
     options: chatOptions,
-    chatComponents: {
-      ...base,
+    ...rest,
+    components: {
+      message,
       input: () => <textarea />,
       layout: ({ Messages, Input }) => (
         <>
@@ -268,8 +304,9 @@ it('applies the same conditional `Input` rule to createChatHook', () => {
 
   createChatHook({
     options: chatOptions,
-    chatComponents: {
-      ...base,
+    ...rest,
+    components: {
+      message,
       // @ts-expect-error `Input` is absent when no input component is registered
       layout: ({ Input }) => <Input />,
     },

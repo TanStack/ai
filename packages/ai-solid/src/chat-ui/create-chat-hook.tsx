@@ -46,12 +46,14 @@ export function createChatHook<
     | undefined,
 >({
   options,
-  chatComponents,
+  ...chatComponents
 }: {
   options: TOptions
-  chatComponents: ChatUIFactoryConfig<NoInfer<TOptions>, TInput>
-}) {
-  const ui = createChatUI(options, chatComponents)
+} & ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
+  const ui = createChatUI(
+    options,
+    chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
+  )
 
   function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
     const chat = (

@@ -29,23 +29,25 @@ function host(
 }
 
 const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
-  layout: ({ Messages, Interrupts }) => (
-    <>
-      <Messages />
-      <Interrupts />
-    </>
-  ),
-  message: ({ Parts }) => (
-    <article>
-      <Parts />
-    </article>
-  ),
-  parts: { fallback: ({ part }) => <span>{part.type}</span> },
-  tools: {
+  components: {
+    layout: ({ Messages, Interrupts }) => (
+      <>
+        <Messages />
+        <Interrupts />
+      </>
+    ),
+    message: ({ Parts }) => (
+      <article>
+        <Parts />
+      </article>
+    ),
+  },
+  partsComponents: { fallback: ({ part }) => <span>{part.type}</span> },
+  toolsComponents: {
     getWeather: ({ part }) => <strong>{part.input?.city}</strong>,
     purchaseItem: () => null,
   },
-  interrupts: {
+  interruptsComponents: {
     generic: {
       choosePlan: () => null,
       fallback: ({ interrupt }) => <i>{interrupt.reason}</i>,
@@ -53,29 +55,47 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
   },
 }
 
-function makeUI(
-  patch?: Partial<ChatUIFactoryConfig<typeof chatOptions>> & {
-    parts?: ChatUIFactoryConfig<typeof chatOptions>['parts']
-    tools?: ChatUIFactoryConfig<typeof chatOptions>['tools']
-    interrupts?: ChatUIFactoryConfig<typeof chatOptions>['interrupts']
-    input?: ChatUIFactoryConfig<typeof chatOptions>['input']
-    layout?: ChatUIFactoryConfig<typeof chatOptions>['layout']
-    message?: ChatUIFactoryConfig<typeof chatOptions>['message']
-  },
-) {
+type Config = ChatUIFactoryConfig<typeof chatOptions>
+
+// The helper keeps `layout` / `message` / `input` flat for brevity and
+// assembles them into `components`; the shape under test is what reaches
+// `createChatUI`.
+function makeUI(patch?: {
+  context?: Config['context']
+  layout?: Config['components']['layout']
+  message?: Config['components']['message']
+  input?: Config['components']['input']
+  partsComponents?: Config['partsComponents']
+  toolsComponents?: Config['toolsComponents']
+  interruptsComponents?: {
+    tools?: Config['interruptsComponents']['tools']
+    generic?: Partial<Config['interruptsComponents']['generic']>
+  }
+}) {
   return createChatUI(chatOptions, {
-    ...baseConfig,
-    ...patch,
-    parts: { ...baseConfig.parts, ...patch?.parts },
-    tools: { ...baseConfig.tools, ...patch?.tools },
-    interrupts: {
+    ...(patch?.context ? { context: patch.context } : {}),
+    components: {
+      ...baseConfig.components,
+      ...(patch?.layout ? { layout: patch.layout } : {}),
+      ...(patch?.message ? { message: patch.message } : {}),
+      ...(patch?.input ? { input: patch.input } : {}),
+    },
+    partsComponents: {
+      ...baseConfig.partsComponents,
+      ...patch?.partsComponents,
+    },
+    toolsComponents: {
+      ...baseConfig.toolsComponents,
+      ...patch?.toolsComponents,
+    },
+    interruptsComponents: {
       tools: {
-        ...baseConfig.interrupts.tools,
-        ...patch?.interrupts?.tools,
+        ...baseConfig.interruptsComponents.tools,
+        ...patch?.interruptsComponents?.tools,
       },
       generic: {
-        ...baseConfig.interrupts.generic,
-        ...patch?.interrupts?.generic,
+        ...baseConfig.interruptsComponents.generic,
+        ...patch?.interruptsComponents?.generic,
       },
     },
   })
@@ -85,7 +105,7 @@ describe('createChatHook', () => {
   it('mixes AppChat onto the instance from options and chatComponents', () => {
     const { useAppChat, useChatContext } = createChatHook({
       options: chatOptions,
-      chatComponents: baseConfig,
+      ...baseConfig,
     })
     expect(typeof useAppChat).toBe('function')
     expect(typeof useChatContext).toBe('function')
@@ -133,12 +153,12 @@ describe('createChatUI', () => {
 
   it('keeps unmatched tool results and suppresses matched ones', () => {
     const UI = makeUI({
-      parts: {
+      partsComponents: {
         toolResult: ({ part }) =>
           part.type === 'tool-result' ? <em>{String(part.content)}</em> : null,
         fallback: () => null,
       },
-      tools: {
+      toolsComponents: {
         getWeather: () => <strong>weather</strong>,
         purchaseItem: () => null,
       },
@@ -158,11 +178,11 @@ describe('createChatUI', () => {
 
   it('puts list approvals in Interrupts when interrupts.tools has the tool', () => {
     const UI = makeUI({
-      tools: {
+      toolsComponents: {
         getWeather: () => null,
         purchaseItem: () => <div>tool</div>,
       },
-      interrupts: {
+      interruptsComponents: {
         tools: {
           purchaseItem: () => <b>list-approval</b>,
         },
@@ -185,12 +205,12 @@ describe('createChatUI', () => {
   it('lets a tool render its approval from interrupt without a registered interrupt component', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const UI = makeUI({
-      tools: {
+      toolsComponents: {
         getWeather: () => null,
         purchaseItem: ({ interrupt }) =>
           interrupt ? <b>{interrupt.toolName}</b> : <span>tool</span>,
       },
-      interrupts: {
+      interruptsComponents: {
         generic: { choosePlan: () => null, fallback: () => <i>list</i> },
       },
     })
@@ -215,7 +235,7 @@ describe('createChatUI', () => {
   it('renders registered generic interrupts and sends the rest to fallback', () => {
     const UI = makeUI({
       layout: ({ Interrupts }) => <Interrupts />,
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: () => <span>plan</span>,
           fallback: () => <span>fallback</span>,
@@ -257,12 +277,15 @@ describe('createChatUI', () => {
   it('passes Input to layout when an input component is registered', () => {
     const UI = createChatUI(chatOptions, {
       ...baseConfig,
-      input: () => <textarea defaultValue="prompt" />,
-      layout: ({ Input }) => (
-        <main>
-          <Input />
-        </main>
-      ),
+      components: {
+        ...baseConfig.components,
+        input: () => <textarea defaultValue="prompt" />,
+        layout: ({ Input }) => (
+          <main>
+            <Input />
+          </main>
+        ),
+      },
     })
     const markup = renderToStaticMarkup(<UI.Chat chat={host({})} />)
     expect(markup).toContain('prompt')
@@ -284,7 +307,7 @@ describe('createChatUI', () => {
 
   it('lets Message children pick a mixed part or tool widget', () => {
     const UI = makeUI({
-      parts: {
+      partsComponents: {
         fallback: () => <span>fallback</span>,
         text: ({ part }) =>
           part.type === 'text' ? <em>{part.content}</em> : null,
@@ -322,7 +345,7 @@ describe('createChatUI', () => {
   it('lets Interrupt children pick a mixed interrupt widget', () => {
     const UI = makeUI({
       layout: ({ Interrupts }) => <Interrupts />,
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: () => <span>plan</span>,
           fallback: () => <span>fallback</span>,
@@ -385,9 +408,11 @@ describe('createChatUI', () => {
       },
     })
     const Inner = makeUI({
-      chatContext: innerContexts.chatContext,
-      partContext: innerContexts.partContext,
-      interruptContext: innerContexts.interruptContext,
+      context: {
+        chatContext: innerContexts.chatContext,
+        partContext: innerContexts.partContext,
+        interruptContext: innerContexts.interruptContext,
+      },
       layout: () => {
         const chat = Inner.useChatContext()
         return <p data-inner="">{chat.messages.length}</p>
@@ -414,7 +439,7 @@ describe('createChatUI', () => {
       'error',
     ]
     const UI = makeUI({
-      tools: {
+      toolsComponents: {
         getWeather: ({ part }) => <span>{part.state}</span>,
         purchaseItem: () => null,
       },

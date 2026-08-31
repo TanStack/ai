@@ -23,16 +23,18 @@ describe('Svelte createChatUI types', () => {
     >().toEqualTypeOf<{ item: string }>()
 
     const ui = createChatUI(chatOptions, {
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-      tools: {
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
+      toolsComponents: {
         getWeather: {},
         purchaseItem: {},
         // @ts-expect-error This tool is not in chatOptions.
         unknownTool: {},
       },
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: {},
         },
@@ -43,14 +45,16 @@ describe('Svelte createChatUI types', () => {
     >()
 
     createChatUI(chatOptions, {
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
       // @ts-expect-error Every configured tool needs a component.
-      tools: {
+      toolsComponents: {
         getWeather: {},
       },
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: {},
         },
@@ -58,14 +62,16 @@ describe('Svelte createChatUI types', () => {
     })
 
     createChatUI(chatOptions, {
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-      tools: {
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
+      toolsComponents: {
         getWeather: {},
         purchaseItem: {},
       },
-      interrupts: {
+      interruptsComponents: {
         // @ts-expect-error Every registered interrupt id needs a component.
         generic: {
           fallback: {},
@@ -76,9 +82,11 @@ describe('Svelte createChatUI types', () => {
     const untyped = createChatUI(
       {},
       {
-        layout: {},
-        message: {},
-        parts: { fallback: {} },
+        components: {
+          layout: {},
+          message: {},
+        },
+        partsComponents: { fallback: {} },
       },
     )
     expectTypeOf(untyped.useChatContext).toBeFunction()

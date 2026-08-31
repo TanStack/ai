@@ -16,17 +16,19 @@ import {
 } from '../../../ai-client/tests/ui-fixtures'
 
 const kit = {
-  layout: defineComponent(
-    (_, { slots }) =>
-      () =>
-        slots.messages?.(),
-  ),
-  message: defineComponent(
-    (_, { slots }) =>
-      () =>
-        h('article', slots.parts?.()),
-  ),
-  parts: {
+  components: {
+    layout: defineComponent(
+      (_, { slots }) =>
+        () =>
+          slots.messages?.(),
+    ),
+    message: defineComponent(
+      (_, { slots }) =>
+        () =>
+          h('article', slots.parts?.()),
+    ),
+  },
+  partsComponents: {
     fallback: defineComponent({
       props: ['part'],
       setup(props) {
@@ -34,7 +36,7 @@ const kit = {
       },
     }),
   },
-  tools: {
+  toolsComponents: {
     getWeather: defineComponent({
       props: ['part'],
       setup(props) {
@@ -43,7 +45,7 @@ const kit = {
     }),
     purchaseItem: defineComponent(() => () => null),
   },
-  interrupts: {
+  interruptsComponents: {
     generic: {
       choosePlan: defineComponent(() => () => null),
       fallback: defineComponent(() => () => null),
@@ -55,7 +57,7 @@ describe('Vue createChatHook', () => {
   it('returns useAppChat, ui, and context composables from options and chatComponents', () => {
     const { useAppChat, ui, useChatContext } = createChatHook({
       options: chatOptions,
-      chatComponents: kit,
+      ...kit,
     })
     expect(typeof useAppChat).toBe('function')
     expect(ui).toBeDefined()

@@ -107,7 +107,8 @@ type ToolApprovalMap<TOptions> = {
   >
 }
 
-export type ChatUIComponents<
+/** The chrome around the message list: `layout`, `message`, and `input`. */
+export type ChatUIChromeComponents<
   TOptions,
   TInput extends
     | ComponentType<InputProps<TOptions>>
@@ -116,35 +117,53 @@ export type ChatUIComponents<
   layout: ComponentType<LayoutProps<TOptions, TInput>>
   message: ComponentType<MessageProps<TOptions>>
   input?: TInput
-  parts: {
-    [K in ChatUIPartKey]?: ComponentType<PartProps<TOptions, K>>
-  } & {
-    fallback?: ComponentType<PartProps<TOptions>>
-  }
+}
+
+export type ChatUIPartsComponents<TOptions> = {
+  [K in ChatUIPartKey]?: ComponentType<PartProps<TOptions, K>>
+} & {
+  fallback?: ComponentType<PartProps<TOptions>>
+}
+
+export type ChatUIInterruptsComponents<TOptions> = {
+  tools?: ToolApprovalMap<TOptions>
+  generic: GenericInterruptComponents<TOptions>
+}
+
+export type ChatUIComponents<
+  TOptions,
+  TInput extends
+    | ComponentType<InputProps<TOptions>>
+    | undefined = ComponentType<InputProps<TOptions>>,
+> = {
+  components: ChatUIChromeComponents<TOptions, TInput>
+  partsComponents: ChatUIPartsComponents<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
-      tools: {
+      toolsComponents: {
         [K in ChatUIToolName<TOptions>]: ComponentType<ToolProps<TOptions, K>>
       }
     }
   : {
-      tools?: {
+      toolsComponents?: {
         [K in ChatUIToolName<TOptions>]?: ComponentType<ToolProps<TOptions, K>>
       }
     }) &
   (ChatUIHasNamedInterrupts<TOptions> extends true
-    ? {
-        interrupts: {
-          tools?: ToolApprovalMap<TOptions>
-          generic: GenericInterruptComponents<TOptions>
-        }
-      }
+    ? { interruptsComponents: ChatUIInterruptsComponents<TOptions> }
     : {
-        interrupts?: {
+        interruptsComponents?: {
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
         }
       })
+
+/** Scoped contexts, for widgets in other files or nested chat trees. */
+export type ChatUIContextConfig = {
+  chatContext?: ChatUIContexts['chatContext']
+  partContext?: ChatUIContexts['partContext']
+  interruptContext?: ChatUIContexts['interruptContext']
+}
 
 export type ChatUIFactoryConfig<
   TOptions,
@@ -152,9 +171,7 @@ export type ChatUIFactoryConfig<
     | ComponentType<InputProps<TOptions>>
     | undefined = ComponentType<InputProps<TOptions>>,
 > = ChatUIComponents<TOptions, TInput> & {
-  chatContext?: ChatUIContexts['chatContext']
-  partContext?: ChatUIContexts['partContext']
-  interruptContext?: ChatUIContexts['interruptContext']
+  context?: ChatUIContextConfig
 }
 
 type BoundWidget = ComponentType<Record<string, never>>
@@ -250,16 +267,28 @@ export function createChatUI<
 >(options: TOptions, config: ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
   void options
   const {
-    chatContext: chatContextOption,
-    partContext: partContextOption,
-    interruptContext: interruptContextOption,
+    context: contextOption,
+    components,
+    partsComponents: parts,
+    toolsComponents: tools,
+    interruptsComponents: interrupts,
+  } = config as ChatUIFactoryConfig<TOptions, TInput> & {
+    toolsComponents?: Record<string, ComponentType<any> | undefined>
+    interruptsComponents?: {
+      tools?: Record<string, ComponentType<any> | undefined>
+      generic?: Record<string, ComponentType<any> | undefined>
+    }
+  }
+  const {
     layout: Layout,
     message: MessageComponent,
     input: InputComponent,
-    parts,
-    tools,
-    interrupts,
-  } = config
+  } = components
+  const {
+    chatContext: chatContextOption,
+    partContext: partContextOption,
+    interruptContext: interruptContextOption,
+  } = contextOption ?? {}
   const warn = createWarnOnce()
   const ChatContext = (chatContextOption ??
     defaultChatUIContexts.chatContext) as Context<ChatUIHost<TOptions> | null>

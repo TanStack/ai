@@ -24,38 +24,40 @@ import { ThinkingPart } from './thinking-part'
 
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  context: {
     chatContext,
     partContext,
     interruptContext,
+  },
+  components: {
     layout: ChatLayout,
     message: ChatMessage,
     input: ChatPromptInput,
-    parts: {
-      text: TextPart,
-      thinking: ThinkingPart,
-      structuredOutput: StructuredOutputPart,
-      image: ImagePart,
-      audio: AudioPart,
-      video: VideoPart,
-      document: DocumentPart,
-      toolResult: ToolResultPart,
-      uiResource: UIResourcePart,
-      fallback: FallbackPart,
-    },
+  },
+  partsComponents: {
+    text: TextPart,
+    thinking: ThinkingPart,
+    structuredOutput: StructuredOutputPart,
+    image: ImagePart,
+    audio: AudioPart,
+    video: VideoPart,
+    document: DocumentPart,
+    toolResult: ToolResultPart,
+    uiResource: UIResourcePart,
+    fallback: FallbackPart,
+  },
+  toolsComponents: {
+    lookupPlace: LookupPlaceTool,
+    bookStay: BookStayTool,
+    confirmPayment: ConfirmPaymentTool,
+  },
+  interruptsComponents: {
     tools: {
-      lookupPlace: LookupPlaceTool,
-      bookStay: BookStayTool,
-      confirmPayment: ConfirmPaymentTool,
+      bookStay: BookStayApproval,
     },
-    interrupts: {
-      tools: {
-        bookStay: BookStayApproval,
-      },
-      generic: {
-        chooseBudget: ChooseBudget,
-        fallback: FallbackInterrupt,
-      },
+    generic: {
+      chooseBudget: ChooseBudget,
+      fallback: FallbackInterrupt,
     },
   },
 })

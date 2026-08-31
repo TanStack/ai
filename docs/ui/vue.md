@@ -11,11 +11,11 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue`. Import the UI factory from `@tanstack/ai-vue/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `useAppChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+Install `@tanstack/ai-vue`. Import the UI factory from `@tanstack/ai-vue/ui`. Call `createChatHook({ options, ...components })` once. Your app calls `useAppChat()` to create the instance. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
 
 > **Deprecated.** Do not install `@tanstack/ai-vue-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -42,27 +42,27 @@ const chatOptions = {
 
 const { useAppChat, ui } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
   layout: defineComponent((_, { slots }) => () =>
     h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
   ),
   message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
-  parts: {
-    fallback: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('span', props.part.type)
-      },
-    }),
   },
-  tools: {
-    getWeather: defineComponent({
-      props: ['part'],
-      setup(props) {
-        return () => h('strong', props.part.input?.city)
-      },
-    }),
+  partsComponents: {
+  fallback: defineComponent({
+    props: ['part'],
+    setup(props) {
+      return () => h('span', props.part.type)
+    },
+  }),
   },
+  toolsComponents: {
+  getWeather: defineComponent({
+    props: ['part'],
+    setup(props) {
+      return () => h('strong', props.part.input?.city)
+    },
+  }),
   },
 })
 
@@ -107,14 +107,14 @@ export const WeatherTool = defineComponent(
 
 export const { useAppChat, ui } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: defineComponent((_, { slots }) => () =>
       h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
     ),
     message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
-    parts: { fallback: defineComponent(() => () => null) },
-    tools: { getWeather: WeatherTool },
   },
+  partsComponents: { fallback: defineComponent(() => () => null) },
+  toolsComponents: { getWeather: WeatherTool },
 })
 ```
 
@@ -140,13 +140,13 @@ const chatOptions = {
 
 const { useAppChat, ui } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: defineComponent((_, { slots }) => () =>
       h('main', [h(StatusLine), slots.messages?.()]),
     ),
     message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
-    parts: { fallback: defineComponent(() => () => null) },
   },
+  partsComponents: { fallback: defineComponent(() => () => null) },
 })
 
 // Declared after `ui`, and annotated, so that reading `ui.useChatContext()`
@@ -174,6 +174,6 @@ export default defineComponent({
 
 ## Interrupts
 
-Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interrupts.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).

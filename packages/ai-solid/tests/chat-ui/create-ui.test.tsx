@@ -29,25 +29,27 @@ function renderHtml(node: () => unknown) {
 }
 
 const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
-  layout: (props) => <>{<props.Messages />}</>,
-  message: (props) => (
-    <article>
-      <props.Parts />
-    </article>
-  ),
-  parts: { fallback: (props) => <span>{props.part.type}</span> },
-  tools: {
+  components: {
+    layout: (props) => <>{<props.Messages />}</>,
+    message: (props) => (
+      <article>
+        <props.Parts />
+      </article>
+    ),
+  },
+  partsComponents: { fallback: (props) => <span>{props.part.type}</span> },
+  toolsComponents: {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,
     purchaseItem: () => null,
   },
-  interrupts: { generic: { choosePlan: () => null, fallback: () => null } },
+  interruptsComponents: { generic: { choosePlan: () => null, fallback: () => null } },
 }
 
 describe('Solid createChatHook', () => {
   it('mixes AppChat onto the instance from options and chatComponents', () => {
     const { useAppChat, useChatContext } = createChatHook({
       options: chatOptions,
-      chatComponents: baseConfig,
+      ...baseConfig,
     })
     expect(typeof useAppChat).toBe('function')
     expect(typeof useChatContext).toBe('function')
@@ -67,11 +69,14 @@ describe('Solid createChatUI', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const UI = createChatUI(chatOptions, {
       ...baseConfig,
-      layout: (props) => (
-        <main>
-          <props.Input />
-        </main>
-      ),
+      components: {
+        ...baseConfig.components,
+        layout: (props) => (
+          <main>
+            <props.Input />
+          </main>
+        ),
+      },
     })
     // Twice: the warning is once per kit, not once per render.
     renderHtml(() => <UI.Chat chat={host([])} />)

@@ -17,10 +17,12 @@ const { chatContext, partContext, interruptContext, useChatContext } =
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  context: {
     chatContext,
     partContext,
     interruptContext,
+  },
+  components: {
     input: function ChatComposer() {
       const chat = useChatContext()
       const [draft, setDraft] = createSignal('')
@@ -57,42 +59,42 @@ const { useAppChat } = createChatHook({
         <props.Parts />
       </article>
     ),
-    parts: {
-      fallback: (props) =>
-        props.part.type === 'text' ? <p>{props.part.content}</p> : null,
-    },
-    tools: {
-      recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
-      getPersonalGuitarPreference: (props) => (
-        <p>{props.part.output?.preference}</p>
-      ),
-      addToWishList: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-      addToCart: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-    },
+  },
+  partsComponents: {
+    fallback: (props) =>
+      props.part.type === 'text' ? <p>{props.part.content}</p> : null,
+  },
+  toolsComponents: {
+    recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
+    getPersonalGuitarPreference: (props) => (
+      <p>{props.part.output?.preference}</p>
+    ),
+    addToWishList: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
+    addToCart: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
   },
 })
 

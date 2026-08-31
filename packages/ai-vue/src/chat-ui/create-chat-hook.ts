@@ -35,12 +35,14 @@ type ChatInstanceOverrides<TOptions> = {
  */
 export function createChatHook<const TOptions>({
   options,
-  chatComponents,
+  ...chatComponents
 }: {
   options: TOptions
-  chatComponents: ChatUIFactoryConfig<NoInfer<TOptions>>
-}) {
-  const ui = createChatUI(options, chatComponents)
+} & ChatUIFactoryConfig<NoInfer<TOptions>>) {
+  const ui = createChatUI(
+    options,
+    chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>>,
+  )
 
   function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
     if (!overrides) {

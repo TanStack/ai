@@ -11,11 +11,11 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. Your app calls `useAppChat()` to create the instance. Render `<chat.AppChat />`. Do not destructure reactive props.
+Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatHook({ options, ...components })` once at module scope. Your app calls `useAppChat()` to create the instance. Render `<chat.AppChat />`. Do not destructure reactive props.
 
 > **Deprecated.** Do not install `@tanstack/ai-solid-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
@@ -42,7 +42,7 @@ const chatOptions = {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
   layout: (props) => (
     <>
       <props.Messages />
@@ -67,12 +67,12 @@ const { useAppChat, useChatContext } = createChatHook({
     )
   },
   message: (props) => <article><props.Parts /></article>,
-  parts: {
-    fallback: (props) => <span>{props.part.type}</span>,
   },
-  tools: {
-    getWeather: (props) => <strong>{props.part.input?.city}</strong>,
+  partsComponents: {
+  fallback: (props) => <span>{props.part.type}</span>,
   },
+  toolsComponents: {
+  getWeather: (props) => <strong>{props.part.input?.city}</strong>,
   },
 })
 
@@ -116,12 +116,12 @@ export function WeatherTool(
 
 export const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: (props) => <props.Messages />,
     message: (props) => <article><props.Parts /></article>,
-    parts: { fallback: () => null },
-    tools: { getWeather: WeatherTool },
   },
+  partsComponents: { fallback: () => null },
+  toolsComponents: { getWeather: WeatherTool },
 })
 ```
 
@@ -148,7 +148,7 @@ function StatusLine() {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: (props) => (
       <>
         <StatusLine />
@@ -156,8 +156,8 @@ const { useAppChat, useChatContext } = createChatHook({
       </>
     ),
     message: (props) => <article><props.Parts /></article>,
-    parts: { fallback: () => null },
   },
+  partsComponents: { fallback: () => null },
 })
 
 export function ChatScreen() {
@@ -170,7 +170,7 @@ Call `useChatContext()` only inside `AppChat` or `Provider`.
 
 ## Interrupts
 
-Tool approvals sit in the tool when you read `props.interrupt`. Put a component on `interrupts.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+Tool approvals sit in the tool when you read `props.interrupt`. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).
 
