@@ -228,15 +228,18 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-flash-preview`) only serves the
- * Interactions API: `createVideoJob` creates a background interaction with
+ * **Gemini Omni Flash** (`gemini-omni-1.1-flash`, plus the deprecated
+ * `gemini-omni-flash-preview` alias) only serves the Interactions API:
+ * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
  * Files API URI when the server delivers by reference). Image and video
  * prompt parts are sent as interaction content blocks, grouped as images,
  * then videos, then the text prompt (interleaving is not preserved); pass
  * `modelOptions.previous_interaction_id` to conversationally edit a prior
- * Omni generation.
+ * Omni generation. `modelOptions.resolution` maps onto
+ * `response_format.resolution` (`'360p' | '720p' | '1080p' | '4k'`,
+ * default 720p).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -344,9 +347,8 @@ export class GeminiVideoAdapter<
     >,
   ): Promise<VideoJobResult> {
     const { prompt, size, duration, logger } = options
-    const modelOptions = options.modelOptions as
-      | GeminiOmniVideoProviderOptions
-      | undefined
+    const { resolution, ...passthroughModelOptions } =
+      (options.modelOptions as GeminiOmniVideoProviderOptions | undefined) ?? {}
 
     try {
       const resolved = resolveMediaPrompt(prompt)
@@ -384,23 +386,25 @@ export class GeminiVideoAdapter<
         )
       }
 
-      // Aspect ratio and clip length ride on `response_format`. Duration is
-      // a `"<seconds>s"` string, accepted anywhere in the 3–10s range
-      // (fractional included) and defaulting to 10s when omitted — verified
-      // against the live API; the docs don't publish the range constraints.
+      // Aspect ratio, clip length, and resolution ride on `response_format`.
+      // Duration is a `"<seconds>s"` string, accepted anywhere in the 3–10s
+      // range (fractional included) and defaulting to 10s when omitted.
+      // Resolution is `'360p' | '720p' | '1080p' | '4k'` and defaults to
+      // 720p when omitted — https://ai.google.dev/gemini-api/docs/omni
       const responseFormat =
-        size !== undefined || duration !== undefined
+        size !== undefined || duration !== undefined || resolution !== undefined
           ? {
               response_format: {
                 type: 'video' as const,
                 ...(size !== undefined && { aspect_ratio: size }),
                 ...(duration !== undefined && { duration: `${duration}s` }),
+                ...(resolution !== undefined && { resolution }),
               },
             }
           : {}
 
       const interaction = await this.client.interactions.create({
-        ...modelOptions,
+        ...passthroughModelOptions,
         model: this.model,
         input: [{ type: 'user_input', content }],
         response_modalities: ['video'],
@@ -659,6 +663,12 @@ export class GeminiVideoAdapter<
   }
 }
 
+/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
+export function createGeminiVideo(
+  model: 'gemini-omni-flash-preview',
+  apiKey: string,
+  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with an explicit API key.
  * Type resolution happens here at the call site.
@@ -685,10 +695,20 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<GeminiVideoConfig, 'apiKey'>,
+): GeminiVideoAdapter<TModel>
+export function createGeminiVideo<TModel extends GeminiVideoModel>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<GeminiVideoConfig, 'apiKey'>,
 ): GeminiVideoAdapter<TModel> {
   return new GeminiVideoAdapter({ apiKey, ...config }, model)
 }
 
+/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
+export function geminiVideo(
+  model: 'gemini-omni-flash-preview',
+  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with automatic API key detection from environment variables.
  * Type resolution happens here at the call site.
@@ -719,6 +739,10 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
  * const status = await getVideoJobStatus({ adapter, jobId });
  * ```
  */
+export function geminiVideo<TModel extends GeminiVideoModel>(
+  model: TModel,
+  config?: Omit<GeminiVideoConfig, 'apiKey'>,
+): GeminiVideoAdapter<TModel>
 export function geminiVideo<TModel extends GeminiVideoModel>(
   model: TModel,
   config?: Omit<GeminiVideoConfig, 'apiKey'>,

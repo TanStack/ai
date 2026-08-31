@@ -521,23 +521,26 @@ const { jobId } = await generateVideo({
 // (x-goog-api-key header or ?key= query parameter).
 ```
 
-Gemini Omni Flash (`geminiVideo('gemini-omni-flash-preview')`) is served by
+Gemini Omni Flash (`geminiVideo('gemini-omni-1.1-flash')`) is served by
 the Interactions API instead of Veo's operations flow — same adapter, routed
-by model. Clips are 720p; `duration` is any number of seconds in the 3–10
+by model. `duration` is any number of seconds in the 3–10
 range (fractional ok, default 10 — availableDurations() reports the range),
-`size` is the aspect ratio (`'16:9' | '9:16'`), and the finished video arrives
+`size` is the aspect ratio (`'16:9' | '9:16'`), `modelOptions.resolution` is
+`'360p' | '720p' | '1080p' | '4k'` (default 720p), and the finished video arrives
 **inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
 Image/video prompt parts are sent as interaction content blocks, grouped
 as images, then videos, then text (no
 `metadata.role` routing); `data` sources go inline, `url` sources pass
 through as-is (never downloaded — use Gemini Files API URIs for remote
 media). For conversational editing, pass a prior generation's `jobId` as
-`modelOptions.previous_interaction_id` with a prompt describing the change:
+`modelOptions.previous_interaction_id` with a prompt describing the change.
+`gemini-omni-flash-preview` remains a deprecated alias until it shuts down
+on 2026-09-30.
 
 ```typescript
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const omni = geminiVideo('gemini-omni-flash-preview')
+const omni = geminiVideo('gemini-omni-1.1-flash')
 const first = await generateVideo({
   adapter: omni,
   prompt: 'A violinist outdoors',

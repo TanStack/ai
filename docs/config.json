@@ -520,7 +520,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-31"
         },
         {
           "label": "Generation Hooks",

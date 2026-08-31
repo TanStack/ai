@@ -112,6 +112,7 @@ export {
 export type {
   GeminiInteractionsVideoModel,
   GeminiOmniVideoProviderOptions,
+  GeminiOmniVideoResolution,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
   GeminiVideoModelInputModalitiesByName,

@@ -43,7 +43,7 @@ export function isInteractionsVideoModel(
 /**
  * Supported aspect ratios for Gemini video generation. This is the `size`
  * value for the Gemini video adapter — both Veo and Omni Flash express
- * output shape as an aspect ratio (plus an optional `resolution` in Veo's
+ * output shape as an aspect ratio (plus an optional `resolution` in
  * `modelOptions`), not pixel dimensions.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -85,7 +85,9 @@ export type GeminiVideoProviderOptions = Omit<
  *   and polls it through the `generateVideo` jobs API
  * - `response_modalities` / `response_format` — the adapter requests video
  *   output and maps the top-level `size` option onto
- *   `response_format.aspect_ratio`
+ *   `response_format.aspect_ratio`, `duration` onto
+ *   `response_format.duration`, and `modelOptions.resolution` onto
+ *   `response_format.resolution`
  * - `tools` / `response_mime_type` — not applicable to video generation
  *
  * Notable passthroughs:
@@ -97,6 +99,8 @@ export type GeminiVideoProviderOptions = Omit<
  *
  * @experimental Omni video generation is an experimental feature and may change.
  */
+export type GeminiOmniVideoResolution = '360p' | '720p' | '1080p' | '4k'
+
 export type GeminiOmniVideoProviderOptions = Omit<
   Interactions.CreateModelInteractionParamsNonStreaming,
   | 'model'
@@ -107,7 +111,14 @@ export type GeminiOmniVideoProviderOptions = Omit<
   | 'response_format'
   | 'response_mime_type'
   | 'tools'
->
+> & {
+  /**
+   * Output resolution. Mapped onto `response_format.resolution`.
+   * Default 720p when omitted (the API default). 1080p and 4k are upscaled.
+   * @see https://ai.google.dev/gemini-api/docs/omni#output-resolution
+   */
+  resolution?: GeminiOmniVideoResolution
+}
 
 /**
  * Model-specific provider options mapping.
@@ -156,6 +167,7 @@ export type GeminiVideoModelDurationByName = {
   'veo-3.1-generate-preview': 4 | 6 | 8
   'veo-3.1-fast-generate-preview': 4 | 6 | 8
   'veo-3.1-lite-generate-preview': 4 | 6 | 8
+  'gemini-omni-1.1-flash': number
   'gemini-omni-flash-preview': number
 }
 
@@ -182,6 +194,12 @@ export const GEMINI_VIDEO_DURATIONS: {
   'veo-3.1-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'gemini-omni-1.1-flash': {
+    kind: 'range',
+    min: 3,
+    max: 10,
+    unit: 'seconds',
+  },
   'gemini-omni-flash-preview': {
     kind: 'range',
     min: 3,
