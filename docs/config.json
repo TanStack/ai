@@ -16,30 +16,10 @@
           "updatedAt": "2026-08-24"
         },
         {
-          "label": "Quick Start: React",
+          "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-22"
-        },
-        {
-          "label": "Quick Start: Vue",
-          "to": "getting-started/quick-start-vue",
-          "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Quick Start: Svelte",
-          "to": "getting-started/quick-start-svelte",
-          "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Quick Start: Angular",
-          "to": "getting-started/quick-start-angular",
-          "addedAt": "2026-06-15"
-        },
-        {
-          "label": "Quick Start: Octane",
-          "to": "getting-started/quick-start-octane",
-          "addedAt": "2026-08-21"
+          "updatedAt": "2026-08-30"
         },
         {
           "label": "Quick Start: React Native",
@@ -117,6 +97,48 @@
         }
       ],
       "tab": "guides"
+    },
+    {
+      "label": "Structured Outputs",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Harness Agents",
+          "to": "structured-outputs/harnesses",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-19"
+        }
+      ]
     },
     {
       "label": "Tools",
@@ -392,48 +414,6 @@
           "label": "How Persistence Works",
           "to": "persistence/internals",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-19"
-        }
-      ]
-    },
-    {
-      "label": "Structured Outputs",
-      "tab": "guides",
-      "children": [
-        {
-          "label": "Overview",
-          "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "One-Shot Extraction",
-          "to": "structured-outputs/one-shot",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
-        },
-        {
-          "label": "Streaming UIs",
-          "to": "structured-outputs/streaming",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "Multi-Turn Chat",
-          "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "With Tools",
-          "to": "structured-outputs/with-tools",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "Harness Agents",
-          "to": "structured-outputs/harnesses",
-          "addedAt": "2026-08-14",
           "updatedAt": "2026-08-19"
         }
       ]

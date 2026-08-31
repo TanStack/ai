@@ -181,4 +181,4 @@ The adapter reads `OPENAI_API_KEY` at runtime. Never expose it to the browser.
 - Learn about [Tools](../tools/tools) to add function calling and agent loops
 - Explore [StreamProcessor](../reference/classes/StreamProcessor) for fine-grained stream control
 - Check out the [Adapters](../adapters/openai) to connect to different providers
-- See the [React Quick Start](./quick-start) to add a frontend
+- See the [Quick Start](./quick-start) to add a frontend

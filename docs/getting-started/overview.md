@@ -129,7 +129,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 
 ## Next Steps
 
-- [Quick Start Guide](./quick-start) - Get up and running in minutes
+- [Quick Start](./quick-start) - Add streaming chat. Pick your framework at the top of the page.
 - [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

@@ -95,7 +95,7 @@ export function Chat() {
 
 `messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
 
-Need Vue, Solid, Svelte, or another framework? Same `useChat` pattern. Start at [Quick Start](../getting-started/quick-start).
+The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
 If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).
 

@@ -84,7 +84,7 @@ export function ChatComponent() {
 }
 ```
 
-The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start: Octane](../getting-started/quick-start-octane).
+The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start](../getting-started/quick-start).
 
 ### Options you pass first
 
@@ -291,6 +291,6 @@ Re-exported from `@tanstack/ai-client`:
 
 ## Next
 
-- [Quick Start: Octane](../getting-started/quick-start-octane)
+- [Quick Start](../getting-started/quick-start)
 - [Tools](../tools/tools)
 - [Client tools](../tools/client-tools)

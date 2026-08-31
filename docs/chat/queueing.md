@@ -50,7 +50,7 @@ Render `queue` with a different style from `messages`. Once the text appears in 
 
 Pass a `queue` option. A string is shorthand for `{ whenBusy }`:
 
-```tsx
+```tsx group=queueing-whenbusy
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { sendMessage } = useChat({
@@ -67,7 +67,7 @@ const { sendMessage } = useChat({
 
 Override the policy for one send with the second argument to `sendMessage`:
 
-```tsx
+```tsx group=queueing-whenbusy
 sendMessage("Never mind, do this instead", {
   whenBusy: "interrupt",
   body: { source: "composer" },

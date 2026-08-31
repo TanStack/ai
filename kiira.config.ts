@@ -13,7 +13,6 @@ export default defineConfig({
     // which isn't available during a source-based docs check. Excluded until
     // ai-angular exposes a source-resolvable entry.
     'docs/api/ai-angular.md',
-    'docs/getting-started/quick-start-angular.md',
     // docs/superpowers/** are internal planning/spec artifacts (design docs and
     // implementation plans), not published, curated examples. Their snippets are
     // illustrative pseudo-code, not meant to compile against package source.
@@ -90,10 +89,7 @@ export default defineConfig({
     // kiira's paths["*"] does not read exports, so `octane/dist` points
     // at dist/jsx-runtime.d.ts, which exists on disk.
     {
-      include: [
-        'docs/api/ai-octane.md',
-        'docs/getting-started/quick-start-octane.md',
-      ],
+      include: ['docs/api/ai-octane.md'],
       jsx: 'react-jsx',
       jsxImportSource: 'octane/dist',
     },
