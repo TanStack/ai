@@ -25,14 +25,7 @@ permissions: {}
 jobs:
   review:
     name: Review
-    if: >
-      (github.event_name == 'pull_request'
-        && github.event.pull_request.draft == false
-        && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
-      || github.event_name == 'workflow_dispatch'
-      || (github.event_name == 'issue_comment'
-        && github.event.issue.pull_request
-        && startsWith(github.event.comment.body, '/ai-review'))
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/ai-review')) || (github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.author_association != 'OWNER' && github.event.pull_request.author_association != 'MEMBER' && github.event.pull_request.author_association != 'COLLABORATOR') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
