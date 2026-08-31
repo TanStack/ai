@@ -34,9 +34,15 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:packages/ai
-      '@tanstack/ai-grok':
+      '@tanstack/ai-grok-build':
         specifier: workspace:*
-        version: link:packages/ai-grok
+        version: link:packages/ai-grok-build
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:packages/ai-sandbox-local-process
       '@tanstack/typedoc-config':
         specifier: 0.3.4
         version: 0.3.4

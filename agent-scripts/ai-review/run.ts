@@ -8,7 +8,9 @@ import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { chat } from '@tanstack/ai'
-import { grokText } from '@tanstack/ai-grok'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   loadConfig,
   isRosterMaintainer,
@@ -119,21 +121,35 @@ type ReviewInput = {
 /**
  * Production Grok review step for `runReviewJob`.
  *
- * Tools run first (read/edit files). Then `outputSchema` returns the verdict.
- * Do not call this from unit tests.
+ * `grokBuildText` streams tools first, then a `structured-output.complete`
+ * event. Do not call this from unit tests.
  */
 export function createGrokReview() {
   return async (input: ReviewInput) => {
+    const sandbox = defineSandbox({
+      id: 'ai-review',
+      provider: localProcessSandbox({
+        dir: input.worktreeRoot,
+        removeOnDestroy: false,
+      }),
+      lifecycle: { reuse: 'none', destroyOnComplete: false },
+    })
     const result = await chat({
-      adapter: grokText('grok-4.6'),
-      modelOptions: { reasoning: { effort: 'high' } },
+      adapter: grokBuildText('composer-2.5', {
+        authMode: 'api-key',
+        protocol: 'streaming-json',
+        cwd: input.worktreeRoot,
+      }),
       tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
+      middleware: [withSandbox(sandbox)],
+      threadId: `ai-review-${input.pr.number}`,
       messages: [
         {
           role: 'user',
           content: [
             'Review this pull request.',
+            'Read the changed source files before you choose a verdict.',
             'If it is a bug fix and does not fix the claimed root cause, verdict is reject.',
             'If it is useful and needs listed bug or suggestion edits, apply those with edit_file, then verdict polish.',
             'If it is useful and clean, verdict is ready.',

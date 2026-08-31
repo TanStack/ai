@@ -1,6 +1,6 @@
 # Grok PR review bot
 
-A GitHub Action that reviews open pull requests with TanStack AI (`chat()` + `grokText('grok-4.6')` + high reasoning). It comments, sets one `ai-*` label, and can push listed polish commits.
+A GitHub Action that reviews open pull requests with TanStack AI (`chat()` + `grokBuildText('composer-2.5')`). It comments, sets one `ai-*` label, and can push listed polish commits.
 
 The first lines of every bot comment say the comment is automated. It is not a maintainer review. The bot never GitHub-approves and never merges.
 
