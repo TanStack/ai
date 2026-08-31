@@ -151,6 +151,11 @@ const chatOptions = {
 }
 
 
+// Counts mounts of the purchase tool widget. The `Parts` component handed to
+// `message` must be one stable reference, so this stays at 1 for the life of a
+// message no matter how many chunks arrive.
+let purchaseToolMounts = 0
+
 // Standalone contexts instead of `UI.useChatContext()`: referencing `UI`
 // inside its own config is circular and blocks `input` inference.
 const { chatContext, partContext, interruptContext, useChatContext } =
@@ -219,25 +224,30 @@ const UI = createChatUI(chatOptions, {
     fallback: () => null,
   },
   toolsComponents: {
-    purchaseItem: ({ part, interrupt }) => (
-      <div data-testid="purchase-tool">
-        {part.input?.item}
-        {interrupt?.status === 'pending' ? (
-          <button
-            data-testid="purchase-approval"
-            type="button"
-            onClick={() => interrupt.resolveInterrupt(true)}
-          >
-            Approve purchase
-          </button>
-        ) : null}
-        {part.output ? (
-          <div data-testid="purchase-output">
-            {part.output.ok ? 'approved' : 'denied'}
-          </div>
-        ) : null}
-      </div>
-    ),
+    purchaseItem: function PurchaseTool({ part, interrupt }) {
+      // Stamped once per mount. The stream re-renders this widget on every
+      // chunk, so a rebuilt `Parts` would remount the subtree and bump this.
+      const [mountSeq] = useState(() => ++purchaseToolMounts)
+      return (
+        <div data-testid="purchase-tool" data-mount-seq={mountSeq}>
+          {part.input?.item}
+          {interrupt?.status === 'pending' ? (
+            <button
+              data-testid="purchase-approval"
+              type="button"
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve purchase
+            </button>
+          ) : null}
+          {part.output ? (
+            <div data-testid="purchase-output">
+              {part.output.ok ? 'approved' : 'denied'}
+            </div>
+          ) : null}
+        </div>
+      )
+    },
   },
   interruptsComponents: {
     generic: { choosePlan: () => null, fallback: () => null },
