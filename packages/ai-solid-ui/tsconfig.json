@@ -7,6 +7,6 @@
     "lib": ["ES2022", "DOM"],
     "rootDir": "../.."
   },
-  "include": ["src", "tests"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }

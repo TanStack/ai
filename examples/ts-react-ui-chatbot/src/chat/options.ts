@@ -1,5 +1,5 @@
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { byok } from './byok'
 import { chatInterrupts } from './interrupts'
 import { itinerarySchema } from './schema'

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid/ui'
 import { createSignal } from 'solid-js'
 import { clientTools } from '@/lib/guitar-tools'
 

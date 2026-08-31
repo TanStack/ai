@@ -4,7 +4,7 @@
     fetchServerSentEvents,
     clientTools,
   } from '@tanstack/ai-svelte'
-  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { createChatUI, UIChat } from '@tanstack/ai-svelte/ui'
   import {
     addToCartToolDef,
     addToWishListToolDef,

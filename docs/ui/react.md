@@ -12,7 +12,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react-ui`, then call `createChatUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
+Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatUI(chatOptions)` once at module scope. Your app owns `useChat`. The UI only renders. Call `UI.useChat()` inside a mapped component when it needs live chat. That call is the same value you passed into `UI.Chat`.
+
+> **Deprecated.** `@tanstack/ai-react-ui` re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
 You supply every visible component. There is no default markup, style, or copy.
 
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -174,7 +176,7 @@ Part components work the same way. `PartProps<typeof chatOptions, 'text'>` alrea
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI, type PartProps, type ToolProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type PartProps, type ToolProps } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -219,7 +221,7 @@ export const components = UI.defineComponents({
 ```
 
 1. Put `chatOptions` in a shared module.
-2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react-ui`.
+2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react/ui`.
 3. Type the component with `ToolProps<typeof chatOptions, 'getWeather'>` or `PartProps<typeof chatOptions, 'text'>`.
 4. Pass that component into `tools.getWeather` or `parts.text`.
 
@@ -230,7 +232,7 @@ For an interrupt, use `InterruptProps`. Pass a tool name or a registered interru
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatUI, type InterruptProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type InterruptProps } from '@tanstack/ai-react/ui'
 import { defineInterrupt } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -283,7 +285,7 @@ Mapped components do not receive `chat` as a prop. Call `UI.useChat()` inside a 
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
@@ -332,7 +334,7 @@ Read `interrupt` on the tool. Render the approval in that same component. Do not
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI, type ToolProps } from '@tanstack/ai-react-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -395,7 +397,7 @@ Register the approval under `interrupts.tools`. That component appears in the in
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -454,7 +456,7 @@ Map them under `interrupts.generic`:
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 import { defineInterrupt } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -504,7 +506,7 @@ You can mix this map with `interrupts.tools` in the same `defineComponents` call
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

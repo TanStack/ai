@@ -1,4 +1,4 @@
-import type { InterruptProps, ToolProps } from '@tanstack/ai-react-ui'
+import type { InterruptProps, ToolProps } from '@tanstack/ai-react/ui'
 import { Button } from '@/components/ui/button'
 import {
   Tool,

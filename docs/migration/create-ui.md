@@ -10,7 +10,9 @@ keywords:
   - deprecation
 ---
 
-The old `Chat` component owned chat state and lost configured types. `createChatUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+Import `createChatUI` from `@tanstack/ai-react/ui`. The old `Chat` component owned chat state and lost configured types. `createChatUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+
+> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` re-export `/ui` until 1.0.0. Svelte never published a `*-ui` package. Use `@tanstack/ai-svelte/ui`.
 
 This is a semantic migration. There is no codemod.
 
@@ -29,10 +31,18 @@ The old APIs drop configured types, keep unused properties, use a deprecated app
 
 ## Minimum versions
 
+New imports (next minor of each framework package):
+
+- `@tanstack/ai-react/ui`
+- `@tanstack/ai-solid/ui`
+- `@tanstack/ai-vue/ui`
+- `@tanstack/ai-svelte/ui`
+
+Deprecated re-exports, removed in `1.0.0`:
+
 - `@tanstack/ai-react-ui` 0.9.0
 - `@tanstack/ai-solid-ui` 0.8.0
 - `@tanstack/ai-vue-ui` 0.3.0
-- `@tanstack/ai-svelte-ui` 0.2.0
 
 Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
 
@@ -58,7 +68,7 @@ export function OldChat() {
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

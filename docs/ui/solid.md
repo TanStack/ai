@@ -11,7 +11,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid-ui`, then call `createChatUI(chatOptions)` once at module scope. Do not destructure reactive props.
+Install `@tanstack/ai-solid`. Import the UI factory from `@tanstack/ai-solid/ui`. Call `createChatUI(chatOptions)` once at module scope. Do not destructure reactive props.
+
+> **Deprecated.** `@tanstack/ai-solid-ui` re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
@@ -21,7 +23,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -68,7 +70,7 @@ Use `ToolProps` the same way as React. Keep the `props` object so Solid can trac
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatUI, type ToolProps } from '@tanstack/ai-solid-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -110,7 +112,7 @@ Mapped components do not receive `chat` as a prop. Call `UI.useChat()` when a co
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createChatUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

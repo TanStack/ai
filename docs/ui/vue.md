@@ -11,7 +11,9 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue-ui`. Call `createChatUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+Install `@tanstack/ai-vue`. Import the UI factory from `@tanstack/ai-vue/ui`. Call `createChatUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+
+> **Deprecated.** `@tanstack/ai-vue-ui` re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
@@ -22,7 +24,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -80,7 +82,7 @@ Use `ToolProps` on the component props. Share the same `chatOptions` object that
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents } from '@tanstack/ai-vue'
-import { createChatUI, type ToolProps } from '@tanstack/ai-vue-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-vue/ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -127,7 +129,7 @@ Call `ui.useChat()` inside a child of `UIChat` or `UIProvider`.
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
-import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),

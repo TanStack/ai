@@ -1,5 +1,5 @@
 import { CompassIcon } from 'lucide-react'
-import type { LayoutProps } from '@tanstack/ai-react-ui'
+import type { LayoutProps } from '@tanstack/ai-react/ui'
 import type { ContentPart } from '@tanstack/ai/client'
 import {
   Conversation,
