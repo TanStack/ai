@@ -629,14 +629,9 @@ seconds included), defaulting to 10 seconds when omitted:
 - `snapDuration(n)` snaps raw seconds into the range, clamping to its bounds and
   rounding to whole seconds.
 
-The `size` option maps onto the interaction's output aspect ratio
-(`'16:9'` default, or `'9:16'`). Pass `modelOptions.resolution` to set
-`response_format.resolution`:
-
-- `'360p'`
-- `'720p'` (default)
-- `'1080p'` (upscaled)
-- `'4k'` (upscaled)
+The `size` option is an `aspectRatio_resolution` template, same shape as
+grok and byteplus video. Bare `'16:9'` / `'9:16'` uses the 720p default.
+Add a suffix for the other tiers (`'360p'`, `'1080p'`, `'4k'`):
 
 ```typescript ignore
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
@@ -647,9 +642,8 @@ const adapter = geminiVideo("gemini-omni-1.1-flash");
 const { jobId } = await generateVideo({
   adapter,
   prompt: "A woman playing violin outdoors at golden hour",
-  size: "9:16", // aspect ratio: '16:9' (default) or '9:16'
+  size: "9:16_1080p", // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
   duration: 6, // 3-10 seconds; omit for the 10s default
-  modelOptions: { resolution: "1080p" }, // '360p' | '720p' | '1080p' | '4k'
 });
 
 const status = await getVideoJobStatus({ adapter, jobId });

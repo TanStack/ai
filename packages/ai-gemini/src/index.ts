@@ -108,11 +108,13 @@ export {
   GEMINI_VIDEO_DURATIONS,
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
+  parseGeminiOmniVideoSize,
 } from './video/video-provider-options'
 export type {
   GeminiInteractionsVideoModel,
   GeminiOmniVideoProviderOptions,
   GeminiOmniVideoResolution,
+  GeminiOmniVideoSize,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
   GeminiVideoModelInputModalitiesByName,

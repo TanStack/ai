@@ -525,8 +525,8 @@ Gemini Omni Flash (`geminiVideo('gemini-omni-1.1-flash')`) is served by
 the Interactions API instead of Veo's operations flow — same adapter, routed
 by model. `duration` is any number of seconds in the 3–10
 range (fractional ok, default 10 — availableDurations() reports the range),
-`size` is the aspect ratio (`'16:9' | '9:16'`), `modelOptions.resolution` is
-`'360p' | '720p' | '1080p' | '4k'` (default 720p), and the finished video arrives
+`size` is an `aspectRatio_resolution` template (`'16:9'` or `'16:9_1080p'`;
+suffix `'360p' | '720p' | '1080p' | '4k'`, default 720p), and the finished video arrives
 **inline** as a `data:video/mp4;base64,…` URL (no key needed to use it).
 Image/video prompt parts are sent as interaction content blocks, grouped
 as images, then videos, then text (no

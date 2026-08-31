@@ -9,6 +9,7 @@ import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import {
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
+  parseGeminiOmniVideoSize,
 } from '../video/video-provider-options'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
@@ -36,7 +37,6 @@ import type {
   GeminiVideoModelProviderOptionsByName,
   GeminiVideoModelSizeByName,
   GeminiVideoProviderOptions,
-  GeminiVideoSize,
 } from '../video/video-provider-options'
 import type { GeminiClientConfig } from '../utils/client'
 
@@ -237,7 +237,8 @@ function interactionUsageToTokenUsage(
  * prompt parts are sent as interaction content blocks, grouped as images,
  * then videos, then the text prompt (interleaving is not preserved); pass
  * `modelOptions.previous_interaction_id` to conversationally edit a prior
- * Omni generation. `modelOptions.resolution` maps onto
+ * Omni generation. `size` is an `aspectRatio_resolution` template
+ * (`'16:9'` or `'16:9_1080p'`); the optional suffix maps onto
  * `response_format.resolution` (`'360p' | '720p' | '1080p' | '4k'`,
  * default 720p).
  *
@@ -267,7 +268,7 @@ export class GeminiVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<
       GeminiVideoModelProviderOptionsByName[TModel],
-      GeminiVideoSize,
+      GeminiVideoModelSizeByName[TModel],
       GeminiVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
@@ -342,13 +343,14 @@ export class GeminiVideoAdapter<
   private async createInteractionsVideoJob(
     options: VideoGenerationOptions<
       GeminiVideoModelProviderOptionsByName[TModel],
-      GeminiVideoSize,
+      GeminiVideoModelSizeByName[TModel],
       GeminiVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
     const { prompt, size, duration, logger } = options
-    const { resolution, ...passthroughModelOptions } =
-      (options.modelOptions as GeminiOmniVideoProviderOptions | undefined) ?? {}
+    const modelOptions = options.modelOptions as
+      | GeminiOmniVideoProviderOptions
+      | undefined
 
     try {
       const resolved = resolveMediaPrompt(prompt)
@@ -387,24 +389,29 @@ export class GeminiVideoAdapter<
       }
 
       // Aspect ratio, clip length, and resolution ride on `response_format`.
-      // Duration is a `"<seconds>s"` string, accepted anywhere in the 3–10s
-      // range (fractional included) and defaulting to 10s when omitted.
-      // Resolution is `'360p' | '720p' | '1080p' | '4k'` and defaults to
-      // 720p when omitted — https://ai.google.dev/gemini-api/docs/omni
+      // Duration is a `"<seconds>s"` string. Resolution comes from the
+      // optional `size` suffix (`'16:9_1080p'`), defaulting to 720p when
+      // omitted — https://ai.google.dev/gemini-api/docs/omni
+      const parsedSize =
+        size !== undefined ? parseGeminiOmniVideoSize(size) : undefined
       const responseFormat =
-        size !== undefined || duration !== undefined || resolution !== undefined
+        parsedSize !== undefined || duration !== undefined
           ? {
               response_format: {
                 type: 'video' as const,
-                ...(size !== undefined && { aspect_ratio: size }),
+                ...(parsedSize !== undefined && {
+                  aspect_ratio: parsedSize.aspectRatio,
+                  ...(parsedSize.resolution !== undefined && {
+                    resolution: parsedSize.resolution,
+                  }),
+                }),
                 ...(duration !== undefined && { duration: `${duration}s` }),
-                ...(resolution !== undefined && { resolution }),
               },
             }
           : {}
 
       const interaction = await this.client.interactions.create({
-        ...passthroughModelOptions,
+        ...modelOptions,
         model: this.model,
         input: [{ type: 'user_input', content }],
         response_modalities: ['video'],

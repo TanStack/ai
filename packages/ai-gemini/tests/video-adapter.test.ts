@@ -9,9 +9,13 @@ import {
 import {
   GEMINI_VIDEO_DURATIONS,
   getGeminiVideoDurationOptions,
+  parseGeminiOmniVideoSize,
 } from '../src/video/video-provider-options'
 import type { GenerateVideosOperation, GoogleGenAI } from '@google/genai'
-import type { GeminiVideoModel } from '../src/video/video-provider-options'
+import type {
+  GeminiOmniVideoSize,
+  GeminiVideoModel,
+} from '../src/video/video-provider-options'
 
 const testLogger = resolveDebugOption(false)
 
@@ -157,10 +161,16 @@ describe('Gemini Video Adapter', () => {
       expectTypeOf<VeoCreate['duration']>().toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
+      expectTypeOf<VeoCreate['size']>().toEqualTypeOf<
+        '16:9' | '9:16' | undefined
+      >()
 
       const omni = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
       type OmniCreate = Parameters<typeof generateVideo<typeof omni>>[0]
       expectTypeOf<OmniCreate['duration']>().toEqualTypeOf<number | undefined>()
+      expectTypeOf<OmniCreate['size']>().toEqualTypeOf<
+        GeminiOmniVideoSize | undefined
+      >()
 
       const preview = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
       type PreviewCreate = Parameters<typeof generateVideo<typeof preview>>[0]
@@ -686,9 +696,8 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       expectTypeOf<OmniOptions['duration']>().toEqualTypeOf<
         number | undefined
       >()
-      type OmniModelOptions = NonNullable<OmniOptions['modelOptions']>
-      expectTypeOf<OmniModelOptions['resolution']>().toEqualTypeOf<
-        '360p' | '720p' | '1080p' | '4k' | undefined
+      expectTypeOf<OmniOptions['size']>().toEqualTypeOf<
+        GeminiOmniVideoSize | undefined
       >()
     })
   })
@@ -872,48 +881,37 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       )
     })
 
-    it('maps modelOptions.resolution onto response_format.resolution', async () => {
+    it('splits size "aspectRatio_resolution" onto response_format', async () => {
       const stub = createInteractionsClientStub()
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
       await adapter.createVideoJob({
         model: 'gemini-omni-1.1-flash',
         prompt: 'a drone shot of a mountain landscape',
-        size: '16:9',
+        size: '16:9_1080p',
         duration: 6,
-        modelOptions: { resolution: '1080p' },
-        logger: testLogger,
-      })
-
-      const payload = stub.interactions.create.mock.calls[0]?.[0] as {
-        resolution?: unknown
-        response_format: Record<string, unknown>
-      }
-      expect(payload.resolution).toBeUndefined()
-      expect(payload.response_format).toEqual({
-        type: 'video',
-        aspect_ratio: '16:9',
-        duration: '6s',
-        resolution: '1080p',
-      })
-    })
-
-    it('sends resolution alone on response_format when size and duration are omitted', async () => {
-      const stub = createInteractionsClientStub()
-      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
-
-      await adapter.createVideoJob({
-        model: 'gemini-omni-1.1-flash',
-        prompt: 'a sunset',
-        modelOptions: { resolution: '4k' },
         logger: testLogger,
       })
 
       expect(stub.interactions.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          response_format: { type: 'video', resolution: '4k' },
+          response_format: {
+            type: 'video',
+            aspect_ratio: '16:9',
+            duration: '6s',
+            resolution: '1080p',
+          },
         }),
       )
+    })
+
+    it('parses the Omni size template', () => {
+      expect(parseGeminiOmniVideoSize('16:9_1080p')).toEqual({
+        aspectRatio: '16:9',
+        resolution: '1080p',
+      })
+      expect(parseGeminiOmniVideoSize('9:16')).toEqual({ aspectRatio: '9:16' })
+      expect(parseGeminiOmniVideoSize('not-a-size')).toBeUndefined()
     })
 
     it('routes the deprecated preview id through the same Interactions path', async () => {
