@@ -16,7 +16,8 @@ Until both secrets exist, the job fails with `missing AI_REVIEW_TOKEN or XAI_API
 ## How a run starts
 
 - Auto: `pull_request` opened, synchronize, or ready_for_review, when the PR is not a draft.
-- Auto does not start when the PR author is OWNER, MEMBER, or COLLABORATOR. GitHub then shows a skipped check, not a cancelled check.
+- Auto does not start when the PR author is AlemTuzlak, tombeckenham, or jherr.
+- Keep those logins in sync with `.github/maintainers.json`. GitHub then shows a skipped check, not a cancelled check.
 - Manual: Actions `workflow_dispatch` with a PR number.
 - Manual: a login in `.github/maintainers.json` comments `/ai-review` on the PR.
 
