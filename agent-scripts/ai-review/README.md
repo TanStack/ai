@@ -20,12 +20,13 @@ Until both secrets exist, the job fails with `missing AI_REVIEW_TOKEN or XAI_API
 - Keep those logins in sync with `.github/maintainers.json`. GitHub then shows a skipped check, not a cancelled check.
 - Manual: Actions `workflow_dispatch` with a PR number.
 - Manual: a login in `.github/maintainers.json` comments `/ai-review` on the PR.
+- Manual: add the `ai-review` label to the PR. Remove it and add it again to run a second time.
 
 Auto also skips drafts, bot PRs, roster-maintainer PRs, the machine user's own head commit, and a head SHA this bot already reviewed. Manual still runs on those. The bot never executes PR code.
 
 ## Labels
 
-The bot sets exactly one of these. It removes the other two. It never touches `ready-to-merge`.
+Add the `ai-review` label to start a manual run. The bot does not remove that label. The bot sets exactly one of these verdict labels. It removes the other two. It never touches `ready-to-merge`.
 
 | Label           | Meaning                                                                |
 | --------------- | ---------------------------------------------------------------------- |

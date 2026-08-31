@@ -304,6 +304,40 @@ describe('runReviewJob', () => {
     expect(gitCalls).toEqual([])
   })
 
+  it('runs when the ai-review label is added to a maintainer PR', async () => {
+    const { result, comments } = await runJob({
+      pull: samplePull({ login: 'alem' }),
+      event: {
+        action: 'labeled',
+        label: { name: 'ai-review' },
+        pull_request: { number: NUMBER },
+      },
+      review: readyReview,
+    })
+
+    expect(result).toEqual({
+      skipped: false,
+      verdict: { verdict: 'ready', issues: [] },
+      label: 'ai-ready',
+      pushLanded: false,
+    })
+    expect(comments).toHaveLength(1)
+  })
+
+  it('skips a labeled pull_request that is not the ai-review label', async () => {
+    const { result, comments, gitCalls } = await runJob({
+      event: {
+        action: 'labeled',
+        label: { name: 'bug' },
+        pull_request: { number: NUMBER },
+      },
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'not-label' })
+    expect(comments).toEqual([])
+    expect(gitCalls).toEqual([])
+  })
+
   it('skips an issue_comment that is not the /ai-review command', async () => {
     const { result, comments, gitCalls } = await runJob({
       eventName: 'issue_comment',
