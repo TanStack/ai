@@ -4,9 +4,11 @@
 
 import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { chat } from '@tanstack/ai'
+import { grokText } from '@tanstack/ai-grok'
 import {
   loadConfig,
   isRosterMaintainer,
@@ -27,7 +29,7 @@ import { setReviewState } from './labels.ts'
 import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
 import { shouldSkip } from './skip.ts'
 import { createReviewTools } from './tools.ts'
-import { parseVerdict, reviewLabelFor } from './verdict.ts'
+import { parseVerdict, reviewLabelFor, reviewVerdictSchema } from './verdict.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -105,37 +107,30 @@ type ReviewInput = {
 }
 
 /**
- * Build the production Grok review step for `runReviewJob`.
+ * Production Grok review step for `runReviewJob`.
  *
- * Uses `chat()` + `grokText('grok-4.6')`. Do not call this from unit tests.
- *
- * @param deps skill folder that `withSkills` loads
+ * Tools run first (read/edit files). Then `outputSchema` returns the verdict.
+ * Do not call this from unit tests.
  */
-export function createGrokReview(deps: { skillRoot: string }) {
+export function createGrokReview() {
   return async (input: ReviewInput) => {
-    const { chat } = await importChat()
-    const { grokText } = await importGrokText()
-    const { withSkills, skillDirectory } = await importSkills()
-    let lastVerdict: ReturnType<typeof parseVerdict> | undefined
-    const tools = createReviewTools({
-      client: input.client,
-      repo: input.repo,
-      issueNumber: input.pr.number,
-      worktreeRoot: input.worktreeRoot,
-      onVerdict(next) {
-        lastVerdict = next
-      },
-    })
-    const stream = chat({
+    const result = await chat({
       adapter: grokText('grok-4.6'),
       modelOptions: { reasoning: { effort: 'high' } },
-      middleware: [withSkills(skillDirectory(deps.skillRoot))],
-      tools,
+      tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
+      outputSchema: reviewVerdictSchema,
       messages: [
         {
           role: 'user',
           content: [
-            `Review pull request #${input.pr.number}: ${input.pr.title}`,
+            'Review this pull request.',
+            'If it is a bug fix and does not fix the claimed root cause, verdict is reject.',
+            'If it is useful and needs listed bug or suggestion edits, apply those with edit_file, then verdict polish.',
+            'If it is useful and clean, verdict is ready.',
+            'Nits stay in issues. Do not edit files for nits.',
+            'Never edit .github/workflows.',
+            '',
+            `Pull request #${input.pr.number}: ${input.pr.title}`,
             input.pr.htmlUrl,
             input.pr.body ?? '',
             '',
@@ -145,45 +140,7 @@ export function createGrokReview(deps: { skillRoot: string }) {
         },
       ],
     })
-    for await (const chunk of stream) {
-      void chunk
-    }
-    if (lastVerdict === undefined) {
-      throw new Error('agent did not emit_verdict')
-    }
-    return lastVerdict
-  }
-}
-
-async function importChat() {
-  try {
-    return await import('@tanstack/ai')
-  } catch {
-    return await import('../../packages/ai/src/index.ts')
-  }
-}
-
-async function importGrokText() {
-  try {
-    return await import('@tanstack/ai-grok')
-  } catch {
-    return await import('../../packages/ai-grok/src/index.ts')
-  }
-}
-
-async function importSkills() {
-  try {
-    const [{ withSkills }, { skillDirectory }] = await Promise.all([
-      import('@tanstack/ai-skills'),
-      import('@tanstack/ai-skills/node'),
-    ])
-    return { withSkills, skillDirectory }
-  } catch {
-    const [{ withSkills }, { skillDirectory }] = await Promise.all([
-      import('../../packages/ai-skills/src/index.ts'),
-      import('../../packages/ai-skills/src/node/index.ts'),
-    ])
-    return { withSkills, skillDirectory }
+    return parseVerdict(result)
   }
 }
 
@@ -371,7 +328,6 @@ export async function main() {
   const machineUserLogin =
     process.env.AI_REVIEW_MACHINE_USER ?? 'tanstack-ai-bot'
   const headCommitAuthor = process.env.AI_REVIEW_HEAD_COMMIT_AUTHOR
-  const skillRoot = join(fileURLToPath(new URL('.', import.meta.url)), 'skills')
   const client = createGitHubClient({ token })
   const parsed = parseReviewEvent({ eventName, event })
   const alreadyReviewedSha = await fetchAlreadyReviewedSha(
@@ -389,7 +345,7 @@ export async function main() {
     worktreeRoot,
     machineUserLogin,
     gitRunner: createProcessGitRunner(),
-    review: createGrokReview({ skillRoot }),
+    review: createGrokReview(),
     alreadyReviewedSha,
     headCommitAuthorLogin:
       headCommitAuthor === undefined || headCommitAuthor.length === 0

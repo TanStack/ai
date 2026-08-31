@@ -43,6 +43,8 @@ jobs:
           persist-credentials: false
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Build packages
+        run: pnpm exec nx run @tanstack/ai-grok:build
       - name: Add PR head worktree
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}

@@ -45,7 +45,7 @@ Open the **AI review** workflow log. Common causes:
 
 - Missing `AI_REVIEW_TOKEN` or `XAI_API_KEY`
 - Fork with maintainer edits off (comment is posted, label is `ai-needs-work`, no push)
-- Agent did not call `emit_verdict`
+- `chat()` did not return a valid verdict object
 
 ## Layout
 

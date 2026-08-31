@@ -1,34 +1,14 @@
-import { toolDefinition } from '../../packages/ai/src/activities/chat/tools/tool-definition.ts'
-import type { GitHubClient } from '../../scripts/maintainer/github'
-import { upsertReviewComment } from './comments'
+import { toolDefinition } from '@tanstack/ai'
 import { readWorktreeFile, writeWorktreeFile } from './files'
-import { setReviewState } from './labels'
-import { parseVerdict } from './verdict'
 
 export type ReviewToolsContext = {
-  client: GitHubClient
-  repo: string
-  issueNumber: number
   worktreeRoot: string
-  onVerdict: (verdict: ReturnType<typeof parseVerdict>) => void
 }
 
 const okSchema = {
   type: 'object',
   properties: { ok: { type: 'boolean' } },
   required: ['ok'],
-}
-
-const issueSchema = {
-  type: 'object',
-  properties: {
-    severity: { type: 'string', enum: ['bug', 'suggestion', 'nit'] },
-    file: { type: 'string' },
-    line: { type: 'integer' },
-    description: { type: 'string' },
-    suggestion: { type: 'string' },
-  },
-  required: ['severity', 'file', 'line', 'description', 'suggestion'],
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,24 +22,12 @@ function readString(args: unknown, key: string) {
   return value
 }
 
-function readReviewState(args: unknown) {
-  if (!isRecord(args)) throw new Error('tool input must be an object')
-  switch (args.state) {
-    case 'ai-rejected':
-    case 'ai-needs-work':
-    case 'ai-ready':
-      return args.state
-    default:
-      throw new Error('tool input is missing a valid state')
-  }
-}
-
 /**
- * Build the server tools the review agent can call.
+ * File tools for the review agent. Comment, label, and verdict stay in the host.
  *
  * Pass the array to `chat({ tools })`.
  *
- * @param ctx GitHub client, repo, issue, worktree root, and verdict callback
+ * @param ctx worktree root for read/edit
  */
 export function createReviewTools(ctx: ReviewToolsContext) {
   const readFile = toolDefinition({
@@ -104,66 +72,5 @@ export function createReviewTools(ctx: ReviewToolsContext) {
     return { ok: true }
   })
 
-  const emitVerdict = toolDefinition({
-    name: 'emit_verdict',
-    description: 'Record the structured review verdict.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        verdict: { type: 'string', enum: ['reject', 'polish', 'ready'] },
-        issues: { type: 'array', items: issueSchema },
-      },
-      required: ['verdict', 'issues'],
-    },
-    outputSchema: okSchema,
-  }).server((args) => {
-    ctx.onVerdict(parseVerdict(args))
-    return { ok: true }
-  })
-
-  const upsertComment = toolDefinition({
-    name: 'upsert_comment',
-    description: 'Create or update the bot review comment on the pull request.',
-    inputSchema: {
-      type: 'object',
-      properties: { body: { type: 'string' } },
-      required: ['body'],
-    },
-    outputSchema: okSchema,
-  }).server(async (args) => {
-    await upsertReviewComment(
-      ctx.client,
-      ctx.repo,
-      ctx.issueNumber,
-      readString(args, 'body'),
-    )
-    return { ok: true }
-  })
-
-  const setLabel = toolDefinition({
-    name: 'set_label',
-    description:
-      'Set the mutually exclusive bot review label on the pull request.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        state: {
-          type: 'string',
-          enum: ['ai-rejected', 'ai-needs-work', 'ai-ready'],
-        },
-      },
-      required: ['state'],
-    },
-    outputSchema: okSchema,
-  }).server(async (args) => {
-    await setReviewState(
-      ctx.client,
-      ctx.repo,
-      ctx.issueNumber,
-      readReviewState(args),
-    )
-    return { ok: true }
-  })
-
-  return [readFile, editFile, emitVerdict, upsertComment, setLabel]
+  return [readFile, editFile]
 }

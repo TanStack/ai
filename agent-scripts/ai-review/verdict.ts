@@ -1,5 +1,5 @@
 /**
- * Structured review verdict from the emit_verdict tool.
+ * Structured review verdict from chat({ outputSchema }).
  * parseVerdict is the trust boundary for that payload.
  */
 
@@ -16,6 +16,28 @@ export interface ReviewVerdict {
   issues: Array<ReviewIssue>
 }
 
+export const reviewVerdictSchema = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['reject', 'polish', 'ready'] },
+    issues: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['bug', 'suggestion', 'nit'] },
+          file: { type: 'string' },
+          line: { type: 'integer' },
+          description: { type: 'string' },
+          suggestion: { type: 'string' },
+        },
+        required: ['severity', 'file', 'line', 'description', 'suggestion'],
+      },
+    },
+  },
+  required: ['verdict', 'issues'],
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -29,7 +51,7 @@ function isSeverity(value: unknown): value is ReviewIssue['severity'] {
 }
 
 function fail(message: string): never {
-  throw new Error(`Invalid emit_verdict payload: ${message}`)
+  throw new Error(`Invalid review output: ${message}`)
 }
 
 function parseIssue(raw: unknown, index: number) {
@@ -58,7 +80,7 @@ function parseIssue(raw: unknown, index: number) {
 }
 
 /**
- * Parse an emit_verdict tool payload. Throws if the shape is wrong.
+ * Parse chat({ outputSchema }) result. Throws if the shape is wrong.
  */
 export function parseVerdict(payload: unknown) {
   if (!isRecord(payload)) fail('must be an object')
