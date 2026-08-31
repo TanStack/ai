@@ -63,6 +63,28 @@ describe('Solid createChatHook', () => {
 })
 
 describe('Solid createChatUI', () => {
+  it('warns once when layout renders an Input that was never registered', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const UI = createChatUI(chatOptions, {
+      ...baseConfig,
+      layout: (props) => (
+        <main>
+          <props.Input />
+        </main>
+      ),
+    })
+    // Twice: the warning is once per kit, not once per render.
+    renderHtml(() => <UI.Chat chat={host([])} />)
+    expect(renderHtml(() => <UI.Chat chat={host([])} />)).toBe(
+      '<main></main>',
+    )
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain(
+      'no `input` component is registered',
+    )
+    warn.mockRestore()
+  })
+
   it('renders automatic and manual traversal', () => {
     const UI = createChatUI(chatOptions, baseConfig)
     const chat = host([messageWithToolResults])

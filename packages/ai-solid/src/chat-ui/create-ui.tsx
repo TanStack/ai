@@ -376,11 +376,23 @@ export function createChatUI<
     )
   }
 
+  // Backstop for when the conditional `Input` type cannot be inferred (see the
+  // `input` note in docs/ui/solid.md). The type hides `Input` when no `input`
+  // is registered, but inference degrades on some config shapes, so always
+  // supply a component: warn once rather than crash on an undefined element.
+  function MissingInput() {
+    warn(
+      'input',
+      '[tanstack-ai-ui] Rendered <Input /> but no `input` component is registered.',
+    )
+    return null
+  }
+
   // Declared once per factory, so these props are stable for the kit's life.
   const LayoutSlots = {
     Messages: Messages as Component,
     Interrupts: Interrupts as Component,
-    ...(InputComponent ? { Input: InputComponent as Component } : {}),
+    Input: (InputComponent ?? MissingInput) as Component,
   }
 
   function Chat(props: { chat: ChatUIHost<TOptions> }) {

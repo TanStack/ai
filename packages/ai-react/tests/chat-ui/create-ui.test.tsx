@@ -234,6 +234,26 @@ describe('createChatUI', () => {
     expect(markup).toContain('fallback')
   })
 
+  it('warns once when layout renders an Input that was never registered', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const UI = makeUI({
+      layout: ({ Input }) => (
+        <main>
+          <Input />
+        </main>
+      ),
+    })
+    // Twice: the warning is once per kit, not once per render.
+    renderToStaticMarkup(<UI.Chat chat={host({})} />)
+    const markup = renderToStaticMarkup(<UI.Chat chat={host({})} />)
+    expect(markup).toBe('<main></main>')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain(
+      'no `input` component is registered',
+    )
+    warn.mockRestore()
+  })
+
   it('passes Input to layout when an input component is registered', () => {
     const UI = createChatUI(chatOptions, {
       ...baseConfig,

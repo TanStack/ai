@@ -84,7 +84,7 @@ export function Support() {
 
 `layout` receives `props.Messages`, `props.Interrupts`, and `props.Input` as components. `Input` is only present when the config registers an `input`.
 
-> **Declare `input` outside the config.** An inline `function` expression (`input: function Input() { ... }`) stops TypeScript inferring that an input is registered, and `Input` goes missing from the layout props. Name the component first and reference it, or use an arrow.
+> **List `input` before `layout`.** An inline `function` expression written *after* `layout` stops TypeScript inferring that an input is registered, and `Input` goes missing from the layout props. Putting `input` first fixes it, as does an arrow or a named reference. If it slips through, rendering `<props.Input />` without a registered `input` warns once in development.
 
 ## Type a component in its own file
 

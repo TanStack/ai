@@ -381,12 +381,24 @@ export function createChatUI<
     return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
   }
 
+  // Backstop for when the conditional `Input` type cannot be inferred (see the
+  // `input` note in docs/ui/react.md). The type hides `Input` when no `input`
+  // is registered, but inference degrades on some config shapes, so always
+  // supply a component: warn once rather than crash on an undefined element.
+  function MissingInput() {
+    warn(
+      'input',
+      '[tanstack-ai-ui] Rendered <Input /> but no `input` component is registered.',
+    )
+    return null
+  }
+
   // `Messages`, `Interrupts` and `InputComponent` are declared once per
   // factory, so these props are stable for the lifetime of the kit.
   const LayoutSlots = {
     Messages: Messages as ComponentType,
     Interrupts: Interrupts as ComponentType,
-    ...(InputComponent ? { Input: InputComponent as ComponentType } : {}),
+    Input: (InputComponent ?? MissingInput) as ComponentType,
   }
 
   function Chat({ chat }: { chat: ChatUIHost<TOptions> }) {

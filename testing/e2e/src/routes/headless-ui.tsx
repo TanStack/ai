@@ -150,37 +150,6 @@ const chatOptions = {
   fetcher,
 }
 
-// Declared outside the config: an inline `function` expression here stops
-// TypeScript inferring that an `input` is registered, which drops `Input`
-// from the layout props.
-function ChatComposer() {
-  const chat = useChatContext()
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    setReady(true)
-  }, [])
-  return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        const field = event.currentTarget.elements.namedItem('message')
-        if (!(field instanceof HTMLInputElement)) return
-        const text = field.value.trim()
-        if (!text) return
-        field.value = ''
-        void chat.sendMessage(text)
-      }}
-    >
-      <label>
-        Message
-        <input aria-label="Message" name="message" data-testid="chat-input" />
-      </label>
-      <button type="submit" data-testid="send-button" disabled={!ready}>
-        Send
-      </button>
-    </form>
-  )
-}
 
 // Standalone contexts instead of `UI.useChatContext()`: referencing `UI`
 // inside its own config is circular and blocks `input` inference.
@@ -191,6 +160,34 @@ const UI = createChatUI(chatOptions, {
   chatContext,
   partContext,
   interruptContext,
+  input: function ChatComposer() {
+    const chat = useChatContext()
+    const [ready, setReady] = useState(false)
+    useEffect(() => {
+      setReady(true)
+    }, [])
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const field = event.currentTarget.elements.namedItem('message')
+          if (!(field instanceof HTMLInputElement)) return
+          const text = field.value.trim()
+          if (!text) return
+          field.value = ''
+          void chat.sendMessage(text)
+        }}
+      >
+        <label>
+          Message
+          <input aria-label="Message" name="message" data-testid="chat-input" />
+        </label>
+        <button type="submit" data-testid="send-button" disabled={!ready}>
+          Send
+        </button>
+      </form>
+    )
+  },
   layout: ({ Messages, Interrupts, Input }) => {
     const chat = useChatContext()
     return (
@@ -209,7 +206,6 @@ const UI = createChatUI(chatOptions, {
       <Parts />
     </article>
   ),
-  input: ChatComposer,
   parts: {
     text: ({ part }) => (part.type === 'text' ? <p>{part.content}</p> : null),
     toolResult: ({ part }) =>
