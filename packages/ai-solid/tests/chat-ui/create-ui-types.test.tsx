@@ -30,9 +30,9 @@ it('requires every tool name and interrupt id', () => {
         ChatUIHost<typeof chatOptions>
       >()
       expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
-      return props.renderMessages()
+      return <props.Messages />
     },
-    message: (props) => props.renderParts(),
+    message: (props) => <props.Parts />,
     parts: {
       fallback: () => null,
     },
@@ -116,9 +116,9 @@ it('requires every tool name and interrupt id', () => {
         expectTypeOf(useChatContext()).toEqualTypeOf<
           ChatUIHost<typeof chatOptions>
         >()
-        return props.renderMessages()
+        return <props.Messages />
       },
-      message: (props) => props.renderParts(),
+      message: (props) => <props.Parts />,
       parts: { fallback: () => null },
       tools: {
         getWeather: () => null,

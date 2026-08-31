@@ -22,6 +22,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 ## Client
 
 ```tsx
+import { createSignal } from 'solid-js'
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
 import { createChatHook } from '@tanstack/ai-solid/ui'
 import { toolDefinition } from '@tanstack/ai'
@@ -39,17 +40,33 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const { useAppChat } = createChatHook({
+const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   chatComponents: {
   layout: (props) => (
     <>
-      {props.renderMessages()}
-      {props.renderInterrupts()}
-      {props.renderInput()}
+      <props.Messages />
+      <props.Interrupts />
+      <props.Input />
     </>
   ),
-  message: (props) => <article>{props.renderParts()}</article>,
+  input: () => {
+    const chat = useChatContext()
+    const [draft, setDraft] = createSignal('')
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          void chat.sendMessage(draft())
+          setDraft('')
+        }}
+      >
+        <input onInput={(event) => setDraft(event.currentTarget.value)} value={draft()} />
+        <button type="submit">Send</button>
+      </form>
+    )
+  },
+  message: (props) => <article><props.Parts /></article>,
   parts: {
     fallback: (props) => <span>{props.part.type}</span>,
   },
@@ -64,6 +81,10 @@ export function Support() {
   return <chat.AppChat />
 }
 ```
+
+`layout` receives `props.Messages`, `props.Interrupts`, and `props.Input` as components. `Input` is only present when the config registers an `input`.
+
+> **Declare `input` outside the config.** An inline `function` expression (`input: function Input() { ... }`) stops TypeScript inferring that an input is registered, and `Input` goes missing from the layout props. Name the component first and reference it, or use an arrow.
 
 ## Type a component in its own file
 
@@ -96,8 +117,8 @@ export function WeatherTool(
 export const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: (props) => props.renderMessages(),
-    message: (props) => <article>{props.renderParts()}</article>,
+    layout: (props) => <props.Messages />,
+    message: (props) => <article><props.Parts /></article>,
     parts: { fallback: () => null },
     tools: { getWeather: WeatherTool },
   },
@@ -131,10 +152,10 @@ const { useAppChat, useChatContext } = createChatHook({
     layout: (props) => (
       <>
         <StatusLine />
-        {props.renderMessages()}
+        <props.Messages />
       </>
     ),
-    message: (props) => <article>{props.renderParts()}</article>,
+    message: (props) => <article><props.Parts /></article>,
     parts: { fallback: () => null },
   },
 })
@@ -155,4 +176,4 @@ The full map is on the [React page](./react).
 
 Manual list: `<UI.Messages>{(messages) => <span>{messages().length}</span>}</UI.Messages>`.
 
-Pass `props.chat`, `props.part`, and `props.renderParts()` without destructure.
+Pass `props.chat`, `props.part`, and `props.Parts` without destructure.

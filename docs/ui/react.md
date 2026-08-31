@@ -81,25 +81,21 @@ const chatOptions = {
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   chatComponents: {
-  layout: function Layout({
-    renderMessages,
-    renderInterrupts,
-    renderInput,
-  }) {
+  layout: function Layout({ Messages, Interrupts, Input }) {
     const chat = useChatContext()
     if (chat.error) return <p>{chat.error.message}</p>
     if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
     if (chat.messages.length === 0) return <p>Empty</p>
     return (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
-        {renderInput()}
+        <Messages />
+        <Interrupts />
+        <Input />
       </main>
     )
   },
-  message: function Message({ message, renderParts }) {
-    return <article data-role={message.role}>{renderParts()}</article>
+  message: function Message({ message, Parts }) {
+    return <article data-role={message.role}><Parts /></article>
   },
   input: function Input() {
     const chat = useChatContext()
@@ -174,6 +170,10 @@ export function Sidebar() {
 }
 ```
 
+`layout` receives `Messages`, `Interrupts`, and `Input` as components — render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
+
+> **Declare `input` outside the config.** TypeScript cannot infer that an `input` is registered when you write it as an inline `function` expression (`input: function Input() { ... }`); `Input` then goes missing from the layout props. Assign the component to a name first and reference it (`input: ChatComposer`), or use an arrow. Arrows and named references both infer correctly.
+
 ## Type a component in its own file
 
 A tool map grows fast. Move a tool into its own file and type the props with `ToolProps`.
@@ -221,8 +221,8 @@ export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
 export const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderMessages }) => renderMessages(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { text: TextPart, fallback: () => null },
     tools: { getWeather: WeatherTool },
   },
@@ -269,8 +269,8 @@ export function ChoosePlan({
 export const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderInterrupts }) => renderInterrupts(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { fallback: () => null },
     interrupts: {
       generic: {
@@ -311,14 +311,13 @@ function StatusLine() {
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderMessages, renderInput }) => (
+    layout: ({ Messages }) => (
       <main>
         <StatusLine />
-        {renderMessages()}
-        {renderInput()}
+        <Messages />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { fallback: () => null },
   },
 })
@@ -385,13 +384,13 @@ function PurchaseItem({
 const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderMessages, renderInterrupts }) => (
+    layout: ({ Messages, Interrupts }) => (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
+        <Messages />
+        <Interrupts />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { fallback: () => null },
     tools: {
       purchaseItem: PurchaseItem,
@@ -407,7 +406,7 @@ export function InlineApprovalChat() {
 
 To split the approval into its own file, type it with `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Render that component from the tool.
 
-### List, in `renderInterrupts()`
+### List, in `<Interrupts />`
 
 Register the approval under `interrupts.tools`. That component appears in the interrupt list. Do not also render `interrupt` on the tool unless you want it in both places.
 
@@ -433,13 +432,13 @@ const chatOptions = {
 const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderMessages, renderInterrupts }) => (
+    layout: ({ Messages, Interrupts }) => (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
+        <Messages />
+        <Interrupts />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { fallback: () => null },
     tools: {
       purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
@@ -464,7 +463,7 @@ export function ListApprovalChat() {
 
 ## Generic interrupts
 
-Generic interrupts always render in the list (`renderInterrupts()` / `<UI.Interrupts>`). They never render inside a tool.
+Generic interrupts always render in the list (`<Interrupts />` / `<UI.Interrupts>`). They never render inside a tool.
 
 Map them under `interrupts.generic`:
 
@@ -491,8 +490,8 @@ const chatOptions = {
 const { useAppChat } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderInterrupts }) => renderInterrupts(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
     parts: { fallback: () => null },
     interrupts: {
       generic: {
@@ -543,8 +542,8 @@ const chatOptions = {
 }
 
 const UI = createChatUI(chatOptions, {
-  layout: ({ renderMessages }) => renderMessages(),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
+  layout: ({ Messages }) => <Messages />,
+  message: ({ Parts }) => <article><Parts /></article>,
   parts: {
     text: ({ part }) => <p>{part.content}</p>,
     fallback: () => null,

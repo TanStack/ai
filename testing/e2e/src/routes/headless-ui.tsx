@@ -8,7 +8,7 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react/ui'
+import { createChatHookContexts, createChatUI } from '@tanstack/ai-react/ui'
 import { EventType } from '@tanstack/ai/client'
 import type { ChatFetcher } from '@tanstack/ai-client'
 import { z } from 'zod'
@@ -150,49 +150,66 @@ const chatOptions = {
   fetcher,
 }
 
+// Declared outside the config: an inline `function` expression here stops
+// TypeScript inferring that an `input` is registered, which drops `Input`
+// from the layout props.
+function ChatComposer() {
+  const chat = useChatContext()
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    setReady(true)
+  }, [])
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        const field = event.currentTarget.elements.namedItem('message')
+        if (!(field instanceof HTMLInputElement)) return
+        const text = field.value.trim()
+        if (!text) return
+        field.value = ''
+        void chat.sendMessage(text)
+      }}
+    >
+      <label>
+        Message
+        <input aria-label="Message" name="message" data-testid="chat-input" />
+      </label>
+      <button type="submit" data-testid="send-button" disabled={!ready}>
+        Send
+      </button>
+    </form>
+  )
+}
+
+// Standalone contexts instead of `UI.useChatContext()`: referencing `UI`
+// inside its own config is circular and blocks `input` inference.
+const { chatContext, partContext, interruptContext, useChatContext } =
+  createChatHookContexts()
+
 const UI = createChatUI(chatOptions, {
-  layout: ({ renderMessages, renderInterrupts, renderInput }) => {
-    const chat = UI.useChatContext()
+  chatContext,
+  partContext,
+  interruptContext,
+  layout: ({ Messages, Interrupts, Input }) => {
+    const chat = useChatContext()
     return (
       <main>
         {chat.error ? (
           <pre data-testid="chat-error">{chat.error.message}</pre>
         ) : null}
-        {renderMessages()}
-        {renderInterrupts()}
-        {renderInput()}
+        <Messages />
+        <Interrupts />
+        <Input />
       </main>
     )
   },
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: function Input() {
-    const chat = UI.useChatContext()
-    const [ready, setReady] = useState(false)
-    useEffect(() => {
-      setReady(true)
-    }, [])
-    return (
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          const field = event.currentTarget.elements.namedItem('message')
-          if (!(field instanceof HTMLInputElement)) return
-          const text = field.value.trim()
-          if (!text) return
-          field.value = ''
-          void chat.sendMessage(text)
-        }}
-      >
-        <label>
-          Message
-          <input aria-label="Message" name="message" data-testid="chat-input" />
-        </label>
-        <button type="submit" data-testid="send-button" disabled={!ready}>
-          Send
-        </button>
-      </form>
-    )
-  },
+  message: ({ Parts }) => (
+    <article>
+      <Parts />
+    </article>
+  ),
+  input: ChatComposer,
   parts: {
     text: ({ part }) => (part.type === 'text' ? <p>{part.content}</p> : null),
     toolResult: ({ part }) =>

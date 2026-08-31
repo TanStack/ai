@@ -1,15 +1,62 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { ConnectionAdapter } from '@tanstack/ai-react'
-import { ChatMessage, createChatUI } from '@tanstack/ai-react/ui'
+import {
+  ChatMessage,
+  createChatHookContexts,
+  createChatUI,
+} from '@tanstack/ai-react/ui'
 
 const LabelsContext = createContext({ placeholder: '', emptyLabel: '' })
+
+// Read chat through standalone contexts rather than `UI.useChatContext()`.
+// Referencing `UI` inside its own config is circular, which stops TypeScript
+// inferring whether an `input` is registered.
+const { chatContext, partContext, interruptContext, useChatContext } =
+  createChatHookContexts()
+
+// Declared outside the config: an inline `function` expression here stops
+// TypeScript inferring that an `input` is registered, which drops `Input`
+// from the layout props.
+function ChatComposer() {
+  const chat = useChatContext()
+  const { placeholder } = useContext(LabelsContext)
+  const [draft, setDraft] = useState('')
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const text = draft.trim()
+        if (!text) return
+        setDraft('')
+        void chat.sendMessage(text)
+      }}
+    >
+      <input
+        className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+        placeholder={placeholder}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button
+        className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950"
+        type="submit"
+      >
+        Send
+      </button>
+    </form>
+  )
+}
 
 const UI = createChatUI(
   {},
   {
-    layout: ({ renderMessages, renderInput }) => {
-      const current = UI.useChatContext()
+    chatContext,
+    partContext,
+    interruptContext,
+    layout: ({ Messages, Input }) => {
+      const current = useChatContext()
       const { emptyLabel } = useContext(LabelsContext)
       return (
         <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
@@ -21,44 +68,17 @@ const UI = createChatUI(
             </div>
           ) : (
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
-              {renderMessages()}
+              <Messages />
             </div>
           )}
-          <div className="border-t border-slate-800 p-4">{renderInput()}</div>
+          <div className="border-t border-slate-800 p-4">
+            <Input />
+          </div>
         </div>
       )
     },
     message: ({ message }) => <ChatMessage message={message} />,
-    input: function Input() {
-      const chat = UI.useChatContext()
-      const { placeholder } = useContext(LabelsContext)
-      const [draft, setDraft] = useState('')
-      return (
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const text = draft.trim()
-            if (!text) return
-            setDraft('')
-            void chat.sendMessage(text)
-          }}
-        >
-          <input
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-            placeholder={placeholder}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <button
-            className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950"
-            type="submit"
-          >
-            Send
-          </button>
-        </form>
-      )
-    },
+    input: ChatComposer,
     parts: { fallback: () => null },
   },
 )

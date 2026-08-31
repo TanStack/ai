@@ -29,8 +29,12 @@ function renderHtml(node: () => unknown) {
 }
 
 const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
-  layout: (props) => <>{props.renderMessages()}</>,
-  message: (props) => <article>{props.renderParts()}</article>,
+  layout: (props) => <>{<props.Messages />}</>,
+  message: (props) => (
+    <article>
+      <props.Parts />
+    </article>
+  ),
   parts: { fallback: (props) => <span>{props.part.type}</span> },
   tools: {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,

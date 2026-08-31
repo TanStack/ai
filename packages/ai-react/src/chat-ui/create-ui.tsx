@@ -1,5 +1,10 @@
-import { memo, useCallback, useContext } from 'react'
-import type { ComponentType, Context, ReactNode } from 'react'
+import { createContext, memo, useContext } from 'react'
+import type {
+  ComponentProps,
+  ComponentType,
+  Context,
+  ReactNode,
+} from 'react'
 import {
   automaticPartsForMessage,
   collectInlineToolNames,
@@ -42,16 +47,20 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
-export type LayoutProps<TOptions> = {
-  renderMessages: () => ReactNode
-  renderInterrupts: () => ReactNode
-  renderInput: () => ReactNode
+export type LayoutProps<
+  TOptions,
+  TInput extends
+    | ComponentType<any>
+    | undefined = ComponentType<InputProps<TOptions>>,
+> = {
+  Messages: ComponentType
+  Interrupts: ComponentType
   readonly __ui?: TOptions
-}
+} & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
 export type MessageProps<TOptions> = {
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
-  renderParts: () => ReactNode
+  Parts: ComponentType
 }
 
 export type InputProps<TOptions> = {
@@ -98,10 +107,15 @@ type ToolApprovalMap<TOptions> = {
   >
 }
 
-export type ChatUIComponents<TOptions> = {
-  layout: ComponentType<LayoutProps<TOptions>>
+export type ChatUIComponents<
+  TOptions,
+  TInput extends
+    | ComponentType<InputProps<TOptions>>
+    | undefined = ComponentType<InputProps<TOptions>>,
+> = {
+  layout: ComponentType<LayoutProps<TOptions, TInput>>
   message: ComponentType<MessageProps<TOptions>>
-  input?: ComponentType<InputProps<TOptions>>
+  input?: TInput
   parts: {
     [K in ChatUIPartKey]?: ComponentType<PartProps<TOptions, K>>
   } & {
@@ -132,7 +146,12 @@ export type ChatUIComponents<TOptions> = {
         }
       })
 
-export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions> & {
+export type ChatUIFactoryConfig<
+  TOptions,
+  TInput extends
+    | ComponentType<InputProps<TOptions>>
+    | undefined = ComponentType<InputProps<TOptions>>,
+> = ChatUIComponents<TOptions, TInput> & {
   chatContext?: ChatUIContexts['chatContext']
   partContext?: ChatUIContexts['partContext']
   interruptContext?: ChatUIContexts['interruptContext']
@@ -223,10 +242,12 @@ function bindMap(
  * `partContext`, and `interruptContext` from {@link createChatHookContexts}
  * when widgets live in other files or when nested chats need isolation.
  */
-export function createChatUI<const TOptions>(
-  options: TOptions,
-  config: ChatUIFactoryConfig<NoInfer<TOptions>>,
-) {
+export function createChatUI<
+  const TOptions,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<InputProps<NoInfer<TOptions>>>
+    | undefined,
+>(options: TOptions, config: ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
   void options
   const {
     chatContext: chatContextOption,
@@ -360,19 +381,18 @@ export function createChatUI<const TOptions>(
     return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
   }
 
+  // `Messages`, `Interrupts` and `InputComponent` are declared once per
+  // factory, so these props are stable for the lifetime of the kit.
+  const LayoutSlots = {
+    Messages: Messages as ComponentType,
+    Interrupts: Interrupts as ComponentType,
+    ...(InputComponent ? { Input: InputComponent as ComponentType } : {}),
+  }
+
   function Chat({ chat }: { chat: ChatUIHost<TOptions> }) {
-    const renderMessages = useCallback(() => <Messages />, [])
-    const renderInterrupts = useCallback(() => <Interrupts />, [])
-    const renderInput = useCallback(() => {
-      return InputComponent ? <InputComponent /> : null
-    }, [])
     return (
       <Provider chat={chat}>
-        <Layout
-          renderMessages={renderMessages}
-          renderInterrupts={renderInterrupts}
-          renderInput={renderInput}
-        />
+        <Layout {...(LayoutSlots as ComponentProps<ComponentType<any>>)} />
       </Provider>
     )
   }
@@ -400,6 +420,30 @@ export function createChatUI<const TOptions>(
     )
   }
 
+  // Scoped to one message render. `Parts` reads it instead of closing over the
+  // message, which is what keeps its identity constant across re-renders — a
+  // fresh component per render would remount every part on each stream chunk.
+  type MessageRenderValue = {
+    message: ChatUIMessages<TOptions>[number]
+    interrupts: ReadonlyArray<ChatUIInterrupt>
+    inlineToolNames: ReadonlyArray<string>
+  }
+  const MessageRenderContext = createContext<MessageRenderValue | null>(null)
+
+  function Parts() {
+    const scope = useContext(MessageRenderContext)
+    if (!scope) {
+      throw new Error('`Parts` must be rendered by a `message` component.')
+    }
+    return (
+      <AutomaticParts
+        inlineToolNames={scope.inlineToolNames}
+        interrupts={scope.interrupts}
+        message={scope.message}
+      />
+    )
+  }
+
   const MessageView = memo(function MessageView({
     message,
     interrupts,
@@ -417,16 +461,11 @@ export function createChatUI<const TOptions>(
     })
     if (children) return <>{children(selected.parts)}</>
     return (
-      <MessageComponent
-        message={message}
-        renderParts={() => (
-          <AutomaticParts
-            inlineToolNames={names}
-            interrupts={interrupts}
-            message={message}
-          />
-        )}
-      />
+      <MessageRenderContext.Provider
+        value={{ message, interrupts, inlineToolNames: names }}
+      >
+        <MessageComponent message={message} Parts={Parts} />
+      </MessageRenderContext.Provider>
     )
   })
 

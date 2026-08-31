@@ -81,13 +81,13 @@ const chatOptions = {
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   chatComponents: {
-    layout: ({ renderMessages, renderInput }) => (
+    layout: ({ Messages, Input }) => (
       <main>
-        {renderMessages()}
-        {renderInput()}
+        <Messages />
+        <Input />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
+    message: ({ Parts }) => <article><Parts /></article>,
     input: () => {
       const chat = useChatContext()
       return (

@@ -9,7 +9,11 @@ import type {
 import { useChat as useUnboundChat } from '../use-chat'
 import type { UseChatOptions } from '../types'
 import { createChatUI } from './create-ui'
-import type { ChatUIFactoryConfig, ChatUIHost } from './create-ui'
+import type {
+  ChatUIFactoryConfig,
+  ChatUIHost,
+  InputProps,
+} from './create-ui'
 
 type HeadlessOptions<TOptions> = UseChatOptions<
   ChatUIToolsOf<TOptions>,
@@ -55,12 +59,17 @@ type ChatInstanceOverrides<TOptions> = {
  * }
  * ```
  */
-export function createChatHook<const TOptions>({
+export function createChatHook<
+  const TOptions,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<InputProps<NoInfer<TOptions>>>
+    | undefined,
+>({
   options,
   chatComponents,
 }: {
   options: TOptions
-  chatComponents: ChatUIFactoryConfig<NoInfer<TOptions>>
+  chatComponents: ChatUIFactoryConfig<NoInfer<TOptions>, TInput>
 }) {
   const ui = createChatUI(options, chatComponents)
 

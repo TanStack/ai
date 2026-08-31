@@ -29,14 +29,17 @@ function host(
 }
 
 const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
-  layout: ({ renderMessages, renderInterrupts, renderInput }) => (
+  layout: ({ Messages, Interrupts }) => (
     <>
-      {renderMessages()}
-      {renderInterrupts()}
-      {renderInput()}
+      <Messages />
+      <Interrupts />
     </>
   ),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
+  message: ({ Parts }) => (
+    <article>
+      <Parts />
+    </article>
+  ),
   parts: { fallback: ({ part }) => <span>{part.type}</span> },
   tools: {
     getWeather: ({ part }) => <strong>{part.input?.city}</strong>,
@@ -211,7 +214,7 @@ describe('createChatUI', () => {
 
   it('renders registered generic interrupts and sends the rest to fallback', () => {
     const UI = makeUI({
-      layout: ({ renderInterrupts }) => renderInterrupts(),
+      layout: ({ Interrupts }) => <Interrupts />,
       interrupts: {
         generic: {
           choosePlan: () => <span>plan</span>,
@@ -231,12 +234,18 @@ describe('createChatUI', () => {
     expect(markup).toContain('fallback')
   })
 
-  it('omits input when no input component exists', () => {
-    const UI = makeUI({
-      layout: ({ renderInput }) => <main>{renderInput()}</main>,
+  it('passes Input to layout when an input component is registered', () => {
+    const UI = createChatUI(chatOptions, {
+      ...baseConfig,
+      input: () => <textarea defaultValue="prompt" />,
+      layout: ({ Input }) => (
+        <main>
+          <Input />
+        </main>
+      ),
     })
     const markup = renderToStaticMarkup(<UI.Chat chat={host({})} />)
-    expect(markup).toBe('<main></main>')
+    expect(markup).toContain('prompt')
   })
 
   it('mixes Input onto the UI kit when one is registered', () => {
@@ -292,7 +301,7 @@ describe('createChatUI', () => {
 
   it('lets Interrupt children pick a mixed interrupt widget', () => {
     const UI = makeUI({
-      layout: ({ renderInterrupts }) => renderInterrupts(),
+      layout: ({ Interrupts }) => <Interrupts />,
       interrupts: {
         generic: {
           choosePlan: () => <span>plan</span>,
