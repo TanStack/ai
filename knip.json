@@ -14,6 +14,7 @@
   "ignore": [
     "kiira.config.ts",
     "scripts/**",
+    "agent-scripts/**",
     "**/*.test-d.ts",
     "packages/ai-code-mode-snippets/test-cli/**",
     ".claude/worktrees/**",

@@ -1,0 +1,82 @@
+name: AI review
+
+# In-process Grok review bot. Checks out this repo's default branch for the
+# script, then fetches the PR head into a second worktree for read/edit.
+# Never pull_request_target. Never pnpm install in the PR tree.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  review:
+    name: Review
+    if: >
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+      || github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && startsWith(github.event.comment.body, '/ai-review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Add PR head worktree
+        env:
+          AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
+          GH_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
+        run: |
+          if [ -z "${AI_REVIEW_TOKEN}" ]; then
+            echo "missing AI_REVIEW_TOKEN or XAI_API_KEY"
+            exit 1
+          fi
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              PR_NUMBER="${{ github.event.pull_request.number }}"
+              ;;
+            issue_comment)
+              PR_NUMBER="${{ github.event.issue.number }}"
+              ;;
+            workflow_dispatch)
+              PR_NUMBER="${{ github.event.inputs.pr_number }}"
+              ;;
+            *)
+              echo "unsupported event ${GITHUB_EVENT_NAME}"
+              exit 1
+              ;;
+          esac
+          git fetch origin "pull/${PR_NUMBER}/head:ai-review-pr-head"
+          git worktree add "${GITHUB_WORKSPACE}/.pr-head" ai-review-pr-head
+          SHA="$(git -C "${GITHUB_WORKSPACE}/.pr-head" rev-parse HEAD)"
+          LOGIN="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.author.login // empty' || true)"
+          MACHINE="$(gh api user --jq .login)"
+          echo "AI_REVIEW_HEAD_COMMIT_AUTHOR=${LOGIN}" >> "${GITHUB_ENV}"
+          echo "AI_REVIEW_MACHINE_USER=${MACHINE}" >> "${GITHUB_ENV}"
+      - name: Run review
+        run: pnpm ai-review
+        env:
+          AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          AI_REVIEW_WORKTREE: ${{ github.workspace }}/.pr-head
