@@ -165,6 +165,7 @@ export function createGrokReview() {
         cwd: input.worktreeRoot,
         grokExecutable: join(homedir(), '.grok', 'bin', 'grok'),
       }),
+      debug: true,
       tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
       middleware: [withSandbox(sandbox)],
@@ -191,7 +192,9 @@ export function createGrokReview() {
         },
       ],
     })
-    return parseVerdict(result)
+    const verdict = parseVerdict(result)
+    console.log('ai-review verdict', JSON.stringify(verdict, null, 2))
+    return verdict
   }
 }
 
@@ -444,7 +447,7 @@ export async function main() {
     parsed.prNumber,
     machineUserLogin,
   )
-  await runReviewJob({
+  const result = await runReviewJob({
     client,
     repo,
     token,
@@ -461,6 +464,13 @@ export async function main() {
         ? null
         : headCommitAuthor,
   })
+  if (result.skipped) {
+    console.log(`ai-review skipped: ${result.reason}`)
+    return
+  }
+  console.log(
+    `ai-review done label=${result.label} push=${String(result.pushLanded)}`,
+  )
 }
 
 if (isExecutedDirectly()) {
