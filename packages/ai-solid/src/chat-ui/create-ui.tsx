@@ -32,10 +32,8 @@ import type {
   UIMessage,
 } from '@tanstack/ai-client'
 import type { UseChatReturn } from '../types'
-import {
-  defaultChatUIContexts,
-  type ChatUIContexts,
-} from './create-ui-contexts'
+import { defaultChatUIContexts } from './create-ui-contexts'
+import type { ChatUIContexts } from './create-ui-contexts'
 
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIToolsOf<TOptions>,
@@ -156,6 +154,17 @@ type InterruptMixins<TOptions> = {
 } & {
   fallback?: BoundWidget
   Render: BoundWidget
+}
+
+// This module ships as source, so it is type-checked against the *consumer's*
+// tsconfig, which need not include `@types/node`. Declare `process` locally
+// (same shape as the `src/env.d.ts` the devtools packages use) rather than
+// reading it off `globalThis`: the literal `process.env.NODE_ENV` is the token
+// bundlers substitute, so this keeps the branch constant-folded in production.
+declare const process: {
+  env: {
+    NODE_ENV?: string
+  }
 }
 
 function createWarnOnce() {

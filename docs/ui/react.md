@@ -524,18 +524,34 @@ You can mix this map with `interrupts.tools` in the same factory call.
 
 `createChatUI` is the lower-level kit. Use it when you walk messages yourself. Screens still call `createChatHook`.
 
-```tsx
+```tsx group=manual-traversal
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { createChatUI } from '@tanstack/ai-react/ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather],
 }
 
 const UI = createChatUI(chatOptions, {
   layout: ({ renderMessages }) => renderMessages(),
   message: ({ renderParts }) => <article>{renderParts()}</article>,
-  parts: { fallback: () => null },
+  parts: {
+    text: ({ part }) => <p>{part.content}</p>,
+    fallback: () => null,
+  },
+  tools: {
+    getWeather: ({ part }) => <p>{part.input?.city}</p>,
+  },
 })
 
 export function ManualChat() {
@@ -564,16 +580,26 @@ Unknown runtime tool names warn once in development and render nothing. Add a `p
 
 Automatic dispatch is the default. You can also pick a registered widget at the call site, like Form `field.TextField` and Table `cell.TextCell`:
 
-```tsx
-<UI.Message message={message}>
-  {(parts) =>
-    parts.map((part, index) => (
-      <UI.Part key={index} part={part}>
-        {(p) => (part.key === 'toolCall' ? <p.getWeather /> : <p.Render />)}
-      </UI.Part>
-    ))
-  }
-</UI.Message>
+```tsx group=manual-traversal
+import type { MessageProps } from '@tanstack/ai-react/ui'
+
+function PickedWidgets({
+  message,
+}: {
+  message: MessageProps<typeof chatOptions>['message']
+}) {
+  return (
+    <UI.Message message={message}>
+      {(parts) =>
+        parts.map((part, index) => (
+          <UI.Part key={index} part={part}>
+            {(p) => (part.key === 'toolCall' ? <p.getWeather /> : <p.Render />)}
+          </UI.Part>
+        ))
+      }
+    </UI.Message>
+  )
+}
 ```
 
 `p.getWeather` and `p.text` are the widgets you passed to the factory. `p.Render` walks this one part the automatic way. `UI.Input` is mixed onto the kit when you register `input`.

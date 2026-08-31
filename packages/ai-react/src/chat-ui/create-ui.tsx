@@ -33,10 +33,8 @@ import type {
   UIMessage,
 } from '@tanstack/ai-client'
 import type { UseChatReturn } from '../types'
-import {
-  defaultChatUIContexts,
-  type ChatUIContexts,
-} from './create-ui-contexts'
+import { defaultChatUIContexts } from './create-ui-contexts'
+import type { ChatUIContexts } from './create-ui-contexts'
 
 export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIToolsOf<TOptions>,

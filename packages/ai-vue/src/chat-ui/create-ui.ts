@@ -168,6 +168,17 @@ type UIRuntime<TOptions = unknown> = UIDescriptor<TOptions> & {
   componentsKey: InjectionKey<ComponentsValue>
 }
 
+// This module ships as source, so it is type-checked against the *consumer's*
+// tsconfig, which need not include `@types/node`. Declare `process` locally
+// (same shape as the `src/env.d.ts` the devtools packages use) rather than
+// reading it off `globalThis`: the literal `process.env.NODE_ENV` is the token
+// bundlers substitute, so this keeps the branch constant-folded in production.
+declare const process: {
+  env: {
+    NODE_ENV?: string
+  }
+}
+
 function createWarnOnce() {
   const seen = new Set<string>()
   return (key: string, message: string) => {

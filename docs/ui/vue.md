@@ -130,22 +130,13 @@ Call `ui.useChatContext()` inside a child of `UIChat` or `UIProvider`.
 
 ```ts
 import { defineComponent, h } from 'vue'
+import type { Component } from 'vue'
 import { fetchServerSentEvents } from '@tanstack/ai-vue'
 import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
-
-const StatusLine = defineComponent({
-  setup() {
-    const chat = ui.useChatContext()
-    return () => {
-      const messages = Array.isArray(chat.messages) ? chat.messages : []
-      return h('p', String(messages.length) + ' messages')
-    }
-  },
-})
 
 const { useAppChat, ui } = createChatHook({
   options: chatOptions,
@@ -155,6 +146,19 @@ const { useAppChat, ui } = createChatHook({
     ),
     message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
     parts: { fallback: defineComponent(() => () => null) },
+  },
+})
+
+// Declared after `ui`, and annotated, so that reading `ui.useChatContext()`
+// here does not form an inference cycle with the components map that renders
+// it. `h(StatusLine)` above only runs at render time, so the order is fine.
+const StatusLine: Component = defineComponent({
+  setup() {
+    const chat = ui.useChatContext()
+    return () => {
+      const messages = Array.isArray(chat.messages) ? chat.messages : []
+      return h('p', String(messages.length) + ' messages')
+    }
   },
 })
 

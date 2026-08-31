@@ -1,4 +1,5 @@
 import { render } from 'solid-js/web'
+import type { JSX } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
@@ -23,7 +24,7 @@ function host(
 
 function renderHtml(node: () => unknown) {
   const container = document.createElement('div')
-  render(node as () => import('solid-js').JSX.Element, container)
+  render(node as () => JSX.Element, container)
   return container.innerHTML
 }
 

@@ -13,7 +13,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { byok } from '@/chat/byok'
-import { useChatContext } from '@/chat/ui-context'
+import { useChatContext } from './ui-components'
 import {
   PromptInput,
   PromptInputButton,
