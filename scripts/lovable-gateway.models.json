@@ -69,6 +69,57 @@
             }
           ]
         }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.0000018",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000054",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000054",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000054",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000045",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
       }
     }
   },
@@ -206,6 +257,57 @@
               "min": 0
             }
           ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.00000054",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000018",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000018",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000018",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000072",
+                  "min": 0
+                }
+              ]
+            }
+          }
         }
       }
     }
@@ -390,6 +492,82 @@
             }
           ]
         }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.00000225",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000045",
+                  "min": 200000
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000225",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000045",
+                  "min": 200000
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000225",
+                    "min": 0,
+                    "max": 200000
+                  },
+                  {
+                    "cost": "0.00000045",
+                    "min": 200000
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000225",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000045",
+                  "min": 200000
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000018",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.000027",
+                  "min": 200000
+                }
+              ]
+            }
+          }
+        }
       }
     }
   },
@@ -505,6 +683,57 @@
               "min": 0
             }
           ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.0000018",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000009",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000009",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.0000009",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000054",
+                  "min": 0
+                }
+              ]
+            }
+          }
         }
       }
     }
@@ -725,6 +954,57 @@
             }
           ]
         }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.0000009",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000045",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000045",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000045",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000027",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
       }
     }
   },
@@ -938,6 +1218,82 @@
             }
           ]
         }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.0000036",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000072",
+                  "min": 200000
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000036",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000072",
+                  "min": 200000
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000036",
+                    "min": 0,
+                    "max": 200000
+                  },
+                  {
+                    "cost": "0.00000072",
+                    "min": 200000
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.0000036",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000072",
+                  "min": 200000
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000216",
+                  "min": 0,
+                  "max": 200000
+                },
+                {
+                  "cost": "0.0000324",
+                  "min": 200000
+                }
+              ]
+            }
+          }
+        }
       }
     }
   },
@@ -1011,6 +1367,57 @@
             }
           ]
         }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.0000027",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000027",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.00000027",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.0000027",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0000162",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
       }
     }
   },
@@ -1083,6 +1490,57 @@
               "min": 0
             }
           ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000135",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000675",
+                  "min": 0
+                }
+              ]
+            }
+          }
         }
       }
     }
@@ -1284,7 +1742,7 @@
     "object": "model",
     "created": 1781568000,
     "released": 1742428800,
-    "expiration_date": null,
+    "expiration_date": 1803600000,
     "owned_by": "openai",
     "name": "GPT-4o mini Transcribe",
     "description": "Default speech-to-text model for fast, cost-efficient audio transcription.",
@@ -1377,7 +1835,7 @@
     "object": "model",
     "created": 1781654400,
     "released": 1742428800,
-    "expiration_date": null,
+    "expiration_date": 1803600000,
     "owned_by": "openai",
     "name": "GPT-4o Transcribe",
     "description": "Higher-accuracy speech-to-text model for demanding transcription tasks.",
