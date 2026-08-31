@@ -78,6 +78,7 @@
     },
     "test:ai-review": {
       "cache": true,
+      "dependsOn": ["^build"],
       "inputs": [
         "{workspaceRoot}/agent-scripts/ai-review/**/*",
         "{workspaceRoot}/scripts/maintainer/**/*"
