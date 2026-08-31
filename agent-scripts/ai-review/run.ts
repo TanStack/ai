@@ -135,7 +135,7 @@ export function createGrokReview() {
       lifecycle: { reuse: 'none', destroyOnComplete: false },
     })
     const result = await chat({
-      adapter: grokBuildText('composer-2.5', {
+      adapter: grokBuildText('grok-4.6', {
         authMode: 'api-key',
         protocol: 'streaming-json',
         cwd: input.worktreeRoot,
