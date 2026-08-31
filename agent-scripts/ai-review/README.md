@@ -46,6 +46,7 @@ Open the **AI review** workflow log. Common causes:
 - Missing `AI_REVIEW_TOKEN` or `XAI_API_KEY`
 - Fork with maintainer edits off (comment is posted, label is `ai-needs-work`, no push)
 - `chat()` did not return a valid verdict object
+- Workspace setup failed to install the Grok CLI
 
 ## Layout
 

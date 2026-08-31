@@ -3,13 +3,23 @@
  */
 
 import { spawn } from 'node:child_process'
+import { homedir } from 'node:os'
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { chat } from '@tanstack/ai'
-import { grokBuildText } from '@tanstack/ai-grok-build'
-import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  GROK_CLI_INSTALL_COMMAND,
+  grokBuildText,
+} from '@tanstack/ai-grok-build'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  localSource,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   loadConfig,
@@ -126,11 +136,19 @@ type ReviewInput = {
  */
 export function createGrokReview() {
   return async (input: ReviewInput) => {
+    const xaiKey = process.env.XAI_API_KEY
     const sandbox = defineSandbox({
       id: 'ai-review',
       provider: localProcessSandbox({
         dir: input.worktreeRoot,
         removeOnDestroy: false,
+      }),
+      workspace: defineWorkspace({
+        source: localSource(input.worktreeRoot),
+        setup: ({ serial }) => serial(GROK_CLI_INSTALL_COMMAND),
+        ...(xaiKey !== undefined && xaiKey.length > 0
+          ? { secrets: createSecrets({ XAI_API_KEY: xaiKey }) }
+          : {}),
       }),
       lifecycle: { reuse: 'none', destroyOnComplete: false },
     })
@@ -139,6 +157,7 @@ export function createGrokReview() {
         authMode: 'api-key',
         protocol: 'streaming-json',
         cwd: input.worktreeRoot,
+        grokExecutable: join(homedir(), '.grok', 'bin', 'grok'),
       }),
       tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
