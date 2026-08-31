@@ -104,6 +104,7 @@ function createFakeGitHub(
     pull?: ReturnType<typeof samplePull>
     files?: ReturnType<typeof sampleFiles>
     waitingRunIds?: Array<number>
+    approveError?: string
   } = {},
 ) {
   const pull = options.pull ?? samplePull()
@@ -142,6 +143,11 @@ function createFakeGitHub(
       const approveMatch =
         /^\/repos\/TanStack\/ai\/actions\/runs\/(\d+)\/approve$/.exec(path)
       if (method === 'POST' && approveMatch?.[1] !== undefined) {
+        if (options.approveError !== undefined) {
+          throw new Error(
+            `GitHub REST POST ${path} → HTTP 403: ${options.approveError}`,
+          )
+        }
         approvedRuns.push(Number(approveMatch[1]))
         return null
       }
@@ -283,11 +289,13 @@ async function runJob(options: {
   gitImpl?: (args: Array<string>, cwd: string) => GitResult
   files?: ReturnType<typeof sampleFiles>
   waitingRunIds?: Array<number>
+  approveError?: string
 }) {
   const github = createFakeGitHub({
     pull: options.pull,
     files: options.files,
     waitingRunIds: options.waitingRunIds,
+    approveError: options.approveError,
   })
   const git = createFakeRunner(options.gitImpl)
   const result = await runReviewJob({
@@ -340,6 +348,7 @@ describe('runReviewJob', () => {
       event: {
         action: 'labeled',
         label: { name: 'ai-review' },
+        sender: { login: 'alem' },
         pull_request: { number: NUMBER },
       },
       review: readyReview,
@@ -580,5 +589,34 @@ describe('runReviewJob', () => {
     expect(approvedRuns).toEqual([])
     expect(comments[0]?.body).toContain('blocked. Did not approve workflows.')
     expect(comments[0]?.body).toContain('adds pull_request_target')
+  })
+
+  it('skips a labeled ai-review event from a non-maintainer', async () => {
+    const { result, comments, approvedRuns } = await runJob({
+      event: {
+        action: 'labeled',
+        label: { name: 'ai-review' },
+        sender: { login: 'stranger' },
+        pull_request: { number: NUMBER },
+      },
+      waitingRunIds: [101],
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'not-maintainer' })
+    expect(comments).toEqual([])
+    expect(approvedRuns).toEqual([])
+  })
+
+  it('does not leave secure when workflow approval fails', async () => {
+    const { comments, issueLabels, approvedRuns } = await runJob({
+      review: readyReview,
+      waitingRunIds: [101],
+      approveError: 'Resource not accessible by personal access token',
+    })
+
+    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect(approvedRuns).toEqual([])
+    expect(comments[0]?.body).toContain('Did not add label `secure`')
+    expect(comments[0]?.body).toContain('Could not approve workflows')
   })
 })

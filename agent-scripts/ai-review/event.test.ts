@@ -23,13 +23,14 @@ describe('parseReviewEvent', () => {
         event: {
           action: 'labeled',
           label: { name: 'ai-review' },
+          sender: { login: 'alem' },
           pull_request: { number: 42 },
         },
       }),
     ).toEqual({
       prNumber: 42,
       mode: 'manual',
-      commentAuthor: null,
+      commentAuthor: 'alem',
       eventName: 'pull_request',
     })
   })

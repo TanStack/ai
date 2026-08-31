@@ -257,6 +257,12 @@ export async function runReviewJob(opts: {
     return { skipped: true as const, reason: 'not-label' }
   }
 
+  if (isAiReviewLabelEvent(opts.event)) {
+    if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
+      return { skipped: true as const, reason: 'not-maintainer' }
+    }
+  }
+
   const pr = await fetchPullRequest(opts.client, opts.repo, parsed.prNumber)
   const skip = shouldSkip({
     mode: parsed.mode,
@@ -313,12 +319,9 @@ export async function runReviewJob(opts: {
 
   const label = reviewLabelFor(verdict.verdict, pushLanded)
   const security = scanPullSecurity(pr.files)
-  const markSecure = label === 'ai-ready' && security.ok
-  await setReviewState(opts.client, opts.repo, pr.number, label)
-  await setSecureLabel(opts.client, opts.repo, pr.number, markSecure)
   let approvedRuns = 0
   let approveError: string | null = null
-  if (markSecure) {
+  if (label === 'ai-ready' && security.ok) {
     try {
       approvedRuns = await approveWaitingWorkflows(
         opts.client,
@@ -329,6 +332,10 @@ export async function runReviewJob(opts: {
       approveError = error instanceof Error ? error.message : String(error)
     }
   }
+  const markSecure =
+    label === 'ai-ready' && security.ok && approveError === null
+  await setReviewState(opts.client, opts.repo, pr.number, label)
+  await setSecureLabel(opts.client, opts.repo, pr.number, markSecure)
   const findings = []
   for (const issue of verdict.issues) {
     findings.push(formatFinding(issue))
@@ -366,14 +373,14 @@ function securityNoteFor(input: {
   approvedRuns: number
   approveError: string | null
 }) {
-  if (!input.markSecure) {
-    if (input.reasons.length > 0) {
-      return `blocked. Did not approve workflows.\n${input.reasons.map((reason) => `- ${reason}`).join('\n')}`
-    }
-    return 'Did not mark secure. Verdict is not ai-ready.'
+  if (input.reasons.length > 0) {
+    return `blocked. Did not approve workflows.\n${input.reasons.map((reason) => `- ${reason}`).join('\n')}`
   }
   if (input.approveError !== null) {
-    return `clean. Added label \`secure\`. Could not approve workflows: ${input.approveError}`
+    return `clean. Did not add label \`secure\`. Could not approve workflows: ${input.approveError}`
+  }
+  if (!input.markSecure) {
+    return 'Did not mark secure. Verdict is not ai-ready.'
   }
   if (input.approvedRuns === 0) {
     return 'clean. Added label `secure`. No waiting workflow runs.'

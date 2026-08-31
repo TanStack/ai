@@ -34,6 +34,14 @@ function readCommentAuthor(event: unknown) {
   return user.login
 }
 
+function readSenderLogin(event: unknown) {
+  const sender = isRecord(event) ? event.sender : undefined
+  if (!isRecord(sender) || typeof sender.login !== 'string') {
+    return null
+  }
+  return sender.login
+}
+
 function readAction(event: unknown) {
   return isRecord(event) && typeof event.action === 'string'
     ? event.action
@@ -80,7 +88,9 @@ export function parseReviewEvent(input: { eventName: string; event: unknown }) {
       return {
         prNumber,
         mode: isAiReviewLabelEvent(input.event) ? 'manual' : 'auto',
-        commentAuthor: null,
+        commentAuthor: isAiReviewLabelEvent(input.event)
+          ? readSenderLogin(input.event)
+          : null,
         eventName: 'pull_request',
       } satisfies ReviewEvent
     }

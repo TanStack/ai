@@ -6,11 +6,13 @@
 export type PullFile = { path: string; patch: string | null }
 
 const BINARY_PATH = /\.(?:exe|dll|so|dylib|scr|bat|cmd|ps1)$/i
-const PIPE_SHELL = /(?:curl|wget|fetch)\b[^\n]{0,200}\|\s*(?:ba)?sh\b/i
+const PIPE_SHELL =
+  /(?:curl|wget|fetch)\b[^\n]{0,200}\|\s*(?:\S*\/)?(?:ba)?sh\b/i
 const POWERSHELL_ENC = /powershell(?:\.exe)?[^\n]{0,80}-enc(?:odedcommand)?\b/i
 const REVERSE_SHELL = /\/dev\/tcp\/|bash\s+-i\s+>&\s*\/dev\/tcp/i
 const LIFECYCLE = /"(?:preinstall|postinstall|prepublishOnly)"\s*:\s*"([^"]*)"/g
-const NETWORK = /https?:\/\/|curl\b|wget\b|invoke-webrequest\b|node\s+-e\b/i
+const NETWORK =
+  /https?:\/\/|curl\b|wget\b|invoke-webrequest\b|node\s+-e\b|git\s+clone\b/i
 
 function addedText(patch: string | null) {
   if (patch === null) return ''
@@ -48,10 +50,13 @@ export function scanPullSecurity(files: Array<PullFile>) {
       continue
     }
     const added = addedText(file.patch)
-    if (added.length === 0) continue
-    if (isWorkflowPath(file.path) && added.includes('pull_request_target')) {
-      reasons.push(`${file.path}: adds pull_request_target`)
+    if (isWorkflowPath(file.path)) {
+      reasons.push(`${file.path}: changes a workflow`)
+      if (added.includes('pull_request_target')) {
+        reasons.push(`${file.path}: adds pull_request_target`)
+      }
     }
+    if (added.length === 0) continue
     if (
       PIPE_SHELL.test(added) ||
       POWERSHELL_ENC.test(added) ||

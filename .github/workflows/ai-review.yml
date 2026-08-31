@@ -34,7 +34,10 @@ jobs:
         && github.event.pull_request.user.login != 'jherr')
       || (github.event_name == 'pull_request'
         && github.event.action == 'labeled'
-        && github.event.label.name == 'ai-review')
+        && github.event.label.name == 'ai-review'
+        && (github.event.sender.login == 'AlemTuzlak'
+          || github.event.sender.login == 'tombeckenham'
+          || github.event.sender.login == 'jherr'))
       || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request
