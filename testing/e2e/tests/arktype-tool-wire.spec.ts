@@ -71,7 +71,16 @@ test.describe('arktype — tool schema wire format', () => {
       `/api/arktype-tool-wire?provider=gemini&testId=${encodeURIComponent(testId)}`,
     )
     expect(res.ok()).toBe(true)
-    const result = (await res.json()) as { ok: boolean; error?: string }
+    const result = (await res.json()) as {
+      ok: boolean
+      text?: string
+      error?: string
+    }
     expect(result, result.error).toMatchObject({ ok: true })
+    // The mount only emits this after checking the request carried
+    // `parametersJsonSchema` (with `unit.const`) and no `parameters`. Asserting
+    // on it stops the test passing vacuously if the mount ever stops matching
+    // and aimock's native Gemini handler answers instead.
+    expect(result.text).toBe('Schema accepted')
   })
 })

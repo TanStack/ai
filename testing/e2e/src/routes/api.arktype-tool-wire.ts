@@ -54,8 +54,10 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
           httpClient,
         })
 
+        const text: Array<string> = []
+
         try {
-          for await (const _ of chat({
+          for await (const chunk of chat({
             ...(isGemini
               ? createTextAdapter(
                   'gemini',
@@ -72,7 +74,7 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
             ],
             tools: [arktypeWeatherTool],
           })) {
-            // Drain the stream.
+            if (chunk.type === 'TEXT_MESSAGE_CONTENT') text.push(chunk.delta)
           }
         } catch (error) {
           return new Response(
@@ -84,7 +86,7 @@ export const Route = createFileRoute('/api/arktype-tool-wire')({
           )
         }
 
-        return new Response(JSON.stringify({ ok: true }), {
+        return new Response(JSON.stringify({ ok: true, text: text.join('') }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
