@@ -103,6 +103,7 @@ function createFakeGitHub(
   options: {
     pull?: ReturnType<typeof samplePull>
     files?: ReturnType<typeof sampleFiles>
+    waitingRunIds?: Array<number>
   } = {},
 ) {
   const pull = options.pull ?? samplePull()
@@ -111,6 +112,8 @@ function createFakeGitHub(
   let nextId = 1
   const issueLabels = new Set<string>()
   const repoLabels = new Set<string>()
+  const approvedRuns: Array<number> = []
+  const waitingRunIds = options.waitingRunIds ?? []
   const pullPath = `/repos/${REPO}/pulls/${NUMBER}`
   const filesPath = `/repos/${REPO}/pulls/${NUMBER}/files`
   const repoLabelsPath = `/repos/${REPO}/labels`
@@ -122,6 +125,26 @@ function createFakeGitHub(
     },
     async rest(method, path, body) {
       if (method === 'GET' && path === pullPath) return pull
+      if (method === 'GET' && path.startsWith(`/repos/${REPO}/actions/runs?`)) {
+        const params = new URL(`https://api.github.com${path}`).searchParams
+        const ids =
+          params.get('status') === 'waiting' && params.get('head_sha') === SHA
+            ? waitingRunIds
+            : []
+        return {
+          workflow_runs: ids.map((id) => ({
+            id,
+            head_sha: SHA,
+            status: params.get('status'),
+          })),
+        }
+      }
+      const approveMatch =
+        /^\/repos\/TanStack\/ai\/actions\/runs\/(\d+)\/approve$/.exec(path)
+      if (method === 'POST' && approveMatch?.[1] !== undefined) {
+        approvedRuns.push(Number(approveMatch[1]))
+        return null
+      }
       if (method === 'GET' && path.startsWith(`${filesPath}?`)) {
         const params = new URL(`https://api.github.com${path}`).searchParams
         const page = Number(params.get('page') ?? '1')
@@ -193,7 +216,7 @@ function createFakeGitHub(
     },
   } satisfies GitHubClient
 
-  return { client, comments, issueLabels }
+  return { client, comments, issueLabels, approvedRuns }
 }
 
 function createFakeRunner(
@@ -258,8 +281,14 @@ async function runJob(options: {
   alreadyReviewedSha?: string | null
   headCommitAuthorLogin?: string | null
   gitImpl?: (args: Array<string>, cwd: string) => GitResult
+  files?: ReturnType<typeof sampleFiles>
+  waitingRunIds?: Array<number>
 }) {
-  const github = createFakeGitHub({ pull: options.pull })
+  const github = createFakeGitHub({
+    pull: options.pull,
+    files: options.files,
+    waitingRunIds: options.waitingRunIds,
+  })
   const git = createFakeRunner(options.gitImpl)
   const result = await runReviewJob({
     client: github.client,
@@ -280,6 +309,7 @@ async function runJob(options: {
     comments: github.comments,
     issueLabels: github.issueLabels,
     gitCalls: git.calls,
+    approvedRuns: github.approvedRuns,
   }
 }
 
@@ -427,7 +457,7 @@ describe('runReviewJob', () => {
     expect(comments[0]?.body).toContain(`**Head SHA:** ${SHA}`)
     expect(comments[0]?.body).toContain('**Label:** `ai-ready`')
     expect(comments[0]?.body).toContain('Did not push.')
-    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
     expect(gitCalls).toEqual([])
   })
 
@@ -454,7 +484,7 @@ describe('runReviewJob', () => {
       'Pushed polish commit to the PR branch.',
     )
     expect(comments[0]?.body).toContain('**Label:** `ai-ready`')
-    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
     expect(gitCalls).toEqual([
       { args: ['add', '-A'], cwd: WORKTREE },
       {
@@ -517,6 +547,38 @@ describe('runReviewJob', () => {
     expect(comments[0]?.body).toContain('**Verdict:** reject')
     expect(comments[0]?.body).toContain('**Label:** `ai-rejected`')
     expect([...issueLabels]).toEqual(['ai-rejected'])
+    expect(comments[0]?.body).toContain('Did not mark secure.')
     expect(gitCalls).toEqual([])
+  })
+
+  it('adds secure and approves waiting workflows when ready and clean', async () => {
+    const { comments, issueLabels, approvedRuns } = await runJob({
+      review: readyReview,
+      waitingRunIds: [101, 202],
+    })
+
+    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
+    expect(approvedRuns).toEqual([101, 202])
+    expect(comments[0]?.body).toContain('Added label `secure`')
+    expect(comments[0]?.body).toContain('Approved 2 waiting workflow runs.')
+  })
+
+  it('does not mark secure or approve workflows when the diff looks like malware', async () => {
+    const { comments, issueLabels, approvedRuns } = await runJob({
+      review: readyReview,
+      waitingRunIds: [101],
+      files: [
+        {
+          filename: '.github/workflows/ci.yml',
+          patch:
+            '@@ -1,2 +1,4 @@\n on:\n+  pull_request_target:\n+    types: [opened]\n',
+        },
+      ],
+    })
+
+    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect(approvedRuns).toEqual([])
+    expect(comments[0]?.body).toContain('blocked. Did not approve workflows.')
+    expect(comments[0]?.body).toContain('adds pull_request_target')
   })
 })

@@ -43,6 +43,8 @@ import { commitAll, headRemoteUrl, pushHead } from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
 import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
+import { approveWaitingWorkflows, setSecureLabel } from './secure.ts'
+import { scanPullSecurity } from './security.ts'
 import { shouldSkip } from './skip.ts'
 import { createReviewTools } from './tools.ts'
 import { parseVerdict, reviewLabelFor, reviewVerdictSchema } from './verdict.ts'
@@ -289,6 +291,23 @@ export async function runReviewJob(opts: {
   }
 
   const label = reviewLabelFor(verdict.verdict, pushLanded)
+  const security = scanPullSecurity(pr.files)
+  const markSecure = label === 'ai-ready' && security.ok
+  await setReviewState(opts.client, opts.repo, pr.number, label)
+  await setSecureLabel(opts.client, opts.repo, pr.number, markSecure)
+  let approvedRuns = 0
+  let approveError: string | null = null
+  if (markSecure) {
+    try {
+      approvedRuns = await approveWaitingWorkflows(
+        opts.client,
+        opts.repo,
+        pr.headSha,
+      )
+    } catch (error) {
+      approveError = error instanceof Error ? error.message : String(error)
+    }
+  }
   const findings = []
   for (const issue of verdict.issues) {
     findings.push(formatFinding(issue))
@@ -303,6 +322,12 @@ export async function runReviewJob(opts: {
       maintainerCanModify: pr.maintainerCanModify,
     }),
     label,
+    securityNote: securityNoteFor({
+      markSecure,
+      reasons: security.reasons,
+      approvedRuns,
+      approveError,
+    }),
   })
   await upsertReviewComment(
     opts.client,
@@ -311,8 +336,28 @@ export async function runReviewJob(opts: {
     body,
     opts.machineUserLogin,
   )
-  await setReviewState(opts.client, opts.repo, pr.number, label)
   return { skipped: false as const, verdict, label, pushLanded }
+}
+
+function securityNoteFor(input: {
+  markSecure: boolean
+  reasons: Array<string>
+  approvedRuns: number
+  approveError: string | null
+}) {
+  if (!input.markSecure) {
+    if (input.reasons.length > 0) {
+      return `blocked. Did not approve workflows.\n${input.reasons.map((reason) => `- ${reason}`).join('\n')}`
+    }
+    return 'Did not mark secure. Verdict is not ai-ready.'
+  }
+  if (input.approveError !== null) {
+    return `clean. Added label \`secure\`. Could not approve workflows: ${input.approveError}`
+  }
+  if (input.approvedRuns === 0) {
+    return 'clean. Added label `secure`. No waiting workflow runs.'
+  }
+  return `clean. Added label \`secure\`. Approved ${String(input.approvedRuns)} waiting workflow runs.`
 }
 
 function createProcessGitRunner(): GitRunner {

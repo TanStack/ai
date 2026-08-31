@@ -92,6 +92,8 @@ function sampleInput() {
     findings: ['src/chat.ts:40 null crash on empty messages'],
     pushNote: 'Did not push: fork has maintainer edits off.',
     label: 'ai-ready' as const,
+    securityNote:
+      'clean. Added label `secure`. Approved 2 waiting workflow runs.',
   }
 }
 
@@ -105,6 +107,8 @@ describe('buildReviewComment', () => {
     expect(body).toContain('src/chat.ts:40 null crash on empty messages')
     expect(body).toContain('Did not push: fork has maintainer edits off.')
     expect(body).toContain('ai-ready')
+    expect(body).toContain('**Security**')
+    expect(body).toContain('Added label `secure`')
   })
 })
 
