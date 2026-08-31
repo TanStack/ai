@@ -16,6 +16,42 @@ describe('parseReviewEvent', () => {
     })
   })
 
+  it('parses a pull_request labeled ai-review as manual', () => {
+    expect(
+      parseReviewEvent({
+        eventName: 'pull_request',
+        event: {
+          action: 'labeled',
+          label: { name: 'ai-review' },
+          pull_request: { number: 42 },
+        },
+      }),
+    ).toEqual({
+      prNumber: 42,
+      mode: 'manual',
+      commentAuthor: null,
+      eventName: 'pull_request',
+    })
+  })
+
+  it('parses a pull_request labeled with another name as auto', () => {
+    expect(
+      parseReviewEvent({
+        eventName: 'pull_request',
+        event: {
+          action: 'labeled',
+          label: { name: 'bug' },
+          pull_request: { number: 42 },
+        },
+      }),
+    ).toEqual({
+      prNumber: 42,
+      mode: 'auto',
+      commentAuthor: null,
+      eventName: 'pull_request',
+    })
+  })
+
   it('parses workflow_dispatch string pr_number as manual', () => {
     expect(
       parseReviewEvent({

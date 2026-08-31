@@ -34,7 +34,11 @@ import {
   isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
-import { parseReviewEvent } from './event.ts'
+import {
+  isAiReviewLabelEvent,
+  isPullRequestLabeledEvent,
+  parseReviewEvent,
+} from './event.ts'
 import { commitAll, headRemoteUrl, pushHead } from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
@@ -220,6 +224,14 @@ export async function runReviewJob(opts: {
     if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
       return { skipped: true as const, reason: 'not-maintainer' }
     }
+  }
+
+  if (
+    opts.eventName === 'pull_request' &&
+    isPullRequestLabeledEvent(opts.event) &&
+    !isAiReviewLabelEvent(opts.event)
+  ) {
+    return { skipped: true as const, reason: 'not-label' }
   }
 
   const pr = await fetchPullRequest(opts.client, opts.repo, parsed.prNumber)
