@@ -170,7 +170,7 @@ export function Sidebar() {
 }
 ```
 
-`layout` receives `Messages`, `Interrupts`, and `Input` as components — render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
+`layout` receives `Messages`, `Interrupts`, and `Input` as components. Render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
 
 > **List `input` before `layout`.** When `input` is an inline `function` expression written *after* `layout`, TypeScript cannot yet tell that an input is registered, and `Input` goes missing from the layout props. Putting `input` first fixes it; so does using an arrow or a named reference. If it does slip through, rendering `<Input />` without a registered `input` warns once in development rather than failing silently.
 
