@@ -28,7 +28,7 @@ remix: @tanstack/ai-remix remix
 
 A Remix controller action can return the same SSE `Response` as any other host.
 
-```typescript
+```typescript ignore
 import {
   chat,
   chatParamsFromRequest,
@@ -51,7 +51,7 @@ export default createController(routes.chat, {
         await chatParamsFromRequest(request)
 
       const stream = chat({
-        adapter: openaiText('gpt-5.2'),
+        adapter: openaiText('gpt-5.6'),
         messages,
         threadId,
         runId,
@@ -150,7 +150,7 @@ Client tools run automatically.
 
 ### Returns
 
-```typescript
+```typescript ignore
 import type { UIMessage } from '@tanstack/ai-remix'
 import type { ModelMessage } from '@tanstack/ai/client'
 import type {
@@ -268,7 +268,7 @@ The component map matches the other framework adapters. Each entry is a Remix se
 
 ```tsx ignore
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { createChatUI, type ToolProps } from '@tanstack/ai-remix/ui'
+import { createChatUI } from '@tanstack/ai-remix/ui'
 import { defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { clientEntry, on, type Handle } from 'remix/ui'
 import { z } from 'zod'
@@ -301,29 +301,6 @@ const chatOptions = {
 }
 
 const UI = createChatUI(chatOptions)
-
-function PurchaseItem(
-  handle: Handle<ToolProps<typeof chatOptions, 'purchaseItem'>>,
-) {
-  return () => {
-    const { part, interrupt } = handle.props
-    return (
-      <div>
-        {part.input?.item}
-        {interrupt?.status === 'pending' ? (
-          <button
-            type="button"
-            mix={on('click', () => {
-              interrupt.resolveInterrupt(true)
-            })}
-          >
-            Approve
-          </button>
-        ) : null}
-      </div>
-    )
-  }
-}
 
 const components = UI.defineComponents({
   layout(handle) {
@@ -384,7 +361,24 @@ const components = UI.defineComponents({
         </p>
       )
     },
-    purchaseItem: PurchaseItem,
+    purchaseItem(handle) {
+      const { part, interrupt } = handle.props
+      return () => (
+        <div>
+          {part.input?.item}
+          {interrupt?.status === 'pending' ? (
+            <button
+              type="button"
+              mix={on('click', () => {
+                interrupt.resolveInterrupt(true)
+              })}
+            >
+              Approve
+            </button>
+          ) : null}
+        </div>
+      )
+    },
   },
   interrupts: {
     generic: {

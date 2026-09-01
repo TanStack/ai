@@ -64,7 +64,7 @@
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.1.10",
     "happy-dom": "^20.11.2",
-    "remix": "3.0.0-rc.1",
+    "remix": "^3.0.0-rc.1",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   }

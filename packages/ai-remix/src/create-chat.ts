@@ -108,7 +108,7 @@ export function createChat<
 
   function commit() {
     if (closed) return
-    handle.update()
+    void handle.update()
   }
 
   const client = new ChatClient<TTools, TContext, TInterrupts>({
