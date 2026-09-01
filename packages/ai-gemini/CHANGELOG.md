@@ -1,5 +1,18 @@
 # @tanstack/ai-gemini
 
+## 0.26.5
+
+### Patch Changes
+
+- [#1259](https://github.com/TanStack/ai/pull/1259) [`845696b`](https://github.com/TanStack/ai/commit/845696b00dab158821ef12fc6062aa0f93c6e30e) - Send Gemini function tool inputs through `parametersJsonSchema` so complete JSON Schema keywords reach the provider.
+
+- [#1273](https://github.com/TanStack/ai/pull/1273) [`9c9746b`](https://github.com/TanStack/ai/commit/9c9746bd4bbe94198ebd973b12fedfbdb9fdb231) - Add Gemini Omni 1.1 Flash (`gemini-omni-1.1-flash`) as the GA Interactions video model.
+
+  `geminiVideo('gemini-omni-1.1-flash')` uses the existing Interactions video path. `gemini-omni-flash-preview` stays as a deprecated alias until it shuts down on 2026-09-30. Omni `size` is an `aspectRatio_resolution` template (`'16:9'` or `'16:9_1080p'`) that maps onto `response_format.aspect_ratio` and `response_format.resolution` (`360p` | `720p` | `1080p` | `4k`, default 720p). Duration stays 3–10 seconds per call.
+
+- Updated dependencies [[`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd)]:
+  - @tanstack/ai@0.52.1
+
 ## 0.26.4
 
 ### Patch Changes

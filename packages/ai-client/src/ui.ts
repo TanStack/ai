@@ -5,7 +5,6 @@ export {
   resolveInterruptComponent,
   selectMessageUI,
 } from './ui/selectors'
-export { bindChatUIQueue } from './ui/queue'
 export type {
   ChatUIData,
   ChatUIHasNamedInterrupts,
@@ -18,7 +17,6 @@ export type {
   ChatUIMessages,
   ChatUIPartKey,
   ChatUIPartOf,
-  ChatUIQueueItem,
   ChatUIPartTypeByKey,
   ChatUIRegisteredInterruptId,
   ChatUISchemaOf,
@@ -26,6 +24,7 @@ export type {
   ChatUISelectedGenericPart,
   ChatUISelectedMessage,
   ChatUISelectedPart,
+  ChatUISelectedPartOf,
   ChatUISelectedResultPart,
   ChatUISelectedToolPart,
   ChatUISelection,

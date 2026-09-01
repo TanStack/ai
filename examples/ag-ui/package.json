@@ -2,7 +2,7 @@
   "name": "ag-ui",
   "private": true,
   "type": "module",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "scripts": {
     "detect-servers": "node scripts/detect-servers.mjs",
     "predev": "node scripts/detect-servers.mjs",
@@ -21,7 +21,6 @@
   "dependencies": {
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/ai-react-ui": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

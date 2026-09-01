@@ -115,7 +115,7 @@ export default function VideoGenerator({
   const omniInRun =
     selectedModel === 'all'
       ? geminiModels.length > 0
-      : selectedModel.startsWith('gemini-omni-flash-preview')
+      : selectedModel.startsWith('gemini-omni')
 
   // Each card runs its own generation, so the form is busy while any of them
   // reports that it is.

@@ -1,5 +1,11 @@
 # @tanstack/ai-client
 
+## 0.30.0
+
+### Minor Changes
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Add typed headless `createChatUI()` adapters on `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`. Chat options control the types of message parts, tools, structured output, and interrupts. `toolsComponents` requires a component for every tool name, and `interruptsComponents.generic` one for every registered interrupt id. `InterruptProps` pins a tool approval or a registered generic interrupt. Old Chat orchestration stays importable and deprecated until 1.0.
+
 ## 0.29.2
 
 ### Patch Changes

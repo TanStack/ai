@@ -230,6 +230,102 @@
       "tab": "guides"
     },
     {
+      "label": "UI",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "React",
+          "to": "ui/react",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Solid",
+          "to": "ui/solid",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Vue",
+          "to": "ui/vue",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Svelte",
+          "to": "ui/svelte",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Preact",
+          "to": "ui/preact",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Octane",
+          "to": "ui/octane",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Angular",
+          "to": "ui/angular",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Custom Adapters",
+          "to": "ui/custom-adapters",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-08-26"
+        }
+      ]
+    },
+    {
+      "label": "Chat UI Recipes",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "ui/recipes/index",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Chat with no tools",
+          "to": "ui/recipes/basic-chat",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Format a tool",
+          "to": "ui/recipes/format-a-tool",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Tool approval",
+          "to": "ui/recipes/tool-approval",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Custom interrupt",
+          "to": "ui/recipes/custom-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Per-request context",
+          "to": "ui/recipes/request-context",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        }
+      ]
+    },
+    {
       "label": "Interrupts",
       "tab": "guides",
       "children": [
@@ -502,7 +598,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-31"
         },
         {
           "label": "Generation Hooks",
@@ -1018,6 +1114,12 @@
           "to": "migration/migration",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Chat UI packages",
+          "to": "migration/create-ui",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-08-31"
         },
         {
           "label": "From Vercel AI SDK",

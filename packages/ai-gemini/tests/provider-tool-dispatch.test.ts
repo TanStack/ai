@@ -82,20 +82,30 @@ describe('Gemini provider tool dispatch', () => {
   it.each(PROVIDER_TOOL_NAMES)(
     'keeps an ordinary function named %s as a function declaration',
     (name) => {
+      const inputSchema = {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          unit: { const: 'celsius' },
+        },
+        required: ['query', 'unit'],
+      }
       const [converted] = convertToolsToProviderFormat([
         {
           name,
           description: 'Run an application function',
-          inputSchema: {
-            type: 'object',
-            properties: { query: { type: 'string' } },
-            required: ['query'],
-          },
+          inputSchema,
         } satisfies Tool,
       ])
 
-      expect(converted).toMatchObject({
-        functionDeclarations: [{ name }],
+      expect(converted).toEqual({
+        functionDeclarations: [
+          {
+            name,
+            description: 'Run an application function',
+            parametersJsonSchema: inputSchema,
+          },
+        ],
       })
     },
   )

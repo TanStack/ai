@@ -447,12 +447,12 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     // Gemini Omni Flash (Interactions API, GEMINI_API_KEY). One model
     // serves both UI entries; it accepts text, image, AND video prompt
     // parts (sent as interaction content blocks: images, then videos,
-    // then text). Clips are 3–10s at 720p (default 10s when `duration`
-    // is omitted); `size` is the output aspect ratio. Passing
+    // then text). Clips are 3–10s (default 10s when `duration` is
+    // omitted); `size` is the output aspect ratio. Passing
     // `previous_interaction_id` chains a prompt onto a prior generation
     // for conversational editing.
-    case 'gemini-omni-flash-preview':
-    case 'gemini-omni-flash-preview/image-to-video': {
+    case 'gemini-omni-1.1-flash':
+    case 'gemini-omni-1.1-flash/image-to-video': {
       const prompt = asOmniPrompt(data.prompt)
       if (
         data.model.endsWith('/image-to-video') &&
@@ -466,7 +466,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: geminiVideo('gemini-omni-flash-preview'),
+        adapter: geminiVideo('gemini-omni-1.1-flash'),
         prompt,
         size: aspectRatio ?? '16:9',
         ...(duration !== undefined ? { duration } : {}),

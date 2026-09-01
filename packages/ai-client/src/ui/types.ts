@@ -9,7 +9,6 @@ import type {
 import type {
   ChatInterrupt,
   MessagePart,
-  QueuedMessage,
   RegisteredGenericInterrupt,
   StructuredOutputPart,
   ToolApprovalInterrupt,
@@ -207,6 +206,18 @@ export type ChatUISelectedPart =
   | ChatUISelectedResultPart
   | ChatUISelectedGenericPart
 
+export type ChatUISelectedPartOf<
+  TOptions,
+  TKey extends ChatUIPartKey = ChatUIPartKey,
+> = TKey extends 'toolCall'
+  ? ChatUIToolPart<TOptions>
+  : TKey extends 'toolResult'
+    ? ChatUISelectedResultPart
+    : {
+        key: TKey
+        part: ChatUIPartOf<TOptions, TKey>
+      }
+
 export type ChatUISelectedMessage = {
   message: UIMessage
   parts: Array<ChatUISelectedPart>
@@ -230,11 +241,3 @@ export type ChatUIMessages<TOptions> = Array<
 export type ChatUIStructuredPart<TOptions> = StructuredOutputPart<
   ChatUIData<TOptions>
 >
-
-/**
- * A queued send with `cancelQueued` bound to that item.
- * Layout calls `item.cancelQueued()` to drop it before it drains.
- */
-export type ChatUIQueueItem = QueuedMessage & {
-  cancelQueued: () => void
-}

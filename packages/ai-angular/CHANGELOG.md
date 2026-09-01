@@ -1,5 +1,18 @@
 # @tanstack/ai-angular
 
+## 0.8.0
+
+### Minor Changes
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Add typed headless chat UI on `@tanstack/ai-preact/ui`, `@tanstack/ai-octane/ui`, and `@tanstack/ai-angular/ui`.
+
+  Preact and Octane match the React `createChatHook` factory (`useAppChat`, layout slots as components). Angular uses the same factory name and option groups, with `injectAppChat`, signal chat state, and standalone component classes.
+
+### Patch Changes
+
+- Updated dependencies [[`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae)]:
+  - @tanstack/ai-client@0.30.0
+
 ## 0.7.4
 
 ### Patch Changes
