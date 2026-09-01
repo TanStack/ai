@@ -57,9 +57,14 @@ describe('multimodal TOOL_CALL_RESULT round trip', () => {
 
     const wire = uiMessagesToWire(processor.getMessages())
     const toolMessage = wire.find((message) => message.role === 'tool')
+    const metadata = toolMessage?.metadata as
+      | {
+          tanstack?: {
+            toolResult?: { content?: Array<ContentPart> }
+          }
+        }
+      | undefined
 
-    expect(toolMessage?.metadata?.tanstack?.toolResult?.content).toEqual(
-      MULTIMODAL_RESULT,
-    )
+    expect(metadata?.tanstack?.toolResult?.content).toEqual(MULTIMODAL_RESULT)
   })
 })
