@@ -1,0 +1,33 @@
+name: Coverage
+
+# Measures coverage for every package on main. The numbers themselves are not
+# asserted here — the point is to populate the Nx Cloud cache, so that when a
+# PR re-measures its merge-base the `test:coverage` task hashes already exist
+# remotely and the summaries are restored instead of recomputed.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Warm Coverage Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Run Coverage
+        run: pnpm run test:coverage:all

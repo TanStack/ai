@@ -31,6 +31,82 @@ jobs:
           main-branch-name: main
       - name: Run Checks
         run: pnpm run test:pr
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Get base and head commits for `nx affected`
+        uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
+        with:
+          main-branch-name: main
+      # Stashed outside the working tree because checking out the merge base
+      # would otherwise remove it — the script may be added or changed by the
+      # very PR under test. Both runs and the comparison use this copy, so all
+      # three agree on the version.
+      - name: Stage the coverage script
+        run: cp scripts/coverage-check.mjs "$RUNNER_TEMP/coverage-check.mjs"
+      # The set of packages to measure is decided once, here, so that the base
+      # run measures exactly what the head run does. `--with-target` keeps out
+      # projects that have no test:coverage script, so a docs-only PR resolves
+      # to an empty list rather than erroring in run-many.
+      - name: Resolve affected packages
+        id: affected
+        run: |
+          list=$(pnpm exec nx show projects --affected --with-target=test:coverage --exclude='examples/**,testing/**' --json | jq -r 'sort | join(",")')
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "Measuring: ${list:-<none>}"
+      - name: Coverage for this PR
+        if: steps.affected.outputs.list != ''
+        # Via env, not `${{ }}` inside run: project names come from the PR's own
+        # files, so interpolating them into the shell would be injectable.
+        env:
+          PROJECTS: ${{ steps.affected.outputs.list }}
+        run: |
+          rm -rf packages/*/coverage
+          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head" --expect "$PROJECTS"
+      # Re-measuring the merge-base is normally a set of Nx Cloud cache
+      # restores seeded by the Coverage workflow on main: the task hashes are
+      # identical, and `test:coverage` declares its coverage dir as an output,
+      # so the summaries come back without the tests re-running.
+      - name: Coverage for the merge base
+        if: steps.affected.outputs.list != ''
+        env:
+          PROJECTS: ${{ steps.affected.outputs.list }}
+        run: |
+          git checkout --force --detach "$NX_BASE"
+          # coverage/ is gitignored, so the checkout leaves this PR's results in
+          # place — without this the base collection silently re-reads head's
+          # numbers and every delta comes out as 0.00.
+          rm -rf packages/*/coverage
+          pnpm install --frozen-lockfile
+          # Intersect with projects that have test:coverage on the base commit
+          # (added packages, or packages that gained the script in this PR).
+          printf '%s\n' "$PROJECTS" | tr ',' '\n' | sort > /tmp/wanted
+          pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
+          base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
+          if [ -z "$base_list" ]; then
+            echo "No affected package has test:coverage on the base commit; treating all as new."
+            mkdir -p "$RUNNER_TEMP/cov-base"
+            exit 0
+          fi
+          # Extra reporters/include so a merge-base whose scripts are still
+          # `vitest run --coverage` still writes coverage-summary.json.
+          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base" --expect "$base_list"
+      - name: Compare
+        if: steps.affected.outputs.list != ''
+        run: |
+          node "$RUNNER_TEMP/coverage-check.mjs" \
+            --base "$RUNNER_TEMP/cov-base" \
+            --head "$RUNNER_TEMP/cov-head"
   preview:
     name: Preview
     runs-on: ubuntu-latest
