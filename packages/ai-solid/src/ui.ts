@@ -4,11 +4,13 @@ export {
   type ChatUIComponents,
   type ChatUIFactoryConfig,
   type ChatUIHost,
+  type ChatUIQueueItem,
   type InputProps,
   type InterruptProps,
   type LayoutProps,
   type MessageProps,
   type PartProps,
+  type QueueProps,
   type ToolProps,
 } from './chat-ui/create-ui'
 export { createChatHook } from './chat-ui/create-chat-hook'

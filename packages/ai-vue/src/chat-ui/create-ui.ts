@@ -27,6 +27,7 @@ import type {
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage as UIMessageModel,
@@ -39,6 +40,10 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<TOptions> = {
   readonly __ui?: TOptions
 }
@@ -48,6 +53,11 @@ export type MessageProps<TOptions> = {
 }
 
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 
@@ -87,44 +97,57 @@ type ToolApprovalMap<TOptions> = {
   [K in ChatUIToolName<TOptions>]?: Component
 }
 
-export type ChatUIComponents<TOptions> = {
+/** The chrome around the message list: `layout`, `message`, and `input`. */
+export type ChatUIChromeComponents = {
   layout: Component
   message: Component
   input?: Component
-  parts: {
-    [K in ChatUIPartKey]?: Component
-  } & {
-    fallback?: Component
-  }
+  queue?: Component
+}
+
+export type ChatUIPartsComponents = {
+  [K in ChatUIPartKey]?: Component
+} & {
+  fallback?: Component
+}
+
+export type ChatUIInterruptsComponents<TOptions> = {
+  tools?: ToolApprovalMap<TOptions>
+  generic: GenericInterruptComponents<TOptions>
+}
+
+export type ChatUIComponents<TOptions> = {
+  components: ChatUIChromeComponents
+  partsComponents: ChatUIPartsComponents
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
-      tools: {
+      toolsComponents: {
         [K in ChatUIToolName<TOptions>]: Component
       }
     }
   : {
-      tools?: {
+      toolsComponents?: {
         [K in ChatUIToolName<TOptions>]?: Component
       }
     }) &
   (ChatUIHasNamedInterrupts<TOptions> extends true
-    ? {
-        interrupts: {
-          tools?: ToolApprovalMap<TOptions>
-          generic: GenericInterruptComponents<TOptions>
-        }
-      }
+    ? { interruptsComponents: ChatUIInterruptsComponents<TOptions> }
     : {
-        interrupts?: {
+        interruptsComponents?: {
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
         }
       })
 
-export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions> & {
+/** Scoped injection keys, for widgets in other files or nested chat trees. */
+export type ChatUIContextConfig = {
   chatKey?: InjectionKey<ChatUIHost<any>>
   partKey?: InjectionKey<ChatUISelectedPart>
   interruptKey?: InjectionKey<ChatUIInterrupt>
+}
+
+export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions> & {
+  context?: ChatUIContextConfig
 }
 
 export type UIDescriptor<TOptions = unknown> = {
@@ -132,7 +155,7 @@ export type UIDescriptor<TOptions = unknown> = {
   partKey: InjectionKey<ChatUISelectedPart>
   interruptKey: InjectionKey<ChatUIInterrupt>
   warn: (key: string, message: string) => void
-  components: ChatUIComponents<TOptions>
+  components: VueChatUIComponents
   useChatContext: () => ChatUIHost<TOptions>
   usePartContext: <
     TKey extends ChatUIPartKey = ChatUIPartKey,
@@ -146,6 +169,7 @@ type VueChatUIComponents = {
   layout: Component
   message: Component
   input?: Component
+  queue?: Component
   parts: {
     [K in ChatUIPartKey]?: Component
   } & {
@@ -215,6 +239,10 @@ function readInterrupts<TOptions>(
   return Array.isArray(value) ? value : []
 }
 
+function readQueue<TOptions>(chat: ChatUIHost<TOptions>) {
+  return chat.queue.value
+}
+
 function useChatContext<TOptions>(ui: UIDescriptor<TOptions>) {
   const chat = inject(ui.key)
   if (!chat) {
@@ -235,7 +263,7 @@ function useComponentsContext(ui: UIDescriptor<unknown>) {
   return value
 }
 
-function inlineNames<TOptions>(components: ChatUIComponents<TOptions>) {
+function inlineNames(components: VueChatUIComponents) {
   return collectInlineToolNames(
     components.interrupts?.tools as Record<string, unknown> | undefined,
     Object.keys(components.tools ?? {}),
@@ -312,7 +340,27 @@ export function createChatUI<const TOptions>(
   config: ChatUIFactoryConfig<NoInfer<TOptions>>,
 ): UIDescriptor<TOptions> {
   void options
-  const { chatKey, partKey, interruptKey, ...components } = config
+  const {
+    context,
+    components: chrome,
+    partsComponents,
+    toolsComponents,
+    interruptsComponents,
+  } = config as ChatUIFactoryConfig<TOptions> & {
+    toolsComponents?: Record<string, Component | undefined>
+    interruptsComponents?: {
+      tools?: Record<string, unknown>
+      generic?: Record<string, Component | undefined>
+    }
+  }
+  const { chatKey, partKey, interruptKey } = context ?? {}
+  // The runtime keeps the flat shape the rest of this module reads.
+  const components: VueChatUIComponents = {
+    ...chrome,
+    parts: partsComponents,
+    tools: toolsComponents,
+    interrupts: interruptsComponents,
+  }
   const ui: UIRuntime<TOptions> = {
     key:
       chatKey ??
@@ -379,7 +427,7 @@ export const UIProvider = defineComponent({
     provide((props.ui as UIRuntime).componentsKey, {
       components,
       warn: props.ui.warn,
-      inlineToolNames: inlineNames(components as ChatUIComponents<any>),
+      inlineToolNames: inlineNames(components),
     })
     return () => slots.default?.()
   },
@@ -535,6 +583,31 @@ export const UIInterrupt = defineComponent({
   },
 })
 
+export const UIQueue = defineComponent({
+  name: 'UIQueue',
+  props: {
+    ui: { type: Object as PropType<UIDescriptor<any>>, required: true },
+  },
+  setup(props) {
+    return () => {
+      const chat = useChatContext(props.ui)
+      const comps = useComponentsContext(props.ui)
+      const QueueItem = comps.components.queue
+      if (!QueueItem) return null
+      const items = readQueue(chat)
+      return items.map((item) =>
+        h(QueueItem, {
+          key: item.id,
+          item: {
+            ...item,
+            cancelQueued: () => chat.cancelQueued(item.id),
+          },
+        }),
+      )
+    }
+  },
+})
+
 export const UIChat = defineComponent({
   name: 'UIChat',
   props: {
@@ -559,6 +632,7 @@ export const UIChat = defineComponent({
               {
                 messages: () => h(UIMessages, { ui: props.ui }),
                 interrupts: () => h(UIInterrupts, { ui: props.ui }),
+                queue: () => h(UIQueue, { ui: props.ui }),
                 input: () => (components.input ? h(components.input) : null),
               },
             ),

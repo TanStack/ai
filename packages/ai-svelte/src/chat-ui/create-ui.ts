@@ -24,6 +24,7 @@ import type {
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
 import type {
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -52,33 +53,49 @@ type ToolApprovalMap<TOptions> = {
   [K in ChatUIToolName<TOptions>]?: unknown
 }
 
-export type ChatUIComponents<TOptions> = {
+/** The chrome around the message list: `layout`, `message`, and `input`. */
+export type ChatUIChromeComponents = {
   layout: unknown
   message: unknown
   input?: unknown
-  parts: {
-    [K in ChatUIPartKey]?: unknown
-  } & {
-    fallback?: unknown
+  queue?: unknown
+}
+
+export type ChatUIPartsComponents = {
+  [K in ChatUIPartKey]?: unknown
+} & {
+  fallback?: unknown
+}
+
+export type ChatUIInterruptsComponents<TOptions> = {
+  tools?: ToolApprovalMap<TOptions>
+  generic: GenericInterruptComponents<TOptions>
+}
+
+/** The flat shape the runtime reads, assembled from the factory config. */
+export type ChatUIComponents<TOptions> = ChatUIChromeComponents & {
+  parts: ChatUIPartsComponents
+  tools?: { [K in ChatUIToolName<TOptions>]?: unknown }
+  interrupts?: {
+    tools?: ToolApprovalMap<TOptions>
+    generic?: GenericInterruptComponents<TOptions>
   }
+}
+
+export type ChatUIFactoryConfig<TOptions> = {
+  components: ChatUIChromeComponents
+  partsComponents: ChatUIPartsComponents
 } & (ChatUIHasNamedTools<TOptions> extends true
-  ? { tools: { [K in ChatUIToolName<TOptions>]: unknown } }
-  : { tools?: { [K in ChatUIToolName<TOptions>]?: unknown } }) &
+  ? { toolsComponents: { [K in ChatUIToolName<TOptions>]: unknown } }
+  : { toolsComponents?: { [K in ChatUIToolName<TOptions>]?: unknown } }) &
   (ChatUIHasNamedInterrupts<TOptions> extends true
-    ? {
-        interrupts: {
-          tools?: ToolApprovalMap<TOptions>
-          generic: GenericInterruptComponents<TOptions>
-        }
-      }
+    ? { interruptsComponents: ChatUIInterruptsComponents<TOptions> }
     : {
-        interrupts?: {
+        interruptsComponents?: {
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
         }
       })
-
-export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions>
 
 export type UIDescriptor<TOptions = unknown> = {
   key: symbol
@@ -115,9 +132,28 @@ function createWarnOnce() {
 
 export function createChatUI<const TOptions>(
   options: TOptions,
-  components: ChatUIFactoryConfig<NoInfer<TOptions>>,
+  config: ChatUIFactoryConfig<NoInfer<TOptions>>,
 ): UIDescriptor<TOptions> {
   void options
+  const {
+    components: chrome,
+    partsComponents,
+    toolsComponents,
+    interruptsComponents,
+  } = config as ChatUIFactoryConfig<TOptions> & {
+    toolsComponents?: Record<string, unknown>
+    interruptsComponents?: {
+      tools?: Record<string, unknown>
+      generic?: Record<string, unknown>
+    }
+  }
+  // The runtime keeps the flat shape the rest of this module reads.
+  const components = {
+    ...chrome,
+    parts: partsComponents,
+    tools: toolsComponents,
+    interrupts: interruptsComponents,
+  } as ChatUIComponents<TOptions>
   const ui: UIRuntime<TOptions> = {
     key: Symbol('tanstack-ai-ui-chat'),
     componentsKey: Symbol('tanstack-ai-ui-components'),
@@ -177,6 +213,16 @@ export function readInterrupts<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.interrupts ?? []
 }
 
+export function readQueue<TOptions>(chat: ChatUIHost<TOptions>) {
+  const items = chat.queue ?? []
+  return items.map((item) => ({
+    ...item,
+    cancelQueued: () => {
+      chat.cancelQueued(item.id)
+    },
+  }))
+}
+
 export function inlineNames<TOptions>(components: ChatUIComponents<TOptions>) {
   return collectInlineToolNames(
     components.interrupts?.tools as Record<string, unknown> | undefined,
@@ -226,6 +272,10 @@ export function interruptComponent<TOptions>(
   return resolveInterruptComponent(interrupt, components.interrupts)
 }
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<TOptions> = {
   readonly __ui?: TOptions
 }
@@ -233,6 +283,10 @@ export type MessageProps<TOptions> = {
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
 }
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {

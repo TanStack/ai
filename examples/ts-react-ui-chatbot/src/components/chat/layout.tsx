@@ -35,9 +35,10 @@ const PROMPTS: Array<{ label: string; content?: Array<ContentPart> }> = [
 ]
 
 export function ChatLayout({
-  renderMessages,
-  renderInterrupts,
-  renderInput,
+  Messages,
+  Interrupts,
+  Input,
+  Queue,
 }: LayoutProps<typeof chatOptions>) {
   const chat = useChatContext()
   if (chat.error) {
@@ -55,9 +56,9 @@ export function ChatLayout({
               title="Trip desk"
             />
           ) : (
-            renderMessages()
+            <Messages />
           )}
-          {renderInterrupts()}
+          <Interrupts />
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -79,7 +80,17 @@ export function ChatLayout({
             ))}
           </Suggestions>
         ) : null}
-        {renderInput()}
+        {chat.queue.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-muted-foreground px-1 text-xs font-medium">
+              Queued
+            </p>
+            <div className="space-y-1">
+              <Queue />
+            </div>
+          </div>
+        ) : null}
+        <Input />
       </div>
     </div>
   )

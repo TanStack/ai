@@ -87,7 +87,7 @@ const draft = ref('')
 
 const { useAppChat, ui } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  components: {
     layout: defineComponent(
       (_, { slots }) =>
         () =>
@@ -140,59 +140,59 @@ const { useAppChat, ui } = createChatHook({
           ])
       },
     }),
-    parts: { fallback: defineComponent(() => () => null) },
-    tools: {
-      recommendGuitar: defineComponent({
-        props: ['part'],
-        setup(props) {
-          return () => h('p', props.part.input?.id)
-        },
-      }),
-      getPersonalGuitarPreference: defineComponent({
-        props: ['part'],
-        setup(props) {
-          return () => h('p', props.part.output?.preference)
-        },
-      }),
-      addToWishList: defineComponent({
-        props: ['part', 'interrupt'],
-        setup(props) {
-          return () =>
-            h('p', [
-              props.part.input?.guitarId,
-              props.interrupt?.status === 'pending'
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: () => props.interrupt?.resolveInterrupt(true),
-                    },
-                    'Approve',
-                  )
-                : null,
-            ])
-        },
-      }),
-      addToCart: defineComponent({
-        props: ['part', 'interrupt'],
-        setup(props) {
-          return () =>
-            h('p', [
-              props.part.input?.guitarId,
-              props.interrupt?.status === 'pending'
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: () => props.interrupt?.resolveInterrupt(true),
-                    },
-                    'Approve',
-                  )
-                : null,
-            ])
-        },
-      }),
-    },
+  },
+  partsComponents: { fallback: defineComponent(() => () => null) },
+  toolsComponents: {
+    recommendGuitar: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.input?.id)
+      },
+    }),
+    getPersonalGuitarPreference: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.output?.preference)
+      },
+    }),
+    addToWishList: defineComponent({
+      props: ['part', 'interrupt'],
+      setup(props) {
+        return () =>
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
+                  },
+                  'Approve',
+                )
+              : null,
+          ])
+      },
+    }),
+    addToCart: defineComponent({
+      props: ['part', 'interrupt'],
+      setup(props) {
+        return () =>
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
+                  },
+                  'Approve',
+                )
+              : null,
+          ])
+      },
+    }),
   },
 })
 

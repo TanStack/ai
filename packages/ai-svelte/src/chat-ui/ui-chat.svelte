@@ -2,6 +2,7 @@
   import UIProvider from './ui-provider.svelte'
   import UIMessages from './ui-messages.svelte'
   import UIInterrupts from './ui-interrupts.svelte'
+  import UIQueue from './ui-queue.svelte'
   import type { ChatUIComponents, UIDescriptor } from './create-ui'
 
   let {
@@ -28,6 +29,9 @@
     {/snippet}
     {#snippet interrupts()}
       <UIInterrupts {ui} />
+    {/snippet}
+    {#snippet queue()}
+      <UIQueue {ui} />
     {/snippet}
     {#snippet input()}
       {#if Input}

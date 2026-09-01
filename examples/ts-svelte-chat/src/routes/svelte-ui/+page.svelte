@@ -54,16 +54,16 @@
 
   const { createAppChat, ui } = createChatHook({
     options: chatOptions,
-    chatComponents: {
+    components: {
       layout: Layout,
       message: Message,
-      parts: { fallback: Fallback },
-      tools: {
-        recommendGuitar: Tool,
-        getPersonalGuitarPreference: Tool,
-        addToWishList: Tool,
-        addToCart: Tool,
-      },
+    },
+    partsComponents: { fallback: Fallback },
+    toolsComponents: {
+      recommendGuitar: Tool,
+      getPersonalGuitarPreference: Tool,
+      addToWishList: Tool,
+      addToCart: Tool,
     },
   })
   const chat = createAppChat()

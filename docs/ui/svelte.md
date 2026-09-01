@@ -11,11 +11,13 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, chatComponents })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
+Install `@tanstack/ai-svelte`. Import the UI factory from `@tanstack/ai-svelte/ui`. Call `createChatHook({ options, ...components })` once. Your app calls `createAppChat()` to create the instance. Pass `{ui}` and `{chat}` into `UIChat`.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional. Pass widgets in `chatComponents`, the same way Form and Table register components.
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional. Widgets go in `components`, `partsComponents`, `toolsComponents`, and `interruptsComponents`, the same way Form and Table register components.
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
+
+The [chat UI recipes](./recipes/index) show the same option groups one at a time. The code there is React, and the shape carries over.
 
 ## Client
 
@@ -44,12 +46,12 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 
   const { createAppChat, ui } = createChatHook({
     options: chatOptions,
-    chatComponents: {
+    components: {
       layout: Layout,
       message: Message,
-      parts: { fallback: Fallback },
-      tools: { getWeather: Weather },
     },
+    partsComponents: { fallback: Fallback },
+    toolsComponents: { getWeather: Weather },
   })
   const chat = createAppChat()
 </script>
@@ -57,7 +59,7 @@ The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI 
 <UIChat {ui} {chat} />
 ```
 
-`Layout.svelte` receives snippets `messages`, `interrupts`, and `input`. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
+`Layout.svelte` receives snippets `messages`, `interrupts`, `queue`, and `input`. `{@render queue()}` draws pending sends. Call `item.cancelQueued()` on a queue item to drop it. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
 
 ## Type a component in its own file
 
@@ -98,6 +100,6 @@ Import the same `ui` descriptor in a child file. Call `ui.useChatContext()` only
 
 ## Interrupts
 
-Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interrupts.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).

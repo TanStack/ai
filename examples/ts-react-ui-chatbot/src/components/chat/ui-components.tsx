@@ -5,6 +5,7 @@ import { BookStayApproval, BookStayTool } from './book-stay-tool'
 import { ConfirmPaymentTool } from './confirm-payment-tool'
 import { ChatPromptInput } from './input'
 import { ChatLayout } from './layout'
+import { ChatQueueItem } from './queue-item'
 import { ChooseBudget } from './choose-budget'
 import { FallbackInterrupt } from './fallback-interrupt'
 import { FallbackPart } from './fallback-part'
@@ -24,38 +25,41 @@ import { ThinkingPart } from './thinking-part'
 
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
+  context: {
     chatContext,
     partContext,
     interruptContext,
+  },
+  components: {
     layout: ChatLayout,
     message: ChatMessage,
     input: ChatPromptInput,
-    parts: {
-      text: TextPart,
-      thinking: ThinkingPart,
-      structuredOutput: StructuredOutputPart,
-      image: ImagePart,
-      audio: AudioPart,
-      video: VideoPart,
-      document: DocumentPart,
-      toolResult: ToolResultPart,
-      uiResource: UIResourcePart,
-      fallback: FallbackPart,
-    },
+    queue: ChatQueueItem,
+  },
+  partsComponents: {
+    text: TextPart,
+    thinking: ThinkingPart,
+    structuredOutput: StructuredOutputPart,
+    image: ImagePart,
+    audio: AudioPart,
+    video: VideoPart,
+    document: DocumentPart,
+    toolResult: ToolResultPart,
+    uiResource: UIResourcePart,
+    fallback: FallbackPart,
+  },
+  toolsComponents: {
+    lookupPlace: LookupPlaceTool,
+    bookStay: BookStayTool,
+    confirmPayment: ConfirmPaymentTool,
+  },
+  interruptsComponents: {
     tools: {
-      lookupPlace: LookupPlaceTool,
-      bookStay: BookStayTool,
-      confirmPayment: ConfirmPaymentTool,
+      bookStay: BookStayApproval,
     },
-    interrupts: {
-      tools: {
-        bookStay: BookStayApproval,
-      },
-      generic: {
-        chooseBudget: ChooseBudget,
-        fallback: FallbackInterrupt,
-      },
+    generic: {
+      chooseBudget: ChooseBudget,
+      fallback: FallbackInterrupt,
     },
   },
 })

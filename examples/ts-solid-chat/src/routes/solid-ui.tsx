@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createChatHook } from '@tanstack/ai-solid/ui'
+import { createChatHook, createChatHookContexts } from '@tanstack/ai-solid/ui'
 import { createSignal } from 'solid-js'
 import { clientTools } from '@/lib/guitar-tools'
 
@@ -9,23 +9,20 @@ const chatOptions = {
   tools: clientTools,
 }
 
-const { useAppChat, useChatContext } = createChatHook({
+// Standalone contexts: reading `useChatContext` off the same call it is used
+// inside is circular and blocks `input` inference.
+const { chatContext, partContext, interruptContext, useChatContext } =
+  createChatHookContexts()
+
+const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: (props) => (
-      <div class="flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-gray-900">
-        <div class="flex-1 overflow-y-auto px-4 py-4">
-          {props.renderMessages()}
-        </div>
-        {props.renderInput()}
-      </div>
-    ),
-    message: (props) => (
-      <article class="mb-2 p-4" data-role={props.message.role}>
-        {props.renderParts()}
-      </article>
-    ),
-    input: function Input() {
+  context: {
+    chatContext,
+    partContext,
+    interruptContext,
+  },
+  components: {
+    input: function ChatComposer() {
       const chat = useChatContext()
       const [draft, setDraft] = createSignal('')
       return (
@@ -48,42 +45,55 @@ const { useAppChat, useChatContext } = createChatHook({
         </form>
       )
     },
-    parts: {
-      fallback: (props) =>
-        props.part.type === 'text' ? <p>{props.part.content}</p> : null,
-    },
-    tools: {
-      recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
-      getPersonalGuitarPreference: (props) => (
-        <p>{props.part.output?.preference}</p>
-      ),
-      addToWishList: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-      addToCart: (props) => (
-        <p>
-          {props.part.input?.guitarId}
-          {props.interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              onClick={() => props.interrupt?.resolveInterrupt(true)}
-            >
-              Approve
-            </button>
-          ) : null}
-        </p>
-      ),
-    },
+    layout: (props) => (
+      <div class="flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-gray-900">
+        <div class="flex-1 overflow-y-auto px-4 py-4">
+          <props.Messages />
+        </div>
+        <props.Input />
+      </div>
+    ),
+    message: (props) => (
+      <article class="mb-2 p-4" data-role={props.message.role}>
+        <props.Parts />
+      </article>
+    ),
+  },
+  partsComponents: {
+    fallback: (props) =>
+      props.part.type === 'text' ? <p>{props.part.content}</p> : null,
+  },
+  toolsComponents: {
+    recommendGuitar: (props) => <p>{props.part.input?.id}</p>,
+    getPersonalGuitarPreference: (props) => (
+      <p>{props.part.output?.preference}</p>
+    ),
+    addToWishList: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
+    addToCart: (props) => (
+      <p>
+        {props.part.input?.guitarId}
+        {props.interrupt?.status === 'pending' ? (
+          <button
+            type="button"
+            onClick={() => props.interrupt?.resolveInterrupt(true)}
+          >
+            Approve
+          </button>
+        ) : null}
+      </p>
+    ),
   },
 })
 

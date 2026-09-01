@@ -9,7 +9,7 @@ import type {
 import { useChat as useUnboundChat } from '../use-chat'
 import type { UseChatOptions } from '../types'
 import { createChatUI } from './create-ui'
-import type { ChatUIFactoryConfig, ChatUIHost } from './create-ui'
+import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 
 type HeadlessOptions<TOptions> = UseChatOptions<
   ChatUIToolsOf<TOptions>,
@@ -40,13 +40,10 @@ type ChatInstanceOverrides<TOptions> = {
  * ```tsx
  * const { useAppChat, useChatContext } = createChatHook({
  *   options: chatOptions,
- *   chatComponents: {
- *     layout: ChatLayout,
- *     message: ChatMessage,
- *     parts: { fallback: FallbackPart },
- *     tools: { getWeather: WeatherTool, purchaseItem: PurchaseTool },
- *     interrupts: { generic: { choosePlan: ChoosePlan } },
- *   },
+ *   components: { layout: ChatLayout, message: ChatMessage },
+ *   partsComponents: { fallback: FallbackPart },
+ *   toolsComponents: { getWeather: WeatherTool, purchaseItem: PurchaseTool },
+ *   interruptsComponents: { generic: { choosePlan: ChoosePlan } },
  * })
  *
  * function Support() {
@@ -55,14 +52,21 @@ type ChatInstanceOverrides<TOptions> = {
  * }
  * ```
  */
-export function createChatHook<const TOptions>({
+export function createChatHook<
+  const TOptions,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<InputProps<NoInfer<TOptions>>>
+    | undefined,
+>({
   options,
-  chatComponents,
+  ...chatComponents
 }: {
   options: TOptions
-  chatComponents: ChatUIFactoryConfig<NoInfer<TOptions>>
-}) {
-  const ui = createChatUI(options, chatComponents)
+} & ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
+  const ui = createChatUI(
+    options,
+    chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
+  )
 
   function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
     const chat = (

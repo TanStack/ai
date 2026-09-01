@@ -219,31 +219,73 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Svelte",
           "to": "ui/svelte",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Custom Adapters",
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-08-26"
+        }
+      ]
+    },
+    {
+      "label": "Chat UI Recipes",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "ui/recipes/index",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Chat with no tools",
+          "to": "ui/recipes/basic-chat",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Format a tool",
+          "to": "ui/recipes/format-a-tool",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Tool approval",
+          "to": "ui/recipes/tool-approval",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Custom interrupt",
+          "to": "ui/recipes/custom-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Per-request context",
+          "to": "ui/recipes/request-context",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
         }
       ]
     },
@@ -889,7 +931,7 @@
           "label": "Chat UI packages",
           "to": "migration/create-ui",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-28"
+          "updatedAt": "2026-08-31"
         },
         {
           "label": "From Vercel AI SDK",

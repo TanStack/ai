@@ -22,16 +22,18 @@ it('requires every tool name and interrupt id', () => {
   >().toEqualTypeOf<{ item: string }>()
 
   const ui = createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-    tools: {
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
       getWeather: () => null,
       purchaseItem: () => null,
       // @ts-expect-error This tool is not in chatOptions.
       unknownTool: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: (props: {
           interrupt: { resolveInterrupt: (value: string) => void }
@@ -48,14 +50,16 @@ it('requires every tool name and interrupt id', () => {
   >()
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
     // @ts-expect-error Every configured tool needs a component.
-    tools: {
+    toolsComponents: {
       getWeather: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       generic: {
         choosePlan: () => null,
       },
@@ -63,14 +67,16 @@ it('requires every tool name and interrupt id', () => {
   })
 
   createChatUI(chatOptions, {
-    layout: () => null,
-    message: () => null,
-    parts: { fallback: () => null },
-    tools: {
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: {
       getWeather: () => null,
       purchaseItem: () => null,
     },
-    interrupts: {
+    interruptsComponents: {
       // @ts-expect-error Every registered interrupt id needs a component.
       generic: {
         fallback: () => null,
@@ -81,9 +87,11 @@ it('requires every tool name and interrupt id', () => {
   const untyped = createChatUI(
     {},
     {
-      layout: () => null,
-      message: () => null,
-      parts: { fallback: () => null },
+      components: {
+        layout: () => null,
+        message: () => null,
+      },
+      partsComponents: { fallback: () => null },
     },
   )
   expectTypeOf(untyped.useChatContext).toBeFunction()

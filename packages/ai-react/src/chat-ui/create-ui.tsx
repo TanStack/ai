@@ -1,5 +1,5 @@
-import { memo, useCallback, useContext } from 'react'
-import type { ComponentType, Context, ReactNode } from 'react'
+import { createContext, memo, useContext } from 'react'
+import type { ComponentProps, ComponentType, Context, ReactNode } from 'react'
 import {
   automaticPartsForMessage,
   collectInlineToolNames,
@@ -28,6 +28,7 @@ import type {
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -42,19 +43,33 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
-export type LayoutProps<TOptions> = {
-  renderMessages: () => ReactNode
-  renderInterrupts: () => ReactNode
-  renderInput: () => ReactNode
-  readonly __ui?: TOptions
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
 }
+
+export type LayoutProps<
+  TOptions,
+  TInput extends ComponentType<any> | undefined = ComponentType<
+    InputProps<TOptions>
+  >,
+> = {
+  Messages: ComponentType
+  Interrupts: ComponentType
+  Queue: ComponentType
+  readonly __ui?: TOptions
+} & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
 export type MessageProps<TOptions> = {
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
-  renderParts: () => ReactNode
+  Parts: ComponentType
 }
 
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 
@@ -98,44 +113,69 @@ type ToolApprovalMap<TOptions> = {
   >
 }
 
-export type ChatUIComponents<TOptions> = {
-  layout: ComponentType<LayoutProps<TOptions>>
+/** The chrome around the message list: `layout`, `message`, and `input`. */
+export type ChatUIChromeComponents<
+  TOptions,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
+> = {
+  layout: ComponentType<LayoutProps<TOptions, TInput>>
   message: ComponentType<MessageProps<TOptions>>
-  input?: ComponentType<InputProps<TOptions>>
-  parts: {
-    [K in ChatUIPartKey]?: ComponentType<PartProps<TOptions, K>>
-  } & {
-    fallback?: ComponentType<PartProps<TOptions>>
-  }
+  input?: TInput
+  queue?: ComponentType<QueueProps<TOptions>>
+}
+
+export type ChatUIPartsComponents<TOptions> = {
+  [K in ChatUIPartKey]?: ComponentType<PartProps<TOptions, K>>
+} & {
+  fallback?: ComponentType<PartProps<TOptions>>
+}
+
+export type ChatUIInterruptsComponents<TOptions> = {
+  tools?: ToolApprovalMap<TOptions>
+  generic: GenericInterruptComponents<TOptions>
+}
+
+export type ChatUIComponents<
+  TOptions,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
+> = {
+  components: ChatUIChromeComponents<TOptions, TInput>
+  partsComponents: ChatUIPartsComponents<TOptions>
 } & (ChatUIHasNamedTools<TOptions> extends true
   ? {
-      tools: {
+      toolsComponents: {
         [K in ChatUIToolName<TOptions>]: ComponentType<ToolProps<TOptions, K>>
       }
     }
   : {
-      tools?: {
+      toolsComponents?: {
         [K in ChatUIToolName<TOptions>]?: ComponentType<ToolProps<TOptions, K>>
       }
     }) &
   (ChatUIHasNamedInterrupts<TOptions> extends true
-    ? {
-        interrupts: {
-          tools?: ToolApprovalMap<TOptions>
-          generic: GenericInterruptComponents<TOptions>
-        }
-      }
+    ? { interruptsComponents: ChatUIInterruptsComponents<TOptions> }
     : {
-        interrupts?: {
+        interruptsComponents?: {
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
         }
       })
 
-export type ChatUIFactoryConfig<TOptions> = ChatUIComponents<TOptions> & {
+/** Scoped contexts, for widgets in other files or nested chat trees. */
+export type ChatUIContextConfig = {
   chatContext?: ChatUIContexts['chatContext']
   partContext?: ChatUIContexts['partContext']
   interruptContext?: ChatUIContexts['interruptContext']
+}
+
+export type ChatUIFactoryConfig<
+  TOptions,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
+> = ChatUIComponents<TOptions, TInput> & {
+  context?: ChatUIContextConfig
 }
 
 type BoundWidget = ComponentType<Record<string, never>>
@@ -173,6 +213,18 @@ function readMessages<TOptions>(chat: ChatUIHost<TOptions>) {
 
 function readInterrupts<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.interrupts ?? []
+}
+
+function queueItemEqual(
+  prev: { item: QueuedMessage; cancelQueued: (id: string) => void },
+  next: { item: QueuedMessage; cancelQueued: (id: string) => void },
+) {
+  return (
+    prev.item.id === next.item.id &&
+    prev.item.createdAt === next.item.createdAt &&
+    prev.item.content === next.item.content &&
+    prev.cancelQueued === next.cancelQueued
+  )
 }
 
 function selectedPartPropsEqual(
@@ -223,22 +275,37 @@ function bindMap(
  * `partContext`, and `interruptContext` from {@link createChatHookContexts}
  * when widgets live in other files or when nested chats need isolation.
  */
-export function createChatUI<const TOptions>(
-  options: TOptions,
-  config: ChatUIFactoryConfig<NoInfer<TOptions>>,
-) {
+export function createChatUI<
+  const TOptions,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<InputProps<NoInfer<TOptions>>>
+    | undefined,
+>(options: TOptions, config: ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
   void options
+  const {
+    context: contextOption,
+    components,
+    partsComponents: parts,
+    toolsComponents: tools,
+    interruptsComponents: interrupts,
+  } = config as ChatUIFactoryConfig<TOptions, TInput> & {
+    toolsComponents?: Record<string, ComponentType<any> | undefined>
+    interruptsComponents?: {
+      tools?: Record<string, ComponentType<any> | undefined>
+      generic?: Record<string, ComponentType<any> | undefined>
+    }
+  }
+  const {
+    layout: Layout,
+    message: MessageComponent,
+    input: InputComponent,
+    queue: QueueItemComponent,
+  } = components
   const {
     chatContext: chatContextOption,
     partContext: partContextOption,
     interruptContext: interruptContextOption,
-    layout: Layout,
-    message: MessageComponent,
-    input: InputComponent,
-    parts,
-    tools,
-    interrupts,
-  } = config
+  } = contextOption ?? {}
   const warn = createWarnOnce()
   const ChatContext = (chatContextOption ??
     defaultChatUIContexts.chatContext) as Context<ChatUIHost<TOptions> | null>
@@ -360,22 +427,71 @@ export function createChatUI<const TOptions>(
     return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>
   }
 
+  // Backstop for when the conditional `Input` type cannot be inferred (see the
+  // `input` note in docs/ui/react.md). The type hides `Input` when no `input`
+  // is registered, but inference degrades on some config shapes, so always
+  // supply a component: warn once rather than crash on an undefined element.
+  function MissingInput() {
+    warn(
+      'input',
+      '[tanstack-ai-ui] Rendered <Input /> but no `input` component is registered.',
+    )
+    return null
+  }
+
+  // `Messages`, `Interrupts`, `Queue` and `InputComponent` are declared once
+  // per factory, so these props are stable for the lifetime of the kit.
+  const LayoutSlots = {
+    Messages: Messages as ComponentType,
+    Interrupts: Interrupts as ComponentType,
+    Queue: Queue as ComponentType,
+    Input: (InputComponent ?? MissingInput) as ComponentType,
+  }
+
   function Chat({ chat }: { chat: ChatUIHost<TOptions> }) {
-    const renderMessages = useCallback(() => <Messages />, [])
-    const renderInterrupts = useCallback(() => <Interrupts />, [])
-    const renderInput = useCallback(() => {
-      return InputComponent ? <InputComponent /> : null
-    }, [])
     return (
       <Provider chat={chat}>
-        <Layout
-          renderMessages={renderMessages}
-          renderInterrupts={renderInterrupts}
-          renderInput={renderInput}
-        />
+        <Layout {...(LayoutSlots as ComponentProps<ComponentType<any>>)} />
       </Provider>
     )
   }
+
+  function Queue() {
+    const chat = useChatContext()
+    if (!QueueItemComponent) return null
+    const items = chat.queue
+    return (
+      <>
+        {items.map((item) => (
+          <QueueItemView
+            key={item.id}
+            cancelQueued={chat.cancelQueued}
+            item={item}
+          />
+        ))}
+      </>
+    )
+  }
+
+  const QueueItemView = memo(function QueueItemView({
+    item,
+    cancelQueued,
+  }: {
+    item: QueuedMessage
+    cancelQueued: (id: string) => void
+  }) {
+    if (!QueueItemComponent) return null
+    return (
+      <QueueItemComponent
+        item={{
+          ...item,
+          cancelQueued: () => {
+            cancelQueued(item.id)
+          },
+        }}
+      />
+    )
+  }, queueItemEqual)
 
   function Messages({
     children,
@@ -400,6 +516,30 @@ export function createChatUI<const TOptions>(
     )
   }
 
+  // Scoped to one message render. `Parts` reads it instead of closing over the
+  // message, which is what keeps its identity constant across re-renders — a
+  // fresh component per render would remount every part on each stream chunk.
+  type MessageRenderValue = {
+    message: ChatUIMessages<TOptions>[number]
+    interrupts: ReadonlyArray<ChatUIInterrupt>
+    inlineToolNames: ReadonlyArray<string>
+  }
+  const MessageRenderContext = createContext<MessageRenderValue | null>(null)
+
+  function Parts() {
+    const scope = useContext(MessageRenderContext)
+    if (!scope) {
+      throw new Error('`Parts` must be rendered by a `message` component.')
+    }
+    return (
+      <AutomaticParts
+        inlineToolNames={scope.inlineToolNames}
+        interrupts={scope.interrupts}
+        message={scope.message}
+      />
+    )
+  }
+
   const MessageView = memo(function MessageView({
     message,
     interrupts,
@@ -417,16 +557,11 @@ export function createChatUI<const TOptions>(
     })
     if (children) return <>{children(selected.parts)}</>
     return (
-      <MessageComponent
-        message={message}
-        renderParts={() => (
-          <AutomaticParts
-            inlineToolNames={names}
-            interrupts={interrupts}
-            message={message}
-          />
-        )}
-      />
+      <MessageRenderContext.Provider
+        value={{ message, interrupts, inlineToolNames: names }}
+      >
+        <MessageComponent message={message} Parts={Parts} />
+      </MessageRenderContext.Provider>
     )
   })
 
@@ -619,6 +754,7 @@ export function createChatUI<const TOptions>(
     Part,
     Interrupts,
     Interrupt,
+    Queue,
     useChatContext,
     Input: InputComponent,
   }

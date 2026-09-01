@@ -12,7 +12,7 @@ keywords:
   - ToolProps
 ---
 
-Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, chatComponents })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
+Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, ...components })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
 
 > **Deprecated.** Do not install `@tanstack/ai-react-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
 
@@ -20,7 +20,9 @@ The factory returns `useAppChat` and `useChatContext`. Call `useAppChat()` in th
 
 You supply every visible component. There is no default markup, style, or copy.
 
-The factory needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional.
+
+Want a smaller starting point? The [chat UI recipes](./recipes/index) build one thing at a time, from a plain chat box up to per-request context.
 
 ## Server
 
@@ -80,26 +82,23 @@ const chatOptions = {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-  layout: function Layout({
-    renderMessages,
-    renderInterrupts,
-    renderInput,
-  }) {
+  components: {
+  layout: function Layout({ Messages, Interrupts, Input, Queue }) {
     const chat = useChatContext()
     if (chat.error) return <p>{chat.error.message}</p>
     if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
     if (chat.messages.length === 0) return <p>Empty</p>
     return (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
-        {renderInput()}
+        <Messages />
+        <Interrupts />
+        <Queue />
+        <Input />
       </main>
     )
   },
-  message: function Message({ message, renderParts }) {
-    return <article data-role={message.role}>{renderParts()}</article>
+  message: function Message({ message, Parts }) {
+    return <article data-role={message.role}><Parts /></article>
   },
   input: function Input() {
     const chat = useChatContext()
@@ -119,46 +118,57 @@ const { useAppChat, useChatContext } = createChatHook({
       </form>
     )
   },
-  parts: {
-    text: ({ part }) => <p>{part.content}</p>,
-    structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
-    toolResult: ({ part }) => <em>{String(part.content)}</em>,
-    fallback: ({ part }) => <span>{part.type}</span>,
-  },
-  tools: {
-    getWeather: ({ part, result }) => {
-      if (part.state === 'awaiting-input') return <p>Waiting</p>
-      if (part.state === 'input-streaming') return <p>Streaming input</p>
-      if (part.state === 'input-complete') return <p>{part.input?.city}</p>
-      if (part.state === 'approval-requested') return <p>Need approval</p>
-      if (part.state === 'approval-responded') return <p>Responded</p>
-      if (part.state === 'error') return <p>Error</p>
-      return (
-        <p>
-          {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
-        </p>
-      )
-    },
-    purchaseItem: ({ part, interrupt }) => (
+  queue: function QueueItem({ item }) {
+    const label = typeof item.content === 'string' ? item.content : 'Queued'
+    return (
       <div>
-        {part.input?.item}
-        {interrupt?.status === 'pending' ? (
-          <button onClick={() => interrupt.resolveInterrupt(true)}>
-            Approve
-          </button>
-        ) : null}
-      </div>
-    ),
-  },
-  interrupts: {
-    generic: {
-      choosePlan: ({ interrupt }) => (
-        <button onClick={() => interrupt.resolveInterrupt('approved')}>
-          {interrupt.payload?.title ?? 'Choose plan'}
+        {label}
+        <button type="button" onClick={() => item.cancelQueued()}>
+          Cancel
         </button>
-      ),
-      fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
-    },
+      </div>
+    )
+  },
+  },
+  partsComponents: {
+  text: ({ part }) => <p>{part.content}</p>,
+  structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
+  toolResult: ({ part }) => <em>{String(part.content)}</em>,
+  fallback: ({ part }) => <span>{part.type}</span>,
+  },
+  toolsComponents: {
+  getWeather: ({ part, result }) => {
+    if (part.state === 'awaiting-input') return <p>Waiting</p>
+    if (part.state === 'input-streaming') return <p>Streaming input</p>
+    if (part.state === 'input-complete') return <p>{part.input?.city}</p>
+    if (part.state === 'approval-requested') return <p>Need approval</p>
+    if (part.state === 'approval-responded') return <p>Responded</p>
+    if (part.state === 'error') return <p>Error</p>
+    return (
+      <p>
+        {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
+      </p>
+    )
+  },
+  purchaseItem: ({ part, interrupt }) => (
+    <div>
+      {part.input?.item}
+      {interrupt?.status === 'pending' ? (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ) : null}
+    </div>
+  ),
+  },
+  interruptsComponents: {
+  generic: {
+    choosePlan: ({ interrupt }) => (
+      <button onClick={() => interrupt.resolveInterrupt('approved')}>
+        {interrupt.payload?.title ?? 'Choose plan'}
+      </button>
+    ),
+    fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
   },
   },
 })
@@ -174,13 +184,19 @@ export function Sidebar() {
 }
 ```
 
+`<Queue />` maps pending sends. Register `queue` on `components`. Each item has `cancelQueued()` bound, so you do not pass the id. Type a queue item with `QueueProps<typeof chatOptions>`.
+
+`layout` receives `Messages`, `Interrupts`, `Queue`, and `Input` as components. Render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
+
+> **List `input` before `layout`.** When `input` is an inline `function` expression written *after* `layout`, TypeScript cannot yet tell that an input is registered, and `Input` goes missing from the layout props. Putting `input` first fixes it; so does using an arrow or a named reference. If it does slip through, rendering `<Input />` without a registered `input` warns once in development rather than failing silently.
+
 ## Type a component in its own file
 
 A tool map grows fast. Move a tool into its own file and type the props with `ToolProps`.
 
 `ToolProps` takes your `chatOptions` type and the tool name. Then `part.input` and `part.output` stay exact.
 
-Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `parts` map. `fallback` still sees every part type.
+Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `partsComponents` map. `fallback` still sees every part type.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -220,12 +236,12 @@ export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
 
 export const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderMessages }) => renderMessages(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { text: TextPart, fallback: () => null },
-    tools: { getWeather: WeatherTool },
+  components: {
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
   },
+  partsComponents: { text: TextPart, fallback: () => null },
+  toolsComponents: { getWeather: WeatherTool },
 })
 ```
 
@@ -268,14 +284,14 @@ export function ChoosePlan({
 
 export const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderInterrupts }) => renderInterrupts(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { fallback: () => null },
-    interrupts: {
-      generic: {
-        choosePlan: ChoosePlan,
-      },
+  components: {
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ChoosePlan,
     },
   },
 })
@@ -286,6 +302,7 @@ Other prop types from the same package:
 - `LayoutProps`
 - `MessageProps`
 - `InputProps`
+- `QueueProps` for one queued send. `item.cancelQueued()` drops that item.
 - `PartProps` with a part key such as `'text'`
 - `InterruptProps` for tool approvals, registered generic interrupts, and `generic.fallback`. Pass a tool name or interrupt id as the second type argument.
 
@@ -310,17 +327,16 @@ function StatusLine() {
 
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderMessages, renderInput }) => (
+  components: {
+    layout: ({ Messages }) => (
       <main>
         <StatusLine />
-        {renderMessages()}
-        {renderInput()}
+        <Messages />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { fallback: () => null },
+    message: ({ Parts }) => <article><Parts /></article>,
   },
+  partsComponents: { fallback: () => null },
 })
 
 export function ChatScreen() {
@@ -333,7 +349,7 @@ Call `useChatContext()` only inside `AppChat` or `Provider`. A call outside that
 
 `useAppChat` from `createChatHook` owns the state. `useChatContext()` only reads the instance that `chat.AppChat` provides.
 
-When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. Then that file can import `useChatContext` from the contexts module.
+When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. Then that file can import `useChatContext` from the contexts module.
 
 Part and interrupt widgets take `part` and `interrupt` as props. Type them with `PartProps`, `ToolProps`, or `InterruptProps`. Do not read those values from context.
 
@@ -384,18 +400,18 @@ function PurchaseItem({
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderMessages, renderInterrupts }) => (
+  components: {
+    layout: ({ Messages, Interrupts }) => (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
+        <Messages />
+        <Interrupts />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { fallback: () => null },
-    tools: {
-      purchaseItem: PurchaseItem,
-    },
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: PurchaseItem,
   },
 })
 
@@ -407,7 +423,7 @@ export function InlineApprovalChat() {
 
 To split the approval into its own file, type it with `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Render that component from the tool.
 
-### List, in `renderInterrupts()`
+### List, in `<Interrupts />`
 
 Register the approval under `interrupts.tools`. That component appears in the interrupt list. Do not also render `interrupt` on the tool unless you want it in both places.
 
@@ -432,26 +448,26 @@ const chatOptions = {
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderMessages, renderInterrupts }) => (
+  components: {
+    layout: ({ Messages, Interrupts }) => (
       <main>
-        {renderMessages()}
-        {renderInterrupts()}
+        <Messages />
+        <Interrupts />
       </main>
     ),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { fallback: () => null },
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
+  },
+  interruptsComponents: {
     tools: {
-      purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
-    },
-    interrupts: {
-      tools: {
-        purchaseItem: ({ interrupt }) => (
-          <button onClick={() => interrupt.resolveInterrupt(true)}>
-            Approve
-          </button>
-        ),
-      },
+      purchaseItem: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ),
     },
   },
 })
@@ -464,9 +480,9 @@ export function ListApprovalChat() {
 
 ## Generic interrupts
 
-Generic interrupts always render in the list (`renderInterrupts()` / `<UI.Interrupts>`). They never render inside a tool.
+Generic interrupts always render in the list (`<Interrupts />` / `<UI.Interrupts>`). They never render inside a tool.
 
-Map them under `interrupts.generic`:
+Map them under `interruptsComponents.generic`:
 
 - A registered id such as `choosePlan`: the component for that definition
 - `fallback`: every other list interrupt, including an unknown generic id and an unbound interrupt this chat does not own
@@ -490,24 +506,24 @@ const chatOptions = {
 
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  chatComponents: {
-    layout: ({ renderInterrupts }) => renderInterrupts(),
-    message: ({ renderParts }) => <article>{renderParts()}</article>,
-    parts: { fallback: () => null },
-    interrupts: {
-      generic: {
-        choosePlan: ({ interrupt }) => (
-          <button onClick={() => interrupt.resolveInterrupt('approved')}>
-            {interrupt.payload?.title ?? 'Choose plan'}
-          </button>
+  components: {
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt('approved')}>
+          {interrupt.payload?.title ?? 'Choose plan'}
+        </button>
+      ),
+      fallback: ({ interrupt }) =>
+        interrupt.kind === 'unbound' ? (
+          <p>Paused elsewhere: {interrupt.reason}</p>
+        ) : (
+          <p>{interrupt.reason}</p>
         ),
-        fallback: ({ interrupt }) =>
-          interrupt.kind === 'unbound' ? (
-            <p>Paused elsewhere: {interrupt.reason}</p>
-          ) : (
-            <p>{interrupt.reason}</p>
-          ),
-      },
     },
   },
 })
@@ -543,13 +559,15 @@ const chatOptions = {
 }
 
 const UI = createChatUI(chatOptions, {
-  layout: ({ renderMessages }) => renderMessages(),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
-  parts: {
+  components: {
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: {
     text: ({ part }) => <p>{part.content}</p>,
     fallback: () => null,
   },
-  tools: {
+  toolsComponents: {
     getWeather: ({ part }) => <p>{part.input?.city}</p>,
   },
 })
@@ -604,6 +622,6 @@ function PickedWidgets({
 
 `p.getWeather` and `p.text` are the widgets you passed to the factory. `p.Render` walks this one part the automatic way. `UI.Input` is mixed onto the kit when you register `input`.
 
-If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` into `chatComponents`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
+If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
 
 See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapters](./custom-adapters).
