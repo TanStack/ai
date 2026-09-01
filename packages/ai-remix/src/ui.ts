@@ -1,6 +1,8 @@
+// Barrel entry for the `@tanstack/ai-remix/ui` subpath.
 export {
   createChatUI,
   type ChatUIComponents,
+  type ChatUIFactoryConfig,
   type ChatUIHost,
   type ChatUIQueueItem,
   type InputProps,
@@ -11,6 +13,7 @@ export {
   type QueueProps,
   type ToolProps,
 } from './chat-ui/create-ui.tsx'
+export { createChatHook } from './chat-ui/create-chat-hook.ts'
 export { Chat, useChatContext, type ChatProps } from './chat-ui/chat.tsx'
 export {
   ChatMessages,

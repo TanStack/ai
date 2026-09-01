@@ -526,7 +526,7 @@ export const Chat = clientEntry(
 
 Read `chat.messages` and `chat.isLoading` in the render function so each paint sees the latest values.
 
-See the [Remix API](../api/ai-remix).
+See the [Remix API](../api/ai-remix). For a typed headless chat UI, see [Remix Chat UI](../ui/remix).
 
 <!-- ::end:framework -->
 

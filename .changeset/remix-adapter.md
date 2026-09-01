@@ -1,6 +1,5 @@
 ---
 '@tanstack/ai-remix': minor
-'@tanstack/ai-client': minor
 ---
 
-Add `@tanstack/ai-remix` with Remix 3 `createChat` and related helpers. Export `@tanstack/ai-client/ui` for headless chat UI state.
+Add `@tanstack/ai-remix` with Remix 3 `createChat` and a typed headless chat UI on `@tanstack/ai-remix/ui`. Call `createChatHook({ options, ...components })` once at module scope, then `createAppChat(handle)` in setup.

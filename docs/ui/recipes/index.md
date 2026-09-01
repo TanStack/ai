@@ -20,6 +20,6 @@ Start with the first if you have not built a chat here yet.
 4. [Ask the user your own question](./custom-interrupt). Define an interrupt with your own schemas and render it.
 5. [Send the current user to the server](./request-context). Pass a tenant or user id per request, out of the prompt.
 
-The code is React. The [Solid](../solid), [Vue](../vue), and [Svelte](../svelte) guides use the same option groups and the same component names, so each example maps across with only the framework syntax changing.
+The code is React. The [Solid](../solid), [Vue](../vue), [Svelte](../svelte), and [Remix](../remix) guides use the same option groups and the same component names, so each example maps across with only the framework syntax changing.
 
 For the full component map in one place, see the [React guide](../react).

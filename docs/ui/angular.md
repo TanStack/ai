@@ -1,7 +1,7 @@
 ---
 title: Angular Chat UI
 id: typed-headless-ui-angular
-order: 7
+order: 8
 description: "Build a typed, headless Angular chat UI with createChatHook. Widgets are standalone components. Chat state is signals."
 keywords:
   - tanstack ai

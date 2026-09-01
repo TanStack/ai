@@ -8,11 +8,13 @@ keywords:
   - "@tanstack/ai-remix"
   - remix
   - createChat
-  - createChatUI
+  - createChatHook
   - api reference
 ---
 
 Install `@tanstack/ai-remix`, then call `createChat(handle, options)` in a Remix setup function. The package publishes uncompiled source. Remix compiles JSX through `jsxImportSource` `remix/ui`.
+
+For a typed headless chat UI, see [Remix Chat UI](../ui/remix). Import `createChatHook` from `@tanstack/ai-remix/ui`.
 
 ## Installation
 
@@ -258,168 +260,9 @@ export const Chat = clientEntry(
 )
 ```
 
-## `createChatUI(options)`
+## Headless chat UI
 
-You want a typed chat layout with your own Remix components. Call `createChatUI` from `@tanstack/ai-remix/ui` once at module scope. Your app still owns `createChat`. The UI only renders.
-
-The component map matches the other framework adapters. Each entry is a Remix setup function. Read props from `handle.props`. Call `UI.useChat(handle)` when a mapped component needs live chat.
-
-`defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
-
-```tsx ignore
-import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { createChatUI } from '@tanstack/ai-remix/ui'
-import { defineInterrupt, toolDefinition } from '@tanstack/ai'
-import { clientEntry, on, type Handle } from 'remix/ui'
-import { z } from 'zod'
-
-const getWeather = toolDefinition({
-  name: 'getWeather',
-  description: 'Look up weather',
-  inputSchema: z.object({ city: z.string() }),
-  outputSchema: z.object({ temperature: z.number() }),
-}).client()
-
-const purchaseItem = toolDefinition({
-  name: 'purchaseItem',
-  description: 'Buy an item',
-  needsApproval: true,
-  inputSchema: z.object({ item: z.string() }),
-  outputSchema: z.object({ ok: z.boolean() }),
-}).client()
-
-const choosePlan = defineInterrupt({
-  id: 'choosePlan',
-  payloadSchema: z.object({ title: z.string() }),
-  responseSchema: z.string(),
-})
-
-const chatOptions = {
-  connection: fetchServerSentEvents('/api/chat'),
-  tools: [getWeather, purchaseItem],
-  interrupts: [choosePlan],
-}
-
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
-  layout(handle) {
-    const chat = UI.useChat(handle)
-    return () => {
-      if (chat.error) return <p>{chat.error.message}</p>
-      return (
-        <main>
-          {handle.props.renderMessages()}
-          {handle.props.renderInterrupts()}
-          {handle.props.renderInput()}
-        </main>
-      )
-    }
-  },
-  message(handle) {
-    return () => (
-      <article data-role={handle.props.message.role}>
-        {handle.props.renderParts()}
-      </article>
-    )
-  },
-  input(handle) {
-    const chat = UI.useChat(handle)
-    return () => (
-      <form
-        mix={on('submit', (event) => {
-          event.preventDefault()
-          const form = event.currentTarget
-          const text = String(new FormData(form).get('message') ?? '').trim()
-          if (text === '') {
-            return
-          }
-          form.reset()
-          void chat.sendMessage(text)
-        })}
-      >
-        <input name="message" />
-        <button type="submit">Send</button>
-      </form>
-    )
-  },
-  parts: {
-    text(handle) {
-      return () => <p>{handle.props.part.content}</p>
-    },
-    fallback(handle) {
-      return () => <span>{handle.props.part.type}</span>
-    },
-  },
-  tools: {
-    getWeather(handle) {
-      const { part, result } = handle.props
-      return () => (
-        <p>
-          {part.input?.city}:{' '}
-          {String(part.output?.temperature ?? result?.content)}
-        </p>
-      )
-    },
-    purchaseItem(handle) {
-      const { part, interrupt } = handle.props
-      return () => (
-        <div>
-          {part.input?.item}
-          {interrupt?.status === 'pending' ? (
-            <button
-              type="button"
-              mix={on('click', () => {
-                interrupt.resolveInterrupt(true)
-              })}
-            >
-              Approve
-            </button>
-          ) : null}
-        </div>
-      )
-    },
-  },
-  interrupts: {
-    generic: {
-      choosePlan(handle) {
-        const { interrupt } = handle.props
-        return () => (
-          <button
-            type="button"
-            mix={on('click', () => {
-              interrupt.resolveInterrupt('approved')
-            })}
-          >
-            {interrupt.payload?.title ?? 'Choose plan'}
-          </button>
-        )
-      },
-      fallback(handle) {
-        return () => <p>{handle.props.interrupt.reason}</p>
-      },
-    },
-  },
-})
-
-export const Chat = clientEntry(import.meta.url, function Chat(handle: Handle) {
-  const chat = createChat(handle, chatOptions)
-  return () => <UI.Chat chat={chat} components={components} />
-})
-```
-
-`layout` and `message` are required. `input` is optional. Render with `<UI.Chat chat={chat} components={components} />`.
-
-A tool with `needsApproval: true` can render its approval on the tool. Read `interrupt` from `ToolProps`. Call `interrupt.resolveInterrupt(true)`. If you want the approval inline, omit `interrupts.tools` for that name.
-
-To type a component in its own file:
-
-- Tool: `ToolProps<typeof chatOptions, 'getWeather'>`
-- Part: `PartProps<typeof chatOptions, 'text'>`
-- Interrupt: `InterruptProps<typeof chatOptions, 'choosePlan'>`
-- Queue item: `QueueProps<typeof chatOptions>`. Then `item.cancelQueued()` takes no id.
-
-Call `UI.useChat(handle)` inside `UI.Chat` or `UI.Provider`.
+For a typed chat layout with your own Remix components, see [Remix Chat UI](../ui/remix). Call `createChatHook` from `@tanstack/ai-remix/ui` once at module scope. Your app calls `createAppChat(handle)` and renders `<ui.Chat chat={chat} />`.
 
 ## Other helpers
 

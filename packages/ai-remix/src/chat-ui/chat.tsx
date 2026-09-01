@@ -14,7 +14,7 @@ export interface ChatProps {
   tools?: Array<any>
 }
 
-/** @deprecated Use `createChatUI().useChat(handle)` instead. Removed in 1.0.0. */
+/** @deprecated Use `createChatHook().useChatContext(handle)` from `@tanstack/ai-remix/ui` instead. Removed in 1.0.0. */
 export function useChatContext(handle: Handle<any>): CreateChatReturn {
   const chat = handle.context.get(Chat)
   if (!chat) {
@@ -26,7 +26,7 @@ export function useChatContext(handle: Handle<any>): CreateChatReturn {
 }
 
 /**
- * @deprecated Use `createChatUI()` from `@tanstack/ai-remix/ui` instead.
+ * @deprecated Use `createChatHook()` from `@tanstack/ai-remix/ui` instead.
  * Removed in 1.0.0.
  */
 export function Chat(handle: Handle<ChatProps, CreateChatReturn>) {

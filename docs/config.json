@@ -270,6 +270,11 @@
           "updatedAt": "2026-09-01"
         },
         {
+          "label": "Remix",
+          "to": "ui/remix",
+          "addedAt": "2026-09-01"
+        },
+        {
           "label": "Angular",
           "to": "ui/angular",
           "addedAt": "2026-09-01",
@@ -279,7 +284,7 @@
           "label": "Custom Adapters",
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-01"
         }
       ]
     },
@@ -291,7 +296,8 @@
           "label": "Overview",
           "to": "ui/recipes/index",
           "tab": "guides",
-          "addedAt": "2026-08-31"
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Chat with no tools",
@@ -1119,7 +1125,7 @@
           "label": "Chat UI packages",
           "to": "migration/create-ui",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-31"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "From Vercel AI SDK",

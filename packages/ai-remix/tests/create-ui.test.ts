@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createElement } from 'remix/ui'
-import { createChatUI } from '../src/chat-ui/create-ui'
+import { createChatHook } from '../src/chat-ui/create-chat-hook.ts'
+import { createChatUI } from '../src/chat-ui/create-ui.tsx'
 import type {
   ChatUIHost,
   LayoutProps,
   MessageProps,
-} from '../src/chat-ui/create-ui'
+} from '../src/chat-ui/create-ui.tsx'
 import type { Handle, RemixNode } from 'remix/ui'
-import type { UIMessage } from '../src/types'
+import type { UIMessage } from '../src/types.ts'
 
 const weatherMessage: UIMessage = {
   id: 'message-1',
@@ -28,6 +29,33 @@ const chatOptions = {
   tools: [{ name: 'getWeather' as const }],
 }
 
+const kit = {
+  components: {
+    layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
+      return () => {
+        const { Messages } = handle.props
+        return createElement(Messages)
+      }
+    },
+    message(handle: Handle<MessageProps<typeof chatOptions>>) {
+      return () => {
+        const { Parts } = handle.props
+        return createElement(Parts)
+      }
+    },
+  },
+  partsComponents: {
+    fallback() {
+      return () => null
+    },
+  },
+  toolsComponents: {
+    getWeather(handle: Handle<{ part: { input?: { city?: string } } }>) {
+      return () => createElement('strong', {}, handle.props.part.input?.city)
+    },
+  },
+}
+
 function host(messages: Array<UIMessage>): ChatUIHost<typeof chatOptions> {
   return {
     messages,
@@ -36,6 +64,18 @@ function host(messages: Array<UIMessage>): ChatUIHost<typeof chatOptions> {
     cancelQueued() {},
   } as unknown as ChatUIHost<typeof chatOptions>
 }
+
+describe('createChatHook', () => {
+  it('returns createAppChat, ui, and useChatContext', () => {
+    const { createAppChat, ui, useChatContext } = createChatHook({
+      options: chatOptions,
+      ...kit,
+    })
+    expect(createAppChat).toBeTypeOf('function')
+    expect(ui.Chat).toBeTypeOf('function')
+    expect(useChatContext).toBeTypeOf('function')
+  })
+})
 
 describe('createChatUI', () => {
   let cleanup: (() => void) | undefined
@@ -46,26 +86,7 @@ describe('createChatUI', () => {
   })
 
   it('renders a getWeather tool component with the city text', async () => {
-    const UI = createChatUI(chatOptions)
-    const components = UI.defineComponents({
-      layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
-        return () => handle.props.renderMessages()
-      },
-      message(handle: Handle<MessageProps<typeof chatOptions>>) {
-        return () => handle.props.renderParts()
-      },
-      parts: {
-        fallback() {
-          return () => null
-        },
-      },
-      tools: {
-        getWeather(handle: Handle<{ part: { input?: { city?: string } } }>) {
-          return () =>
-            createElement('strong', {}, handle.props.part.input?.city)
-        },
-      },
-    })
+    const UI = createChatUI(chatOptions, kit)
 
     let result: { container: HTMLElement; cleanup: () => void } | undefined
     try {
@@ -73,7 +94,6 @@ describe('createChatUI', () => {
       result = render(
         createElement(UI.Chat, {
           chat: host([weatherMessage]),
-          components,
         }),
       )
     } catch {
@@ -86,13 +106,9 @@ describe('createChatUI', () => {
       return
     }
 
-    const weather = components.tools?.getWeather as
-      | ((
-          handle: Handle<{ part: { input?: { city?: string } } }>,
-        ) => () => RemixNode)
-      | undefined
+    const weather = kit.toolsComponents.getWeather
     expect(weather).toBeTypeOf('function')
-    const node = weather!({
+    const node = weather({
       props: {
         part: weatherMessage.parts[0],
       },

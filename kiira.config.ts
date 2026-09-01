@@ -98,7 +98,7 @@ export default defineConfig({
     },
     // Remix snippets compile JSX through remix/ui.
     {
-      include: ['docs/api/ai-remix.md'],
+      include: ['docs/api/ai-remix.md', 'docs/ui/remix.md'],
       jsx: 'react-jsx',
       jsxImportSource: 'remix/ui',
     },
