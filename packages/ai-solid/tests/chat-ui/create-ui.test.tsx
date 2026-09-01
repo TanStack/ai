@@ -129,9 +129,7 @@ describe('Solid createChatUI', () => {
           props.item.cancelQueued()
           return (
             <em>
-              {typeof props.item.content === 'string'
-                ? props.item.content
-                : ''}
+              {typeof props.item.content === 'string' ? props.item.content : ''}
             </em>
           )
         },
@@ -143,9 +141,9 @@ describe('Solid createChatUI', () => {
         cancelled.push(id)
       },
     })
-    expect(
-      renderHtml(() => <UI.Chat chat={chat} />),
-    ).toContain('<em>later</em>')
+    expect(renderHtml(() => <UI.Chat chat={chat} />)).toContain(
+      '<em>later</em>',
+    )
     expect(cancelled).toEqual(['q1'])
   })
 })

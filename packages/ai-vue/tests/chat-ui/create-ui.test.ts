@@ -118,7 +118,11 @@ describe('Vue createChatUI', () => {
       ...kit,
       components: {
         ...kit.components,
-        layout: defineComponent((_, { slots }) => () => slots.queue?.()),
+        layout: defineComponent(
+          (_, { slots }) =>
+            () =>
+              slots.queue?.(),
+        ),
         queue: defineComponent({
           props: ['item'],
           setup(props) {

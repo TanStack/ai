@@ -124,9 +124,7 @@ it('types tool and interrupt component props from chatOptions', () => {
         >()
         expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
         expectTypeOf(UI.useChatContext().queue).toBeArray()
-        expectTypeOf<
-          LayoutProps<typeof chatOptions>['Queue']
-        >().not.toBeAny()
+        expectTypeOf<LayoutProps<typeof chatOptions>['Queue']>().not.toBeAny()
         return <Messages />
       },
       queue: ({ item }: QueueProps<typeof chatOptions>) => {

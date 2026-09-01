@@ -479,9 +479,7 @@ describe('createChatUI', () => {
       layout: ({ Queue }) => <Queue />,
       queue: ({ item }) => {
         item.cancelQueued()
-        return (
-          <em>{typeof item.content === 'string' ? item.content : ''}</em>
-        )
+        return <em>{typeof item.content === 'string' ? item.content : ''}</em>
       },
     })
     const markup = renderToStaticMarkup(
@@ -504,7 +502,11 @@ describe('createChatUI', () => {
 
   it('renders nothing from Queue when no queue component exists', () => {
     const UI = makeUI({
-      layout: ({ Queue }) => <main><Queue /></main>,
+      layout: ({ Queue }) => (
+        <main>
+          <Queue />
+        </main>
+      ),
     })
     const markup = renderToStaticMarkup(
       <UI.Chat
