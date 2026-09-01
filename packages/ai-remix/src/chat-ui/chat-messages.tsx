@@ -4,6 +4,7 @@ import { useChatContext } from './chat.tsx'
 import { ChatMessage } from './chat-message.tsx'
 import type { UIMessage } from '../types.ts'
 
+/** @deprecated Use `createChatUI()` Messages instead. Removed in 1.0.0. */
 export interface ChatMessagesProps {
   children?: (message: UIMessage, index: number) => RemixNode
   class?: string
@@ -16,6 +17,7 @@ export interface ChatMessagesProps {
   autoScroll?: boolean
 }
 
+/** @deprecated Use `createChatUI()` Messages instead. Removed in 1.0.0. */
 export function ChatMessages(handle: Handle<ChatMessagesProps>) {
   let container: HTMLElement | null = null
 

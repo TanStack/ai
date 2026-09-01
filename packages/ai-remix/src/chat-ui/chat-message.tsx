@@ -15,6 +15,7 @@ export interface ToolCallRenderProps {
   output?: unknown
 }
 
+/** @deprecated Use `createChatUI()` Message instead. Removed in 1.0.0. */
 export interface ChatMessageProps {
   message: UIMessage
   class?: string
@@ -44,6 +45,7 @@ function toolResultContentToString(
     .join('')
 }
 
+/** @deprecated Use `createChatUI()` Message instead. Removed in 1.0.0. */
 export function ChatMessage(handle: Handle<ChatMessageProps>) {
   return () => {
     const message = handle.props.message

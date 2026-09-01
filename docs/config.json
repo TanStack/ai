@@ -1098,7 +1098,8 @@
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
-          "addedAt": "2026-09-01"
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
         }
       ]
     },

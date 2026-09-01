@@ -11,6 +11,7 @@ export interface ToolApprovalRenderProps {
   approved?: boolean
 }
 
+/** @deprecated Use `createChatUI()` interrupt components with `chat.interrupts`. Removed in 1.0.0. */
 export interface ToolApprovalProps {
   toolCallId: string
   toolName: string
@@ -24,6 +25,10 @@ export interface ToolApprovalProps {
   children?: (props: ToolApprovalRenderProps) => RemixNode
 }
 
+/**
+ * @deprecated Use `createChatUI()` interrupt components with `chat.interrupts`.
+ * Removed in 1.0.0.
+ */
 export function ToolApproval(handle: Handle<ToolApprovalProps>) {
   return () => {
     const { addToolApprovalResponse } = useChatContext(handle)

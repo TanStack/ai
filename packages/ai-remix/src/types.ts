@@ -210,7 +210,8 @@ interface BaseCreateChatReturn<
   }) => Promise<void>
 
   /**
-   * Respond to a tool approval request
+   * @deprecated Use a bound `tool-approval` interrupt and
+   * `interrupt.resolveInterrupt`.
    */
   addToolApprovalResponse: (response: {
     id: string // approval.id, not toolCallId

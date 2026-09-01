@@ -3,6 +3,7 @@ import type { Handle, RemixNode } from 'remix/ui'
 import { createChat } from '../create-chat.ts'
 import type { CreateChatReturn, UIMessage } from '../types.ts'
 
+/** @deprecated Use `createChatUI()` Chat/Provider instead. Removed in 1.0.0. */
 export interface ChatProps {
   children?: RemixNode
   class?: string
@@ -13,6 +14,7 @@ export interface ChatProps {
   tools?: Array<any>
 }
 
+/** @deprecated Use `createChatUI().useChat(handle)` instead. Removed in 1.0.0. */
 export function useChatContext(handle: Handle<any>): CreateChatReturn {
   const chat = handle.context.get(Chat)
   if (!chat) {
@@ -23,6 +25,10 @@ export function useChatContext(handle: Handle<any>): CreateChatReturn {
   return chat
 }
 
+/**
+ * @deprecated Use `createChatUI()` from `@tanstack/ai-remix/ui` instead.
+ * Removed in 1.0.0.
+ */
 export function Chat(handle: Handle<ChatProps, CreateChatReturn>) {
   const chat = createChat(handle as unknown as Handle, {
     connection: handle.props.connection,

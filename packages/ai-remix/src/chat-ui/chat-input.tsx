@@ -10,6 +10,7 @@ export interface ChatInputRenderProps {
   disabled: boolean
 }
 
+/** @deprecated Use `createChatUI()` and an application-owned input component. Removed in 1.0.0. */
 export interface ChatInputProps {
   children?: (props: ChatInputRenderProps) => RemixNode
   class?: string
@@ -18,6 +19,10 @@ export interface ChatInputProps {
   submitOnEnter?: boolean
 }
 
+/**
+ * @deprecated Use `createChatUI()` and an application-owned input component.
+ * Removed in 1.0.0.
+ */
 export function ChatInput(handle: Handle<ChatInputProps>) {
   let value = ''
 

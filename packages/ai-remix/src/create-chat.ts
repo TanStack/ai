@@ -287,6 +287,7 @@ export function createChat<
     await client.addToolResult(result)
   }
 
+  /** @deprecated Use a bound `tool-approval` interrupt and `interrupt.resolveInterrupt`. */
   const addToolApprovalResponse = async (response: {
     id: string
     approved: boolean
