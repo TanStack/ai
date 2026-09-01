@@ -110,7 +110,10 @@ describe('createChatUI', () => {
 
     TestBed.configureTestingModule({ imports: [Chat] })
     const fixture = TestBed.createComponent(Chat)
-    fixture.componentRef.setInput('chat', host({ messages: [messageWithToolResults] }))
+    fixture.componentRef.setInput(
+      'chat',
+      host({ messages: [messageWithToolResults] }),
+    )
     fixture.detectChanges()
     await fixture.whenStable()
     expect(fixture.nativeElement.textContent).toContain('Paris')
@@ -135,7 +138,10 @@ describe('createChatUI', () => {
 
     TestBed.configureTestingModule({ imports: [Chat] })
     const fixture = TestBed.createComponent(Chat)
-    fixture.componentRef.setInput('chat', host({ messages: [unknownToolMessage] }))
+    fixture.componentRef.setInput(
+      'chat',
+      host({ messages: [unknownToolMessage] }),
+    )
     fixture.detectChanges()
     await fixture.whenStable()
     fixture.detectChanges()

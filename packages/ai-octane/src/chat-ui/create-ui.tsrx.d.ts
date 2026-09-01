@@ -91,7 +91,9 @@ export type ChatUIComponents<
 
 export declare function createChatUI<
   const TOptions,
-  TInput extends ComponentType<any> | undefined = ComponentType<any> | undefined,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<any>
+    | undefined,
 >(
   options: TOptions,
   config: ChatUIFactoryConfig<TOptions, TInput>,

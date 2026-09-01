@@ -409,7 +409,8 @@ export function createChatUI<
       const chat = this.ref.host()
       const selected = selectChatUI({
         messages: (chat?.messages() ?? []) as ChatUIMessages<TOptions>,
-        interrupts: (chat?.interrupts() ?? []) as ReadonlyArray<ChatUIInterrupt>,
+        interrupts: (chat?.interrupts() ??
+          []) as ReadonlyArray<ChatUIInterrupt>,
         inlineToolNames,
       })
       return selected.interrupts

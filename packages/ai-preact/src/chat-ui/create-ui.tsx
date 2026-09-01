@@ -662,7 +662,9 @@ export function createChatUI<
     children,
   }: {
     part: MessagePart | ChatUISelectedPart
-    children?: (mixed: ChatUISelectedPart & PartMixins<TOptions>) => ComponentChildren
+    children?: (
+      mixed: ChatUISelectedPart & PartMixins<TOptions>,
+    ) => ComponentChildren
   }) {
     const chat = useChatContext()
     const selected = isSelectedPart(part)
@@ -732,7 +734,9 @@ export function createChatUI<
     children,
   }: {
     interrupt: ChatUIInterrupt
-    children?: (mixed: ChatUIInterrupt & InterruptMixins<TOptions>) => ComponentChildren
+    children?: (
+      mixed: ChatUIInterrupt & InterruptMixins<TOptions>,
+    ) => ComponentChildren
   }) {
     return (
       <InterruptContext.Provider value={interrupt}>

@@ -3,11 +3,7 @@ import type { Type } from '@angular/core'
 import { injectChat } from '../inject-chat'
 import type { InjectChatOptions } from '../types'
 import { createChatUI } from './create-ui'
-import type {
-  ChatUIFactoryConfig,
-  ChatUIHost,
-  InputProps,
-} from './create-ui'
+import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 import type {
   ChatUIInterruptsOf,
   ChatUISchemaOf,
