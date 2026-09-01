@@ -30,7 +30,7 @@ remix: @tanstack/ai-remix remix
 
 A Remix controller action can return the same SSE `Response` as any other host.
 
-```typescript ignore
+```typescript
 import {
   chat,
   chatParamsFromRequest,
@@ -71,7 +71,7 @@ The matching client calls `createChat` and streams from that route. See [Quick S
 
 Manages chat state in a Remix component. Pass the component `Handle` as the first argument. Put `connection` and `tools` in setup. They are not serializable `clientEntry` props.
 
-```tsx ignore
+```tsx
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
 import {
   createChatClientOptions,
@@ -152,7 +152,7 @@ Client tools run automatically.
 
 ### Returns
 
-```typescript ignore
+```typescript
 import type { UIMessage } from '@tanstack/ai-remix'
 import type { ModelMessage } from '@tanstack/ai/client'
 import type {
@@ -215,7 +215,7 @@ import {
 
 ## Example: basic chat
 
-```tsx ignore
+```tsx
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
 import { clientEntry, on, type Handle } from 'remix/ui'
 
@@ -272,14 +272,14 @@ Each helper takes the Remix `Handle` as the first argument. Call it in setup.
 
 Subscribe to a BYOK snapshot. The return is a getter for the latest snapshot.
 
-```tsx ignore
+```tsx
 import { createByok } from '@tanstack/ai-remix'
 import type { Handle } from 'remix/ui'
 import { byok } from './byok'
 
 function Keys(handle: Handle) {
   const getSnapshot = createByok(handle, byok)
-  return () => <p>{getSnapshot().status}</p>
+  return () => <p>{JSON.stringify(getSnapshot().status)}</p>
 }
 ```
 
@@ -289,7 +289,7 @@ Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Y
 
 Realtime voice chat. Pass `getToken` and `adapter`.
 
-```tsx ignore
+```tsx
 import { createRealtimeChat } from '@tanstack/ai-remix'
 import { openaiRealtime } from '@tanstack/ai-openai'
 import { on, type Handle } from 'remix/ui'
@@ -324,7 +324,7 @@ function VoiceChat(handle: Handle) {
 
 Base helper for one-shot generation. Pass `connection` or `fetcher`. Call `generate()`.
 
-```tsx ignore
+```tsx
 import { createGeneration, fetchServerSentEvents } from '@tanstack/ai-remix'
 import { on, type Handle } from 'remix/ui'
 
@@ -353,7 +353,7 @@ function CustomGenerator(handle: Handle) {
 
 Image generation. `generate()` accepts `ImageGenerateInput`. The result is `ImageGenerationResult`.
 
-```tsx ignore
+```tsx
 import { createGenerateImage, fetchServerSentEvents } from '@tanstack/ai-remix'
 import { on, type Handle } from 'remix/ui'
 
