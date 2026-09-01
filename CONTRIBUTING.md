@@ -37,7 +37,8 @@ testing/                # Internal test harnesses — NOT published
 examples/               # Example apps (React, Solid, Vue, Svelte, vanilla)
 codemods/               # Internal codemods (not published)
 docs/                   # Documentation source
-scripts/                # Repo-level scripts (doc generation, model sync, link verification)
+scripts/                # Repo-level scripts (doc generation, model sync, link verification, maintainer sweep)
+agent-scripts/          # Repo GitHub agents (PR review bot)
 ```
 
 - Direct children of `packages/` are public packages (published to npm).
@@ -175,6 +176,20 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
+
+### Automated Grok review
+
+A Grok agent comments on open, non-draft PRs. The first lines of that comment say it is automated. It is not a maintainer review.
+
+The bot sets exactly one of these labels:
+
+- `ai-rejected` — the change is not useful, or it does not fix the claimed bug.
+- `ai-needs-work` — the review listed fixes, but they are not on the branch yet (often a fork with maintainer edits off).
+- `ai-ready` — the bot thinks a maintainer can merge after they Approve.
+
+The bot never GitHub-approves and never merges. The `ready-to-merge` label still means a human approval plus green CI.
+
+If the bot pushes, it only commits bugs and suggestions the review listed. Maintainers start a new run with a `/ai-review` comment, or from Actions (`workflow_dispatch`).
 
 ## Adding a new provider adapter
 

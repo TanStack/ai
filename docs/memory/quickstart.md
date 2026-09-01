@@ -21,9 +21,18 @@ server-validated session.
 
 ## Step 1: Install the package
 
-```bash
-pnpm add @tanstack/ai-memory
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-memory
+vue: @tanstack/ai-memory
+solid: @tanstack/ai-memory
+svelte: @tanstack/ai-memory
+preact: @tanstack/ai-memory
+angular: @tanstack/ai-memory
+vanilla: @tanstack/ai-memory
+octane: @tanstack/ai-memory
+
+<!-- ::end:tabs -->
 
 `@tanstack/ai-memory` ships `memoryMiddleware`, the `MemoryAdapter` contract, and the
 built-in and vendor adapters (each on its own subpath).

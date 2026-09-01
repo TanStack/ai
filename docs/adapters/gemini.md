@@ -20,9 +20,18 @@ For a full working example with image generation, see the [media generation exam
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-gemini
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-gemini
+vue: @tanstack/ai-gemini
+solid: @tanstack/ai-gemini
+svelte: @tanstack/ai-gemini
+preact: @tanstack/ai-gemini
+angular: @tanstack/ai-gemini
+vanilla: @tanstack/ai-gemini
+octane: @tanstack/ai-gemini
+
+<!-- ::end:tabs -->
 
 Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use the [Vertex adapter](./vertex).
 

@@ -19,9 +19,18 @@ The Groq adapter provides access to Groq's fast inference API, featuring the wor
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-groq
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-groq
+vue: @tanstack/ai-groq
+solid: @tanstack/ai-groq
+svelte: @tanstack/ai-groq
+preact: @tanstack/ai-groq
+angular: @tanstack/ai-groq
+vanilla: @tanstack/ai-groq
+octane: @tanstack/ai-groq
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

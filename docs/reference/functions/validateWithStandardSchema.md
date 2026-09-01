@@ -17,7 +17,7 @@ function validateWithStandardSchema<T>(schema, data): Promise<
 }>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L383)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:396](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L396)
 
 Validates data against a Standard Schema compliant schema.
 

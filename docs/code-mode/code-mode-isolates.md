@@ -42,9 +42,18 @@ Uses V8 isolates via the [`isolated-vm`](https://github.com/laverdet/isolated-vm
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-isolate-node
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-node
+vue: @tanstack/ai-isolate-node
+solid: @tanstack/ai-isolate-node
+svelte: @tanstack/ai-isolate-node
+preact: @tanstack/ai-isolate-node
+angular: @tanstack/ai-isolate-node
+vanilla: @tanstack/ai-isolate-node
+octane: @tanstack/ai-isolate-node
+
+<!-- ::end:tabs -->
 
 `isolated-vm` is a native C++ addon and must be compiled for your platform. It requires Node.js 18 or later.
 
@@ -80,9 +89,18 @@ Uses [QuickJS](https://bellard.org/quickjs/) compiled to WebAssembly via Emscrip
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-isolate-quickjs
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs
+vue: @tanstack/ai-isolate-quickjs
+solid: @tanstack/ai-isolate-quickjs
+svelte: @tanstack/ai-isolate-quickjs
+preact: @tanstack/ai-isolate-quickjs
+angular: @tanstack/ai-isolate-quickjs
+vanilla: @tanstack/ai-isolate-quickjs
+octane: @tanstack/ai-isolate-quickjs
+
+<!-- ::end:tabs -->
 
 ### Usage
 
@@ -136,9 +154,18 @@ Runs [QuickJS](https://bellard.org/quickjs/) natively on the [Bun](https://bun.s
 
 ### Installation
 
-```bash
-bun add @tanstack/ai-isolate-quickjs-bun
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs-bun
+vue: @tanstack/ai-isolate-quickjs-bun
+solid: @tanstack/ai-isolate-quickjs-bun
+svelte: @tanstack/ai-isolate-quickjs-bun
+preact: @tanstack/ai-isolate-quickjs-bun
+angular: @tanstack/ai-isolate-quickjs-bun
+vanilla: @tanstack/ai-isolate-quickjs-bun
+octane: @tanstack/ai-isolate-quickjs-bun
+
+<!-- ::end:tabs -->
 
 Requires Bun 1.3.14 or later. On Windows, provide a prebuilt QuickJS dynamic library via the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable.
 
@@ -179,9 +206,18 @@ Runs generated code inside a [Cloudflare Worker](https://workers.cloudflare.com/
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-isolate-cloudflare
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-cloudflare
+vue: @tanstack/ai-isolate-cloudflare
+solid: @tanstack/ai-isolate-cloudflare
+svelte: @tanstack/ai-isolate-cloudflare
+preact: @tanstack/ai-isolate-cloudflare
+angular: @tanstack/ai-isolate-cloudflare
+vanilla: @tanstack/ai-isolate-cloudflare
+octane: @tanstack/ai-isolate-cloudflare
+
+<!-- ::end:tabs -->
 
 ### Usage
 
@@ -259,15 +295,33 @@ Runs generated code inside a Daytona sandbox through `sandbox.process.codeRun`. 
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-isolate-daytona
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-daytona
+vue: @tanstack/ai-isolate-daytona
+solid: @tanstack/ai-isolate-daytona
+svelte: @tanstack/ai-isolate-daytona
+preact: @tanstack/ai-isolate-daytona
+angular: @tanstack/ai-isolate-daytona
+vanilla: @tanstack/ai-isolate-daytona
+octane: @tanstack/ai-isolate-daytona
+
+<!-- ::end:tabs -->
 
 If your application creates sandboxes with the official Daytona SDK, also install it:
 
-```bash
-pnpm add @daytona/sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @daytona/sdk
+vue: @daytona/sdk
+solid: @daytona/sdk
+svelte: @daytona/sdk
+preact: @daytona/sdk
+angular: @daytona/sdk
+vanilla: @daytona/sdk
+octane: @daytona/sdk
+
+<!-- ::end:tabs -->
 
 ### Usage
 

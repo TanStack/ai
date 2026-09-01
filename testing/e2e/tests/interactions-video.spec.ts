@@ -7,7 +7,7 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
-// Gemini Omni Flash (gemini-omni-flash-preview) video generation over the
+// Gemini Omni Flash (gemini-omni-1.1-flash) video generation over the
 // Interactions API: create a background interaction → poll it by id →
 // receive the finished clip as inline base64 the adapter surfaces as a
 // data:video/mp4 URL. Backed by the geminiOmniVideoMount in global-setup.ts.

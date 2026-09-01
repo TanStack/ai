@@ -1,293 +1,476 @@
 ---
-title: "Quick Start: React"
+title: Quick Start
 id: quick-start
 order: 2
-description: "Add a streaming TanStack AI chat to a React app in minutes using the useChat hook and the OpenAI adapter."
+description: "Add a streaming TanStack AI chat to your app. Pick a framework, install, stream from a server route, and render with the matching hook."
 keywords:
   - tanstack ai
-  - react
   - quick start
   - useChat
+  - injectChat
+  - createChat
   - streaming chat
   - openai
-  - tutorial
-  - ai chatbot
+  - react
+  - vue
+  - solid
+  - svelte
+  - preact
+  - angular
+  - octane
+redirect_from:
+  - /getting-started/quick-start-vue
+  - /getting-started/quick-start-svelte
+  - /getting-started/quick-start-angular
+  - /getting-started/quick-start-octane
 ---
 
-Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
+You want a streaming chat in your app. TanStack AI streams from a server route. The hook for your framework renders the tokens.
 
-> **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), [Octane](./quick-start-octane), or [server-only Node.js](./quick-start-server).
+> [!TIP]
+> If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
 
-> **React Native or Expo app?** Use the headless React hooks with an absolute
-> server URL and a mobile-compatible transport. See
-> [Quick Start: React Native](./quick-start-react-native).
+React Native or Expo needs an absolute server URL and an XHR transport. See [Quick Start: React Native](./quick-start-react-native).
 
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+No UI: see [Quick Start: Server Only](./quick-start-server).
 
-## Installation
+## 1. Install
 
-```bash
-npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-#or
-yarn add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-## Server Setup
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
 
-First, create an API route that handles chat requests. Here's a simplified example:
+<!-- ::end:tabs -->
 
-### TanStack Start
+## 2. Stream from the server
 
-```typescript ignore
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { createFileRoute } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/api/chat")({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        // Check for API key
-        if (!process.env.OPENAI_API_KEY) {
-          return new Response(
-            JSON.stringify({
-              error: "OPENAI_API_KEY not configured",
-            }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
-        }
-
-        const body = await request.json();
-
-        try {
-          // Create a streaming chat response. `chat()` reads the AG-UI
-          // `threadId` for devtools correlation when available.
-          const stream = chat({
-            adapter: openaiText("gpt-5.5"),
-            messages: body.messages,
-          });
-
-          // Convert stream to HTTP response
-          return toServerSentEventsResponse(stream);
-        } catch (error) {
-          return new Response(
-            JSON.stringify({
-              error:
-                error instanceof Error ? error.message : "An error occurred",
-            }),
-            {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
-        }
-      },
-    },
-  },
-});
-```
-
-### Next.js
+Call `chat()`. Then wrap the result with `toServerSentEventsResponse`.
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  // Check for API key
-  if (!process.env.OPENAI_API_KEY) {
-    return new Response(
-      JSON.stringify({
-        error: "OPENAI_API_KEY not configured",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
-  const body = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-5.6"),
+    messages,
+    threadId,
+    runId,
+  });
 
-  try {
-    // Create a streaming chat response. `chat()` reads the AG-UI
-    // `threadId` for devtools correlation when available.
-    const stream = chat({
-      adapter: openaiText("gpt-5.5"),
-      messages: body.messages,
-    });
-
-    // Convert stream to HTTP response
-    return toServerSentEventsResponse(stream);
-  } catch (error) {
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "An error occurred",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-## Client Setup
+This works with TanStack Start, Next.js, SvelteKit, Hono, and any host that returns a Web `Response`.
 
-To use the chat API from your React frontend, create a `Chat` component:
+If your server is Node streams (Express), see [Quick Start: Server Only](./quick-start-server).
+
+Put the API key on the server:
+
+```bash
+OPENAI_API_KEY=your-openai-api-key
+```
+
+The adapter reads `OPENAI_API_KEY` at runtime. Do not send this key to the browser.
+
+If you do not want a server key, see [Bring Your Own Key](../advanced/byok).
+
+## 3. Render the chat
+
+<!-- ::start:framework -->
+
+# React
+
+Call `useChat` from `@tanstack/ai-react`. Hold the composer text in `useState`. Pass it to `sendMessage`.
 
 ```tsx
-// components/Chat.tsx
 import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 export function Chat() {
   const [input, setInput] = useState("");
-
-  const { messages, sendMessage, isLoading, error } = useChat({
+  const { messages, sendMessage, isLoading, stop } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isLoading) {
-      sendMessage(input);
-      setInput("");
-    }
-  };
+  return (
+    <>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === "text" ? <p key={index}>{part.content}</p> : null,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (input.trim() === "") {
+            return;
+          }
+          sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+        />
+        {isLoading ? (
+          <button type="button" onClick={stop}>
+            Stop
+          </button>
+        ) : (
+          <button type="submit">Send</button>
+        )}
+      </form>
+    </>
+  );
+}
+```
+
+`messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
+
+See the [React API](../api/ai-react).
+
+# Vue
+
+Call `useChat` from `@tanstack/ai-vue`. If you are in `<script setup>`, read refs with `.value`. The template unwraps them.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-vue'
+
+const input = ref('')
+
+const { messages, sendMessage, isLoading, stop } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+function handleSubmit() {
+  if (input.value.trim() && !isLoading.value) {
+    sendMessage(input.value)
+    input.value = ''
+  }
+}
+</script>
+
+<template>
+  <div>
+    <div v-for="message in messages" :key="message.id">
+      <template v-for="(part, index) in message.parts" :key="index">
+        <p v-if="part.type === 'text'">{{ part.content }}</p>
+      </template>
+    </div>
+    <form @submit.prevent="handleSubmit">
+      <input v-model="input" :disabled="isLoading" />
+      <button v-if="isLoading" type="button" @click="stop">Stop</button>
+      <button v-else type="submit" :disabled="!input.trim()">Send</button>
+    </form>
+  </div>
+</template>
+```
+
+The composable stops in-flight requests when the component unmounts.
+
+See the [Vue API](../api/ai-vue).
+
+# Solid
+
+Call `useChat` from `@tanstack/ai-solid`. `messages` and `isLoading` are accessors. Call them as functions.
+
+```tsx ignore
+import { For, createSignal } from "solid-js";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-solid";
+
+export function Chat() {
+  const [input, setInput] = createSignal("");
+  const { messages, sendMessage, isLoading, stop } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`mb-4 ${
-              message.role === "assistant" ? "text-blue-600" : "text-gray-800"
-            }`}
-          >
-            <div className="font-semibold mb-1">
-              {message.role === "assistant" ? "Assistant" : "You"}
-            </div>
-            <div>
-              {message.parts.map((part, idx) => {
-                if (part.type === "thinking") {
-                  return (
-                    <div
-                      key={idx}
-                      className="text-sm text-gray-500 italic mb-2"
-                    >
-                      💭 Thinking: {part.content}
-                    </div>
-                  );
-                }
-                if (part.type === "text") {
-                  return <div key={idx}>{part.content}</div>;
-                }
-                return null;
-              })}
-            </div>
+    <>
+      <For each={messages()}>
+        {(message) => (
+          <div>
+            <For each={message.parts}>
+              {(part) =>
+                part.type === "text" ? <p>{part.content}</p> : null
+              }
+            </For>
           </div>
-        ))}
-      </div>
-
-      {/* Error */}
-      {error && (
-        <p role="alert" className="px-4 text-red-600">
-          {error.message}
-        </p>
-      )}
-
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-2 border rounded-lg"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
-          >
-            Send
+        )}
+      </For>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (input().trim() === "") {
+            return;
+          }
+          sendMessage(input());
+          setInput("");
+        }}
+      >
+        <input
+          value={input()}
+          onInput={(event) => setInput(event.currentTarget.value)}
+        />
+        {isLoading() ? (
+          <button type="button" onClick={stop}>
+            Stop
           </button>
+        ) : (
+          <button type="submit">Send</button>
+        )}
+      </form>
+    </>
+  );
+}
+```
+
+See the [Solid API](../api/ai-solid).
+
+# Svelte
+
+Call `createChat` from `@tanstack/ai-svelte`. The return object uses reactive getters. Read `chat.messages` and `chat.isLoading` with no extra wrapper.
+
+```svelte
+<script lang="ts">
+import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
+
+let input = $state('')
+
+const chat = createChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+function handleSubmit() {
+  if (input.trim() && !chat.isLoading) {
+    chat.sendMessage(input)
+    input = ''
+  }
+}
+</script>
+
+<div>
+  {#each chat.messages as message (message.id)}
+    <div>
+      {#each message.parts as part}
+        {#if part.type === 'text'}
+          <p>{part.content}</p>
+        {/if}
+      {/each}
+    </div>
+  {/each}
+
+  <form onsubmit={handleSubmit}>
+    <input bind:value={input} disabled={chat.isLoading} />
+    {#if chat.isLoading}
+      <button type="button" onclick={() => chat.stop()}>Stop</button>
+    {:else}
+      <button type="submit" disabled={!input.trim()}>Send</button>
+    {/if}
+  </form>
+</div>
+```
+
+If the component can unmount while a response streams, call `chat.stop()` in `onDestroy`.
+
+See the [Svelte API](../api/ai-svelte).
+
+# Preact
+
+Call `useChat` from `@tanstack/ai-preact`. Hold the composer text with `useState` from `preact/hooks`.
+
+```tsx ignore
+import { useState } from "preact/hooks";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, isLoading, stop } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === "text" ? <p key={index}>{part.content}</p> : null,
+          )}
         </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (input.trim() === "") {
+            return;
+          }
+          sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input
+          value={input}
+          onInput={(event) => setInput(event.currentTarget.value)}
+        />
+        {isLoading ? (
+          <button type="button" onClick={stop}>
+            Stop
+          </button>
+        ) : (
+          <button type="submit">Send</button>
+        )}
+      </form>
+    </>
+  );
+}
+```
+
+See the [Preact API](../api/ai-preact).
+
+# Angular
+
+Call `injectChat` in a field initializer. State is a `Signal`. Read it by calling the function.
+
+```typescript ignore
+import { Component } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { injectChat, fetchServerSentEvents } from "@tanstack/ai-angular";
+
+@Component({
+  selector: "app-chat",
+  standalone: true,
+  imports: [FormsModule],
+  template: `
+    <div>
+      @for (message of chat.messages(); track message.id) {
+        <div>
+          @for (part of message.parts; track $index) {
+            @if (part.type === "text") {
+              <p>{{ part.content }}</p>
+            }
+          }
+        </div>
+      }
+      <form (submit)="send($event)">
+        <input [(ngModel)]="draft" name="draft" [disabled]="chat.isLoading()" />
+        @if (chat.isLoading()) {
+          <button type="button" (click)="chat.stop()">Stop</button>
+        } @else {
+          <button type="submit" [disabled]="!draft.trim()">Send</button>
+        }
+      </form>
+    </div>
+  `,
+})
+export class ChatComponent {
+  chat = injectChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  draft = "";
+
+  send(event: Event) {
+    event.preventDefault();
+    const text = this.draft.trim();
+    if (text && !this.chat.isLoading()) {
+      void this.chat.sendMessage(text);
+      this.draft = "";
+    }
+  }
+}
+```
+
+Call `injectChat` in a field initializer or the constructor. A call in `ngOnInit` throws.
+
+`injectChat` subscribes to `DestroyRef`. In-flight requests stop when the component is destroyed.
+
+See the [Angular API](../api/ai-angular).
+
+# Octane
+
+Call `useChat` from `@tanstack/ai-octane`. Hold the composer text in `useState` from `octane`. Octane text controls fire `onInput`.
+
+`@tanstack/ai-octane` publishes uncompiled `.tsrx` source. Add `octane/compiler/vite` (or the rspack / rspeedy equivalent) to the app build.
+
+```tsx ignore
+import { useState } from "octane";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-octane";
+
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, isLoading, stop } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>
+          <p>
+            {message.parts
+              .filter((part) => part.type === "text")
+              .map((part) => part.content)
+              .join("")}
+          </p>
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (input.trim() === "") {
+            return;
+          }
+          void sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input
+          value={input}
+          disabled={isLoading}
+          onInput={(event) => setInput(event.currentTarget.value)}
+        />
+        {isLoading ? (
+          <button type="button" onClick={stop}>
+            Stop
+          </button>
+        ) : (
+          <button type="submit">Send</button>
+        )}
       </form>
     </div>
   );
 }
 ```
 
-## Environment Variables
+The hook calls `attach()` on mount. It calls `detach()` and `dispose()` on unmount.
 
-To connect to AI providers, set your API keys in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
-```bash
-# OpenRouter (recommended — access 300+ models with one key)
-OPENROUTER_API_KEY=sk-or-...
+See the [Octane API](../api/ai-octane).
 
-# OpenAI
-OPENAI_API_KEY=your-openai-api-key
+<!-- ::end:framework -->
 
-# Anthropic
-ANTHROPIC_API_KEY=your-anthropic-api-key
+Send a message. Tokens show up in the UI.
 
-# Google Gemini
-GEMINI_API_KEY=your-gemini-api-key
-```
+## Later
 
-> If you do not want a server key, you can let users paste one in the browser. See [Bring Your Own Key](../advanced/byok).
-
-## That's It!
-
-You now have a working chat application. The `useChat` hook handles:
-
-- Message state management
-- Streaming responses
-- Loading states
-- Error handling
-
-## Using Tools
-
-Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here's a quick example of defining a tool and using it in a chat:
-
-```typescript
-import { chat, toolDefinition } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { z } from 'zod'
-import { db } from './db'
-
-const getProductsDef = toolDefinition({
-  name: 'getProducts',
-  description: 'Search the product catalog',
-  inputSchema: z.object({ query: z.string() }),
-  outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
-})
-
-const getProducts = getProductsDef.server(async ({ query }) => {
-  return await db.products.search(query)
-})
-
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Find products' }],
-  tools: [getProducts],
-})
-```
-
-## Next Steps
-
-- Learn about [Tools](../tools/tools) to add function calling
-- Check out [Client Tools](../tools/client-tools) for frontend operations
-- See the [API Reference](../api/ai) for more options
+- [Tools](../tools/tools) for function calling
+- [Streaming](../chat/streaming) for cancel, callbacks, and transports
+- [Adapters](../adapters/openai) for other providers

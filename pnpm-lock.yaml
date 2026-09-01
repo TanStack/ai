@@ -31,6 +31,18 @@ importers:
       '@stylistic/eslint-plugin':
         specifier: ^5.10.0
         version: 5.10.0(eslint@9.39.4(jiti@2.7.0))
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:packages/ai
+      '@tanstack/ai-grok-build':
+        specifier: workspace:*
+        version: link:packages/ai-grok-build
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:packages/ai-sandbox-local-process
       '@tanstack/typedoc-config':
         specifier: 0.3.4
         version: 0.3.4
@@ -11891,7 +11903,6 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

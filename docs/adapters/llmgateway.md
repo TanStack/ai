@@ -17,9 +17,18 @@ keywords:
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-llmgateway
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-llmgateway
+vue: @tanstack/ai-llmgateway
+solid: @tanstack/ai-llmgateway
+svelte: @tanstack/ai-llmgateway
+preact: @tanstack/ai-llmgateway
+angular: @tanstack/ai-llmgateway
+vanilla: @tanstack/ai-llmgateway
+octane: @tanstack/ai-llmgateway
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

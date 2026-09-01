@@ -19,9 +19,11 @@ For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte).
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-svelte
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+svelte: @tanstack/ai-svelte
+
+<!-- ::end:tabs -->
 
 ## `createChatHook(options)`
 

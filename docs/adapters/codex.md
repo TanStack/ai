@@ -20,9 +20,18 @@ The Codex adapter runs [OpenAI Codex](https://developers.openai.com/codex) (via 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-codex
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-codex
+vue: @tanstack/ai-codex
+solid: @tanstack/ai-codex
+svelte: @tanstack/ai-codex
+preact: @tanstack/ai-codex
+angular: @tanstack/ai-codex
+vanilla: @tanstack/ai-codex
+octane: @tanstack/ai-codex
+
+<!-- ::end:tabs -->
 
 A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (Claude Code on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — swapping in this adapter is a one-line change (`src/sandbox-agent.ts`).
 

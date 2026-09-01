@@ -134,8 +134,6 @@ function MessageContent({ message }: { message: UIMessage }) {
 }
 ```
 
-The [Quick Start](../getting-started/quick-start) guide shows a simpler inline pattern where thinking is rendered as italic text above the response.
-
 ## Streaming Behavior
 
 Thinking content streams **before** the final text response. As reasoning tokens arrive, `ThinkingPart.content` accumulates token by token, the same way `TextPart.content` does for the response text.

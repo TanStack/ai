@@ -19,9 +19,11 @@ For a typed headless chat UI, see [Solid Chat UI](../ui/solid).
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-solid
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+solid: @tanstack/ai-solid
+
+<!-- ::end:tabs -->
 
 ## `createChatHook(options)`
 

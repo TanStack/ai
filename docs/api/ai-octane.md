@@ -16,9 +16,11 @@ Install `@tanstack/ai-octane`, then call `useChat` the same way you would in Rea
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-octane octane
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+octane: @tanstack/ai-octane octane
+
+<!-- ::end:tabs -->
 
 `octane` is a required peer. This package publishes uncompiled source, like Svelte packages that ship `.svelte`.
 
@@ -82,7 +84,7 @@ export function ChatComponent() {
 }
 ```
 
-The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start: Octane](../getting-started/quick-start-octane).
+The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start](../getting-started/quick-start).
 
 ### Options you pass first
 
@@ -289,6 +291,6 @@ Re-exported from `@tanstack/ai-client`:
 
 ## Next
 
-- [Quick Start: Octane](../getting-started/quick-start-octane)
+- [Quick Start](../getting-started/quick-start)
 - [Tools](../tools/tools)
 - [Client tools](../tools/client-tools)

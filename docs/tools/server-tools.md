@@ -381,7 +381,7 @@ const getUserData = getUserDataDef.server(async (args) => {
 
 > **Note:** JSON Schema tools skip runtime validation. Zod schemas are recommended for full type safety and validation.
 
-> **Tip:** When you pass typed tools (server, client, or definition) to `chat()`, the returned stream is fully typed — `toolName` narrows to your tool name literals and `input` narrows per-tool when you check the name. See [Type-Safe Tool Call Events](../chat/streaming#type-safe-tool-call-events).
+> **Tip:** When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
 ## Best Practices
 

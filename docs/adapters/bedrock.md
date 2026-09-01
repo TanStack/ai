@@ -32,9 +32,18 @@ budget) is not yet wired, so only models that reason by default surface it.
 
 ## Installation
 
-```bash
-pnpm add @tanstack/ai-bedrock
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-bedrock
+vue: @tanstack/ai-bedrock
+solid: @tanstack/ai-bedrock
+svelte: @tanstack/ai-bedrock
+preact: @tanstack/ai-bedrock
+angular: @tanstack/ai-bedrock
+vanilla: @tanstack/ai-bedrock
+octane: @tanstack/ai-bedrock
+
+<!-- ::end:tabs -->
 
 No additional packages are required. SigV4 authentication is handled by `@aws-sdk/client-bedrock-runtime`, which is a direct dependency.
 

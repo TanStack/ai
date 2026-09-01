@@ -19,9 +19,11 @@ For a typed headless chat UI, see [Vue Chat UI](../ui/vue).
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-vue
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+vue: @tanstack/ai-vue
+
+<!-- ::end:tabs -->
 
 ## `createChatHook(options)`
 

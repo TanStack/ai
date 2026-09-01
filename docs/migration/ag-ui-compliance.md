@@ -68,7 +68,7 @@ What that means:
 - **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
 - **Usage.** Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
 
-See [Streaming](../chat/streaming) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
+See [Stream Events](../chat/stream-events) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
 
 ## Backward compatibility & deprecation timeline
 
@@ -420,9 +420,18 @@ zod is still fully supported for defining tools; it is just no longer installed
 on your behalf. If your project used zod without declaring it — relying on the
 transitive copy — add it explicitly:
 
-```bash
-npm install zod
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: zod
+vue: zod
+solid: zod
+svelte: zod
+preact: zod
+angular: zod
+vanilla: zod
+octane: zod
+
+<!-- ::end:tabs -->
 
 If you define tools with a different Standard Schema library (ArkType, Valibot),
 you can now drop zod entirely.

@@ -212,6 +212,89 @@ describe('BedrockConverseTextAdapter', () => {
     ).toBe('stop')
   })
 
+  it('folds trailing metadata usage into the structuredOutputStream RUN_FINISHED (#1278)', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+      // SDK boundary: the metadata event requires `metrics` too — narrow the
+      // canned shape through `unknown` rather than spell out every field.
+      {
+        metadata: {
+          usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+        },
+      } as unknown as ConverseStreamOutput,
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.filter((e) => e.type === EventType.RUN_FINISHED)
+    expect(finished).toHaveLength(1)
+    // Usage arrives on the trailing metadata event, after messageStop, yet is
+    // folded into the single terminal RUN_FINISHED.
+    expect(
+      (
+        finished[0] as {
+          usage?: {
+            promptTokens: number
+            completionTokens: number
+            totalTokens: number
+          }
+        }
+      ).usage,
+    ).toEqual({ promptTokens: 7, completionTokens: 11, totalTokens: 18 })
+  })
+
+  it('omits usage from the structuredOutputStream RUN_FINISHED when no metadata event arrives (#1278)', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.filter((e) => e.type === EventType.RUN_FINISHED)
+    expect(finished).toHaveLength(1)
+    // A run with no usage signal must stay distinguishable from a zero-cost
+    // one: the key is absent, not a zero-filled object.
+    expect(finished[0]).not.toHaveProperty('usage')
+  })
+
   it('rejects a non-forced tool-use block in structuredOutput', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     // The model emitted a different (hallucinated/leftover) tool — its input

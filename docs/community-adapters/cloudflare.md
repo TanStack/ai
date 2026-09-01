@@ -18,19 +18,65 @@ The Cloudflare adapter provides access to [Cloudflare Workers AI](https://develo
 
 ## Installation
 
-```bash
-npm install @cloudflare/tanstack-ai @tanstack/ai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @cloudflare/tanstack-ai @tanstack/ai
+vue: @cloudflare/tanstack-ai @tanstack/ai
+solid: @cloudflare/tanstack-ai @tanstack/ai
+svelte: @cloudflare/tanstack-ai @tanstack/ai
+preact: @cloudflare/tanstack-ai @tanstack/ai
+angular: @cloudflare/tanstack-ai @tanstack/ai
+vanilla: @cloudflare/tanstack-ai @tanstack/ai
+octane: @cloudflare/tanstack-ai @tanstack/ai
+
+<!-- ::end:tabs -->
 
 For AI Gateway with third-party providers, install the provider SDKs you need:
 
-```bash
-npm install @tanstack/ai-openai       # For OpenAI via Gateway
-npm install @tanstack/ai-anthropic    # For Anthropic via Gateway
-npm install @tanstack/ai-gemini       # For Gemini via Gateway
-npm install @tanstack/ai-grok         # For Grok via Gateway
-npm install @tanstack/ai-openrouter   # For OpenRouter via Gateway
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+react: @tanstack/ai-anthropic
+react: @tanstack/ai-gemini
+react: @tanstack/ai-grok
+react: @tanstack/ai-openrouter
+vue: @tanstack/ai-openai
+vue: @tanstack/ai-anthropic
+vue: @tanstack/ai-gemini
+vue: @tanstack/ai-grok
+vue: @tanstack/ai-openrouter
+solid: @tanstack/ai-openai
+solid: @tanstack/ai-anthropic
+solid: @tanstack/ai-gemini
+solid: @tanstack/ai-grok
+solid: @tanstack/ai-openrouter
+svelte: @tanstack/ai-openai
+svelte: @tanstack/ai-anthropic
+svelte: @tanstack/ai-gemini
+svelte: @tanstack/ai-grok
+svelte: @tanstack/ai-openrouter
+preact: @tanstack/ai-openai
+preact: @tanstack/ai-anthropic
+preact: @tanstack/ai-gemini
+preact: @tanstack/ai-grok
+preact: @tanstack/ai-openrouter
+angular: @tanstack/ai-openai
+angular: @tanstack/ai-anthropic
+angular: @tanstack/ai-gemini
+angular: @tanstack/ai-grok
+angular: @tanstack/ai-openrouter
+vanilla: @tanstack/ai-openai
+vanilla: @tanstack/ai-anthropic
+vanilla: @tanstack/ai-gemini
+vanilla: @tanstack/ai-grok
+vanilla: @tanstack/ai-openrouter
+octane: @tanstack/ai-openai
+octane: @tanstack/ai-anthropic
+octane: @tanstack/ai-gemini
+octane: @tanstack/ai-grok
+octane: @tanstack/ai-openrouter
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

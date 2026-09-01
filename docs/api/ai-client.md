@@ -19,9 +19,18 @@ For typed headless chat UI types and selectors, import `@tanstack/ai-client/ui`.
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-client
+vue: @tanstack/ai-client
+solid: @tanstack/ai-client
+svelte: @tanstack/ai-client
+preact: @tanstack/ai-client
+angular: @tanstack/ai-client
+vanilla: @tanstack/ai-client
+octane: @tanstack/ai-client
+
+<!-- ::end:tabs -->
 
 ## `ChatClient`
 

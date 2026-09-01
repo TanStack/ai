@@ -23,16 +23,18 @@ Quick note: Mynth is in public beta, so the model lineup and a few request optio
 
 ## Installation
 
-```sh
-# bun
-bun add @mynthio/tanstack-ai-adapter @tanstack/ai
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-# pnpm
-pnpm add @mynthio/tanstack-ai-adapter @tanstack/ai
+react: @mynthio/tanstack-ai-adapter @tanstack/ai
+vue: @mynthio/tanstack-ai-adapter @tanstack/ai
+solid: @mynthio/tanstack-ai-adapter @tanstack/ai
+svelte: @mynthio/tanstack-ai-adapter @tanstack/ai
+preact: @mynthio/tanstack-ai-adapter @tanstack/ai
+angular: @mynthio/tanstack-ai-adapter @tanstack/ai
+vanilla: @mynthio/tanstack-ai-adapter @tanstack/ai
+octane: @mynthio/tanstack-ai-adapter @tanstack/ai
 
-# npm
-npm install @mynthio/tanstack-ai-adapter @tanstack/ai
-```
+<!-- ::end:tabs -->
 
 The adapter targets `@tanstack/ai` 0.34 and newer.
 

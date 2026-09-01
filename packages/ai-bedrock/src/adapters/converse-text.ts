@@ -301,6 +301,11 @@ export class BedrockConverseTextAdapter<
     let hasEmittedTextMessageStart = false
     let accumulatedRaw = ''
     let finishReason: 'stop' | 'length' | 'content_filter' = 'stop'
+    // Usage arrives on the trailing `metadata` event, after the finish signal,
+    // so it is captured during iteration and folded into RUN_FINISHED below.
+    let usage:
+      | { promptTokens: number; completionTokens: number; totalTokens: number }
+      | undefined
 
     try {
       chatOptions.logger.request(
@@ -373,6 +378,18 @@ export class BedrockConverseTextAdapter<
               : stopReason === 'content_filtered'
                 ? 'content_filter'
                 : 'stop'
+          continue
+        }
+
+        if ('metadata' in ev) {
+          const u = ev.metadata?.usage
+          if (u) {
+            usage = {
+              promptTokens: u.inputTokens ?? 0,
+              completionTokens: u.outputTokens ?? 0,
+              totalTokens: u.totalTokens ?? 0,
+            }
+          }
           continue
         }
       }
@@ -451,6 +468,7 @@ export class BedrockConverseTextAdapter<
         model: chatOptions.model,
         timestamp: Date.now(),
         finishReason,
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {

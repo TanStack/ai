@@ -53,16 +53,26 @@ TanStack AI provides several advantages:
 
 ### Before (Vercel AI SDK)
 
-```bash
-# v5+ (framework hook lives in @ai-sdk/react)
-npm install ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
+
+<!-- ::end:tabs -->
 
 ### After (TanStack AI)
 
-```bash
-npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai @tanstack/ai-anthropic
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai @tanstack/ai-anthropic
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai @tanstack/ai-anthropic
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai @tanstack/ai-anthropic
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai @tanstack/ai-anthropic
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai @tanstack/ai-anthropic
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai @tanstack/ai-anthropic octane
+
+<!-- ::end:tabs -->
 
 ## Server-Side Migration
 

@@ -69,9 +69,18 @@ The selection call is lightweight — it only sees snippet metadata (names, desc
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-code-mode-snippets
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-code-mode-snippets
+vue: @tanstack/ai-code-mode-snippets
+solid: @tanstack/ai-code-mode-snippets
+svelte: @tanstack/ai-code-mode-snippets
+preact: @tanstack/ai-code-mode-snippets
+angular: @tanstack/ai-code-mode-snippets
+vanilla: @tanstack/ai-code-mode-snippets
+octane: @tanstack/ai-code-mode-snippets
+
+<!-- ::end:tabs -->
 
 ### Usage
 

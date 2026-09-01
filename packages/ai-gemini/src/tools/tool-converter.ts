@@ -8,7 +8,7 @@ import { convertGoogleSearchRetrievalToolToAdapterFormat } from './google-search
 import { convertGoogleSearchToolToAdapterFormat } from './google-search-tool'
 import { convertUrlContextToolToAdapterFormat } from './url-context-tool'
 import type { Tool } from '@tanstack/ai'
-import type { ToolUnion } from '@google/genai'
+import type { FunctionDeclaration, ToolUnion } from '@google/genai'
 
 /**
  * Converts standard Tool format to Gemini-specific tool format
@@ -37,11 +37,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   }
   assertUniqueToolNames(tools)
   const result: Array<ToolUnion> = []
-  const functionDeclarations: Array<{
-    name: string
-    description?: string
-    parameters?: any
-  }> = []
+  const functionDeclarations: Array<FunctionDeclaration> = []
 
   // Process each tool and group function declarations together
   for (const tool of tools) {
@@ -80,7 +76,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
         functionDeclarations.push({
           name: tool.name,
           description: tool.description,
-          parameters: tool.inputSchema ?? {
+          parametersJsonSchema: tool.inputSchema ?? {
             type: 'object',
             properties: {},
             required: [],

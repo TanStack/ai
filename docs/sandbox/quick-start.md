@@ -15,9 +15,18 @@ here.
 
 ## 1. Install the packages
 
-```bash
-npm i @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
 
 - `@tanstack/ai`: the core `chat()` pipeline.
 - `@tanstack/ai-grok-build`: the Grok Build **harness adapter**.
@@ -130,9 +139,18 @@ filesystem.
 Swap the provider for the local-process one to skip Docker entirely. It runs the
 agent directly on your host (no isolation), which makes for the fastest dev loop:
 
-```bash
-npm i @tanstack/ai-sandbox-local-process
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-sandbox-local-process
+vue: @tanstack/ai-sandbox-local-process
+solid: @tanstack/ai-sandbox-local-process
+svelte: @tanstack/ai-sandbox-local-process
+preact: @tanstack/ai-sandbox-local-process
+angular: @tanstack/ai-sandbox-local-process
+vanilla: @tanstack/ai-sandbox-local-process
+octane: @tanstack/ai-sandbox-local-process
+
+<!-- ::end:tabs -->
 
 ```ts
 import { chat } from '@tanstack/ai'

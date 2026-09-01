@@ -4143,6 +4143,32 @@ describe('StreamProcessor', () => {
       const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
       expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
     })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta when the text starts before the tool call (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+      // Two deltas again: the first is the one that goes missing, and only
+      // once a second arrives to displace it.
+      processor.processChunk(ev.textContent('It is '))
+      processor.processChunk(ev.textContent('sunny.'))
+      processor.processChunk(ev.textEnd())
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
+    })
   })
 
   describe('double onStreamEnd guard', () => {
