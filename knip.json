@@ -66,6 +66,9 @@
     "packages/ai-angular": {
       "entry": ["src/index.ts", "ui/src/index.ts"]
     },
+    "packages/ai-remix": {
+      "entry": ["src/index.ts", "src/ui.ts"]
+    },
     "packages/ai-bedrock": {},
     "packages/ai-grok-build": {
       "ignoreDependencies": ["@tanstack/ai-acp"]

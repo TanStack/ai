@@ -23,7 +23,7 @@ The [chat UI recipes](./recipes/index) show the same option groups one at a time
 
 ## Client
 
-```tsx
+```tsx ignore
 import { fetchServerSentEvents } from '@tanstack/ai-remix'
 import {
   createChatHook,
@@ -108,7 +108,7 @@ Register `queue` on `components` to draw pending sends. Call `item.cancelQueued(
 
 Type the `handle.props` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatHook`.
 
-```tsx
+```tsx ignore
 import type { ToolProps } from '@tanstack/ai-remix/ui'
 import type { Handle } from 'remix/ui'
 import { chatOptions } from './chat-options'
@@ -128,7 +128,7 @@ Mapped components do not receive `chat` as a prop. If a component needs live cha
 
 Import the same `ui` kit in a child file. Call `ui.useChatContext(handle)` only under `ui.Chat` or `ui.Provider`. Call it in setup, not in the render function.
 
-```tsx
+```tsx ignore
 import { ui } from './chat-ui'
 import type { Handle } from 'remix/ui'
 

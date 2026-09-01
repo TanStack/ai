@@ -3,6 +3,7 @@ import { createElement } from 'remix/ui'
 import { createChatHook } from '../src/chat-ui/create-chat-hook.ts'
 import { createChatUI } from '../src/chat-ui/create-ui.tsx'
 import type {
+  ChatUIFactoryConfig,
   ChatUIHost,
   LayoutProps,
   MessageProps,
@@ -54,7 +55,7 @@ const kit = {
       return () => createElement('strong', {}, handle.props.part.input?.city)
     },
   },
-}
+} as ChatUIFactoryConfig<typeof chatOptions>
 
 function host(messages: Array<UIMessage>): ChatUIHost<typeof chatOptions> {
   return {

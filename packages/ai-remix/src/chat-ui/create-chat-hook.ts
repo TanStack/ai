@@ -45,7 +45,7 @@ export function createChatHook<const TOptions>({
   )
 
   function createAppChat(
-    handle: Handle,
+    handle: Handle<any>,
     overrides?: ChatInstanceOverrides<TOptions>,
   ) {
     if (!overrides) {

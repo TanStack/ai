@@ -43,9 +43,7 @@ export type ChatUIQueueItem = QueuedMessage & {
   cancelQueued: () => void
 }
 
-type RemixComp<P = Record<string, never>> = (
-  handle: Handle<P>,
-) => () => RemixNode
+type RemixComp<P = any> = (handle: Handle<P>) => () => RemixNode
 
 export type LayoutProps<TOptions> = {
   Messages: RemixComp
@@ -248,7 +246,7 @@ export function createChatUI<const TOptions>(
     return value.chat
   }
 
-  function MissingInput(_handle: Handle) {
+  function MissingInput(_handle: Handle<any>) {
     warn(
       'input',
       '[tanstack-ai-ui] Rendered <Input /> but no `input` component is registered.',
