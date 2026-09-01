@@ -1870,7 +1870,7 @@ class TextEngine<
   }
 
   private finalizeCurrentThinkingStep(): void {
-    if (this.currentThinkingContent) {
+    if (this.currentThinkingContent || this.currentThinkingSignature) {
       this.accumulatedThinking.push({
         content: this.currentThinkingContent,
         ...(this.currentThinkingSignature && {

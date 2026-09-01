@@ -2579,6 +2579,352 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('replays a reasoning item before function_call on tool follow-up', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-replay',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-replay',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      for await (const _chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            thinking: [
+              {
+                content: 'pick a city',
+                signature: JSON.stringify({
+                  id: 'rs_required',
+                  encrypted_content: 'enc-blob',
+                }),
+              },
+            ],
+            toolCalls: [
+              {
+                id: 'call_123',
+                type: 'function',
+                function: {
+                  name: 'lookup_weather',
+                  arguments: '{"location":"Berlin"}',
+                },
+                metadata: { itemId: 'fc_123' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_123',
+            content: '{"temp":72}',
+          },
+        ],
+      })) {
+        // consume the follow-up request
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const input = payload.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_required',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_123',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_required',
+        encrypted_content: 'enc-blob',
+        summary: [{ type: 'summary_text', text: 'pick a city' }],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('round-trips encrypted reasoning with no reasoning text through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-empty-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_empty_1',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_empty_1',
+            encrypted_content: 'enc-empty',
+            summary: [],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'fc_empty_1',
+            call_id: 'call_empty',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_empty_1',
+          output_index: 1,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-empty-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_empty_1',
+                encrypted_content: 'enc-empty',
+                summary: [],
+              },
+              {
+                type: 'function_call',
+                id: 'fc_empty_1',
+                call_id: 'call_empty',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-empty-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-empty-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_empty_1',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_empty_1',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_empty_1',
+        encrypted_content: 'enc-empty',
+        summary: [],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('round-trips encrypted reasoning with a function_call through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_item_1',
+          },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'need the weather',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_item_1',
+            encrypted_content: 'enc-blob',
+            summary: [{ type: 'summary_text', text: 'need the weather' }],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 1,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_item_1',
+                encrypted_content: 'enc-blob',
+                summary: [{ type: 'summary_text', text: 'need the weather' }],
+              },
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_item_1',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_item_1',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_item_1',
+        encrypted_content: 'enc-blob',
+        summary: [{ type: 'summary_text', text: 'need the weather' }],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
     it('converts a multimodal tool result to a structured function_call_output', async () => {
       const streamChunks = [
         {

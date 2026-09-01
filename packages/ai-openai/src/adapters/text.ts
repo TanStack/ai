@@ -148,6 +148,11 @@ export class OpenAITextAdapter<
       delete request.top_p
     }
 
+    // gpt-5.x pairs each function_call with a reasoning item. Request the
+    // encrypted blob so convertMessagesToInput can replay it on the next turn.
+    // Callers can still override include in modelOptions.
+    request.include = request.include ?? ['reasoning.encrypted_content']
+
     return request
   }
 }

@@ -95,3 +95,7 @@ OPENAI_API_KEY
   `effort: 'low'` or higher to enable reasoning.
 - `o3-pro` only supports `high` reasoning effort.
 - `conversation` and `previous_response_id` cannot be used together.
+- Reasoning models pair each `function_call` with a `reasoning` item. The
+  adapter requests `include: ['reasoning.encrypted_content']` and replays that
+  item on the next turn. If you persist history by hand, keep
+  `thinking[].signature`.
