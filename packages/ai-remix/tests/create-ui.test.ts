@@ -91,17 +91,22 @@ describe('createChatUI', () => {
   it('renders a getWeather tool component with the city text', async () => {
     const UI = createChatUI(chatOptions, kit)
 
-    let result: { container: HTMLElement; cleanup: () => void } | undefined
+    let render:
+      | ((node: RemixNode) => { container: HTMLElement; cleanup: () => void })
+      | undefined
     try {
-      const { render } = await import('remix/ui/test')
-      result = render(
-        createElement(UI.Chat, {
-          chat: host([weatherMessage]),
-        }),
-      )
+      ;({ render } = await import('remix/ui/test'))
     } catch {
-      result = undefined
+      render = undefined
     }
+
+    const result = render
+      ? render(
+          createElement(UI.Chat, {
+            chat: host([weatherMessage]),
+          }),
+        )
+      : undefined
 
     if (result) {
       cleanup = result.cleanup

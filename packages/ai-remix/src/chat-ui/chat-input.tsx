@@ -77,7 +77,11 @@ export function ChatInput(handle: Handle<ChatInputProps>) {
               onChange((event.currentTarget as HTMLInputElement).value)
             }),
             on('keydown', (event) => {
-              if (submitOnEnter && event.key === 'Enter') {
+              if (
+                submitOnEnter &&
+                event.key === 'Enter' &&
+                !event.isComposing
+              ) {
                 event.preventDefault()
                 onSubmit()
               }

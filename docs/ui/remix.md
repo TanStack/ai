@@ -53,12 +53,13 @@ const { createAppChat, ui } = createChatHook({
   components: {
     layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
       return () => {
-        const { Messages, Interrupts, Queue } = handle.props
+        const { Messages, Interrupts, Queue, Input } = handle.props
         return (
           <main>
             <Messages />
             <Interrupts />
             <Queue />
+            <Input />
           </main>
         )
       }
@@ -102,7 +103,7 @@ export const ChatScreen = clientEntry(
 - `Queue`
 - `Input`
 
-Register `queue` on `components` to draw pending sends. Call `item.cancelQueued()` on a queue item to drop it. `message` receives `Parts`. A tool with an approval receives prop `interrupt`.
+Register `input` on `components` to draw the composer. Until then, `Input` renders nothing. Register `queue` on `components` to draw pending sends. Call `item.cancelQueued()` on a queue item to drop it. `message` receives `Parts`. A tool with an approval receives prop `interrupt`.
 
 ## Type a component in its own file
 

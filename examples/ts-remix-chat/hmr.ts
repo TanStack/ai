@@ -4,15 +4,19 @@ import { createFetchProxy } from 'remix/fetch-proxy'
 import { createHmrReadyFetch, run } from 'remix/node-hmr'
 import { createRequestListener } from 'remix/node-fetch-server'
 
-const hmrProxyPort = process.env.PORT
-  ? Number.parseInt(process.env.PORT, 10)
-  : 44100
-const hmrEventPort = process.env.HMR_PORT
-  ? Number.parseInt(process.env.HMR_PORT, 10)
-  : hmrProxyPort + 1
-const appPort = process.env.APP_PORT
-  ? Number.parseInt(process.env.APP_PORT, 10)
-  : hmrEventPort + 1
+function parsePort(value: string | undefined, fallback: number): number {
+  const port = value === undefined ? fallback : Number.parseInt(value, 10)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `Port must be an integer from 1 to 65535 (got ${value ?? fallback})`,
+    )
+  }
+  return port
+}
+
+const hmrProxyPort = parsePort(process.env.PORT, 44100)
+const hmrEventPort = parsePort(process.env.HMR_PORT, hmrProxyPort + 1)
+const appPort = parsePort(process.env.APP_PORT, hmrEventPort + 1)
 
 const hmrRunner = run('server.ts', {
   env: {

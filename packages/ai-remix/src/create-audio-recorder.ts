@@ -85,7 +85,13 @@ export function createAudioRecorder<
     start: () => recorder.start(),
     async stop() {
       const rawRecording = await recorder.stop()
+      if (handle.signal.aborted) {
+        throw new Error('Recording cancelled')
+      }
       const transformed = await options.onComplete?.(rawRecording)
+      if (handle.signal.aborted) {
+        throw new Error('Recording cancelled')
+      }
       // Only `undefined` (returning nothing) keeps the raw recording; a
       // returned null is a real value, matching the inferred output type.
       const output = (

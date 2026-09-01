@@ -98,7 +98,7 @@ export const ChatComponent = clientEntry(
     const tools = [updateUI]
 
     const chatOptions = createChatClientOptions({
-      connection: fetchServerSentEvents('/api/chat'),
+      connection: fetchServerSentEvents('/chat'),
       tools,
     })
 
@@ -223,7 +223,7 @@ export const Chat = clientEntry(
   import.meta.url,
   function Chat(handle: Handle) {
     const chat = createChat(handle, {
-      connection: fetchServerSentEvents('/api/chat'),
+      connection: fetchServerSentEvents('/chat'),
     })
 
     return () => (

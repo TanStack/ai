@@ -87,4 +87,16 @@ describe('createByok', () => {
     expect(getSnapshot()).toEqual(UPDATED)
     expect(update).toHaveBeenCalledTimes(1)
   })
+
+  it('unsubscribes immediately when the handle signal is already aborted', () => {
+    const { client, emit } = createFakeClient(INITIAL)
+    const { handle, update, abort } = createFakeHandle()
+    abort()
+    const getSnapshot = createByok(handle, client)
+
+    emit(UPDATED)
+
+    expect(getSnapshot()).toEqual(INITIAL)
+    expect(update).not.toHaveBeenCalled()
+  })
 })

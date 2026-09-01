@@ -20,6 +20,10 @@ export function createByok(
     snapshot = client.getSnapshot()
     void handle.update()
   })
-  handle.signal.addEventListener('abort', unsubscribe)
+  if (handle.signal.aborted) {
+    unsubscribe()
+  } else {
+    handle.signal.addEventListener('abort', unsubscribe, { once: true })
+  }
   return () => snapshot
 }

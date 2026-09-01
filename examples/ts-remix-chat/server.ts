@@ -21,7 +21,7 @@ const server = http.createServer(
   }),
 )
 
-server.listen(port, () => {
+server.listen(port, '127.0.0.1', () => {
   if (process.env.REMIX_NODE_HMR) {
     import('remix/node-hmr/runtime').then((nodeHmr) =>
       nodeHmr.emitServerReady(),
