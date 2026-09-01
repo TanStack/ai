@@ -4,8 +4,8 @@ import { NgComponentOutlet } from '@angular/common'
 import { TestBed } from '@angular/core/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { signal } from '@angular/core'
-import { createChatUI } from '../src/ui/create-ui'
-import type { ChatUIHost } from '../src/ui/create-ui'
+import { createChatUI } from '../ui/src/create-ui'
+import type { ChatUIHost } from '../ui/src/create-ui'
 import {
   chatOptions,
   createChatResult,

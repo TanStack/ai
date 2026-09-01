@@ -4,7 +4,7 @@ import type {
   ChatUIInterrupt,
   ChatUISelectedPart,
 } from '@tanstack/ai-client/ui'
-import type { InjectChatResult } from '../types'
+import type { InjectChatResult } from '@tanstack/ai-angular'
 
 /**
  * Holder for the active chat instance. Factory components inject this
@@ -18,7 +18,7 @@ export interface ChatUITokens {
   chatRef: InjectionToken<ChatHostRef>
   part: InjectionToken<ChatUISelectedPart>
   interrupt: InjectionToken<ChatUIInterrupt>
-  injectChatContext: () => InjectChatResult<any, any, any>
+  injectChatContext: () => InjectChatResult
 }
 
 /**

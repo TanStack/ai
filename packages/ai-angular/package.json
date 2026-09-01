@@ -35,7 +35,7 @@
       "default": "./package.json"
     },
     "./ui": {
-      "types": "./dist/types/ui/index.d.ts",
+      "types": "./dist/types/tanstack-ai-angular-ui.d.ts",
       "default": "./dist/fesm2022/tanstack-ai-angular-ui.mjs"
     }
   },
@@ -45,11 +45,12 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "ui"
   ],
   "scripts": {
     "clean": "premove ./build ./dist",
-    "test:oxlint": "oxlint src --type-aware",
+    "test:oxlint": "oxlint src ui/src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "vitest",
     "test:types": "tsc",

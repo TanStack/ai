@@ -63,6 +63,9 @@
     "packages/ai-preact": {
       "ignoreDependencies": ["@mcp-ui/client"]
     },
+    "packages/ai-angular": {
+      "entry": ["src/index.ts", "ui/src/index.ts"]
+    },
     "packages/ai-bedrock": {},
     "packages/ai-grok-build": {
       "ignoreDependencies": ["@tanstack/ai-acp"]

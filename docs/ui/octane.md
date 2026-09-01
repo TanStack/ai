@@ -39,29 +39,25 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-function ChatLayout({ Messages, Input }) {
-  return (
-    <main>
-      <Messages />
-      {Input ? <Input /> : null}
-    </main>
-  )
-}
-
-function ChatMessage({ Parts }) {
-  return (
-    <article>
-      <Parts />
-    </article>
-  )
-}
-
 const { useAppChat } = createChatHook({
   options: chatOptions,
-  components: { layout: ChatLayout, message: ChatMessage },
-  partsComponents: { fallback: ({ part }) => <span>{part.type}</span> },
+  components: {
+    layout: (props) => (
+      <main>
+        <props.Messages />
+        <props.Interrupts />
+        <props.Queue />
+      </main>
+    ),
+    message: (props) => (
+      <article>
+        <props.Parts />
+      </article>
+    ),
+  },
+  partsComponents: { fallback: (props) => <span>{props.part.type}</span> },
   toolsComponents: {
-    getWeather: ({ part }) => <strong>{part.input?.city}</strong>,
+    getWeather: (props) => <strong>{props.part.input?.city}</strong>,
   },
 })
 

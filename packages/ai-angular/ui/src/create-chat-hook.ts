@@ -1,7 +1,7 @@
 import { assertInInjectionContext } from '@angular/core'
 import type { Type } from '@angular/core'
-import { injectChat } from '../inject-chat'
-import type { InjectChatOptions } from '../types'
+import { injectChat } from '@tanstack/ai-angular'
+import type { InjectChatOptions } from '@tanstack/ai-angular'
 import { createChatUI } from './create-ui'
 import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 import type {

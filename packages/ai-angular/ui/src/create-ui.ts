@@ -35,12 +35,12 @@ import type {
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
 import type {
+  InferredClientContext,
   QueuedMessage,
   ToolCallPart,
   ToolResultPart,
 } from '@tanstack/ai-client'
-import type { InferredClientContext } from '@tanstack/ai-client'
-import type { InjectChatResult } from '../types'
+import type { InjectChatResult } from '@tanstack/ai-angular'
 import { ChatHostRef, defaultChatUITokens } from './tokens'
 import type { ChatUITokens } from './tokens'
 
@@ -417,17 +417,18 @@ export function createChatUI<
     })
 
     outletFor(interrupt: ChatUIInterrupt) {
-      const Component = resolveInterruptComponent(interrupt, interrupts) as
-        | Type<unknown>
-        | undefined
-      if (!Component) {
+      const InterruptComponent = resolveInterruptComponent(
+        interrupt,
+        interrupts,
+      ) as Type<unknown> | undefined
+      if (!InterruptComponent) {
         warn(
           `interrupt:${interrupt.id}`,
           `[tanstack-ai-ui] Missing interrupt component for ${interrupt.kind}`,
         )
         return null
       }
-      return Component
+      return InterruptComponent
     }
 
     injectorFor(interrupt: ChatUIInterrupt) {
