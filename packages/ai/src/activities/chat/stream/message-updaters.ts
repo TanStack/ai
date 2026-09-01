@@ -480,10 +480,10 @@ export function updateThinkingPart(
     }
 
     if (thinkingPartIndex >= 0) {
-      // Update existing thinking part
+      // Update existing thinking part for this step
       parts[thinkingPartIndex] = thinkingPart
     } else {
-      // Add new thinking part
+      // Add new thinking part at the end (preserve natural streaming order)
       parts.push(thinkingPart)
     }
 
