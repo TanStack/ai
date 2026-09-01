@@ -22,6 +22,8 @@ You supply every visible component. There is no default markup, style, or copy.
 
 The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional.
 
+Want a smaller starting point? The [chat UI recipes](./recipes/index) build one thing at a time, from a plain chat box up to per-request context.
+
 ## Server
 
 ```ts

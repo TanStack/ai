@@ -17,6 +17,8 @@ The factory needs a `toolsComponents` entry for every tool name in `chatOptions`
 
 The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
+The [chat UI recipes](./recipes/index) show the same option groups one at a time. The code there is React, and the shape carries over.
+
 ## Client
 
 ```svelte

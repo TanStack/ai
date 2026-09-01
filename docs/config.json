@@ -248,6 +248,48 @@
       ]
     },
     {
+      "label": "Chat UI Recipes",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "ui/recipes/index",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Chat with no tools",
+          "to": "ui/recipes/basic-chat",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Format a tool",
+          "to": "ui/recipes/format-a-tool",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Tool approval",
+          "to": "ui/recipes/tool-approval",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Custom interrupt",
+          "to": "ui/recipes/custom-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Per-request context",
+          "to": "ui/recipes/request-context",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        }
+      ]
+    },
+    {
       "label": "Interrupts",
       "tab": "guides",
       "children": [
