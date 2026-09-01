@@ -30,6 +30,12 @@ const chatOptions = {
   tools: [{ name: 'getWeather' as const }],
 }
 
+function getWeather(
+  handle: Handle<{ part: { input?: { city?: string } } }>,
+) {
+  return () => createElement('strong', {}, handle.props.part.input?.city)
+}
+
 const kit = {
   components: {
     layout(handle: Handle<LayoutProps<typeof chatOptions>>) {
@@ -51,9 +57,7 @@ const kit = {
     },
   },
   toolsComponents: {
-    getWeather(handle: Handle<{ part: { input?: { city?: string } } }>) {
-      return () => createElement('strong', {}, handle.props.part.input?.city)
-    },
+    getWeather,
   },
 } as ChatUIFactoryConfig<typeof chatOptions>
 
@@ -107,9 +111,8 @@ describe('createChatUI', () => {
       return
     }
 
-    const weather = kit.toolsComponents.getWeather
-    expect(weather).toBeTypeOf('function')
-    const node = weather({
+    expect(getWeather).toBeTypeOf('function')
+    const node = getWeather({
       props: {
         part: weatherMessage.parts[0],
       },

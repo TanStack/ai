@@ -47,17 +47,15 @@ export function createChatHook<const TOptions>({
   function createAppChat(
     handle: Handle<any>,
     overrides?: ChatInstanceOverrides<TOptions>,
-  ) {
-    if (!overrides) {
-      return createUnboundChat(
-        handle,
-        options as HeadlessOptions<TOptions>,
-      ) as ChatUIHost<TOptions>
-    }
-    return createUnboundChat(handle, {
-      ...(options as HeadlessOptions<TOptions>),
-      ...overrides,
-    }) as ChatUIHost<TOptions>
+  ): ChatUIHost<TOptions> {
+    const chat = overrides
+      ? createUnboundChat(handle, {
+          ...(options as HeadlessOptions<TOptions>),
+          ...overrides,
+        })
+      : createUnboundChat(handle, options as HeadlessOptions<TOptions>)
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- return shape always includes partial/final; ChatUIHost gates those on TSchema
+    return chat as unknown as ChatUIHost<TOptions>
   }
 
   return {

@@ -30,7 +30,7 @@ export function useChatContext(handle: Handle<any>): CreateChatReturn {
  * Removed in 1.0.0.
  */
 export function Chat(handle: Handle<ChatProps, CreateChatReturn>) {
-  const chat = createChat(handle as Handle, {
+  const chat = createChat(handle, {
     connection: handle.props.connection,
     ...(handle.props.initialMessages !== undefined
       ? { initialMessages: handle.props.initialMessages }

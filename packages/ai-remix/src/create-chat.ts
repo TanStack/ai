@@ -78,7 +78,7 @@ export function createChat<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
 >(
-  handle: Handle,
+  handle: Pick<Handle, 'id' | 'update' | 'signal'>,
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ) {
   let messages = options.initialMessages || []
