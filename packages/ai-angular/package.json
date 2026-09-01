@@ -33,6 +33,10 @@
     },
     "./package.json": {
       "default": "./package.json"
+    },
+    "./ui": {
+      "types": "./dist/types/ui/index.d.ts",
+      "default": "./dist/fesm2022/tanstack-ai-angular-ui.mjs"
     }
   },
   "sideEffects": false,
@@ -57,6 +61,7 @@
     "tslib": "^2.8.1"
   },
   "peerDependencies": {
+    "@angular/common": ">=21.0.0",
     "@angular/core": ">=21.0.0",
     "@tanstack/ai": "workspace:^"
   },

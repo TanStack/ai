@@ -28,6 +28,10 @@
     "./mcp-apps": {
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
+    },
+    "./ui": {
+      "types": "./dist/esm/ui.d.ts",
+      "import": "./dist/esm/ui.js"
     }
   },
   "files": [
