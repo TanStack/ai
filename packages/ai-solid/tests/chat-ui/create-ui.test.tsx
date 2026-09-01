@@ -42,7 +42,9 @@ const baseConfig: ChatUIFactoryConfig<typeof chatOptions> = {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,
     purchaseItem: () => null,
   },
-  interruptsComponents: { generic: { choosePlan: () => null, fallback: () => null } },
+  interruptsComponents: {
+    generic: { choosePlan: () => null, fallback: () => null },
+  },
 }
 
 describe('Solid createChatHook', () => {
@@ -80,9 +82,7 @@ describe('Solid createChatUI', () => {
     })
     // Twice: the warning is once per kit, not once per render.
     renderHtml(() => <UI.Chat chat={host([])} />)
-    expect(renderHtml(() => <UI.Chat chat={host([])} />)).toBe(
-      '<main></main>',
-    )
+    expect(renderHtml(() => <UI.Chat chat={host([])} />)).toBe('<main></main>')
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0]?.[0])).toContain(
       'no `input` component is registered',

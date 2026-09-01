@@ -150,7 +150,6 @@ const chatOptions = {
   fetcher,
 }
 
-
 // Counts mounts of the purchase tool widget. The `Parts` component handed to
 // `message` must be one stable reference, so this stays at 1 for the life of a
 // message no matter how many chunks arrive.
@@ -188,7 +187,11 @@ const UI = createChatUI(chatOptions, {
         >
           <label>
             Message
-            <input aria-label="Message" name="message" data-testid="chat-input" />
+            <input
+              aria-label="Message"
+              name="message"
+              data-testid="chat-input"
+            />
           </label>
           <button type="submit" data-testid="send-button" disabled={!ready}>
             Send

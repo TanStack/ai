@@ -8,11 +8,7 @@ import type {
 import { useChat as useUnboundChat } from '../use-chat'
 import type { UseChatOptions } from '../types'
 import { createChatUI } from './create-ui'
-import type {
-  ChatUIFactoryConfig,
-  ChatUIHost,
-  InputProps,
-} from './create-ui'
+import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
 
 type HeadlessOptions<TOptions> = UseChatOptions<
   ChatUIToolsOf<TOptions>,

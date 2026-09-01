@@ -1,10 +1,5 @@
 import { createContext, memo, useContext } from 'react'
-import type {
-  ComponentProps,
-  ComponentType,
-  Context,
-  ReactNode,
-} from 'react'
+import type { ComponentProps, ComponentType, Context, ReactNode } from 'react'
 import {
   automaticPartsForMessage,
   collectInlineToolNames,
@@ -49,9 +44,9 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
 
 export type LayoutProps<
   TOptions,
-  TInput extends
-    | ComponentType<any>
-    | undefined = ComponentType<InputProps<TOptions>>,
+  TInput extends ComponentType<any> | undefined = ComponentType<
+    InputProps<TOptions>
+  >,
 > = {
   Messages: ComponentType
   Interrupts: ComponentType
@@ -110,9 +105,8 @@ type ToolApprovalMap<TOptions> = {
 /** The chrome around the message list: `layout`, `message`, and `input`. */
 export type ChatUIChromeComponents<
   TOptions,
-  TInput extends
-    | ComponentType<InputProps<TOptions>>
-    | undefined = ComponentType<InputProps<TOptions>>,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
 > = {
   layout: ComponentType<LayoutProps<TOptions, TInput>>
   message: ComponentType<MessageProps<TOptions>>
@@ -132,9 +126,8 @@ export type ChatUIInterruptsComponents<TOptions> = {
 
 export type ChatUIComponents<
   TOptions,
-  TInput extends
-    | ComponentType<InputProps<TOptions>>
-    | undefined = ComponentType<InputProps<TOptions>>,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
@@ -167,9 +160,8 @@ export type ChatUIContextConfig = {
 
 export type ChatUIFactoryConfig<
   TOptions,
-  TInput extends
-    | ComponentType<InputProps<TOptions>>
-    | undefined = ComponentType<InputProps<TOptions>>,
+  TInput extends ComponentType<InputProps<TOptions>> | undefined =
+    ComponentType<InputProps<TOptions>>,
 > = ChatUIComponents<TOptions, TInput> & {
   context?: ChatUIContextConfig
 }

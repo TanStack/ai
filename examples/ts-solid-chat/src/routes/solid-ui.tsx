@@ -14,7 +14,6 @@ const chatOptions = {
 const { chatContext, partContext, interruptContext, useChatContext } =
   createChatHookContexts()
 
-
 const { useAppChat } = createChatHook({
   options: chatOptions,
   context: {

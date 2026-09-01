@@ -45,7 +45,9 @@ it('hands `message` the same `Parts` component across re-renders', () => {
     },
   })
 
-  const { rerender } = render(<UI.Chat chat={host({ messages: [messageWithToolResults] })} />)
+  const { rerender } = render(
+    <UI.Chat chat={host({ messages: [messageWithToolResults] })} />,
+  )
 
   // A new message object with the same id is what a stream chunk looks like.
   rerender(

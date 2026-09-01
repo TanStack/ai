@@ -43,9 +43,7 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
 
 export type LayoutProps<
   TOptions,
-  TInput extends
-    | Component<any>
-    | undefined = Component<InputProps<TOptions>>,
+  TInput extends Component<any> | undefined = Component<InputProps<TOptions>>,
 > = {
   Messages: Component
   Interrupts: Component
@@ -104,9 +102,9 @@ type ToolApprovalMap<TOptions> = {
 /** The chrome around the message list: `layout`, `message`, and `input`. */
 export type ChatUIChromeComponents<
   TOptions,
-  TInput extends
-    | Component<InputProps<TOptions>>
-    | undefined = Component<InputProps<TOptions>>,
+  TInput extends Component<InputProps<TOptions>> | undefined = Component<
+    InputProps<TOptions>
+  >,
 > = {
   layout: Component<LayoutProps<TOptions, TInput>>
   message: Component<MessageProps<TOptions>>
@@ -126,9 +124,9 @@ export type ChatUIInterruptsComponents<TOptions> = {
 
 export type ChatUIComponents<
   TOptions,
-  TInput extends
-    | Component<InputProps<TOptions>>
-    | undefined = Component<InputProps<TOptions>>,
+  TInput extends Component<InputProps<TOptions>> | undefined = Component<
+    InputProps<TOptions>
+  >,
 > = {
   components: ChatUIChromeComponents<TOptions, TInput>
   partsComponents: ChatUIPartsComponents<TOptions>
@@ -161,9 +159,9 @@ export type ChatUIContextConfig = {
 
 export type ChatUIFactoryConfig<
   TOptions,
-  TInput extends
-    | Component<InputProps<TOptions>>
-    | undefined = Component<InputProps<TOptions>>,
+  TInput extends Component<InputProps<TOptions>> | undefined = Component<
+    InputProps<TOptions>
+  >,
 > = ChatUIComponents<TOptions, TInput> & {
   context?: ChatUIContextConfig
 }
