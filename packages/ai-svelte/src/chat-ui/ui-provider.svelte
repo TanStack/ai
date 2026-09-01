@@ -15,14 +15,14 @@
     // ponytail: Svelte components are not generic, so ChatUIHost<TOptions> cannot
     // accept a typed createChat() host with tool-approval interrupts.
     chat: any
-    components: ChatUIComponents<unknown>
+    components?: ChatUIComponents<unknown>
     children?: import('svelte').Snippet
   } = $props()
 
   setUIContext({
     ui,
     chat,
-    components: components as never,
+    components: (components ?? ui.components) as never,
   })
 </script>
 

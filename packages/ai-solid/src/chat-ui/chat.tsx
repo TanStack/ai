@@ -56,9 +56,9 @@ export interface ChatProps {
 }
 
 /**
- * @deprecated Since 0.8.0. Use `createChatUI()` from `@tanstack/ai-solid/ui` instead.
- * See https://tanstack.com/ai/latest/docs/migration/create-ui
- * Deprecated in 0.8.0. Removed in 1.0.0.
+ * @deprecated Since 0.8.0. Use `createChatHook()` from `@tanstack/ai-solid/ui` instead.
+ * See https://tanstack.com/ai/latest/docs/ui/solid
+ * Removed in 1.0.0.
  *
  * Root Chat component - provides context for all chat subcomponents
  *

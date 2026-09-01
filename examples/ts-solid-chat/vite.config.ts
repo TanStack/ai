@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const config = defineConfig({
   ssr: {
-    noExternal: ['@tanstack/ai-solid'],
+    noExternal: ['@tanstack/ai-solid/ui'],
   },
   resolve: {
     tsconfigPaths: true,

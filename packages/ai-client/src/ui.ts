@@ -24,6 +24,7 @@ export type {
   ChatUISelectedGenericPart,
   ChatUISelectedMessage,
   ChatUISelectedPart,
+  ChatUISelectedPartOf,
   ChatUISelectedResultPart,
   ChatUISelectedToolPart,
   ChatUISelection,

@@ -25,10 +25,10 @@ Your adapter owns:
 3. Render callbacks, slots, or snippets
 4. Development warnings for missing mapped keys
 
-Do not add default markup. Do not add a new store. The app owns `useChat` or `createChat`.
+Do not add default markup. Do not add a new store. The app owns `useAppChat` from `createChatHook`, or `useChat` / `createChat`.
 
 Call `selectChatUI({ messages, interrupts, inlineToolNames })`. Automatic traversal skips a `tool-result` only when `matched` is true. Keep unmatched results.
 
 Warn once per missing runtime key in development. Each build tool detects development mode differently, so the adapter prints the warning.
 
-See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters for the public names to match: `Chat`, `Provider`, `Messages`, `Message`, `Part`, `Interrupts`, `Interrupt`, and `defineComponents`.
+See the [React](./react), [Solid](./solid), [Vue](./vue), and [Svelte](./svelte) adapters for the public names to match: `Chat`, `Provider`, `Messages`, `Message`, `Part`, `Interrupts`, `Interrupt`, `useChatContext`, and `createChatHookContexts`.

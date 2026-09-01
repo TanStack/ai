@@ -1,10 +1,14 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { createChatUI } from '../../src/chat-ui/create-ui'
-import type { ChatUIHost, InterruptProps, ToolProps } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIHost,
+  InterruptProps,
+  ToolProps,
+} from '../../src/chat-ui/create-ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
 
 describe('Svelte createChatUI types', () => {
-  it('infers defineComponents from a bare options variable', () => {
+  it('infers the component map from chatOptions', () => {
     type PurchaseInterrupt = InterruptProps<typeof chatOptions, 'purchaseItem'>
     expectTypeOf<
       PurchaseInterrupt['interrupt']['toolName']
@@ -18,51 +22,56 @@ describe('Svelte createChatUI types', () => {
       NonNullable<PurchaseTool['interrupt']>['originalArgs']
     >().toEqualTypeOf<{ item: string }>()
 
-    const ui = createChatUI(chatOptions)
-    expectTypeOf(ui.useChat).returns.toEqualTypeOf<
-      ChatUIHost<typeof chatOptions>
-    >()
-    ui.defineComponents({
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-      tools: {
+    const ui = createChatUI(chatOptions, {
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
+      toolsComponents: {
         getWeather: {},
         purchaseItem: {},
         // @ts-expect-error This tool is not in chatOptions.
         unknownTool: {},
       },
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: {},
         },
       },
     })
+    expectTypeOf(ui.useChatContext).returns.toEqualTypeOf<
+      ChatUIHost<typeof chatOptions>
+    >()
 
-    ui.defineComponents({
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
+    createChatUI(chatOptions, {
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
       // @ts-expect-error Every configured tool needs a component.
-      tools: {
+      toolsComponents: {
         getWeather: {},
       },
-      interrupts: {
+      interruptsComponents: {
         generic: {
           choosePlan: {},
         },
       },
     })
 
-    ui.defineComponents({
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-      tools: {
+    createChatUI(chatOptions, {
+      components: {
+        layout: {},
+        message: {},
+      },
+      partsComponents: { fallback: {} },
+      toolsComponents: {
         getWeather: {},
         purchaseItem: {},
       },
-      interrupts: {
+      interruptsComponents: {
         // @ts-expect-error Every registered interrupt id needs a component.
         generic: {
           fallback: {},
@@ -70,12 +79,16 @@ describe('Svelte createChatUI types', () => {
       },
     })
 
-    const untyped = createChatUI({})
-    untyped.defineComponents({
-      layout: {},
-      message: {},
-      parts: { fallback: {} },
-    })
-    expectTypeOf(ui.defineComponents).toBeFunction()
+    const untyped = createChatUI(
+      {},
+      {
+        components: {
+          layout: {},
+          message: {},
+        },
+        partsComponents: { fallback: {} },
+      },
+    )
+    expectTypeOf(untyped.useChatContext).toBeFunction()
   })
 })

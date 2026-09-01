@@ -4,5 +4,3 @@
  * Removed in 1.0.0.
  */
 export * from '@tanstack/ai-react/ui'
-export { useChat } from '@tanstack/ai-react'
-export type { UseChatOptions, UseChatReturn } from '@tanstack/ai-react'

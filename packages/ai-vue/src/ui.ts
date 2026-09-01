@@ -8,6 +8,7 @@ export { default as TextPart } from './chat-ui/text-part.vue'
 export { default as ToolApproval } from './chat-ui/tool-approval.vue'
 export {
   createChatUI,
+  createChatHookContexts,
   UIChat,
   UIProvider,
   UIMessages,
@@ -15,16 +16,21 @@ export {
   UIPart,
   UIInterrupts,
   UIInterrupt,
+  UIQueue,
   type ChatUIComponents,
+  type ChatUIFactoryConfig,
   type ChatUIHost,
+  type ChatUIQueueItem,
   type InputProps,
   type InterruptProps,
   type LayoutProps,
   type MessageProps,
   type PartProps,
+  type QueueProps,
   type ToolProps,
   type UIDescriptor,
 } from './chat-ui/create-ui'
+export { createChatHook } from './chat-ui/create-chat-hook'
 export type {
   ChatProps,
   ChatInputProps,

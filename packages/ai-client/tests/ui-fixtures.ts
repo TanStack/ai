@@ -1,7 +1,7 @@
 import { defineInterrupt, toolDefinition } from '@tanstack/ai/client'
 import { z } from 'zod'
 import type { ChatUIInterrupt } from '../src/ui'
-import type { UIMessage } from '../src/types'
+import type { QueuedMessage, UIMessage } from '../src/types'
 
 const getWeather = toolDefinition({
   name: 'getWeather',
@@ -204,6 +204,8 @@ export function createChatResult(init: {
   error?: Error
   isLoading?: boolean
   status?: 'ready' | 'submitted' | 'streaming' | 'error'
+  queue?: Array<QueuedMessage>
+  cancelQueued?: (id: string) => void
 }) {
   const interrupts = init.interrupts ?? []
   return {
@@ -213,6 +215,8 @@ export function createChatResult(init: {
     error: init.error,
     isLoading: init.isLoading ?? false,
     status: init.status ?? 'ready',
+    queue: init.queue ?? [],
+    cancelQueued: init.cancelQueued ?? noop,
     sendMessage: async () => undefined,
     stop: noop,
     reload: async () => undefined,
@@ -224,8 +228,12 @@ export function createChatResult(init: {
 export function createSolidChatResult(
   messages: Array<UIMessage>,
   interrupts: Array<ChatUIInterrupt> = [],
+  extra: {
+    queue?: Array<QueuedMessage>
+    cancelQueued?: (id: string) => void
+  } = {},
 ) {
-  const chat = createChatResult({ messages, interrupts })
+  const chat = createChatResult({ messages, interrupts, ...extra })
   return {
     ...chat,
     messages: () => chat.messages,
@@ -234,14 +242,19 @@ export function createSolidChatResult(
     error: () => chat.error,
     isLoading: () => chat.isLoading,
     status: () => chat.status,
+    queue: () => chat.queue,
   }
 }
 
 export function createVueChatResult(
   messages: Array<UIMessage>,
   interrupts: Array<ChatUIInterrupt> = [],
+  extra: {
+    queue?: Array<QueuedMessage>
+    cancelQueued?: (id: string) => void
+  } = {},
 ) {
-  const chat = createChatResult({ messages, interrupts })
+  const chat = createChatResult({ messages, interrupts, ...extra })
   return {
     ...chat,
     messages: { value: chat.messages },
@@ -250,12 +263,17 @@ export function createVueChatResult(
     error: { value: chat.error },
     isLoading: { value: chat.isLoading },
     status: { value: chat.status },
+    queue: { value: chat.queue },
   }
 }
 
 export function createSvelteChatResult(
   messages: Array<UIMessage>,
   interrupts: Array<ChatUIInterrupt> = [],
+  extra: {
+    queue?: Array<QueuedMessage>
+    cancelQueued?: (id: string) => void
+  } = {},
 ) {
-  return createChatResult({ messages, interrupts })
+  return createChatResult({ messages, interrupts, ...extra })
 }

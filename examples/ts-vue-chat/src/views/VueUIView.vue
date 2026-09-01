@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, ref } from 'vue'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { createChatUI, UIChat } from '@tanstack/ai-vue/ui'
+import { createChatHook, UIChat } from '@tanstack/ai-vue/ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -83,65 +83,66 @@ const chatOptions = {
   },
 }
 
-const ui = createChatUI(chatOptions)
-const chat = useChat(chatOptions)
 const draft = ref('')
 
-const components = ui.defineComponents({
-  layout: defineComponent(
-    (_, { slots }) =>
-      () =>
-        h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
-          slots.messages?.(),
-          slots.input?.(),
-        ]),
-  ),
-  message: defineComponent({
-    props: ['message'],
-    setup(props) {
-      return () =>
-        h('article', { 'data-role': props.message.role }, [
-          ...(props.message.parts ?? []).map(
-            (part: { type: string; content?: string }) =>
-              part.type === 'text' ? h('p', part.content) : null,
-          ),
-        ])
-    },
-  }),
-  input: defineComponent({
-    setup() {
-      return () =>
-        h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
-          h(
-            'form',
-            {
-              onSubmit: (event: Event) => {
-                event.preventDefault()
-                const text = draft.value.trim()
-                if (!text) return
-                draft.value = ''
-                void chat.sendMessage(text)
-              },
-            },
-            [
-              h('input', {
-                class:
-                  'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
-                placeholder: 'Ask about guitars...',
-                value: draft.value,
-                onInput: (event: Event) => {
-                  const target = event.target
-                  if (target instanceof HTMLInputElement)
-                    draft.value = target.value
+const { useAppChat, ui } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: defineComponent(
+      (_, { slots }) =>
+        () =>
+          h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
+            slots.messages?.(),
+            slots.input?.(),
+          ]),
+    ),
+    message: defineComponent({
+      props: ['message'],
+      setup(props) {
+        return () =>
+          h('article', { 'data-role': props.message.role }, [
+            ...(props.message.parts ?? []).map(
+              (part: { type: string; content?: string }) =>
+                part.type === 'text' ? h('p', part.content) : null,
+            ),
+          ])
+      },
+    }),
+    input: defineComponent({
+      setup() {
+        return () =>
+          h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
+            h(
+              'form',
+              {
+                onSubmit: (event: Event) => {
+                  event.preventDefault()
+                  const text = draft.value.trim()
+                  if (!text) return
+                  draft.value = ''
+                  void chat.sendMessage(text)
                 },
-              }),
-            ],
-          ),
-        ])
-    },
-  }),
-  parts: { fallback: defineComponent(() => () => null) },
-  tools: {
+              },
+              [
+                h('input', {
+                  class:
+                    'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
+                  placeholder: 'Ask about guitars...',
+                  value: draft.value,
+                  onInput: (event: Event) => {
+                    const target = event.target
+                    if (target instanceof HTMLInputElement)
+                      draft.value = target.value
+                  },
+                }),
+              ],
+            ),
+          ])
+      },
+    }),
+  },
+  partsComponents: { fallback: defineComponent(() => () => null) },
+  toolsComponents: {
     recommendGuitar: defineComponent({
       props: ['part'],
       setup(props) {
@@ -194,6 +195,8 @@ const components = ui.defineComponents({
     }),
   },
 })
+
+const chat = useAppChat()
 </script>
 
 <template>
@@ -231,7 +234,7 @@ const components = ui.defineComponents({
         </div>
       </div>
 
-      <UIChat :ui="ui" :chat="chat" :components="components" />
+      <UIChat :ui="ui" :chat="chat" />
     </div>
   </div>
 </template>

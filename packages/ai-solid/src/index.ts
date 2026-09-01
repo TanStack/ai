@@ -1,4 +1,5 @@
 export { useChat } from './use-chat'
+export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
 export type {
   DeepPartial,

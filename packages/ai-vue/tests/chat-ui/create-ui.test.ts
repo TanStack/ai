@@ -1,6 +1,12 @@
 import { defineComponent, h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createChatUI, UIChat, UIMessages, UIProvider } from '../../src/ui'
+import {
+  createChatHook,
+  createChatUI,
+  UIChat,
+  UIMessages,
+  UIProvider,
+} from '../../src/ui'
 import { renderVueText } from './test-renderer'
 import {
   chatOptions,
@@ -9,48 +15,63 @@ import {
   unknownToolMessage,
 } from '../../../ai-client/tests/ui-fixtures'
 
+const kit = {
+  components: {
+    layout: defineComponent(
+      (_, { slots }) =>
+        () =>
+          slots.messages?.(),
+    ),
+    message: defineComponent(
+      (_, { slots }) =>
+        () =>
+          h('article', slots.parts?.()),
+    ),
+  },
+  partsComponents: {
+    fallback: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('span', props.part.type)
+      },
+    }),
+  },
+  toolsComponents: {
+    getWeather: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('strong', props.part.input?.city)
+      },
+    }),
+    purchaseItem: defineComponent(() => () => null),
+  },
+  interruptsComponents: {
+    generic: {
+      choosePlan: defineComponent(() => () => null),
+      fallback: defineComponent(() => () => null),
+    },
+  },
+}
+
+describe('Vue createChatHook', () => {
+  it('returns useAppChat, ui, and context composables from options and chatComponents', () => {
+    const { useAppChat, ui, useChatContext } = createChatHook({
+      options: chatOptions,
+      ...kit,
+    })
+    expect(typeof useAppChat).toBe('function')
+    expect(ui).toBeDefined()
+    expect(typeof useChatContext).toBe('function')
+  })
+})
+
 describe('Vue createChatUI', () => {
   it('renders automatic and scoped-slot traversal', async () => {
-    const ui = createChatUI(chatOptions)
+    const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([messageWithToolResults])
-    const components = ui.defineComponents({
-      layout: defineComponent(
-        (_, { slots }) =>
-          () =>
-            slots.messages?.(),
-      ),
-      message: defineComponent(
-        (_, { slots }) =>
-          () =>
-            h('article', slots.parts?.()),
-      ),
-      parts: {
-        fallback: defineComponent({
-          props: ['part'],
-          setup(props) {
-            return () => h('span', props.part.type)
-          },
-        }),
-      },
-      tools: {
-        getWeather: defineComponent({
-          props: ['part'],
-          setup(props) {
-            return () => h('strong', props.part.input?.city)
-          },
-        }),
-        purchaseItem: defineComponent(() => () => null),
-      },
-      interrupts: {
-        generic: {
-          choosePlan: defineComponent(() => () => null),
-          fallback: defineComponent(() => () => null),
-        },
-      },
-    })
 
     const automatic = await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat, components })),
+      defineComponent(() => () => h(UIChat, { ui, chat })),
     )
     expect(automatic).toContain('Paris')
 
@@ -59,7 +80,7 @@ describe('Vue createChatUI', () => {
         () => () =>
           h(
             UIProvider,
-            { ui, chat, components },
+            { ui, chat },
             {
               default: () =>
                 h(
@@ -79,42 +100,54 @@ describe('Vue createChatUI', () => {
 
   it('warns once for a missing runtime key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const ui = createChatUI(chatOptions)
+    const ui = createChatUI(chatOptions, kit)
     const chat = createVueChatResult([unknownToolMessage])
-    const components = ui.defineComponents({
-      layout: defineComponent(
-        (_, { slots }) =>
-          () =>
-            slots.messages?.(),
-      ),
-      message: defineComponent(
-        (_, { slots }) =>
-          () =>
-            slots.parts?.(),
-      ),
-      parts: { fallback: defineComponent(() => () => null) },
-      tools: {
-        getWeather: defineComponent(() => () => null),
-        purchaseItem: defineComponent(() => () => null),
-      },
-      interrupts: {
-        generic: {
-          choosePlan: defineComponent(() => () => null),
-          fallback: defineComponent(() => () => null),
-        },
-      },
-    })
-    await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat, components })),
-    )
-    await renderVueText(
-      defineComponent(() => () => h(UIChat, { ui, chat, components })),
-    )
+    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
+    await renderVueText(defineComponent(() => () => h(UIChat, { ui, chat })))
     expect(
       warn.mock.calls.filter((call) =>
         String(call[0]).includes('[tanstack-ai-ui]'),
       ),
     ).toHaveLength(1)
     warn.mockRestore()
+  })
+
+  it('renders each queued item and binds cancelQueued', async () => {
+    const cancelled: Array<string> = []
+    const ui = createChatUI(chatOptions, {
+      ...kit,
+      components: {
+        ...kit.components,
+        layout: defineComponent(
+          (_, { slots }) =>
+            () =>
+              slots.queue?.(),
+        ),
+        queue: defineComponent({
+          props: ['item'],
+          setup(props) {
+            props.item.cancelQueued()
+            return () =>
+              h(
+                'em',
+                typeof props.item.content === 'string'
+                  ? props.item.content
+                  : '',
+              )
+          },
+        }),
+      },
+    })
+    const chat = createVueChatResult([], [], {
+      queue: [{ id: 'q1', content: 'later', createdAt: 1 }],
+      cancelQueued: (id) => {
+        cancelled.push(id)
+      },
+    })
+    const markup = await renderVueText(
+      defineComponent(() => () => h(UIChat, { ui, chat })),
+    )
+    expect(markup).toContain('<em>later</em>')
+    expect(cancelled).toEqual(['q1'])
   })
 })

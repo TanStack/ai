@@ -52,9 +52,7 @@
     "@tanstack/ai-react": "workspace:^"
   },
   "devDependencies": {
-    "@tanstack/ai-react": "workspace:*",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.1.10",
     "react": "^19.2.3",
     "vite": "^8.2.1"
   }

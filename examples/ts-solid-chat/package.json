@@ -19,7 +19,6 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-solid": "workspace:*",
-
     "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/router-plugin": "^1.158.4",
     "@tanstack/solid-ai-devtools": "workspace:*",

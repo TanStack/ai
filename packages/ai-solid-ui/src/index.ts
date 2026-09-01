@@ -4,5 +4,3 @@
  * Removed in 1.0.0.
  */
 export * from '@tanstack/ai-solid/ui'
-export { useChat } from '@tanstack/ai-solid'
-export type { UseChatOptions, UseChatReturn } from '@tanstack/ai-solid'

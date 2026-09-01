@@ -8,8 +8,8 @@ import {
   ConversationScrollButton,
 } from '@/components/ai/conversation'
 import { Suggestion, Suggestions } from '@/components/ai/suggestions'
-import { UI } from '@/chat/options'
 import type { chatOptions } from '@/chat/options'
+import { useChatContext } from './ui-components'
 
 const LISBON_PHOTO =
   'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&q=80'
@@ -35,11 +35,12 @@ const PROMPTS: Array<{ label: string; content?: Array<ContentPart> }> = [
 ]
 
 export function ChatLayout({
-  renderMessages,
-  renderInterrupts,
-  renderInput,
+  Messages,
+  Interrupts,
+  Input,
+  Queue,
 }: LayoutProps<typeof chatOptions>) {
-  const chat = UI.useChat()
+  const chat = useChatContext()
   if (chat.error) {
     return <p className="p-6 text-sm text-destructive">{chat.error.message}</p>
   }
@@ -55,9 +56,9 @@ export function ChatLayout({
               title="Trip desk"
             />
           ) : (
-            renderMessages()
+            <Messages />
           )}
-          {renderInterrupts()}
+          <Interrupts />
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -79,7 +80,17 @@ export function ChatLayout({
             ))}
           </Suggestions>
         ) : null}
-        {renderInput()}
+        {chat.queue.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-muted-foreground px-1 text-xs font-medium">
+              Queued
+            </p>
+            <div className="space-y-1">
+              <Queue />
+            </div>
+          </div>
+        ) : null}
+        <Input />
       </div>
     </div>
   )

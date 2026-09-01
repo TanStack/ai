@@ -7,6 +7,8 @@ import {
   TextPart,
   ThinkingPart,
   createChatUI,
+  createChatHook,
+  createChatHookContexts,
 } from '../../src/ui'
 
 describe('public coexistence', () => {
@@ -18,5 +20,7 @@ describe('public coexistence', () => {
     expect(TextPart).toBeDefined()
     expect(ThinkingPart).toBeDefined()
     expect(createChatUI).toBeDefined()
+    expect(createChatHook).toBeDefined()
+    expect(createChatHookContexts).toBeDefined()
   })
 })

@@ -15,7 +15,6 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-router-devtools": "^1.158.4",

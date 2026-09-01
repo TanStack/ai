@@ -53,8 +53,6 @@
     "@tanstack/ai-solid": "workspace:^"
   },
   "devDependencies": {
-    "@tanstack/ai-solid": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
     "solid-js": "^1.9.10",
     "vite": "^8.2.1"
   }

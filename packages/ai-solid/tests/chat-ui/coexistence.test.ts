@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createChatUI } from '../../src/chat-ui/create-ui'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createChatUI } from '../../src/chat-ui/create-ui'
 
 const src = dirname(fileURLToPath(import.meta.url))
 const index = readFileSync(join(src, '../../src/ui.ts'), 'utf8')
@@ -17,5 +17,7 @@ describe('public coexistence', () => {
     expect(index).toContain('TextPart')
     expect(index).toContain('ThinkingPart')
     expect(index).toContain('createChatUI')
+    expect(index).toContain('createChatHook')
+    expect(index).toContain('createChatHookContexts')
   })
 })

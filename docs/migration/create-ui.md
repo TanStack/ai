@@ -1,42 +1,39 @@
 ---
-title: Migrate to createChatUI
+title: Chat UI packages
 id: migrate-create-ui
 order: 5
-description: "Move chat-state ownership out of the old Chat component and onto createChatUI with a typed component map."
+description: "Move from @tanstack/ai-*-ui to the framework /ui subpath."
 keywords:
   - tanstack ai
-  - createChatUI
   - migration
   - deprecation
 ---
 
-Import `createChatUI` from `@tanstack/ai-react/ui`. The old `Chat` component owned chat state and lost configured types. `createChatUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. The same move applies to Solid and Vue.
 
-> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` re-export `/ui` until 1.0.0. Svelte never published a `*-ui` package. Use `@tanstack/ai-svelte/ui`.
+> **Deprecated.** `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` re-export the new `/ui` subpath until each package's `1.0.0`. `npm install` prints a warning. Import from `/ui` in new code. Svelte never published a `*-ui` package. Use `@tanstack/ai-svelte/ui`.
 
-This is a semantic migration. There is no codemod.
+```diff
+- import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
++ import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react/ui'
+```
 
-## What changes
+Nothing else changes. `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, and `ThinkingPart` keep their current props and behaviour on the subpath, and stay supported until `1.0.0`.
 
-1. You call `useChat` or `createChat` yourself.
-2. You supply every visible component.
-3. Tool inputs stay optional while they stream.
-4. Tool approvals come from `chat.interrupts`.
-5. Unknown runtime keys can use a fallback or render nothing.
-6. `createChatUI()` must run at module scope so identity stays stable.
+`useChat` is not re-exported from the shim. Import it from `@tanstack/ai-react`, or the matching framework package.
 
 ## Why
 
-The old APIs drop configured types, keep unused properties, use a deprecated approval path, cover only part of the message protocol, and own chat state. Two orchestration models duplicate fixes.
+A separate `*-ui` package split chat UI from the framework package. Form uses `createFormHook` on `@tanstack/react-form`. Table uses `createTableHook` on `@tanstack/react-table`. Chat now sits on `@tanstack/ai-react/ui` for the same reason.
 
 ## Minimum versions
 
-New imports (next minor of each framework package):
+New imports:
 
-- `@tanstack/ai-react/ui`
-- `@tanstack/ai-solid/ui`
-- `@tanstack/ai-vue/ui`
-- `@tanstack/ai-svelte/ui`
+- `@tanstack/ai-react` (next minor) `/ui`
+- `@tanstack/ai-solid` (next minor) `/ui`
+- `@tanstack/ai-vue` (next minor) `/ui`
+- `@tanstack/ai-svelte` (next minor) `/ui`
 
 Deprecated re-exports, removed in `1.0.0`:
 
@@ -44,88 +41,10 @@ Deprecated re-exports, removed in `1.0.0`:
 - `@tanstack/ai-solid-ui` 0.8.0
 - `@tanstack/ai-vue-ui` 0.3.0
 
-Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
+## Coexistence
 
-## Before
+Old `*-ui` packages and new `/ui` imports can live in the same app until `1.0.0`. Do not mix them in one chat tree.
 
-```tsx
-import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
+## Typed chat UI
 
-const connection = fetchServerSentEvents('/api/chat')
-
-export function OldChat() {
-  return (
-    <Chat connection={connection}>
-      <ChatMessages />
-      <ChatInput />
-    </Chat>
-  )
-}
-```
-
-## After
-
-```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createChatUI } from '@tanstack/ai-react/ui'
-
-const chatOptions = {
-  connection: fetchServerSentEvents('/api/chat'),
-}
-
-const UI = createChatUI(chatOptions)
-
-const components = UI.defineComponents({
-  layout: ({ renderMessages, renderInput }) => (
-    <main>
-      {renderMessages()}
-      {renderInput()}
-    </main>
-  ),
-  message: ({ renderParts }) => <article>{renderParts()}</article>,
-  input: () => {
-    const chat = UI.useChat()
-    return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        const field = event.currentTarget.elements.namedItem('message')
-        if (!(field instanceof HTMLInputElement)) return
-        const text = field.value.trim()
-        if (!text) return
-        field.value = ''
-        void chat.sendMessage(text)
-      }}
-    >
-      <input name="message" />
-    </form>
-    )
-  },
-  parts: { fallback: () => null },
-})
-
-export function NewChat() {
-  const chat = useChat(chatOptions)
-  return <UI.Chat chat={chat} components={components} />
-}
-```
-
-## Steps
-
-1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createChatUI(chatOptions)` next to that object.
-3. Call `useChat(chatOptions)` in the screen component.
-4. Define `layout`, `message`, `parts`, `tools`, and `interrupts` in `defineComponents`.
-5. Replace `<Chat>` with `<UI.Chat chat={chat} components={components} />`.
-
-## Gotchas
-
-- A shared `chatOptions` variable does not need `as const`.
-- A mapped tool can read `interrupt` and render the approval itself. That approval stays off the list. A component on `interrupts.tools` uses the list.
-- Generic interrupts live under `interrupts.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
-- TypeScript requires a `tools` component for every tool name and an `interrupts.generic` component for every interrupt id. `generic.fallback` is optional.
-- Matched `tool-result` parts are hidden in automatic traversal. Unmatched results stay visible.
-- Nested providers use the nearest chat instance.
-
-See the [React UI guide](../ui/react) for a full map.
+The `/ui` subpath also exports `createChatHook`, a typed headless chat UI that derives tool, part, and interrupt components from your chat options. It is new, not a replacement you need to move to. The components above keep working. See the [React UI guide](../ui/react) for how it fits together, and [Solid](../ui/solid), [Vue](../ui/vue), or [Svelte](../ui/svelte) for the other adapters.

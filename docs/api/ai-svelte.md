@@ -15,13 +15,30 @@ keywords:
 
 Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.
 
-For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte) and [Migrate to createChatUI](../migration/create-ui).
+For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte).
 
 ## Installation
 
 ```bash
 npm install @tanstack/ai-svelte
 ```
+
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `createChat()` to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-svelte";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { createChat } = createChatHook(chatOptions);
+const chat = createChat({ threadId: "support-1" });
+```
+
+`createChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound factory if both are in one file: `const { createChat: createSupportChat } = createChatHook(chatOptions)`.
 
 ## `createChat(options)`
 
