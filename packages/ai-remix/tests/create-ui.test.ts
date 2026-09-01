@@ -30,9 +30,7 @@ const chatOptions = {
   tools: [{ name: 'getWeather' as const }],
 }
 
-function getWeather(
-  handle: Handle<{ part: { input?: { city?: string } } }>,
-) {
+function getWeather(handle: Handle<{ part: { input?: { city?: string } } }>) {
   return () => createElement('strong', {}, handle.props.part.input?.city)
 }
 
