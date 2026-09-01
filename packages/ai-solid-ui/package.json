@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-solid-ui",
-  "version": "0.7.21",
+  "version": "0.8.0",
   "description": "Deprecated. Import chat UI from @tanstack/ai-solid/ui instead.",
   "author": "Tanner Linsley",
   "license": "MIT",
