@@ -27,6 +27,7 @@ import type {
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage as UIMessageModel,
@@ -39,6 +40,10 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<TOptions> = {
   readonly __ui?: TOptions
 }
@@ -48,6 +53,11 @@ export type MessageProps<TOptions> = {
 }
 
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 
@@ -92,6 +102,7 @@ export type ChatUIChromeComponents = {
   layout: Component
   message: Component
   input?: Component
+  queue?: Component
 }
 
 export type ChatUIPartsComponents = {
@@ -158,6 +169,7 @@ type VueChatUIComponents = {
   layout: Component
   message: Component
   input?: Component
+  queue?: Component
   parts: {
     [K in ChatUIPartKey]?: Component
   } & {
@@ -225,6 +237,10 @@ function readInterrupts<TOptions>(
 ): ReadonlyArray<ChatUIInterrupt> {
   const value = unwrapRef(chat.interrupts)
   return Array.isArray(value) ? value : []
+}
+
+function readQueue<TOptions>(chat: ChatUIHost<TOptions>) {
+  return chat.queue.value
 }
 
 function useChatContext<TOptions>(ui: UIDescriptor<TOptions>) {
@@ -567,6 +583,31 @@ export const UIInterrupt = defineComponent({
   },
 })
 
+export const UIQueue = defineComponent({
+  name: 'UIQueue',
+  props: {
+    ui: { type: Object as PropType<UIDescriptor<any>>, required: true },
+  },
+  setup(props) {
+    return () => {
+      const chat = useChatContext(props.ui)
+      const comps = useComponentsContext(props.ui)
+      const QueueItem = comps.components.queue
+      if (!QueueItem) return null
+      const items = readQueue(chat)
+      return items.map((item) =>
+        h(QueueItem, {
+          key: item.id,
+          item: {
+            ...item,
+            cancelQueued: () => chat.cancelQueued(item.id),
+          },
+        }),
+      )
+    }
+  },
+})
+
 export const UIChat = defineComponent({
   name: 'UIChat',
   props: {
@@ -591,6 +632,7 @@ export const UIChat = defineComponent({
               {
                 messages: () => h(UIMessages, { ui: props.ui }),
                 interrupts: () => h(UIInterrupts, { ui: props.ui }),
+                queue: () => h(UIQueue, { ui: props.ui }),
                 input: () => (components.input ? h(components.input) : null),
               },
             ),

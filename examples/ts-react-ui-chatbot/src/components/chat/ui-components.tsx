@@ -5,6 +5,7 @@ import { BookStayApproval, BookStayTool } from './book-stay-tool'
 import { ConfirmPaymentTool } from './confirm-payment-tool'
 import { ChatPromptInput } from './input'
 import { ChatLayout } from './layout'
+import { ChatQueueItem } from './queue-item'
 import { ChooseBudget } from './choose-budget'
 import { FallbackInterrupt } from './fallback-interrupt'
 import { FallbackPart } from './fallback-part'
@@ -33,6 +34,7 @@ export const { useAppChat, useChatContext } = createChatHook({
     layout: ChatLayout,
     message: ChatMessage,
     input: ChatPromptInput,
+    queue: ChatQueueItem,
   },
   partsComponents: {
     text: TextPart,

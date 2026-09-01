@@ -46,7 +46,7 @@ const { useAppChat, ui } = createChatHook({
   options: chatOptions,
   components: {
   layout: defineComponent((_, { slots }) => () =>
-    h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
+    h('div', [slots.messages?.(), slots.interrupts?.(), slots.queue?.(), slots.input?.()]),
   ),
   message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
   },
@@ -76,7 +76,7 @@ export default defineComponent({
 })
 ```
 
-Layout uses slots `messages`, `interrupts`, and `input`. Message uses slot `parts`. Manual lists use the default slot on `UIMessages` with `{ messages }`.
+Layout uses slots `messages`, `interrupts`, `queue`, and `input`. Message uses slot `parts`. Manual lists use the default slot on `UIMessages` with `{ messages }`.
 
 ## Type a component in its own file
 

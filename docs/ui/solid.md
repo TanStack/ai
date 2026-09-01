@@ -49,6 +49,7 @@ const { useAppChat, useChatContext } = createChatHook({
     <>
       <props.Messages />
       <props.Interrupts />
+      <props.Queue />
       <props.Input />
     </>
   ),

@@ -59,7 +59,7 @@ The [chat UI recipes](./recipes/index) show the same option groups one at a time
 <UIChat {ui} {chat} />
 ```
 
-`Layout.svelte` receives snippets `messages`, `interrupts`, and `input`. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
+`Layout.svelte` receives snippets `messages`, `interrupts`, `queue`, and `input`. `{@render queue()}` draws pending sends. Call `item.cancelQueued()` on a queue item to drop it. `Message.svelte` receives snippet `parts`. A tool with an approval receives prop `interrupt`.
 
 ## Type a component in its own file
 

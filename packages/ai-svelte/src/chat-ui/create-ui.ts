@@ -24,6 +24,7 @@ import type {
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
 import type {
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -57,6 +58,7 @@ export type ChatUIChromeComponents = {
   layout: unknown
   message: unknown
   input?: unknown
+  queue?: unknown
 }
 
 export type ChatUIPartsComponents = {
@@ -211,6 +213,16 @@ export function readInterrupts<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.interrupts ?? []
 }
 
+export function readQueue<TOptions>(chat: ChatUIHost<TOptions>) {
+  const items = chat.queue ?? []
+  return items.map((item) => ({
+    ...item,
+    cancelQueued: () => {
+      chat.cancelQueued(item.id)
+    },
+  }))
+}
+
 export function inlineNames<TOptions>(components: ChatUIComponents<TOptions>) {
   return collectInlineToolNames(
     components.interrupts?.tools as Record<string, unknown> | undefined,
@@ -260,6 +272,10 @@ export function interruptComponent<TOptions>(
   return resolveInterruptComponent(interrupt, components.interrupts)
 }
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<TOptions> = {
   readonly __ui?: TOptions
 }
@@ -267,6 +283,10 @@ export type MessageProps<TOptions> = {
   message: UIMessage<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
 }
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {

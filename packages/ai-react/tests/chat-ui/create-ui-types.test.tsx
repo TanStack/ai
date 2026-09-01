@@ -4,9 +4,11 @@ import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatUI } from '../../src/chat-ui/create-ui'
 import type {
   ChatUIHost,
+  LayoutProps,
   MessageProps,
   InterruptProps,
   PartProps,
+  QueueProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
@@ -122,7 +124,15 @@ it('types tool and interrupt component props from chatOptions', () => {
         >()
         expectTypeOf(UI.useChatContext().sendMessage).toBeFunction()
         expectTypeOf(UI.useChatContext().queue).toBeArray()
+        expectTypeOf<
+          LayoutProps<typeof chatOptions>['Queue']
+        >().not.toBeAny()
         return <Messages />
+      },
+      queue: ({ item }: QueueProps<typeof chatOptions>) => {
+        expectTypeOf(item.id).toEqualTypeOf<string>()
+        expectTypeOf(item.cancelQueued).toBeFunction()
+        return null
       },
       message: ({ Parts }) => <Parts />,
       input: () => null,

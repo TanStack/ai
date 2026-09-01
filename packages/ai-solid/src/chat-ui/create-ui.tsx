@@ -27,6 +27,7 @@ import type {
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -41,12 +42,17 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<
   TOptions,
   TInput extends Component<any> | undefined = Component<InputProps<TOptions>>,
 > = {
   Messages: Component
   Interrupts: Component
+  Queue: Component
   readonly __ui?: TOptions
 } & (TInput extends Component<any> ? { Input: Component } : {})
 
@@ -56,6 +62,11 @@ export type MessageProps<TOptions> = {
 }
 
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 
@@ -109,6 +120,7 @@ export type ChatUIChromeComponents<
   layout: Component<LayoutProps<TOptions, TInput>>
   message: Component<MessageProps<TOptions>>
   input?: TInput
+  queue?: Component<QueueProps<TOptions>>
 }
 
 export type ChatUIPartsComponents<TOptions> = {
@@ -269,6 +281,7 @@ export function createChatUI<
     layout: Layout,
     message: MessageComponent,
     input: InputComponent,
+    queue: QueueItemComponent,
   } = components
   const {
     chatContext: chatContextOption,
@@ -419,6 +432,7 @@ export function createChatUI<
   const LayoutSlots = {
     Messages: Messages as Component,
     Interrupts: Interrupts as Component,
+    Queue: Queue as Component,
     Input: (InputComponent ?? MissingInput) as Component,
   }
 
@@ -427,6 +441,23 @@ export function createChatUI<
       <Provider chat={props.chat}>
         <Layout {...(LayoutSlots as any)} />
       </Provider>
+    )
+  }
+
+  function Queue() {
+    const chat = useChatContext()
+    if (!QueueItemComponent) return null
+    return (
+      <For each={chat.queue()}>
+        {(item) => (
+          <QueueItemComponent
+            item={{
+              ...item,
+              cancelQueued: () => chat.cancelQueued(item.id),
+            }}
+          />
+        )}
+      </For>
     )
   }
 
@@ -680,6 +711,7 @@ export function createChatUI<
     Part,
     Interrupts,
     Interrupt,
+    Queue,
     useChatContext,
     Input: InputComponent,
   }

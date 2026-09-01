@@ -117,4 +117,35 @@ describe('Solid createChatUI', () => {
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })
+
+  it('renders each queued item and binds cancelQueued', () => {
+    const cancelled: Array<string> = []
+    const UI = createChatUI(chatOptions, {
+      ...baseConfig,
+      components: {
+        ...baseConfig.components,
+        layout: (props) => <props.Queue />,
+        queue: (props) => {
+          props.item.cancelQueued()
+          return (
+            <em>
+              {typeof props.item.content === 'string'
+                ? props.item.content
+                : ''}
+            </em>
+          )
+        },
+      },
+    })
+    const chat = host([], [], {
+      queue: [{ id: 'q1', content: 'later', createdAt: 1 }],
+      cancelQueued: (id) => {
+        cancelled.push(id)
+      },
+    })
+    expect(
+      renderHtml(() => <UI.Chat chat={chat} />),
+    ).toContain('<em>later</em>')
+    expect(cancelled).toEqual(['q1'])
+  })
 })

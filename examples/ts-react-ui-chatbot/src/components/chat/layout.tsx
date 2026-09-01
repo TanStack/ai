@@ -38,6 +38,7 @@ export function ChatLayout({
   Messages,
   Interrupts,
   Input,
+  Queue,
 }: LayoutProps<typeof chatOptions>) {
   const chat = useChatContext()
   if (chat.error) {
@@ -78,6 +79,16 @@ export function ChatLayout({
               />
             ))}
           </Suggestions>
+        ) : null}
+        {chat.queue.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-muted-foreground px-1 text-xs font-medium">
+              Queued
+            </p>
+            <div className="space-y-1">
+              <Queue />
+            </div>
+          </div>
         ) : null}
         <Input />
       </div>

@@ -28,6 +28,7 @@ import type {
 } from '@tanstack/ai-client/ui'
 import type {
   MessagePart,
+  QueuedMessage,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -42,6 +43,10 @@ export type ChatUIHost<TOptions = unknown> = UseChatReturn<
   ChatUIInterruptsOf<TOptions>
 >
 
+export type ChatUIQueueItem = QueuedMessage & {
+  cancelQueued: () => void
+}
+
 export type LayoutProps<
   TOptions,
   TInput extends ComponentType<any> | undefined = ComponentType<
@@ -50,6 +55,7 @@ export type LayoutProps<
 > = {
   Messages: ComponentType
   Interrupts: ComponentType
+  Queue: ComponentType
   readonly __ui?: TOptions
 } & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
@@ -59,6 +65,11 @@ export type MessageProps<TOptions> = {
 }
 
 export type InputProps<TOptions> = {
+  readonly __ui?: TOptions
+}
+
+export type QueueProps<TOptions> = {
+  item: ChatUIQueueItem
   readonly __ui?: TOptions
 }
 
@@ -111,6 +122,7 @@ export type ChatUIChromeComponents<
   layout: ComponentType<LayoutProps<TOptions, TInput>>
   message: ComponentType<MessageProps<TOptions>>
   input?: TInput
+  queue?: ComponentType<QueueProps<TOptions>>
 }
 
 export type ChatUIPartsComponents<TOptions> = {
@@ -203,6 +215,18 @@ function readInterrupts<TOptions>(chat: ChatUIHost<TOptions>) {
   return chat.interrupts ?? []
 }
 
+function queueItemEqual(
+  prev: { item: QueuedMessage; cancelQueued: (id: string) => void },
+  next: { item: QueuedMessage; cancelQueued: (id: string) => void },
+) {
+  return (
+    prev.item.id === next.item.id &&
+    prev.item.createdAt === next.item.createdAt &&
+    prev.item.content === next.item.content &&
+    prev.cancelQueued === next.cancelQueued
+  )
+}
+
 function selectedPartPropsEqual(
   prev: { selected: ChatUISelectedPart },
   next: { selected: ChatUISelectedPart },
@@ -275,6 +299,7 @@ export function createChatUI<
     layout: Layout,
     message: MessageComponent,
     input: InputComponent,
+    queue: QueueItemComponent,
   } = components
   const {
     chatContext: chatContextOption,
@@ -414,11 +439,12 @@ export function createChatUI<
     return null
   }
 
-  // `Messages`, `Interrupts` and `InputComponent` are declared once per
-  // factory, so these props are stable for the lifetime of the kit.
+  // `Messages`, `Interrupts`, `Queue` and `InputComponent` are declared once
+  // per factory, so these props are stable for the lifetime of the kit.
   const LayoutSlots = {
     Messages: Messages as ComponentType,
     Interrupts: Interrupts as ComponentType,
+    Queue: Queue as ComponentType,
     Input: (InputComponent ?? MissingInput) as ComponentType,
   }
 
@@ -429,6 +455,43 @@ export function createChatUI<
       </Provider>
     )
   }
+
+  function Queue() {
+    const chat = useChatContext()
+    if (!QueueItemComponent) return null
+    const items = chat.queue
+    return (
+      <>
+        {items.map((item) => (
+          <QueueItemView
+            key={item.id}
+            cancelQueued={chat.cancelQueued}
+            item={item}
+          />
+        ))}
+      </>
+    )
+  }
+
+  const QueueItemView = memo(function QueueItemView({
+    item,
+    cancelQueued,
+  }: {
+    item: QueuedMessage
+    cancelQueued: (id: string) => void
+  }) {
+    if (!QueueItemComponent) return null
+    return (
+      <QueueItemComponent
+        item={{
+          ...item,
+          cancelQueued: () => {
+            cancelQueued(item.id)
+          },
+        }}
+      />
+    )
+  }, queueItemEqual)
 
   function Messages({
     children,
@@ -691,6 +754,7 @@ export function createChatUI<
     Part,
     Interrupts,
     Interrupt,
+    Queue,
     useChatContext,
     Input: InputComponent,
   }

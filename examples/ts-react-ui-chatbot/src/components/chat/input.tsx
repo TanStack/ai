@@ -109,12 +109,7 @@ export function ChatPromptInput() {
     stop: stopRecording,
   } = useAudioRecorder()
 
-  const status =
-    chat.status === 'streaming' || chat.status === 'submitted'
-      ? chat.status
-      : chat.error
-        ? 'error'
-        : 'ready'
+  const status = chat.error ? 'error' : 'ready'
 
   function removeDraft(id: string) {
     setDrafts((prev) => {
@@ -272,7 +267,7 @@ export function ChatPromptInput() {
           />
         </PromptInputTools>
         <PromptInputSubmit
-          disabled={chat.isLoading || (!text.trim() && drafts.length === 0)}
+          disabled={!text.trim() && drafts.length === 0}
           status={status}
         />
       </PromptInputToolbar>

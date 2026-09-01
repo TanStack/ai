@@ -65,6 +65,7 @@ function makeUI(patch?: {
   layout?: Config['components']['layout']
   message?: Config['components']['message']
   input?: Config['components']['input']
+  queue?: Config['components']['queue']
   partsComponents?: Config['partsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
@@ -79,6 +80,7 @@ function makeUI(patch?: {
       ...(patch?.layout ? { layout: patch.layout } : {}),
       ...(patch?.message ? { message: patch.message } : {}),
       ...(patch?.input ? { input: patch.input } : {}),
+      ...(patch?.queue ? { queue: patch.queue } : {}),
     },
     partsComponents: {
       ...baseConfig.partsComponents,
@@ -469,5 +471,48 @@ describe('createChatUI', () => {
       )
       expect(markup).toContain(`<span>${state}</span>`)
     }
+  })
+
+  it('renders each queued item and binds cancelQueued', () => {
+    const cancelled: Array<string> = []
+    const UI = makeUI({
+      layout: ({ Queue }) => <Queue />,
+      queue: ({ item }) => {
+        item.cancelQueued()
+        return (
+          <em>{typeof item.content === 'string' ? item.content : ''}</em>
+        )
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          queue: [
+            { id: 'q1', content: 'later', createdAt: 1 },
+            { id: 'q2', content: 'after', createdAt: 2 },
+          ],
+          cancelQueued: (id) => {
+            cancelled.push(id)
+          },
+        })}
+      />,
+    )
+    expect(markup).toContain('<em>later</em>')
+    expect(markup).toContain('<em>after</em>')
+    expect(cancelled).toEqual(['q1', 'q2'])
+  })
+
+  it('renders nothing from Queue when no queue component exists', () => {
+    const UI = makeUI({
+      layout: ({ Queue }) => <main><Queue /></main>,
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          queue: [{ id: 'q1', content: 'later', createdAt: 1 }],
+        })}
+      />,
+    )
+    expect(markup).toBe('<main></main>')
   })
 })

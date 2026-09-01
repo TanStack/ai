@@ -111,4 +111,39 @@ describe('Vue createChatUI', () => {
     ).toHaveLength(1)
     warn.mockRestore()
   })
+
+  it('renders each queued item and binds cancelQueued', async () => {
+    const cancelled: Array<string> = []
+    const ui = createChatUI(chatOptions, {
+      ...kit,
+      components: {
+        ...kit.components,
+        layout: defineComponent((_, { slots }) => () => slots.queue?.()),
+        queue: defineComponent({
+          props: ['item'],
+          setup(props) {
+            props.item.cancelQueued()
+            return () =>
+              h(
+                'em',
+                typeof props.item.content === 'string'
+                  ? props.item.content
+                  : '',
+              )
+          },
+        }),
+      },
+    })
+    const chat = createVueChatResult([], [], {
+      queue: [{ id: 'q1', content: 'later', createdAt: 1 }],
+      cancelQueued: (id) => {
+        cancelled.push(id)
+      },
+    })
+    const markup = await renderVueText(
+      defineComponent(() => () => h(UIChat, { ui, chat })),
+    )
+    expect(markup).toContain('<em>later</em>')
+    expect(cancelled).toEqual(['q1'])
+  })
 })

@@ -83,7 +83,7 @@ const chatOptions = {
 const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
-  layout: function Layout({ Messages, Interrupts, Input }) {
+  layout: function Layout({ Messages, Interrupts, Input, Queue }) {
     const chat = useChatContext()
     if (chat.error) return <p>{chat.error.message}</p>
     if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
@@ -92,6 +92,7 @@ const { useAppChat, useChatContext } = createChatHook({
       <main>
         <Messages />
         <Interrupts />
+        <Queue />
         <Input />
       </main>
     )
@@ -115,6 +116,17 @@ const { useAppChat, useChatContext } = createChatHook({
         <input name="message" />
         <button type="submit">Send</button>
       </form>
+    )
+  },
+  queue: function QueueItem({ item }) {
+    const label = typeof item.content === 'string' ? item.content : 'Queued'
+    return (
+      <div>
+        {label}
+        <button type="button" onClick={() => item.cancelQueued()}>
+          Cancel
+        </button>
+      </div>
     )
   },
   },
@@ -172,7 +184,9 @@ export function Sidebar() {
 }
 ```
 
-`layout` receives `Messages`, `Interrupts`, and `Input` as components. Render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
+`<Queue />` maps pending sends. Register `queue` on `components`. Each item has `cancelQueued()` bound, so you do not pass the id. Type a queue item with `QueueProps<typeof chatOptions>`.
+
+`layout` receives `Messages`, `Interrupts`, `Queue`, and `Input` as components. Render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
 
 > **List `input` before `layout`.** When `input` is an inline `function` expression written *after* `layout`, TypeScript cannot yet tell that an input is registered, and `Input` goes missing from the layout props. Putting `input` first fixes it; so does using an arrow or a named reference. If it does slip through, rendering `<Input />` without a registered `input` warns once in development rather than failing silently.
 
@@ -288,6 +302,7 @@ Other prop types from the same package:
 - `LayoutProps`
 - `MessageProps`
 - `InputProps`
+- `QueueProps` for one queued send. `item.cancelQueued()` drops that item.
 - `PartProps` with a part key such as `'text'`
 - `InterruptProps` for tool approvals, registered generic interrupts, and `generic.fallback`. Pass a tool name or interrupt id as the second type argument.
 
