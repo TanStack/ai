@@ -57,6 +57,8 @@ export default defineConfig({
     '@soniox/tanstack-ai-adapter': '^0.1.2',
     // Octane is a peer of @tanstack/ai-octane, not a root workspace dep.
     octane: '^0.1.17',
+    // Remix 3 is a peer of @tanstack/ai-remix, not a root workspace dep.
+    remix: '^3.0.0-rc.1',
   },
   overrides: [
     // React (and anything not overridden below) uses the automatic JSX
@@ -92,6 +94,12 @@ export default defineConfig({
       include: ['docs/api/ai-octane.md'],
       jsx: 'react-jsx',
       jsxImportSource: 'octane/dist',
+    },
+    // Remix snippets compile JSX through remix/ui.
+    {
+      include: ['docs/api/ai-remix.md'],
+      jsx: 'react-jsx',
+      jsxImportSource: 'remix/ui',
     },
   ],
 })

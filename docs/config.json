@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-30"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Quick Start: React Native",
@@ -1094,6 +1094,11 @@
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21"
+        },
+        {
+          "label": "@tanstack/ai-remix",
+          "to": "api/ai-remix",
+          "addedAt": "2026-09-01"
         }
       ]
     },
