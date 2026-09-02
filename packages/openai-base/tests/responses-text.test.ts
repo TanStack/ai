@@ -2719,9 +2719,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
                 type: 'message',
                 id: 'msg_1',
                 role: 'assistant',
-                content: [
-                  { type: 'output_text', text: 'Fender Stratocaster' },
-                ],
+                content: [{ type: 'output_text', text: 'Fender Stratocaster' }],
               },
             ],
             usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
