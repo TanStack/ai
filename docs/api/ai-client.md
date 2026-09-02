@@ -32,6 +32,50 @@ octane: @tanstack/ai-client
 
 <!-- ::end:tabs -->
 
+## `registerWebMCPTools(tools, options)`
+
+Expose executable client tools through the browser WebMCP API. Abort the required signal to remove all tools from this registration.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```typescript
+import {
+  registerWebMCPTools,
+  type RegisterWebMCPToolsOptions,
+} from "@tanstack/ai-client";
+import { searchProducts } from "./tools";
+
+const controller = new AbortController();
+const tools = [searchProducts];
+const options: RegisterWebMCPToolsOptions<typeof tools> = {
+  signal: controller.signal,
+  toolOptions: {
+    searchProducts: {
+      title: "Search products",
+      annotations: { readOnlyHint: true },
+    },
+  },
+};
+
+await registerWebMCPTools(tools, options);
+
+// Remove these tools when their owner is no longer active.
+controller.abort();
+```
+
+The function returns `Promise<void>`. It resolves without registration during server rendering, in an insecure context, or when WebMCP is unavailable.
+
+It validates Standard Schema inputs and outputs. A tool with `needsApproval: true` causes registration to fail.
+
+### Public option types
+
+- `RegisterWebMCPToolsOptions<TTools, TContext>` - Requires `signal`. It also contains `toolOptions` and the client tool runtime `context`.
+- `WebMCPToolOptionsByName<TTools>` - A partial options map keyed by the inferred tool names.
+- `WebMCPToolOptions` - Contains the optional `title` and `annotations` fields for one tool.
+- `WebMCPToolAnnotations` - Contains the optional `readOnlyHint` and `untrustedContentHint` fields.
+
+`context` is required when a tool declares a required runtime context. If registration fails, the function removes tools that it registered during the call.
+
 ## `ChatClient`
 
 The main client class for managing chat state.

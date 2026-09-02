@@ -26,6 +26,40 @@ remix: @tanstack/ai-remix remix
 
 `remix` is a required peer.
 
+## `createWebMCPTools(handle, tools, options?)`
+
+Register executable client tools for a Remix component. Remix removes them when the component `Handle` signal aborts.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  createWebMCPTools,
+  type CreateWebMCPToolsOptions,
+} from '@tanstack/ai-remix'
+import { clientEntry, type Handle } from 'remix/ui'
+import { searchProducts } from './tools'
+
+const tools = [searchProducts]
+const options: CreateWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error)
+  },
+}
+
+export const ProductsPage = clientEntry(
+  import.meta.url,
+  function ProductsPage(handle: Handle) {
+    createWebMCPTools(handle, tools, options)
+    return () => null
+  },
+)
+```
+
+`CreateWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The helper uses `handle.signal` for registration.
+
+The `context` field is required when a tool declares a required runtime context.
+
 ## Server
 
 A Remix controller action can return the same SSE `Response` as any other host.

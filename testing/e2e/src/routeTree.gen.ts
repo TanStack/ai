@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
+import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
@@ -104,6 +105,11 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
   id: '/websocket-adapter',
   path: '/websocket-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebMcpToolsRoute = WebMcpToolsRouteImport.update({
+  id: '/web-mcp-tools',
+  path: '/web-mcp-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
@@ -599,6 +605,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -692,6 +699,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -786,6 +794,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -881,6 +890,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -974,6 +984,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1067,6 +1078,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1161,6 +1173,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
@@ -1234,6 +1247,13 @@ declare module '@tanstack/react-router' {
       path: '/websocket-adapter'
       fullPath: '/websocket-adapter'
       preLoaderRoute: typeof WebsocketAdapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web-mcp-tools': {
+      id: '/web-mcp-tools'
+      path: '/web-mcp-tools'
+      fullPath: '/web-mcp-tools'
+      preLoaderRoute: typeof WebMcpToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools-test': {
@@ -1950,6 +1970,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,

@@ -30,6 +30,36 @@ react: @tanstack/ai-react
 
 <!-- ::end:tabs -->
 
+## `useWebMCPTools(tools, options?)`
+
+Register executable client tools after the React component mounts. React removes them on cleanup and replaces them when `tools` or `options` change.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useWebMCPTools,
+  type UseWebMCPToolsOptions,
+} from "@tanstack/ai-react";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+function ProductsPage() {
+  useWebMCPTools(tools, options);
+  return null;
+}
+```
+
+`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
 ## `createChatHook(options)`
 
 Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.

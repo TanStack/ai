@@ -1,6 +1,8 @@
 export { createChat } from './create-chat.svelte'
 export { createChatHook } from './create-chat-hook'
 export { createByok } from './create-byok.svelte'
+export { createWebMCPTools } from './create-web-mcp-tools.svelte'
+export type { CreateWebMCPToolsOptions } from './create-web-mcp-tools.svelte'
 export type {
   CreateChatOptions,
   CreateChatReturn,

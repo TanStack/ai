@@ -3,6 +3,8 @@ export { createByok } from './create-byok.ts'
 export { createRealtimeChat } from './create-realtime-chat.ts'
 export { createMcpAppBridge } from './create-mcp-app-bridge.ts'
 export type { CreateMcpAppBridgeOptions } from './create-mcp-app-bridge.ts'
+export { createWebMCPTools } from './create-web-mcp-tools.ts'
+export type { CreateWebMCPToolsOptions } from './create-web-mcp-tools.ts'
 export type {
   DeepPartial,
   CreateChatOptions,

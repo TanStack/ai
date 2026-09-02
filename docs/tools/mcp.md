@@ -19,6 +19,19 @@ keywords:
 
 > MCP tool execution is **server-side only**. The `createMCPClient` call lives in a server route (or serverless function) — never in browser code.
 
+## Server MCP and WebMCP
+
+Server MCP and WebMCP solve different problems.
+
+| Integration | Where it runs | What it does |
+|---|---|---|
+| Server MCP | Your server route | Connects TanStack `chat()` to tools, resources, and prompts from an MCP server. |
+| WebMCP | The browser page | Exposes executable client tools to a browser agent through `document.modelContext`. |
+
+WebMCP calls return directly to the browser agent. They do not become tool results in a TanStack chat run.
+
+See [WebMCP Tools](./webmcp) to expose browser actions. If your server needs MCP server tools, continue with this guide.
+
 ## Installation
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
