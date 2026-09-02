@@ -438,6 +438,7 @@
       "tool_choice"
     ],
     "temperature": true,
+    "knowledge": "2025-09",
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000012"
@@ -932,7 +933,7 @@
         "min": 1
       }
     ],
-    "knowledge": "2025-09",
+    "knowledge": "2025-04",
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000012"
@@ -965,6 +966,7 @@
       "tool_choice"
     ],
     "temperature": true,
+    "knowledge": "2025-03-31",
     "pricing": {
       "input": "0.0000004",
       "output": "0.0000016",
@@ -1573,12 +1575,12 @@
     "id": "alibaba/qwen3.8-2.4t-a95b",
     "object": "model",
     "created": 1755815280,
-    "released": 1785715200,
+    "released": 1785628800,
     "owned_by": "alibaba",
     "name": "Qwen3.8 2.4T A95B",
-    "description": "Open-weights release of the Qwen3.8 flagship (2.4T MoE, ~95B active); thinking always on with reasoning_effort low/medium/xhigh. The hosted Qwen 3.8 Max (vision, non-thinking, 1M default context) is Alibaba-only.",
+    "description": "Qwen 3.8 Max is a 2.4-trillion-parameter MoE model delivering a comprehensive leap in coding and professional work. Autonomously codes and delivers complete projects spanning 10+ days. Handles hundreds of specialized tasks across legal, financial, design, and other professional domains, producing production-grade results end-to-end in a single conversation. Native visual understanding runs through the full cycle of planning, execution, and verification, enabling deep semantic analysis of ultra-long documents and extended video content. In long-horizon tasks, plans autonomously, iterates through closed feedback loops, and continuously evolves.",
     "context_window": 262144,
-    "max_tokens": 131072,
+    "max_tokens": 128000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -1598,10 +1600,16 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
-      "input_cache_read": "0.0000002",
+      "input_cache_read": "0.00000025",
       "varies_by_provider": true
     }
   },
@@ -1641,10 +1649,17 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
-      "input": "0.00000055",
-      "output": "0.0000033",
-      "input_cache_read": "0.00000011",
+      "input": "0.0000005",
+      "output": "0.000003",
+      "input_cache_read": "0.0000001",
+      "input_cache_write": "0.000000625",
       "varies_by_provider": true
     }
   },
@@ -1683,11 +1698,60 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.00000016",
       "output": "0.00000047",
       "input_cache_read": "0.000000016",
       "input_cache_write": "0.0000002"
+    }
+  },
+  {
+    "id": "alibaba/qwen3.8-flash-next",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787702400,
+    "owned_by": "alibaba",
+    "name": "Qwen 3.8 Flash Next",
+    "description": "Qwen3.8-Flash-Next is Qwen’s experimental open-weight multimodal language model, pairing 125B parameters with just 6B activated for efficient reasoning and generation. With native 262K-token context extensible to 1M, vision support, and an architecture optimized for lower long-context latency, it is built for demanding agentic coding, tool use, visual reasoning, and multimodal automation.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000012",
+      "output": "0.0000004",
+      "input_cache_read": "0.00000001"
     }
   },
   {
@@ -1707,6 +1771,59 @@
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 0,
+        "max": 262144
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.000006",
+      "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000025"
+    }
+  },
+  {
+    "id": "alibaba/qwen3.8-max-0902",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788220800,
+    "owned_by": "alibaba",
+    "name": "Qwen3.8 Max 0902",
+    "description": "Qwen3.8-Max-0902 is an upgraded snapshot of qwen3.8-max.",
+    "context_window": 991000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "file-input",
+      "implicit-caching"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -2298,6 +2415,100 @@
     }
   },
   {
+    "id": "alibaba/wan-v3.0-video-prime",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787875200,
+    "owned_by": "alibaba",
+    "name": "Wan v3.0 Video Prime",
+    "description": "Wan 3.0 Video Prime is Alibaba’s high-speed, all-in-one AI video generation model for creating polished clips from text, images, video, and audio references. It produces videos up to 30 seconds long with synchronized dialogue, music, and sound effects, while accelerated generation makes it ideal for rapid creative iteration and production workflows.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["vision", "video-input", "audio-input"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio", "image", "video"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": [
+        "text-to-video",
+        "image-to-video",
+        "first-last-frame",
+        "reference-to-video"
+      ],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16",
+        "adaptive"
+      ],
+      "supported_durations_seconds": [
+        2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        22, 23, 24, 25, 26, 27, 28, 29, 30
+      ],
+      "supported_fps": [30],
+      "max_sample_count": 1,
+      "input_limits": {
+        "text": {
+          "max_chars": 20000
+        },
+        "image": {
+          "max_count": 10,
+          "max_file_size_mb": 20,
+          "supported_formats": ["jpeg", "jpg", "png", "bmp", "webp"],
+          "supported_sources": ["url", "base64"],
+          "min_dimension_pixels": 240,
+          "max_dimension_pixels": 8000,
+          "min_aspect_ratio": "1:8",
+          "max_aspect_ratio": "8:1"
+        },
+        "video": {
+          "max_count": 5,
+          "max_file_size_mb": 100,
+          "supported_formats": ["mp4", "mov"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 1,
+          "max_duration_seconds": 15,
+          "min_dimension_pixels": 240,
+          "max_dimension_pixels": 4096
+        },
+        "audio": {
+          "max_file_size_mb": 15,
+          "supported_formats": ["wav", "mp3"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 1,
+          "max_duration_seconds": 15
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.28"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.14"
+        },
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.068"
+        },
+        {
+          "cost_per_second": "0.28"
+        }
+      ]
+    }
+  },
+  {
     "id": "amazon/nova-2-lite",
     "object": "model",
     "created": 1755815280,
@@ -2560,14 +2771,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "toggle"
@@ -2589,6 +2799,68 @@
           "input": "0.000011",
           "output": "0.000055",
           "input_cache_read": "0.0000011",
+          "input_cache_write": "0.00001375"
+        }
+      }
+    }
+  },
+  {
+    "id": "anthropic/claude-fable-5.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788134400,
+    "owned_by": "anthropic",
+    "name": "Claude Fable 5.1",
+    "description": "Claude Fable 5.1 improves on Fable 5 across long-running agentic coding, knowledge work, and research, following instructions precisely over sessions that run unattended for hours.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "explicit-caching",
+      "file-input",
+      "vision"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-06-01",
+    "pricing": {
+      "input": "0.00001",
+      "output": "0.00005",
+      "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000125",
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.000011",
+          "output": "0.000055",
+          "input_cache_read": "0.000000275",
           "input_cache_write": "0.00001375"
         }
       }
@@ -3109,14 +3381,20 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05",
     "pricing": {
       "input": "0.000005",
       "output": "0.000025",
@@ -3181,14 +3459,20 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05",
     "pricing": {
       "input": "0.00001",
       "output": "0.00005",
@@ -3593,14 +3877,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "toggle"
@@ -4924,40 +5207,6 @@
     }
   },
   {
-    "id": "deepseek/deepseek-v3",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1735171200,
-    "owned_by": "deepseek",
-    "name": "DeepSeek V3 0324",
-    "description": "DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team.",
-    "context_window": 163840,
-    "max_tokens": 163840,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-07",
-    "pricing": {
-      "input": "0.00000027",
-      "output": "0.00000112",
-      "input_cache_read": "0.000000135"
-    }
-  },
-  {
     "id": "deepseek/deepseek-v3.1",
     "object": "model",
     "created": 1755815280,
@@ -4991,7 +5240,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-07",
     "pricing": {
       "input": "0.00000025",
       "output": "0.00000095",
@@ -5124,6 +5372,7 @@
     "zdr": "some",
     "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5153,7 +5402,14 @@
       "input": "0.00000013",
       "output": "0.00000026",
       "input_cache_read": "0.000000028",
-      "varies_by_provider": true
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.00000013",
+          "output": "0.00000026",
+          "input_cache_read": "0.000000028"
+        }
+      }
     }
   },
   {
@@ -5170,6 +5426,7 @@
     "zdr": "some",
     "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5185,11 +5442,19 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "knowledge": "2025-05",
     "pricing": {
       "input": "0.000000076",
       "output": "0.000000153",
       "input_cache_read": "0.000000014",
-      "varies_by_provider": true
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.00000013",
+          "output": "0.00000026",
+          "input_cache_read": "0.000000028"
+        }
+      }
     }
   },
   {
@@ -5199,12 +5464,12 @@
     "released": 1787270400,
     "owned_by": "deepseek",
     "name": "DeepSeek V4 Flash Vision Exp",
-    "description": "DeepSeek-V4-Flash-Vision-Exp is an experimental multimodal model that combines the agentic reasoning, coding, and world knowledge capabilities of DeepSeek-V4-Flash with advanced visual understanding. It delivers major gains on vision-dependent agent workflows while performing strongly across leading coding, repository, data science, automation, and multimodal benchmarks.",
-    "context_window": 1000000,
-    "max_tokens": 384000,
+    "description": "DeepSeek-V4-Flash-Vision-Exp is the first experimental multimodal model in the DeepSeek-V4 family. It builds on DeepSeek-V4-Flash by adding visual modules and continued training for visual understanding, with substantially improved multimodal agent capabilities while remaining comparable on text-only agent tasks.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5221,25 +5486,20 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000022",
       "output": "0.00000066",
       "input_cache_read": "0.000000007",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 60,
-            "end_minute_utc": 240,
-            "days_of_week": [1, 2, 3, 4, 5]
-          },
-          {
-            "start_minute_utc": 360,
-            "end_minute_utc": 600,
-            "days_of_week": [1, 2, 3, 4, 5]
-          }
-        ]
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -5249,9 +5509,9 @@
     "released": 1776902400,
     "owned_by": "deepseek",
     "name": "DeepSeek V4 Pro",
-    "description": "",
-    "context_window": 1048600,
-    "max_tokens": 1048600,
+    "description": "DeepSeek-V4 series incorporate several key upgrades in architecture and optimization: (1) a hybrid attention architecture that combines Compressed Sparse Attention (CSA)\nand Heavily Compressed Attention (HCA) to improve long-context efficiency; (2) ManifoldConstrained Hyper-Connections (mHC) that enhance conventional residual connections; (3)\nand the Muon optimizer for faster convergence and greater training stability",
+    "context_window": 1000000,
+    "max_tokens": 384000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -5282,11 +5542,25 @@
       }
     ],
     "knowledge": "2025-05",
-    "deprecated_at": 1787875140000,
     "pricing": {
-      "input": "0.00000174",
-      "output": "0.00000348",
-      "input_cache_read": "0.00000014",
+      "input": "0.00000066",
+      "output": "0.00000198",
+      "input_cache_read": "0.000000022",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 60,
+            "end_minute_utc": 240,
+            "days_of_week": [1, 2, 3, 4, 5]
+          },
+          {
+            "start_minute_utc": 360,
+            "end_minute_utc": 600,
+            "days_of_week": [1, 2, 3, 4, 5]
+          }
+        ]
+      },
       "varies_by_provider": true,
       "regional": {
         "us": {
@@ -5311,6 +5585,7 @@
     "zdr": "some",
     "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5326,6 +5601,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000066",
       "output": "0.00000198",
@@ -5339,7 +5623,14 @@
           }
         ]
       },
-      "varies_by_provider": true
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.00000132",
+          "output": "0.00000396",
+          "input_cache_read": "0.000000132"
+        }
+      }
     }
   },
   {
@@ -6295,6 +6586,7 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "knowledge": "2025-01",
     "pricing": {
       "input": "0.00000025",
       "output": "0.0000015",
@@ -6534,6 +6826,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2026-03",
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000025",
@@ -6648,6 +6947,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2026-03",
     "pricing": {
       "input": "0.00000075",
       "output": "0.00000375",
@@ -6802,6 +7108,7 @@
       "input": ["text"],
       "output": ["text"]
     },
+    "knowledge": "2025-11",
     "pricing": {
       "input": "0.0000002",
       "audio_input_token_cost": "0.0000065"
@@ -7450,6 +7757,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -7484,6 +7796,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8358,6 +8675,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-01-04",
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
@@ -8543,9 +8867,9 @@
         "reference-to-video",
         "first-last-frame"
       ],
-      "supported_resolutions": ["2k"],
+      "supported_resolutions": ["2k", "768p"],
       "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-      "supported_durations_seconds": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "supported_durations_seconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
       "generate_audio": true,
       "supported_fps": [24],
       "max_sample_count": 1,
@@ -8583,10 +8907,73 @@
       "video_duration_pricing": [
         {
           "resolution": "2k",
-          "cost_per_second": "0.13"
+          "cost_per_second": "0.065"
         },
         {
-          "cost_per_second": "0.13"
+          "resolution": "768p",
+          "cost_per_second": "0.04"
+        },
+        {
+          "cost_per_second": "0.065"
+        }
+      ]
+    }
+  },
+  {
+    "id": "minimax/minimax-h3-max",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787788800,
+    "owned_by": "minimax",
+    "name": "MiniMax H3 Max",
+    "description": "MiniMax H3 Max is a next-generation general-purpose multimodal video model ranking #1 for overall quality, prompt understanding, and aesthetics in all evaluations, while generating a 5-second video in under 3 seconds.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["video-generation", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": [
+        "text-to-video",
+        "image-to-video",
+        "first-last-frame"
+      ],
+      "supported_resolutions": ["480p", "768p"],
+      "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "supported_durations_seconds": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "supported_fps": [24],
+      "max_sample_count": 1,
+      "input_limits": {
+        "image": {
+          "max_count": 2,
+          "max_file_size_mb": 30,
+          "supported_formats": ["jpg", "jpeg", "png", "webp", "heic", "heif"],
+          "supported_sources": ["url"],
+          "min_dimension_pixels": 256,
+          "max_dimension_pixels": 5760,
+          "min_aspect_ratio": "2:5",
+          "max_aspect_ratio": "5:2"
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.025"
+        },
+        {
+          "resolution": "768p",
+          "cost_per_second": "0.04"
+        },
+        {
+          "cost_per_second": "0.04"
         }
       ]
     }
@@ -8658,7 +9045,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "interleaved": true,
     "pricing": {
       "input": "0.0000003",
@@ -8790,14 +9176,14 @@
     "created": 1755815280,
     "released": 1773792000,
     "owned_by": "minimax",
-    "name": "Minimax M2.7",
+    "name": "MiniMax M2.7",
     "description": "M2.7 delivers outstanding performance in real-world software engineering, including end-to-end full project delivery, log analysis and bug troubleshooting, code security, machine learning, and more.",
     "context_window": 204800,
     "max_tokens": 131000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
-    "tags": ["tool-use", "reasoning", "implicit-caching", "free"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8833,7 +9219,7 @@
     "created": 1755815280,
     "released": 1773792000,
     "owned_by": "minimax",
-    "name": "Minimax M2.7 (Free)",
+    "name": "MiniMax M2.7 (Free)",
     "description": "M2.7 delivers outstanding performance in real-world software engineering, including end-to-end full project delivery, log analysis and bug troubleshooting, code security, machine learning, and more.",
     "context_window": 196608,
     "max_tokens": 196608,
@@ -8905,8 +9291,8 @@
     "owned_by": "minimax",
     "name": "MiniMax M3",
     "description": "MiniMax-M3 is a frontier-class foundation model that unites the three capabilities defining today's frontier: a 1M-token context window, frontier coding and agentic performance, and native multimodality — the first open-weight model to deliver all three in a single system.",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
+    "context_window": 512000,
+    "max_tokens": 512000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -8940,41 +9326,8 @@
     ],
     "pricing": {
       "input": "0.0000003",
-      "input_tiers": [
-        {
-          "cost": "0.0000003",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0.0000012",
-          "min": 512000
-        }
-      ],
       "output": "0.0000012",
-      "output_tiers": [
-        {
-          "cost": "0.0000012",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0.0000048",
-          "min": 512000
-        }
-      ],
       "input_cache_read": "0.00000006",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.00000006",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0.00000024",
-          "min": 512000
-        }
-      ],
       "varies_by_provider": true
     }
   },
@@ -9007,6 +9360,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "input_tiers": [
@@ -9706,7 +10064,7 @@
     "pricing": {
       "input": "0.00000095",
       "output": "0.000004",
-      "input_cache_read": "0.00000019",
+      "input_cache_read": "0.00000016",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000019",
@@ -9738,9 +10096,9 @@
     "tags": [
       "reasoning",
       "tool-use",
-      "implicit-caching",
-      "file-input",
       "vision",
+      "file-input",
+      "implicit-caching",
       "video-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -9762,8 +10120,7 @@
     "pricing": {
       "input": "0.0000019",
       "output": "0.000008",
-      "input_cache_read": "0.00000038",
-      "varies_by_provider": true
+      "input_cache_read": "0.00000038"
     }
   },
   {
@@ -9777,8 +10134,8 @@
     "context_window": 1000000,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
-    "no_training": "some",
+    "zdr": "all",
+    "no_training": "all",
     "tags": [
       "reasoning",
       "tool-use",
@@ -9855,6 +10212,12 @@
       "include_reasoning"
     ],
     "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000045",
       "output": "0.0000225",
@@ -9945,7 +10308,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.00000005",
       "output": "0.00000024"
@@ -10068,10 +10430,20 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1,
+        "max": 32768
+      }
+    ],
     "pricing": {
       "input": "0.00000005",
-      "output": "0.00000015",
-      "input_cache_read": "0.00000005",
+      "output": "0.0000002",
+      "input_cache_read": "0.00000001",
       "varies_by_provider": true
     }
   },
@@ -10109,7 +10481,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000006"
@@ -10149,7 +10520,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000023",
@@ -10719,6 +11089,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "deprecated_at": 1803600000000,
     "pricing": {
       "input": "0.00000125",
       "output": "0.000005",
@@ -10741,6 +11112,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "deprecated_at": 1803600000000,
     "pricing": {
       "input": "0.0000025",
       "output": "0.00001",
@@ -11124,7 +11496,7 @@
         "values": ["high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.000015",
       "output": "0.00012",
@@ -11173,7 +11545,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000125",
       "output": "0.00001",
@@ -11223,7 +11595,7 @@
         "values": ["low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000125",
       "output": "0.00001",
@@ -11273,7 +11645,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000025",
       "output": "0.000002",
@@ -11513,7 +11885,7 @@
         "values": ["low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.00000175",
       "output": "0.000014",
@@ -11565,7 +11937,7 @@
         "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.0000035",
       "output": "0.000028",
@@ -11608,7 +11980,7 @@
         "values": ["medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.000021",
       "output": "0.000168",
@@ -12443,14 +12815,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -12881,14 +13252,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -13306,14 +13676,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -13730,14 +14099,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -14069,6 +14437,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000006"
@@ -14754,6 +15128,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "deprecated_at": 1803600000000,
     "pricing": {
       "input": "0.0000000001",
       "transcription_duration_cost_per_second": "0.0001"
@@ -14916,6 +15291,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000002",
@@ -14951,6 +15331,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -15381,7 +15766,6 @@
       "tool_choice"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -15423,7 +15807,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -15466,12 +15849,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -15561,12 +15938,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -15964,12 +16335,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16059,12 +16424,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000002",
       "input_tiers": [
@@ -16801,9 +17160,9 @@
     "released": 1783296000,
     "owned_by": "tencent",
     "name": "Hy3",
-    "description": "Tencent Hy3 is an open-source Mixture-of-Experts (MoE) large language model developed by Tencent's Hunyuan team. It has 295B total parameters, 21B active parameters, a 3.8B-parameter MTP layer, and a 256K context window. Hy3 is designed for agentic workflows, coding, reasoning, long-context understanding, tool-use scenarios, document analysis, and structured generation.\n\nThe model improves on Hy3 Preview with stronger tool-call reliability, better output-format stability, improved long-context retention, and lower hallucination rates in Tencent's internal evaluations.",
-    "context_window": 256000,
-    "max_tokens": 128000,
+    "description": "Built for real-world business scenarios, Hy3 features a 295B/21B active MoE architecture, native 256K context support, and three reasoning modes. It enhances coding, long-form comprehension, multi-turn dialogue, and agentic task execution, balancing reliability, efficiency, and cost across both high-frequency interactions and complex workflows.",
+    "context_window": 262144,
+    "max_tokens": 262144,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -16823,11 +17182,58 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "high"]
+      }
+    ],
     "pricing": {
-      "input": "0.000000132",
-      "output": "0.000000528",
-      "input_cache_read": "0.000000033",
+      "input": "0.00000014",
+      "output": "0.00000058",
+      "input_cache_read": "0.000000035",
       "varies_by_provider": true
+    }
+  },
+  {
+    "id": "tencent/hy4-preview",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787875200,
+    "owned_by": "tencent",
+    "name": "Tencent Hy4 Preview",
+    "description": "Tencent Hy4 preview is Tencent Hy’s open-source large language model, featuring 770B total parameters, 49B active parameters, and a context window exceeding 1 million tokens. Built for real-world productivity, it supports long-horizon coding, cross-document analysis, office content creation, game development, and scientific reasoning, making it well-suited to complex agents and multi-step professional workflows.",
+    "context_window": 1024000,
+    "max_tokens": 64000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000000834",
+      "output": "0.000002501",
+      "input_cache_read": "0.000000042"
     }
   },
   {
@@ -16863,7 +17269,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "pricing": {
@@ -16900,6 +17306,7 @@
       "file-input",
       "implicit-caching"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16915,11 +17322,24 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000012",
       "input_cache_read": "0.0000001",
-      "varies_by_provider": true
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.0000005",
+          "output": "0.0000012",
+          "input_cache_read": "0.0000001"
+        }
+      }
     }
   },
   {
@@ -17271,6 +17691,47 @@
     }
   },
   {
+    "id": "xiaomi/mimo-v2.5-pro-ultraspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780876800,
+    "owned_by": "xiaomi",
+    "name": "MiMo V2.5 Pro UltraSpeed",
+    "description": "MiMo-V2.5-Pro-UltraSpeed is Xiaomi’s ultra-fast, text-based flagship reasoning model, pairing a trillion-parameter model with a 1,048,576-token context window and generation speeds of roughly 500–1,000 tokens per second. It supports deep thinking, tool calling, streaming output, and context caching, making it well suited to latency-sensitive coding agents, quantitative analysis, real-time risk control, and scientific workflows.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
+    "knowledge": "2024-12",
+    "pricing": {
+      "input": "0.000001305",
+      "output": "0.00000261",
+      "input_cache_read": "0.0000000108"
+    }
+  },
+  {
     "id": "zai/glm-4.5",
     "object": "model",
     "created": 1755815280,
@@ -17472,7 +17933,7 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-04",
     "interleaved": true,
     "pricing": {
       "input": "0.0000006",
@@ -17810,11 +18271,12 @@
     "name": "GLM 5.3",
     "description": "GLM 5.3 delivers comprehensive advancements in complex software engineering and agent capabilities. It uses the same base model as GLM-5.2, with all improvements driven by post-training.",
     "context_window": 1000000,
-    "max_tokens": 12800,
+    "max_tokens": 1000000,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -17830,10 +18292,24 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000014",
       "output": "0.0000044",
-      "input_cache_read": "0.00000026"
+      "input_cache_read": "0.00000014",
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.0000014",
+          "output": "0.0000044",
+          "input_cache_read": "0.00000014"
+        }
+      }
     }
   },
   {
@@ -17850,6 +18326,7 @@
     "zdr": "some",
     "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -17865,11 +18342,24 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000005",
       "input_cache_read": "0.00000003",
-      "varies_by_provider": true
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.00000015",
+          "output": "0.0000005",
+          "input_cache_read": "0.00000003"
+        }
+      }
     }
   },
   {

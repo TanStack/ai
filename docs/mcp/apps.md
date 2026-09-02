@@ -84,9 +84,12 @@ export const Route = createFileRoute('/api/chat')({
 
 Install the optional peer dependency:
 
-```bash
-pnpm add @mcp-ui/client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @mcp-ui/client
+preact: @mcp-ui/client
+
+<!-- ::end:tabs -->
 
 Then render each `ui-resource` part from the assistant message.
 
@@ -150,9 +153,12 @@ For widgets that need to call tools or send prompts back to the model, you wire 
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
+preact: @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
+
+<!-- ::end:tabs -->
 
 ### Server — the call handler route
 

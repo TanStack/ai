@@ -11,10 +11,31 @@ process restarts. `withPersistence` is a chat middleware that writes that
 state to a store you choose, so the server owns an authoritative copy of every
 thread.
 
-```bash
-pnpm add @tanstack/ai-persistence
-npx @tanstack/intent@latest install
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
+
+<!-- ::start:tabs variant="package-manager" mode="local-install" -->
+
+react: @tanstack/intent@latest install
+vue: @tanstack/intent@latest install
+solid: @tanstack/intent@latest install
+svelte: @tanstack/intent@latest install
+preact: @tanstack/intent@latest install
+angular: @tanstack/intent@latest install
+vanilla: @tanstack/intent@latest install
+octane: @tanstack/intent@latest install
+
+<!-- ::end:tabs -->
 
 The second command wires this package's [Agent Skills](../getting-started/agent-skills)
 into your coding assistant. Run it before you start, because the recipes read your

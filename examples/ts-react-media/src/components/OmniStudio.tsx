@@ -17,7 +17,7 @@ import type { MediaPromptPart } from '@tanstack/ai/client'
 import { generateVideoFn } from '@/lib/server-functions'
 import { readMediaFile, toImagePart, toVideoPart } from '@/lib/media'
 
-const OMNI_MODEL = 'gemini-omni-flash-preview'
+const OMNI_MODEL = 'gemini-omni-1.1-flash'
 /** Omni bills per second of generated video. */
 const PRICE_PER_SECOND = 0.1
 

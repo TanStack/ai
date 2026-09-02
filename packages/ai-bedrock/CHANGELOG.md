@@ -1,5 +1,29 @@
 # @tanstack/ai-bedrock
 
+## 0.3.5
+
+### Patch Changes
+
+- [#1300](https://github.com/TanStack/ai/pull/1300) [`d98a598`](https://github.com/TanStack/ai/commit/d98a598cf346f0fff9d4aa70c697c8153245743c) - Forward Bedrock Converse cache token counts to `TokenUsage`.
+
+  `cacheReadInputTokens` and `cacheWriteInputTokens` from the Converse `metadata.usage` event now land on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`, in `chatStream`, `structuredOutput`, and `structuredOutputStream`. Bedrock's `inputTokens` counts only the uncached part of the input, so without these fields a cached request looked like a near-zero-input call. Both fields are omitted when Bedrock omits them.
+
+- Updated dependencies [[`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc)]:
+  - @tanstack/ai@0.52.2
+  - @tanstack/openai-base@0.10.8
+
+## 0.3.4
+
+### Patch Changes
+
+- [#1278](https://github.com/TanStack/ai/pull/1278) [`c3d4376`](https://github.com/TanStack/ai/commit/c3d4376b96548c0224c003b7dd24a665f4c247be) - fix: forward usage from Converse structuredOutputStream()
+
+  `ConverseTextAdapter.structuredOutputStream()` iterated the Converse event stream without a `metadata` branch, so the trailing usage event was ignored and `RUN_FINISHED` carried no token counts on the streaming structured-output path. The normal chat path (`processConverseStream`) and the non-stream `structuredOutput()` already handled it; this brings the third path in line.
+
+- Updated dependencies [[`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd)]:
+  - @tanstack/ai@0.52.1
+  - @tanstack/openai-base@0.10.8
+
 ## 0.3.3
 
 ### Patch Changes

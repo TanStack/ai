@@ -89,26 +89,17 @@ Because memory runs on the server, its state is transported to the panel over th
 Client-visible state is emitted by the headless client. Server-only details, such as middleware and provider stream events that never exist on the client, are emitted from the server counterpart. Events include a source descriptor and stable envelope id so the panel can link related events and avoid displaying duplicates.
 
 ## Installation
-To use TanStack Devtools with TanStack AI, install the `@tanstack/react-ai-devtools` package:
 
-```bash
-npm install -D @tanstack/react-ai-devtools @tanstack/react-devtools
-```
+Install the matching Devtools package:
 
-Or the `@tanstack/solid-ai-devtools` package for SolidJS:
-```bash
-npm install -D @tanstack/solid-ai-devtools @tanstack/solid-devtools
-```
+<!-- ::start:tabs variant="package-manager" mode="dev-install" -->
 
-Or the `@tanstack/preact-ai-devtools` package for Preact:
-```bash
-npm install -D @tanstack/preact-ai-devtools @tanstack/preact-devtools
-```
+react: @tanstack/react-ai-devtools @tanstack/react-devtools
+solid: @tanstack/solid-ai-devtools @tanstack/solid-devtools
+preact: @tanstack/preact-ai-devtools @tanstack/preact-devtools
+svelte: @tanstack/svelte-ai-devtools @tanstack/svelte-devtools
 
-Or the `@tanstack/svelte-ai-devtools` package for Svelte:
-```bash
-npm install -D @tanstack/svelte-ai-devtools @tanstack/svelte-devtools
-```
+<!-- ::end:tabs -->
 
 ## Usage
 

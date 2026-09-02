@@ -21,9 +21,18 @@ keywords:
 
 ## Installation
 
-```bash
-pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vue: @tanstack/ai-mcp @modelcontextprotocol/sdk
+solid: @tanstack/ai-mcp @modelcontextprotocol/sdk
+svelte: @tanstack/ai-mcp @modelcontextprotocol/sdk
+preact: @tanstack/ai-mcp @modelcontextprotocol/sdk
+angular: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vanilla: @tanstack/ai-mcp @modelcontextprotocol/sdk
+octane: @tanstack/ai-mcp @modelcontextprotocol/sdk
+
+<!-- ::end:tabs -->
 
 ## Quick Start
 

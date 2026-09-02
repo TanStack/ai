@@ -13,6 +13,8 @@ keywords:
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.
+
+For a typed headless chat UI, see [React Chat UI](../ui/react).
 For React Native, the documented support surface is narrow: `useChat` with chat
 connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
 are not part of the React Native support surface.
@@ -22,9 +24,32 @@ For a complete native journey, see
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-react
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-react
+
+<!-- ::end:tabs -->
+
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```tsx
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { useChat } = createChatHook(chatOptions);
+
+function ChatScreen() {
+  const chat = useChat({ threadId: "support-1" });
+  return null;
+}
 ```
+
+`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound hook if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
 
 ## `useChat(options?)`
 

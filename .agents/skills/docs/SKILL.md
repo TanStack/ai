@@ -64,6 +64,36 @@ Before writing anything, find where docs live.
 4. Note which components the site already uses (steps, tabs, callouts, cards, accordions, code groups, and so on). Different sites have different ones.
 5. Reuse those components to tell the story. If the site has a steps component, use it for walkthroughs. If it has tabs, use them for framework variations. If the site has none, use plain markdown. Never invent a component the site does not have.
 
+### Package manager tabs
+
+Install commands use the site's package-manager tabs. Do not stack `npm` / `pnpm` / `yarn` in one fence.
+
+Core chat install (every framework):
+
+```md
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+```
+
+Rules:
+
+- A page that is already one framework lists only that framework's line.
+- A package that does not change by framework repeats the same packages on every framework line (`react` through `vanilla` and `octane`).
+- Octane's UI package is `@tanstack/ai-octane` plus the `octane` compiler package.
+- `mode="install"` is the default add. `mode="dev-install"` is `-D`. `mode="local-install"` is `npx` / `pnpx` / `yarn dlx` / `bunx`. `mode="custom"` is any other command shape (`install -g ...`).
+- Repeat a framework line to emit more than one command.
+- Do not use this for env files, sandbox `setup:` arrays, or a fence that mixes install with other commands. Split the install out, then leave the rest as a fence.
+
 If there is no page like the one you are about to write, read the closest one you can find and match it.
 
 ### What "match the neighbors" covers, and what it does not
@@ -386,6 +416,7 @@ Then run the `simple-english` self-check on the same added text.
 | "we chose Y over zod because..." / "X is no longer needed" | Cut the rejected alternative. Document only what shipped, no comparison. |
 | Warning readers not to do a thing they never knew was possible (e.g. "don't pass locks as a store") | Delete it. If they never saw the old arrangement, the warning only confuses. Describe the thing in its own terms. |
 | Inventing a component the site lacks | Use only components the site already has. |
+| Stacking `npm` / `pnpm` / `yarn` in one install fence | Use `<!-- ::start:tabs variant="package-manager" mode="install" -->`. |
 | Skipping the persona message because readers are obvious | Show the list. Stop. Obvious is not a skip. |
 | Skipping the tone question because neighbors have a voice | Neighbors are the proposed default. Ask. Then stop. |
 | Writing pages without loading simple-english and i-have-adhd | Load both. If either is missing, stop. |

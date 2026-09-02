@@ -1,4 +1,5 @@
 export { useChat } from './use-chat.tsrx'
+export { createChatHook } from './create-chat-hook'
 export { useRealtimeChat } from './use-realtime-chat.tsrx'
 export { useMcpAppBridge } from './use-mcp-app-bridge.tsrx'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge.tsrx'

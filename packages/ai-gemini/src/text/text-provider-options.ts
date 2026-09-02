@@ -222,7 +222,10 @@ Cyclic references are unrolled to a limited degree and, as such, may only be use
   responseJsonSchema?: Schema
 }
 
-export interface GeminiThinkingOptions {
+export interface GeminiThinkingOptions<
+  TThinkingLevel extends keyof typeof ThinkingLevel =
+    keyof typeof ThinkingLevel,
+> {
   /**
    * Config for thinking features. An error will be returned if this field is
    * set for models that don't support thinking.
@@ -248,7 +251,7 @@ export interface GeminiThinkingOptions {
      * The level of thoughts tokens that the model should generate
      * (Gemini 3.x and later).
      */
-    thinkingLevel?: keyof typeof ThinkingLevel
+    thinkingLevel?: TThinkingLevel
   }
 }
 

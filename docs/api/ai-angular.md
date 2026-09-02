@@ -19,9 +19,11 @@ Angular signal-based bindings for TanStack AI, providing convenient Angular bind
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-angular
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+angular: @tanstack/ai-angular
+
+<!-- ::end:tabs -->
 
 ## `injectChat(options?)`
 

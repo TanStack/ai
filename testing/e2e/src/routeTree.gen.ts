@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
+import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
+import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
@@ -38,6 +40,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
+import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-first-tool-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
@@ -114,6 +117,11 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
   path: '/tool-first-text',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TextFirstToolRoute = TextFirstToolRouteImport.update({
+  id: '/text-first-tool',
+  path: '/text-first-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
   id: '/persistence-durability',
   path: '/persistence-durability',
@@ -137,6 +145,11 @@ const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
 const InterruptsTestRoute = InterruptsTestRouteImport.update({
   id: '/interrupts-test',
   path: '/interrupts-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HeadlessUiRoute = HeadlessUiRouteImport.update({
+  id: '/headless-ui',
+  path: '/headless-ui',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenerationPersistenceServerRoute =
@@ -248,6 +261,11 @@ const ApiToolCallLifecycleWireRoute =
     path: '/api/tool-call-lifecycle-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiTextFirstToolWireRoute = ApiTextFirstToolWireRouteImport.update({
+  id: '/api/text-first-tool-wire',
+  path: '/api/text-first-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
@@ -580,11 +598,13 @@ export interface FileRoutesByFullPath {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -643,6 +663,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -671,11 +692,13 @@ export interface FileRoutesByTo {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -734,6 +757,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -763,11 +787,13 @@ export interface FileRoutesById {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -826,6 +852,7 @@ export interface FileRoutesById {
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -856,11 +883,13 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
@@ -919,6 +948,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
+    | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
@@ -947,11 +977,13 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
@@ -1010,6 +1042,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
+    | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
@@ -1038,11 +1071,13 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
     | '/websocket-adapter'
@@ -1101,6 +1136,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
+    | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-first-text-wire'
     | '/api/tools-test'
@@ -1130,11 +1166,13 @@ export interface RootRouteChildren {
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
+  HeadlessUiRoute: typeof HeadlessUiRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
@@ -1193,6 +1231,7 @@ export interface RootRouteChildren {
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiTextFirstToolWireRoute: typeof ApiTextFirstToolWireRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -1223,6 +1262,13 @@ declare module '@tanstack/react-router' {
       path: '/tool-first-text'
       fullPath: '/tool-first-text'
       preLoaderRoute: typeof ToolFirstTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/text-first-tool': {
+      id: '/text-first-tool'
+      path: '/text-first-tool'
+      fullPath: '/text-first-tool'
+      preLoaderRoute: typeof TextFirstToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistence-durability': {
@@ -1258,6 +1304,13 @@ declare module '@tanstack/react-router' {
       path: '/interrupts-test'
       fullPath: '/interrupts-test'
       preLoaderRoute: typeof InterruptsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/headless-ui': {
+      id: '/headless-ui'
+      path: '/headless-ui'
+      fullPath: '/headless-ui'
+      preLoaderRoute: typeof HeadlessUiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generation-persistence-server': {
@@ -1405,6 +1458,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tool-call-lifecycle-wire'
       fullPath: '/api/tool-call-lifecycle-wire'
       preLoaderRoute: typeof ApiToolCallLifecycleWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/text-first-tool-wire': {
+      id: '/api/text-first-tool-wire'
+      path: '/api/text-first-tool-wire'
+      fullPath: '/api/text-first-tool-wire'
+      preLoaderRoute: typeof ApiTextFirstToolWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/summarize': {
@@ -1903,11 +1963,13 @@ const rootRouteChildren: RootRouteChildren = {
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
+  HeadlessUiRoute: HeadlessUiRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
@@ -1966,6 +2028,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiTextFirstToolWireRoute: ApiTextFirstToolWireRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

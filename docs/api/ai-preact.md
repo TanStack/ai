@@ -16,9 +16,11 @@ Preact hooks for TanStack AI, providing convenient Preact bindings for the headl
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-preact
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+preact: @tanstack/ai-preact
+
+<!-- ::end:tabs -->
 
 ## `useChat(options?)`
 

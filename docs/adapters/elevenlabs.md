@@ -26,15 +26,33 @@ The realtime adapter uses an **agent-based architecture** where you configure yo
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-elevenlabs
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-elevenlabs
+vue: @tanstack/ai-elevenlabs
+solid: @tanstack/ai-elevenlabs
+svelte: @tanstack/ai-elevenlabs
+preact: @tanstack/ai-elevenlabs
+angular: @tanstack/ai-elevenlabs
+vanilla: @tanstack/ai-elevenlabs
+octane: @tanstack/ai-elevenlabs
+
+<!-- ::end:tabs -->
 
 Peer dependencies:
 
-```bash
-npm install @tanstack/ai @tanstack/ai-client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-client
+vue: @tanstack/ai @tanstack/ai-client
+solid: @tanstack/ai @tanstack/ai-client
+svelte: @tanstack/ai @tanstack/ai-client
+preact: @tanstack/ai @tanstack/ai-client
+angular: @tanstack/ai @tanstack/ai-client
+vanilla: @tanstack/ai @tanstack/ai-client
+octane: @tanstack/ai @tanstack/ai-client
+
+<!-- ::end:tabs -->
 
 ## Server Setup
 

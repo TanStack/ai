@@ -32,9 +32,18 @@ budget) is not yet wired, so only models that reason by default surface it.
 
 ## Installation
 
-```bash
-pnpm add @tanstack/ai-bedrock
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-bedrock
+vue: @tanstack/ai-bedrock
+solid: @tanstack/ai-bedrock
+svelte: @tanstack/ai-bedrock
+preact: @tanstack/ai-bedrock
+angular: @tanstack/ai-bedrock
+vanilla: @tanstack/ai-bedrock
+octane: @tanstack/ai-bedrock
+
+<!-- ::end:tabs -->
 
 No additional packages are required. SigV4 authentication is handled by `@aws-sdk/client-bedrock-runtime`, which is a direct dependency.
 
@@ -151,6 +160,10 @@ const adapter = createBedrockText(
   { region: 'us-west-2' },
 )
 ```
+
+### Token usage
+
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
 
 ## Chat Completions API (`api: 'chat'`)
 

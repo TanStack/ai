@@ -17,9 +17,18 @@ It does **not** ship a TanStack text adapter. Pair the search tool with a functi
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+vue: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+solid: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+svelte: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+preact: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+angular: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+vanilla: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+octane: @tanstack/ai @tanstack/ai-openai @tanstack/ai-perplexity
+
+<!-- ::end:tabs -->
 
 Set your API key (get one at <https://console.perplexity.ai/group/keys>):
 

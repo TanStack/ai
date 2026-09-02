@@ -25,9 +25,18 @@ keywords:
 
 If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.
 
-```bash
-pnpm add @tanstack/ai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai
+vue: @tanstack/ai
+solid: @tanstack/ai
+svelte: @tanstack/ai
+preact: @tanstack/ai
+angular: @tanstack/ai
+vanilla: @tanstack/ai
+octane: @tanstack/ai
+
+<!-- ::end:tabs -->
 
 ## Step 2: Run `intent install`
 

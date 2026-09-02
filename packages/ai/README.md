@@ -61,12 +61,8 @@ framework bindings as your app needs them.
 
 - [Overview](https://tanstack.com/ai/latest/docs/getting-started/overview) -
   what TanStack AI is and how the packages fit together.
-- [Quick Start: React](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
-  add streaming chat to a React app.
-- [Quick Start: Vue](https://tanstack.com/ai/latest/docs/getting-started/quick-start-vue) -
-  build with Vue composables.
-- [Quick Start: Svelte](https://tanstack.com/ai/latest/docs/getting-started/quick-start-svelte) -
-  build with Svelte 5 runes.
+- [Quick Start](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
+  add streaming chat. Pick your framework at the top of the page.
 - [Quick Start: Server Only](https://tanstack.com/ai/latest/docs/getting-started/quick-start-server) -
   use TanStack AI from a server endpoint, script, or backend service.
 - [TanStack AI vs Vercel AI SDK](https://tanstack.com/ai/latest/docs/comparison/vercel-ai-sdk) -
@@ -226,15 +222,15 @@ on.
 
 ## Framework Packages
 
-| Package                                                                    | What it provides                                                         |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client) | Headless chat, realtime, and generation clients                          |
-| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)   | React hooks including `useChat`, `useRealtimeChat`, and generation hooks |
-| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)   | Solid hooks for chat and generations                                     |
-| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)       | Vue composables for chat and generations                                 |
-| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte) | Svelte 5 factories for chat and generations                              |
-| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact) | Preact hooks for chat                                                    |
-| `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`    | Headless UI components for chat interfaces                               |
+| Package                                                                                           | What it provides                                                                                                                        |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client)                        | Headless chat, realtime, and generation clients                                                                                         |
+| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)                          | React hooks including `useChat`, `useRealtimeChat`, and generation hooks                                                                |
+| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)                          | Solid hooks for chat and generations                                                                                                    |
+| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)                              | Vue composables for chat and generations                                                                                                |
+| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte)                        | Svelte 5 factories for chat and generations                                                                                             |
+| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact)                        | Preact hooks for chat                                                                                                                   |
+| `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui` | Headless UI components for chat interfaces. `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` are deprecated. |
 
 ## Advanced Docs
 

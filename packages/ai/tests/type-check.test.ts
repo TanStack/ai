@@ -224,9 +224,15 @@ describe('TextActivityOptions type checking', () => {
       context: { userId: 'u-1', tenantId: 't-1' },
     })
 
-    expectTypeOf<NonNullable<typeof options.context>>().toEqualTypeOf<
-      ToolContext & MiddlewareContext
-    >()
+    // The returned `context` is required (not `... | undefined`): createChatOptions
+    // required it on input, so it must preserve that on output. If it were optional,
+    // this fails — `ToolContext & MiddlewareContext | undefined` does not extend the
+    // non-optional target.
+    expectTypeOf(options.context).toExtend<ToolContext & MiddlewareContext>()
+
+    // The regression this guards: the documented pattern of spreading the pre-built
+    // options into chat(), which requires a defined context for these typed consumers.
+    chat({ ...options, messages: [{ role: 'user', content: 'Hello' }] })
 
     createChatOptions({
       adapter: mockAdapter,

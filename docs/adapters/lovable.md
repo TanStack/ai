@@ -22,9 +22,18 @@ Lovable AI Gateway sits in front of Google and OpenAI models. You use one projec
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-lovable
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-lovable
+vue: @tanstack/ai-lovable
+solid: @tanstack/ai-lovable
+svelte: @tanstack/ai-lovable
+preact: @tanstack/ai-lovable
+angular: @tanstack/ai-lovable
+vanilla: @tanstack/ai-lovable
+octane: @tanstack/ai-lovable
+
+<!-- ::end:tabs -->
 
 ## Auth
 

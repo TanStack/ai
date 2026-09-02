@@ -60,6 +60,14 @@ export type {
 // having to add `@google/genai` to their own dependencies.
 export { HarmBlockThreshold, HarmCategory } from '@google/genai'
 
+// Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
+export {
+  uploadGeminiFile,
+  geminiVideoPart,
+  type GeminiUploadedFile,
+  type GeminiUploadFileOptions,
+} from './files/index'
+
 // Embedding adapter - for embedding vectors
 export {
   GeminiEmbeddingAdapter,
@@ -108,10 +116,13 @@ export {
   GEMINI_VIDEO_DURATIONS,
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
+  parseGeminiOmniVideoSize,
 } from './video/video-provider-options'
 export type {
   GeminiInteractionsVideoModel,
   GeminiOmniVideoProviderOptions,
+  GeminiOmniVideoResolution,
+  GeminiOmniVideoSize,
   GeminiVideoModel,
   GeminiVideoModelDurationByName,
   GeminiVideoModelInputModalitiesByName,
@@ -165,6 +176,7 @@ export type {
   GeminiImageMetadata,
   GeminiAudioMetadata,
   GeminiVideoMetadata,
+  GeminiVideoProcessing,
   GeminiDocumentMetadata,
   GeminiMessageMetadataByModality,
 } from './message-types'

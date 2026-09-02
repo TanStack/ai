@@ -62,9 +62,18 @@ mode per call.
 
 ### 1. Install the package
 
-```bash
-npm install @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic
+vue: @tanstack/ai-anthropic
+solid: @tanstack/ai-anthropic
+svelte: @tanstack/ai-anthropic
+preact: @tanstack/ai-anthropic
+angular: @tanstack/ai-anthropic
+vanilla: @tanstack/ai-anthropic
+octane: @tanstack/ai-anthropic
+
+<!-- ::end:tabs -->
 
 ### 2. Add the `codeExecutionTool` with skills
 
@@ -134,9 +143,18 @@ not support the shell tool.
 
 ### 1. Install the package
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ### 2. Add the `shellTool` with skills
 

@@ -13,18 +13,23 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-01"
         },
         {
-          "label": "Quick Start: React",
+          "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-22"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Quick Start: React Native",
           "to": "getting-started/quick-start-react-native",
           "addedAt": "2026-05-28"
+        },
+        {
+          "label": "Quick Start: Server Only",
+          "to": "getting-started/quick-start-server",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "Devtools",
@@ -33,37 +38,13 @@
           "updatedAt": "2026-08-21"
         },
         {
-          "label": "Quick Start: Vue",
-          "to": "getting-started/quick-start-vue",
-          "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Quick Start: Svelte",
-          "to": "getting-started/quick-start-svelte",
-          "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Quick Start: Angular",
-          "to": "getting-started/quick-start-angular",
-          "addedAt": "2026-06-15"
-        },
-        {
-          "label": "Quick Start: Octane",
-          "to": "getting-started/quick-start-octane",
-          "addedAt": "2026-08-21"
-        },
-        {
-          "label": "Quick Start: Server Only",
-          "to": "getting-started/quick-start-server",
-          "addedAt": "2026-04-15"
-        },
-        {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
           "addedAt": "2026-04-17",
           "updatedAt": "2026-08-23"
         }
-      ]
+      ],
+      "tab": "get-started"
     },
     {
       "label": "Comparison",
@@ -72,6 +53,89 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-19"
+        }
+      ],
+      "tab": "get-started"
+    },
+    {
+      "label": "Chat & Streaming",
+      "children": [
+        {
+          "label": "Streaming",
+          "to": "chat/streaming",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "Connection Adapters",
+          "to": "chat/connection-adapters",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "Stream Events",
+          "to": "chat/stream-events",
+          "addedAt": "2026-08-26"
+        },
+        {
+          "label": "Agentic Cycle",
+          "to": "chat/agentic-cycle",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
+        },
+        {
+          "label": "Message Queue",
+          "to": "chat/queueing",
+          "addedAt": "2026-08-26"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Structured Outputs",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Harness Agents",
+          "to": "structured-outputs/harnesses",
+          "addedAt": "2026-08-14",
           "updatedAt": "2026-08-19"
         }
       ]
@@ -84,24 +148,6 @@
           "to": "tools/tools",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-21"
-        },
-        {
-          "label": "Provider Tools",
-          "to": "tools/provider-tools",
-          "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "Provider Skills",
-          "to": "tools/provider-skills",
-          "addedAt": "2026-06-04",
-          "updatedAt": "2026-08-22"
-        },
-        {
-          "label": "Tool Architecture",
-          "to": "tools/tool-architecture",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-17"
         },
         {
           "label": "Server Tools",
@@ -122,92 +168,166 @@
           "updatedAt": "2026-07-24"
         },
         {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools",
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Provider Skills",
+          "to": "tools/provider-skills",
+          "addedAt": "2026-06-04",
+          "updatedAt": "2026-08-22"
+        },
+        {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-06-08"
-        }
-      ]
-    },
-    {
-      "label": "Skills",
-      "children": [
-        {
-          "label": "Portable Agent Skills",
-          "to": "skills/agent-skills",
-          "addedAt": "2026-08-22",
-          "updatedAt": "2026-08-23"
         },
         {
-          "label": "Skill Sources",
-          "to": "skills/skill-sources",
-          "addedAt": "2026-08-22"
-        },
-        {
-          "label": "Write a Skill Source",
-          "to": "skills/writing-adapters",
-          "addedAt": "2026-08-22"
-        }
-      ]
-    },
-    {
-      "label": "MCP",
-      "children": [
-        {
-          "label": "MCP Server Tools",
-          "to": "tools/mcp",
-          "addedAt": "2026-06-05",
-          "updatedAt": "2026-07-31"
-        },
-        {
-          "label": "Managed MCP with chat()",
-          "to": "tools/mcp-managed",
-          "addedAt": "2026-06-05"
-        },
-        {
-          "label": "Manual MCP",
-          "to": "tools/mcp-manual",
-          "addedAt": "2026-06-05"
-        },
-        {
-          "label": "MCP Type Generation",
-          "to": "tools/mcp-codegen",
-          "addedAt": "2026-06-05"
-        },
-        {
-          "label": "MCP Apps",
-          "to": "mcp/apps",
-          "addedAt": "2026-06-24",
-          "updatedAt": "2026-08-24"
-        }
-      ]
-    },
-    {
-      "label": "Chat & Streaming",
-      "children": [
-        {
-          "label": "Agentic Cycle",
-          "to": "chat/agentic-cycle",
+          "label": "Tool Architecture",
+          "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-17"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Middleware",
+      "children": [
+        {
+          "label": "Middleware",
+          "to": "advanced/middleware",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-27"
+        },
+        {
+          "label": "Built-in Middleware",
+          "to": "advanced/built-in-middleware",
+          "addedAt": "2026-06-03",
           "updatedAt": "2026-07-21"
         },
         {
-          "label": "Streaming",
-          "to": "chat/streaming",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-08-04"
         },
         {
-          "label": "Connection Adapters",
-          "to": "chat/connection-adapters",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "label": "OpenTelemetry",
+          "to": "advanced/otel",
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-08-08"
         },
         {
-          "label": "Thinking & Reasoning",
-          "to": "chat/thinking-content",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "label": "Compaction",
+          "to": "advanced/compaction",
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-08-27"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "UI",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "React",
+          "to": "ui/react",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Solid",
+          "to": "ui/solid",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Vue",
+          "to": "ui/vue",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Svelte",
+          "to": "ui/svelte",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Preact",
+          "to": "ui/preact",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Octane",
+          "to": "ui/octane",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Remix",
+          "to": "ui/remix",
+          "addedAt": "2026-09-01"
+        },
+        {
+          "label": "Angular",
+          "to": "ui/angular",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Custom Adapters",
+          "to": "ui/custom-adapters",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        }
+      ]
+    },
+    {
+      "label": "Chat UI Recipes",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "ui/recipes/index",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Chat with no tools",
+          "to": "ui/recipes/basic-chat",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Format a tool",
+          "to": "ui/recipes/format-a-tool",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Tool approval",
+          "to": "ui/recipes/tool-approval",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Custom interrupt",
+          "to": "ui/recipes/custom-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
+        },
+        {
+          "label": "Per-request context",
+          "to": "ui/recipes/request-context",
+          "tab": "guides",
+          "addedAt": "2026-08-31"
         }
       ]
     },
@@ -257,6 +377,61 @@
           "updatedAt": "2026-08-14"
         }
       ]
+    },
+    {
+      "label": "MCP",
+      "children": [
+        {
+          "label": "MCP Server Tools",
+          "to": "tools/mcp",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-31"
+        },
+        {
+          "label": "Managed MCP with chat()",
+          "to": "tools/mcp-managed",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "Manual MCP",
+          "to": "tools/mcp-manual",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Type Generation",
+          "to": "tools/mcp-codegen",
+          "addedAt": "2026-06-05"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-08-24"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Skills",
+      "children": [
+        {
+          "label": "Portable Agent Skills",
+          "to": "skills/agent-skills",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-08-23"
+        },
+        {
+          "label": "Skill Sources",
+          "to": "skills/skill-sources",
+          "addedAt": "2026-08-22"
+        },
+        {
+          "label": "Write a Skill Source",
+          "to": "skills/writing-adapters",
+          "addedAt": "2026-08-22"
+        }
+      ],
+      "tab": "guides"
     },
     {
       "label": "Resumable Streams",
@@ -381,97 +556,6 @@
       ]
     },
     {
-      "label": "Protocol",
-      "children": [
-        {
-          "label": "Event metadata",
-          "to": "protocol/metadata",
-          "addedAt": "2026-08-21"
-        },
-        {
-          "label": "Custom Events Reference",
-          "to": "protocol/custom-events",
-          "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-27"
-        }
-      ]
-    },
-    {
-      "label": "Structured Outputs",
-      "tab": "guides",
-      "children": [
-        {
-          "label": "Overview",
-          "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "One-Shot Extraction",
-          "to": "structured-outputs/one-shot",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
-        },
-        {
-          "label": "Streaming UIs",
-          "to": "structured-outputs/streaming",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "Multi-Turn Chat",
-          "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "With Tools",
-          "to": "structured-outputs/with-tools",
-          "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "Harness Agents",
-          "to": "structured-outputs/harnesses",
-          "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-19"
-        }
-      ]
-    },
-    {
-      "label": "Code Mode",
-      "children": [
-        {
-          "label": "Code Mode",
-          "to": "code-mode/code-mode",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-11"
-        },
-        {
-          "label": "Showing Code Mode in the UI",
-          "to": "code-mode/client-integration",
-          "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Code Mode with Snippets",
-          "to": "code-mode/code-mode-with-snippets",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
-        },
-        {
-          "label": "Code Mode Isolate Drivers",
-          "to": "code-mode/code-mode-isolates",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
-        },
-        {
-          "label": "Lazy Tools",
-          "to": "code-mode/lazy-tools",
-          "addedAt": "2026-06-08"
-        }
-      ]
-    },
-    {
       "label": "Media",
       "children": [
         {
@@ -520,7 +604,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-31"
         },
         {
           "label": "Generation Hooks",
@@ -528,7 +612,8 @@
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-20"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "Embeddings",
@@ -539,7 +624,8 @@
           "addedAt": "2026-07-10",
           "updatedAt": "2026-08-12"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "Reranking",
@@ -550,41 +636,42 @@
           "addedAt": "2026-06-25",
           "updatedAt": "2026-08-19"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
-      "label": "Middleware",
+      "label": "Code Mode",
       "children": [
         {
-          "label": "Middleware",
-          "to": "advanced/middleware",
+          "label": "Code Mode",
+          "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-06-11"
         },
         {
-          "label": "Built-in Middleware",
-          "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03",
-          "updatedAt": "2026-07-21"
+          "label": "Showing Code Mode in the UI",
+          "to": "code-mode/client-integration",
+          "addedAt": "2026-04-15"
         },
         {
-          "label": "Compaction",
-          "to": "advanced/compaction",
-          "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-27"
+          "label": "Code Mode with Snippets",
+          "to": "code-mode/code-mode-with-snippets",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-14"
         },
         {
-          "label": "Locks",
-          "to": "advanced/locks",
-          "addedAt": "2026-08-04"
+          "label": "Code Mode Isolate Drivers",
+          "to": "code-mode/code-mode-isolates",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-13"
         },
         {
-          "label": "OpenTelemetry",
-          "to": "advanced/otel",
-          "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-08"
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "Sandboxes",
@@ -838,93 +925,8 @@
           "addedAt": "2026-04-15",
           "updatedAt": "2026-07-21"
         }
-      ]
-    },
-    {
-      "label": "Migration",
-      "children": [
-        {
-          "label": "Migration Guide",
-          "to": "migration/migration",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
-        },
-        {
-          "label": "From Vercel AI SDK",
-          "to": "migration/migration-from-vercel-ai",
-          "addedAt": "2026-04-20",
-          "updatedAt": "2026-08-19"
-        },
-        {
-          "label": "AG-UI Client Compliance",
-          "to": "migration/ag-ui-compliance",
-          "addedAt": "2026-05-16",
-          "updatedAt": "2026-08-21"
-        },
-        {
-          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
-          "to": "migration/sampling-options-to-model-options",
-          "addedAt": "2026-06-03"
-        }
-      ]
-    },
-    {
-      "label": "API",
-      "children": [
-        {
-          "label": "@tanstack/ai",
-          "to": "api/ai",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
-        },
-        {
-          "label": "@tanstack/ai-client",
-          "to": "api/ai-client",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-react",
-          "to": "api/ai-react",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-solid",
-          "to": "api/ai-solid",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-preact",
-          "to": "api/ai-preact",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-vue",
-          "to": "api/ai-vue",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-svelte",
-          "to": "api/ai-svelte",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-angular",
-          "to": "api/ai-angular",
-          "addedAt": "2026-06-15",
-          "updatedAt": "2026-08-24"
-        },
-        {
-          "label": "@tanstack/ai-octane",
-          "to": "api/ai-octane",
-          "addedAt": "2026-08-21"
-        }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "Adapters",
@@ -945,7 +947,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-02"
         },
         {
           "label": "Google Vertex AI",
@@ -1062,7 +1064,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-09-02"
         },
         {
           "label": "BytePlus",
@@ -1070,7 +1072,8 @@
           "addedAt": "2026-08-04",
           "updatedAt": "2026-08-21"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "Community Adapters",
@@ -1108,6 +1111,122 @@
           "addedAt": "2026-04-15"
         }
       ]
+    },
+    {
+      "label": "Migration",
+      "children": [
+        {
+          "label": "Migration Guide",
+          "to": "migration/migration",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Chat UI packages",
+          "to": "migration/create-ui",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "From Vercel AI SDK",
+          "to": "migration/migration-from-vercel-ai",
+          "addedAt": "2026-04-20",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "AG-UI Client Compliance",
+          "to": "migration/ag-ui-compliance",
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-08-21"
+        },
+        {
+          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
+          "to": "migration/sampling-options-to-model-options",
+          "addedAt": "2026-06-03"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "API",
+      "children": [
+        {
+          "label": "@tanstack/ai",
+          "to": "api/ai",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
+        },
+        {
+          "label": "@tanstack/ai-client",
+          "to": "api/ai-client",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-react",
+          "to": "api/ai-react",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-solid",
+          "to": "api/ai-solid",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-preact",
+          "to": "api/ai-preact",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-vue",
+          "to": "api/ai-vue",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-svelte",
+          "to": "api/ai-svelte",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-angular",
+          "to": "api/ai-angular",
+          "addedAt": "2026-06-15",
+          "updatedAt": "2026-08-24"
+        },
+        {
+          "label": "@tanstack/ai-octane",
+          "to": "api/ai-octane",
+          "addedAt": "2026-08-21"
+        },
+        {
+          "label": "@tanstack/ai-remix",
+          "to": "api/ai-remix",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
+        }
+      ]
+    },
+    {
+      "label": "Protocol",
+      "children": [
+        {
+          "label": "Event metadata",
+          "to": "protocol/metadata",
+          "addedAt": "2026-08-21"
+        },
+        {
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-08-27"
+        }
+      ],
+      "tab": "api"
     },
     {
       "label": "Class References",

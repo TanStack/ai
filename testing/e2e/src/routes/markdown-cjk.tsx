@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { TextPart } from '@tanstack/ai-react-ui'
+import { TextPart } from '@tanstack/ai-react/ui'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 
 export const Route = createFileRoute('/markdown-cjk')({

@@ -1,5 +1,35 @@
 # @tanstack/ai-react
 
+## 0.23.0
+
+### Minor Changes
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Chat UI now lives on the framework packages at `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`.
+
+  `createChatHook` registers widgets in named groups and returns `useAppChat` (Svelte: `createAppChat`) and `useChatContext`. `useAppChat()` mixes `AppChat` onto the instance, so you render `<chat.AppChat />`.
+
+  ```tsx
+  const { useAppChat, useChatContext } = createChatHook({
+    options: chatOptions,
+    context: { chatContext, partContext, interruptContext },
+    components: { input: ChatInput, layout: ChatLayout, message: ChatMessage },
+    toolsComponents: { getWeather: WeatherTool },
+    interruptsComponents: { generic: { choosePlan: ChoosePlan } },
+    partsComponents: { text: TextPart, fallback: FallbackPart },
+  })
+  ```
+
+  `layout` receives `Messages`, `Interrupts`, and `Input` as components, and `message` receives `Parts`. `Input` is on the props only when the config registers an `input`.
+
+  `createChatUI` takes the same groups as its second argument for manual traversal.
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Add typed headless `createChatUI()` adapters on `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`. Chat options control the types of message parts, tools, structured output, and interrupts. `toolsComponents` requires a component for every tool name, and `interruptsComponents.generic` one for every registered interrupt id. `InterruptProps` pins a tool approval or a registered generic interrupt. Old Chat orchestration stays importable and deprecated until 1.0.
+
+### Patch Changes
+
+- Updated dependencies [[`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae)]:
+  - @tanstack/ai-client@0.30.0
+
 ## 0.22.4
 
 ### Patch Changes

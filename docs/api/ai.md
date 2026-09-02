@@ -17,9 +17,18 @@ The core AI library for TanStack AI.
 
 ## Installation
 
-```bash
-npm install @tanstack/ai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai
+vue: @tanstack/ai
+solid: @tanstack/ai
+svelte: @tanstack/ai
+preact: @tanstack/ai
+angular: @tanstack/ai
+vanilla: @tanstack/ai
+octane: @tanstack/ai
+
+<!-- ::end:tabs -->
 
 ## `chat(options)`
 

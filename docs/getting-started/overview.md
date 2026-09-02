@@ -34,6 +34,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
+- **Remix 3** - Controllers return SSE. Call `createChat` in a `clientEntry` island
 - **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
 - **Express** - Node.js server
 - **React Router v7** - Loaders and actions
@@ -129,7 +130,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 
 ## Next Steps
 
-- [Quick Start Guide](./quick-start) - Get up and running in minutes
+- [Quick Start](./quick-start) - Add streaming chat. Pick your framework at the top of the page.
 - [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

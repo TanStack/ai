@@ -1,5 +1,39 @@
 # @tanstack/ai-gemini
 
+## 0.28.0
+
+### Minor Changes
+
+- [#1301](https://github.com/TanStack/ai/pull/1301) [`307b7ec`](https://github.com/TanStack/ai/commit/307b7ec285e60f4a1b9a6c03345130ec9bb93356) - Add Gemini 3.8 Flash (`gemini-3.8-flash`) with multimodal input, thinking, structured output, caching, built-in tools, and agentic video understanding.
+
+  Limit its thinking levels to low, medium, and high in both the standard and Interactions adapters.
+
+### Patch Changes
+
+- Updated dependencies [[`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc)]:
+  - @tanstack/ai@0.52.2
+
+## 0.27.0
+
+### Minor Changes
+
+- [#1294](https://github.com/TanStack/ai/pull/1294) [`4964221`](https://github.com/TanStack/ai/commit/49642217ca1efa521773643036ab9480720ad63a) - Add agentic video understanding to the Gemini text adapter.
+
+  Set `metadata.processing: 'agentic'` on a video content part to route the request through the Gemini Interactions API for multi-pass "agentic" video understanding (GA on `gemini-3.7-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`). Omit it for the default single-pass `generateContent` sampling. New `uploadGeminiFile()` and `geminiVideoPart()` helpers cover the Files API upload + poll-until-ACTIVE flow, and the three models now carry an `agentic_video` capability.
+
+## 0.26.5
+
+### Patch Changes
+
+- [#1259](https://github.com/TanStack/ai/pull/1259) [`845696b`](https://github.com/TanStack/ai/commit/845696b00dab158821ef12fc6062aa0f93c6e30e) - Send Gemini function tool inputs through `parametersJsonSchema` so complete JSON Schema keywords reach the provider.
+
+- [#1273](https://github.com/TanStack/ai/pull/1273) [`9c9746b`](https://github.com/TanStack/ai/commit/9c9746bd4bbe94198ebd973b12fedfbdb9fdb231) - Add Gemini Omni 1.1 Flash (`gemini-omni-1.1-flash`) as the GA Interactions video model.
+
+  `geminiVideo('gemini-omni-1.1-flash')` uses the existing Interactions video path. `gemini-omni-flash-preview` stays as a deprecated alias until it shuts down on 2026-09-30. Omni `size` is an `aspectRatio_resolution` template (`'16:9'` or `'16:9_1080p'`) that maps onto `response_format.aspect_ratio` and `response_format.resolution` (`360p` | `720p` | `1080p` | `4k`, default 720p). Duration stays 3–10 seconds per call.
+
+- Updated dependencies [[`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd)]:
+  - @tanstack/ai@0.52.1
+
 ## 0.26.4
 
 ### Patch Changes

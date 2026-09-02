@@ -29,9 +29,18 @@ already-resolved tool-call events your UI can render.
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-grok-build @tanstack/ai-sandbox
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-grok-build @tanstack/ai-sandbox
+vue: @tanstack/ai-grok-build @tanstack/ai-sandbox
+solid: @tanstack/ai-grok-build @tanstack/ai-sandbox
+svelte: @tanstack/ai-grok-build @tanstack/ai-sandbox
+preact: @tanstack/ai-grok-build @tanstack/ai-sandbox
+angular: @tanstack/ai-grok-build @tanstack/ai-sandbox
+vanilla: @tanstack/ai-grok-build @tanstack/ai-sandbox
+octane: @tanstack/ai-grok-build @tanstack/ai-sandbox
+
+<!-- ::end:tabs -->
 
 You also need a sandbox provider (e.g. `@tanstack/ai-sandbox-docker`) and the
 `grok` CLI available inside the sandbox image.
