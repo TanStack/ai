@@ -41,14 +41,47 @@ export function isInteractionsVideoModel(
 }
 
 /**
- * Supported aspect ratios for Gemini video generation. This is the `size`
- * value for the Gemini video adapter — both Veo and Omni Flash express
- * output shape as an aspect ratio (plus an optional `resolution` in Veo's
- * `modelOptions`), not pixel dimensions.
+ * Aspect ratios for Gemini video generation. Veo `size` is this union.
+ * Omni `size` also accepts an `aspectRatio_resolution` suffix
+ * (`'16:9_1080p'`), same template as grok / byteplus video.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GeminiVideoSize = '16:9' | '9:16'
+
+/**
+ * Omni Flash output resolution. Used as the optional suffix on `size`
+ * (`'16:9_1080p'`). Default 720p when omitted.
+ *
+ * @experimental Omni video generation is an experimental feature and may change.
+ */
+export type GeminiOmniVideoResolution = '360p' | '720p' | '1080p' | '4k'
+
+/**
+ * Omni Flash `size`: bare aspect ratio or `aspectRatio_resolution`.
+ *
+ * @experimental Omni video generation is an experimental feature and may change.
+ */
+export type GeminiOmniVideoSize =
+  | GeminiVideoSize
+  | `${GeminiVideoSize}_${GeminiOmniVideoResolution}`
+
+/**
+ * Splits an Omni `size` into aspect ratio and optional resolution.
+ * `'16:9_1080p'` → `{ aspectRatio: '16:9', resolution: '1080p' }`.
+ * `'9:16'` → `{ aspectRatio: '9:16' }`.
+ */
+export function parseGeminiOmniVideoSize(
+  size: string,
+): { aspectRatio: string; resolution?: string } | undefined {
+  const match = /^(\d+:\d+)(?:_(.+))?$/.exec(size)
+  const [, aspectRatio, resolution] = match ?? []
+  if (aspectRatio === undefined) return undefined
+  return {
+    aspectRatio,
+    ...(resolution !== undefined && { resolution }),
+  }
+}
 
 /**
  * Provider-specific options for Gemini Veo video generation.
@@ -85,7 +118,9 @@ export type GeminiVideoProviderOptions = Omit<
  *   and polls it through the `generateVideo` jobs API
  * - `response_modalities` / `response_format` — the adapter requests video
  *   output and maps the top-level `size` option onto
- *   `response_format.aspect_ratio`
+ *   `response_format.aspect_ratio` (and `response_format.resolution` when
+ *   the size carries a suffix) and `duration` onto
+ *   `response_format.duration`
  * - `tools` / `response_mime_type` — not applicable to video generation
  *
  * Notable passthroughs:
@@ -121,12 +156,15 @@ export type GeminiVideoModelProviderOptionsByName = {
 }
 
 /**
- * Model-specific size (aspect ratio) mapping.
+ * Model-specific size mapping. Veo is aspect ratio only. Omni accepts the
+ * `aspectRatio_resolution` template (`'16:9_1080p'`).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GeminiVideoModelSizeByName = {
-  [TModel in GeminiVideoModel]: GeminiVideoSize
+  [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
+    ? GeminiOmniVideoSize
+    : GeminiVideoSize
 }
 
 /**
@@ -156,6 +194,7 @@ export type GeminiVideoModelDurationByName = {
   'veo-3.1-generate-preview': 4 | 6 | 8
   'veo-3.1-fast-generate-preview': 4 | 6 | 8
   'veo-3.1-lite-generate-preview': 4 | 6 | 8
+  'gemini-omni-1.1-flash': number
   'gemini-omni-flash-preview': number
 }
 
@@ -182,6 +221,12 @@ export const GEMINI_VIDEO_DURATIONS: {
   'veo-3.1-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'gemini-omni-1.1-flash': {
+    kind: 'range',
+    min: 3,
+    max: 10,
+    unit: 'seconds',
+  },
   'gemini-omni-flash-preview': {
     kind: 'range',
     min: 3,

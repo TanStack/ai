@@ -154,6 +154,23 @@ export function createTextAdapter(
     })
   }
 
+  // Agentic video understanding uses the standard Gemini chat adapter, but a
+  // video part with metadata.processing:'agentic' makes it route through the
+  // Interactions API (POST /v1beta/interactions). aimock defaults that endpoint
+  // to streaming SSE, which the non-streaming interactions.create() can't read,
+  // so this feature gets a dedicated mount prefix that returns a completed JSON
+  // interaction. Keeps stateful-interactions on the native handler untouched.
+  if (provider === 'gemini' && feature === 'video-understanding') {
+    return createChatOptions({
+      adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
+        httpOptions: {
+          baseUrl: `${base}/vu-interactions`,
+          headers: testHeaders,
+        },
+      }),
+    })
+  }
+
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
       createChatOptions({

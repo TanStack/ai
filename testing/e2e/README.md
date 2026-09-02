@@ -38,6 +38,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | tts                      | 3         | `tests/tts.spec.ts`                      |
 | transcription            | 3         | `tests/transcription.spec.ts`            |
 | audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
+| video-understanding      | 1         | `tests/video-understanding.spec.ts`      |
 
 ### Tools-test page
 

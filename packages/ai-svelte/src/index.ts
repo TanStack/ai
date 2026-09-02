@@ -1,4 +1,5 @@
 export { createChat } from './create-chat.svelte'
+export { createChatHook } from './create-chat-hook'
 export { createByok } from './create-byok.svelte'
 export type {
   CreateChatOptions,

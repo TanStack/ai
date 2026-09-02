@@ -465,6 +465,11 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   // byteplus excluded for the same reason: Ark's chat endpoint is stateless.
   'stateful-interactions': new Set(['gemini']),
+  // Gemini-only. Agentic video understanding: a video content part with
+  // metadata.processing: 'agentic' makes geminiText route through the
+  // Interactions API (aimock serves synchronous text interactions natively;
+  // it extracts the text prompt and ignores the video block when matching).
+  'video-understanding': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

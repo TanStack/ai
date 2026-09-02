@@ -14,6 +14,7 @@ interface ModelMeta<TProviderOptions = unknown> {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<
+      | 'agentic_video'
       | 'audio_generation'
       | 'batch_api'
       | 'caching'
@@ -807,11 +808,44 @@ const VEO_3_1_LITE_PREVIEW = {
 >
 
 /**
- * Gemini Omni Flash — multimodal video generation with conversational
- * editing. Serves only the Interactions API (`generateContent` rejects it),
- * so it routes through the interactions-based path of the video adapter,
- * not Veo's `:predictLongRunning` flow. Pricing is per second of generated
- * video ($0.10/sec). 720p / 24 FPS, 3–10 second clips (default 10s).
+ * Gemini Omni 1.1 Flash — GA. Multimodal video generation with
+ * conversational editing. Serves only the Interactions API
+ * (`generateContent` rejects it), so it routes through the
+ * interactions-based path of the video adapter, not Veo's
+ * `:predictLongRunning` flow. Pricing is per second of generated video
+ * ($0.10/sec). 360p / 720p (default) / 1080p / 4k at 24 FPS, 3–10 second
+ * clips (default 10s).
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
+ * @experimental Omni video generation is an experimental feature and may change.
+ */
+const GEMINI_OMNI_1_1_FLASH = {
+  name: 'gemini-omni-1.1-flash',
+  max_input_tokens: 1_048_576,
+  max_output_tokens: 1,
+  supports: {
+    input: ['text', 'image', 'video'],
+    output: ['video', 'audio'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.1,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
+/**
+ * @deprecated `gemini-omni-flash-preview` shuts down on 2026-09-30. Use the
+ * GA id `gemini-omni-1.1-flash` instead. Kept in the model union so existing
+ * code still compiles until shutdown.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
  * @experimental Omni video generation is an experimental feature and may change.
  */
 const GEMINI_OMNI_FLASH_PREVIEW = {
@@ -846,6 +880,7 @@ const GEMINI_3_7_FLASH = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
@@ -890,6 +925,7 @@ const GEMINI_3_6_FLASH = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
@@ -973,6 +1009,7 @@ const GEMINI_3_5_FLASH_LITE = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
@@ -1143,15 +1180,19 @@ export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3_1_LITE_PREVIEW.name,
+  GEMINI_OMNI_1_1_FLASH.name,
+  // Deprecated alias — shuts down 2026-09-30.
   GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
  * Video models served by the Interactions API rather than Veo's
- * `:predictLongRunning` operations flow.
+ * `:predictLongRunning` operations flow. GA id first; the trailing
+ * `-preview` id is a shutdown alias kept so existing code compiles.
  * @experimental Omni video generation is an experimental feature and may change.
  */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
+  GEMINI_OMNI_1_1_FLASH.name,
   GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 

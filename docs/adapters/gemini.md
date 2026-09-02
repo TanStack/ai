@@ -129,6 +129,53 @@ export async function POST(request: Request) {
 }
 ```
 
+## Video Understanding
+
+Ask questions about a video: "what happens at 0:30?", "summarize the demo", "list every product shown". Upload the file once, then chat about it.
+
+Video is too large to inline as base64, so upload it to the Gemini Files API first. `uploadGeminiFile()` uploads the file and waits until it is ready to use. `geminiVideoPart()` turns that upload into a message content part.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { geminiText, uploadGeminiFile, geminiVideoPart } from "@tanstack/ai-gemini";
+
+export async function POST(request: Request) {
+  const file = await uploadGeminiFile("./demo.mp4", { mimeType: "video/mp4" });
+
+  const stream = chat({
+    adapter: geminiText("gemini-3.7-flash"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", content: "Summarize this video and cite timestamps." },
+          geminiVideoPart(file),
+        ],
+      },
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+By default Gemini samples the video at 1 frame per second. Tune that single-pass sampling through the part metadata:
+
+```typescript ignore
+// Watch a 30s-90s clip at half a frame per second.
+geminiVideoPart(file, { fps: 0.5, startOffset: "30s", endOffset: "90s" });
+```
+
+### Agentic understanding
+
+Single-pass sampling can miss detail in long or fast-moving videos. Set `processing: "agentic"` to let the model drive: it navigates the timeline and pulls frames, transcripts, and audio on demand. This is GA on `gemini-3.7-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`.
+
+```typescript ignore
+geminiVideoPart(file, { processing: "agentic" });
+```
+
+With `agentic`, the adapter routes the request through Gemini's Interactions API, and you express the sampling rate in your prompt ("watch it at 2 fps") instead of through `fps`. It is deeper but slower, since it re-analyzes the video on each turn.
+
 ## Stateful Conversations — Interactions API (Experimental)
 
 Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) (currently in Beta) offers server-side conversation state — the Gemini equivalent of OpenAI's Responses API. Instead of replaying the full message history on every turn, you pass a `previous_interaction_id` and the server retains the transcript. This also improves cache hit rates for repeated prefixes.

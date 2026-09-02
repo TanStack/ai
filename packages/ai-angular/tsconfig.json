@@ -7,7 +7,10 @@
     "experimentalDecorators": false,
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@tanstack/ai-angular": ["./src/index.ts"]
+    }
   },
-  "include": ["src", "tests"]
+  "include": ["src", "ui/src", "tests"]
 }

@@ -1,0 +1,627 @@
+---
+title: React Chat UI
+id: typed-headless-ui-react
+order: 1
+description: "Build a typed, headless React chat UI with createChatHook. Your chat options control the types of tools, parts, and interrupts."
+keywords:
+  - tanstack ai
+  - createChatHook
+  - react
+  - headless ui
+  - useAppChat
+  - ToolProps
+---
+
+Install `@tanstack/ai-react`. Import the UI factory from `@tanstack/ai-react/ui`. Call `createChatHook({ options, ...components })` once at module scope. This matches Form `createFormHook` and Table `createTableHook`: widgets register on the factory, mix onto Part / Interrupt / Input, and automatic dispatch still walks the message list.
+
+> **Deprecated.** Do not install `@tanstack/ai-react-ui`. That package re-exports this subpath until 1.0.0. See [Chat UI packages](../migration/create-ui).
+
+The factory returns `useAppChat` and `useChatContext`. Call `useAppChat()` in the screen to create the instance. Render `<chat.AppChat />`. Call `useChatContext()` inside a mapped component when it needs live chat. That value is the instance that `chat.AppChat` provides.
+
+You supply every visible component. There is no default markup, style, or copy.
+
+The factory needs a `toolsComponents` entry for every tool name in `chatOptions`. It also needs an `interruptsComponents.generic` entry for every interrupt id. `generic.fallback` is optional.
+
+Want a smaller starting point? The [chat UI recipes](./recipes/index) build one thing at a time, from a plain chat box up to per-request context.
+
+## Server
+
+```ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const json: unknown = await request.json()
+  if (typeof json !== 'object' || json === null || !('messages' in json)) {
+    return new Response('Invalid body', { status: 400 })
+  }
+  const messages = json.messages
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages: Array.isArray(messages) ? messages : [],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+## Client
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
+import { defineInterrupt, toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
+
+const purchaseItem = toolDefinition({
+  name: 'purchaseItem',
+  description: 'Buy an item',
+  needsApproval: true,
+  inputSchema: z.object({ item: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+}).client()
+
+const choosePlan = defineInterrupt({
+  id: 'choosePlan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string(),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather, purchaseItem],
+  interrupts: [choosePlan],
+  outputSchema: z.object({ answer: z.string() }),
+}
+
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  components: {
+  layout: function Layout({ Messages, Interrupts, Input, Queue }) {
+    const chat = useChatContext()
+    if (chat.error) return <p>{chat.error.message}</p>
+    if (chat.isLoading && chat.messages.length === 0) return <p>Loading</p>
+    if (chat.messages.length === 0) return <p>Empty</p>
+    return (
+      <main>
+        <Messages />
+        <Interrupts />
+        <Queue />
+        <Input />
+      </main>
+    )
+  },
+  message: function Message({ message, Parts }) {
+    return <article data-role={message.role}><Parts /></article>
+  },
+  input: function Input() {
+    const chat = useChatContext()
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const form = event.currentTarget
+          const field = form.elements.namedItem('message')
+          if (!(field instanceof HTMLInputElement)) return
+          void chat.sendMessage(field.value)
+          field.value = ''
+        }}
+      >
+        <input name="message" />
+        <button type="submit">Send</button>
+      </form>
+    )
+  },
+  queue: function QueueItem({ item }) {
+    const label = typeof item.content === 'string' ? item.content : 'Queued'
+    return (
+      <div>
+        {label}
+        <button type="button" onClick={() => item.cancelQueued()}>
+          Cancel
+        </button>
+      </div>
+    )
+  },
+  },
+  partsComponents: {
+  text: ({ part }) => <p>{part.content}</p>,
+  structuredOutput: ({ part }) => <pre>{part.raw}</pre>,
+  toolResult: ({ part }) => <em>{String(part.content)}</em>,
+  fallback: ({ part }) => <span>{part.type}</span>,
+  },
+  toolsComponents: {
+  getWeather: ({ part, result }) => {
+    if (part.state === 'awaiting-input') return <p>Waiting</p>
+    if (part.state === 'input-streaming') return <p>Streaming input</p>
+    if (part.state === 'input-complete') return <p>{part.input?.city}</p>
+    if (part.state === 'approval-requested') return <p>Need approval</p>
+    if (part.state === 'approval-responded') return <p>Responded</p>
+    if (part.state === 'error') return <p>Error</p>
+    return (
+      <p>
+        {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
+      </p>
+    )
+  },
+  purchaseItem: ({ part, interrupt }) => (
+    <div>
+      {part.input?.item}
+      {interrupt?.status === 'pending' ? (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ) : null}
+    </div>
+  ),
+  },
+  interruptsComponents: {
+  generic: {
+    choosePlan: ({ interrupt }) => (
+      <button onClick={() => interrupt.resolveInterrupt('approved')}>
+        {interrupt.payload?.title ?? 'Choose plan'}
+      </button>
+    ),
+    fallback: ({ interrupt }) => <p>{interrupt.reason}</p>,
+  },
+  },
+})
+
+export function Support() {
+  const chat = useAppChat({ threadId: 'support-1' })
+  return <chat.AppChat />
+}
+
+export function Sidebar() {
+  const chat = useAppChat({ threadId: 'sidebar' })
+  return <chat.AppChat />
+}
+```
+
+`<Queue />` maps pending sends. Register `queue` on `components`. Each item has `cancelQueued()` bound, so you do not pass the id. Type a queue item with `QueueProps<typeof chatOptions>`.
+
+`layout` receives `Messages`, `Interrupts`, `Queue`, and `Input` as components. Render them as `<Messages />`, not as calls. `Input` is only on the props when the config registers an `input`, so rendering an input you never registered is a compile error instead of a silent no-op.
+
+> **List `input` before `layout`.** When `input` is an inline `function` expression written *after* `layout`, TypeScript cannot yet tell that an input is registered, and `Input` goes missing from the layout props. Putting `input` first fixes it; so does using an arrow or a named reference. If it does slip through, rendering `<Input />` without a registered `input` warns once in development rather than failing silently.
+
+## Type a component in its own file
+
+A tool map grows fast. Move a tool into its own file and type the props with `ToolProps`.
+
+`ToolProps` takes your `chatOptions` type and the tool name. Then `part.input` and `part.output` stay exact.
+
+Part components work the same way. `PartProps<typeof chatOptions, 'text'>` already has a text part. You do not check `part.type`. Use `'structuredOutput'`, `'thinking'`, `'toolResult'`, and the other keys from the `partsComponents` map. `fallback` still sees every part type.
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook, type PartProps, type ToolProps } from '@tanstack/ai-react/ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather],
+}
+
+export function WeatherTool({
+  part,
+  result,
+}: ToolProps<typeof chatOptions, 'getWeather'>) {
+  if (part.state === 'awaiting-input') return <p>Waiting</p>
+  if (part.state === 'input-streaming') return <p>Streaming input</p>
+  if (part.state === 'error') return <p>Error</p>
+  return (
+    <p>
+      {part.input?.city}: {String(part.output?.temperature ?? result?.content)}
+    </p>
+  )
+}
+
+export function TextPart({ part }: PartProps<typeof chatOptions, 'text'>) {
+  return <p>{part.content}</p>
+}
+
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { text: TextPart, fallback: () => null },
+  toolsComponents: { getWeather: WeatherTool },
+})
+```
+
+1. Put `chatOptions` in a shared module.
+2. Import `ToolProps` or `PartProps` from `@tanstack/ai-react/ui`.
+3. Type the component with `ToolProps<typeof chatOptions, 'getWeather'>` or `PartProps<typeof chatOptions, 'text'>`.
+4. Pass that component into `tools.getWeather` or `parts.text`.
+
+For an interrupt, use `InterruptProps`. Pass a tool name or a registered interrupt id as the second type argument. Then you do not check `interrupt.kind`.
+
+- A tool approval: `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Then `interrupt.toolName` is `'purchaseItem'`.
+- A registered generic interrupt: `InterruptProps<typeof chatOptions, 'choosePlan'>`. Then `interrupt.payload` and `interrupt.resolveInterrupt` match the definition.
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook, type InterruptProps } from '@tanstack/ai-react/ui'
+import { defineInterrupt } from '@tanstack/ai'
+import { z } from 'zod'
+
+const choosePlan = defineInterrupt({
+  id: 'choosePlan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string(),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  interrupts: [choosePlan],
+}
+
+export function ChoosePlan({
+  interrupt,
+}: InterruptProps<typeof chatOptions, 'choosePlan'>) {
+  return (
+    <button onClick={() => interrupt.resolveInterrupt('approved')}>
+      {interrupt.payload?.title ?? 'Choose plan'}
+    </button>
+  )
+}
+
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ChoosePlan,
+    },
+  },
+})
+```
+
+Other prop types from the same package:
+
+- `LayoutProps`
+- `MessageProps`
+- `InputProps`
+- `QueueProps` for one queued send. `item.cancelQueued()` drops that item.
+- `PartProps` with a part key such as `'text'`
+- `InterruptProps` for tool approvals, registered generic interrupts, and `generic.fallback`. Pass a tool name or interrupt id as the second type argument.
+
+## Read chat from `useChatContext()`
+
+Mapped components do not receive `chat` as a prop. Call `useChatContext()` inside a component when it needs live chat. That call opts the component into chat re-renders. Nested children can call it too. Widgets in other files should call `createChatHookContexts()` first so they do not import the factory result (circular import).
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+function StatusLine() {
+  const chat = useChatContext()
+  if (chat.error) return <p>{chat.error.message}</p>
+  if (chat.isLoading) return <p>Loading</p>
+  return <p>{chat.messages.length} messages</p>
+}
+
+const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages }) => (
+      <main>
+        <StatusLine />
+        <Messages />
+      </main>
+    ),
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+})
+
+export function ChatScreen() {
+  const chat = useAppChat()
+  return <chat.AppChat />
+}
+```
+
+Call `useChatContext()` only inside `AppChat` or `Provider`. A call outside that tree throws.
+
+`useAppChat` from `createChatHook` owns the state. `useChatContext()` only reads the instance that `chat.AppChat` provides.
+
+When a widget lives in another file, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. Then that file can import `useChatContext` from the contexts module.
+
+Part and interrupt widgets take `part` and `interrupt` as props. Type them with `PartProps`, `ToolProps`, or `InterruptProps`. Do not read those values from context.
+
+## Tool approvals: inline or list
+
+A tool with `needsApproval: true` can render its approval in two places.
+
+### Inline, next to the tool
+
+Read `interrupt` on the tool. Render the approval in that same component. Do not register `interrupts.tools` for that name. A mapped tool keeps its approval off the list.
+
+`interrupt` is already the approval for that tool name. You do not check `interrupt.kind`.
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook, type ToolProps } from '@tanstack/ai-react/ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const purchaseItem = toolDefinition({
+  name: 'purchaseItem',
+  description: 'Buy an item',
+  needsApproval: true,
+  inputSchema: z.object({ item: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [purchaseItem],
+}
+
+function PurchaseItem({
+  part,
+  interrupt,
+}: ToolProps<typeof chatOptions, 'purchaseItem'>) {
+  return (
+    <div>
+      {part.input?.item}
+      {interrupt?.status === 'pending' ? (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages, Interrupts }) => (
+      <main>
+        <Messages />
+        <Interrupts />
+      </main>
+    ),
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: PurchaseItem,
+  },
+})
+
+export function InlineApprovalChat() {
+  const chat = useAppChat()
+  return <chat.AppChat />
+}
+```
+
+To split the approval into its own file, type it with `InterruptProps<typeof chatOptions, 'purchaseItem'>`. Render that component from the tool.
+
+### List, in `<Interrupts />`
+
+Register the approval under `interrupts.tools`. That component appears in the interrupt list. Do not also render `interrupt` on the tool unless you want it in both places.
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const purchaseItem = toolDefinition({
+  name: 'purchaseItem',
+  description: 'Buy an item',
+  needsApproval: true,
+  inputSchema: z.object({ item: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [purchaseItem],
+}
+
+const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages, Interrupts }) => (
+      <main>
+        <Messages />
+        <Interrupts />
+      </main>
+    ),
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  toolsComponents: {
+    purchaseItem: ({ part }) => <div>{part.input?.item}</div>,
+  },
+  interruptsComponents: {
+    tools: {
+      purchaseItem: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt(true)}>
+          Approve
+        </button>
+      ),
+    },
+  },
+})
+
+export function ListApprovalChat() {
+  const chat = useAppChat()
+  return <chat.AppChat />
+}
+```
+
+## Generic interrupts
+
+Generic interrupts always render in the list (`<Interrupts />` / `<UI.Interrupts>`). They never render inside a tool.
+
+Map them under `interruptsComponents.generic`:
+
+- A registered id such as `choosePlan`: the component for that definition
+- `fallback`: every other list interrupt, including an unknown generic id and an unbound interrupt this chat does not own
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
+import { defineInterrupt } from '@tanstack/ai'
+import { z } from 'zod'
+
+const choosePlan = defineInterrupt({
+  id: 'choosePlan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string(),
+})
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  interrupts: [choosePlan],
+}
+
+const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Interrupts }) => <Interrupts />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: { fallback: () => null },
+  interruptsComponents: {
+    generic: {
+      choosePlan: ({ interrupt }) => (
+        <button onClick={() => interrupt.resolveInterrupt('approved')}>
+          {interrupt.payload?.title ?? 'Choose plan'}
+        </button>
+      ),
+      fallback: ({ interrupt }) =>
+        interrupt.kind === 'unbound' ? (
+          <p>Paused elsewhere: {interrupt.reason}</p>
+        ) : (
+          <p>{interrupt.reason}</p>
+        ),
+    },
+  },
+})
+
+export function GenericInterruptChat() {
+  const chat = useAppChat()
+  return <chat.AppChat />
+}
+```
+
+You can mix this map with `interrupts.tools` in the same factory call.
+
+## Manual traversal
+
+`createChatUI` is the lower-level kit. Use it when you walk messages yourself. Screens still call `createChatHook`.
+
+```tsx group=manual-traversal
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createChatUI } from '@tanstack/ai-react/ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather],
+}
+
+const UI = createChatUI(chatOptions, {
+  components: {
+    layout: ({ Messages }) => <Messages />,
+    message: ({ Parts }) => <article><Parts /></article>,
+  },
+  partsComponents: {
+    text: ({ part }) => <p>{part.content}</p>,
+    fallback: () => null,
+  },
+  toolsComponents: {
+    getWeather: ({ part }) => <p>{part.input?.city}</p>,
+  },
+})
+
+export function ManualChat() {
+  const chat = useChat(chatOptions)
+  return (
+    <UI.Provider chat={chat}>
+      <UI.Messages>
+        {(messages) =>
+          messages.map((message) => (
+            <UI.Message key={message.id} message={message}>
+              {(parts) =>
+                parts.map((part, index) => (
+                  <span key={index}>{part.key}</span>
+                ))
+              }
+            </UI.Message>
+          ))
+        }
+      </UI.Messages>
+    </UI.Provider>
+  )
+}
+```
+
+Unknown runtime tool names warn once in development and render nothing. Add a `parts.fallback` for unknown part types.
+
+Automatic dispatch is the default. You can also pick a registered widget at the call site, like Form `field.TextField` and Table `cell.TextCell`:
+
+```tsx group=manual-traversal
+import type { MessageProps } from '@tanstack/ai-react/ui'
+
+function PickedWidgets({
+  message,
+}: {
+  message: MessageProps<typeof chatOptions>['message']
+}) {
+  return (
+    <UI.Message message={message}>
+      {(parts) =>
+        parts.map((part, index) => (
+          <UI.Part key={index} part={part}>
+            {(p) => (part.key === 'toolCall' ? <p.getWeather /> : <p.Render />)}
+          </UI.Part>
+        ))
+      }
+    </UI.Message>
+  )
+}
+```
+
+`p.getWeather` and `p.text` are the widgets you passed to the factory. `p.Render` walks this one part the automatic way. `UI.Input` is mixed onto the kit when you register `input`.
+
+If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
+
+See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapters](./custom-adapters).

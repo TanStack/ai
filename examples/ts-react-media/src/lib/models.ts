@@ -187,18 +187,18 @@ export const VIDEO_MODELS = [
     provider: 'fal' as const,
   },
   {
-    id: 'gemini-omni-flash-preview',
-    name: 'Gemini Omni Flash (Text-to-Video)',
+    id: 'gemini-omni-1.1-flash',
+    name: 'Gemini Omni 1.1 Flash (Text-to-Video)',
     description:
-      'Google multimodal video generation with conversational editing, via the Interactions API (3-10s, 720p)',
+      'Google multimodal video generation with conversational editing, via the Interactions API (3-10s, 360p/720p/1080p/4k)',
     mode: 'text-to-video' as const,
     provider: 'gemini' as const,
   },
   {
-    id: 'gemini-omni-flash-preview/image-to-video',
-    name: 'Gemini Omni Flash (Image-to-Video)',
+    id: 'gemini-omni-1.1-flash/image-to-video',
+    name: 'Gemini Omni 1.1 Flash (Image-to-Video)',
     description:
-      'Animate an image with Gemini Omni Flash via the Interactions API',
+      'Animate an image with Gemini Omni 1.1 Flash via the Interactions API',
     mode: 'image-to-video' as const,
     provider: 'gemini' as const,
   },

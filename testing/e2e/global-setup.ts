@@ -55,6 +55,13 @@ export default async function globalSetup() {
     '/v1beta/models/gemini-3.1-flash-tts-preview:generateContent',
     geminiTTSMount(),
   )
+  // aimock's Gemini handler reads `parameters`, so it cannot validate the raw
+  // `parametersJsonSchema` field. A model-specific mount keeps this check from
+  // intercepting the other Gemini chat tests.
+  mock.mount(
+    '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent',
+    geminiJsonSchemaToolMount(),
+  )
   // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
   // (Imagen) endpoint but not the long-running `:predictLongRunning` +
   // operations-polling pair Veo uses, so mount both here. Non-Veo paths
@@ -95,6 +102,15 @@ export default async function globalSetup() {
   // interactions handling stays untouched for the stateful-interactions
   // text tests.
   mock.mount('/omni-video', geminiOmniVideoMount())
+
+  // Agentic video understanding (standard Gemini chat adapter). A video part
+  // with metadata.processing:'agentic' routes through the non-streaming
+  // interactions.create(), which reads `output_text`. aimock's native
+  // interactions handler defaults to streaming SSE (keyed off `stream !==
+  // false`), so it can't serve create(). This dedicated prefix returns a
+  // completed JSON interaction instead. See the video-understanding provider
+  // block in src/lib/providers.ts.
+  mock.mount('/vu-interactions', geminiVideoUnderstandingMount())
 
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
@@ -268,6 +284,73 @@ function geminiTTSMount(): Mountable {
             totalTokenCount: 20,
           },
         }),
+      )
+      return true
+    },
+  }
+}
+
+function geminiJsonSchemaToolMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+
+      const body = await readJsonRequestBody(req)
+      const tool = asRecord(
+        body && Array.isArray(body.tools) ? body.tools[0] : undefined,
+      )
+      const declaration = asRecord(
+        Array.isArray(tool?.functionDeclarations)
+          ? tool.functionDeclarations[0]
+          : undefined,
+      )
+      const schema = asRecord(declaration?.parametersJsonSchema)
+      const properties = asRecord(schema?.properties)
+      const unit = asRecord(properties?.unit)
+
+      if (
+        declaration?.name !== 'get_arktype_weather' ||
+        declaration?.parameters !== undefined ||
+        unit?.const !== 'celsius'
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: 'Expected parametersJsonSchema with unit const.',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Schema accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
       )
       return true
     },
@@ -822,7 +905,7 @@ function geminiOmniVideoMount(): Mountable {
             id: JOB_ID,
             object: 'interaction',
             status: 'in_progress',
-            model: 'gemini-omni-flash-preview',
+            model: 'gemini-omni-1.1-flash',
           }),
         )
         return true
@@ -837,7 +920,7 @@ function geminiOmniVideoMount(): Mountable {
             id: pollMatch[1],
             object: 'interaction',
             status: 'completed',
-            model: 'gemini-omni-flash-preview',
+            model: 'gemini-omni-1.1-flash',
             usage: {
               total_input_tokens: 12,
               total_output_tokens: 57920,
@@ -866,6 +949,47 @@ function geminiOmniVideoMount(): Mountable {
       }
 
       return false
+    },
+  }
+}
+
+/**
+ * Mounts the agentic video-understanding interaction under a dedicated
+ * `/vu-interactions` prefix (the video-understanding provider points its baseUrl
+ * there). The standard Gemini adapter's agentic path calls the non-streaming
+ * `interactions.create()` and reads `output_text`; aimock's native handler
+ * would stream SSE instead. This returns a completed JSON interaction with the
+ * text the spec asserts on.
+ */
+function geminiVideoUnderstandingMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/vu-interactions'), so pathname
+      // looks like '/v1beta/interactions'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      const model =
+        typeof body?.model === 'string' ? body.model : 'gemini-3.7-flash'
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'aimock-vu-1',
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_text:
+            'The video shows a guitar being played in a music store. A ' +
+            'musician demonstrates the instrument with a bright, clear tone.',
+        }),
+      )
+      return true
     },
   }
 }

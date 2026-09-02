@@ -5,7 +5,7 @@ title: AfterToolCallInfo
 
 # Interface: AfterToolCallInfo
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:399](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L399)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L408)
 
 Outcome information provided to onAfterToolCall.
 
@@ -17,7 +17,7 @@ Outcome information provided to onAfterToolCall.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:411](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L411)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:420](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L420)
 
 Duration of tool execution in milliseconds
 
@@ -29,7 +29,7 @@ Duration of tool execution in milliseconds
 optional error?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L414)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:423](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L423)
 
 ***
 
@@ -39,7 +39,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:414](https://gi
 ok: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:409](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L409)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:418](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L418)
 
 Whether the execution succeeded
 
@@ -51,7 +51,7 @@ Whether the execution succeeded
 optional result?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:413](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L413)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:422](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L422)
 
 The result (if ok) or error (if not ok)
 
@@ -65,7 +65,7 @@ tool:
   | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:403](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L403)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:412](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L412)
 
 The resolved tool definition
 
@@ -77,7 +77,7 @@ The resolved tool definition
 toolCall: ToolCall;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:401](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L401)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L410)
 
 The tool call that was executed
 
@@ -89,7 +89,7 @@ The tool call that was executed
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:407](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L407)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:416](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L416)
 
 ID of the tool call
 
@@ -101,6 +101,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:405](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L405)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L414)
 
 Name of the tool
