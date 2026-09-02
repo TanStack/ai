@@ -29,13 +29,18 @@ The BytePlus adapter connects TanStack AI to [BytePlus](https://www.byteplus.com
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-byteplus
-# or
-pnpm add @tanstack/ai-byteplus
-# or
-yarn add @tanstack/ai-byteplus
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-byteplus
+vue: @tanstack/ai-byteplus
+solid: @tanstack/ai-byteplus
+svelte: @tanstack/ai-byteplus
+preact: @tanstack/ai-byteplus
+angular: @tanstack/ai-byteplus
+vanilla: @tanstack/ai-byteplus
+octane: @tanstack/ai-byteplus
+
+<!-- ::end:tabs -->
 
 ## Two products, two keys
 

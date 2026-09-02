@@ -8,6 +8,7 @@ import {
   processConverseStream,
   throwIfConverseStreamError,
 } from '../converse/stream-processor'
+import { buildConverseUsage } from '../converse/usage'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -29,6 +30,7 @@ import type {
   Modality,
   AdapterYieldChunk,
   TextOptions,
+  TokenUsage,
   Tool,
 } from '@tanstack/ai'
 import type {
@@ -265,13 +267,7 @@ export class BedrockConverseTextAdapter<
       return {
         data: structured,
         rawText: JSON.stringify(structured),
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-          },
-        }),
+        ...(usage && { usage: buildConverseUsage(usage) }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -301,6 +297,9 @@ export class BedrockConverseTextAdapter<
     let hasEmittedTextMessageStart = false
     let accumulatedRaw = ''
     let finishReason: 'stop' | 'length' | 'content_filter' = 'stop'
+    // Usage arrives on the trailing `metadata` event, after the finish signal,
+    // so it is captured during iteration and folded into RUN_FINISHED below.
+    let usage: TokenUsage | undefined
 
     try {
       chatOptions.logger.request(
@@ -373,6 +372,14 @@ export class BedrockConverseTextAdapter<
               : stopReason === 'content_filtered'
                 ? 'content_filter'
                 : 'stop'
+          continue
+        }
+
+        if ('metadata' in ev) {
+          const u = ev.metadata?.usage
+          if (u) {
+            usage = buildConverseUsage(u)
+          }
           continue
         }
       }
@@ -451,6 +458,7 @@ export class BedrockConverseTextAdapter<
         model: chatOptions.model,
         timestamp: Date.now(),
         finishReason,
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {

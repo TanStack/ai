@@ -24,9 +24,18 @@ Claude on Vertex is a different package. See [Anthropic Vertex](./anthropic#clau
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-vertex
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-vertex
+vue: @tanstack/ai-vertex
+solid: @tanstack/ai-vertex
+svelte: @tanstack/ai-vertex
+preact: @tanstack/ai-vertex
+angular: @tanstack/ai-vertex
+vanilla: @tanstack/ai-vertex
+octane: @tanstack/ai-vertex
+
+<!-- ::end:tabs -->
 
 ## Basic usage
 

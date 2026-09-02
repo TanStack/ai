@@ -204,4 +204,4 @@ for the branches that read your own.
 - [Observability](../sandbox/observability) — the server-side hook accessors (`before()`/`after()`/`diff()`) that back `sandbox.file.diff`.
 - [Showing Code Mode in the UI](../code-mode/client-integration) — rendering the `code_mode:*` events live.
 - [Streaming UIs](../structured-outputs/streaming) — reading `structured-output.complete` end to end.
-- [Streaming](../chat/streaming) — the standard AG-UI `StreamChunk` lifecycle this union extends.
+- [Stream Events](../chat/stream-events) for the standard AG-UI `StreamChunk` lifecycle this union extends.

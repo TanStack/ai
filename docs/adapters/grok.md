@@ -19,9 +19,18 @@ The Grok text and summarization adapters provide access to xAI's Responses API f
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-grok
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-grok
+vue: @tanstack/ai-grok
+solid: @tanstack/ai-grok
+svelte: @tanstack/ai-grok
+preact: @tanstack/ai-grok
+angular: @tanstack/ai-grok
+vanilla: @tanstack/ai-grok
+octane: @tanstack/ai-grok
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -66,9 +75,18 @@ const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, confi
 Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path
 uses Google Cloud credentials and Vertex regional or global endpoints.
 
-```bash
-npm install @tanstack/ai-grok google-auth-library
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-grok google-auth-library
+vue: @tanstack/ai-grok google-auth-library
+solid: @tanstack/ai-grok google-auth-library
+svelte: @tanstack/ai-grok google-auth-library
+preact: @tanstack/ai-grok google-auth-library
+angular: @tanstack/ai-grok google-auth-library
+vanilla: @tanstack/ai-grok google-auth-library
+octane: @tanstack/ai-grok google-auth-library
+
+<!-- ::end:tabs -->
 
 ```typescript
 import { chat } from "@tanstack/ai";

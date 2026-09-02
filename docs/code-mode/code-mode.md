@@ -41,28 +41,95 @@ Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native
 
 ### 1. Install packages
 
-```bash
-pnpm add @tanstack/ai @tanstack/ai-code-mode zod
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-code-mode zod
+vue: @tanstack/ai @tanstack/ai-code-mode zod
+solid: @tanstack/ai @tanstack/ai-code-mode zod
+svelte: @tanstack/ai @tanstack/ai-code-mode zod
+preact: @tanstack/ai @tanstack/ai-code-mode zod
+angular: @tanstack/ai @tanstack/ai-code-mode zod
+vanilla: @tanstack/ai @tanstack/ai-code-mode zod
+octane: @tanstack/ai @tanstack/ai-code-mode zod
+
+<!-- ::end:tabs -->
 
 Pick an isolate driver:
 
-```bash
-# Node.js — fastest, uses V8 isolates (requires native compilation)
-pnpm add @tanstack/ai-isolate-node
+Node.js (V8 isolates, native compile):
 
-# QuickJS WASM — no native deps, works in browsers and edge runtimes
-pnpm add @tanstack/ai-isolate-quickjs
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-# QuickJS Bun — native QuickJS via bun:ffi, fastest option on Bun
-bun add @tanstack/ai-isolate-quickjs-bun
+react: @tanstack/ai-isolate-node
+vue: @tanstack/ai-isolate-node
+solid: @tanstack/ai-isolate-node
+svelte: @tanstack/ai-isolate-node
+preact: @tanstack/ai-isolate-node
+angular: @tanstack/ai-isolate-node
+vanilla: @tanstack/ai-isolate-node
+octane: @tanstack/ai-isolate-node
 
-# Cloudflare Workers — run on the edge
-pnpm add @tanstack/ai-isolate-cloudflare
+<!-- ::end:tabs -->
 
-# Daytona sandboxes — run in a remote Daytona sandbox
-pnpm add @tanstack/ai-isolate-daytona @daytona/sdk
-```
+QuickJS WASM (browsers and edge, no native deps):
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs
+vue: @tanstack/ai-isolate-quickjs
+solid: @tanstack/ai-isolate-quickjs
+svelte: @tanstack/ai-isolate-quickjs
+preact: @tanstack/ai-isolate-quickjs
+angular: @tanstack/ai-isolate-quickjs
+vanilla: @tanstack/ai-isolate-quickjs
+octane: @tanstack/ai-isolate-quickjs
+
+<!-- ::end:tabs -->
+
+QuickJS Bun (native QuickJS via bun:ffi):
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs-bun
+vue: @tanstack/ai-isolate-quickjs-bun
+solid: @tanstack/ai-isolate-quickjs-bun
+svelte: @tanstack/ai-isolate-quickjs-bun
+preact: @tanstack/ai-isolate-quickjs-bun
+angular: @tanstack/ai-isolate-quickjs-bun
+vanilla: @tanstack/ai-isolate-quickjs-bun
+octane: @tanstack/ai-isolate-quickjs-bun
+
+<!-- ::end:tabs -->
+
+Cloudflare Workers:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-cloudflare
+vue: @tanstack/ai-isolate-cloudflare
+solid: @tanstack/ai-isolate-cloudflare
+svelte: @tanstack/ai-isolate-cloudflare
+preact: @tanstack/ai-isolate-cloudflare
+angular: @tanstack/ai-isolate-cloudflare
+vanilla: @tanstack/ai-isolate-cloudflare
+octane: @tanstack/ai-isolate-cloudflare
+
+<!-- ::end:tabs -->
+
+Daytona sandboxes:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-daytona @daytona/sdk
+vue: @tanstack/ai-isolate-daytona @daytona/sdk
+solid: @tanstack/ai-isolate-daytona @daytona/sdk
+svelte: @tanstack/ai-isolate-daytona @daytona/sdk
+preact: @tanstack/ai-isolate-daytona @daytona/sdk
+angular: @tanstack/ai-isolate-daytona @daytona/sdk
+vanilla: @tanstack/ai-isolate-daytona @daytona/sdk
+octane: @tanstack/ai-isolate-daytona @daytona/sdk
+
+<!-- ::end:tabs -->
 
 ### 2. Define tools
 

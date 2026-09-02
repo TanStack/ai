@@ -22,9 +22,18 @@ Structured-output calls with no tools skip the agent loop and only run the final
 
 Install `@opentelemetry/api` — it's an optional peer dependency of `@tanstack/ai`:
 
-```bash
-pnpm add @opentelemetry/api
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @opentelemetry/api
+vue: @opentelemetry/api
+solid: @opentelemetry/api
+svelte: @opentelemetry/api
+preact: @opentelemetry/api
+angular: @opentelemetry/api
+vanilla: @opentelemetry/api
+octane: @opentelemetry/api
+
+<!-- ::end:tabs -->
 
 Wire up your OTel SDK however you already do (e.g. `@opentelemetry/sdk-node`). Then pass a `Tracer` (and optionally a `Meter`) into the middleware. The OTel middleware lives on its own subpath — importing it never affects users who don't need OTel:
 

@@ -18,9 +18,18 @@ The Mistral adapter provides access to Mistral's chat models, including Mistral 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-mistral
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mistral
+vue: @tanstack/ai-mistral
+solid: @tanstack/ai-mistral
+svelte: @tanstack/ai-mistral
+preact: @tanstack/ai-mistral
+angular: @tanstack/ai-mistral
+vanilla: @tanstack/ai-mistral
+octane: @tanstack/ai-mistral
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -80,9 +89,18 @@ path uses Google Cloud credentials and the publisher `rawPredict` endpoint.
 
 Mistral on Vertex is regional only. Use `us-central1` or `europe-west4`.
 
-```bash
-npm install @tanstack/ai-mistral google-auth-library
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mistral google-auth-library
+vue: @tanstack/ai-mistral google-auth-library
+solid: @tanstack/ai-mistral google-auth-library
+svelte: @tanstack/ai-mistral google-auth-library
+preact: @tanstack/ai-mistral google-auth-library
+angular: @tanstack/ai-mistral google-auth-library
+vanilla: @tanstack/ai-mistral google-auth-library
+octane: @tanstack/ai-mistral google-auth-library
+
+<!-- ::end:tabs -->
 
 ```typescript
 import { chat } from "@tanstack/ai";

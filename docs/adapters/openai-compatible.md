@@ -29,9 +29,18 @@ Perplexity Sonar chat stays on this adapter. [`@tanstack/ai-perplexity`](./perpl
 
 The adapter ships inside `@tanstack/ai-openai` under the `/compatible` subpath — no extra install:
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

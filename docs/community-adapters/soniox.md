@@ -16,9 +16,18 @@ The Soniox adapter provides access to Soniox transcription models.
 
 ## Installation
 
-```bash
-npm install @soniox/tanstack-ai-adapter
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @soniox/tanstack-ai-adapter
+vue: @soniox/tanstack-ai-adapter
+solid: @soniox/tanstack-ai-adapter
+svelte: @soniox/tanstack-ai-adapter
+preact: @soniox/tanstack-ai-adapter
+angular: @soniox/tanstack-ai-adapter
+vanilla: @soniox/tanstack-ai-adapter
+octane: @soniox/tanstack-ai-adapter
+
+<!-- ::end:tabs -->
 
 ## Authentication
 

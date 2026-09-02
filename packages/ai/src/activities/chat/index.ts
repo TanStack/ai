@@ -623,12 +623,12 @@ export function createChatOptions<
     TStream,
     InferredContext<TTools, TMiddleware>
   >,
-  'tools' | 'middleware' | 'interrupts'
+  'tools' | 'middleware' | 'interrupts' | 'context'
 > & {
   tools?: TTools
   interrupts?: TInterrupts
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
-} {
+} & RuntimeContextOption<TTools, TMiddleware, TContext> {
   return options
 }
 

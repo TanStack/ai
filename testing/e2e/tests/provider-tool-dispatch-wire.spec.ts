@@ -44,13 +44,11 @@ test.describe('provider tools — custom-name wire dispatch', () => {
     expect(tools).toContainEqual(
       expect.objectContaining({
         type: 'function',
-        function: expect.objectContaining({
-          name: 'google_search',
-          // Gemini's schema converter upper-cases JSON Schema types.
-          parameters: expect.objectContaining({
-            properties: { query: { type: 'STRING' } },
-          }),
-        }),
+        // Schema shape is deliberately not asserted here: the adapter sends it
+        // as `parametersJsonSchema`, and aimock's journal copies only
+        // `parameters`, so it never appears. The schema leg is covered by the
+        // raw mount in `arktype-tool-wire.spec.ts`.
+        function: expect.objectContaining({ name: 'google_search' }),
       }),
     )
   })

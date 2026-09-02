@@ -204,9 +204,9 @@ describe('GeminiTextInteractionsAdapter', () => {
     )
 
     const adapter = createAdapter()
-    const providerOptions: GeminiTextInteractionsProviderOptions = {
+    const providerOptions = {
       previous_interaction_id: 'int_1',
-    }
+    } satisfies GeminiTextInteractionsProviderOptions
 
     await collectChunks(
       chat({
@@ -252,13 +252,13 @@ describe('GeminiTextInteractionsAdapter', () => {
     )
 
     const adapter = createAdapter()
-    const providerOptions: GeminiTextInteractionsProviderOptions = {
+    const providerOptions = {
       generation_config: {
         temperature: 0.6,
         top_p: 0.95,
         max_output_tokens: 512,
       },
-    }
+    } satisfies GeminiTextInteractionsProviderOptions
 
     await collectChunks(
       chat({
@@ -319,7 +319,7 @@ describe('GeminiTextInteractionsAdapter', () => {
         ],
         modelOptions: {
           previous_interaction_id: 'int_prev',
-        } as GeminiTextInteractionsProviderOptions,
+        } satisfies GeminiTextInteractionsProviderOptions,
       }),
     )
 
@@ -751,7 +751,7 @@ describe('GeminiTextInteractionsAdapter', () => {
         // the function_result.
         modelOptions: {
           previous_interaction_id: 'int_prev',
-        } as GeminiTextInteractionsProviderOptions,
+        } satisfies GeminiTextInteractionsProviderOptions,
       }),
     )
 

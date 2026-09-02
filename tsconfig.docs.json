@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "remix/ui": [
+        "./node_modules/.kiira/node_modules/remix/dist/ui.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/ui.d.ts"
+      ],
+      "remix/router": [
+        "./node_modules/.kiira/node_modules/remix/dist/fetch-router.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/fetch-router.d.ts"
+      ],
+      "remix/routes": [
+        "./node_modules/.kiira/node_modules/remix/dist/fetch-router/routes.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/fetch-router/routes.d.ts"
+      ],
+      "@remix-run/ui/jsx-runtime": [
+        "./node_modules/.kiira/node_modules/@remix-run/ui/dist/jsx-runtime.d.ts"
+      ]
+    }
+  }
+}

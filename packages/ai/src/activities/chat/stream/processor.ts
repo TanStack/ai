@@ -1357,6 +1357,12 @@ export class StreamProcessor {
       state.hasToolCallsSinceTextStart = false
     }
 
+    // A segment begins at its first delta, not its second. Left set, the flag
+    // makes the second delta look like a further segment: the accumulation
+    // resets and updateTextPart writes over the part the first delta created.
+    // A later tool call sets it again in handleToolCallStartEvent.
+    state.hasToolCallsSinceTextStart = false
+
     const currentText = state.currentSegmentText
     const delta = chunk.delta || ''
     const nextText = delta !== '' ? currentText + delta : currentText

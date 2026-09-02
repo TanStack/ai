@@ -76,6 +76,14 @@
       "cache": true,
       "inputs": ["{workspaceRoot}/**/package.json"]
     },
+    "test:ai-review": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": [
+        "{workspaceRoot}/agent-scripts/ai-review/**/*",
+        "{workspaceRoot}/scripts/maintainer/**/*"
+      ]
+    },
     "test:dts": {
       "cache": true,
       "inputs": [

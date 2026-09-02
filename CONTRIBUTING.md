@@ -37,7 +37,8 @@ testing/                # Internal test harnesses — NOT published
 examples/               # Example apps (React, Solid, Vue, Svelte, vanilla)
 codemods/               # Internal codemods (not published)
 docs/                   # Documentation source
-scripts/                # Repo-level scripts (doc generation, model sync, link verification)
+scripts/                # Repo-level scripts (doc generation, model sync, link verification, maintainer sweep)
+agent-scripts/          # Repo GitHub agents (PR review bot)
 ```
 
 - Direct children of `packages/` are public packages (published to npm).
@@ -61,6 +62,9 @@ Rules the generator follows:
 - Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
 - Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
 - For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Anthropic first-party ids use dashes (`claude-fable-5-1`). OpenRouter uses dots (`claude-fable-5.1`). The generator hyphenates Anthropic ids on insert. Do not copy the dotted OpenRouter slug into `ai-anthropic`.
+- Write a row in the provider's `*ChatModelToolCapabilitiesByName` map for every new chat model, even when `supports.tools` is still `[]`. Missing that row makes `ResolveToolCapabilities` fall back to `readonly []`.
+- For new Anthropic models, infer the provider-options mix from the catalog: no sampling parameters → `AnthropicMaxTokensOptions`; `reasoning.mandatory` → `AnthropicAdaptiveOnlyThinkingOptions` plus `AnthropicOutputConfigOptions`.
 - Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
 
 Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
@@ -175,6 +179,20 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
+
+### Automated Grok review
+
+A Grok agent comments on open, non-draft PRs. The first lines of that comment say it is automated. It is not a maintainer review.
+
+The bot sets exactly one of these labels:
+
+- `ai-rejected` — the change is not useful, or it does not fix the claimed bug.
+- `ai-needs-work` — the review listed fixes, but they are not on the branch yet (often a fork with maintainer edits off).
+- `ai-ready` — the bot thinks a maintainer can merge after they Approve.
+
+The bot never GitHub-approves and never merges. The `ready-to-merge` label still means a human approval plus green CI.
+
+If the bot pushes, it only commits bugs and suggestions the review listed. Maintainers start a new run with a `/ai-review` comment, or from Actions (`workflow_dispatch`).
 
 ## Adding a new provider adapter
 

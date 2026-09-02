@@ -20,9 +20,18 @@ The Claude Code adapter runs [Claude Code](https://docs.anthropic.com/en/docs/cl
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-claude-code
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-claude-code
+vue: @tanstack/ai-claude-code
+solid: @tanstack/ai-claude-code
+svelte: @tanstack/ai-claude-code
+preact: @tanstack/ai-claude-code
+angular: @tanstack/ai-claude-code
+vanilla: @tanstack/ai-claude-code
+octane: @tanstack/ai-claude-code
+
+<!-- ::end:tabs -->
 
 A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (this adapter on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
 

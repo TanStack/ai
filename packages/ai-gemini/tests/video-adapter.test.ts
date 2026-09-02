@@ -9,9 +9,13 @@ import {
 import {
   GEMINI_VIDEO_DURATIONS,
   getGeminiVideoDurationOptions,
+  parseGeminiOmniVideoSize,
 } from '../src/video/video-provider-options'
 import type { GenerateVideosOperation, GoogleGenAI } from '@google/genai'
-import type { GeminiVideoModel } from '../src/video/video-provider-options'
+import type {
+  GeminiOmniVideoSize,
+  GeminiVideoModel,
+} from '../src/video/video-provider-options'
 
 const testLogger = resolveDebugOption(false)
 
@@ -157,10 +161,22 @@ describe('Gemini Video Adapter', () => {
       expectTypeOf<VeoCreate['duration']>().toEqualTypeOf<
         4 | 6 | 8 | undefined
       >()
+      expectTypeOf<VeoCreate['size']>().toEqualTypeOf<
+        '16:9' | '9:16' | undefined
+      >()
 
-      const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      const omni = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
       type OmniCreate = Parameters<typeof generateVideo<typeof omni>>[0]
       expectTypeOf<OmniCreate['duration']>().toEqualTypeOf<number | undefined>()
+      expectTypeOf<OmniCreate['size']>().toEqualTypeOf<
+        GeminiOmniVideoSize | undefined
+      >()
+
+      const preview = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      type PreviewCreate = Parameters<typeof generateVideo<typeof preview>>[0]
+      expectTypeOf<PreviewCreate['duration']>().toEqualTypeOf<
+        number | undefined
+      >()
     })
   })
 
@@ -644,9 +660,14 @@ function createInteractionsClientStub(
   }
 }
 
-class StubbedGeminiOmniVideoAdapter extends GeminiVideoAdapter<'gemini-omni-flash-preview'> {
-  constructor(stub: InteractionsClientStub) {
-    super({ apiKey: 'test-key' }, 'gemini-omni-flash-preview')
+class StubbedGeminiOmniVideoAdapter<
+  TModel extends GeminiVideoModel = 'gemini-omni-1.1-flash',
+> extends GeminiVideoAdapter<TModel> {
+  constructor(
+    stub: InteractionsClientStub,
+    model: TModel = 'gemini-omni-1.1-flash' as TModel,
+  ) {
+    super({ apiKey: 'test-key' }, model)
     this.client = stub as unknown as GoogleGenAI
   }
 }
@@ -654,7 +675,7 @@ class StubbedGeminiOmniVideoAdapter extends GeminiVideoAdapter<'gemini-omni-flas
 describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
   describe('durations', () => {
     it('reports the 3-10 second range and clamps raw seconds into it', () => {
-      const adapter = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      const adapter = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
       expect(adapter.availableDurations()).toEqual({
         kind: 'range',
         min: 3,
@@ -667,13 +688,16 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
     })
 
     it('types duration as number (continuous range) at compile time', () => {
-      const omni = createGeminiVideo('gemini-omni-flash-preview', 'test-key')
+      const omni = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
       expectTypeOf(omni.snapDuration).returns.toEqualTypeOf<
         number | undefined
       >()
       type OmniOptions = Parameters<typeof omni.createVideoJob>[0]
       expectTypeOf<OmniOptions['duration']>().toEqualTypeOf<
         number | undefined
+      >()
+      expectTypeOf<OmniOptions['size']>().toEqualTypeOf<
+        GeminiOmniVideoSize | undefined
       >()
     })
   })
@@ -684,7 +708,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
       const result = await adapter.createVideoJob({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         prompt: 'a sunset over the ocean',
         size: '9:16',
         duration: 8,
@@ -693,10 +717,10 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
 
       expect(result).toEqual({
         jobId: 'v1_omni-job-123',
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
       })
       expect(stub.interactions.create).toHaveBeenCalledWith({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         input: [
           {
             type: 'user_input',
@@ -718,14 +742,14 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
       await adapter.createVideoJob({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         prompt: 'make the violin invisible',
         modelOptions: { previous_interaction_id: 'v1_prior-turn' },
         logger: testLogger,
       })
 
       expect(stub.interactions.create).toHaveBeenCalledWith({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         previous_interaction_id: 'v1_prior-turn',
         input: [
           {
@@ -743,7 +767,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
       await adapter.createVideoJob({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         prompt: [
           {
             type: 'image',
@@ -789,7 +813,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
 
       await expect(
         adapter.createVideoJob({
-          model: 'gemini-omni-flash-preview',
+          model: 'gemini-omni-1.1-flash',
           prompt: [
             { type: 'text', content: 'sync to this' },
             {
@@ -815,7 +839,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
 
       await expect(
         adapter.createVideoJob({
-          model: 'gemini-omni-flash-preview',
+          model: 'gemini-omni-1.1-flash',
           prompt: 'a sunset',
           logger: testLogger,
         }),
@@ -829,7 +853,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       for (const duration of [2, 15]) {
         await expect(
           adapter.createVideoJob({
-            model: 'gemini-omni-flash-preview',
+            model: 'gemini-omni-1.1-flash',
             prompt: 'a sunset',
             duration,
             logger: testLogger,
@@ -844,7 +868,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
       await adapter.createVideoJob({
-        model: 'gemini-omni-flash-preview',
+        model: 'gemini-omni-1.1-flash',
         prompt: 'a sunset',
         duration: 4.5,
         logger: testLogger,
@@ -853,6 +877,65 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       expect(stub.interactions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           response_format: { type: 'video', duration: '4.5s' },
+        }),
+      )
+    })
+
+    it('splits size "aspectRatio_resolution" onto response_format', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(stub)
+
+      await adapter.createVideoJob({
+        model: 'gemini-omni-1.1-flash',
+        prompt: 'a drone shot of a mountain landscape',
+        size: '16:9_1080p',
+        duration: 6,
+        logger: testLogger,
+      })
+
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          response_format: {
+            type: 'video',
+            aspect_ratio: '16:9',
+            duration: '6s',
+            resolution: '1080p',
+          },
+        }),
+      )
+    })
+
+    it('parses the Omni size template', () => {
+      expect(parseGeminiOmniVideoSize('16:9_1080p')).toEqual({
+        aspectRatio: '16:9',
+        resolution: '1080p',
+      })
+      expect(parseGeminiOmniVideoSize('9:16')).toEqual({ aspectRatio: '9:16' })
+      expect(parseGeminiOmniVideoSize('not-a-size')).toBeUndefined()
+    })
+
+    it('routes the deprecated preview id through the same Interactions path', async () => {
+      const stub = createInteractionsClientStub()
+      const adapter = new StubbedGeminiOmniVideoAdapter(
+        stub,
+        'gemini-omni-flash-preview',
+      )
+
+      const result = await adapter.createVideoJob({
+        model: 'gemini-omni-flash-preview',
+        prompt: 'a sunset',
+        logger: testLogger,
+      })
+
+      expect(result).toEqual({
+        jobId: 'v1_omni-job-123',
+        model: 'gemini-omni-flash-preview',
+      })
+      expect(stub.interactions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gemini-omni-flash-preview',
+          response_modalities: ['video'],
+          background: true,
         }),
       )
     })

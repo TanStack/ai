@@ -18,9 +18,18 @@ The Ollama adapter provides access to local models running via Ollama, allowing 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-ollama
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-ollama
+vue: @tanstack/ai-ollama
+solid: @tanstack/ai-ollama
+svelte: @tanstack/ai-ollama
+preact: @tanstack/ai-ollama
+angular: @tanstack/ai-ollama
+vanilla: @tanstack/ai-ollama
+octane: @tanstack/ai-ollama
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

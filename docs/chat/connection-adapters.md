@@ -503,7 +503,7 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** Your server is responsible for emitting `RUN_FINISHED` (or `RUN_ERROR`) at the end of each run. Without it, the client will not know the assistant turn has ended and will wait indefinitely. See [Streaming](./streaming) for the full event lifecycle.
+> **Tip:** Your server is responsible for emitting `RUN_FINISHED` (or `RUN_ERROR`) at the end of each run. Without it, the client will not know the assistant turn has ended and will wait indefinitely. See [Stream Events](./stream-events) for the full event lifecycle.
 
 ### When to choose persistent over request-scoped
 
@@ -716,7 +716,8 @@ Don't swallow `AbortError` — let it propagate so the client knows the abort su
 
 ## Next Steps
 
-- [Streaming](./streaming) — the full event lifecycle and `StreamChunk` types
+- [Stream Events](./stream-events) for the full event lifecycle and `StreamChunk` types
+- [Streaming](./streaming) for the server and client streaming path
 - [AG-UI Client Compliance](../migration/ag-ui-compliance) — the wire protocol your server emits
 - [Cloudflare Adapter](../community-adapters/cloudflare) — example of a custom `fetchClient` in production
 - [API Reference: `@tanstack/ai-client`](../api/ai-client) — full type signatures

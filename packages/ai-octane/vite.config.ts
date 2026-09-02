@@ -51,6 +51,8 @@ export default defineConfig({
           include: [
             'tests/conformance/**/*.test.ts',
             'tests/conformance/**/*.test.tsx',
+            'tests/chat-ui/**/*.test.ts',
+            'tests/chat-ui/**/*.test.tsx',
           ],
           setupFiles: ['./tests/conformance/test-setup.ts'],
           server: { deps: { inline: inlineDeps } },

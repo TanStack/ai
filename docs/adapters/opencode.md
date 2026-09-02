@@ -19,14 +19,37 @@ The OpenCode adapter runs [OpenCode](https://opencode.ai) as a chat backend, dri
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-opencode
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-opencode
+vue: @tanstack/ai-opencode
+solid: @tanstack/ai-opencode
+svelte: @tanstack/ai-opencode
+preact: @tanstack/ai-opencode
+angular: @tanstack/ai-opencode
+vanilla: @tanstack/ai-opencode
+octane: @tanstack/ai-opencode
+
+<!-- ::end:tabs -->
 
 The `opencode` CLI must be installed and its providers authenticated on the host:
 
+<!-- ::start:tabs variant="package-manager" mode="custom" -->
+
+react: install -g opencode-ai
+vue: install -g opencode-ai
+solid: install -g opencode-ai
+svelte: install -g opencode-ai
+preact: install -g opencode-ai
+angular: install -g opencode-ai
+vanilla: install -g opencode-ai
+octane: install -g opencode-ai
+
+<!-- ::end:tabs -->
+
+Then authenticate:
+
 ```bash
-npm install -g opencode-ai
 opencode auth login
 ```
 

@@ -203,7 +203,7 @@ answers "here is what happened in it, and here is the run still going, if any."
 
 Only then does the client tail that run's delivery log. Run ids stay essential one
 layer down, they are just never the entry point. See
-[Threads and runs](../chat/streaming#threads-and-runs) for the protocol anatomy
+[Threads and runs](../chat/stream-events#threads-and-runs) for the protocol anatomy
 and [Resumable streams](../resumable-streams/overview) for the log itself.
 
 ## Both sides use the same thread id

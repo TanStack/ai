@@ -36,11 +36,11 @@ import type {
 
 const FRAMEWORK_USE_CHAT_PACKAGES = new Set([
   '@tanstack/ai-react',
-  '@tanstack/ai-react-ui',
+  '@tanstack/ai-react/ui',
   '@tanstack/ai-vue',
-  '@tanstack/ai-vue-ui',
+  '@tanstack/ai-vue/ui',
   '@tanstack/ai-solid',
-  '@tanstack/ai-solid-ui',
+  '@tanstack/ai-solid/ui',
   '@tanstack/ai-preact',
 ])
 

@@ -5,7 +5,7 @@ title: ErrorInfo
 
 # Interface: ErrorInfo
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L525)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:534](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L534)
 
 Information passed to onError.
 
@@ -17,7 +17,7 @@ Information passed to onError.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L529)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:538](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L538)
 
 Duration until error in milliseconds
 
@@ -29,6 +29,6 @@ Duration until error in milliseconds
 error: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L527)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:536](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L536)
 
 The error that caused the failure

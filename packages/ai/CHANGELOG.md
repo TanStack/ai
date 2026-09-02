@@ -1,5 +1,18 @@
 # @tanstack/ai
 
+## 0.52.2
+
+### Patch Changes
+
+- [#1303](https://github.com/TanStack/ai/pull/1303) [`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc) - fix: `createChatOptions` now preserves the runtime-context requirement on its return type. When tools or middleware declare a required context, the input already enforces `context` via `RuntimeContextOption`, but the return type declared it optional — so spreading the result into `chat()` failed to typecheck (`Type 'undefined' is not assignable to type '...'`). The return type now applies the same `RuntimeContextOption` conditional as the parameter, so the documented spread pattern compiles with context-typed tools. Type-level only; runtime is unchanged.
+
+## 0.52.1
+
+### Patch Changes
+
+- [#1271](https://github.com/TanStack/ai/pull/1271) [`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd) - Keep the first text delta when a message speaks after a tool call and the text
+  arrives in more than one chunk.
+
 ## 0.52.0
 
 ### Minor Changes

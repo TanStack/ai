@@ -1826,9 +1826,12 @@ async function completeRun(
   runId: string,
   usage?: TokenUsage,
 ): Promise<void> {
+  // A late detach stamp from a superseded host can land after takeover
+  // claimed the run. A terminal run is not detached.
   await runs?.update(runId, {
     status: 'completed',
     finishedAt: Date.now(),
+    detachedSince: undefined,
     ...(usage ? { usage } : {}),
   })
 }
@@ -1843,6 +1846,7 @@ async function failRun(
   await runs?.update(runId, {
     status: 'failed',
     finishedAt: Date.now(),
+    detachedSince: undefined,
     error: {
       message: runError.message,
       ...(runError.code !== undefined ? { code: runError.code } : {}),
@@ -1883,6 +1887,7 @@ export async function abortRun(
   await runs?.update(runId, {
     status: 'aborted',
     finishedAt: Date.now(),
+    detachedSince: undefined,
     ...(usage ? { usage } : {}),
   })
 }
