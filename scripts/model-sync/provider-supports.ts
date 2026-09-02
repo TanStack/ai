@@ -23,7 +23,7 @@ function quoteList(values: Array<string>): string {
   return `[${values.map((value) => `'${value}'`).join(', ')}]`
 }
 
-export interface AnthropicProviderOptionsInput {
+interface AnthropicProviderOptionsInput {
   supportedParameters?: Array<string>
   reasoningMandatory?: boolean
   hasCachedPricing?: boolean

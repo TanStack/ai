@@ -5,7 +5,7 @@
  * without running the full OpenRouter fetch.
  */
 
-export type ArrayRef = '.name' | '.id'
+type ArrayRef = '.name' | '.id'
 
 export function insertConstants(
   content: string,
@@ -80,13 +80,13 @@ function addToObjectMap(
   return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
-export interface ChatModelInsert {
+interface ChatModelInsert {
   constName: string
   providerOptionsEntry: string
   hasMaxOutputTokens: boolean
 }
 
-export interface ChatModelCatalogInsertConfig {
+interface ChatModelCatalogInsertConfig {
   chatArrayName: string
   arrayRef: ArrayRef
   providerOptionsTypeName: string
