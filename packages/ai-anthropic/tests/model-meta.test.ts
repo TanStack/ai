@@ -146,29 +146,6 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     })
   })
 
-  describe('claude-fable-5-1 — thinking always on (adaptive-only)', () => {
-    type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5-1']
-
-    it('exposes adaptive-only thinking, output_config, and base options', () => {
-      expectTypeOf<Options>().toExtend<AnthropicAdaptiveOnlyThinkingOptions>()
-      expectTypeOf<Options>().toExtend<AnthropicOutputConfigOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('thinking accepts only the adaptive shape', () => {
-      expectTypeOf<
-        NonNullable<Options['thinking']>['type']
-      >().toEqualTypeOf<'adaptive'>()
-    })
-
-    it('has max_tokens but NOT temperature/top_p/top_k', () => {
-      expectTypeOf<Options>().toHaveProperty('max_tokens')
-      expectTypeOf<Options>().not.toHaveProperty('temperature')
-      expectTypeOf<Options>().not.toHaveProperty('top_p')
-      expectTypeOf<Options>().not.toHaveProperty('top_k')
-    })
-  })
-
   describe('claude-fable-5 — thinking always on (adaptive-only)', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
 
@@ -205,7 +182,6 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       expectTypeOf<'claude-opus-4-7'>().toExtend<Keys>()
       expectTypeOf<'claude-opus-4-8'>().toExtend<Keys>()
       expectTypeOf<'claude-fable-5'>().toExtend<Keys>()
-      expectTypeOf<'claude-fable-5-1'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-5'>().toExtend<Keys>()
     })
   })

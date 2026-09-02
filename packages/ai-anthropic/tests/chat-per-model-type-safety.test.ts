@@ -169,64 +169,6 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-fable-5-1 — thinking always on (adaptive-only), no sampling', () => {
-    it('accepts adaptive thinking + output_config effort (incl. xhigh) + base options', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5-1'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: 'xhigh' },
-          service_tier: 'auto',
-          stop_sequences: ['STOP'],
-          tool_choice: { type: 'auto' },
-          max_tokens: 2048,
-        },
-      })
-    })
-
-    it('rejects explicit thinking opt-out (400 on claude-fable-5-1)', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5-1'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - thinking cannot be disabled on claude-fable-5-1
-          thinking: { type: 'disabled' },
-        },
-      })
-    })
-
-    it('rejects manual `budget_tokens` thinking', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5-1'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - budget_tokens thinking returns a 400 on claude-fable-5-1
-          thinking: { type: 'enabled', budget_tokens: 2048 },
-        },
-      })
-    })
-
-    it('rejects sampling parameters', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5-1'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - 'temperature' is not available on claude-fable-5-1
-          temperature: 0.5,
-        },
-      })
-      chat({
-        adapter: anthropicText('claude-fable-5-1'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - 'top_k' is not available on claude-fable-5-1
-          top_k: 5,
-        },
-      })
-    })
-  })
-
   describe('claude-fable-5 — thinking always on (adaptive-only), no sampling', () => {
     it('accepts adaptive thinking + output_config effort (incl. xhigh) + base options', () => {
       chat({

@@ -275,10 +275,9 @@ Per-model rules (enforced by the adapter's types):
   the sampling parameters (`temperature`, `top_p`, `top_k`) are not
   accepted (on Sonnet 5 the API rejects non-default values; on Opus
   4.7/4.8 the parameters are removed entirely).
-- **`claude-fable-5`**, **`claude-fable-5-1`** — thinking is always on. The
-  only accepted explicit config is `{ type: "adaptive" }` (both `disabled`
-  and `budget_tokens` return a 400), and sampling parameters are rejected.
-  The first-party id for Fable 5.1 is `claude-fable-5-1`.
+- **`claude-fable-5`** — thinking is always on. The only accepted explicit
+  config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
+  return a 400), and sampling parameters are rejected.
 - **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
   `{ type: "adaptive" }` alongside the deprecated
   `{ type: "enabled", budget_tokens }` shape, and still accept sampling
@@ -287,7 +286,7 @@ Per-model rules (enforced by the adapter's types):
   models — set `"summarized"` to stream the reasoning text.
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
   `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
-  Claude Fable 5 / 5.1.
+  Claude Fable 5.
 
 ### Prompt Caching
 
@@ -354,7 +353,7 @@ Creates an Anthropic chat adapter.
 
 **Parameters:**
 
-- `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5-1"`, `"claude-opus-4-8"`)
+- `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
 
 ### `anthropicVertexText(model, config?)`

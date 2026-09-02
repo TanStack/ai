@@ -885,7 +885,7 @@
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Per-Model Type Safety",
@@ -935,7 +935,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Google Gemini",
