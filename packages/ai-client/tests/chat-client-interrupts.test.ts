@@ -380,29 +380,8 @@ describe('InterruptManager hydration', () => {
     const expectedOutputSchemaHash = hashSchemaInput(
       lookupDefinition.outputSchema,
     )
-    const expectedResponseSchema = {
-      oneOf: [
-        {
-          type: 'object',
-          properties: {
-            state: { const: 'output-available' },
-            output:
-              convertSchemaToJsonSchema(lookupDefinition.outputSchema) ?? {},
-          },
-          required: ['state', 'output'],
-          additionalProperties: false,
-        },
-        {
-          type: 'object',
-          properties: {
-            state: { const: 'output-error' },
-            errorText: { type: 'string' },
-          },
-          required: ['state', 'errorText'],
-          additionalProperties: false,
-        },
-      ],
-    }
+    const expectedResponseSchema =
+      convertSchemaToJsonSchema(lookupDefinition.outputSchema) ?? {}
     const expectedResponseSchemaHash = digestInterruptJson(
       canonicalInterruptJson(expectedResponseSchema),
     )
@@ -1185,7 +1164,8 @@ describe('InterruptManager transactions', () => {
       {
         interruptId: 'client-1',
         status: 'resolved',
-        payload: { state: 'output-error', errorText: 'Lookup failed' },
+        payload: { error: 'Lookup failed' },
+        metadata: { tanstack: { state: 'output-error' } },
       },
     ])
   })

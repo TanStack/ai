@@ -36,29 +36,7 @@ const lookupDef = toolDefinition({
 const lookup = lookupDef.client()
 
 function clientToolFixture() {
-  const outputSchema = convertSchemaToJsonSchema(lookupDef.outputSchema) ?? {}
-  const responseSchema = {
-    oneOf: [
-      {
-        type: 'object',
-        properties: {
-          state: { const: 'output-available' },
-          output: outputSchema,
-        },
-        required: ['state', 'output'],
-        additionalProperties: false,
-      },
-      {
-        type: 'object',
-        properties: {
-          state: { const: 'output-error' },
-          errorText: { type: 'string' },
-        },
-        required: ['state', 'errorText'],
-        additionalProperties: false,
-      },
-    ],
-  }
+  const responseSchema = convertSchemaToJsonSchema(lookupDef.outputSchema) ?? {}
   const binding: Extract<InterruptBinding, { kind: 'client-tool-execution' }> =
     {
       v: INTERRUPT_BINDING_VERSION,
@@ -162,10 +140,7 @@ describe('validateInterruptResumeBatch', () => {
         {
           interruptId: fixture.binding.interruptId,
           status: 'resolved',
-          payload: {
-            state: 'output-available',
-            output: { accountId: 'account-1' },
-          },
+          payload: { accountId: 'account-1' },
         },
       ],
       tools: [lookup],
@@ -188,7 +163,8 @@ describe('validateInterruptResumeBatch', () => {
         {
           interruptId: fixture.binding.interruptId,
           status: 'resolved',
-          payload: { state: 'output-error', errorText: 'Lookup failed' },
+          payload: { error: 'Lookup failed' },
+          metadata: { tanstack: { state: 'output-error' } },
         },
       ],
       tools: [lookup],
@@ -201,7 +177,7 @@ describe('validateInterruptResumeBatch', () => {
     )
   })
 
-  it('rejects malformed client-tool result envelopes', async () => {
+  it('rejects an unmarked client-tool error as invalid output', async () => {
     const fixture = clientToolFixture()
     const result = await validateInterruptResumeBatch({
       threadId: 'thread-1',

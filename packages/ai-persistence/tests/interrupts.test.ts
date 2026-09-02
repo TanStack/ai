@@ -564,10 +564,7 @@ describe('interrupt persistence', () => {
           {
             interruptId: 'client_tool_tool-call-1',
             status: 'resolved',
-            payload: {
-              state: 'output-available',
-              output: { answer: 42 },
-            },
+            payload: { answer: 42 },
           },
         ],
         middleware: [withPersistence(persistence)],
@@ -608,10 +605,8 @@ describe('interrupt persistence', () => {
           {
             interruptId: 'client_tool_tool-call-1',
             status: 'resolved',
-            payload: {
-              state: 'output-error',
-              errorText: 'Client tool failed',
-            },
+            payload: { error: 'Client tool failed' },
+            metadata: { tanstack: { state: 'output-error' } },
           },
         ],
         middleware: [withPersistence(persistence)],

@@ -117,31 +117,6 @@ const runStarted: StreamChunk = {
   timestamp: Date.now(),
 }
 
-function clientToolResponseSchema(outputSchema: Record<string, unknown>) {
-  return {
-    oneOf: [
-      {
-        type: 'object',
-        properties: {
-          state: { const: 'output-available' },
-          output: outputSchema,
-        },
-        required: ['state', 'output'],
-        additionalProperties: false,
-      },
-      {
-        type: 'object',
-        properties: {
-          state: { const: 'output-error' },
-          errorText: { type: 'string' },
-        },
-        required: ['state', 'errorText'],
-        additionalProperties: false,
-      },
-    ],
-  }
-}
-
 describe('ChatClient resume', () => {
   it('tracks the run/thread of an interrupted run', async () => {
     const { adapter, contexts } = recordingAdapter([
@@ -1115,9 +1090,7 @@ describe('ChatClient resume', () => {
       outputSchema,
     }).client(async () => ({ answer: 42 }))
     const outputSchemaHash = hashSchemaInput(outputSchema)
-    const responseSchema = clientToolResponseSchema(
-      convertSchemaToJsonSchema(outputSchema) ?? {},
-    )
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
     const responseSchemaHash = digestInterruptJson(
       canonicalInterruptJson(responseSchema),
     )
@@ -1224,7 +1197,7 @@ describe('ChatClient resume', () => {
       {
         interruptId: 'client_tool_tool-call-1',
         status: 'resolved',
-        payload: { state: 'output-available', output: { answer: 42 } },
+        payload: { answer: 42 },
       },
     ])
     expect(client.getInterruptState().interruptErrors).toEqual([])
@@ -1237,7 +1210,7 @@ describe('ChatClient resume', () => {
       inputSchema: z.object({ query: z.string() }),
     }).client(async () => ({ value: undefined }))
     const outputSchemaHash = hashSchemaInput(lookup.outputSchema)
-    const responseSchema = clientToolResponseSchema({})
+    const responseSchema = {}
     const responseSchemaHash = digestInterruptJson(
       canonicalInterruptJson(responseSchema),
     )
@@ -1341,10 +1314,8 @@ describe('ChatClient resume', () => {
       {
         interruptId: 'client_tool_tool-call-1',
         status: 'resolved',
-        payload: {
-          state: 'output-error',
-          errorText: expect.any(String),
-        },
+        payload: { error: expect.any(String) },
+        metadata: { tanstack: { state: 'output-error' } },
       },
     ])
   })
@@ -1484,9 +1455,7 @@ describe('ChatClient resume', () => {
       outputSchema,
     }).client(async ({ query }) => ({ answer: query === 'first' ? 42 : 43 }))
     const outputSchemaHash = hashSchemaInput(outputSchema)
-    const responseSchema = clientToolResponseSchema(
-      convertSchemaToJsonSchema(outputSchema) ?? {},
-    )
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
     const responseSchemaHash = digestInterruptJson(
       canonicalInterruptJson(responseSchema),
     )
@@ -1578,7 +1547,7 @@ describe('ChatClient resume', () => {
       {
         interruptId: 'client_tool_tool-call-1',
         status: 'resolved',
-        payload: { state: 'output-available', output: { answer: 42 } },
+        payload: { answer: 42 },
       },
     ])
     expect(contexts[2]?.parentRunId).toBe(contexts[1]?.runId)
@@ -1586,7 +1555,7 @@ describe('ChatClient resume', () => {
       {
         interruptId: 'client_tool_tool-call-2',
         status: 'resolved',
-        payload: { state: 'output-available', output: { answer: 43 } },
+        payload: { answer: 43 },
       },
     ])
   })

@@ -11,6 +11,7 @@ import {
   isStandardSchema,
   normalizeApprovalSchema,
   readInterruptBinding,
+  withTanstackMetadata,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai/client'
 import type {
@@ -716,15 +717,54 @@ export class InterruptManager<
           isLegacyClientToolMetadata(candidate.descriptor.metadata)),
     )
     if (!item) return false
-    this.resolveItem(
-      item.descriptor.id,
-      item.kind === 'client-tool-execution'
-        ? result
-        : result.state === 'output-error'
+    if (item.kind !== 'client-tool-execution') {
+      this.resolveItem(
+        item.descriptor.id,
+        result.state === 'output-error'
           ? { error: result.errorText }
           : result.output,
-    )
+      )
+      return true
+    }
+    if (result.state === 'output-available') {
+      this.resolveItem(item.descriptor.id, result.output)
+      return true
+    }
+    this.stageClientToolError(item, result.errorText)
     return true
+  }
+
+  private stageClientToolError(
+    item: RuntimeInterrupt,
+    errorText: string,
+  ): void {
+    this.assertItemMutable()
+    this.invalidateRetry()
+    if (!item.canResolve) {
+      item.status = 'error'
+      item.error = this.itemError(
+        item.descriptor.id,
+        'invalid-response-schema',
+        'The interrupt response schema is invalid and cannot be resolved.',
+      )
+      this.publish()
+      return
+    }
+    item.validationGeneration++
+    item.resolution = cloneAndDeepFreezeJson(
+      withTanstackMetadata(
+        resolutionWithContinuation(item, {
+          interruptId: item.descriptor.id,
+          status: 'resolved',
+          payload: { error: errorText },
+        }),
+        { state: 'output-error' },
+      ),
+    )
+    item.status = 'staged'
+    item.error = undefined
+    this.publish()
+    this.maybeSubmit()
   }
 
   resolveToolApprovalDecision(interruptId: string, approved: boolean): boolean {
@@ -1323,38 +1363,9 @@ export class InterruptManager<
         : preserveInput(validation)
     }
     if (item.kind === 'client-tool-execution') {
-      if (!isUnknownObject(payload)) {
-        return {
-          code: 'invalid-tool-output',
-          message: 'Client tool results require a result state.',
-        }
-      }
-      if (
-        payload['state'] === 'output-error' &&
-        typeof payload['errorText'] === 'string' &&
-        Object.keys(payload).length === 2
-      ) {
-        return {
-          valid: true,
-          payload: cloneAndDeepFreezeJson({
-            state: 'output-error',
-            errorText: payload['errorText'],
-          }),
-        }
-      }
-      if (
-        payload['state'] !== 'output-available' ||
-        !Object.hasOwn(payload, 'output') ||
-        Object.keys(payload).length !== 2
-      ) {
-        return {
-          code: 'invalid-tool-output',
-          message: 'Client tool results require output or errorText.',
-        }
-      }
       const validation = validateWithSchema(
         item.tool?.outputSchema,
-        payload['output'],
+        payload,
         'invalid-tool-output',
       )
       const canonicalize = (result: ValidationResult): ValidationResult => {
@@ -1362,10 +1373,7 @@ export class InterruptManager<
         try {
           return {
             valid: true,
-            payload: cloneAndDeepFreezeJson({
-              state: 'output-available',
-              output: result.payload,
-            }),
+            payload: cloneAndDeepFreezeJson(result.payload),
           }
         } catch (error) {
           return {

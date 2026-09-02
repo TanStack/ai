@@ -14,6 +14,7 @@ import {
   isStandardSchema,
   validateWithStandardSchema,
 } from './activities/chat/tools/schema-converter'
+import { tanstackMetadata } from './utilities/merge-metadata'
 import type {
   InterruptBinding,
   InterruptSubmissionError,
@@ -102,21 +103,24 @@ type ClientToolResumeResult =
 function clientToolResult(
   entry: RunAgentResumeItem,
 ): ClientToolResumeResult | null {
-  const result = objectValue(entry.payload)
-  if (!result || Object.keys(result).length !== 2) return null
-  if (result.state === 'output-available' && Object.hasOwn(result, 'output')) {
-    return {
-      state: 'output-available',
-      output: result.output,
+  if (tanstackMetadata(entry)?.state === 'output-error') {
+    const result = objectValue(entry.payload)
+    if (
+      !result ||
+      Object.keys(result).length !== 1 ||
+      typeof result.error !== 'string'
+    ) {
+      return null
     }
-  }
-  if (result.state === 'output-error' && typeof result.errorText === 'string') {
     return {
       state: 'output-error',
-      errorText: result.errorText,
+      errorText: result.error,
     }
   }
-  return null
+  return {
+    state: 'output-available',
+    output: entry.payload,
+  }
 }
 
 function normalizeIssuePath(
@@ -564,7 +568,7 @@ export async function validateInterruptResumeBatch(
         )
         continue
       }
-      if (responseSchema !== undefined) {
+      if (result.state === 'output-available' && responseSchema !== undefined) {
         await pushSchemaIssues({
           request: input,
           errors,

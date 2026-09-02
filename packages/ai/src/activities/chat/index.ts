@@ -2659,29 +2659,7 @@ class TextEngine<
       const tool = this.tools.find(
         (candidate) => candidate.name === clientTool.toolName,
       )
-      const outputSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
-      const responseSchema = {
-        oneOf: [
-          {
-            type: 'object',
-            properties: {
-              state: { const: 'output-available' },
-              output: outputSchema,
-            },
-            required: ['state', 'output'],
-            additionalProperties: false,
-          },
-          {
-            type: 'object',
-            properties: {
-              state: { const: 'output-error' },
-              errorText: { type: 'string' },
-            },
-            required: ['state', 'errorText'],
-            additionalProperties: false,
-          },
-        ],
-      }
+      const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
       interrupts.push({
         id: `client_tool_${clientTool.toolCallId}`,
         reason: 'tanstack:client_tool_execution',
