@@ -1064,7 +1064,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-09-02"
         },
         {
           "label": "BytePlus",
