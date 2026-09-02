@@ -14,6 +14,7 @@ interface ModelMeta<TProviderOptions = unknown> {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<
+      | 'agentic_video'
       | 'audio_generation'
       | 'batch_api'
       | 'caching'
@@ -879,6 +880,7 @@ const GEMINI_3_7_FLASH = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
@@ -923,6 +925,7 @@ const GEMINI_3_6_FLASH = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
@@ -1006,6 +1009,7 @@ const GEMINI_3_5_FLASH_LITE = {
     input: ['text', 'image', 'video', 'audio', 'document'],
     output: ['text'],
     capabilities: [
+      'agentic_video',
       'batch_api',
       'caching',
       'function_calling',
