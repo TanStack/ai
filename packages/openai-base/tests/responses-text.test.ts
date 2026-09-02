@@ -2657,6 +2657,113 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
     })
 
+    it('keeps one thinking step when encrypted reasoning arrives after output text', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'reasoning', id: 'rs_text_1' },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'The user is asking for a beginner guitar recommendation.',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_text_1',
+            summary: [
+              {
+                type: 'summary_text',
+                text: 'The user is asking for a beginner guitar recommendation.',
+              },
+            ],
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Fender Stratocaster',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_text_1',
+                encrypted_content: 'enc-after-text',
+                summary: [
+                  {
+                    type: 'summary_text',
+                    text: 'The user is asking for a beginner guitar recommendation.',
+                  },
+                ],
+              },
+              {
+                type: 'message',
+                id: 'msg_1',
+                role: 'assistant',
+                content: [
+                  { type: 'output_text', text: 'Fender Stratocaster' },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'user',
+            content: '[reasoning] recommend a guitar for a beginner',
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.REASONING_START),
+      ).toHaveLength(1)
+      expect(
+        chunks.filter(
+          (chunk) =>
+            chunk.type === EventType.STEP_STARTED &&
+            chunk.stepType === 'thinking',
+        ),
+      ).toHaveLength(1)
+
+      const signedSteps = chunks.filter(
+        (chunk) =>
+          chunk.type === EventType.STEP_FINISHED &&
+          typeof chunk.signature === 'string' &&
+          chunk.signature.includes('enc-after-text'),
+      )
+      expect(signedSteps).toHaveLength(1)
+    })
+
     it('round-trips encrypted reasoning with no reasoning text through a server tool', async () => {
       const firstTurn = [
         {

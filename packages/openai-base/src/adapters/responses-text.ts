@@ -890,6 +890,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let reasoningMessageId: string | undefined
     let reasoningItemId: string | undefined
     let reasoningEncryptedContent: string | undefined
+    let closedReasoningStepId: string | undefined
     let hasClosedReasoning = false
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
@@ -959,6 +960,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
       }
       if (stepId) {
+        closedReasoningStepId = stepId
         yield {
           type: EventType.STEP_FINISHED,
           stepName: stepId,
@@ -1585,8 +1587,31 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               captureReasoningItem(item)
             }
           }
-          if (reasoningItemId && !reasoningMessageId) {
-            yield* openReasoning()
+          // output_text already closed the streamed reasoning item. A second
+          // openReasoning() would emit an empty thinking part. Attach the
+          // completed item's id/blob to that step instead. Open only when
+          // this turn never started reasoning (encrypted-only output).
+          if (
+            !reasoningMessageId &&
+            (reasoningItemId || reasoningEncryptedContent)
+          ) {
+            const signature = packResponsesReasoningSignature(
+              reasoningItemId,
+              reasoningEncryptedContent,
+            )
+            if (closedReasoningStepId && signature) {
+              yield {
+                type: EventType.STEP_FINISHED,
+                stepName: closedReasoningStepId,
+                stepId: closedReasoningStepId,
+                model: emitModel(),
+                timestamp: Date.now(),
+                content: '',
+                signature,
+              }
+            } else if (!closedReasoningStepId) {
+              yield* openReasoning()
+            }
           }
 
           // Final backstop for function_call lifecycle: if a function_call
