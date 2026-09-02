@@ -445,6 +445,51 @@ const CLAUDE_FABLE_5 = {
     AnthropicOutputConfigOptions
 >
 
+// Claude Fable 5.1: same request surface as Fable 5 (thinking always on,
+// no sampling parameters). First-party id uses a hyphen (`claude-fable-5-1`).
+// Cache reads are $0.25/MTok. No priority tier.
+const CLAUDE_FABLE_5_1 = {
+  name: 'claude-fable-5-1',
+  id: 'claude-fable-5-1',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: false,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 0.25,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
+>
+
 // Claude Sonnet 5: adaptive thinking is the default (omitting `thinking`
 // runs adaptive); `{type: 'disabled'}` opts out, but the manual
 // `{type: 'enabled', budget_tokens}` shape and non-default sampling
@@ -561,6 +606,7 @@ const CLAUDE_OPUS_5_FAST = {
 >
 
 export const ANTHROPIC_MODELS = [
+  CLAUDE_FABLE_5_1.id,
   CLAUDE_OPUS_5.id,
   CLAUDE_OPUS_5_FAST.id,
   CLAUDE_OPUS_4_6.id,
@@ -633,6 +679,7 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.max_output_tokens,
   [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.max_output_tokens,
   [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.max_output_tokens,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,
   [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.max_output_tokens,
   [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.max_output_tokens,
   [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.max_output_tokens,
@@ -689,6 +736,7 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_OPUS_4_7.id,
   CLAUDE_OPUS_4_8.id,
   CLAUDE_FABLE_5.id,
+  CLAUDE_FABLE_5_1.id,
   CLAUDE_SONNET_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_SONNET_4_6.id,
@@ -799,6 +847,16 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
+  [CLAUDE_FABLE_5_1.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
   // Claude Sonnet 5: adaptive thinking by default, explicit disable
   // allowed; no budget_tokens, no sampling parameters — see the
   // CLAUDE_SONNET_5 constant above.
@@ -840,6 +898,7 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.tools
   [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
   [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.tools
   [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.tools
   [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.tools
   [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.tools
@@ -866,6 +925,7 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
   [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.input
   [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.input
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input
   [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.input
   [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.input
   [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.input

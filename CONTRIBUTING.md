@@ -62,6 +62,9 @@ Rules the generator follows:
 - Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
 - Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
 - For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Anthropic first-party ids use dashes (`claude-fable-5-1`). OpenRouter uses dots (`claude-fable-5.1`). The generator hyphenates Anthropic ids on insert. Do not copy the dotted OpenRouter slug into `ai-anthropic`.
+- Write a row in the provider's `*ChatModelToolCapabilitiesByName` map for every new chat model, even when `supports.tools` is still `[]`. Missing that row makes `ResolveToolCapabilities` fall back to `readonly []`.
+- For new Anthropic models, infer the provider-options mix from the catalog: no sampling parameters → `AnthropicMaxTokensOptions`; `reasoning.mandatory` → `AnthropicAdaptiveOnlyThinkingOptions` plus `AnthropicOutputConfigOptions`.
 - Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
 
 Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
