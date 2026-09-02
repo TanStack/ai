@@ -1,5 +1,12 @@
 # @tanstack/ai-vertex
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [[`4964221`](https://github.com/TanStack/ai/commit/49642217ca1efa521773643036ab9480720ad63a)]:
+  - @tanstack/ai-gemini@0.27.0
+
 ## 0.2.5
 
 ### Patch Changes

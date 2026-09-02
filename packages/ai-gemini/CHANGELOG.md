@@ -1,5 +1,13 @@
 # @tanstack/ai-gemini
 
+## 0.27.0
+
+### Minor Changes
+
+- [#1294](https://github.com/TanStack/ai/pull/1294) [`4964221`](https://github.com/TanStack/ai/commit/49642217ca1efa521773643036ab9480720ad63a) - Add agentic video understanding to the Gemini text adapter.
+
+  Set `metadata.processing: 'agentic'` on a video content part to route the request through the Gemini Interactions API for multi-pass "agentic" video understanding (GA on `gemini-3.7-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`). Omit it for the default single-pass `generateContent` sampling. New `uploadGeminiFile()` and `geminiVideoPart()` helpers cover the Files API upload + poll-until-ACTIVE flow, and the three models now carry an `agentic_video` capability.
+
 ## 0.26.5
 
 ### Patch Changes
