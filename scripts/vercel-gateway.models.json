@@ -438,6 +438,7 @@
       "tool_choice"
     ],
     "temperature": true,
+    "knowledge": "2025-09",
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000012"
@@ -932,7 +933,7 @@
         "min": 1
       }
     ],
-    "knowledge": "2025-09",
+    "knowledge": "2025-04",
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000012"
@@ -965,6 +966,7 @@
       "tool_choice"
     ],
     "temperature": true,
+    "knowledge": "2025-03-31",
     "pricing": {
       "input": "0.0000004",
       "output": "0.0000016",
@@ -1598,6 +1600,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
@@ -1641,6 +1649,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.0000005",
       "output": "0.000003",
@@ -1684,6 +1698,14 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.00000016",
       "output": "0.00000047",
@@ -1720,6 +1742,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000012",
       "output": "0.0000004",
@@ -1743,6 +1771,59 @@
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 0,
+        "max": 262144
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.000006",
+      "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000025"
+    }
+  },
+  {
+    "id": "alibaba/qwen3.8-max-0902",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788220800,
+    "owned_by": "alibaba",
+    "name": "Qwen3.8 Max 0902",
+    "description": "Qwen3.8-Max-0902 is an upgraded snapshot of qwen3.8-max.",
+    "context_window": 991000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "file-input",
+      "implicit-caching"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -2690,14 +2771,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "toggle"
@@ -2719,6 +2799,68 @@
           "input": "0.000011",
           "output": "0.000055",
           "input_cache_read": "0.0000011",
+          "input_cache_write": "0.00001375"
+        }
+      }
+    }
+  },
+  {
+    "id": "anthropic/claude-fable-5.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788134400,
+    "owned_by": "anthropic",
+    "name": "Claude Fable 5.1",
+    "description": "Claude Fable 5.1 improves on Fable 5 across long-running agentic coding, knowledge work, and research, following instructions precisely over sessions that run unattended for hours.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "explicit-caching",
+      "file-input",
+      "vision"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-06-01",
+    "pricing": {
+      "input": "0.00001",
+      "output": "0.00005",
+      "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000125",
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.000011",
+          "output": "0.000055",
+          "input_cache_read": "0.000000275",
           "input_cache_write": "0.00001375"
         }
       }
@@ -3239,14 +3381,20 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05",
     "pricing": {
       "input": "0.000005",
       "output": "0.000025",
@@ -3311,14 +3459,20 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05",
     "pricing": {
       "input": "0.00001",
       "output": "0.00005",
@@ -3723,14 +3877,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "toggle"
@@ -5054,40 +5207,6 @@
     }
   },
   {
-    "id": "deepseek/deepseek-v3",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1735171200,
-    "owned_by": "deepseek",
-    "name": "DeepSeek V3 0324",
-    "description": "DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team.",
-    "context_window": 163840,
-    "max_tokens": 163840,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-07",
-    "pricing": {
-      "input": "0.00000027",
-      "output": "0.00000112",
-      "input_cache_read": "0.000000135"
-    }
-  },
-  {
     "id": "deepseek/deepseek-v3.1",
     "object": "model",
     "created": 1755815280,
@@ -5121,7 +5240,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-07",
     "pricing": {
       "input": "0.00000025",
       "output": "0.00000095",
@@ -5324,6 +5442,7 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "knowledge": "2025-05",
     "pricing": {
       "input": "0.000000076",
       "output": "0.000000153",
@@ -5345,12 +5464,12 @@
     "released": 1787270400,
     "owned_by": "deepseek",
     "name": "DeepSeek V4 Flash Vision Exp",
-    "description": "DeepSeek-V4-Flash-Vision-Exp is an experimental multimodal model that combines the agentic reasoning, coding, and world knowledge capabilities of DeepSeek-V4-Flash with advanced visual understanding. It delivers major gains on vision-dependent agent workflows while performing strongly across leading coding, repository, data science, automation, and multimodal benchmarks.",
-    "context_window": 1000000,
-    "max_tokens": 384000,
+    "description": "DeepSeek-V4-Flash-Vision-Exp is the first experimental multimodal model in the DeepSeek-V4 family. It builds on DeepSeek-V4-Flash by adding visual modules and continued training for visual understanding, with substantially improved multimodal agent capabilities while remaining comparable on text-only agent tasks.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5367,25 +5486,20 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000022",
       "output": "0.00000066",
       "input_cache_read": "0.000000007",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 60,
-            "end_minute_utc": 240,
-            "days_of_week": [1, 2, 3, 4, 5]
-          },
-          {
-            "start_minute_utc": 360,
-            "end_minute_utc": 600,
-            "days_of_week": [1, 2, 3, 4, 5]
-          }
-        ]
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -5487,6 +5601,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000066",
       "output": "0.00000198",
@@ -6463,6 +6586,7 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "knowledge": "2025-01",
     "pricing": {
       "input": "0.00000025",
       "output": "0.0000015",
@@ -6702,6 +6826,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2026-03",
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000025",
@@ -6816,6 +6947,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2026-03",
     "pricing": {
       "input": "0.00000075",
       "output": "0.00000375",
@@ -6970,6 +7108,7 @@
       "input": ["text"],
       "output": ["text"]
     },
+    "knowledge": "2025-11",
     "pricing": {
       "input": "0.0000002",
       "audio_input_token_cost": "0.0000065"
@@ -7618,6 +7757,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -7652,6 +7796,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8526,6 +8675,13 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-01-04",
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
@@ -8759,17 +8915,6 @@
         },
         {
           "cost_per_second": "0.065"
-        },
-        {
-          "resolution": "2k",
-          "cost_per_second": "0.13"
-        },
-        {
-          "resolution": "768p",
-          "cost_per_second": "0.08"
-        },
-        {
-          "cost_per_second": "0.13"
         }
       ]
     }
@@ -8829,17 +8974,6 @@
         },
         {
           "cost_per_second": "0.04"
-        },
-        {
-          "resolution": "480p",
-          "cost_per_second": "0.05"
-        },
-        {
-          "resolution": "768p",
-          "cost_per_second": "0.08"
-        },
-        {
-          "cost_per_second": "0.08"
         }
       ]
     }
@@ -8911,7 +9045,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "interleaved": true,
     "pricing": {
       "input": "0.0000003",
@@ -9227,6 +9360,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "input_tiers": [
@@ -10074,6 +10212,12 @@
       "include_reasoning"
     ],
     "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000045",
       "output": "0.0000225",
@@ -10164,7 +10308,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.00000005",
       "output": "0.00000024"
@@ -10287,6 +10430,16 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1,
+        "max": 32768
+      }
+    ],
     "pricing": {
       "input": "0.00000005",
       "output": "0.0000002",
@@ -10328,7 +10481,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000006"
@@ -10368,7 +10520,6 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000023",
@@ -11345,7 +11496,7 @@
         "values": ["high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.000015",
       "output": "0.00012",
@@ -11394,7 +11545,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000125",
       "output": "0.00001",
@@ -11444,7 +11595,7 @@
         "values": ["low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000125",
       "output": "0.00001",
@@ -11494,7 +11645,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000025",
       "output": "0.000002",
@@ -11734,7 +11885,7 @@
         "values": ["low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.00000175",
       "output": "0.000014",
@@ -11786,7 +11937,7 @@
         "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.0000035",
       "output": "0.000028",
@@ -11829,7 +11980,7 @@
         "values": ["medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.000021",
       "output": "0.000168",
@@ -12664,14 +12815,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -13102,14 +13252,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -13527,14 +13676,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -13951,14 +14099,13 @@
     },
     "supported_parameters": [
       "max_tokens",
-      "temperature",
       "stop",
       "tools",
       "tool_choice",
       "reasoning",
       "include_reasoning"
     ],
-    "temperature": true,
+    "temperature": false,
     "reasoning_options": [
       {
         "type": "effort",
@@ -14290,6 +14437,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000006"
@@ -15138,6 +15291,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000002",
@@ -15173,6 +15331,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -15603,7 +15766,6 @@
       "tool_choice"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -15645,7 +15807,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -15688,12 +15849,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -15783,12 +15938,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16186,12 +16335,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16281,12 +16424,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000002",
       "input_tiers": [
@@ -17045,6 +17182,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000014",
       "output": "0.00000058",
@@ -17081,6 +17224,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000000834",
       "output": "0.000002501",
@@ -17120,7 +17269,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "pricing": {
@@ -17173,6 +17322,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000012",
@@ -17536,6 +17691,47 @@
     }
   },
   {
+    "id": "xiaomi/mimo-v2.5-pro-ultraspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780876800,
+    "owned_by": "xiaomi",
+    "name": "MiMo V2.5 Pro UltraSpeed",
+    "description": "MiMo-V2.5-Pro-UltraSpeed is Xiaomi’s ultra-fast, text-based flagship reasoning model, pairing a trillion-parameter model with a 1,048,576-token context window and generation speeds of roughly 500–1,000 tokens per second. It supports deep thinking, tool calling, streaming output, and context caching, making it well suited to latency-sensitive coding agents, quantitative analysis, real-time risk control, and scientific workflows.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
+    "knowledge": "2024-12",
+    "pricing": {
+      "input": "0.000001305",
+      "output": "0.00000261",
+      "input_cache_read": "0.0000000108"
+    }
+  },
+  {
     "id": "zai/glm-4.5",
     "object": "model",
     "created": 1755815280,
@@ -17737,7 +17933,7 @@
         "type": "toggle"
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-04",
     "interleaved": true,
     "pricing": {
       "input": "0.0000006",
@@ -18096,6 +18292,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000014",
       "output": "0.0000044",
@@ -18140,6 +18342,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000005",

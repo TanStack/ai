@@ -44,12 +44,14 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'alibaba/qwen3.8-flash',
   'alibaba/qwen3.8-flash-next',
   'alibaba/qwen3.8-max',
+  'alibaba/qwen3.8-max-0902',
   'amazon/nova-2-lite',
   'amazon/nova-lite',
   'amazon/nova-micro',
   'amazon/nova-pro',
   'anthropic/claude-3-haiku',
   'anthropic/claude-fable-5',
+  'anthropic/claude-fable-5.1',
   'anthropic/claude-haiku-4.5',
   'anthropic/claude-opus-4',
   'anthropic/claude-opus-4.5',
@@ -68,7 +70,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'bytedance/seed-1.8',
   'cohere/command-a',
   'deepseek/deepseek-r1',
-  'deepseek/deepseek-v3',
   'deepseek/deepseek-v3.1',
   'deepseek/deepseek-v3.1-terminus',
   'deepseek/deepseek-v3.2',
@@ -263,6 +264,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'thinkingmachines/inkling-small',
   'xiaomi/mimo-v2.5',
   'xiaomi/mimo-v2.5-pro',
+  'xiaomi/mimo-v2.5-pro-ultraspeed',
   'zai/glm-4.5',
   'zai/glm-4.5-air',
   'zai/glm-4.5v',
@@ -667,6 +669,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'alibaba/qwen3.8-max-0902': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'amazon/nova-2-lite': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -698,6 +710,15 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'anthropic/claude-fable-5': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'anthropic/claude-fable-5.1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -782,7 +803,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -792,7 +812,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -832,7 +851,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -881,11 +899,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
-    >
-  'deepseek/deepseek-v3': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'deepseek/deepseek-v3.1': VercelGatewayCommonOptions &
     Pick<
@@ -1915,7 +1928,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -1945,7 +1957,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -1965,7 +1976,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -1985,7 +1995,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       | 'max_tokens'
       | 'max_output_tokens'
-      | 'temperature'
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
@@ -2397,6 +2406,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'xiaomi/mimo-v2.5-pro-ultraspeed': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'zai/glm-4.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2580,12 +2599,14 @@ export type VercelGatewayModelInputModalitiesByName = {
   'alibaba/qwen3.8-flash': readonly ['text', 'image', 'document']
   'alibaba/qwen3.8-flash-next': readonly ['text', 'image']
   'alibaba/qwen3.8-max': readonly ['text', 'image']
+  'alibaba/qwen3.8-max-0902': readonly ['text', 'image', 'document']
   'amazon/nova-2-lite': readonly ['text', 'image', 'document']
   'amazon/nova-lite': readonly ['text', 'image', 'document']
   'amazon/nova-micro': readonly ['text']
   'amazon/nova-pro': readonly ['text', 'image', 'document']
   'anthropic/claude-3-haiku': readonly ['text', 'image']
   'anthropic/claude-fable-5': readonly ['text', 'image', 'document']
+  'anthropic/claude-fable-5.1': readonly ['text', 'image', 'document']
   'anthropic/claude-haiku-4.5': readonly ['text', 'image', 'document']
   'anthropic/claude-opus-4': readonly ['text', 'image', 'document']
   'anthropic/claude-opus-4.5': readonly ['text', 'image', 'document']
@@ -2604,7 +2625,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'bytedance/seed-1.8': readonly ['text', 'image']
   'cohere/command-a': readonly ['text']
   'deepseek/deepseek-r1': readonly ['text']
-  'deepseek/deepseek-v3': readonly ['text']
   'deepseek/deepseek-v3.1': readonly ['text']
   'deepseek/deepseek-v3.1-terminus': readonly ['text']
   'deepseek/deepseek-v3.2': readonly ['text']
@@ -2818,6 +2838,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'thinkingmachines/inkling-small': readonly ['text', 'image', 'document']
   'xiaomi/mimo-v2.5': readonly ['text', 'image']
   'xiaomi/mimo-v2.5-pro': readonly ['text']
+  'xiaomi/mimo-v2.5-pro-ultraspeed': readonly ['text']
   'zai/glm-4.5': readonly ['text']
   'zai/glm-4.5-air': readonly ['text']
   'zai/glm-4.5v': readonly ['text', 'image']
