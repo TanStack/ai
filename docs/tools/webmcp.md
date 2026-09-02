@@ -193,7 +193,7 @@ export function HelpPage() {
 
 Call `injectWebMCPTools` in an injection context. Angular removes the registrations through `DestroyRef`.
 
-```ts
+```ts ignore
 import { Component } from '@angular/core'
 import { injectWebMCPTools } from '@tanstack/ai-angular'
 import { webMCPTools } from './tools'
