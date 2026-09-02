@@ -35,7 +35,6 @@ import type {
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
 import type {
-  InferredClientContext,
   QueuedMessage,
   ToolCallPart,
   ToolResultPart,
@@ -515,5 +514,3 @@ export type ChatUIKit<
   injectChatContext: () => ChatUIHost<TOptions>
   Input: TInput
 }
-
-export type { InferredClientContext }
