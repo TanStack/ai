@@ -1,5 +1,18 @@
 # @tanstack/ai-gemini
 
+## 0.28.0
+
+### Minor Changes
+
+- [#1301](https://github.com/TanStack/ai/pull/1301) [`307b7ec`](https://github.com/TanStack/ai/commit/307b7ec285e60f4a1b9a6c03345130ec9bb93356) - Add Gemini 3.8 Flash (`gemini-3.8-flash`) with multimodal input, thinking, structured output, caching, built-in tools, and agentic video understanding.
+
+  Limit its thinking levels to low, medium, and high in both the standard and Interactions adapters.
+
+### Patch Changes
+
+- Updated dependencies [[`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc)]:
+  - @tanstack/ai@0.52.2
+
 ## 0.27.0
 
 ### Minor Changes
