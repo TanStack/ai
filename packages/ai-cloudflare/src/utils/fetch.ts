@@ -53,6 +53,52 @@ export function normalizeSseResponse(response: Response): Response {
 }
 
 /**
+ * Cloudflare error bodies look like `{ name, message, internalCode }` or
+ * `{ errors: [{ code, message }] }`. The OpenAI SDK only reads
+ * `body.error.message`, so rewrap them or every failure reads as
+ * "status code (no body)".
+ */
+export async function normalizeErrorResponse(
+  response: Response,
+): Promise<Response> {
+  const text = await response.text()
+  let body = text
+  try {
+    const json = JSON.parse(text) as {
+      error?: unknown
+      errors?: Array<{ code?: number; message?: string }>
+      message?: string
+      name?: string
+      internalCode?: number
+    }
+    if (json && typeof json === 'object' && !('error' in json)) {
+      const first = json.errors?.[0]
+      body = JSON.stringify({
+        error: {
+          message: json.message ?? first?.message ?? text,
+          type: json.name ?? 'cloudflare_error',
+          code: json.internalCode ?? first?.code ?? null,
+        },
+      })
+    }
+  } catch {
+    // Not JSON: forward the text as-is.
+  }
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+/** Applies the error and SSE normalizations a raw Cloudflare response needs. */
+export async function normalizeResponse(response: Response): Promise<Response> {
+  return response.ok
+    ? normalizeSseResponse(response)
+    : await normalizeErrorResponse(response)
+}
+
+/**
  * Makes `env.AI` look like an OpenAI-compatible HTTP endpoint to the OpenAI
  * SDK: the JSON request body becomes `binding.run(model, inputs)` and the
  * raw inference `Response` (OpenAI-format JSON or SSE) is handed back.
@@ -72,17 +118,17 @@ export function createBindingFetch(
     const { model, ...inputs } = JSON.parse(
       typeof init?.body === 'string' ? init.body : '{}',
     ) as { model: string } & Record<string, unknown>
-    const response = await run(model, inputs, {
+    const response = (await run(model, inputs, {
       returnRawResponse: true,
       ...(gateway && { gateway }),
-    })
-    return normalizeSseResponse(response as Response)
+    })) as Response
+    return await normalizeResponse(response)
   }
 }
 
-/** Wraps a REST fetch so streamed chat responses get the same trailer fix. */
+/** Wraps a REST fetch so responses get the same error and trailer fixes. */
 export function createRestFetch(baseFetch: FetchLike | undefined): FetchLike {
   const fetchImpl = baseFetch ?? fetch
   return async (input, init) =>
-    normalizeSseResponse(await fetchImpl(input, init))
+    await normalizeResponse(await fetchImpl(input, init))
 }

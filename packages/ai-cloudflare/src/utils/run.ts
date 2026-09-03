@@ -30,11 +30,13 @@ export async function runModel(
       inputs: RunInputs,
       options?: Record<string, unknown>,
     ) => Promise<unknown>
+    // The binding serializes inputs as JSON; binary bodies must travel as a
+    // ReadableStream, which it forwards as the raw request body.
     const bindingInputs = options?.binary
       ? {
           ...inputs,
           [options.binary.field]: {
-            body: options.binary.body,
+            body: new Response(options.binary.body as BodyInit).body,
             contentType: options.binary.contentType,
           },
         }

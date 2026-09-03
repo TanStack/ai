@@ -7,9 +7,13 @@ import {
   restChatBaseURL,
 } from '../utils/config'
 import { createBindingFetch, createRestFetch } from '../utils/fetch'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions/completions'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions/completions'
 import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
 import type { CloudflareTextModel } from '../utils/models'
+import type { ModelMessage } from '@tanstack/ai'
 
 /**
  * Chat Completions parameters forwarded verbatim to Workers AI. Reasoning
@@ -72,6 +76,20 @@ export class CloudflareTextAdapter<
 
   constructor(config: CloudflareTextConfig, model: TModel) {
     super(model, 'cloudflare', createClient(config))
+  }
+
+  /**
+   * Workers AI validates `messages[].content` as a string, so a tool-call-only
+   * assistant turn (which OpenAI accepts as `content: null`) is sent as `''`.
+   */
+  protected override convertMessage(
+    message: ModelMessage,
+  ): ChatCompletionMessageParam {
+    const converted = super.convertMessage(message)
+    if (converted.role === 'assistant' && converted.content == null) {
+      return { ...converted, content: '' }
+    }
+    return converted
   }
 
   /** Workers AI reasoning models stream thinking as `reasoning_content`. */

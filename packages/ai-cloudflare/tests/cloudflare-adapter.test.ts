@@ -9,7 +9,10 @@ import {
   createCloudflareTranscription,
   createCloudflareTTS,
 } from '../src/index'
-import { normalizeSseResponse } from '../src/utils/fetch'
+import {
+  normalizeErrorResponse,
+  normalizeSseResponse,
+} from '../src/utils/fetch'
 import type { Ai } from '@cloudflare/workers-types'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -73,6 +76,34 @@ describe('normalizeSseResponse', () => {
     expect(text).toContain('"choices":[]')
     expect(text).toContain('data: [DONE]')
     expect(text).toContain('"content":"Hello"')
+  })
+
+  it('rewraps Cloudflare error envelopes into the OpenAI error shape', async () => {
+    const wrapped = await normalizeErrorResponse(
+      new Response(
+        JSON.stringify({
+          name: 'AiError',
+          internalCode: 5006,
+          message: 'Bad input',
+        }),
+        { status: 400 },
+      ),
+    )
+    expect(wrapped.status).toBe(400)
+    expect(await wrapped.json()).toEqual({
+      error: { message: 'Bad input', type: 'AiError', code: 5006 },
+    })
+    const envelope = await normalizeErrorResponse(
+      new Response(
+        JSON.stringify({ errors: [{ code: 2021, message: 'No credit' }] }),
+        {
+          status: 402,
+        },
+      ),
+    )
+    expect(await envelope.json()).toMatchObject({
+      error: { message: 'No credit', code: 2021 },
+    })
   })
 
   it('leaves non-SSE responses alone', () => {
@@ -172,6 +203,70 @@ describe('text adapter (binding)', () => {
     expect(run.mock.calls[0]![1]).toMatchObject({
       response_format: { type: 'json_schema' },
     })
+  })
+})
+
+describe('text adapter (binding) message shapes', () => {
+  it('sends tool-call-only assistant turns with empty string content', async () => {
+    const { binding, run } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/test', { binding })
+    await collect(
+      adapter.chatStream({
+        model: '@cf/test',
+        messages: [
+          { role: 'user', content: 'Weather?' },
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'get_weather',
+                  arguments: '{"city":"Paris"}',
+                },
+              },
+            ],
+          },
+          { role: 'tool', toolCallId: 'call_1', content: '{"temp":21}' },
+        ],
+        logger,
+      }),
+    )
+    const inputs = run.mock.calls[0]![1] as {
+      messages: Array<{ role: string; content: unknown }>
+    }
+    expect(inputs.messages[1]).toMatchObject({ role: 'assistant', content: '' })
+    expect(inputs.messages[2]).toMatchObject({
+      role: 'tool',
+      content: '{"temp":21}',
+    })
+  })
+
+  it('surfaces Cloudflare error bodies through the SDK error', async () => {
+    const { binding } = fakeBinding(
+      () =>
+        new Response(
+          JSON.stringify({ name: 'AiError', message: 'Bad input' }),
+          {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+    )
+    const adapter = createCloudflareText('@cf/test', { binding })
+    const chunks = await collect(
+      adapter.chatStream({
+        model: '@cf/test',
+        messages: [{ role: 'user', content: 'Hi' }],
+        logger,
+      }),
+    )
+    const error = chunks.find((c) => c.type === 'RUN_ERROR') as {
+      message: string
+    }
+    expect(error.message).toContain('Bad input')
   })
 })
 
