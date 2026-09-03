@@ -28,6 +28,9 @@ importers:
       '@faker-js/faker':
         specifier: ^10.1.0
         version: 10.1.0
+      '@modelschemas/client':
+        specifier: 0.1.0
+        version: 0.1.0
       '@stylistic/eslint-plugin':
         specifier: ^5.10.0
         version: 5.10.0(eslint@9.39.4(jiti@2.7.0))
@@ -5822,6 +5825,9 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@modelschemas/client@0.1.0':
+    resolution: {integrity: sha512-MVtC9gsZcx05ITdqh6Krc8G9lMxne7mPO2VfX6cyjQbpGNWOe/dwyZuETVfwohC3Dnsnsrfi3oIRNQNc+xx87Q==}
 
   '@msgpack/msgpack@3.1.3':
     resolution: {integrity: sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA==}
@@ -20983,6 +20989,8 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
+
+  '@modelschemas/client@0.1.0': {}
 
   '@msgpack/msgpack@3.1.3': {}
 
