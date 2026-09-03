@@ -12,7 +12,10 @@ interface RegisteredWebMCPTool {
     readOnlyHint?: boolean
     untrustedContentHint?: boolean
   }
-  execute: (input: object, options: { signal: AbortSignal }) => Promise<unknown>
+  execute: (
+    input: object,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>
 }
 
 interface ModelContextOptions {
