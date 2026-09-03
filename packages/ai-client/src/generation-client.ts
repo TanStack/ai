@@ -17,7 +17,7 @@ import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
 import { restoreInboundChunk } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai/client'
-import type { ByokClient } from './byok'
+import type { ByokClient, ByokProviderSelector } from './byok'
 import type {
   ConnectConnectionAdapter,
   GenerationHydrationResult,
@@ -127,9 +127,7 @@ export class GenerationClient<
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
   private byok: ByokClient | undefined
-  private byokProvider:
-    | (() => string | ReadonlyArray<string> | undefined)
-    | undefined
+  private byokProvider: ByokProviderSelector | undefined
   private result: TOutput | null = null
   private input: TInput | null = null
   private progress: AIDevtoolsGenerationProgress | null = null

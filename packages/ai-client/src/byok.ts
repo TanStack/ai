@@ -7,6 +7,7 @@ export type {
 } from './byok/client'
 export { defineByokProvider } from '@tanstack/ai/byok'
 export type { ByokProvider, ByokProviderInit } from '@tanstack/ai/byok'
+export type { ByokProviderSelector } from './byok/resolve'
 export { memoryStorage } from './byok/storage'
 export type { KeyPreview, Keyring, KeyringStorage } from './byok/storage'
 export {

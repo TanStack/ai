@@ -37,7 +37,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
-import type { ByokClient } from './byok'
+import type { ByokClient, ByokProviderSelector } from './byok'
 import type {
   ChatHydrationResult,
   ConnectionAdapter,
@@ -109,7 +109,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   byok?: ByokClient
-  byokProvider?: () => string | ReadonlyArray<string> | undefined
+  byokProvider?: ByokProviderSelector
   tools?: TTools
   interrupts?: TInterrupts
   queue?: QueueOption
@@ -376,9 +376,7 @@ export class ChatClient<
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
   private byok: ByokClient | undefined
-  private byokProvider:
-    | (() => string | ReadonlyArray<string> | undefined)
-    | undefined
+  private byokProvider: ByokProviderSelector | undefined
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private queueConfig: NormalizedQueueConfig

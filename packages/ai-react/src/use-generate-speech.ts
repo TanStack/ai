@@ -10,8 +10,7 @@ import type {
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
-import type { ByokClient } from '@tanstack/ai-client/byok'
-import type { ProviderId } from '@tanstack/ai/byok'
+import type { ByokClient, ByokProviderSelector } from '@tanstack/ai-client/byok'
 
 /**
  * Options for the useGenerateSpeech hook.
@@ -27,8 +26,8 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
   byok?: ByokClient
-  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
-  byokProvider?: () => ProviderId | undefined
+  /** Optional provider id, or several for grouped credentials. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: ByokProviderSelector
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
