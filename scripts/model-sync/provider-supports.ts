@@ -1,7 +1,8 @@
 /**
  * `supports` blocks for newly synced native-provider models.
  *
- * Input modalities come from OpenRouter. Features come from
+ * Input modalities come from the modelschemas catalog (OpenRouter
+ * enrich when the native row is empty). Features come from
  * `supported_parameters`. Server-tool lists are the current first-party
  * vocabulary for that provider, written only when the catalog lists `tools`
  * or `tool_choice`. Anthropic thinking flags follow the same parameter
