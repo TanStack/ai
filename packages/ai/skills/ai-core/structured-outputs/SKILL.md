@@ -192,7 +192,7 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-groq`                                   | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
 | `@tanstack/ai-bedrock`                                | Separate native `structuredOutputStream` finalization through Converse or an OpenAI-compatible API                                                    |
 | `@tanstack/ai-byteplus`                               | Native combined mode on supported models; unsupported models emit `RUN_ERROR`                                                                         |
-| `@tanstack/ai-cloudflare`                             | Native combined mode (#605) — `response_format: json_schema` + `tools` in one Workers AI Chat Completions stream                                      |
+| `@tanstack/ai-cloudflare`                             | Native `structuredOutputStream` without tools; with tools, a separate finalization call (Workers AI models answer the tool turn in prose)             |
 | `@tanstack/ai-claude-code`                            | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
 | `@tanstack/ai-codex`                                  | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
 | `@tanstack/ai-opencode`                               | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |

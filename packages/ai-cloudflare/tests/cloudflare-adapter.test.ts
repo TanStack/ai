@@ -270,6 +270,14 @@ describe('text adapter (binding) message shapes', () => {
   })
 })
 
+describe('structured output with tools', () => {
+  it('opts out of combined tools + schema mode', () => {
+    const { binding } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/test', { binding })
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+  })
+})
+
 describe('text adapter (REST)', () => {
   it('targets the account chat endpoint with token and gateway headers', async () => {
     const fetchMock = vi.fn(async () => sse(chatStreamEvents))

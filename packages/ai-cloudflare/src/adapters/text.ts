@@ -92,6 +92,15 @@ export class CloudflareTextAdapter<
     return converted
   }
 
+  /**
+   * Workers AI accepts `response_format` next to `tools` but its models answer
+   * the tool follow-up turn in prose, so structured output with tools runs as
+   * a separate finalization request instead.
+   */
+  override supportsCombinedToolsAndSchema(): boolean {
+    return false
+  }
+
   /** Workers AI reasoning models stream thinking as `reasoning_content`. */
   protected override extractReasoning(
     chunk: ChatCompletionChunk,
