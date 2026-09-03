@@ -227,7 +227,7 @@ function wrapWithTimingEvents(
 }
 
 export const Route = createFileRoute(
-  '/_database-demo/api/database-demo' as any,
+  '/_database-demo/api/database-demo',
 )({
   server: {
     handlers: {

@@ -34,7 +34,7 @@ async function getDriver(): Promise<IsolateDriver> {
 }
 
 export const Route = createFileRoute(
-  '/_execute-prompt/api/execute-prompt' as any,
+  '/_execute-prompt/api/execute-prompt',
 )({
   server: {
     handlers: {
