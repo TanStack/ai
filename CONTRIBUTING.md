@@ -54,7 +54,7 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs (OpenRouter adapter + gateway packages).
 2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
-3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok` from [modelschemas](https://modelschemas.com) (`@modelschemas/client`). Native ids and activities come from each provider catalog. Pricing, modalities, and `supported_parameters` come from the modelschemas OpenRouter catalog when that row exists.
+3. Inserts **new** native-provider models from [modelschemas](https://modelschemas.com) (`@modelschemas/client`) into `ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`, `ai-groq`, `ai-mistral`, `ai-byteplus`, and `ai-elevenlabs`. Native ids and activities come from each provider catalog. For OpenAI, Anthropic, Gemini, and Grok, pricing and `supported_parameters` come from the modelschemas OpenRouter catalog when that row exists. BytePlus and ElevenLabs use the native catalog as-is.
 4. Writes a patch changeset for the packages that changed.
 
 Reads against modelschemas work without a key (60 req/h per IP). Set `MODELSCHEMAS_API_KEY` on the workflow when you want the higher limit.
@@ -63,7 +63,8 @@ Rules the generator follows:
 
 - Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
 - Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
-- For a new native-provider model, write id, modalities, and pricing. Infer features from catalog `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar). Skip a native id until the modelschemas OpenRouter catalog has a matching row (native catalogs often omit pricing and modalities).
+- For a new native-provider model, write id, modalities, and pricing. Infer features from catalog `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar). OpenAI, Anthropic, Gemini, and Grok skip a native id until the modelschemas OpenRouter catalog has a matching row. BytePlus, ElevenLabs, Groq, and Mistral insert from the native catalog even when OpenRouter has no row.
+- ElevenLabs is id-literal arrays (`ELEVENLABS_TTS_MODELS` and friends), not ModelMeta constants. Voice-conversion (`*_sts_*`) ids are skipped. BytePlus video and image duration/size tables stay hand-curated.
 - Anthropic first-party ids use dashes (`claude-fable-5-1`). OpenRouter uses dots (`claude-fable-5.1`). The generator takes the modelschemas native id (already hyphenated) and does not copy the dotted OpenRouter slug into `ai-anthropic`. Dated Anthropic snapshots (`claude-haiku-4-5-20251001`) are skipped; the undated alias is the public id.
 - Write a row in the provider's `*ChatModelToolCapabilitiesByName` map for every new chat model, even when `supports.tools` is still `[]`. Missing that row makes `ResolveToolCapabilities` fall back to `readonly []`.
 - For new Anthropic models, infer the provider-options mix from the catalog: no sampling parameters → `AnthropicMaxTokensOptions`; reasoning params without sampling → adaptive-or-disabled thinking.

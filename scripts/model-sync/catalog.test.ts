@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   alreadySynced,
+  elevenLabsIdArray,
   findOpenRouterEnrichment,
   hasImageOutput,
   openRouterRawIdCandidates,
+  outputsText,
   parseCatalogModels,
   skipNativeModelReason,
   toSyncModel,
@@ -58,6 +60,28 @@ describe('parseCatalogModels', () => {
       inputModalities: ['text', 'image'],
       capabilities: ['tools', 'reasoning'],
     })
+  })
+
+  it('maps BytePlus object capabilities onto supported_parameters', () => {
+    const models = parseCatalogModels({
+      models: [
+        {
+          rawId: 'deepseek-v4-pro-ga-260813',
+          activity: 'chat',
+          capabilities: {
+            tools: { function_calling: true },
+            structured_outputs: { json_schema: false, json_object: false },
+            maxReasoningTokens: 393216,
+          },
+        },
+      ],
+    })
+    expect(models[0]?.capabilities).toEqual([
+      'tools',
+      'tool_choice',
+      'reasoning',
+      'include_reasoning',
+    ])
   })
 })
 
@@ -158,6 +182,50 @@ describe('skipNativeModelReason', () => {
         cutoff,
       ),
     ).toBe('non-chat family')
+  })
+
+  it('keeps audio rows when audio is an accepted activity', () => {
+    expect(
+      skipNativeModelReason(
+        native({ activity: 'audio', rawId: 'eleven_v3' }),
+        'elevenlabs',
+        [],
+        cutoff,
+        ['audio'],
+      ),
+    ).toBeNull()
+  })
+
+  it('keeps Groq rows with no activity', () => {
+    expect(
+      skipNativeModelReason(
+        native({ activity: null, rawId: 'qwen/qwen3.8-27b' }),
+        'groq',
+        [],
+        cutoff,
+        [null],
+      ),
+    ).toBeNull()
+  })
+})
+
+describe('outputsText', () => {
+  it('treats empty modalities plus unset activity as chat', () => {
+    const model = toSyncModel(
+      native({ activity: null, rawId: 'qwen/qwen3.8-27b' }),
+      undefined,
+      'groq',
+    )
+    expect(outputsText(model, null)).toBe(true)
+  })
+})
+
+describe('elevenLabsIdArray', () => {
+  it('routes TTS, skips STS, and classifies scribe / music', () => {
+    expect(elevenLabsIdArray('eleven_v3_conversational')).toBe('tts')
+    expect(elevenLabsIdArray('eleven_multilingual_sts_v2')).toBeNull()
+    expect(elevenLabsIdArray('scribe_v2')).toBe('transcription')
+    expect(elevenLabsIdArray('music_v1')).toBe('audio')
   })
 })
 

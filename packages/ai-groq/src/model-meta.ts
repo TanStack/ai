@@ -320,7 +320,27 @@ const QWEN3_32B = {
 /**
  * All supported Groq chat model identifiers.
  */
+const QWEN_QWEN3_8_27B = {
+  name: 'qwen/qwen3.8-27b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming'],
+    tools: [] as const,
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0,
+    },
+  },
+} as const satisfies ModelMeta<GroqTextProviderOptions>
+
 export const GROQ_CHAT_MODELS = [
+  QWEN_QWEN3_8_27B.name,
   LLAMA_3_1_8B_INSTANT.name,
   LLAMA_3_3_70B_VERSATILE.name,
   LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name,
@@ -356,6 +376,7 @@ export type GroqModelInputModalitiesByName = {
   [GPT_OSS_SAFEGUARD_20B.name]: typeof GPT_OSS_SAFEGUARD_20B.supports.input
   [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.input
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.input
+  [QWEN_QWEN3_8_27B.name]: typeof QWEN_QWEN3_8_27B.supports.input
 }
 
 /**
@@ -384,6 +405,7 @@ export type GroqChatModelToolCapabilitiesByName = {
   [GPT_OSS_SAFEGUARD_20B.name]: typeof GPT_OSS_SAFEGUARD_20B.supports.tools
   [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.tools
   [QWEN3_32B.name]: typeof QWEN3_32B.supports.tools
+  [QWEN_QWEN3_8_27B.name]: typeof QWEN_QWEN3_8_27B.supports.tools
 }
 
 /**
