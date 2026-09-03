@@ -37,6 +37,7 @@ export const providers: Provider[] = [
   'byteplus',
   'elevenlabs',
   'llmgateway',
+  'orcarouter',
 ]
 
 export { isSupported }

@@ -24,6 +24,7 @@ export type Provider =
   | 'byteplus'
   | 'elevenlabs'
   | 'llmgateway'
+  | 'orcarouter'
 
 export type Feature =
   | 'chat'
@@ -82,6 +83,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'byteplus',
   'elevenlabs',
   'llmgateway',
+  'orcarouter',
 ]
 
 export const ALL_FEATURES: Feature[] = [

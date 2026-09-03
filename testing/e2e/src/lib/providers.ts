@@ -22,6 +22,7 @@ import { createLovableText } from '@tanstack/ai-lovable'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
+import { createOrcaRouterText } from '@tanstack/ai-orcarouter'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -112,6 +113,7 @@ const defaultModels: Record<Provider, string> = {
   // Record<Provider, …> constraint.
   elevenlabs: '',
   llmgateway: 'gpt-5.6-terra',
+  orcarouter: 'openai/gpt-5.5-pro',
 }
 
 export function createTextAdapter(
@@ -393,6 +395,13 @@ export function createTextAdapter(
     llmgateway: () =>
       createChatOptions({
         adapter: createLLMGatewayText(model as 'gpt-5.6-terra', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    orcarouter: () =>
+      createChatOptions({
+        adapter: createOrcaRouterText(model as 'openai/gpt-5.5-pro', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
