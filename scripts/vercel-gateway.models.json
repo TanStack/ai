@@ -7035,6 +7035,84 @@
       "input": "0.00000075",
       "output": "0.00000375",
       "input_cache_read": "0.000000075",
+      "web_search": "14",
+      "maps_search": "14",
+      "service_tiers": {
+        "flex": {
+          "input": "0.000000375",
+          "output": "0.000001875",
+          "input_cache_read": "0.0000000375"
+        },
+        "priority": {
+          "input": "0.00000135",
+          "output": "0.00000675",
+          "input_cache_read": "0.000000135"
+        }
+      },
+      "regional": {
+        "eu": {
+          "input": "0.000000825",
+          "output": "0.000004125",
+          "input_cache_read": "0.0000000825"
+        },
+        "us": {
+          "input": "0.000000825",
+          "output": "0.000004125",
+          "input_cache_read": "0.0000000825"
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-3.8-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788307200,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Flash",
+    "description": "Gemini 3.8 Flash is the high-efficiency, cost-effective powerhouse of the Gemini 3 family. It delivers Pro-level agentic capabilities, major leaps in code generation and terminal execution. 3.8 Flash serves as the primary agentic workhorse in the Gemini 3 family, bridging the gap between deep-reasoning Pro models and high-throughput Flash-Lite models while delivering high token efficiency and multi-step multimodal processing.",
+    "context_window": 1000000,
+    "max_tokens": 65536,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "file-input",
+      "vision",
+      "tool-use",
+      "web-search",
+      "implicit-caching",
+      "video-input"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000075",
+      "output": "0.00000375",
+      "input_cache_read": "0.000000075",
+      "web_search": "14",
+      "maps_search": "14",
       "service_tiers": {
         "flex": {
           "input": "0.000000375",
@@ -8808,6 +8886,86 @@
     "owned_by": "meta",
     "name": "Muse Spark 1.2 Contributor",
     "description": "A coding-optimized model with pricing designed for builders. Same model, same capabilities — up to 95% less than Standard. Your inputs and outputs are used to train and improve Meta's AI models.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.0000001",
+      "output": "0.0000002",
+      "input_cache_read": "0.000000002"
+    }
+  },
+  {
+    "id": "meta/muse-spark-1.3",
+    "object": "model",
+    "created": 1755815280,
+    "owned_by": "meta",
+    "name": "Muse Spark 1.3",
+    "description": "Muse Spark 1.3 is Meta’s multimodal reasoning model for long-horizon agentic and coding workflows. With a 1M-token context window, reliable tool calling, higher first-attempt accuracy, and native understanding of video, images, and documents, it helps developers build capable coding agents and AI development workflows with fewer unnecessary turns and cleaner output.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000125",
+      "output": "0.00000425",
+      "input_cache_read": "0.00000015"
+    }
+  },
+  {
+    "id": "meta/muse-spark-1.3-contributor",
+    "object": "model",
+    "created": 1755815280,
+    "owned_by": "meta",
+    "name": "Muse Spark 1.3 Contributor",
+    "description": "Muse Spark 1.3 Contributor is Meta’s cost-optimized API option for agentic coding workflows. It offers a 1M-token context window, dependable tool calling, and multimodal perception at $0.10 per million input tokens and $0.20 per million output tokens, with usage permitted to improve Meta’s products.",
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
@@ -18299,15 +18457,69 @@
       }
     ],
     "pricing": {
-      "input": "0.0000014",
-      "output": "0.0000044",
-      "input_cache_read": "0.00000014",
+      "input": "0.0000007",
+      "output": "0.0000022",
+      "input_cache_read": "0.00000013",
       "varies_by_provider": true,
+      "fast": {
+        "input": "0.0000021",
+        "output": "0.0000066",
+        "input_cache_read": "0.00000021"
+      },
       "regional": {
         "us": {
           "input": "0.0000014",
           "output": "0.0000044",
           "input_cache_read": "0.00000014"
+        }
+      }
+    }
+  },
+  {
+    "id": "zai/glm-5.3-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788307200,
+    "owned_by": "zai",
+    "name": "GLM 5.3 Fast",
+    "description": "Speed-optimized version of Z.AI’s GLM-5.3 agentic coding model, built for responsive, real-time workloads. It supports advanced coding, long-horizon task execution, testing, vulnerability discovery, and cybersecurity analysis, making it ideal for developer tools, coding agents, and complex multi-step engineering workflows.",
+    "context_window": 1048576,
+    "max_tokens": 262144,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000021",
+      "output": "0.0000066",
+      "input_cache_read": "0.00000021",
+      "regional": {
+        "us": {
+          "input": "0.0000021",
+          "output": "0.0000066",
+          "input_cache_read": "0.00000021"
         }
       }
     }
@@ -18360,6 +18572,41 @@
           "input_cache_read": "0.00000003"
         }
       }
+    }
+  },
+  {
+    "id": "zai/glm-5.3-promo-50",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787011200,
+    "owned_by": "zai",
+    "name": "GLM 5.3 (50% off)",
+    "description": "GLM 5.3 delivers comprehensive advancements in complex software engineering and agent capabilities. It uses the same base model as GLM-5.2, with all improvements driven by post-training.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.0000007",
+      "output": "0.0000022",
+      "input_cache_read": "0.00000013"
     }
   },
   {
