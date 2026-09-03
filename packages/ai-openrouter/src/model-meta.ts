@@ -383,7 +383,7 @@ const _Z_AI_GLM_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
@@ -425,11 +425,11 @@ const _Z_AI_GLM_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 1.17,
-        cached: 0.234,
+        normal: 1.12,
+        cached: 0.184,
       },
       output: {
-        normal: 3.96,
+        normal: 3.52,
       },
     },
     image: 0,
@@ -2023,15 +2023,15 @@ const DEEPSEEK_DEEPSEEK_CHAT = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 16000,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.2574,
+        normal: 0.32,
         cached: 0,
       },
       output: {
-        normal: 1.0287,
+        normal: 0.89,
       },
     },
     image: 0,
@@ -2459,11 +2459,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
   pricing: {
     text: {
       input: {
-        normal: 0.44,
-        cached: 0.014,
+        normal: 0.22,
+        cached: 0.007,
       },
       output: {
-        normal: 1.32,
+        normal: 0.66,
       },
     },
     image: 0,
@@ -3541,14 +3541,76 @@ const GOOGLE_GEMINI_3_7_FLASH_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.1875,
-        cached: 0.039583333299999995,
+        normal: 0.375,
+        cached: 0.0791666667,
       },
       output: {
-        normal: 0.9375,
+        normal: 1.875,
       },
     },
-    image: 1.875e-7,
+    image: 3.75e-7,
+  },
+} as const
+const GOOGLE_GEMINI_3_8_FLASH = {
+  id: 'google/gemini-3.8-flash',
+  name: 'Google: Gemini 3.8 Flash',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.75,
+        cached: 0.1166666667,
+      },
+      output: {
+        normal: 3.75,
+      },
+    },
+    image: 7.5e-7,
+  },
+} as const
+const GOOGLE_GEMINI_3_8_FLASH_BATCH = {
+  id: 'google/gemini-3.8-flash:batch',
+  name: 'Google: Gemini 3.8 Flash (batch)',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'toolChoice',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.375,
+        cached: 0.0791666667,
+      },
+      output: {
+        normal: 1.875,
+      },
+    },
+    image: 3.75e-7,
   },
 } as const
 const GOOGLE_GEMMA_2_27B_IT = {
@@ -4027,6 +4089,7 @@ const IBM_GRANITE_GRANITE_4_2_8B = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
@@ -4521,15 +4584,15 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 115200,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.71,
-        cached: 0.71,
+        normal: 0.1,
+        cached: 0,
       },
       output: {
-        normal: 0.71,
+        normal: 0.32,
       },
     },
     image: 0,
@@ -4661,7 +4724,7 @@ const META_MUSE_GLIMMER_30B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 16384,
+  max_output_tokens: 117964,
   pricing: {
     text: {
       input: {
@@ -4669,7 +4732,7 @@ const META_MUSE_GLIMMER_30B = {
         cached: 0.04,
       },
       output: {
-        normal: 1.2,
+        normal: 1.1,
       },
     },
     image: 0,
@@ -4772,6 +4835,66 @@ const META_MUSE_SPARK_1_2 = {
 const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
   id: 'meta/muse-spark-1.2-contributor',
   name: 'Meta: Muse Spark 1.2 Contributor',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 943718,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.1,
+        cached: 0.002,
+      },
+      output: {
+        normal: 0.2,
+      },
+    },
+    image: 0,
+  },
+} as const
+const META_MUSE_SPARK_1_3 = {
+  id: 'meta/muse-spark-1.3',
+  name: 'Meta: Muse Spark 1.3',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 943718,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.25,
+        cached: 0.15,
+      },
+      output: {
+        normal: 4.25,
+      },
+    },
+    image: 0,
+  },
+} as const
+const META_MUSE_SPARK_1_3_CONTRIBUTOR = {
+  id: 'meta/muse-spark-1.3-contributor',
+  name: 'Meta: Muse Spark 1.3 Contributor',
   supports: {
     input: ['text', 'image', 'video', 'document', 'audio'],
     output: ['text'],
@@ -6443,12 +6566,12 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 228000,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
         normal: 0.05,
-        cached: 0.025,
+        cached: 0.03,
       },
       output: {
         normal: 0.2,
@@ -6576,49 +6699,15 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.625,
-        cached: 0.1875,
-      },
-      output: {
-        normal: 3.125,
-      },
-    },
-    image: 0,
-  },
-} as const
-const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH = {
-  id: 'nvidia/nemotron-3-ultra-550b-a55b:batch',
-  name: 'NVIDIA: Nemotron 3 Ultra (batch)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'reasoning',
-      'responseFormat',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 512288,
-  max_output_tokens: 461059,
+  max_output_tokens: 182520,
   pricing: {
     text: {
       input: {
         normal: 0.6,
-        cached: 0.2,
+        cached: 0.12,
       },
       output: {
-        normal: 3.6,
+        normal: 2.4,
       },
     },
     image: 0,
@@ -11020,15 +11109,15 @@ const QWEN_QWEN3_5_397B_A17B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 65536,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
-        normal: 0.39,
-        cached: 0,
+        normal: 0.55,
+        cached: 0.225,
       },
       output: {
-        normal: 2.34,
+        normal: 3.5,
       },
     },
     image: 0,
@@ -11522,12 +11611,12 @@ const QWEN_QWEN3_8_2_4T_A95B = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 131072,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
         normal: 2,
-        cached: 0.2,
+        cached: 0.25,
       },
       output: {
         normal: 6,
@@ -13051,15 +13140,15 @@ const Z_AI_GLM_4_6 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 16384,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.43,
-        cached: 0.08,
+        normal: 0.55,
+        cached: 0.11,
       },
       output: {
-        normal: 1.75,
+        normal: 2.2,
       },
     },
     image: 0,
@@ -13371,12 +13460,12 @@ const Z_AI_GLM_5_3 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
         normal: 1.4,
-        cached: 0.26,
+        cached: 0.14,
       },
       output: {
         normal: 4.4,
@@ -14799,6 +14888,28 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'toolChoice'
     >
+  [GOOGLE_GEMINI_3_8_FLASH.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [GOOGLE_GEMINI_3_8_FLASH_BATCH.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'toolChoice'
+    >
   [GOOGLE_GEMMA_2_27B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -14983,6 +15094,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
@@ -15290,6 +15402,26 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [META_MUSE_SPARK_1_2_CONTRIBUTOR.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [META_MUSE_SPARK_1_3.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [META_MUSE_SPARK_1_3_CONTRIBUTOR.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
@@ -16002,20 +16134,6 @@ export type OpenRouterModelOptionsByName = {
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
-    >
-  [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'reasoning'
-      | 'responseFormat'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
@@ -18873,6 +18991,12 @@ export type OpenRouterModelInputModalitiesByName = {
   [GOOGLE_GEMINI_3_7_FLASH_BATCH.id]: ReadonlyArray<
     'text' | 'image' | 'video' | 'document' | 'audio'
   >
+  [GOOGLE_GEMINI_3_8_FLASH.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
+  >
+  [GOOGLE_GEMINI_3_8_FLASH_BATCH.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
+  >
   [GOOGLE_GEMMA_2_27B_IT.id]: ReadonlyArray<'text'>
   [GOOGLE_GEMMA_3_12B_IT.id]: ReadonlyArray<'text' | 'image'>
   [GOOGLE_GEMMA_3_27B_IT.id]: ReadonlyArray<'text' | 'image'>
@@ -18914,6 +19038,12 @@ export type OpenRouterModelInputModalitiesByName = {
     'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [META_MUSE_SPARK_1_2_CONTRIBUTOR.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
+  >
+  [META_MUSE_SPARK_1_3.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
+  >
+  [META_MUSE_SPARK_1_3_CONTRIBUTOR.id]: ReadonlyArray<
     'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [MICROSOFT_PHI_4.id]: ReadonlyArray<'text'>
@@ -18982,7 +19112,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [NVIDIA_NEMOTRON_3_SUPER_120B_A12B.id]: ReadonlyArray<'text'>
   [NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE.id]: ReadonlyArray<'text'>
   [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B.id]: ReadonlyArray<'text'>
-  [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH.id]: ReadonlyArray<'text'>
   [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE.id]: ReadonlyArray<'text'>
   [NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE.id]: ReadonlyArray<'text' | 'image'>
   [NVIDIA_NEMOTRON_3_5_LIGHTNING.id]: ReadonlyArray<'text'>
@@ -19324,6 +19453,8 @@ export const OPENROUTER_CHAT_MODELS = [
   GOOGLE_GEMINI_3_6_FLASH_BATCH.id,
   GOOGLE_GEMINI_3_7_FLASH.id,
   GOOGLE_GEMINI_3_7_FLASH_BATCH.id,
+  GOOGLE_GEMINI_3_8_FLASH.id,
+  GOOGLE_GEMINI_3_8_FLASH_BATCH.id,
   GOOGLE_GEMMA_2_27B_IT.id,
   GOOGLE_GEMMA_3_12B_IT.id,
   GOOGLE_GEMMA_3_27B_IT.id,
@@ -19359,6 +19490,8 @@ export const OPENROUTER_CHAT_MODELS = [
   META_MUSE_SPARK_1_1.id,
   META_MUSE_SPARK_1_2.id,
   META_MUSE_SPARK_1_2_CONTRIBUTOR.id,
+  META_MUSE_SPARK_1_3.id,
+  META_MUSE_SPARK_1_3_CONTRIBUTOR.id,
   MICROSOFT_PHI_4.id,
   MICROSOFT_WIZARDLM_2_8X22B.id,
   MINIMAX_MINIMAX_01.id,
@@ -19413,7 +19546,6 @@ export const OPENROUTER_CHAT_MODELS = [
   NVIDIA_NEMOTRON_3_SUPER_120B_A12B.id,
   NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE.id,
   NVIDIA_NEMOTRON_3_ULTRA_550B_A55B.id,
-  NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH.id,
   NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE.id,
   NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE.id,
   NVIDIA_NEMOTRON_3_5_LIGHTNING.id,
@@ -20215,6 +20347,8 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     GOOGLE_GEMINI_3_6_FLASH_BATCH.id,
     GOOGLE_GEMINI_3_7_FLASH.id,
     GOOGLE_GEMINI_3_7_FLASH_BATCH.id,
+    GOOGLE_GEMINI_3_8_FLASH.id,
+    GOOGLE_GEMINI_3_8_FLASH_BATCH.id,
     GOOGLE_GEMMA_3_12B_IT.id,
     GOOGLE_GEMMA_3_27B_IT.id,
     GOOGLE_GEMMA_4_26B_A4B_IT.id,
@@ -20237,6 +20371,8 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     META_MUSE_SPARK_1_1.id,
     META_MUSE_SPARK_1_2.id,
     META_MUSE_SPARK_1_2_CONTRIBUTOR.id,
+    META_MUSE_SPARK_1_3.id,
+    META_MUSE_SPARK_1_3_CONTRIBUTOR.id,
     MINIMAX_MINIMAX_M2.id,
     MINIMAX_MINIMAX_M2_5.id,
     MINIMAX_MINIMAX_M2_7.id,
@@ -20272,7 +20408,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     NVIDIA_NEMOTRON_3_SUPER_120B_A12B.id,
     NVIDIA_NEMOTRON_3_SUPER_120B_A12B_FREE.id,
     NVIDIA_NEMOTRON_3_ULTRA_550B_A55B.id,
-    NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH.id,
     NVIDIA_NEMOTRON_3_5_LIGHTNING.id,
     OPENAI_GPT_3_5_TURBO.id,
     OPENAI_GPT_3_5_TURBO_0613.id,
