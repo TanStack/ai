@@ -14,6 +14,8 @@ keywords:
   - community adapter
 ---
 
+> TanStack AI now ships a first-party Cloudflare adapter, `@tanstack/ai-cloudflare`. See the [Cloudflare adapter](../adapters/cloudflare) page. This page covers Cloudflare's own `@cloudflare/tanstack-ai` package.
+
 The Cloudflare adapter provides access to [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) models and [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for routing requests to OpenAI, Anthropic, Gemini, Grok, and OpenRouter with caching, rate limiting, and unified billing.
 
 ## Installation

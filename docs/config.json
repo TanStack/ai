@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Quick Start",
@@ -118,7 +118,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Multi-Turn Chat",
@@ -1031,6 +1031,11 @@
           "addedAt": "2026-07-29"
         },
         {
+          "label": "Cloudflare",
+          "to": "adapters/cloudflare",
+          "addedAt": "2026-09-03"
+        },
+        {
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
@@ -1098,7 +1103,8 @@
         {
           "label": "Cloudflare",
           "to": "community-adapters/cloudflare",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Soniox",
