@@ -491,4 +491,14 @@ describe('cloudflareGateway', () => {
       'cf-aig-authorization': 'Bearer cf-token',
     })
   })
+
+  it('keeps the /v1 segment for providers whose gateway path has it', () => {
+    const target = { accountId: 'acc', gatewayId: 'prod' }
+    expect(cloudflareGateway('grok', target).baseURL).toBe(
+      'https://gateway.ai.cloudflare.com/v1/acc/prod/grok/v1',
+    )
+    expect(cloudflareGateway('anthropic', target).baseURL).toBe(
+      'https://gateway.ai.cloudflare.com/v1/acc/prod/anthropic',
+    )
+  })
 })

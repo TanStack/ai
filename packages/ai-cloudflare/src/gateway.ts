@@ -26,6 +26,16 @@ export interface CloudflareGatewayTarget extends Omit<
  * })
  * ```
  */
+/**
+ * Gateway endpoints mirror each vendor's own path after the host, and most
+ * vendor SDKs already append their version segment (Anthropic `/v1/messages`,
+ * Mistral `/v1/...`, Cohere `/v1/chat`). OpenAI-style SDKs append only
+ * `/chat/completions`, which matches Cloudflare's `openai`, `groq`,
+ * `perplexity-ai`, `deepseek`, and `cerebras` endpoints. xAI is the exception:
+ * Cloudflare serves it at `/grok/v1/...`, so its base URL keeps the `/v1`.
+ */
+const PROVIDER_PATH_SUFFIX: Record<string, string> = { grok: '/v1' }
+
 export function cloudflareGateway(
   provider: AIGatewayProviders | 'compat' | (string & {}),
   target: CloudflareGatewayTarget,
@@ -37,7 +47,7 @@ export function cloudflareGateway(
   })
   if (cfApiKey) headers['cf-aig-authorization'] = `Bearer ${cfApiKey}`
   return {
-    baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/${provider}`,
+    baseURL: `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayId}/${provider}${PROVIDER_PATH_SUFFIX[provider] ?? ''}`,
     headers,
   }
 }
