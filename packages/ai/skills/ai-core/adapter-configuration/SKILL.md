@@ -73,18 +73,19 @@ top-level options on `chat()`. See the per-provider table in
 Each provider has a dedicated package with tree-shakeable adapter factories.
 The text adapter is the primary one for chat/completions:
 
-| Provider          | Package                          | Factory                                     | Env Var                                           |
-| ----------------- | -------------------------------- | ------------------------------------------- | ------------------------------------------------- |
-| OpenAI            | `@tanstack/ai-openai`            | `openaiText`                                | `OPENAI_API_KEY`                                  |
-| Anthropic         | `@tanstack/ai-anthropic`         | `anthropicText`                             | `ANTHROPIC_API_KEY`                               |
-| Gemini            | `@tanstack/ai-gemini`            | `geminiText`                                | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
-| Grok (xAI)        | `@tanstack/ai-grok`              | `grokText`                                  | `XAI_API_KEY`                                     |
-| Groq              | `@tanstack/ai-groq`              | `groqText`                                  | `GROQ_API_KEY`                                    |
-| OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                              |
-| Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`) |
-| Bedrock           | `@tanstack/ai-bedrock`           | `bedrockText`                               | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`   |
-| BytePlus          | `@tanstack/ai-byteplus`          | `byteplusText`                              | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`)  |
-| OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)           |
+| Provider          | Package                          | Factory                                     | Env Var                                                                                |
+| ----------------- | -------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| OpenAI            | `@tanstack/ai-openai`            | `openaiText`                                | `OPENAI_API_KEY`                                                                       |
+| Anthropic         | `@tanstack/ai-anthropic`         | `anthropicText`                             | `ANTHROPIC_API_KEY`                                                                    |
+| Gemini            | `@tanstack/ai-gemini`            | `geminiText`                                | `GOOGLE_API_KEY` or `GEMINI_API_KEY`                                                   |
+| Grok (xAI)        | `@tanstack/ai-grok`              | `grokText`                                  | `XAI_API_KEY`                                                                          |
+| Groq              | `@tanstack/ai-groq`              | `groqText`                                  | `GROQ_API_KEY`                                                                         |
+| OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                                                                   |
+| Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`)                                      |
+| Bedrock           | `@tanstack/ai-bedrock`           | `bedrockText`                               | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`                                        |
+| BytePlus          | `@tanstack/ai-byteplus`          | `byteplusText`                              | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`)                                       |
+| OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)                                                |
+| Cloudflare        | `@tanstack/ai-cloudflare`        | `cloudflareText`                            | `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`, or `{ binding: env.AI }` in a Worker |
 
 > **BytePlus uses two keys.** `byteplusText` / `byteplusVideo` /
 > `byteplusImage` read `ARK_API_KEY` (ModelArk, `Authorization: Bearer`), but
@@ -416,6 +417,25 @@ compatible providers speak.
 
 > Verify the provider's current `baseURL` and model ids against its live docs —
 > they drift. See `docs/adapters/openai-compatible.md` for the full provider table.
+
+## Behind a proxy or gateway
+
+Every adapter's client config accepts `baseURL` and `defaultHeaders`. Use these
+two names to route any adapter through Cloudflare AI Gateway, Vercel AI Gateway,
+or a corporate proxy. The adapter maps them onto the vendor SDK's own option
+names (Gemini `httpOptions`, Mistral `serverURL`, Ollama `host`, Cohere and
+ElevenLabs `baseUrl`/`headers`). The vendor names still work; when both are
+set, `baseURL` and `defaultHeaders` win.
+
+```typescript
+const gateway = {
+  baseURL: 'https://gateway.example.com/google-ai-studio',
+  defaultHeaders: {
+    'cf-aig-authorization': `Bearer ${process.env.GATEWAY_TOKEN}`,
+  },
+}
+createGeminiChat('gemini-3.8-flash', apiKey, { ...gateway })
+```
 
 ## Common Mistakes
 

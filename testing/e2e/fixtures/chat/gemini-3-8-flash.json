@@ -1,0 +1,13 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "model": "gemini-3.8-flash",
+        "userMessage": "[gemini-3.8-flash] recommend a guitar"
+      },
+      "response": {
+        "content": "I'd recommend the Fender Stratocaster."
+      }
+    }
+  ]
+}

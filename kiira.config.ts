@@ -53,6 +53,7 @@ export default defineConfig({
     '@opentelemetry/api': '^1.9.0',
     // Community adapters (each documented page imports its published package)
     '@cloudflare/tanstack-ai': '^0.1.0',
+    '@cloudflare/workers-types': '^4.20260317.1',
     '@decartai/tanstack-ai-adapter': '^0.0.2',
     '@mynthio/tanstack-ai-adapter': '^0.0.14',
     '@cencori/ai-sdk': '^0.4.0',

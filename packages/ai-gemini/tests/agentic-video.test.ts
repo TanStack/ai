@@ -47,55 +47,58 @@ const videoMessage = (metadata?: Record<string, unknown>): ModelMessage => ({
   ],
 })
 
-describe('Gemini agentic video routing', () => {
-  beforeEach(() => vi.clearAllMocks())
+describe.each(['gemini-3.8-flash', 'gemini-3.7-flash'] as const)(
+  '%s agentic video routing',
+  (model) => {
+    beforeEach(() => vi.clearAllMocks())
 
-  it('routes processing:"agentic" video parts through the Interactions API', async () => {
-    mocks.interactionsCreateSpy.mockResolvedValue({
-      output_text: 'A guitar is played in a store.',
+    it('routes processing:"agentic" video parts through the Interactions API', async () => {
+      mocks.interactionsCreateSpy.mockResolvedValue({
+        output_text: 'A guitar is played in a store.',
+      })
+
+      const adapter = new GeminiTextAdapter({ apiKey: 'k' }, model)
+      const chunks = await collect(
+        chat({
+          adapter,
+          messages: [videoMessage({ processing: 'agentic' })],
+        }),
+      )
+
+      expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
+      expect(mocks.generateContentStreamSpy).not.toHaveBeenCalled()
+
+      const payload = mocks.interactionsCreateSpy.mock.calls[0]![0]
+      expect(payload.model).toBe(model)
+      const videoBlock = payload.input[0].content.find(
+        (c: { type: string }) => c.type === 'video',
+      )
+      expect(videoBlock.processing).toBe('agentic')
+
+      const text = chunks
+        .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+        .map((c) => (c as { delta: string }).delta)
+        .join('')
+      expect(text).toBe('A guitar is played in a store.')
     })
 
-    const adapter = new GeminiTextAdapter({ apiKey: 'k' }, 'gemini-3.7-flash')
-    const chunks = await collect(
-      chat({
-        adapter,
-        messages: [videoMessage({ processing: 'agentic' })],
-      }),
-    )
+    it('routes single-pass video parts through generateContentStream', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream([
+          {
+            candidates: [
+              { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+            ],
+            usageMetadata: { totalTokenCount: 1 },
+          },
+        ]),
+      )
 
-    expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
-    expect(mocks.generateContentStreamSpy).not.toHaveBeenCalled()
+      const adapter = new GeminiTextAdapter({ apiKey: 'k' }, model)
+      await collect(chat({ adapter, messages: [videoMessage()] }))
 
-    const payload = mocks.interactionsCreateSpy.mock.calls[0]![0]
-    expect(payload.model).toBe('gemini-3.7-flash')
-    const videoBlock = payload.input[0].content.find(
-      (c: { type: string }) => c.type === 'video',
-    )
-    expect(videoBlock.processing).toBe('agentic')
-
-    const text = chunks
-      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
-      .map((c) => (c as { delta: string }).delta)
-      .join('')
-    expect(text).toBe('A guitar is played in a store.')
-  })
-
-  it('routes single-pass video parts through generateContentStream', async () => {
-    mocks.generateContentStreamSpy.mockResolvedValue(
-      createStream([
-        {
-          candidates: [
-            { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
-          ],
-          usageMetadata: { totalTokenCount: 1 },
-        },
-      ]),
-    )
-
-    const adapter = new GeminiTextAdapter({ apiKey: 'k' }, 'gemini-3.7-flash')
-    await collect(chat({ adapter, messages: [videoMessage()] }))
-
-    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
-  })
-})
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+      expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
+    })
+  },
+)

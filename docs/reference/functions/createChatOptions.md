@@ -6,7 +6,7 @@ title: createChatOptions
 # Function: createChatOptions()
 
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "middleware" | "tools" | "interrupts"> & object;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "middleware" | "tools" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/index.ts:594](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L594)
@@ -60,7 +60,7 @@ This is useful for pre-defining configurations with full type inference.
 
 ## Returns
 
-`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>, `"middleware"` \| `"tools"` \| `"interrupts"`\> & `object`
+`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>, `"middleware"` \| `"tools"` \| `"interrupts"` \| `"context"`\> & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
 
 ## Example
 

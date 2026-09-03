@@ -95,6 +95,8 @@ const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
   // LLM Gateway exposes an OpenAI-compatible Chat Completions surface whose
   // only output cap is `max_tokens` — it does not read `max_completion_tokens`.
   llmgateway: 'max_tokens',
+  // Workers AI's OpenAI-compatible Chat Completions surface reads `max_tokens`.
+  cloudflare: 'max_tokens',
 }
 
 /**

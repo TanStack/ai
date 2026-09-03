@@ -80,6 +80,7 @@ const PROVIDER_MODELS: Record<
   // keys on the exact string, so any drift here silently breaks
   // combined-mode routing.
   gemini: [
+    { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
     { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
     { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
     { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },

@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-sandbox
 
 Provider-agnostic sandbox layer for [TanStack AI](https://tanstack.com/ai). Run coding-agent harness adapters (Grok Build, Claude Code, Codex, OpenCode, Gemini CLI) **inside** an isolated environment with a real filesystem, shell, and cloned repo — and stream their work back through `chat()`.

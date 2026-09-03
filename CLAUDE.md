@@ -399,6 +399,16 @@ Then also obey these TanStack-specific rules:
   it; set `"tab"` on the section or entry in `docs/config.json`
   (`home | get-started | tutorial | guides | api | examples`).
 
+### Package README banner (mandatory)
+
+When you add or replace a `README.md` under `packages/`, the file MUST start
+with the TanStack AI `<picture>` banner from `packages/ai/README.md`
+(`https://tanstack.com/api/readme/ai.png`, plus the `?theme=dark` source).
+Do not use `media/header_ai.png`. Framework packages can add
+`?framework=<name>` (copy `packages/ai-angular/README.md`,
+`packages/ai-solid/README.md`, or `packages/ai-svelte/README.md`). Skip this
+only for non-package READMEs (examples, testing, live-tests).
+
 ## Key Dependencies
 
 ### Core Runtime Dependencies

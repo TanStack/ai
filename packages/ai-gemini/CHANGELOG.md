@@ -1,5 +1,29 @@
 # @tanstack/ai-gemini
 
+## 0.29.0
+
+### Minor Changes
+
+- [#1312](https://github.com/TanStack/ai/pull/1312) [`5305d32`](https://github.com/TanStack/ai/commit/5305d320aae400b07bfe3a440d2d720cece44197) - Accept `baseURL` and `defaultHeaders` on every adapter's client config so one gateway config (Cloudflare AI Gateway, Vercel AI Gateway, a corporate proxy) can be spread into any adapter. The vendor-specific names (`httpOptions`, `serverURL`, `host`, `baseUrl`, `headers`) keep working. Bedrock's Converse adapter now applies `defaultHeaders` too.
+
+### Patch Changes
+
+- Updated dependencies [[`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a)]:
+  - @tanstack/ai@0.52.3
+
+## 0.28.0
+
+### Minor Changes
+
+- [#1301](https://github.com/TanStack/ai/pull/1301) [`307b7ec`](https://github.com/TanStack/ai/commit/307b7ec285e60f4a1b9a6c03345130ec9bb93356) - Add Gemini 3.8 Flash (`gemini-3.8-flash`) with multimodal input, thinking, structured output, caching, built-in tools, and agentic video understanding.
+
+  Limit its thinking levels to low, medium, and high in both the standard and Interactions adapters.
+
+### Patch Changes
+
+- Updated dependencies [[`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc)]:
+  - @tanstack/ai@0.52.2
+
 ## 0.27.0
 
 ### Minor Changes

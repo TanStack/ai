@@ -22,6 +22,7 @@ import { createLovableText } from '@tanstack/ai-lovable'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
+import { createCloudflareText } from '@tanstack/ai-cloudflare'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -112,6 +113,7 @@ const defaultModels: Record<Provider, string> = {
   // Record<Provider, …> constraint.
   elevenlabs: '',
   llmgateway: 'gpt-5.6-terra',
+  cloudflare: '@cf/zai-org/glm-5.3-flash',
 }
 
 export function createTextAdapter(
@@ -144,12 +146,7 @@ export function createTextAdapter(
       adapter: createGeminiTextInteractions(
         model as 'gemini-2.5-flash',
         DUMMY_KEY,
-        {
-          httpOptions: {
-            baseUrl: base,
-            headers: testHeaders,
-          },
-        },
+        { baseURL: base, defaultHeaders: testHeaders },
       ),
     })
   }
@@ -163,10 +160,8 @@ export function createTextAdapter(
   if (provider === 'gemini' && feature === 'video-understanding') {
     return createChatOptions({
       adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
-        httpOptions: {
-          baseUrl: `${base}/vu-interactions`,
-          headers: testHeaders,
-        },
+        baseURL: `${base}/vu-interactions`,
+        defaultHeaders: testHeaders,
       }),
     })
   }
@@ -193,10 +188,8 @@ export function createTextAdapter(
     gemini: () =>
       createChatOptions({
         adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
-          httpOptions: {
-            baseUrl: base,
-            headers: testHeaders,
-          },
+          baseURL: base,
+          defaultHeaders: testHeaders,
         }),
       }),
     // Gemini on Vertex. Dummy ADC + project/location so the SDK posts
@@ -236,10 +229,10 @@ export function createTextAdapter(
       }),
     ollama: () =>
       createChatOptions({
-        adapter: createOllamaChat(
-          model as 'mistral',
-          testHeaders ? { host: base, headers: testHeaders } : base,
-        ),
+        adapter: createOllamaChat(model as 'mistral', {
+          baseURL: base,
+          defaultHeaders: testHeaders,
+        }),
       }),
     groq: () =>
       createChatOptions({
@@ -383,7 +376,7 @@ export function createTextAdapter(
     mistral: () =>
       createChatOptions({
         adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
-          serverURL: base,
+          baseURL: base,
           defaultHeaders: testHeaders,
         }),
       }),
@@ -402,6 +395,15 @@ export function createTextAdapter(
     llmgateway: () =>
       createChatOptions({
         adapter: createLLMGatewayText(model as 'gpt-5.6-terra', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    cloudflare: () =>
+      createChatOptions({
+        adapter: createCloudflareText(model, {
+          accountId: 'e2e-account',
+          apiKey: DUMMY_KEY,
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),

@@ -92,7 +92,7 @@ export interface GeminiAudioMetadata {
  *
  * - `static` (default): single-pass frame sampling via `generateContent`.
  * - `agentic`: multi-pass "agentic" video understanding, GA on the
- *   `agentic_video`-capable flash models (`gemini-3.7-flash`,
+ *   `agentic_video`-capable flash models (`gemini-3.8-flash`, `gemini-3.7-flash`,
  *   `gemini-3.6-flash`, `gemini-3.5-flash-lite`). The text adapter routes the
  *   request through the Interactions API instead of `generateContent`. With
  *   `agentic`, the sampling rate is expressed in the text prompt (e.g. "watch

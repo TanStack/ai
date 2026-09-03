@@ -5,7 +5,7 @@ import {
   maskKey,
 } from '@tanstack/ai/byok'
 import { memoryStorage } from './storage'
-import type { ProviderId } from '@tanstack/ai/byok'
+import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
 import type { Keyring, KeyringStorage } from './storage'
 
 export type KeyStatus =
@@ -28,6 +28,11 @@ export type ByokSnapshot = {
 
 export interface DefineByokOptions {
   storage?: KeyringStorage
+  /**
+   * Descriptors whose `with` companions the store expands: `headers()` and
+   * `prepare()` for such a provider cover its companions too.
+   */
+  providers?: ReadonlyArray<ByokProvider>
 }
 
 export const EMPTY_BYOK_SNAPSHOT: ByokSnapshot = {
@@ -85,6 +90,7 @@ export class ByokClient {
   #prompt: ByokPrompt | null = null
   #coverageAll = false
   #coverage: Record<string, boolean> = {}
+  readonly #companions: Record<string, Array<ProviderId>> = {}
   readonly #listeners = new Set<() => void>()
   #snapshot: ByokSnapshot
   #storageError: string | null = null
@@ -92,6 +98,13 @@ export class ByokClient {
 
   constructor(options: DefineByokOptions = {}) {
     this.storage = options.storage ?? memoryStorage()
+    for (const provider of options.providers ?? []) {
+      if (provider.with?.length) {
+        this.#companions[requireProviderId(provider.id)] = provider.with.map(
+          (companion) => requireProviderId(companion.id),
+        )
+      }
+    }
     this.#locked = Boolean(this.storage.unlockable)
     this.#snapshot = this.#buildSnapshot()
     this.#ready = this.#hydrate()
@@ -146,12 +159,19 @@ export class ByokClient {
     return this.#coverageAll || this.#coverage[provider] === true
   }
 
+  /** The slug plus every companion declared on its descriptor. */
+  #expand(provider: ProviderId): Array<ProviderId> {
+    return [provider, ...(this.#companions[provider] ?? [])]
+  }
+
   headers(provider?: ProviderId): Record<string, string> {
     const headers: Record<string, string> = {}
     if (provider) {
       requireProviderId(provider)
-      const key = this.#keys[provider]
-      if (key) headers[byokHeaderName(provider)] = key
+      for (const id of this.#expand(provider)) {
+        const key = this.#keys[id]
+        if (key) headers[byokHeaderName(id)] = key
+      }
       return headers
     }
     for (const [id, key] of Object.entries(this.#keys)) {
@@ -167,10 +187,11 @@ export class ByokClient {
     }
     if (!provider) return
     requireProviderId(provider)
-    if (this.#keys[provider]) return
-    if (this.#hasCoverage(provider)) return
-    this.request(provider, 'missing')
-    throw new ByokBlockedError(provider, 'missing')
+    for (const id of this.#expand(provider)) {
+      if (this.#keys[id] || this.#hasCoverage(id)) continue
+      this.request(id, 'missing')
+      throw new ByokBlockedError(id, 'missing')
+    }
   }
 
   async update(

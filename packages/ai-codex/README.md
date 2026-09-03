@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-codex
 
 Codex harness adapter for [TanStack AI](https://tanstack.com/ai) — run [OpenAI Codex](https://developers.openai.com/codex) (via `@openai/codex-sdk`) as a chat backend with local tool execution, stateful coding sessions, and TanStack tool bridging.

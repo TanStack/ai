@@ -131,6 +131,88 @@ describe('OpenAI adapter option mapping', () => {
     expect(payload.tools).toBeDefined()
     expect(Array.isArray(payload.tools)).toBe(true)
     expect(payload.tools.length).toBeGreaterThan(0)
+    expect(payload.include).toBeUndefined()
+  })
+
+  it('requests encrypted reasoning only on reasoning models', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-reasoning-include',
+          model: 'gpt-5.6',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-reasoning-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual(['reasoning.encrypted_content'])
+  })
+
+  it('lets callers override the default reasoning include list', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-include',
+          model: 'gpt-5.6',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: { include: [] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([])
   })
 
   it('accepts mixed string + object-form systemPrompts and joins .content into instructions', async () => {

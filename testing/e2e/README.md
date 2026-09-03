@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway
+**Providers tested:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 

@@ -1,6 +1,10 @@
 import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
 import { byteplusByok, byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from '@tanstack/ai-cloudflare/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { groqByok } from '@tanstack/ai-groq/byok'
@@ -19,10 +23,29 @@ export const KEYED_PROVIDERS = [
   grokByok,
   byteplusByok,
   byteplusVoiceByok,
+  cloudflareByok,
+  cloudflareAccountByok,
+] as const
+
+/**
+ * Providers whose credential is more than one value. The store still keeps
+ * one entry per id (so env fallback and relay headers work per value), but
+ * the key dialog shows each group as a single card.
+ */
+export const KEY_GROUPS = [
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare',
+    fields: [
+      { provider: cloudflareAccountByok, label: 'Account ID', secret: false },
+      { provider: cloudflareByok, label: 'API token', secret: true },
+    ],
+  },
 ] as const
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
+  providers: KEYED_PROVIDERS,
 })
 
 // Let the relay decide when a key is missing. The server prefers the

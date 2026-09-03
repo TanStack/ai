@@ -10,6 +10,10 @@ const config = defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Resume-join tests wait REJOIN_CONNECT_DEADLINE_MS (2s) inside
+    // waitFor({ timeout: 5_000 }). Default 5s testTimeout loses that race
+    // when nx runs this suite in parallel with the rest of test:pr.
+    testTimeout: 15_000,
     // Re-route the no-op devtools factories to the real implementations
     // for the whole test suite. The shipping default is no-op (so the
     // heavy bridge classes stay out of `@tanstack/ai-client`'s main

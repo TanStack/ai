@@ -198,7 +198,7 @@ If the bot pushes, it only commits bugs and suggestions the review listed. Maint
 
 The pattern lives in `packages/ai-openai/`, `packages/ai-anthropic/`, `packages/ai-gemini/`, etc. New core adapters typically:
 
-1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter.
+1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter. The README must start with the TanStack AI `<picture>` banner from `packages/ai/README.md` (`https://tanstack.com/api/readme/ai.png`). Do not use `media/header_ai.png`.
 2. Implement tree-shakeable adapter exports under `src/adapters/` (`text.ts`, `embed.ts`, `summarize.ts`, etc.).
 3. Add `model-meta.ts` so per-model type safety works.
 4. Wire the provider into `testing/e2e/feature-support.ts` and `testing/e2e/test-matrix.ts`. Existing provider-coverage tests pick it up automatically.
