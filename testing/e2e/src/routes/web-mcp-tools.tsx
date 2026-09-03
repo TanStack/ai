@@ -12,9 +12,9 @@ interface WebMCPModelContext extends EventTarget {
   getTools: () => Promise<Array<RegisteredWebMCPTool>>
   executeTool: (
     tool: RegisteredWebMCPTool,
-    input: object,
-    options: { signal: AbortSignal },
-  ) => Promise<string>
+    inputArguments: string,
+    options?: { signal: AbortSignal },
+  ) => Promise<string | null>
 }
 
 function isWebMCPModelContext(value: unknown): value is WebMCPModelContext {
@@ -110,11 +110,23 @@ function WebMCPToolsPage() {
     }
 
     const execution = new AbortController()
-    const serializedResult = await modelContext.executeTool(
-      tool,
-      { query: 'guitar' },
-      { signal: execution.signal },
-    )
+    let serializedResult: string | null
+    try {
+      serializedResult = await modelContext.executeTool(
+        tool,
+        JSON.stringify({ query: 'guitar' }),
+        { signal: execution.signal },
+      )
+    } catch (error) {
+      setToolResult(error instanceof Error ? error.message : 'Tool failed')
+      return
+    }
+
+    if (serializedResult == null) {
+      setToolResult('Invalid tool result')
+      return
+    }
+
     let result: unknown
     try {
       result = JSON.parse(serializedResult)

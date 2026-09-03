@@ -78,17 +78,34 @@ test.beforeEach(async ({ page }) => {
         }))
       }
 
-      async executeTool(
-        tool: RegisteredWebMCPTool,
-        input: object,
-        options: { signal: AbortSignal },
-      ) {
+      async executeTool(tool: RegisteredWebMCPTool, inputArguments: string) {
         const registration = registrations.get(tool.name)
         if (!registration) {
           throw new DOMException('Tool not found', 'NotFoundError')
         }
+        if (typeof inputArguments !== 'string') {
+          throw new DOMException(
+            'Failed to parse input arguments',
+            'UnknownError',
+          )
+        }
 
-        const result = await registration.execute(input, options)
+        let input: object
+        try {
+          const parsed: unknown = JSON.parse(inputArguments)
+          if (parsed === null || typeof parsed !== 'object') {
+            throw new Error('input is not an object')
+          }
+          input = parsed
+        } catch {
+          throw new DOMException(
+            'Failed to parse input arguments',
+            'UnknownError',
+          )
+        }
+
+        // Chrome currently invokes execute(input) with no options argument.
+        const result = await registration.execute(input)
         const serializedResult = JSON.stringify(result)
         if (serializedResult === undefined) {
           throw new TypeError('Tool result is not JSON serializable')

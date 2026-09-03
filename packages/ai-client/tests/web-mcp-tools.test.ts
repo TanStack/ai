@@ -138,6 +138,24 @@ describe('registerWebMCPTools', () => {
     expect(modelContext.tools.size).toBe(0)
   })
 
+  it('executes when the host omits the execution options argument', async () => {
+    const modelContext = installModelContext()
+    const lifecycle = new AbortController()
+    const tool = toolDefinition({
+      name: 'host_omits_options',
+      description: 'Run without host options',
+      inputSchema: z.object({ value: z.string() }),
+      outputSchema: z.object({ value: z.string() }),
+    }).client(async (input) => input)
+
+    await registerWebMCPTools([tool], { signal: lifecycle.signal })
+    const registered = getRegisteredTool(modelContext, 'host_omits_options')
+
+    await expect(registered.execute({ value: 'ok' })).resolves.toEqual({
+      value: 'ok',
+    })
+  })
+
   it('validates Standard Schema input before execution', async () => {
     const modelContext = installModelContext()
     const lifecycle = new AbortController()

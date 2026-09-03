@@ -172,10 +172,13 @@ export async function registerWebMCPTools<
       ...(toolOptions?.annotations !== undefined
         ? { annotations: toolOptions.annotations }
         : {}),
-      async execute(input: object, executionOptions: { signal: AbortSignal }) {
+      async execute(
+        input: object,
+        executionOptions?: { signal?: AbortSignal },
+      ) {
         const validatedInput = await validateSchemaValue(inputSchema, input)
         const output = await execute(validatedInput, {
-          abortSignal: executionOptions.signal,
+          abortSignal: executionOptions?.signal,
           context: options.context,
           emitCustomEvent() {},
         })
