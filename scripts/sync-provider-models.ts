@@ -1,7 +1,7 @@
 /**
  * Syncs modelschemas catalogs into native provider model-meta.ts files.
  *
- * For each supported provider (OpenAI, Anthropic, Gemini, Grok), this script:
+ * For each synced provider, this script:
  * 1. Lists that provider's models from modelschemas (`@modelschemas/client`)
  * 2. Enriches empty pricing/modalities/capabilities from the OpenRouter
  *    catalog on modelschemas
@@ -15,18 +15,14 @@
  *
  * ## Providers deliberately NOT synced
  *
- * The sync is only safe when the provider's own model ids are the catalog
- * ids. These are excluded on purpose:
- *
- * - **byteplus** (`@tanstack/ai-byteplus`) — capability tables are
- *   live-probe-verified because published metadata is wrong in both
- *   directions. Use `/gap-analysis byteplus` instead; the probe recipe is
- *   in that package's `model-meta.ts`.
- * - **fal**, **elevenlabs** — media-only providers whose endpoint ids need
- *   manual size/duration maps. fal image fields have their own generator
- *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **fal** — 1k+ model-grained endpoints; image field maps have their own
+ *   generator (`scripts/generate-fal-image-field-map.ts`).
  * - **bedrock** — ids are AWS-region-qualified; see
  *   `scripts/fetch-bedrock-models.ts`.
+ * - **ollama**, **llmgateway**, **vercel-gateway**, **lovable** — different
+ *   catalogs (local, aggregator, or their own fetch scripts).
+ * - **claude-code**, **codex**, **opencode**, **grok-build** — harness aliases.
+ * BytePlus video/image duration and size tables stay hand-curated.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -35,6 +31,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   alreadySynced,
+  elevenLabsIdArray,
   findOpenRouterEnrichment,
   hasImageOutput,
   outputsText,
@@ -44,7 +41,9 @@ import {
 import type { SyncModel } from './model-sync/catalog'
 import { toModelConstName } from './model-sync/ids'
 import {
+  addToStringLiteralArray,
   applyChatModelCatalogInserts,
+  extractStringLiteralArrayValues,
   insertConstants,
 } from './model-sync/native-insert'
 import { createSyncClient, fetchSyncCatalogs } from './model-sync/modelschemas'
@@ -102,6 +101,18 @@ interface ProviderConfig {
   providerOptionsIsMappedType: boolean
   /** Model ID patterns to always skip (matched against stripped ID) */
   skipPatterns: Array<string>
+  /** Activities to insert. `null` means the catalog left activity unset. */
+  acceptedActivities: Array<string | null>
+  /**
+   * When true, skip a native id until the modelschemas OpenRouter catalog
+   * has a matching row (openai/anthropic/gemini/grok). BytePlus and
+   * ElevenLabs publish usable native rows, so they stay false.
+   */
+  requireOpenRouterEnrich: boolean
+  includePricing: boolean
+  outputTokenField: 'max_output_tokens' | 'max_completion_tokens'
+  /** ElevenLabs is id-literal arrays, not ModelMeta constants. */
+  insertKind: 'model-meta' | 'id-arrays'
 }
 
 const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
@@ -129,6 +140,11 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
       'gpt-oss-', // Open-source/experimental models
       'chatgpt-', // ChatGPT branded models
     ],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'model-meta',
   },
   anthropic: {
     packageName: '@tanstack/ai-anthropic',
@@ -149,6 +165,11 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     hasBothNameAndId: true,
     providerOptionsIsMappedType: false,
     skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'model-meta',
   },
   gemini: {
     packageName: '@tanstack/ai-gemini',
@@ -170,6 +191,11 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     skipPatterns: [
       'gemma-', // Gemma open-source models (not Gemini API models)
     ],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'model-meta',
   },
   grok: {
     packageName: '@tanstack/ai-grok',
@@ -187,6 +213,107 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     hasBothNameAndId: false,
     providerOptionsIsMappedType: true,
     skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'model-meta',
+  },
+  groq: {
+    packageName: '@tanstack/ai-groq',
+    metaFile: resolve(ROOT, 'packages/ai-groq/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'GROQ_CHAT_MODELS',
+    providerOptionsTypeName: 'GroqChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'GroqModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'GroqChatModelToolCapabilitiesByName',
+    validInputModalities: ['text', 'image', 'audio'],
+    kind: 'groq',
+    referenceSatisfies: 'ModelMeta<GroqTextProviderOptions>',
+    referenceProviderOptionsEntry: 'GroqTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: true,
+    skipPatterns: ['whisper-', 'canopylabs/'],
+    acceptedActivities: [null, 'chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: true,
+    outputTokenField: 'max_completion_tokens',
+    insertKind: 'model-meta',
+  },
+  mistral: {
+    packageName: '@tanstack/ai-mistral',
+    metaFile: resolve(ROOT, 'packages/ai-mistral/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'MISTRAL_CHAT_MODELS',
+    providerOptionsTypeName: 'MistralChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'MistralModelInputModalitiesByName',
+    validInputModalities: ['text', 'image', 'audio', 'document'],
+    kind: 'mistral',
+    referenceSatisfies: 'ModelMeta<MistralTextProviderOptions>',
+    referenceProviderOptionsEntry: 'MistralTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: false,
+    skipPatterns: [
+      'mistral-embed',
+      'codestral-embed',
+      'mistral-ocr',
+      'mistral-moderation',
+      'voxtral-',
+      'mistral-vibe',
+      'mistral-code-fim',
+      'mistral-code-',
+      'glm-',
+      'zai-',
+    ],
+    acceptedActivities: [null, 'chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: true,
+    outputTokenField: 'max_completion_tokens',
+    insertKind: 'model-meta',
+  },
+  byteplus: {
+    packageName: '@tanstack/ai-byteplus',
+    metaFile: resolve(ROOT, 'packages/ai-byteplus/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'BYTEPLUS_CHAT_MODELS',
+    providerOptionsTypeName: 'BytePlusChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'BytePlusModelInputModalitiesByName',
+    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
+    kind: 'byteplus',
+    referenceSatisfies: 'ModelMeta',
+    referenceProviderOptionsEntry: 'BytePlusTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: true,
+    skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: false,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'model-meta',
+  },
+  elevenlabs: {
+    packageName: '@tanstack/ai-elevenlabs',
+    metaFile: resolve(ROOT, 'packages/ai-elevenlabs/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'ELEVENLABS_TTS_MODELS',
+    providerOptionsTypeName: 'ElevenLabsUnused',
+    inputModalitiesTypeName: 'ElevenLabsUnused',
+    validInputModalities: ['text', 'audio'],
+    kind: 'elevenlabs',
+    referenceSatisfies: 'never',
+    referenceProviderOptionsEntry: 'never',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: true,
+    skipPatterns: [],
+    acceptedActivities: ['audio'],
+    requireOpenRouterEnrich: false,
+    includePricing: false,
+    outputTokenField: 'max_output_tokens',
+    insertKind: 'id-arrays',
   },
 }
 
@@ -306,28 +433,33 @@ function generateModelConstant(
     )
   }
   if (model.maxOutput != null && model.maxOutput > 0) {
-    lines.push(`  max_output_tokens: ${formatNumber(model.maxOutput)},`)
+    lines.push(
+      `  ${config.outputTokenField}: ${formatNumber(model.maxOutput)},`,
+    )
   }
   lines.push(`  supports: {`)
   lines.push(
     buildProviderSupportsBody({
       provider: config.kind,
       inputModalities,
+      outputModalities: model.outputModalities,
       supportedParameters: model.supportedParameters,
     }),
   )
   lines.push(`  },`)
-  lines.push(`  pricing: {`)
-  lines.push(`    input: {`)
-  lines.push(`      normal: ${inputNormal},`)
-  if (inputCached > 0) {
-    lines.push(`      cached: ${inputCached},`)
+  if (config.includePricing) {
+    lines.push(`  pricing: {`)
+    lines.push(`    input: {`)
+    lines.push(`      normal: ${inputNormal},`)
+    if (inputCached > 0) {
+      lines.push(`      cached: ${inputCached},`)
+    }
+    lines.push(`    },`)
+    lines.push(`    output: {`)
+    lines.push(`      normal: ${outputNormal},`)
+    lines.push(`    },`)
+    lines.push(`  },`)
   }
-  lines.push(`    },`)
-  lines.push(`    output: {`)
-  lines.push(`      normal: ${outputNormal},`)
-  lines.push(`    },`)
-  lines.push(`  },`)
   lines.push(`} as const satisfies ${satisfiesClause(model, config)}`)
   return lines.join('\n')
 }
@@ -383,8 +515,11 @@ async function main() {
 
   const client = createSyncClient()
   const catalogs = await fetchSyncCatalogs(client)
+  const counts = Object.entries(catalogs.native)
+    .map(([id, rows]) => `${id}=${rows.length}`)
+    .join(', ')
   console.log(
-    `Fetched modelschemas catalogs: openai=${catalogs.native.openai.length}, anthropic=${catalogs.native.anthropic.length}, gemini=${catalogs.native.gemini.length}, grok=${catalogs.native.grok.length}, openrouter=${catalogs.openrouter.length}`,
+    `Fetched modelschemas catalogs: ${counts}, openrouter=${catalogs.openrouter.length}`,
   )
 
   for (const [provider, config] of Object.entries(PROVIDER_MAP) as Array<
@@ -407,10 +542,65 @@ async function main() {
 
     const existingIds = extractExistingModelIds(content)
     const existingConstNames = extractExistingConstNames(content)
+    if (config.insertKind === 'id-arrays') {
+      for (const arrayName of [
+        'ELEVENLABS_TTS_MODELS',
+        'ELEVENLABS_AUDIO_MODELS',
+        'ELEVENLABS_TRANSCRIPTION_MODELS',
+      ]) {
+        for (const id of extractStringLiteralArrayValues(content, arrayName)) {
+          existingIds.add(id)
+        }
+      }
+    }
 
     console.log(
       `  Existing models in file: ${existingIds.size} IDs, ${existingConstNames.size} constants`,
     )
+
+    if (config.insertKind === 'id-arrays') {
+      const byArray: Record<string, Array<string>> = {
+        ELEVENLABS_TTS_MODELS: [],
+        ELEVENLABS_AUDIO_MODELS: [],
+        ELEVENLABS_TRANSCRIPTION_MODELS: [],
+      }
+      for (const row of providerModels) {
+        const skip = skipNativeModelReason(
+          row,
+          config.kind,
+          config.skipPatterns,
+          cutoffTimestamp,
+          config.acceptedActivities,
+        )
+        if (skip) continue
+        const bucket = elevenLabsIdArray(row.rawId)
+        if (!bucket) continue
+        if (alreadySynced(row.rawId, existingIds, existingConstNames)) continue
+        const arrayName =
+          bucket === 'tts'
+            ? 'ELEVENLABS_TTS_MODELS'
+            : bucket === 'audio'
+              ? 'ELEVENLABS_AUDIO_MODELS'
+              : 'ELEVENLABS_TRANSCRIPTION_MODELS'
+        byArray[arrayName]!.push(row.rawId)
+        existingIds.add(row.rawId)
+      }
+      const added = Object.values(byArray).flat()
+      if (added.length === 0) {
+        console.log('  No new models to add.')
+        continue
+      }
+      console.log(`  Adding ${added.length} new models:`)
+      for (const id of added) console.log(`    - ${id}`)
+      for (const [arrayName, ids] of Object.entries(byArray)) {
+        content = addToStringLiteralArray(content, arrayName, ids)
+      }
+      await writeFile(config.metaFile, content, 'utf-8')
+      console.log(`  Wrote updated file: ${config.metaFile}`)
+      totalAdded += added.length
+      changedPackages.add(config.packageName)
+      continue
+    }
 
     const newModels: Array<{
       model: SyncModel
@@ -424,6 +614,7 @@ async function main() {
         config.kind,
         config.skipPatterns,
         cutoffTimestamp,
+        config.acceptedActivities,
       )
       if (skip) continue
 
@@ -432,12 +623,11 @@ async function main() {
         config.kind,
         catalogs.openrouter,
       )
-      // Native catalogs often omit pricing/modalities/capabilities.
-      // Skip until OpenRouter has a matching row so we do not insert
-      // empty chat stubs for transcribe/live/experimental ids.
-      if (!enrich) continue
+      if (config.requireOpenRouterEnrich && !enrich) continue
       const model = toSyncModel(row, enrich, config.kind)
       if (
+        config.acceptedActivities.includes('chat') &&
+        !config.acceptedActivities.includes('image') &&
         hasImageOutput({
           activity: row.activity,
           outputModalities: model.outputModalities,

@@ -9,11 +9,13 @@
 import { toModelConstName, toNativeProviderId } from './ids'
 import type { SyncedProvider } from './provider-supports'
 
-export const OPENROUTER_PREFIX: Record<SyncedProvider, string> = {
+export const OPENROUTER_PREFIX: Partial<Record<SyncedProvider, string>> = {
   openai: 'openai/',
   anthropic: 'anthropic/',
   gemini: 'google/',
   grok: 'x-ai/',
+  groq: 'groq/',
+  mistral: 'mistralai/',
 }
 
 const NON_CHAT_MODEL_PREFIXES = [
@@ -69,6 +71,31 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function asSupportedParameters(value: unknown): Array<string> {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string')
+  }
+  if (!isRecord(value)) return []
+  const params: Array<string> = []
+  const tools = isRecord(value.tools) ? value.tools : null
+  if (tools?.function_calling === true) {
+    params.push('tools', 'tool_choice')
+  }
+  const structured = isRecord(value.structured_outputs)
+    ? value.structured_outputs
+    : null
+  if (structured?.json_schema === true || structured?.json_object === true) {
+    params.push('structured_outputs', 'response_format')
+  }
+  if (
+    typeof value.maxReasoningTokens === 'number' &&
+    value.maxReasoningTokens > 0
+  ) {
+    params.push('reasoning', 'include_reasoning')
+  }
+  return params
+}
+
 function asPricing(value: unknown): CatalogPricing {
   if (!isRecord(value)) {
     return {
@@ -103,7 +130,7 @@ export function parseCatalogModel(value: unknown): CatalogModel | null {
     inputModalities: asStringArray(modalities?.input),
     outputModalities: asStringArray(modalities?.output),
     pricing: asPricing(value.pricing),
-    capabilities: asStringArray(value.capabilities),
+    capabilities: asSupportedParameters(value.capabilities),
   }
 }
 
@@ -132,6 +159,7 @@ export function openRouterRawIdCandidates(
   provider: SyncedProvider,
 ): Array<string> {
   const prefix = OPENROUTER_PREFIX[provider]
+  if (!prefix) return []
   const ids = new Set<string>([native.rawId])
   if (provider === 'anthropic') {
     const undated = native.rawId.replace(/-\d{8}$/, '')
@@ -215,7 +243,16 @@ export function outputsText(
   activity: string | null,
 ): boolean {
   if (model.outputModalities.includes('text')) return true
-  return model.outputModalities.length === 0 && activity === 'chat'
+  if (
+    model.outputModalities.includes('image') ||
+    model.outputModalities.includes('video')
+  ) {
+    return false
+  }
+  return (
+    model.outputModalities.length === 0 &&
+    (activity === 'chat' || activity === null)
+  )
 }
 
 /**
@@ -226,9 +263,10 @@ export function skipNativeModelReason(
   provider: SyncedProvider,
   skipPatterns: Array<string>,
   cutoffTimestamp: number,
+  acceptedActivities: Array<string | null> = ['chat'],
 ): string | null {
   if (model.deprecatedAt != null) return 'deprecated'
-  if (model.activity != null && model.activity !== 'chat') {
+  if (!acceptedActivities.includes(model.activity)) {
     return `activity ${model.activity}`
   }
   if (model.rawId.includes(':')) return 'routing variant'
@@ -240,6 +278,17 @@ export function skipNativeModelReason(
   if (model.firstSeenAt != null && model.firstSeenAt < cutoffTimestamp) {
     return 'too old'
   }
+  return null
+}
+
+/** ElevenLabs STS / voice-conversion ids have no TanStack adapter. */
+export function elevenLabsIdArray(
+  rawId: string,
+): 'tts' | 'audio' | 'transcription' | null {
+  if (rawId.includes('_sts_')) return null
+  if (rawId.startsWith('scribe')) return 'transcription'
+  if (rawId.includes('text_to_sound') || rawId === 'music_v1') return 'audio'
+  if (rawId.startsWith('eleven_')) return 'tts'
   return null
 }
 

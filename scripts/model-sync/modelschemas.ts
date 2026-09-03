@@ -5,16 +5,10 @@
 import { createModelschemasClient, listModels } from '@modelschemas/client'
 import { parseCatalogModels } from './catalog'
 import type { CatalogModel } from './catalog'
+import { SYNCED_PROVIDERS } from './provider-supports'
 import type { SyncedProvider } from './provider-supports'
 
 export const MODELSCHEMAS_BASE_URL = 'https://modelschemas.com'
-
-const NATIVE_PROVIDERS: Array<SyncedProvider> = [
-  'openai',
-  'anthropic',
-  'gemini',
-  'grok',
-]
 
 export function createSyncClient(options?: {
   apiKey?: string
@@ -72,10 +66,10 @@ export async function fetchSyncCatalogs(client: SyncClient): Promise<{
 }> {
   const [openrouter, ...nativeLists] = await Promise.all([
     fetchCatalog(client, { provider: 'openrouter' }),
-    ...NATIVE_PROVIDERS.map((provider) => fetchCatalog(client, { provider })),
+    ...SYNCED_PROVIDERS.map((provider) => fetchCatalog(client, { provider })),
   ])
   const native = {} as Record<SyncedProvider, Array<CatalogModel>>
-  for (const [index, provider] of NATIVE_PROVIDERS.entries()) {
+  for (const [index, provider] of SYNCED_PROVIDERS.entries()) {
     native[provider] = nativeLists[index] ?? []
   }
   return { native, openrouter }
