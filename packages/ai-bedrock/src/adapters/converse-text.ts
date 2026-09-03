@@ -125,9 +125,31 @@ export class BedrockConverseTextAdapter<
           },
           'runtime',
         )
-        return new BedrockRuntimeClient(
+        const client = new BedrockRuntimeClient(
           this.buildClientConfig(resolved, region, this.clientConfig.baseURL),
         )
+        const defaultHeaders = this.clientConfig.defaultHeaders
+        if (defaultHeaders) {
+          // `build` runs before SigV4 signing, so gateway headers are signed
+          // along with the rest of the request.
+          client.middlewareStack.add(
+            (next) => (args) => {
+              const request = args.request
+              if (
+                typeof request === 'object' &&
+                request !== null &&
+                'headers' in request &&
+                typeof request.headers === 'object' &&
+                request.headers !== null
+              ) {
+                Object.assign(request.headers, defaultHeaders)
+              }
+              return next(args)
+            },
+            { step: 'build', name: 'tanstackDefaultHeaders' },
+          )
+        }
+        return client
       })().catch((error: unknown) => {
         // Don't cache a rejected promise — clear it so a later call can retry
         // (e.g. after a transient import failure or fixed auth config).

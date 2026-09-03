@@ -947,7 +947,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Google Vertex AI",
@@ -959,7 +959,7 @@
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Grok (xAI)",
@@ -977,18 +977,19 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Cohere",
           "to": "adapters/cohere",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-08-10"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "fal.ai",
@@ -1064,7 +1065,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "BytePlus",

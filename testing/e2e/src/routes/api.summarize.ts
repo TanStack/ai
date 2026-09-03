@@ -71,7 +71,8 @@ function createSummarizeAdapter(
       }),
     gemini: () =>
       createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
     vertex: () =>
       vertexSummarize(

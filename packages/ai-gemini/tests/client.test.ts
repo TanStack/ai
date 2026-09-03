@@ -69,3 +69,47 @@ describe('createGeminiClient', () => {
     })
   })
 })
+
+describe('createGeminiClient proxy options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps baseURL and defaultHeaders onto httpOptions', () => {
+    createGeminiClient({
+      apiKey: 'k',
+      baseURL: 'https://gw.example/gemini',
+      defaultHeaders: { 'cf-aig-authorization': 'Bearer t' },
+    })
+
+    expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith({
+      apiKey: 'k',
+      httpOptions: {
+        baseUrl: 'https://gw.example/gemini',
+        headers: { 'cf-aig-authorization': 'Bearer t' },
+      },
+    })
+  })
+
+  it('merges with existing httpOptions, normalized names win', () => {
+    createGeminiClient({
+      apiKey: 'k',
+      httpOptions: {
+        baseUrl: 'https://old.example',
+        headers: { a: '1', b: 'old' },
+        timeout: 5,
+      },
+      baseURL: 'https://new.example',
+      defaultHeaders: { b: 'new' },
+    })
+
+    expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith({
+      apiKey: 'k',
+      httpOptions: {
+        baseUrl: 'https://new.example',
+        headers: { a: '1', b: 'new' },
+        timeout: 5,
+      },
+    })
+  })
+})

@@ -144,12 +144,7 @@ export function createTextAdapter(
       adapter: createGeminiTextInteractions(
         model as 'gemini-2.5-flash',
         DUMMY_KEY,
-        {
-          httpOptions: {
-            baseUrl: base,
-            headers: testHeaders,
-          },
-        },
+        { baseURL: base, defaultHeaders: testHeaders },
       ),
     })
   }
@@ -163,10 +158,8 @@ export function createTextAdapter(
   if (provider === 'gemini' && feature === 'video-understanding') {
     return createChatOptions({
       adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
-        httpOptions: {
-          baseUrl: `${base}/vu-interactions`,
-          headers: testHeaders,
-        },
+        baseURL: `${base}/vu-interactions`,
+        defaultHeaders: testHeaders,
       }),
     })
   }
@@ -193,10 +186,8 @@ export function createTextAdapter(
     gemini: () =>
       createChatOptions({
         adapter: createGeminiChat(model as 'gemini-2.5-flash', DUMMY_KEY, {
-          httpOptions: {
-            baseUrl: base,
-            headers: testHeaders,
-          },
+          baseURL: base,
+          defaultHeaders: testHeaders,
         }),
       }),
     // Gemini on Vertex. Dummy ADC + project/location so the SDK posts
@@ -236,10 +227,10 @@ export function createTextAdapter(
       }),
     ollama: () =>
       createChatOptions({
-        adapter: createOllamaChat(
-          model as 'mistral',
-          testHeaders ? { host: base, headers: testHeaders } : base,
-        ),
+        adapter: createOllamaChat(model as 'mistral', {
+          baseURL: base,
+          defaultHeaders: testHeaders,
+        }),
       }),
     groq: () =>
       createChatOptions({
@@ -383,7 +374,7 @@ export function createTextAdapter(
     mistral: () =>
       createChatOptions({
         adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
-          serverURL: base,
+          baseURL: base,
           defaultHeaders: testHeaders,
         }),
       }),

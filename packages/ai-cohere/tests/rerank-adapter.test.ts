@@ -43,6 +43,23 @@ const adapter = () => createCohereRerank('rerank-v3.5', 'test-key')
 const documents = ['sunny day at the beach', 'rainy afternoon in the city']
 
 describe('CohereRerankAdapter', () => {
+  it('sends baseURL and defaultHeaders through to fetch', async () => {
+    fetchMock.mockResolvedValue(cohereResponse(defaultBody()))
+
+    await rerank({
+      adapter: createCohereRerank('rerank-v3.5', 'test-key', {
+        baseURL: 'https://gw.example/cohere',
+        defaultHeaders: { 'X-Gateway': 'yes' },
+      }),
+      query: 'beach',
+      documents,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://gw.example/cohere/v2/rerank')
+    expect(init?.headers).toMatchObject({ 'X-Gateway': 'yes' })
+  })
+
   it('POSTs to /v2/rerank with auth and the expected request body', async () => {
     fetchMock.mockResolvedValue(cohereResponse(defaultBody()))
 

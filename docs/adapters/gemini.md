@@ -73,14 +73,28 @@ const stream = chat({
 import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
 const config: Omit<GeminiTextConfig, "apiKey"> = {
-  httpOptions: {
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Optional
-  },
+  baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
+  defaultHeaders: { "X-Custom-Header": "value" }, // Optional
 };
 
 const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, config);
 ```
   
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createGeminiChat } from "@tanstack/ai-gemini";
+
+const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!, {
+  baseURL: "https://gateway.example.com/google-ai-studio",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+`baseURL` sets `httpOptions.baseUrl`. `defaultHeaders` merges into `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
 
 ## Example: Chat Completion
 

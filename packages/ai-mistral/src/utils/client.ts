@@ -4,7 +4,14 @@ export interface MistralClientConfig {
   /** Mistral API key. */
   apiKey: string
 
-  /** Optional server URL override. */
+  /**
+   * Base URL for every request. Same option name as the other adapters, so a
+   * gateway config can be spread into any of them. Wins over `serverURL` when
+   * both are set.
+   */
+  baseURL?: string
+
+  /** Alias of `baseURL`. */
   serverURL?: string
 
   /** Optional request timeout (ms). */
@@ -35,12 +42,13 @@ export interface MistralClientConfig {
 export function createMistralClient(config: MistralClientConfig): Mistral {
   const {
     apiKey,
-    serverURL,
+    baseURL,
     timeoutMs,
     defaultHeaders,
     getAccessToken,
     resolveRequestUrl,
   } = config
+  const serverURL = baseURL ?? config.serverURL
 
   const needsHook =
     (defaultHeaders !== undefined && Object.keys(defaultHeaders).length > 0) ||
