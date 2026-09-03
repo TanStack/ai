@@ -1,5 +1,15 @@
 # @tanstack/ai-bedrock
 
+## 0.3.6
+
+### Patch Changes
+
+- [#1312](https://github.com/TanStack/ai/pull/1312) [`5305d32`](https://github.com/TanStack/ai/commit/5305d320aae400b07bfe3a440d2d720cece44197) - Accept `baseURL` and `defaultHeaders` on every adapter's client config so one gateway config (Cloudflare AI Gateway, Vercel AI Gateway, a corporate proxy) can be spread into any adapter. The vendor-specific names (`httpOptions`, `serverURL`, `host`, `baseUrl`, `headers`) keep working. Bedrock's Converse adapter now applies `defaultHeaders` too.
+
+- Updated dependencies [[`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a)]:
+  - @tanstack/ai@0.52.3
+  - @tanstack/openai-base@0.10.9
+
 ## 0.3.5
 
 ### Patch Changes

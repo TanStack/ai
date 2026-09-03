@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.52.3
+
+### Patch Changes
+
+- [#1290](https://github.com/TanStack/ai/pull/1290) [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a) - Replay OpenAI Responses reasoning items with function_call on the next tool turn. Default `include: ['reasoning.encrypted_content']` only on reasoning models.
+
 ## 0.52.2
 
 ### Patch Changes
