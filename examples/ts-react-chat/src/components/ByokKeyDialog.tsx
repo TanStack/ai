@@ -387,11 +387,13 @@ function GroupRow({
           event.preventDefault()
           if (filled.length === 0 || anyLocked) return
           setRowError('')
-          void Promise.all(
-            filled.map((f) =>
-              byok.update(f.provider.id, drafts[f.provider.id]!.trim()),
-            ),
-          )
+          // One at a time: passkey-backed storage runs a WebAuthn ceremony
+          // per write, and the browser rejects a second concurrent request.
+          void (async () => {
+            for (const f of filled) {
+              await byok.update(f.provider.id, drafts[f.provider.id]!.trim())
+            }
+          })()
             .then(() => setDrafts({}))
             .catch((error: unknown) =>
               setRowError(
@@ -443,9 +445,9 @@ function GroupRow({
               className="rounded-md border border-gray-600 bg-gray-800 px-2.5 py-1 text-sm text-gray-200 disabled:opacity-50"
               onClick={() => {
                 setRowError('')
-                void Promise.all(
-                  fields.map((f) => byok.clear(f.provider.id)),
-                ).catch((error: unknown) =>
+                void (async () => {
+                  for (const f of fields) await byok.clear(f.provider.id)
+                })().catch((error: unknown) =>
                   setRowError(
                     error instanceof Error
                       ? error.message
