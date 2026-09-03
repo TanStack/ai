@@ -145,7 +145,7 @@ const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, {
 });
 ```
 
-The first argument is the provider slug from your gateway dashboard (`openai`, `anthropic`, `groq`, and so on). If the gateway has authentication turned on, pass `cfApiKey` too.
+The first argument is the provider slug from your gateway dashboard (`openai`, `anthropic`, `groq`, and so on). If the gateway has authentication turned on, pass `cfApiKey` too. That token needs the `AI Gateway Run` permission.
 
 The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_AI_GATEWAY_ID` in its `.env`, and the Cloudflare, OpenAI, Anthropic, and Groq models in its picker all go through your gateway.
 
