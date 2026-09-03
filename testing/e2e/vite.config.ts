@@ -14,7 +14,13 @@ const config = defineConfig({
   // option only affects the SSR build, where we want the SDK resolved at
   // runtime via require() instead of inlined into the rollup chunk.
   ssr: {
-    external: ['@elevenlabs/elevenlabs-js'],
+    external: ['@elevenlabs/elevenlabs-js', '@tanstack/store'],
+  },
+  // Router 1.159 calls `new Store(state, { onUpdate })` (Store 0.8).
+  // ai-client uses Store 0.11 `createAtom`. Vite prebundling them into one
+  // `@tanstack_store.js` makes hydration throw `actionsFactory is not a function`.
+  optimizeDeps: {
+    exclude: ['@tanstack/store'],
   },
   resolve: { tsconfigPaths: true },
   plugins: [
