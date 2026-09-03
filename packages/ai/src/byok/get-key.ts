@@ -25,3 +25,21 @@ export function getByokKey(
   }
   return null
 }
+
+/**
+ * Read several keys at once, one per name. Same rules as {@link getByokKey}
+ * for each entry. Use it for a credential made of more than one value.
+ */
+export function getByokKeys<
+  const TProviders extends Record<string, ProviderId | ByokProvider>,
+>(
+  request: Request,
+  providers: TProviders,
+): { [K in keyof TProviders]: string | null } {
+  return Object.fromEntries(
+    Object.entries(providers).map(([name, provider]) => [
+      name,
+      getByokKey(request, provider),
+    ]),
+  ) as { [K in keyof TProviders]: string | null }
+}

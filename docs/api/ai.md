@@ -396,6 +396,37 @@ export async function POST(request: Request) {
 
 `string | null`
 
+## `getByokKeys(request, providers)`
+
+Read several keys at once. Each entry obeys the same rules as `getByokKey`. Use it when one credential is made of more than one value.
+
+```typescript
+import { byokMissing, getByokKeys } from "@tanstack/ai/byok/server";
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from "@tanstack/ai-cloudflare/byok";
+
+export async function POST(request: Request) {
+  const { apiKey, accountId } = getByokKeys(request, {
+    apiKey: cloudflareByok,
+    accountId: cloudflareAccountByok,
+  });
+  if (!apiKey) return byokMissing(cloudflareByok);
+  if (!accountId) return byokMissing(cloudflareAccountByok);
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `providers` - An object whose values are a `ByokProvider` or a provider slug. The keys name the result.
+
+### Returns
+
+An object with the same keys, each `string | null`.
+
 ## `byokMissing(provider)`
 
 Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`. Import from `@tanstack/ai/byok` or `@tanstack/ai/byok/server`.

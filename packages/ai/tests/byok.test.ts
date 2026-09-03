@@ -11,7 +11,7 @@ import {
   maskKey,
   scrubSecrets,
 } from '../src/byok'
-import { getByokKey } from '../src/byok/server'
+import { getByokKey, getByokKeys } from '../src/byok/server'
 import type { ByokProviderInit } from '../src/byok'
 
 describe('byok slugs', () => {
@@ -164,6 +164,20 @@ describe('getByokKey', () => {
       headers: { 'x-byok-fal': 'sk-header' },
     })
     expect(getByokKey(request, fal)).toBe('sk-header')
+  })
+})
+
+describe('getByokKeys', () => {
+  it('reads one value per name', () => {
+    const request = new Request('https://example.test/chat', {
+      headers: { 'x-byok-cloudflare': 'tok' },
+    })
+    expect(
+      getByokKeys(request, {
+        apiKey: 'cloudflare',
+        accountId: 'cloudflare-account',
+      }),
+    ).toEqual({ apiKey: 'tok', accountId: null })
   })
 })
 

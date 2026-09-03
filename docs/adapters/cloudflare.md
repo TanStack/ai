@@ -162,12 +162,14 @@ import {
   cloudflareAccountByok,
   cloudflareByok,
 } from "@tanstack/ai-cloudflare/byok";
-import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+import { byokMissing, getByokKeys } from "@tanstack/ai/byok/server";
 
 export async function POST(request: Request) {
-  const apiKey = getByokKey(request, cloudflareByok);
+  const { apiKey, accountId } = getByokKeys(request, {
+    apiKey: cloudflareByok,
+    accountId: cloudflareAccountByok,
+  });
   if (!apiKey) return byokMissing(cloudflareByok);
-  const accountId = getByokKey(request, cloudflareAccountByok);
   if (!accountId) return byokMissing(cloudflareAccountByok);
 
   const { messages } = await request.json();
