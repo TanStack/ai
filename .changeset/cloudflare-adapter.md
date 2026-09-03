@@ -1,6 +1,7 @@
 ---
 '@tanstack/ai-cloudflare': minor
 '@tanstack/ai': patch
+'@tanstack/ai-client': minor
 ---
 
-Add `@tanstack/ai-cloudflare`: a Cloudflare adapter for Workers AI chat, summarization, embeddings, image generation, text-to-speech, and transcription over the `env.AI` binding or the REST API, with AI Gateway routing (`gateway` option and `cloudflareGateway()` helper for other providers). `@tanstack/ai` learns the `cloudflare` max-tokens key for summarize.
+Add `@tanstack/ai-cloudflare`: a Cloudflare adapter for Workers AI chat, summarization, embeddings, image generation, text-to-speech, and transcription over the `env.AI` binding or the REST API, with AI Gateway routing (`gateway` option and `cloudflareGateway()` helper for other providers). `@tanstack/ai` learns the `cloudflare` max-tokens key for summarize. `@tanstack/ai-client`'s `byokProvider` may now return a list of ids so credentials made of several values (Cloudflare account id + token) send every `x-byok-*` header.

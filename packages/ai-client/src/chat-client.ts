@@ -16,7 +16,7 @@ import {
 } from '@tanstack/ai/byok'
 import {
   prepareResolvedByokHeaders,
-  resolveByokProviderId,
+  resolveByokProviderIds,
 } from './byok/resolve'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
@@ -109,7 +109,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   byok?: ByokClient
-  byokProvider?: () => string | undefined
+  byokProvider?: () => string | ReadonlyArray<string> | undefined
   tools?: TTools
   interrupts?: TInterrupts
   queue?: QueueOption
@@ -376,7 +376,9 @@ export class ChatClient<
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
   private byok: ByokClient | undefined
-  private byokProvider: (() => string | undefined) | undefined
+  private byokProvider:
+    | (() => string | ReadonlyArray<string> | undefined)
+    | undefined
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private queueConfig: NormalizedQueueConfig
@@ -2332,7 +2334,7 @@ export class ChatClient<
       // serialize to an unusable shape.
       let byokHeaders: Record<string, string> | undefined
       if (this.byok) {
-        const provider = resolveByokProviderId(
+        const provider = resolveByokProviderIds(
           this.byokProvider,
           mergedBody.provider,
         )

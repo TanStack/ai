@@ -893,7 +893,7 @@ export interface ChatClientBaseOptions<
    * used. Later sources win. If no slug resolves, the send throws
    * instead of attaching every stored key.
    */
-  byokProvider?: () => string | undefined
+  byokProvider?: () => string | ReadonlyArray<string> | undefined
 
   /**
    * Client-local runtime context passed to client tool implementations.

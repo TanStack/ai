@@ -51,7 +51,12 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
-import { byok, getEnvKeyStatus, toByokProvider } from '@/lib/byok'
+import {
+  byok,
+  getEnvKeyStatus,
+  toByokProvider,
+  toByokProviders,
+} from '@/lib/byok'
 import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 
 /**
@@ -504,7 +509,7 @@ function ChatPage() {
     connection: fetchServerSentEvents('/api/tanchat'),
     tools,
     byok,
-    byokProvider: () => toByokProvider(selectedProviderRef.current),
+    byokProvider: () => toByokProviders(selectedProviderRef.current),
     forwardedProps,
     onCustomEvent: (eventType, data, context) => {
       console.log(

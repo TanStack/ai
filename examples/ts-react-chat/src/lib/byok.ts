@@ -52,6 +52,15 @@ export const byok = defineByok({
 // the send before env fallback can run.
 byok.setServerCoverage(true)
 
+/** Every stored id a provider needs on the wire (grouped credentials send several). */
+export function toByokProviders(provider: Provider): Array<ProviderId> {
+  const single = toByokProvider(provider)
+  const group = KEY_GROUPS.find((g) =>
+    g.fields.some((f) => f.provider.id === single),
+  )
+  return group ? group.fields.map((f) => f.provider.id) : single ? [single] : []
+}
+
 export function toByokProvider(provider: Provider): ProviderId | undefined {
   if (provider === 'gemini-interactions') return geminiByok.id
   const match = KEYED_PROVIDERS.find((entry) => entry.id === provider)

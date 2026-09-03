@@ -1,7 +1,7 @@
 import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
 import {
   prepareResolvedByokHeaders,
-  resolveByokProviderId,
+  resolveByokProviderIds,
 } from './byok/resolve'
 import {
   GENERATION_EVENTS,
@@ -127,7 +127,9 @@ export class GenerationClient<
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
   private byok: ByokClient | undefined
-  private byokProvider: (() => string | undefined) | undefined
+  private byokProvider:
+    | (() => string | ReadonlyArray<string> | undefined)
+    | undefined
   private result: TOutput | null = null
   private input: TInput | null = null
   private progress: AIDevtoolsGenerationProgress | null = null
@@ -277,7 +279,7 @@ export class GenerationClient<
     try {
       let headers: Record<string, string> | undefined
       if (this.byok) {
-        const provider = resolveByokProviderId(
+        const provider = resolveByokProviderIds(
           this.byokProvider,
           this.body.provider,
         )

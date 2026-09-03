@@ -352,7 +352,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * only that key is prepared and sent. Otherwise `body.provider` is used.
    * If no slug resolves, generate throws instead of attaching every stored key.
    */
-  byokProvider?: () => string | undefined
+  byokProvider?: () => string | ReadonlyArray<string> | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
   devtools?: Partial<AIDevtoolsClientMetadata>
