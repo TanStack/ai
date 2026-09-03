@@ -153,22 +153,27 @@ The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_
 
 Two different things go by this name. Both work.
 
-**A user's Cloudflare token from the browser.** `cloudflareByok` plugs into the TanStack BYOK store. Import it from `@tanstack/ai-cloudflare/byok`, not from the main entry. The account id is not a secret, so it stays on the server.
+**A user's Cloudflare credentials from the browser.** A user brings two values: the API token and the account it belongs to. `cloudflareByok` and `cloudflareAccountByok` are two entries in the TanStack BYOK store, each with its own env fallback. Import them from `@tanstack/ai-cloudflare/byok`, not from the main entry.
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { createCloudflareText } from "@tanstack/ai-cloudflare";
-import { cloudflareByok } from "@tanstack/ai-cloudflare/byok";
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from "@tanstack/ai-cloudflare/byok";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 
 export async function POST(request: Request) {
   const apiKey = getByokKey(request, cloudflareByok);
   if (!apiKey) return byokMissing(cloudflareByok);
+  const accountId = getByokKey(request, cloudflareAccountByok);
+  if (!accountId) return byokMissing(cloudflareAccountByok);
 
   const { messages } = await request.json();
   const stream = chat({
     adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
-      accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+      accountId,
       apiKey,
     }),
     messages,

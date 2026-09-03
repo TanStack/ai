@@ -1,7 +1,10 @@
 import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
 import { byteplusByok, byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
-import { cloudflareByok } from '@tanstack/ai-cloudflare/byok'
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from '@tanstack/ai-cloudflare/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { groqByok } from '@tanstack/ai-groq/byok'
@@ -21,6 +24,7 @@ export const KEYED_PROVIDERS = [
   byteplusByok,
   byteplusVoiceByok,
   cloudflareByok,
+  cloudflareAccountByok,
 ] as const
 
 export const byok = defineByok({

@@ -23,7 +23,10 @@ import { grokByok } from '@tanstack/ai-grok/byok'
 import { GROQ_CHAT_MODELS, createGroqText } from '@tanstack/ai-groq'
 import { groqByok } from '@tanstack/ai-groq/byok'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
-import { cloudflareByok } from '@tanstack/ai-cloudflare/byok'
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from '@tanstack/ai-cloudflare/byok'
 import { BEDROCK_CONVERSE_MODELS, bedrockText } from '@tanstack/ai-bedrock'
 import { BYTEPLUS_CHAT_MODELS, createBytePlusText } from '@tanstack/ai-byteplus'
 import { byteplusByok } from '@tanstack/ai-byteplus/byok'
@@ -347,6 +350,7 @@ export const Route = createFileRoute('/api/tanchat')({
         const buildChatOptions = (
           { provider, model }: ModelSelection,
           apiKey: string | null,
+          cloudflareAccountId: string | null,
         ): { adapter: AnyTextAdapter } => {
           switch (provider) {
             case 'anthropic':
@@ -421,13 +425,13 @@ export const Route = createFileRoute('/api/tanchat')({
               })
             case 'cloudflare':
               return createChatOptions({
-                // Workers AI over REST. The account id is server config; the
-                // token comes from BYOK or CLOUDFLARE_API_TOKEN. With
-                // CLOUDFLARE_AI_GATEWAY_ID set, requests (including
-                // `provider/model` ids such as openai/gpt-5.5) go through
-                // that AI Gateway.
+                // Workers AI over REST. Account id and token both come from
+                // BYOK, with CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN as
+                // the env fallback. With CLOUDFLARE_AI_GATEWAY_ID set,
+                // requests (including `provider/model` ids such as
+                // openai/gpt-5.5) go through that AI Gateway.
                 adapter: createCloudflareText(model, {
-                  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
+                  accountId: requireApiKey(cloudflareAccountId),
                   apiKey: requireApiKey(apiKey),
                   ...(process.env.CLOUDFLARE_AI_GATEWAY_ID && {
                     gateway: { id: process.env.CLOUDFLARE_AI_GATEWAY_ID },
@@ -461,7 +465,19 @@ export const Route = createFileRoute('/api/tanchat')({
             return byokMissing(resolvedKey.provider)
           }
           // Get typed adapter options using createChatOptions pattern
-          const options = buildChatOptions(selection, resolvedKey.apiKey)
+          // Cloudflare needs a second BYOK value: the account the token belongs to.
+          const cloudflareAccountId =
+            provider === 'cloudflare'
+              ? getByokKey(request, cloudflareAccountByok)
+              : null
+          if (provider === 'cloudflare' && !cloudflareAccountId) {
+            return byokMissing(cloudflareAccountByok)
+          }
+          const options = buildChatOptions(
+            selection,
+            resolvedKey.apiKey,
+            cloudflareAccountId,
+          )
 
           // All providers (including gemini-interactions) get the full
           // server-tool set merged with whatever client-side tools the
