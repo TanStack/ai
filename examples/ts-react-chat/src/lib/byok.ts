@@ -27,6 +27,22 @@ export const KEYED_PROVIDERS = [
   cloudflareAccountByok,
 ] as const
 
+/**
+ * Providers whose credential is more than one value. The store still keeps
+ * one entry per id (so env fallback and relay headers work per value), but
+ * the key dialog shows each group as a single card.
+ */
+export const KEY_GROUPS = [
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare',
+    fields: [
+      { provider: cloudflareAccountByok, label: 'Account ID', secret: false },
+      { provider: cloudflareByok, label: 'API token', secret: true },
+    ],
+  },
+] as const
+
 export const byok = defineByok({
   storage: defaultByokStorage(),
 })
