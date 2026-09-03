@@ -10,7 +10,6 @@ export {
   CloudflareTextAdapter,
   createCloudflareText,
   cloudflareText,
-  type CloudflareTextConfig,
   type CloudflareTextProviderOptions,
 } from './adapters/text'
 
@@ -53,8 +52,11 @@ export { cloudflareGateway, type CloudflareGatewayTarget } from './gateway'
 export type {
   CloudflareBindingConfig,
   CloudflareConfig,
+  CloudflareConfigInput,
   CloudflareGatewayOptions,
   CloudflareRestConfig,
+  CloudflareTextConfig,
+  CloudflareTextRestConfig,
 } from './utils/config'
 
 export type {

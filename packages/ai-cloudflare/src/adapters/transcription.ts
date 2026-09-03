@@ -1,7 +1,7 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
-import { resolveConfigFromEnv } from '../utils/config'
+import { isBindingConfig, resolveConfigFromEnv } from '../utils/config'
 import { runModel } from '../utils/run'
 import type {
   TranscriptionOptions,
@@ -9,7 +9,11 @@ import type {
   TranscriptionSegment,
   TranscriptionWord,
 } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
+import type {
+  CloudflareConfig,
+  CloudflareConfigInput,
+  FetchLike,
+} from '../utils/config'
 import type { CloudflareTranscriptionModel } from '../utils/models'
 
 /** Extra inputs forwarded to the transcription model (model specific). */
@@ -36,11 +40,18 @@ interface NovaOutput {
 
 async function toBytes(
   audio: TranscriptionOptions['audio'],
+  fetchImpl: FetchLike,
+  signal: AbortSignal | undefined,
 ): Promise<{ bytes: ArrayBuffer; contentType: string }> {
   if (typeof audio === 'string') {
     // Base64 (data URI or bare) or a URL to fetch.
     if (/^https?:\/\//.test(audio)) {
-      const response = await fetch(audio)
+      const response = await fetchImpl(audio, { signal })
+      if (!response.ok) {
+        throw new Error(
+          `Could not fetch audio from ${audio} (${response.status})`,
+        )
+      }
       return {
         bytes: await response.arrayBuffer(),
         contentType: response.headers.get('content-type') ?? 'audio/mpeg',
@@ -94,14 +105,22 @@ export class CloudflareTranscriptionAdapter<
           model,
         },
       )
-      const { bytes, contentType } = await toBytes(options.audio)
+      const fetchImpl =
+        (isBindingConfig(this.cfConfig) ? undefined : this.cfConfig.fetch) ??
+        fetch
+      const { bytes, contentType } = await toBytes(
+        options.audio,
+        fetchImpl,
+        options.abortSignal,
+      )
       const output = model.startsWith('@cf/deepgram/')
         ? await this.runNova(model, bytes, contentType, options)
-        : await this.runWhisper(model, bytes, {
-            language,
-            prompt,
-            ...options.modelOptions,
-          })
+        : await this.runWhisper(
+            model,
+            bytes,
+            { language, prompt, ...options.modelOptions },
+            options.abortSignal,
+          )
       return { id: generateId(this.name), model, ...output }
     } catch (error: unknown) {
       logger.errors(`${this.name}.transcribe fatal`, {
@@ -116,16 +135,25 @@ export class CloudflareTranscriptionAdapter<
     model: string,
     bytes: ArrayBuffer,
     inputs: { language?: string; prompt?: string } & Record<string, unknown>,
+    signal: AbortSignal | undefined,
   ): Promise<Omit<TranscriptionResult, 'id' | 'model'>> {
     const { language, prompt, ...rest } = inputs
-    const output = (await runModel(this.cfConfig, model, {
-      ...(language && { language }),
-      ...(prompt && { initial_prompt: prompt }),
-      ...rest,
-      audio: arrayBufferToBase64(bytes),
-    })) as WhisperOutput
+    const output = (await runModel(
+      this.cfConfig,
+      model,
+      {
+        ...(language && { language }),
+        ...(prompt && { initial_prompt: prompt }),
+        ...rest,
+        audio: arrayBufferToBase64(bytes),
+      },
+      { signal },
+    )) as WhisperOutput
+    if (typeof output.text !== 'string') {
+      throw new Error(`Workers AI ${model} returned no transcript`)
+    }
     return {
-      text: output.text ?? '',
+      text: output.text,
       language: output.transcription_info?.language,
       duration: output.transcription_info?.duration,
       segments: output.segments?.map(
@@ -159,8 +187,11 @@ export class CloudflareTranscriptionAdapter<
       },
     )) as NovaOutput
     const alternative = output.results?.channels?.[0]?.alternatives?.[0]
+    if (typeof alternative?.transcript !== 'string') {
+      throw new Error(`Workers AI ${model} returned no transcript`)
+    }
     return {
-      text: alternative?.transcript ?? '',
+      text: alternative.transcript,
       duration: output.metadata?.duration,
       words: toWords(alternative?.words),
     }
@@ -190,7 +221,7 @@ export function cloudflareTranscription<
   TModel extends CloudflareTranscriptionModel,
 >(
   model: TModel,
-  config?: CloudflareConfig | Partial<CloudflareRestConfig>,
+  config?: CloudflareConfigInput,
 ): CloudflareTranscriptionAdapter<TModel> {
   return new CloudflareTranscriptionAdapter(resolveConfigFromEnv(config), model)
 }

@@ -13,6 +13,7 @@ npm install @tanstack/ai @tanstack/ai-cloudflare
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
+import type { Ai } from '@cloudflare/workers-types'
 
 export default {
   async fetch(request: Request, env: { AI: Ai }) {

@@ -9,7 +9,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
+import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
 import type { CloudflareImageModel } from '../utils/models'
 
 /** Text-to-image inputs forwarded to the model (`steps`, `guidance`, ...). */
@@ -91,7 +91,7 @@ export function createCloudflareImage<TModel extends CloudflareImageModel>(
 
 export function cloudflareImage<TModel extends CloudflareImageModel>(
   model: TModel,
-  config?: CloudflareConfig | Partial<CloudflareRestConfig>,
+  config?: CloudflareConfigInput,
 ): CloudflareImageAdapter<TModel> {
   return new CloudflareImageAdapter(resolveConfigFromEnv(config), model)
 }

@@ -5,7 +5,7 @@ import { requireTextOnlyEmbeddingInput } from '@tanstack/ai'
 import { resolveConfigFromEnv } from '../utils/config'
 import { runModel } from '../utils/run'
 import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
+import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
 import type { CloudflareEmbeddingModel } from '../utils/models'
 
 /** Extra inputs forwarded to the embedding model (model specific). */
@@ -33,6 +33,11 @@ export class CloudflareEmbeddingAdapter<
   ): Promise<EmbeddingResult> {
     const { model, logger } = options
     const texts = requireTextOnlyEmbeddingInput(options.input, this.name, model)
+    if (options.dimensions !== undefined) {
+      throw new Error(
+        'Workers AI embedding models have fixed dimensions; do not set `dimensions`',
+      )
+    }
     try {
       logger.request(
         `activity=embed provider=${this.name} model=${model} inputs=${texts.length}`,
@@ -42,10 +47,15 @@ export class CloudflareEmbeddingAdapter<
         ...options.modelOptions,
         text: texts,
       })) as { data?: Array<Array<number>> }
+      if (!Array.isArray(output.data) || output.data.length !== texts.length) {
+        throw new Error(
+          `Workers AI ${model} returned ${output.data?.length ?? 0} embeddings for ${texts.length} inputs`,
+        )
+      }
       return {
         id: generateId(this.name),
         model,
-        embeddings: (output.data ?? []).map((vector, index) => ({
+        embeddings: output.data.map((vector, index) => ({
           vector,
           index,
         })),
@@ -68,7 +78,7 @@ export function createCloudflareEmbedding<
 
 export function cloudflareEmbedding<TModel extends CloudflareEmbeddingModel>(
   model: TModel,
-  config?: CloudflareConfig | Partial<CloudflareRestConfig>,
+  config?: CloudflareConfigInput,
 ): CloudflareEmbeddingAdapter<TModel> {
   return new CloudflareEmbeddingAdapter(resolveConfigFromEnv(config), model)
 }

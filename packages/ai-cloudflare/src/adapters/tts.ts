@@ -4,7 +4,7 @@ import { generateId } from '@tanstack/ai-utils'
 import { resolveConfigFromEnv } from '../utils/config'
 import { outputToBase64, runModel } from '../utils/run'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
+import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
 import type { CloudflareTTSModel } from '../utils/models'
 
 /** Text-to-speech inputs forwarded to the model (Deepgram Aura fields). */
@@ -49,7 +49,10 @@ export class CloudflareTTSAdapter<
     const { model, logger, text, voice, format = 'mp3' } = options
     const inputs = {
       ...(voice && { speaker: voice }),
-      ...(format !== 'pcm' ? { encoding: format } : { encoding: 'linear16' }),
+      // Aura takes the codec as `encoding` and the wrapper as `container`;
+      // `wav` and `pcm` are both linear16.
+      encoding: format === 'wav' || format === 'pcm' ? 'linear16' : format,
+      ...(format === 'wav' && { container: 'wav' }),
       ...options.modelOptions,
       text,
     }
@@ -91,7 +94,7 @@ export function createCloudflareTTS<TModel extends CloudflareTTSModel>(
 
 export function cloudflareTTS<TModel extends CloudflareTTSModel>(
   model: TModel,
-  config?: CloudflareConfig | Partial<CloudflareRestConfig>,
+  config?: CloudflareConfigInput,
 ): CloudflareTTSAdapter<TModel> {
   return new CloudflareTTSAdapter(resolveConfigFromEnv(config), model)
 }

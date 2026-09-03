@@ -342,6 +342,26 @@ describe('embedding adapter', () => {
     ])
   })
 
+  it('rejects dimensions and a mismatched output shape', async () => {
+    const { binding } = fakeBinding(() => ({ response: 'wrong shape' }))
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
+    await expect(
+      adapter.createEmbeddings({
+        model: '@cf/baai/bge-m3',
+        input: ['a'],
+        dimensions: 256,
+        logger,
+      }),
+    ).rejects.toThrow(/fixed dimensions/)
+    await expect(
+      adapter.createEmbeddings({
+        model: '@cf/baai/bge-m3',
+        input: ['a'],
+        logger,
+      }),
+    ).rejects.toThrow(/returned 0 embeddings for 1 inputs/)
+  })
+
   it('uses the REST /ai/run endpoint and unwraps result', async () => {
     const fetchMock = vi.fn(async () =>
       Response.json({ success: true, result: { data: [[1]] } }),
@@ -416,6 +436,22 @@ describe('tts adapter', () => {
       contentType: 'audio/mpeg',
     })
   })
+
+  it('sends wav as linear16 in a wav container', async () => {
+    const { binding, run } = fakeBinding(() => ({ audio: 'QUJD' }))
+    const adapter = createCloudflareTTS('@cf/deepgram/aura-2-en', { binding })
+    await adapter.generateSpeech({
+      model: '@cf/deepgram/aura-2-en',
+      text: 'Hello',
+      format: 'wav',
+      logger,
+    })
+    expect(run.mock.calls[0]![1]).toEqual({
+      text: 'Hello',
+      encoding: 'linear16',
+      container: 'wav',
+    })
+  })
 })
 
 describe('transcription adapter', () => {
@@ -444,6 +480,37 @@ describe('transcription adapter', () => {
       segments: [{ id: 0, start: 0, end: 0.78, text: 'Hello there.' }],
       words: [{ word: 'Hello', start: 0, end: 0.6 }],
     })
+  })
+
+  it('fails instead of returning an empty transcript', async () => {
+    const { binding } = fakeBinding(() => ({ transcription_info: {} }))
+    const adapter = createCloudflareTranscription(
+      '@cf/openai/whisper-large-v3-turbo',
+      { binding },
+    )
+    await expect(
+      adapter.transcribe({
+        model: '@cf/openai/whisper-large-v3-turbo',
+        audio: new Uint8Array([65]).buffer,
+        logger,
+      }),
+    ).rejects.toThrow(/returned no transcript/)
+  })
+
+  it('fails when the audio URL cannot be fetched', async () => {
+    const fetchMock = vi.fn(async () => new Response('nope', { status: 404 }))
+    const adapter = createCloudflareTranscription(
+      '@cf/openai/whisper-large-v3-turbo',
+      { accountId: 'acct', apiKey: 'tok', fetch: fetchMock },
+    )
+    await expect(
+      adapter.transcribe({
+        model: '@cf/openai/whisper-large-v3-turbo',
+        audio: 'https://example.com/missing.mp3',
+        logger,
+      }),
+    ).rejects.toThrow(/Could not fetch audio .* \(404\)/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('sends raw bytes to Deepgram Nova over REST', async () => {

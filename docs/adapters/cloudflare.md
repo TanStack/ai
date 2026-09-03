@@ -91,7 +91,7 @@ const stream = chat({
 
 `cloudflareText(model)` does the same and reads `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from the environment for you.
 
-The REST config also accepts the OpenAI SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, `maxRetries`).
+The text and summarize REST config also accepts the OpenAI SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, `maxRetries`). The other adapters call the native `/ai/run` endpoint and take `fetch` only.
 
 ## Route through AI Gateway
 
@@ -188,7 +188,7 @@ See [Bring Your Own Key](../advanced/byok) for the client store and the save dia
 
 ## Models
 
-Any id from the [Workers AI catalog](https://developers.cloudflare.com/workers-ai/models/) works, and so does any `provider/model` id from the [AI Gateway catalog](https://developers.cloudflare.com/ai/models/) when a gateway is set. Catalog ids get editor autocomplete.
+Any id from the [Workers AI catalog](https://developers.cloudflare.com/workers-ai/models/) works, and so does any `provider/model` id from the [AI Gateway catalog](https://developers.cloudflare.com/ai/models/) when a gateway is set. Ids in the bundled catalog get editor autocomplete.
 
 ## Tools and structured output
 

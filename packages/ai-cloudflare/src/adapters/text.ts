@@ -11,7 +11,11 @@ import type {
   ChatCompletionChunk,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions/completions'
-import type { CloudflareConfig, CloudflareRestConfig } from '../utils/config'
+import type {
+  CloudflareConfigInput,
+  CloudflareTextConfig,
+  CloudflareTextRestConfig,
+} from '../utils/config'
 import type { CloudflareTextModel } from '../utils/models'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -36,9 +40,7 @@ export interface CloudflareTextProviderOptions {
   }
 }
 
-export type CloudflareTextConfig = CloudflareConfig
-
-function createClient(config: CloudflareConfig): OpenAI {
+function createClient(config: CloudflareTextConfig): OpenAI {
   if (isBindingConfig(config)) {
     return new OpenAI({
       // The binding authenticates by itself; the SDK only requires a value.
@@ -46,7 +48,12 @@ function createClient(config: CloudflareConfig): OpenAI {
       fetch: createBindingFetch(config.binding, config.gateway),
     })
   }
-  const { accountId: _accountId, gateway, ...clientOptions } = config
+  const {
+    accountId: _accountId,
+    binding: _binding,
+    gateway,
+    ...clientOptions
+  } = config
   return new OpenAI({
     ...clientOptions,
     baseURL: restChatBaseURL(config),
@@ -101,7 +108,7 @@ export class CloudflareTextAdapter<
     return false
   }
 
-  /** Workers AI reasoning models stream thinking as `reasoning_content`. */
+  /** Workers AI reasoning models stream thinking as `reasoning_content` (some as `reasoning`). */
   protected override extractReasoning(
     chunk: ChatCompletionChunk,
   ): { text: string } | undefined {
@@ -137,7 +144,7 @@ export function createCloudflareText<TModel extends CloudflareTextModel>(
  */
 export function cloudflareText<TModel extends CloudflareTextModel>(
   model: TModel,
-  config?: CloudflareConfig | Partial<CloudflareRestConfig>,
+  config?: CloudflareConfigInput<CloudflareTextRestConfig>,
 ): CloudflareTextAdapter<TModel> {
   return new CloudflareTextAdapter(resolveConfigFromEnv(config), model)
 }

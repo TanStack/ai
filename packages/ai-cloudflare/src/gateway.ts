@@ -13,9 +13,23 @@ export interface CloudflareGatewayTarget extends Omit<
 }
 
 /**
+ * Gateway endpoints mirror each vendor's own path after the host, and most
+ * vendor SDKs already append their version segment (Anthropic `/v1/messages`,
+ * Mistral `/v1/...`, Cohere `/v1/chat`). OpenAI-style SDKs append only
+ * `/chat/completions`, which matches Cloudflare's `openai`, `groq`,
+ * `perplexity-ai`, `deepseek`, and `cerebras` endpoints. xAI is the exception:
+ * Cloudflare serves it at `/grok/v1/...`, so its base URL keeps the `/v1`.
+ */
+const PROVIDER_PATH_SUFFIX: Record<string, string> = { grok: '/v1' }
+
+/**
  * Builds the `baseURL` and headers that point any provider adapter at that
  * provider's endpoint on your AI Gateway. Pass them through the adapter's
  * client options (`baseURL` + `defaultHeaders` for OpenAI-style SDKs).
+ *
+ * The headers carry the per-request `cf-aig-*` options plus
+ * `cf-aig-authorization: Bearer <cfApiKey>` when `cfApiKey` is set. The
+ * gateway id lives in the URL, so no `cf-aig-gateway-id` header is sent.
  *
  * @example
  * ```typescript
@@ -26,16 +40,6 @@ export interface CloudflareGatewayTarget extends Omit<
  * })
  * ```
  */
-/**
- * Gateway endpoints mirror each vendor's own path after the host, and most
- * vendor SDKs already append their version segment (Anthropic `/v1/messages`,
- * Mistral `/v1/...`, Cohere `/v1/chat`). OpenAI-style SDKs append only
- * `/chat/completions`, which matches Cloudflare's `openai`, `groq`,
- * `perplexity-ai`, `deepseek`, and `cerebras` endpoints. xAI is the exception:
- * Cloudflare serves it at `/grok/v1/...`, so its base URL keeps the `/v1`.
- */
-const PROVIDER_PATH_SUFFIX: Record<string, string> = { grok: '/v1' }
-
 export function cloudflareGateway(
   provider: AIGatewayProviders | 'compat' | (string & {}),
   target: CloudflareGatewayTarget,

@@ -1,8 +1,5 @@
 import type { Ai } from '@cloudflare/workers-types'
-import type { ClientOptions } from 'openai'
-import type { CloudflareGatewayOptions } from './config'
-
-export type FetchLike = NonNullable<ClientOptions['fetch']>
+import type { CloudflareGatewayOptions, FetchLike } from './config'
 
 /**
  * Workers AI streams end with a usage-only trailer (`{"response":"","usage":

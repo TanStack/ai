@@ -10,6 +10,8 @@ import type { ClientOptions } from 'openai'
  */
 export type CloudflareGatewayOptions = GatewayOptions
 
+export type FetchLike = NonNullable<ClientOptions['fetch']>
+
 /**
  * Run through the Workers AI binding (`env.AI`) inside a Cloudflare Worker.
  * No API token is needed.
@@ -17,31 +19,52 @@ export type CloudflareGatewayOptions = GatewayOptions
 export interface CloudflareBindingConfig {
   binding: Ai
   gateway?: CloudflareGatewayOptions
+  accountId?: never
+  apiKey?: never
 }
 
-/**
- * Run through the Cloudflare REST API from any runtime. Accepts the OpenAI
- * SDK client options (`baseURL`, `defaultHeaders`, `fetch`, `timeout`, ...)
- * for the chat path.
- */
-export interface CloudflareRestConfig extends Omit<ClientOptions, 'apiKey'> {
+/** Run through the Cloudflare REST API from any runtime. */
+export interface CloudflareRestConfig {
   accountId: string
   apiKey: string
   gateway?: CloudflareGatewayOptions
+  /** Custom fetch for every request. */
+  fetch?: FetchLike
+  binding?: never
 }
+
+/**
+ * REST config for the chat surface. Also accepts the OpenAI SDK client
+ * options (`baseURL`, `defaultHeaders`, `timeout`, `maxRetries`, ...), which
+ * only the text and summarize adapters read.
+ */
+export interface CloudflareTextRestConfig
+  extends CloudflareRestConfig, Omit<ClientOptions, 'apiKey' | 'fetch'> {}
 
 export type CloudflareConfig = CloudflareBindingConfig | CloudflareRestConfig
 
+export type CloudflareTextConfig =
+  | CloudflareBindingConfig
+  | CloudflareTextRestConfig
+
+/**
+ * What the env-reading factories accept: a binding, or REST fields with any
+ * missing ones read from `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+ */
+export type CloudflareConfigInput<
+  TRest extends CloudflareRestConfig = CloudflareRestConfig,
+> = CloudflareBindingConfig | Partial<TRest>
+
 export const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4'
 
-export function isBindingConfig(
-  config: CloudflareConfig,
-): config is CloudflareBindingConfig {
-  return 'binding' in config
+export function isBindingConfig(config: {
+  binding?: Ai
+}): config is CloudflareBindingConfig {
+  return config.binding !== undefined
 }
 
 /** Base URL for the OpenAI-compatible chat surface of an account. */
-export function restChatBaseURL(config: CloudflareRestConfig): string {
+export function restChatBaseURL(config: CloudflareTextRestConfig): string {
   return (
     config.baseURL ||
     `${CLOUDFLARE_API_BASE}/accounts/${config.accountId}/ai/v1`
@@ -86,11 +109,11 @@ export function gatewayHeaders(
  * through, anything else is filled from `CLOUDFLARE_ACCOUNT_ID` and
  * `CLOUDFLARE_API_TOKEN`.
  */
-export function resolveConfigFromEnv(
-  config: CloudflareConfig | Partial<CloudflareRestConfig> | undefined,
-): CloudflareConfig {
-  if (config && 'binding' in config) return config
-  const rest = (config ?? {}) as Partial<CloudflareRestConfig>
+export function resolveConfigFromEnv<TRest extends CloudflareRestConfig>(
+  config: CloudflareConfigInput<TRest> | undefined,
+): CloudflareBindingConfig | (Partial<TRest> & CloudflareRestConfig) {
+  if (config && isBindingConfig(config)) return config
+  const rest: Partial<TRest> = config ?? {}
   try {
     return {
       ...rest,
