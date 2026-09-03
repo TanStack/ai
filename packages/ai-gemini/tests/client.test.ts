@@ -91,7 +91,7 @@ describe('createGeminiClient proxy options', () => {
     })
   })
 
-  it('merges with existing httpOptions, normalized names win', () => {
+  it('keeps other httpOptions, normalized names win', () => {
     createGeminiClient({
       apiKey: 'k',
       httpOptions: {
@@ -107,7 +107,7 @@ describe('createGeminiClient proxy options', () => {
       apiKey: 'k',
       httpOptions: {
         baseUrl: 'https://new.example',
-        headers: { a: '1', b: 'new' },
+        headers: { b: 'new' },
         timeout: 5,
       },
     })

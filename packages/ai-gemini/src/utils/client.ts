@@ -10,8 +10,8 @@ export interface GeminiClientConfig extends GoogleGenAIOptions {
    */
   baseURL?: string
   /**
-   * Headers sent with every request. Merged on top of `httpOptions.headers`.
-   * Same option name as the other adapters.
+   * Headers sent with every request. Maps onto `httpOptions.headers` and wins
+   * over it when both are set. Same option name as the other adapters.
    */
   defaultHeaders?: Record<string, string>
 }
@@ -37,9 +37,7 @@ export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
     options.httpOptions = {
       ...options.httpOptions,
       ...(baseURL !== undefined ? { baseUrl: baseURL } : {}),
-      ...(defaultHeaders !== undefined
-        ? { headers: { ...options.httpOptions?.headers, ...defaultHeaders } }
-        : {}),
+      ...(defaultHeaders !== undefined ? { headers: defaultHeaders } : {}),
     }
   }
   return new GoogleGenAI(options)

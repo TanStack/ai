@@ -25,8 +25,8 @@ export interface ElevenLabsClientConfig {
   /** Override the number of SDK-level retries. */
   maxRetries?: number
   /**
-   * Headers sent with every request. Merged on top of `headers`. Same option
-   * name as the other adapters.
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
    */
   defaultHeaders?: Record<string, string>
   /** Alias of `defaultHeaders`. */
@@ -78,10 +78,7 @@ export function createElevenLabsClient(
 ): ElevenLabsClient {
   const apiKey = config?.apiKey ?? getElevenLabsApiKeyFromEnv()
   const baseUrl = config?.baseURL ?? config?.baseUrl
-  const headers =
-    config?.headers || config?.defaultHeaders
-      ? { ...config.headers, ...config.defaultHeaders }
-      : undefined
+  const headers = config?.defaultHeaders ?? config?.headers
   return new ElevenLabsClient({
     apiKey,
     ...(baseUrl ? { baseUrl } : {}),

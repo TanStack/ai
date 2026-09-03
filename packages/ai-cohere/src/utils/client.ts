@@ -19,8 +19,8 @@ export interface CohereClientConfig {
   baseUrl?: string
 
   /**
-   * Headers sent with every request. Merged on top of `headers`. Same option
-   * name as the other adapters.
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
    */
   defaultHeaders?: Record<string, string>
 
@@ -40,7 +40,7 @@ export interface CohereClientConfig {
 
 export const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com'
 
-/** Resolve the effective base URL (no trailing slash) and merged headers. */
+/** Resolve the effective base URL (no trailing slash) and headers. */
 export function resolveCohereTransport(config: CohereClientConfig): {
   baseUrl: string
   headers: Record<string, string>
@@ -51,7 +51,7 @@ export function resolveCohereTransport(config: CohereClientConfig): {
       config.baseUrl ??
       COHERE_DEFAULT_BASE_URL
     ).replace(/\/+$/, ''),
-    headers: { ...config.headers, ...config.defaultHeaders },
+    headers: config.defaultHeaders ?? config.headers ?? {},
   }
 }
 

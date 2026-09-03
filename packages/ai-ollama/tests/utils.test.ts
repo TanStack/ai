@@ -61,7 +61,7 @@ describe('createOllamaClient', () => {
       config: { host: string; headers: Record<string, string> }
     }
     expect(client.config.host).toBe('https://new.example')
-    expect(client.config.headers).toEqual({ a: '1', b: 'new' })
+    expect(client.config.headers).toEqual({ b: 'new' })
   })
 })
 

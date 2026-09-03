@@ -42,7 +42,7 @@ describe('createElevenLabsClient', () => {
     expect(constructorSpy).toHaveBeenCalledExactlyOnceWith({
       apiKey: 'k',
       baseUrl: 'https://new.example',
-      headers: { a: '1', b: 'new' },
+      headers: { b: 'new' },
     })
   })
 })

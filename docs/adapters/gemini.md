@@ -94,7 +94,7 @@ const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!
 });
 ```
 
-`baseURL` sets `httpOptions.baseUrl`. `defaultHeaders` merges into `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
+`baseURL` sets `httpOptions.baseUrl` and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
 
 ## Example: Chat Completion
 

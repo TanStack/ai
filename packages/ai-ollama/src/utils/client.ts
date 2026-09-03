@@ -11,8 +11,8 @@ export interface OllamaClientConfig {
   /** Alias of `baseURL`. */
   host?: string
   /**
-   * Headers sent with every request. Merged on top of `headers`. Same option
-   * name as the other adapters.
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
    */
   defaultHeaders?: Record<string, string>
   /** Alias of `defaultHeaders`. */
@@ -25,10 +25,7 @@ export interface OllamaClientConfig {
 export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
   return new Ollama({
     host: config.baseURL || config.host || 'http://localhost:11434',
-    headers:
-      config.headers || config.defaultHeaders
-        ? { ...config.headers, ...config.defaultHeaders }
-        : undefined,
+    headers: config.defaultHeaders ?? config.headers,
   })
 }
 
