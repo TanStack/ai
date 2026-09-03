@@ -37,12 +37,16 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 ## Basic Usage
 
+Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
+
+For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
+
 ```typescript
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const stream = chat({
-  adapter: geminiText("gemini-3.1-pro-preview"),
+  adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -143,7 +147,7 @@ export async function POST(request: Request) {
   const file = await uploadGeminiFile("./demo.mp4", { mimeType: "video/mp4" });
 
   const stream = chat({
-    adapter: geminiText("gemini-3.7-flash"),
+    adapter: geminiText("gemini-3.8-flash"),
     messages: [
       {
         role: "user",
@@ -168,7 +172,12 @@ geminiVideoPart(file, { fps: 0.5, startOffset: "30s", endOffset: "90s" });
 
 ### Agentic understanding
 
-Single-pass sampling can miss detail in long or fast-moving videos. Set `processing: "agentic"` to let the model drive: it navigates the timeline and pulls frames, transcripts, and audio on demand. This is GA on `gemini-3.7-flash`, `gemini-3.6-flash`, and `gemini-3.5-flash-lite`.
+Single-pass sampling can miss detail in long or fast-moving videos. Set `processing: "agentic"` to let the model drive: it navigates the timeline and pulls frames, transcripts, and audio on demand. Supported models:
+
+- `gemini-3.8-flash`
+- `gemini-3.7-flash`
+- `gemini-3.6-flash`
+- `gemini-3.5-flash-lite`
 
 ```typescript ignore
 geminiVideoPart(file, { processing: "agentic" });

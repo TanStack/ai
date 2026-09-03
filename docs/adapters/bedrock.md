@@ -161,6 +161,10 @@ const adapter = createBedrockText(
 )
 ```
 
+### Token usage
+
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+
 ## Chat Completions API (`api: 'chat'`)
 
 Set `api: 'chat'` to use Bedrock's OpenAI-compatible Chat Completions endpoint. Returns a `bedrock` adapter.

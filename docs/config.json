@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-30"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Quick Start: React Native",
@@ -270,6 +270,11 @@
           "updatedAt": "2026-09-01"
         },
         {
+          "label": "Remix",
+          "to": "ui/remix",
+          "addedAt": "2026-09-01"
+        },
+        {
           "label": "Angular",
           "to": "ui/angular",
           "addedAt": "2026-09-01",
@@ -279,7 +284,7 @@
           "label": "Custom Adapters",
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-01"
         }
       ]
     },
@@ -291,7 +296,8 @@
           "label": "Overview",
           "to": "ui/recipes/index",
           "tab": "guides",
-          "addedAt": "2026-08-31"
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "Chat with no tools",
@@ -941,7 +947,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-02"
         },
         {
           "label": "Google Vertex AI",
@@ -1058,7 +1064,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-09-02"
         },
         {
           "label": "BytePlus",
@@ -1119,7 +1125,7 @@
           "label": "Chat UI packages",
           "to": "migration/create-ui",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-08-31"
+          "updatedAt": "2026-09-01"
         },
         {
           "label": "From Vercel AI SDK",
@@ -1196,6 +1202,12 @@
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21"
+        },
+        {
+          "label": "@tanstack/ai-remix",
+          "to": "api/ai-remix",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-09-01"
         }
       ]
     },

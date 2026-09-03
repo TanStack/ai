@@ -37,6 +37,7 @@ New imports:
 - `@tanstack/ai-preact` (next minor) `/ui`
 - `@tanstack/ai-octane` (next minor) `/ui`
 - `@tanstack/ai-angular` (next minor) `/ui`
+- `@tanstack/ai-remix` (next minor) `/ui`
 
 Deprecated re-exports, removed in `1.0.0`:
 
@@ -50,4 +51,4 @@ Old `*-ui` packages and new `/ui` imports can live in the same app until `1.0.0`
 
 ## Typed chat UI
 
-The `/ui` subpath also exports `createChatHook`, a typed headless chat UI that derives tool, part, and interrupt components from your chat options. It is new, not a replacement you need to move to. The components above keep working. See the [React UI guide](../ui/react) for how it fits together, and [Solid](../ui/solid), [Vue](../ui/vue), [Svelte](../ui/svelte), [Preact](../ui/preact), [Octane](../ui/octane), or [Angular](../ui/angular) for the other adapters.
+The `/ui` subpath also exports `createChatHook`, a typed headless chat UI that derives tool, part, and interrupt components from your chat options. It is new, not a replacement you need to move to. The components above keep working. See the [React UI guide](../ui/react) for how it fits together, and [Solid](../ui/solid), [Vue](../ui/vue), [Svelte](../ui/svelte), [Preact](../ui/preact), [Octane](../ui/octane), [Remix](../ui/remix), or [Angular](../ui/angular) for the other adapters.
