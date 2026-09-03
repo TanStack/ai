@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-local-process
 
+## 0.2.5
+
+### Patch Changes
+
+- [#1293](https://github.com/TanStack/ai/pull/1293) [`efba9cf`](https://github.com/TanStack/ai/commit/efba9cf6768fc895ff4ecd8b89edea9cb3080cb5) - fix: stop an uncaught EPIPE when a write goes to a child that closed its stdin
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.5.6
+
 ## 0.2.4
 
 ### Patch Changes

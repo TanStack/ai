@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-lovable",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Lovable AI Gateway adapter for TanStack AI chat, embeddings, image, video, speech, and transcription.",
   "author": "Tanner Linsley",
   "license": "MIT",

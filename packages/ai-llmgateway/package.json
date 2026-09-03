@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-llmgateway",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "LLM Gateway adapter for TanStack AI — one OpenAI-compatible endpoint for chat, tool calling, and structured outputs across many providers and models.",
   "author": "Tanner Linsley",
   "license": "MIT",

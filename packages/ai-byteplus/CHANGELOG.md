@@ -1,5 +1,13 @@
 # @tanstack/ai-byteplus
 
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/openai-base@0.10.10
+
 ## 0.3.3
 
 ### Patch Changes
