@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.14.4",
+  "version": "0.16.0",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -28,6 +28,10 @@
     "./mcp-apps": {
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
+    },
+    "./ui": {
+      "types": "./dist/esm/ui.d.ts",
+      "import": "./dist/esm/ui.js"
     }
   },
   "files": [

@@ -103,6 +103,15 @@ export default async function globalSetup() {
   // text tests.
   mock.mount('/omni-video', geminiOmniVideoMount())
 
+  // Agentic video understanding (standard Gemini chat adapter). A video part
+  // with metadata.processing:'agentic' routes through the non-streaming
+  // interactions.create(), which reads `output_text`. aimock's native
+  // interactions handler defaults to streaming SSE (keyed off `stream !==
+  // false`), so it can't serve create(). This dedicated prefix returns a
+  // completed JSON interaction instead. See the video-understanding provider
+  // block in src/lib/providers.ts.
+  mock.mount('/vu-interactions', geminiVideoUnderstandingMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -940,6 +949,47 @@ function geminiOmniVideoMount(): Mountable {
       }
 
       return false
+    },
+  }
+}
+
+/**
+ * Mounts the agentic video-understanding interaction under a dedicated
+ * `/vu-interactions` prefix (the video-understanding provider points its baseUrl
+ * there). The standard Gemini adapter's agentic path calls the non-streaming
+ * `interactions.create()` and reads `output_text`; aimock's native handler
+ * would stream SSE instead. This returns a completed JSON interaction with the
+ * text the spec asserts on.
+ */
+function geminiVideoUnderstandingMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/vu-interactions'), so pathname
+      // looks like '/v1beta/interactions'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      const model =
+        typeof body?.model === 'string' ? body.model : 'gemini-3.7-flash'
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'aimock-vu-1',
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_text:
+            'The video shows a guitar being played in a music store. A ' +
+            'musician demonstrates the instrument with a bright, clear tone.',
+        }),
+      )
+      return true
     },
   }
 }

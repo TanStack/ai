@@ -721,7 +721,11 @@ export class MistralTextAdapter<
     params: ChatCompletionStreamRequest,
     config: MistralClientConfig,
   ): AsyncGenerator<MistralRawChunk> {
-    const serverURL = (config.serverURL ?? 'https://api.mistral.ai')
+    const serverURL = (
+      config.baseURL ??
+      config.serverURL ??
+      'https://api.mistral.ai'
+    )
       .replace(/\/+$/, '')
       .replace(/\/v1$/, '')
     const url =

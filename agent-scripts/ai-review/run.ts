@@ -34,11 +34,18 @@ import {
   isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
-import { parseReviewEvent } from './event.ts'
+import {
+  isAiReviewLabelEvent,
+  isPullRequestLabeledEvent,
+  parseReviewEvent,
+} from './event.ts'
+import { createReviewStreamLogger } from './log.ts'
 import { commitAll, headRemoteUrl, pushHead } from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
 import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
+import { approveWaitingWorkflows, setSecureLabel } from './secure.ts'
+import { scanPullSecurity } from './security.ts'
 import { shouldSkip } from './skip.ts'
 import { createReviewTools } from './tools.ts'
 import { parseVerdict, reviewLabelFor, reviewVerdictSchema } from './verdict.ts'
@@ -152,13 +159,14 @@ export function createGrokReview() {
       }),
       lifecycle: { reuse: 'none', destroyOnComplete: false },
     })
-    const result = await chat({
+    const stream = chat({
       adapter: grokBuildText('grok-4.6', {
         authMode: 'api-key',
         protocol: 'streaming-json',
         cwd: input.worktreeRoot,
         grokExecutable: join(homedir(), '.grok', 'bin', 'grok'),
       }),
+      stream: true,
       tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
       middleware: [withSandbox(sandbox)],
@@ -185,7 +193,26 @@ export function createGrokReview() {
         },
       ],
     })
-    return parseVerdict(result)
+    let object: unknown
+    const log = createReviewStreamLogger()
+    for await (const chunk of stream) {
+      log.chunk(chunk)
+      if (
+        chunk.type === 'CUSTOM' &&
+        chunk.name === 'structured-output.complete' &&
+        isRecord(chunk.value) &&
+        'object' in chunk.value
+      ) {
+        object = chunk.value.object
+      }
+    }
+    log.flush()
+    if (object === undefined) {
+      throw new Error('chat() did not emit structured-output.complete')
+    }
+    const verdict = parseVerdict(object)
+    console.log('ai-review verdict', JSON.stringify(verdict, null, 2))
+    return verdict
   }
 }
 
@@ -217,6 +244,20 @@ export async function runReviewJob(opts: {
     if (firstToken(readIssueCommentBody(opts.event)) !== '/ai-review') {
       return { skipped: true as const, reason: 'not-command' }
     }
+    if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
+      return { skipped: true as const, reason: 'not-maintainer' }
+    }
+  }
+
+  if (
+    opts.eventName === 'pull_request' &&
+    isPullRequestLabeledEvent(opts.event) &&
+    !isAiReviewLabelEvent(opts.event)
+  ) {
+    return { skipped: true as const, reason: 'not-label' }
+  }
+
+  if (isAiReviewLabelEvent(opts.event)) {
     if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
       return { skipped: true as const, reason: 'not-maintainer' }
     }
@@ -277,6 +318,24 @@ export async function runReviewJob(opts: {
   }
 
   const label = reviewLabelFor(verdict.verdict, pushLanded)
+  const security = scanPullSecurity(pr.files)
+  let approvedRuns = 0
+  let approveError: string | null = null
+  if (label === 'ai-ready' && security.ok) {
+    try {
+      approvedRuns = await approveWaitingWorkflows(
+        opts.client,
+        opts.repo,
+        pr.headSha,
+      )
+    } catch (error) {
+      approveError = error instanceof Error ? error.message : String(error)
+    }
+  }
+  const markSecure =
+    label === 'ai-ready' && security.ok && approveError === null
+  await setReviewState(opts.client, opts.repo, pr.number, label)
+  await setSecureLabel(opts.client, opts.repo, pr.number, markSecure)
   const findings = []
   for (const issue of verdict.issues) {
     findings.push(formatFinding(issue))
@@ -291,6 +350,12 @@ export async function runReviewJob(opts: {
       maintainerCanModify: pr.maintainerCanModify,
     }),
     label,
+    securityNote: securityNoteFor({
+      markSecure,
+      reasons: security.reasons,
+      approvedRuns,
+      approveError,
+    }),
   })
   await upsertReviewComment(
     opts.client,
@@ -299,8 +364,28 @@ export async function runReviewJob(opts: {
     body,
     opts.machineUserLogin,
   )
-  await setReviewState(opts.client, opts.repo, pr.number, label)
   return { skipped: false as const, verdict, label, pushLanded }
+}
+
+function securityNoteFor(input: {
+  markSecure: boolean
+  reasons: Array<string>
+  approvedRuns: number
+  approveError: string | null
+}) {
+  if (input.reasons.length > 0) {
+    return `blocked. Did not approve workflows.\n${input.reasons.map((reason) => `- ${reason}`).join('\n')}`
+  }
+  if (input.approveError !== null) {
+    return `clean. Did not add label \`secure\`. Could not approve workflows: ${input.approveError}`
+  }
+  if (!input.markSecure) {
+    return 'Did not mark secure. Verdict is not ai-ready.'
+  }
+  if (input.approvedRuns === 0) {
+    return 'clean. Added label `secure`. No waiting workflow runs.'
+  }
+  return `clean. Added label \`secure\`. Approved ${String(input.approvedRuns)} waiting workflow runs.`
 }
 
 function createProcessGitRunner(): GitRunner {
@@ -387,7 +472,7 @@ export async function main() {
     parsed.prNumber,
     machineUserLogin,
   )
-  await runReviewJob({
+  const result = await runReviewJob({
     client,
     repo,
     token,
@@ -404,6 +489,13 @@ export async function main() {
         ? null
         : headCommitAuthor,
   })
+  if (result.skipped) {
+    console.log(`ai-review skipped: ${result.reason}`)
+    return
+  }
+  console.log(
+    `ai-review done label=${result.label} push=${String(result.pushLanded)}`,
+  )
 }
 
 if (isExecutedDirectly()) {

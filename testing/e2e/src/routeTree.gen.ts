@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
+import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
@@ -18,6 +19,7 @@ import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
+import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
@@ -80,8 +82,8 @@ import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
-import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
+import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
@@ -104,6 +106,11 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
   id: '/websocket-adapter',
   path: '/websocket-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebMcpToolsRoute = WebMcpToolsRouteImport.update({
+  id: '/web-mcp-tools',
+  path: '/web-mcp-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
@@ -144,6 +151,11 @@ const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
 const InterruptsTestRoute = InterruptsTestRouteImport.update({
   id: '/interrupts-test',
   path: '/interrupts-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HeadlessUiRoute = HeadlessUiRouteImport.update({
+  id: '/headless-ui',
+  path: '/headless-ui',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenerationPersistenceServerRoute =
@@ -473,14 +485,14 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
-  id: '/api/embedding',
-  path: '/api/embedding',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
   id: '/api/file-source-wire',
   path: '/api/file-source-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
+  id: '/api/embedding',
+  path: '/api/embedding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
@@ -590,6 +602,7 @@ export interface FileRoutesByFullPath {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -598,6 +611,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -683,6 +697,7 @@ export interface FileRoutesByTo {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -691,6 +706,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -777,6 +793,7 @@ export interface FileRoutesById {
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
+  '/headless-ui': typeof HeadlessUiRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
@@ -785,6 +802,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -872,6 +890,7 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
@@ -880,6 +899,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -965,6 +985,7 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
@@ -973,6 +994,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1058,6 +1080,7 @@ export interface FileRouteTypes {
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
+    | '/headless-ui'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
@@ -1066,6 +1089,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1152,6 +1176,7 @@ export interface RootRouteChildren {
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
+  HeadlessUiRoute: typeof HeadlessUiRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
@@ -1160,6 +1185,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
@@ -1236,6 +1262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebsocketAdapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/web-mcp-tools': {
+      id: '/web-mcp-tools'
+      path: '/web-mcp-tools'
+      fullPath: '/web-mcp-tools'
+      preLoaderRoute: typeof WebMcpToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools-test': {
       id: '/tools-test'
       path: '/tools-test'
@@ -1290,6 +1323,13 @@ declare module '@tanstack/react-router' {
       path: '/interrupts-test'
       fullPath: '/interrupts-test'
       preLoaderRoute: typeof InterruptsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/headless-ui': {
+      id: '/headless-ui'
+      path: '/headless-ui'
+      fullPath: '/headless-ui'
+      preLoaderRoute: typeof HeadlessUiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generation-persistence-server': {
@@ -1726,18 +1766,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/embedding': {
-      id: '/api/embedding'
-      path: '/api/embedding'
-      fullPath: '/api/embedding'
-      preLoaderRoute: typeof ApiEmbeddingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/file-source-wire': {
       id: '/api/file-source-wire'
       path: '/api/file-source-wire'
       fullPath: '/api/file-source-wire'
       preLoaderRoute: typeof ApiFileSourceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/embedding': {
+      id: '/api/embedding'
+      path: '/api/embedding'
+      fullPath: '/api/embedding'
+      preLoaderRoute: typeof ApiEmbeddingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/durable-takeover': {
@@ -1941,6 +1981,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
+  HeadlessUiRoute: HeadlessUiRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
@@ -1949,6 +1990,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,

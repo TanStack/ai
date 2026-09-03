@@ -345,7 +345,7 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
-## `defineByokProvider({ id, label, env? })`
+## `defineByokProvider({ id, label, env?, with? })`
 
 Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
 
@@ -366,10 +366,11 @@ Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack
 - `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
 - `label` - Display name
 - `env?` - Env var **name**, or a list of names tried in order. A string is stored as a one-element array. Names only — this object is imported on the client, so do not put `process.env` values here
+- `with?` - Other descriptors this credential needs, for example an account id next to a token. A store created with `defineByok({ providers })` sends their headers and prompts for them together with this one. Read them on the relay with `getByokKeys`
 
 ### Returns
 
-A `{ id, label, env? }` object. `id` is the literal slug type.
+A `{ id, label, env?, with? }` object. `id` is the literal slug type.
 
 ## `getByokKey(request, provider)`
 
@@ -395,6 +396,37 @@ export async function POST(request: Request) {
 ### Returns
 
 `string | null`
+
+## `getByokKeys(request, providers)`
+
+Read several keys at once. Each entry obeys the same rules as `getByokKey`. Use it when one credential is made of more than one value.
+
+```typescript
+import { byokMissing, getByokKeys } from "@tanstack/ai/byok/server";
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from "@tanstack/ai-cloudflare/byok";
+
+export async function POST(request: Request) {
+  const { apiKey, accountId } = getByokKeys(request, {
+    apiKey: cloudflareByok,
+    accountId: cloudflareAccountByok,
+  });
+  if (!apiKey) return byokMissing(cloudflareByok);
+  if (!accountId) return byokMissing(cloudflareAccountByok);
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `providers` - An object whose values are a `ByokProvider` or a provider slug. The keys name the result.
+
+### Returns
+
+An object with the same keys, each `string | null`.
 
 ## `byokMissing(provider)`
 

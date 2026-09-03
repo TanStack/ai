@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-react-ui",
-  "version": "0.8.22",
-  "description": "Headless React components for building TanStack AI chat interfaces with streamed message parts.",
+  "version": "0.9.1",
+  "description": "Deprecated. Import chat UI from @tanstack/ai-react/ui instead.",
   "author": "Tanner Linsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -17,6 +17,7 @@
     "type": "github",
     "url": "https://github.com/sponsors/tannerlinsley"
   },
+  "deprecated": "Use @tanstack/ai-react/ui instead. See https://tanstack.com/ai/latest/docs/migration/create-ui",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "type": "module",
@@ -27,7 +28,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "vite build",
@@ -40,38 +42,18 @@
   },
   "keywords": [
     "ai",
-    "ai-sdk",
-    "typescript",
     "tanstack",
     "react",
     "chat",
     "ui",
-    "headless",
-    "components",
-    "streaming",
-    "generative-ai"
+    "deprecated"
   ],
   "dependencies": {
-    "react-markdown": "^10.1.0",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
-  },
-  "peerDependencies": {
-    "@tanstack/ai-client": "workspace:^",
-    "@tanstack/ai-react": "workspace:^",
-    "@types/react": ">=18.0.0",
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "@tanstack/ai-react": "workspace:^"
   },
   "devDependencies": {
-    "@tanstack/ai-client": "workspace:*",
-    "@tanstack/ai-react": "workspace:*",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.1.10",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
     "vite": "^8.2.1"
   }
 }

@@ -1,5 +1,31 @@
 # @tanstack/ai-vercel-gateway
 
+## 0.2.8
+
+### Patch Changes
+
+- [#1315](https://github.com/TanStack/ai/pull/1315) [`b694368`](https://github.com/TanStack/ai/commit/b6943686b503740f772002467b94ff9d635f841e) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/openai-base@0.10.10
+
+## 0.2.7
+
+### Patch Changes
+
+- [#1288](https://github.com/TanStack/ai/pull/1288) [`c9f5ddd`](https://github.com/TanStack/ai/commit/c9f5ddd039034263f511d876d4f9604d099e507b) - Update model metadata from OpenRouter API
+
+## 0.2.6
+
+### Patch Changes
+
+- [#1264](https://github.com/TanStack/ai/pull/1264) [`4eb24ee`](https://github.com/TanStack/ai/commit/4eb24ee4514889521d316f54641699ebaf6fd2a9) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd)]:
+  - @tanstack/ai@0.52.1
+  - @tanstack/openai-base@0.10.8
+
 ## 0.2.5
 
 ### Patch Changes

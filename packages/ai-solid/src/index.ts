@@ -1,5 +1,8 @@
 export { useChat } from './use-chat'
+export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
+export { useWebMCPTools } from './use-web-mcp-tools'
+export type { UseWebMCPToolsOptions } from './use-web-mcp-tools'
 export type {
   DeepPartial,
   UseChatOptions,

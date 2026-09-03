@@ -6,7 +6,7 @@ name: AI review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -27,10 +27,17 @@ jobs:
     name: Review
     if: >
       (github.event_name == 'pull_request'
+        && github.event.action != 'labeled'
         && github.event.pull_request.draft == false
         && github.event.pull_request.user.login != 'AlemTuzlak'
         && github.event.pull_request.user.login != 'tombeckenham'
         && github.event.pull_request.user.login != 'jherr')
+      || (github.event_name == 'pull_request'
+        && github.event.action == 'labeled'
+        && github.event.label.name == 'ai-review'
+        && (github.event.sender.login == 'AlemTuzlak'
+          || github.event.sender.login == 'tombeckenham'
+          || github.event.sender.login == 'jherr'))
       || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request

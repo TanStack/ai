@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
 Import `openaiByok` from `@tanstack/ai-openai/byok`, not from the adapter main entry. The `/byok` file is safe in the browser. The main entry pulls in the provider SDK.
 
-The header wins. If the header is empty, `getByokKey` reads `OPENAI_API_KEY` from the environment. If both are empty, `byokMissing` returns a 401.
+The header wins. If the header is empty, `getByokKey` reads `OPENAI_API_KEY` from the environment. If both are empty, `byokMissing` returns a 401. If one credential is made of several values, read them together with [`getByokKeys`](../api/ai#getbyokkeys).
 
 CAUTION: Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) on error strings.
 
@@ -180,3 +180,4 @@ For other cases:
 - Image and audio POSTs use the same store. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
 - OpenRouter can mint a key with OAuth. See [Sign in with OpenRouter](../adapters/openrouter#sign-in-with-openrouter-byok).
 - Lovable uses `lovableByok` from `@tanstack/ai-lovable/byok`. See [Lovable AI Gateway](../adapters/lovable#bring-your-own-key).
+- Cloudflare needs a token plus an account id. `cloudflareByok` from `@tanstack/ai-cloudflare/byok` declares `cloudflareAccountByok` as a companion. Pass both to `defineByok({ providers })` and a send for `cloudflare` carries both headers. See [Cloudflare](../adapters/cloudflare#bring-your-own-key).

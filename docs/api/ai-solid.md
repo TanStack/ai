@@ -15,6 +15,8 @@ keywords:
 
 SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for the headless client.
 
+For a typed headless chat UI, see [Solid Chat UI](../ui/solid).
+
 ## Installation
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -22,6 +24,57 @@ SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for th
 solid: @tanstack/ai-solid
 
 <!-- ::end:tabs -->
+
+## `useWebMCPTools(tools, options?)`
+
+Register executable client tools for the current Solid owner. Solid removes them when the owner is cleaned up.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useWebMCPTools,
+  type UseWebMCPToolsOptions,
+} from "@tanstack/ai-solid";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+function ProductsPage() {
+  useWebMCPTools(tools, options);
+  return null;
+}
+```
+
+`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The primitive owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context.
+
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```tsx
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-solid";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { useChat } = createChatHook(chatOptions);
+
+function ChatScreen() {
+  const chat = useChat({ threadId: "support-1" });
+  return null;
+}
+```
+
+`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound primitive if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
 
 ## `useChat(options?)`
 

@@ -767,6 +767,29 @@
     "allowed_passthrough_parameters": ["aigc_watermark"]
   },
   {
+    "id": "minimax/hailuo-3-max",
+    "canonical_slug": "minimax/hailuo-3-max-20260901",
+    "hugging_face_id": null,
+    "name": "MiniMax: H3 Max",
+    "created": 1788313310,
+    "description": "MiniMax H3 Max is a video-generation model from MiniMax, jointly released with fal.ai. Derived through additional training from MiniMax H3, it is designed for faster text-to-video and image-to-video generation with...",
+    "supported_resolutions": ["768p", "480p"],
+    "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "supported_sizes": null,
+    "supported_durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds": "0.08",
+      "duration_seconds_480p": "0.05",
+      "duration_seconds_768p": "0.08"
+    },
+    "allowed_passthrough_parameters": ["aigc_watermark"]
+  },
+  {
     "id": "openai/sora-2-pro",
     "canonical_slug": "openai/sora-2-pro-20260320",
     "hugging_face_id": null,

@@ -12,13 +12,24 @@ import type { ElevenLabsOutputFormat } from '../model-meta'
  */
 export interface ElevenLabsClientConfig {
   apiKey?: string
-  /** Override the API base URL — handy for tests + self-hosted proxies. */
+  /**
+   * Base URL for every request. Same option name as the other adapters, so a
+   * gateway config can be spread into any of them. Wins over `baseUrl` when
+   * both are set.
+   */
+  baseURL?: string
+  /** Alias of `baseURL`. */
   baseUrl?: string
   /** Per-request timeout passed through to the SDK (ms). */
   timeoutInSeconds?: number
   /** Override the number of SDK-level retries. */
   maxRetries?: number
-  /** Extra headers attached to every request (e.g. test multiplexing). */
+  /**
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
+   */
+  defaultHeaders?: Record<string, string>
+  /** Alias of `defaultHeaders`. */
   headers?: Record<string, string>
 }
 
@@ -66,14 +77,16 @@ export function createElevenLabsClient(
   config?: ElevenLabsClientConfig,
 ): ElevenLabsClient {
   const apiKey = config?.apiKey ?? getElevenLabsApiKeyFromEnv()
+  const baseUrl = config?.baseURL ?? config?.baseUrl
+  const headers = config?.defaultHeaders ?? config?.headers
   return new ElevenLabsClient({
     apiKey,
-    ...(config?.baseUrl ? { baseUrl: config.baseUrl } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
     ...(config?.timeoutInSeconds != null
       ? { timeoutInSeconds: config.timeoutInSeconds }
       : {}),
     ...(config?.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
-    ...(config?.headers ? { headers: config.headers } : {}),
+    ...(headers ? { headers } : {}),
   })
 }
 

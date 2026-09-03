@@ -1,5 +1,18 @@
 # @tanstack/ai-persistence
 
+## 0.5.6
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
+## 0.5.5
+
+### Patch Changes
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Stop a late detach stamp from leaving a completed run looking detached after takeover.
+
 ## 0.5.4
 
 ### Patch Changes

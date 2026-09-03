@@ -1,5 +1,36 @@
 # @tanstack/ai-vertex
 
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/ai-gemini@0.29.1
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [[`5305d32`](https://github.com/TanStack/ai/commit/5305d320aae400b07bfe3a440d2d720cece44197), [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a)]:
+  - @tanstack/ai-gemini@0.29.0
+  - @tanstack/ai@0.52.3
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [[`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc), [`307b7ec`](https://github.com/TanStack/ai/commit/307b7ec285e60f4a1b9a6c03345130ec9bb93356)]:
+  - @tanstack/ai@0.52.2
+  - @tanstack/ai-gemini@0.28.0
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [[`4964221`](https://github.com/TanStack/ai/commit/49642217ca1efa521773643036ab9480720ad63a)]:
+  - @tanstack/ai-gemini@0.27.0
+
 ## 0.2.5
 
 ### Patch Changes

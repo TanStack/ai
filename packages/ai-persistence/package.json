@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-persistence",
-  "version": "0.5.4",
+  "version": "0.5.6",
   "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.",
   "author": "",
   "license": "MIT",

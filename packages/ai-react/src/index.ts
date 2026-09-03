@@ -1,8 +1,11 @@
 export { useChat } from './use-chat'
+export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
 export { useRealtimeChat } from './use-realtime-chat'
 export { useMcpAppBridge } from './use-mcp-app-bridge'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
+export { useWebMCPTools } from './use-web-mcp-tools'
+export type { UseWebMCPToolsOptions } from './use-web-mcp-tools'
 export type {
   DeepPartial,
   UseChatOptions,

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-compaction",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Context-window compaction middleware for TanStack AI chat()",
   "author": "",
   "license": "MIT",

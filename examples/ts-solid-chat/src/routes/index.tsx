@@ -3,7 +3,7 @@ import Send from 'lucide-solid/icons/send'
 import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { createChatClientOptions } from '@tanstack/ai-client'
-import { TextPart, ThinkingPart } from '@tanstack/ai-solid-ui'
+import { TextPart, ThinkingPart } from '@tanstack/ai-solid/ui'
 import { For, createSignal } from 'solid-js'
 
 import type { InferChatMessages, UIMessage } from '@tanstack/ai-client'

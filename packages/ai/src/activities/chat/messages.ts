@@ -173,10 +173,10 @@ export function convertMessagesToModelMessages(
 
     if (role === 'reasoning') {
       const content = (msg as { content?: string }).content
-      if (content) {
-        const signature = encryptedValueFrom(msg)
+      const signature = encryptedValueFrom(msg)
+      if (content || signature !== undefined) {
         pendingThinking.push({
-          content,
+          content: typeof content === 'string' ? content : '',
           ...(signature !== undefined ? { signature } : {}),
         })
       }
@@ -593,7 +593,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         break
 
       case 'thinking':
-        if (part.content) {
+        if (part.content || part.signature) {
           // Provider-executed tools have no tool-result part, so thinking
           // after them has to start the next segment or it replays first.
           if (current.toolCalls.some(isProviderExecutedToolCall)) {
@@ -712,7 +712,7 @@ export function modelMessageToUIMessage(
 
   if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
     for (const thinking of modelMessage.thinking) {
-      if (!thinking.content) continue
+      if (!thinking.content && !thinking.signature) continue
       parts.push({
         type: 'thinking',
         content: thinking.content,
@@ -917,18 +917,20 @@ export function aguiSnapshotMessageToUIMessage(
       })
     case 'reasoning': {
       const signature = encryptedValueFrom(message)
+      const content = typeof message.content === 'string' ? message.content : ''
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
-        parts: message.content
-          ? [
-              {
-                type: 'thinking' as const,
-                content: message.content,
-                ...(signature !== undefined ? { signature } : {}),
-              },
-            ]
-          : [],
+        parts:
+          content || signature !== undefined
+            ? [
+                {
+                  type: 'thinking' as const,
+                  content,
+                  ...(signature !== undefined ? { signature } : {}),
+                },
+              ]
+            : [],
       })
     }
     case 'activity':

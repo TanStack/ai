@@ -1,5 +1,30 @@
 # @tanstack/ai
 
+## 0.53.0
+
+### Minor Changes
+
+- [#1309](https://github.com/TanStack/ai/pull/1309) [`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871) - Add `@tanstack/ai-cloudflare`: a Cloudflare adapter for Workers AI chat, summarization, embeddings, image generation, text-to-speech, and transcription over the `env.AI` binding or the REST API, with AI Gateway routing (`gateway` option and `cloudflareGateway()` helper for other providers). `@tanstack/ai` learns the `cloudflare` max-tokens key for summarize, lets `defineByokProvider` declare companion credentials with `with`, and adds `getByokKeys(request, { name: provider })` to `@tanstack/ai/byok/server`. `@tanstack/ai-client`'s `defineByok` takes `providers`: a send for a provider with companions (Cloudflare token plus account id) carries every `x-byok-*` header and prompts for each missing value.
+
+## 0.52.3
+
+### Patch Changes
+
+- [#1290](https://github.com/TanStack/ai/pull/1290) [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a) - Replay OpenAI Responses reasoning items with function_call on the next tool turn. Default `include: ['reasoning.encrypted_content']` only on reasoning models.
+
+## 0.52.2
+
+### Patch Changes
+
+- [#1303](https://github.com/TanStack/ai/pull/1303) [`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc) - fix: `createChatOptions` now preserves the runtime-context requirement on its return type. When tools or middleware declare a required context, the input already enforces `context` via `RuntimeContextOption`, but the return type declared it optional — so spreading the result into `chat()` failed to typecheck (`Type 'undefined' is not assignable to type '...'`). The return type now applies the same `RuntimeContextOption` conditional as the parameter, so the documented spread pattern compiles with context-typed tools. Type-level only; runtime is unchanged.
+
+## 0.52.1
+
+### Patch Changes
+
+- [#1271](https://github.com/TanStack/ai/pull/1271) [`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd) - Keep the first text delta when a message speaks after a tool call and the text
+  arrives in more than one chunk.
+
 ## 0.52.0
 
 ### Minor Changes

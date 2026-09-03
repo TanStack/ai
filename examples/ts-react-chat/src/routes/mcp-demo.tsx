@@ -7,7 +7,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { ThinkingPart } from '@tanstack/ai-react-ui'
+import { ThinkingPart } from '@tanstack/ai-react/ui'
 import type { UIMessage } from '@tanstack/ai-react'
 import { MCP_PROVIDERS, type McpProvider } from '@/lib/mcp-providers'
 

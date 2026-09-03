@@ -185,6 +185,7 @@ describe('tool-approval follow-up after resolve', () => {
     await vi.waitFor(() => {
       expect(client.getInterrupts()).toEqual([])
       expect(client.getResumeState()).toBeNull()
+      expect(client.getIsLoading()).toBe(false)
     })
 
     await client.sendMessage('[approval] follow-up: anything else?')

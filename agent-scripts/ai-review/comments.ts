@@ -41,6 +41,7 @@ export function buildReviewComment(input: {
   findings: Array<string>
   pushNote: string
   label: 'ai-rejected' | 'ai-needs-work' | 'ai-ready'
+  securityNote: string
 }) {
   const findingLines =
     input.findings.length === 0
@@ -58,6 +59,9 @@ export function buildReviewComment(input: {
     '',
     '**Push**',
     input.pushNote,
+    '',
+    '**Security**',
+    input.securityNote,
     '',
     'Maintainers still GitHub-approve.',
     COMMENT_MARKER,

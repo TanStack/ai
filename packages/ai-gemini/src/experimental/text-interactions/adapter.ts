@@ -13,6 +13,7 @@ import {
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
+  GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
   GeminiModels,
@@ -104,15 +105,31 @@ type ToolCallState = {
 // ===========================
 
 /**
- * Resolve provider options for a specific model. The Interactions API's
- * request shape is the same across all chat-capable Gemini models — the
- * SDK doesn't expose a per-model param union — so this currently falls
- * through to the flat `GeminiTextInteractionsProviderOptions` for every
- * model. The alias exists for parity with `GeminiTextAdapter`, so a
- * per-model map can be slotted in later without changing the adapter
- * signature.
+ * Resolve provider options for a specific model. Reuses the chat-model
+ * options map from `model-meta.ts` so a model's allowed thinking levels are
+ * declared once: the Interactions API takes the same levels as
+ * `generateContent` but lowercased (`low`, not `LOW`). Models whose chat
+ * options carry no `thinkingConfig` resolve to `never`, so `thinking_level`
+ * can't be set on them. Everything else falls through to the flat SDK shape.
  */
-type ResolveProviderOptions = GeminiTextInteractionsProviderOptions
+type InteractionsThinkingLevel<TModel> =
+  TModel extends keyof GeminiChatModelProviderOptionsByName
+    ? GeminiChatModelProviderOptionsByName[TModel] extends {
+        thinkingConfig?: { thinkingLevel?: infer L extends string }
+      }
+      ? Lowercase<L>
+      : never
+    : never
+
+type ResolveProviderOptions<TModel extends GeminiModels> = Omit<
+  GeminiTextInteractionsProviderOptions,
+  'generation_config'
+> & {
+  generation_config?: Omit<
+    NonNullable<GeminiTextInteractionsProviderOptions['generation_config']>,
+    'thinking_level'
+  > & { thinking_level?: InteractionsThinkingLevel<TModel> }
+}
 
 /**
  * Resolve input modalities for a specific model. Reuses the chat-model
@@ -169,7 +186,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
-  TProviderOptions extends Record<string, any> = ResolveProviderOptions,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -457,7 +474,7 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions,
+  ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {
@@ -470,7 +487,7 @@ export function geminiTextInteractions<TModel extends GeminiModels>(
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
 ): GeminiTextInteractionsAdapter<
   TModel,
-  ResolveProviderOptions,
+  ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
   ResolveToolCapabilities<TModel>
 > {

@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
-import type { AdapterYieldChunk } from '@tanstack/ai'
+import { buildConverseUsage } from './usage'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
 /**
@@ -89,9 +90,7 @@ export async function* processConverseStream(
   // Usage + finish-reason are captured during iteration and folded into the
   // single terminal RUN_FINISHED, matching openai-base's deferred-finish
   // contract (usage may arrive after the finish signal).
-  let usage:
-    | { promptTokens: number; completionTokens: number; totalTokens: number }
-    | undefined
+  let usage: TokenUsage | undefined
   let finishReason: NonNullable<AdapterYieldChunk['finishReason']> | undefined
 
   // Lazily emit RUN_STARTED exactly once, before the first content event.
@@ -257,11 +256,7 @@ export async function* processConverseStream(
     if ('metadata' in ev) {
       const u = ev.metadata?.usage
       if (u) {
-        usage = {
-          promptTokens: u.inputTokens ?? 0,
-          completionTokens: u.outputTokens ?? 0,
-          totalTokens: u.totalTokens ?? 0,
-        }
+        usage = buildConverseUsage(u)
       }
       continue
     }

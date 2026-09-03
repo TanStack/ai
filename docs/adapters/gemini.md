@@ -37,12 +37,16 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 ## Basic Usage
 
+Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
+
+For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
+
 ```typescript
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
 
 const stream = chat({
-  adapter: geminiText("gemini-3.1-pro-preview"),
+  adapter: geminiText("gemini-3.8-flash"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -69,14 +73,28 @@ const stream = chat({
 import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
 const config: Omit<GeminiTextConfig, "apiKey"> = {
-  httpOptions: {
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta", // Optional
-  },
+  baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
+  defaultHeaders: { "X-Custom-Header": "value" }, // Optional
 };
 
 const adapter = createGeminiChat("gemini-3.1-pro-preview", process.env.GEMINI_API_KEY!, config);
 ```
   
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createGeminiChat } from "@tanstack/ai-gemini";
+
+const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!, {
+  baseURL: "https://gateway.example.com/google-ai-studio",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+`baseURL` sets `httpOptions.baseUrl` and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
 
 ## Example: Chat Completion
 
@@ -128,6 +146,58 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 ```
+
+## Video Understanding
+
+Ask questions about a video: "what happens at 0:30?", "summarize the demo", "list every product shown". Upload the file once, then chat about it.
+
+Video is too large to inline as base64, so upload it to the Gemini Files API first. `uploadGeminiFile()` uploads the file and waits until it is ready to use. `geminiVideoPart()` turns that upload into a message content part.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { geminiText, uploadGeminiFile, geminiVideoPart } from "@tanstack/ai-gemini";
+
+export async function POST(request: Request) {
+  const file = await uploadGeminiFile("./demo.mp4", { mimeType: "video/mp4" });
+
+  const stream = chat({
+    adapter: geminiText("gemini-3.8-flash"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", content: "Summarize this video and cite timestamps." },
+          geminiVideoPart(file),
+        ],
+      },
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+By default Gemini samples the video at 1 frame per second. Tune that single-pass sampling through the part metadata:
+
+```typescript ignore
+// Watch a 30s-90s clip at half a frame per second.
+geminiVideoPart(file, { fps: 0.5, startOffset: "30s", endOffset: "90s" });
+```
+
+### Agentic understanding
+
+Single-pass sampling can miss detail in long or fast-moving videos. Set `processing: "agentic"` to let the model drive: it navigates the timeline and pulls frames, transcripts, and audio on demand. Supported models:
+
+- `gemini-3.8-flash`
+- `gemini-3.7-flash`
+- `gemini-3.6-flash`
+- `gemini-3.5-flash-lite`
+
+```typescript ignore
+geminiVideoPart(file, { processing: "agentic" });
+```
+
+With `agentic`, the adapter routes the request through Gemini's Interactions API, and you express the sampling rate in your prompt ("watch it at 2 fps") instead of through `fps`. It is deeper but slower, since it re-analyzes the video on each turn.
 
 ## Stateful Conversations — Interactions API (Experimental)
 

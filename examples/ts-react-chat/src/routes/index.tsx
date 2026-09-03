@@ -36,7 +36,7 @@ import {
   startOpenRouterPkceLogin,
 } from '@tanstack/ai-openrouter/pkce'
 import { clientTools } from '@tanstack/ai-client'
-import { ThinkingPart } from '@tanstack/ai-react-ui'
+import { ThinkingPart } from '@tanstack/ai-react/ui'
 import type { BoundInterrupts } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'

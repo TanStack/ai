@@ -338,6 +338,21 @@ const result = await generateTranscription({
 console.log(result.text);
 ```
 
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createElevenLabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const adapter = createElevenLabsSpeech("eleven_v3", process.env.ELEVENLABS_API_KEY!, {
+  baseURL: "https://gateway.example.com/elevenlabs",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+This applies to the speech, audio, and transcription adapters. `baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
+
 ## API Reference
 
 ### `elevenlabsRealtimeToken(options)`

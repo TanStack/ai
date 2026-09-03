@@ -15,6 +15,8 @@ keywords:
 
 Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.
 
+For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte).
+
 ## Installation
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -22,6 +24,52 @@ Svelte 5 bindings for TanStack AI, providing reactive factory functions for the 
 svelte: @tanstack/ai-svelte
 
 <!-- ::end:tabs -->
+
+## `createWebMCPTools(tools, options?)`
+
+Register executable client tools during Svelte component initialization. Svelte removes them when the component is destroyed.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```svelte
+<script lang="ts">
+  import {
+    createWebMCPTools,
+    type CreateWebMCPToolsOptions,
+  } from "@tanstack/ai-svelte";
+  import { searchProducts } from "./tools";
+
+  const tools = [searchProducts];
+  const options: CreateWebMCPToolsOptions<typeof tools> = {
+    onError(error) {
+      console.error(error);
+    },
+  };
+
+  createWebMCPTools(tools, options);
+</script>
+```
+
+`CreateWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The factory owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context.
+
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `createChat()` to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-svelte";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { createChat } = createChatHook(chatOptions);
+const chat = createChat({ threadId: "support-1" });
+```
+
+`createChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound factory if both are in one file: `const { createChat: createSupportChat } = createChatHook(chatOptions)`.
 
 ## `createChat(options)`
 

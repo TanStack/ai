@@ -1,5 +1,12 @@
 # @tanstack/ai-mcp
 
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
 ## 0.3.8
 
 ### Patch Changes

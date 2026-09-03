@@ -33,6 +33,7 @@ import type {
   GoogleGenAI,
   Part,
   ThinkingLevel,
+  VideoMetadata,
 } from '@google/genai'
 import type {
   ContentPart,
@@ -45,8 +46,115 @@ import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   GeminiMessageMetadataByModality,
   GeminiToolCallMetadata,
+  GeminiVideoMetadata,
+  GeminiVideoProcessing,
 } from '../message-types'
 import type { GeminiClientConfig } from '../utils/client'
+
+/**
+ * Fallback MIME types for URL-sourced media parts that don't specify one.
+ */
+const DEFAULT_MEDIA_MIME_TYPES = {
+  image: 'image/jpeg',
+  audio: 'audio/mp3',
+  video: 'video/mp4',
+  document: 'application/pdf',
+} as const
+
+/**
+ * Content block shape for an Interactions API `input` step. The installed
+ * @google/genai types predate the video `processing` field, so we model the
+ * subset we emit and cast at the call site.
+ */
+type InteractionContent =
+  | { type: 'text'; text: string }
+  | {
+      type: 'video'
+      uri?: string
+      data?: string
+      mime_type?: string
+      processing?: GeminiVideoProcessing
+    }
+  | {
+      type: 'image' | 'audio' | 'document'
+      uri?: string
+      data?: string
+      mime_type?: string
+    }
+
+interface InteractionStep {
+  type: 'user_input' | 'model_output'
+  content: Array<InteractionContent>
+}
+
+/** True when any message carries a video part requesting agentic processing. */
+function hasAgenticVideo(messages: Array<ModelMessage>): boolean {
+  return messages.some(
+    (msg) =>
+      Array.isArray(msg.content) &&
+      msg.content.some(
+        (part) =>
+          part.type === 'video' &&
+          (part.metadata as GeminiVideoMetadata | undefined)?.processing ===
+            'agentic',
+      ),
+  )
+}
+
+/** Convert a single content part to an Interactions API content block. */
+function contentPartToInteraction(part: ContentPart): InteractionContent {
+  if (part.type === 'text') {
+    return { type: 'text', text: part.content }
+  }
+
+  const source = part.source
+  const mimeType =
+    source.type === 'data'
+      ? source.mimeType
+      : (source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type])
+  // A Gemini Files API reference maps to the `uri` field, same as a public
+  // URL; `fileReferenceFor` throws when the file was never uploaded to Gemini.
+  const base = isFileSource(source)
+    ? { uri: fileReferenceFor(source, 'gemini'), mime_type: mimeType }
+    : source.type === 'data'
+      ? { data: source.value, mime_type: mimeType }
+      : { uri: source.value, mime_type: mimeType }
+
+  if (part.type === 'video') {
+    const processing = (part.metadata as GeminiVideoMetadata | undefined)
+      ?.processing
+    return { type: 'video', ...base, ...(processing && { processing }) }
+  }
+  return { type: part.type, ...base }
+}
+
+/**
+ * Build the Interactions API `input` from chat messages. Each user/assistant
+ * message becomes a `user_input` / `model_output` step wrapping its content
+ * blocks — the wrapping the Python SDK performs implicitly but the JS SDK
+ * does not. Tool messages are skipped (unsupported on this path).
+ */
+function buildInteractionsInput(
+  messages: Array<ModelMessage>,
+): Array<InteractionStep> {
+  const steps: Array<InteractionStep> = []
+  for (const msg of messages) {
+    if (msg.role === 'tool') continue
+    const stepType = msg.role === 'assistant' ? 'model_output' : 'user_input'
+    const content: Array<InteractionContent> = []
+    if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        content.push(contentPartToInteraction(part))
+      }
+    } else if (msg.content) {
+      content.push({ type: 'text', text: msg.content })
+    }
+    if (content.length > 0) {
+      steps.push({ type: stepType, content })
+    }
+  }
+  return steps
+}
 
 /**
  * Configuration for Gemini text adapter
@@ -129,6 +237,13 @@ export class GeminiTextAdapter<
   async *chatStream(
     options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    // Agentic video understanding is only exposed through the Interactions API,
+    // not generateContent. Detect it and take that path instead.
+    if (hasAgenticVideo(options.messages)) {
+      yield* this.interactionsStream(options)
+      return
+    }
+
     const mappedOptions = this.mapCommonOptionsToGemini(options)
     const { logger } = options
 
@@ -157,6 +272,114 @@ export class GeminiTextAdapter<
             : 'An unknown error occurred during the chat stream.',
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'An unknown error occurred during the chat stream.',
+        },
+      }
+    }
+  }
+
+  /**
+   * Agentic video-understanding path via the Interactions API.
+   *
+   * The Interactions API (unlike `generateContent`) requires message parts to
+   * be wrapped in `user_input` / `model_output` steps, and it accepts the
+   * `processing: 'agentic'` video flag. This is a non-streaming call whose
+   * single text result is re-emitted as AG-UI stream chunks.
+   */
+  private async *interactionsStream(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const model = options.model
+    const { logger } = options
+    const runId = options.runId ?? generateId(this.name)
+    const threadId = options.threadId ?? generateId(this.name)
+    const messageId = generateId(this.name)
+
+    try {
+      logger.request(
+        `activity=chat provider=gemini model=${model} messages=${options.messages.length} mode=interactions-agentic-video`,
+        { provider: 'gemini', model },
+      )
+
+      const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
+      const systemInstruction =
+        normalizedPrompts.length > 0
+          ? normalizedPrompts.map((p) => p.content).join('\n')
+          : undefined
+
+      const input = buildInteractionsInput(options.messages)
+
+      // The installed @google/genai (2.10.0) Interactions `VideoContent` type
+      // predates the `processing` field, so the structurally-built input is
+      // cast at the call boundary. The SDK forwards it to the wire unchanged.
+      const interaction = await this.client.interactions.create({
+        model,
+        ...(systemInstruction !== undefined && {
+          system_instruction: systemInstruction,
+        }),
+        input: input as never,
+      })
+
+      const text = interaction.output_text ?? ''
+
+      yield {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        model,
+        timestamp: Date.now(),
+        parentRunId: options.parentRunId,
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        model,
+        timestamp: Date.now(),
+        role: 'assistant',
+      }
+      if (text) {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          model,
+          timestamp: Date.now(),
+          delta: text,
+          content: text,
+        }
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      }
+    } catch (error) {
+      const rawEvent = toRunErrorRawEvent(error)
+      logger.errors('gemini.interactionsStream fatal', {
+        error,
+        source: 'gemini.interactionsStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        model,
+        timestamp: Date.now(),
+        message:
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during the chat stream.',
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
           message:
@@ -602,36 +825,49 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        if (part.source.type === 'data') {
-          return {
-            inlineData: {
-              data: part.source.value,
-              mimeType: part.source.mimeType,
-            },
-          }
-        } else {
-          // File references (Gemini Files API) and public URLs both pass
-          // through as `fileData`; Gemini fetches the URI server-side. A file
-          // source resolves to this adapter's own reference entry (throws when
-          // the file was never uploaded to Gemini).
-          const fileUri = isFileSource(part.source)
-            ? fileReferenceFor(part.source, this.name)
-            : part.source.value
-          // For URL sources, use provided mimeType or fall back to reasonable defaults
-          const defaultMimeType = {
-            image: 'image/jpeg',
-            audio: 'audio/mp3',
-            video: 'video/mp4',
-            document: 'application/pdf',
-          }[part.type]
+        // File references (Gemini Files API) and public URLs both pass
+        // through as `fileData`; Gemini fetches the URI server-side. A
+        // file source resolves to this adapter's own reference entry
+        // (throws when the file was never uploaded to Gemini).
+        const fileUri = isFileSource(part.source)
+          ? fileReferenceFor(part.source, this.name)
+          : part.source.value
+        const geminiPart: Part =
+          part.source.type === 'data'
+            ? {
+                inlineData: {
+                  data: part.source.value,
+                  mimeType: part.source.mimeType,
+                },
+              }
+            : {
+                fileData: {
+                  fileUri,
+                  // For URL sources, use provided mimeType or fall back to
+                  // reasonable defaults.
+                  mimeType:
+                    part.source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type],
+                },
+              }
 
-          return {
-            fileData: {
-              fileUri,
-              mimeType: part.source.mimeType ?? defaultMimeType,
-            },
+        // Apply single-pass video sampling controls (fps / clip offsets) from
+        // the part metadata. `processing: 'agentic'` is handled separately via
+        // the Interactions API and never reaches this generateContent path.
+        if (part.type === 'video') {
+          const meta = part.metadata as GeminiVideoMetadata | undefined
+          const videoMetadata: VideoMetadata = {
+            ...(meta?.fps !== undefined && { fps: meta.fps }),
+            ...(meta?.startOffset !== undefined && {
+              startOffset: meta.startOffset,
+            }),
+            ...(meta?.endOffset !== undefined && { endOffset: meta.endOffset }),
+          }
+          if (Object.keys(videoMetadata).length > 0) {
+            geminiPart.videoMetadata = videoMetadata
           }
         }
+
+        return geminiPart
       }
       default: {
         const _exhaustiveCheck: never = part

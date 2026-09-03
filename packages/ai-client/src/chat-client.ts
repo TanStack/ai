@@ -2023,7 +2023,7 @@ export class ChatClient<
     if (emptyMessage) {
       return
     }
-    if (this.hasBlockingInterrupts()) {
+    if (this.hasPendingInterrupts()) {
       throw new Error(
         'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )
@@ -2063,14 +2063,6 @@ export class ChatClient<
   /** True while interrupt descriptors still own continuation. */
   private hasPendingInterrupts(): boolean {
     return this.interruptManager.getDescriptors().length > 0
-  }
-
-  /** True while an interrupt batch owns the next user turn. */
-  private hasBlockingInterrupts(): boolean {
-    return (
-      this.activeInterruptSubmission !== undefined ||
-      this.hasPendingInterrupts()
-    )
   }
 
   /** True while a stream is active, a send is claiming the client, or the queue is draining. */
@@ -2188,7 +2180,7 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
-    if (this.hasBlockingInterrupts()) {
+    if (this.hasPendingInterrupts()) {
       throw new Error(
         'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )

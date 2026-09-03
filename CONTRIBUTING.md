@@ -62,6 +62,9 @@ Rules the generator follows:
 - Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
 - Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
 - For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Anthropic first-party ids use dashes (`claude-fable-5-1`). OpenRouter uses dots (`claude-fable-5.1`). The generator hyphenates Anthropic ids on insert. Do not copy the dotted OpenRouter slug into `ai-anthropic`.
+- Write a row in the provider's `*ChatModelToolCapabilitiesByName` map for every new chat model, even when `supports.tools` is still `[]`. Missing that row makes `ResolveToolCapabilities` fall back to `readonly []`.
+- For new Anthropic models, infer the provider-options mix from the catalog: no sampling parameters → `AnthropicMaxTokensOptions`; `reasoning.mandatory` → `AnthropicAdaptiveOnlyThinkingOptions` plus `AnthropicOutputConfigOptions`.
 - Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
 
 Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
@@ -195,7 +198,7 @@ If the bot pushes, it only commits bugs and suggestions the review listed. Maint
 
 The pattern lives in `packages/ai-openai/`, `packages/ai-anthropic/`, `packages/ai-gemini/`, etc. New core adapters typically:
 
-1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter.
+1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter. The README must start with the TanStack AI `<picture>` banner from `packages/ai/README.md` (`https://tanstack.com/api/readme/ai.png`). Do not use `media/header_ai.png`.
 2. Implement tree-shakeable adapter exports under `src/adapters/` (`text.ts`, `embed.ts`, `summarize.ts`, etc.).
 3. Add `model-meta.ts` so per-model type safety works.
 4. Wire the provider into `testing/e2e/feature-support.ts` and `testing/e2e/test-matrix.ts`. Existing provider-coverage tests pick it up automatically.

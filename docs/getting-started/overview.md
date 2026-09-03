@@ -34,6 +34,7 @@ The framework-agnostic core of TanStack AI provides the building blocks for crea
 
 - **Next.js** - API routes and App Router
 - **TanStack Start** - React Start or Solid Start (recommended!)
+- **Remix 3** - Controllers return SSE. Call `createChat` in a `clientEntry` island
 - **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
 - **Express** - Node.js server
 - **React Router v7** - Loaders and actions
@@ -125,6 +126,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-byteplus** - BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech)
 - **@tanstack/ai-fal** - fal (image & video generation)
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
+- **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription) and AI Gateway routing
 - **@tanstack/ai-lovable** - Lovable AI Gateway (Google and OpenAI chat, image, video, embeddings, and speech via one project key)
 
 ## Next Steps

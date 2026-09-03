@@ -1,5 +1,18 @@
 # @tanstack/ai-anthropic
 
+## 0.18.5
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
+## 0.18.4
+
+### Patch Changes
+
+- [#1288](https://github.com/TanStack/ai/pull/1288) [`c9f5ddd`](https://github.com/TanStack/ai/commit/c9f5ddd039034263f511d876d4f9604d099e507b) - Update model metadata from OpenRouter API
+
 ## 0.18.3
 
 ### Patch Changes

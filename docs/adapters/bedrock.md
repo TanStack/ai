@@ -119,9 +119,25 @@ AWS_SESSION_TOKEN=...   # optional, for temporary credentials
 | `auth` | `'apikey' \| 'sigv4' \| 'auto'` | `'auto'` | Authentication mode |
 | `apiKey` | `string` | — | Explicit API key (overrides env vars) |
 | `baseURL` | `string` | — | Override the computed base URL entirely |
+| `defaultHeaders` | `Record<string, string>` | none | Headers sent with every request |
 | `endpoint` | `'runtime' \| 'mantle'` | `'runtime'` | Bedrock endpoint to target (Chat Completions path only) |
 
 The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. The Responses API always targets mantle.
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createBedrockText } from "@tanstack/ai-bedrock";
+
+const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK_API_KEY!, {
+  baseURL: "https://gateway.example.com/aws-bedrock",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
 ## Converse API (default)
 
@@ -160,6 +176,10 @@ const adapter = createBedrockText(
   { region: 'us-west-2' },
 )
 ```
+
+### Token usage
+
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
 
 ## Chat Completions API (`api: 'chat'`)
 

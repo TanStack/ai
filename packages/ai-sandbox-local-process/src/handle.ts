@@ -891,6 +891,11 @@ export class LocalProcessHandle implements SandboxHandle {
       detached: spawnDetached,
     })
     this.track(child)
+    // Node reports a failed write twice: to the `write` callback below, and
+    // as an `error` event on this socket. An unhandled `error` event throws
+    // and stops the host process. `stdin.write` still rejects with the same
+    // error.
+    child.stdin.on('error', () => {})
     if (opts?.signal) {
       opts.signal.addEventListener(
         'abort',
