@@ -880,7 +880,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-03"
         },
         {
           "label": "Debug Logging",

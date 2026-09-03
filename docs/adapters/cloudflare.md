@@ -147,6 +147,40 @@ const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, {
 
 The first argument is the provider slug from your gateway dashboard (`openai`, `anthropic`, `groq`, and so on). If the gateway has authentication turned on, pass `cfApiKey` too.
 
+The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_AI_GATEWAY_ID` in its `.env`, and the Cloudflare, OpenAI, Anthropic, and Groq models in its picker all go through your gateway.
+
+## Bring your own key
+
+Two different things go by this name. Both work.
+
+**A user's Cloudflare token from the browser.** `cloudflareByok` plugs into the TanStack BYOK store. Import it from `@tanstack/ai-cloudflare/byok`, not from the main entry. The account id is not a secret, so it stays on the server.
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { createCloudflareText } from "@tanstack/ai-cloudflare";
+import { cloudflareByok } from "@tanstack/ai-cloudflare/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, cloudflareByok);
+  if (!apiKey) return byokMissing(cloudflareByok);
+
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+      accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+      apiKey,
+    }),
+    messages,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+See [Bring Your Own Key](../advanced/byok) for the client store and the save dialog.
+
+**Your provider keys stored in AI Gateway.** Add an OpenAI or Anthropic key under Provider Keys in the gateway dashboard, alias `default`. From then on, a `provider/model` id with `gateway: { id }` uses that key instead of Unified Billing. No code changes.
+
 ## Models
 
 Any id from the [Workers AI catalog](https://developers.cloudflare.com/workers-ai/models/) works, and so does any `provider/model` id from the [AI Gateway catalog](https://developers.cloudflare.com/ai/models/) when a gateway is set. Catalog ids get editor autocomplete.

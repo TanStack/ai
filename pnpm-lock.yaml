@@ -700,6 +700,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/ai-client
+      '@tanstack/ai-cloudflare':
+        specifier: workspace:*
+        version: link:../../packages/ai-cloudflare
       '@tanstack/ai-code-mode':
         specifier: workspace:*
         version: link:../../packages/ai-code-mode

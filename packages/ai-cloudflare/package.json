@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-cloudflare",
   "version": "0.0.1",
-  "description": "Cloudflare adapter for TanStack AI — Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider.",
+  "description": "Cloudflare adapter for TanStack AI \u2014 Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider.",
   "author": "Tanner Linsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

@@ -21,6 +21,8 @@ import { createGrokText } from '@tanstack/ai-grok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { createGroqText } from '@tanstack/ai-groq'
 import { groqByok } from '@tanstack/ai-groq/byok'
+import { createCloudflareText } from '@tanstack/ai-cloudflare'
+import { cloudflareByok } from '@tanstack/ai-cloudflare/byok'
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { byteplusByok } from '@tanstack/ai-byteplus/byok'
@@ -41,6 +43,7 @@ import {
   searchGuitars,
   type ServerRuntimeContext,
 } from '@/lib/guitar-tools'
+import { viaCloudflareGateway } from '@/lib/cloudflare-gateway'
 
 type Provider =
   | 'openai'
@@ -53,6 +56,7 @@ type Provider =
   | 'openrouter'
   | 'bedrock'
   | 'byteplus'
+  | 'cloudflare'
 
 const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
   openai: openaiByok,
@@ -62,6 +66,7 @@ const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
   groq: groqByok,
   grok: grokByok,
   byteplus: byteplusByok,
+  cloudflare: cloudflareByok,
 }
 
 function chatByokProvider(provider: Provider): ByokProvider | undefined {
@@ -305,6 +310,7 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: createAnthropicChat(
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
                 requireApiKey(apiKey),
+                viaCloudflareGateway('anthropic'),
               ),
             }),
           openrouter: (apiKey) =>
@@ -356,6 +362,7 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: createGroqText(
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
                 requireApiKey(apiKey),
+                viaCloudflareGateway('groq'),
               ),
             }),
           bedrock: (_apiKey) =>
@@ -384,6 +391,24 @@ export const Route = createFileRoute('/api/tanchat')({
                 requireApiKey(apiKey),
               ),
             }),
+          cloudflare: (apiKey) =>
+            createChatOptions({
+              // Workers AI over REST. The account id is server config; the
+              // token comes from BYOK or CLOUDFLARE_API_TOKEN. With
+              // CLOUDFLARE_AI_GATEWAY_ID set, requests (including
+              // `provider/model` ids such as openai/gpt-5.5) go through
+              // that AI Gateway.
+              adapter: createCloudflareText(
+                model || '@cf/zai-org/glm-5.3-flash',
+                {
+                  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
+                  apiKey: requireApiKey(apiKey),
+                  ...(process.env.CLOUDFLARE_AI_GATEWAY_ID && {
+                    gateway: { id: process.env.CLOUDFLARE_AI_GATEWAY_ID },
+                  }),
+                },
+              ),
+            }),
           ollama: (_apiKey) =>
             createChatOptions({
               adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
@@ -394,6 +419,7 @@ export const Route = createFileRoute('/api/tanchat')({
               adapter: createOpenaiChat(
                 (model || 'gpt-5.2') as 'gpt-5.2',
                 requireApiKey(apiKey),
+                viaCloudflareGateway('openai'),
               ),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',

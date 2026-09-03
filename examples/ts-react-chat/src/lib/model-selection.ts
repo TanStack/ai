@@ -9,6 +9,7 @@ export type Provider =
   | 'openrouter'
   | 'bedrock'
   | 'byteplus'
+  | 'cloudflare'
 
 export interface ModelOption {
   provider: Provider
@@ -36,6 +37,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-4.1', label: 'OpenAI - GPT-4.1' },
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI - GPT-4o' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'OpenAI - GPT-4o Mini' },
+
+  // Cloudflare Workers AI. `provider/model` ids route through AI Gateway.
+  {
+    provider: 'cloudflare',
+    model: '@cf/zai-org/glm-5.3-flash',
+    label: 'Cloudflare - GLM 5.3 Flash',
+  },
+  {
+    provider: 'cloudflare',
+    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    label: 'Cloudflare - Llama 3.3 70B',
+  },
+  {
+    provider: 'cloudflare',
+    model: 'openai/gpt-5.5',
+    label: 'Cloudflare Gateway - GPT-5.5',
+  },
 
   // Anthropic
   {
