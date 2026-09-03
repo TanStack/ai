@@ -199,6 +199,9 @@ export {
   type BedrockModelInputModalitiesByName,
 } from './model-meta'
 export type {
+  BedrockCachePoint,
+  BedrockSystemPromptMetadata,
+  BedrockToolMetadata,
   BedrockMessageMetadataByModality,
   BedrockTextMetadata,
   BedrockImageMetadata,
