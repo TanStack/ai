@@ -27,14 +27,6 @@ export function resolveByokProviderIds(
   return []
 }
 
-/** First slug from {@link resolveByokProviderIds}. */
-export function resolveByokProviderId(
-  byokProvider: ByokProviderSelector | undefined,
-  ...candidates: Array<unknown>
-): ProviderId | undefined {
-  return resolveByokProviderIds(byokProvider, ...candidates)[0]
-}
-
 /**
  * Prepare and stamp headers for the resolved slug(s). Throws instead of
  * attaching every stored key when no slug resolved.
