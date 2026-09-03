@@ -177,6 +177,50 @@ const adapter = createBedrockText(
 )
 ```
 
+### Prompt caching
+
+Every request sends the full system prompt and tool list again, and Bedrock bills them at the full input rate each time. Add a `cachePoint` to cache that prefix. Bedrock then reads it back at the cache rate for 5 minutes after the last use.
+
+Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
+
+Set `metadata.cachePoint` on the item that ends the stable part of your prompt. The adapter places a `cachePoint` block right after it:
+
+```typescript
+import { bedrockText } from '@tanstack/ai-bedrock'
+import { chat } from '@tanstack/ai'
+
+const stream = chat({
+  adapter: bedrockText('us.anthropic.claude-sonnet-4-5-20250929-v1:0', {
+    region: 'us-east-1',
+  }),
+  systemPrompts: [
+    {
+      content: 'Long, stable instructions...',
+      metadata: { cachePoint: { type: 'default' } },
+    },
+  ],
+  messages: [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          content: 'What changed since yesterday?',
+          // Caches the conversation up to here for the next round.
+          metadata: { cachePoint: { type: 'default' } },
+        },
+      ],
+    },
+  ],
+})
+```
+
+Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list to cache the tool definitions.
+
+- Bedrock accepts up to four checkpoints per request.
+- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read refreshes the timer. If a request mixes both, place every `1h` checkpoint before the first `5m` checkpoint.
+- A checkpoint below the model's minimum size is ignored. The request still succeeds, and nothing is cached.
+
 ### Token usage
 
 `onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.

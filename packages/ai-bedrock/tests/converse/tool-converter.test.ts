@@ -23,6 +23,22 @@ describe('toToolConfig', () => {
     expect(cfg?.toolChoice).toEqual({ auto: {} })
   })
 
+  it('follows a tool with a cachePoint when the tool asks for one', () => {
+    const cfg = toToolConfig(
+      [
+        { name: 'a', inputSchema: {}, cachePoint: { type: 'default' } },
+        { name: 'b', inputSchema: {} },
+      ],
+      'auto',
+    )
+    expect(cfg?.tools?.map((t) => Object.keys(t)[0])).toEqual([
+      'toolSpec',
+      'cachePoint',
+      'toolSpec',
+    ])
+    expect(cfg?.tools?.[1]).toEqual({ cachePoint: { type: 'default' } })
+  })
+
   it('maps required -> any and a named tool -> tool', () => {
     expect(
       toToolConfig([{ name: 'a', inputSchema: {} }], 'required')?.toolChoice,

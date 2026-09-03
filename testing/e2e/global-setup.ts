@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -134,6 +135,13 @@ export default async function globalSetup() {
   // spec asserts those reach `RUN_FINISHED.usage` as the canonical
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
+
+  // Bedrock Converse prompt caching. aimock cannot replay the Converse
+  // `vnd.amazon.eventstream` protocol, so this mount encodes the frames itself
+  // and drives the real `@aws-sdk/client-bedrock-runtime` client. It reports
+  // which request sections ended with a `cachePoint` block and answers with
+  // Bedrock's cache usage counters; the companion spec asserts both.
+  mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
 
   // Anthropic structured-output fallback usage (#758). The Anthropic text
   // adapter has no native `structuredOutputStream`, so streaming structured
@@ -1841,6 +1849,90 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
+}
+
+/**
+ * Answers `POST /model/{modelId}/converse-stream` with a fixed Converse event
+ * stream. The text block carries a JSON report of where the request placed
+ * `cachePoint` blocks (tools, system, last message), and the trailing
+ * `metadata` event carries cache read/write counters as Bedrock returns them
+ * on a cache hit.
+ */
+function bedrockConverseCacheMount(): Mountable {
+  const utf8 = new TextEncoder()
+  const codec = new EventStreamCodec(
+    (bytes) => new TextDecoder().decode(bytes),
+    (text) => utf8.encode(text),
+  )
+  const frame = (eventType: string, payload: unknown): Buffer =>
+    Buffer.from(
+      codec.encode({
+        headers: {
+          ':event-type': { type: 'string', value: eventType },
+          ':message-type': { type: 'string', value: 'event' },
+          ':content-type': { type: 'string', value: 'application/json' },
+        },
+        body: utf8.encode(JSON.stringify(payload)),
+      }),
+    )
+  const endsWithCachePoint = (blocks: unknown): boolean => {
+    if (!Array.isArray(blocks) || blocks.length === 0) return false
+    const last: unknown = blocks[blocks.length - 1]
+    return typeof last === 'object' && last !== null && 'cachePoint' in last
+  }
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/bedrock-converse-cache) is stripped before dispatch.
+      if (
+        req.method !== 'POST' ||
+        !/\/model\/[^/]+\/converse-stream$/.test(pathname)
+      ) {
+        return false
+      }
+      const body = (await readJsonRequestBody(req)) ?? {}
+      const toolConfig = body.toolConfig as { tools?: unknown } | undefined
+      const messages = body.messages as Array<{ content?: unknown }> | undefined
+      const observed = {
+        tools: endsWithCachePoint(toolConfig?.tools),
+        system: endsWithCachePoint(body.system),
+        lastMessage: endsWithCachePoint(
+          messages?.[messages.length - 1]?.content,
+        ),
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/vnd.amazon.eventstream')
+      res.write(frame('messageStart', { role: 'assistant' }))
+      res.write(
+        frame('contentBlockDelta', {
+          contentBlockIndex: 0,
+          delta: { text: JSON.stringify(observed) },
+        }),
+      )
+      res.write(frame('contentBlockStop', { contentBlockIndex: 0 }))
+      res.write(frame('messageStop', { stopReason: 'end_turn' }))
+      // Values from a real cache hit: inputTokens is the uncached remainder.
+      res.write(
+        frame('metadata', {
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 8409,
+            cacheWriteInputTokens: 0,
+          },
+          metrics: { latencyMs: 1 },
+        }),
+      )
+      res.end()
+      return true
+    },
+  }
 }
 
 function drainBody(req: http.IncomingMessage): Promise<void> {
