@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ByokBlockedError } from '@tanstack/ai/byok'
+import { ByokBlockedError, defineByokProvider } from '@tanstack/ai/byok'
 import { defineByok, memoryStorage } from '../src/byok'
 import type { KeyringStorage } from '../src/byok'
 
@@ -16,6 +16,28 @@ describe('defineByok memory', () => {
     expect(JSON.stringify(snapshot)).not.toContain('sk-abcdefghij')
     expect(byok.headers('openai')).toEqual({ 'x-byok-openai': 'sk-abcdefghij' })
     expect(byok.headers('anthropic')).toEqual({})
+  })
+
+  it('sends and prepares companion credentials with the provider', async () => {
+    const account = defineByokProvider({ id: 'acme-account', label: 'Account' })
+    const token = defineByokProvider({
+      id: 'acme',
+      label: 'Token',
+      with: [account],
+    })
+    const byok = defineByok({ providers: [token, account] })
+    await byok.update('acme', 'tok-abcdefghij')
+    await expect(byok.prepare('acme')).rejects.toBeInstanceOf(ByokBlockedError)
+    expect(byok.getSnapshot().prompt).toEqual({
+      provider: 'acme-account',
+      reason: 'missing',
+    })
+    await byok.update('acme-account', 'acct-1')
+    await byok.prepare('acme')
+    expect(byok.headers('acme')).toEqual({
+      'x-byok-acme': 'tok-abcdefghij',
+      'x-byok-acme-account': 'acct-1',
+    })
   })
 
   it('update(key) throws when prompt is null', async () => {

@@ -25,7 +25,7 @@ import type {
   UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
-import type { ByokClient, ByokProviderSelector } from './byok'
+import type { ByokClient } from './byok'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
@@ -893,7 +893,7 @@ export interface ChatClientBaseOptions<
    * used. Later sources win. If no slug resolves, the send throws
    * instead of attaching every stored key.
    */
-  byokProvider?: ByokProviderSelector
+  byokProvider?: () => string | undefined
 
   /**
    * Client-local runtime context passed to client tool implementations.

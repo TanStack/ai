@@ -167,6 +167,18 @@ describe('getByokKey', () => {
   })
 })
 
+describe('defineByokProvider with companions', () => {
+  it('keeps the companion descriptors', () => {
+    const account = defineByokProvider({ id: 'acme-account', label: 'Account' })
+    const token = defineByokProvider({
+      id: 'acme',
+      label: 'Token',
+      with: [account],
+    })
+    expect(token.with).toEqual([account])
+  })
+})
+
 describe('getByokKeys', () => {
   it('reads one value per name', () => {
     const request = new Request('https://example.test/chat', {

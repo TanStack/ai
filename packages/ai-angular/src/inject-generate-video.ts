@@ -23,7 +23,8 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
-import type { ByokClient, ByokProviderSelector } from '@tanstack/ai-client/byok'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { StreamChunk } from '@tanstack/ai'
 
 export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
@@ -32,8 +33,8 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: ReactiveOption<Record<string, any>>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
   byok?: ByokClient
-  /** Optional provider id, or several for grouped credentials. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
-  byokProvider?: ByokProviderSelector
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   devtools?: AIDevtoolsDisplayOptions
   /**
    * How this generation persists across reloads.

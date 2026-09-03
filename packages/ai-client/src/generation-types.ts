@@ -5,7 +5,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
-import type { ByokClient, ByokProviderSelector } from './byok'
+import type { ByokClient } from './byok'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -352,7 +352,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    * only that key is prepared and sent. Otherwise `body.provider` is used.
    * If no slug resolves, generate throws instead of attaching every stored key.
    */
-  byokProvider?: ByokProviderSelector
+  byokProvider?: () => string | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
   devtools?: Partial<AIDevtoolsClientMetadata>

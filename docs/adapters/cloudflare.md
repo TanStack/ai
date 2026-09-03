@@ -153,7 +153,22 @@ The `ts-react-chat` example does this. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_
 
 Two different things go by this name. Both work.
 
-**A user's Cloudflare credentials from the browser.** A user brings two values: the API token and the account it belongs to. `cloudflareByok` and `cloudflareAccountByok` are two entries in the TanStack BYOK store, each with its own env fallback. Import them from `@tanstack/ai-cloudflare/byok`, not from the main entry.
+**A user's Cloudflare credentials from the browser.** A user brings two values: the API token and the account it belongs to. `cloudflareByok` and `cloudflareAccountByok` are two entries in the TanStack BYOK store, each with its own env fallback. `cloudflareByok` declares the account id as a companion, so register both and a send for `cloudflare` carries both headers. Import them from `@tanstack/ai-cloudflare/byok`, not from the main entry.
+
+```typescript
+import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from "@tanstack/ai-cloudflare/byok";
+
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [cloudflareByok, cloudflareAccountByok],
+});
+```
+
+On the relay, read both values in one call:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";

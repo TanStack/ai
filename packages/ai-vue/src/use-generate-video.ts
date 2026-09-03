@@ -13,7 +13,8 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
-import type { ByokClient, ByokProviderSelector } from '@tanstack/ai-client/byok'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 /**
@@ -30,8 +31,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
   byok?: ByokClient
-  /** Optional provider id, or several for grouped credentials. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
-  byokProvider?: ByokProviderSelector
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**

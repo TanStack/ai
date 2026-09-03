@@ -2,52 +2,29 @@ import { ByokUnresolvedProviderError, isProviderId } from '@tanstack/ai/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { ByokClient } from './client'
 
-/**
- * Picks the BYOK slug(s) for a request. Returns a list because some
- * credentials are made of several stored values (for example a Cloudflare
- * account id plus API token), each sent as its own `x-byok-<id>` header.
- */
-export type ByokProviderSelector = () =>
-  | string
-  | ReadonlyArray<string>
-  | undefined
-
-export function resolveByokProviderIds(
-  byokProvider: ByokProviderSelector | undefined,
+export function resolveByokProviderId(
+  byokProvider: (() => string | undefined) | undefined,
   ...candidates: Array<unknown>
-): Array<ProviderId> {
+): ProviderId | undefined {
   const fromFn = byokProvider?.()
-  const fromList = (Array.isArray(fromFn) ? fromFn : [fromFn]).filter(
-    isProviderId,
-  )
-  if (fromList.length > 0) return fromList
+  if (isProviderId(fromFn)) return fromFn
   for (const candidate of candidates) {
-    if (isProviderId(candidate)) return [candidate]
+    if (isProviderId(candidate)) return candidate
   }
-  return []
+  return undefined
 }
 
 /**
- * Prepare and stamp headers for the resolved slug(s). Throws instead of
- * attaching every stored key when no slug resolved.
+ * Prepare and stamp headers for one resolved slug. Throws instead of
+ * attaching every stored key when the slug is missing.
  */
 export async function prepareResolvedByokHeaders(
   byok: ByokClient,
-  provider: ProviderId | ReadonlyArray<ProviderId> | undefined,
+  provider: ProviderId | undefined,
 ): Promise<Record<string, string>> {
-  const ids =
-    provider === undefined
-      ? []
-      : typeof provider === 'string'
-        ? [provider]
-        : [...provider]
-  if (ids.length === 0) {
+  if (!provider) {
     throw new ByokUnresolvedProviderError()
   }
-  const headers: Record<string, string> = {}
-  for (const id of ids) {
-    await byok.prepare(id)
-    Object.assign(headers, byok.headers(id))
-  }
-  return headers
+  await byok.prepare(provider)
+  return byok.headers(provider)
 }

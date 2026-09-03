@@ -45,21 +45,13 @@ export const KEY_GROUPS = [
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
+  providers: KEYED_PROVIDERS,
 })
 
 // Let the relay decide when a key is missing. The server prefers the
 // `x-byok-*` header, then env. Without coverage, the client would block
 // the send before env fallback can run.
 byok.setServerCoverage(true)
-
-/** Every stored id a provider needs on the wire (grouped credentials send several). */
-export function toByokProviders(provider: Provider): Array<ProviderId> {
-  const single = toByokProvider(provider)
-  const group = KEY_GROUPS.find((g) =>
-    g.fields.some((f) => f.provider.id === single),
-  )
-  return group ? group.fields.map((f) => f.provider.id) : single ? [single] : []
-}
 
 export function toByokProvider(provider: Provider): ProviderId | undefined {
   if (provider === 'gemini-interactions') return geminiByok.id

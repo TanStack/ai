@@ -551,6 +551,7 @@ export const byok = defineByok({
 ### Factory options
 
 - `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
+- `providers?` - Descriptors whose `with` companions the store expands. With `[cloudflareByok, cloudflareAccountByok]`, a send for `cloudflare` carries the token and the account id headers, and `prepare` prompts for each missing one
 
 ### Methods
 
@@ -558,8 +559,8 @@ export const byok = defineByok({
 - `update(key)` - Persist a key for the current `prompt` provider. Throws if `prompt` is null
 - `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
 - `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
-- `headers(provider)` - Return `x-byok-*` headers for that slug. Chat and generation clients throw if no slug resolves — they do not send every stored key
-- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
+- `headers(provider)` - Return `x-byok-*` headers for that slug and its companions. Chat and generation clients throw if no slug resolves — they do not send every stored key
+- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set and the key for it or a companion is empty with no server coverage, throw `ByokBlockedError` and set `prompt` for that slug
 - `ready()` - Resolve when constructor hydration (peek/load) finishes
 - `setServerCoverage(flags)` - `true` means do not block a send when the browser has no key (the relay can fill from env). `false` restores the default: block. A record merges per-slug flags
 - `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)

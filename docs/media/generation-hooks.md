@@ -482,7 +482,7 @@ function EmbeddingGenerator() {
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
 | `byok` | `ByokClient` | Optional keyring. Keys go in `x-byok-*` headers, never the body |
-| `byokProvider` | `ByokProviderSelector` | Optional provider slug, or a list of slugs for a credential made of several values (`[cloudflareAccountByok.id, cloudflareByok.id]`). If it returns a slug, only that key is sent. Otherwise `body.provider`. If no slug resolves, generate throws |
+| `byokProvider` | `() => ProviderId \| undefined` | Optional provider slug. If it returns a slug, only that key is sent. Otherwise `body.provider`. If no slug resolves, generate throws |
 | `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
