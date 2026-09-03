@@ -64,6 +64,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
+    "@smithy/eventstream-codec": "4.3.7",
+    "@smithy/node-http-handler": "^4.8.2",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
