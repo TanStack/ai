@@ -34,8 +34,6 @@
     "build": "node -e \"process.exit(0)\"",
     "clean": "premove ./build ./dist",
     "test:oxlint": "oxlint src --type-aware",
-    "test:lib": "vitest --passWithNoTests",
-    "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "keywords": [
