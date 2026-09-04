@@ -23,6 +23,7 @@ import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
+import type { AnyFilesAdapter } from './files/adapter'
 
 // ===========================
 // Chat Activity
@@ -211,10 +212,31 @@ export {
 } from './embed/adapter'
 
 // ===========================
+// Files Activity
+// ===========================
+
+export {
+  kind as filesKind,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
+} from './files/index'
+
+export {
+  BaseFilesAdapter,
+  normalizeFileUploadInput,
+  type FilesAdapter,
+  type AnyFilesAdapter,
+  type FileHandle,
+  type FileUploadInput,
+} from './files/adapter'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 
-/** Union of all adapter types that can be passed to chat() */
+/** Union of all adapter types across every activity kind */
 export type AIAdapter =
   | AnyTextAdapter
   | AnySummarizeAdapter
@@ -225,6 +247,7 @@ export type AIAdapter =
   | AnyTranscriptionAdapter
   | AnyEmbeddingAdapter
   | AnyRerankAdapter
+  | AnyFilesAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -237,3 +260,4 @@ export type AdapterKind =
   | 'transcription'
   | 'embedding'
   | 'rerank'
+  | 'files'

@@ -53,6 +53,8 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 > {
   override readonly kind = 'image' as const
   readonly name = 'fal' as const
+  // Consumes fal storage URLs uploaded via falFiles().
+  override readonly supportsFileSources = true
 
   constructor(model: TModel, config?: FalClientConfig) {
     super(model, {})

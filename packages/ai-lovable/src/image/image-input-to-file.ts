@@ -1,4 +1,5 @@
 import { base64ToArrayBuffer } from '@tanstack/ai-utils'
+import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
 import type { ImagePart, MediaInputMetadata } from '@tanstack/ai'
 
 const DEFAULT_MIME = 'image/png'
@@ -36,6 +37,15 @@ export async function imagePartToFile(
   abortSignal?: AbortSignal,
 ): Promise<File> {
   ensureFileSupport()
+
+  if (isFileSource(part.source)) {
+    // These endpoints are multipart and require the actual bytes; there is no
+    // "reference an uploaded handle" option, and lovable has no Files API.
+    throw unsupportedFileSourceError(
+      'lovable',
+      'on the edit / input_reference endpoints, which require uploaded bytes — pass a data: URI or inline image data',
+    )
+  }
 
   if (part.source.type === 'data') {
     const mimeType = part.source.mimeType || DEFAULT_MIME

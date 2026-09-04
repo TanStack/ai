@@ -1,5 +1,10 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { buildBaseUsage, resolveMediaPrompt } from '@tanstack/ai'
+import {
+  buildBaseUsage,
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenRouterApiKeyFromEnv } from '../utils/client'
@@ -68,6 +73,7 @@ function warnIfLargeMediaBuffer(byteLength: number): void {
  * or bot checks on your behalf — pass directly accessible URLs.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('openrouter')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
