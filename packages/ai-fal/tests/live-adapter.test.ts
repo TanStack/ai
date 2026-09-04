@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateLive } from '@tanstack/ai'
-import {
-  createFalLive,
-  FAL_LIVE_APP,
-  falLive,
-  isFalLiveModel,
-} from '../src'
+import { createFalLive, FAL_LIVE_APP, falLive, isFalLiveModel } from '../src'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
