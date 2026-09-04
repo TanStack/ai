@@ -107,6 +107,28 @@ const ev = {
     }),
   custom: (name: string, value?: unknown) =>
     chunk(EventType.CUSTOM, { name, value }),
+  activitySnapshot: (
+    messageId: string,
+    activityType: string,
+    content: Record<string, any>,
+    replace?: boolean,
+  ) =>
+    chunk(EventType.ACTIVITY_SNAPSHOT, {
+      messageId,
+      activityType,
+      content,
+      ...(replace !== undefined ? { replace } : {}),
+    }),
+  activityDelta: (
+    messageId: string,
+    activityType: string,
+    patch: Array<Record<string, unknown>>,
+  ) =>
+    chunk(EventType.ACTIVITY_DELTA, {
+      messageId,
+      activityType,
+      patch,
+    }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
@@ -5183,6 +5205,168 @@ describe('StreamProcessor', () => {
 
       // No crash = success
       expect(processor.getMessages()).toBeDefined()
+    })
+  })
+
+  describe('ACTIVITY_SNAPSHOT and ACTIVITY_DELTA', () => {
+    it('creates an activity UIMessage and does not turn it into assistant text', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'tanstack' }),
+      )
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      const activity = messages[0]
+      expect(activity?.role).toBe('activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack' })
+      expect(activity?.parts.some((p) => p.type === 'text')).toBe(false)
+      expect(processor.getState().content).toBe('')
+    })
+
+    it('replace: true updates content; replace: false keeps the existing activity', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'one' }),
+      )
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'two' }),
+      )
+      const replaced = processor.getMessages()[0]?.parts[0]
+      if (replaced?.type !== 'activity')
+        throw new Error('expected activity part')
+      expect(replaced.content).toEqual({ query: 'two' })
+
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'three' }, false),
+      )
+      const kept = processor.getMessages()[0]?.parts[0]
+      if (kept?.type !== 'activity') throw new Error('expected activity part')
+      expect(kept.content).toEqual({ query: 'two' })
+    })
+
+    it('replace: false still creates when the id does not exist', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'PLAN', { steps: [] }, false),
+      )
+      expect(processor.getMessages()).toHaveLength(1)
+      expect(processor.getMessages()[0]?.role).toBe('activity')
+    })
+
+    it('applies an RFC 6902 patch to activity content', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', {
+          query: 'tanstack',
+          status: 'running',
+        }),
+      )
+      processor.processChunk(
+        ev.activityDelta('act-1', 'SEARCH', [
+          { op: 'replace', path: '/status', value: 'done' },
+          { op: 'add', path: '/hits', value: 3 },
+        ]),
+      )
+      const part = processor.getMessages()[0]?.parts[0]
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({
+        query: 'tanstack',
+        status: 'done',
+        hits: 3,
+      })
+    })
+
+    it('delta on a missing id is a silent no-op', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const processor = new StreamProcessor()
+        processor.processChunk(
+          ev.activityDelta('missing', 'SEARCH', [
+            { op: 'replace', path: '/status', value: 'done' },
+          ]),
+        )
+        expect(processor.getMessages()).toHaveLength(0)
+        expect(warn).not.toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('delta on a non-activity id warns and no-ops', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const processor = new StreamProcessor()
+        processor.processChunk(ev.textStart('msg-1'))
+        processor.processChunk(ev.textContent('hello', 'msg-1'))
+        processor.processChunk(
+          ev.activityDelta('msg-1', 'SEARCH', [
+            { op: 'add', path: '/x', value: 1 },
+          ]),
+        )
+        expect(processor.getMessages()).toHaveLength(1)
+        expect(processor.getMessages()[0]?.role).toBe('assistant')
+        expect(warn).toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('keeps previous content when the patch fails', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const processor = new StreamProcessor()
+        processor.processChunk(
+          ev.activitySnapshot('act-1', 'SEARCH', { status: 'running' }),
+        )
+        processor.processChunk(
+          ev.activityDelta('act-1', 'SEARCH', [
+            { op: 'test', path: '/status', value: 'done' },
+          ]),
+        )
+        const part = processor.getMessages()[0]?.parts[0]
+        if (part?.type !== 'activity') throw new Error('expected activity part')
+        expect(part.content).toEqual({ status: 'running' })
+        expect(warn).toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('omits activity messages from toModelMessages', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(ev.textStart('user-1'))
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'x' }),
+      )
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('hello', 'msg-1'))
+
+      const model = processor.toModelMessages()
+      expect(
+        model.some((m) => (m as { role: string }).role === 'activity'),
+      ).toBe(false)
+      expect(JSON.stringify(model)).not.toContain('SEARCH')
+    })
+
+    it('does not overwrite an activity message with TEXT_MESSAGE_START', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'x' }),
+      )
+      processor.processChunk(ev.textStart('act-1'))
+      processor.processChunk(ev.textContent('stolen', 'act-1'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.role).toBe('activity')
+      expect(messages[0]?.parts.some((p) => p.type === 'text')).toBe(false)
     })
   })
 

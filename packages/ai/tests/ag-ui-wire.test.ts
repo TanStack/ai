@@ -53,6 +53,25 @@ describe('uiMessagesToWire', () => {
     expect(messages).toHaveLength(2)
   })
 
+  it('omits activity UIMessages from agent wire input', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'hi' }],
+      },
+      {
+        id: 'act-1',
+        role: 'activity',
+        parts: [
+          { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
+        ],
+      },
+    ])
+    expect(wire).toHaveLength(1)
+    expect(wire[0]).toMatchObject({ id: 'u1', role: 'user', content: 'hi' })
+  })
+
   it('mirrors a system UIMessage to a string content field', () => {
     const messages: Array<UIMessage> = [
       {

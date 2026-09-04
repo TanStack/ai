@@ -430,6 +430,11 @@ export function uiMessageToModelMessages(
     return []
   }
 
+  // AG-UI activity is frontend-only and must never enter model input.
+  if (uiMessage.role === 'activity') {
+    return []
+  }
+
   // For non-assistant messages (user), use the simpler path since they
   // don't have tool calls or tool results to interleave
   if (uiMessage.role !== 'assistant') {
@@ -628,6 +633,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       case 'ui-resource':
         // MCP Apps widget — rendered client-side only. It must never enter
         // model input, so it is intentionally dropped from the model message.
+        break
+
+      case 'activity':
+        // Frontend-only AG-UI activity. Never converted into ModelMessage input.
         break
 
       default:
@@ -934,8 +943,19 @@ export function aguiSnapshotMessageToUIMessage(
       })
     }
     case 'activity':
+      return applySnapshotMetadata(message, {
+        id,
+        role: 'activity',
+        parts: [
+          {
+            type: 'activity',
+            activityType: message.activityType,
+            content: structuredClone(message.content),
+          },
+        ],
+      })
     default:
-      // `activity` (and any future role) has no text/parts equivalent today.
+      // Any future role has no text/parts equivalent today.
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
