@@ -7,6 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
+- **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
@@ -125,6 +126,22 @@ pnpm dev
 ```
 
 📖 [Full Documentation](ts-react-rerank/README.md)
+
+---
+
+### World generation (ts-react-media)
+
+The media example has a **World** tab. Paste a Reactor key in the header
+dialog. The relay calls `generateWorld()`. The page connects and can steer
+the scene mid-run.
+
+```bash
+cd examples/ts-react-media
+pnpm install
+pnpm dev
+```
+
+Open the World tab. Paste a Reactor key, or set `REACTOR_API_KEY`.
 
 ---
 

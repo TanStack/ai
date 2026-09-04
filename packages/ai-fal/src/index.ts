@@ -11,6 +11,25 @@ export { FalImageAdapter, falImage } from './adapters/image'
 export { FalVideoAdapter, falVideo } from './adapters/video'
 
 // ============================================================================
+// Live Adapter (Experimental)
+// ============================================================================
+
+export {
+  FalLiveVideoAdapter,
+  falLiveVideo,
+  createFalLiveVideo,
+  FAL_LIVE_VIDEO_APP,
+  FAL_LIVE_VIDEO_MODELS,
+  isFalLiveVideoModel,
+  allowedFalLiveVideoProxyTarget,
+} from './adapters/live'
+export type {
+  FalLiveVideoModel,
+  FalLiveVideoProviderOptions,
+  FalLiveVideoModelProviderOptionsByName,
+} from './adapters/live'
+
+// ============================================================================
 // Speech Adapter (TTS)
 // ============================================================================
 

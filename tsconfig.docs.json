@@ -17,6 +17,10 @@
       ],
       "@remix-run/ui/jsx-runtime": [
         "./node_modules/.kiira/node_modules/@remix-run/ui/dist/jsx-runtime.d.ts"
+      ],
+      "@fal-ai/client/realtime": [
+        "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
+        "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
       ]
     }
   }

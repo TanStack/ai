@@ -15,9 +15,11 @@ keywords:
 
 # Generations
 
-You want an image, some speech, a transcript or a video, not a conversation. Every one
+You want an image, some speech, a transcript, a video, or a live stream, not a conversation. Every one
 of those is a **generation**: one request, one result. They all share the same shape, so
 learning one teaches you the rest.
+
+For a live, prompt-steerable stream that does not end as a file, see [Live Generation](./live-generation) or [World Generation](./world-generation).
 
 ## The fastest path
 
@@ -87,8 +89,10 @@ streaming is handled for you. All three are written out in
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
+| Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
+| World generation | `generateWorld()` | - | [World Generation](./world-generation) |
 
-> **Note:** Video generation uses a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. See the [Video Generation](./video-generation) guide for details.
+> **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live and world sessions mint a token. There is no download URL.
 
 ## Advanced
 

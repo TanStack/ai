@@ -190,7 +190,7 @@ Learn more in the
 
 - [Generations](https://tanstack.com/ai/latest/docs/media/generations) - one
   pattern for image generation, text-to-speech, transcription, summarization,
-  audio generation, and video generation.
+  audio generation, video generation, and world generation.
 - [Realtime Voice Chat](https://tanstack.com/ai/latest/docs/media/realtime-chat) -
   build low-latency realtime voice experiences.
 - [Code Mode](https://tanstack.com/ai/latest/docs/code-mode/code-mode) - let
@@ -202,20 +202,21 @@ Learn more in the
 
 Official adapters include:
 
-| Package                                                                              | Use it for                                                                           |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking               |
-| [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools       |
-| [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, structured outputs, and Vertex Claude        |
-| [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                              |
-| [`@tanstack/ai-vertex`](https://tanstack.com/ai/latest/docs/adapters/vertex)         | Gemini on Vertex AI with regional endpoints and Google Cloud credentials             |
-| [`@tanstack/ai-ollama`](https://tanstack.com/ai/latest/docs/adapters/ollama)         | Local Ollama models                                                                  |
-| [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                                  |
-| [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                           |
-| [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects           |
-| [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR          |
-| [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                         |
-| [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway |
+| Package                                                                              | Use it for                                                                             |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking                 |
+| [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools         |
+| [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, structured outputs, and Vertex Claude          |
+| [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                                |
+| [`@tanstack/ai-vertex`](https://tanstack.com/ai/latest/docs/adapters/vertex)         | Gemini on Vertex AI with regional endpoints and Google Cloud credentials               |
+| [`@tanstack/ai-ollama`](https://tanstack.com/ai/latest/docs/adapters/ollama)         | Local Ollama models                                                                    |
+| [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                                    |
+| [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                             |
+| [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects             |
+| [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR            |
+| [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                           |
+| [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
+| [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so
