@@ -29,7 +29,7 @@ export function rejectRoutingAliases<T extends { id: string }>(
  */
 export function toNativeProviderId(
   strippedId: string,
-  provider: 'openai' | 'anthropic' | 'gemini' | 'grok',
+  provider: string,
 ): string {
   if (provider === 'anthropic') {
     return strippedId.replaceAll('.', '-')

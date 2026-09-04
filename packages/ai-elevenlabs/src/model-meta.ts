@@ -11,6 +11,7 @@ import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
  * @see https://elevenlabs.io/docs/models
  */
 export const ELEVENLABS_TTS_MODELS = [
+  'eleven_v3_conversational',
   'eleven_v3',
   'eleven_multilingual_v2',
   'eleven_flash_v2_5',

@@ -24,6 +24,39 @@ export function insertConstants(
  * carries its own trailing comma so the existing body does not need a
  * comma-guess. See the grok-4.5 single-line array breakage.
  */
+export function addToStringLiteralArray(
+  content: string,
+  arrayName: string,
+  values: Array<string>,
+): string {
+  if (values.length === 0) return content
+  const open = `export const ${arrayName} = [`
+  const openIndex = content.indexOf(open)
+  if (openIndex === -1) {
+    console.warn(`  Warning: Could not find array '${arrayName}' in file`)
+    return content
+  }
+  const newEntries = values.map((value) => `  '${value}',`).join('\n')
+  const insertAt = openIndex + open.length
+  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
+}
+
+export function extractStringLiteralArrayValues(
+  content: string,
+  arrayName: string,
+): Set<string> {
+  const ids = new Set<string>()
+  const block = content.match(
+    new RegExp(`export const ${arrayName} = \\[([\\s\\S]*?)\\] as const`),
+  )
+  if (!block) return ids
+  const quoted = block[1]!.matchAll(/'([^']+)'/g)
+  for (const match of quoted) {
+    ids.add(match[1]!)
+  }
+  return ids
+}
+
 function addToArray(
   content: string,
   arrayName: string,
