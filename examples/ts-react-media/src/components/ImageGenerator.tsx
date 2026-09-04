@@ -4,7 +4,7 @@ import { useGenerateImage } from '@tanstack/ai-react'
 import type { MediaPrompt } from '@tanstack/ai/client'
 
 import { generateImageFn } from '@/lib/server-functions'
-import { byok, toByokProvider } from '@/lib/byok'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { getRandomImagePrompt } from '@/lib/prompts'
 import { IMAGE_MODELS } from '@/lib/models'
 import type { ImageModel } from '@/lib/models'
@@ -296,11 +296,13 @@ function ImageModelCard({
     byok,
     byokProvider: () => toByokProvider(model.provider),
     fetcher: (input, options) =>
-      generateImageFn({
-        data: { prompt: input.prompt, model: model.id },
-        signal: options?.signal,
-        headers: options?.headers,
-      }),
+      callWithByok(
+        generateImageFn({
+          data: { prompt: input.prompt, model: model.id },
+          signal: options?.signal,
+          headers: options?.headers,
+        }),
+      ),
     onResult: (generated) => {
       const image = generated.images[0]
       if (image) onImageGenerated?.(getImageSrc(image))

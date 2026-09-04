@@ -36,7 +36,7 @@ import type {
 } from '@/lib/seedance'
 
 import { generateSeedanceVideoFn } from '@/lib/server-functions'
-import { byok, toByokProvider } from '@/lib/byok'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { mediaUrlToPart, readMediaFile, toImagePart } from '@/lib/media'
 import { readVideoBilling } from '@/lib/billing'
 import { getRandomVideoPrompt } from '@/lib/prompts'
@@ -244,15 +244,17 @@ export default function SeedanceStudio({
       fetcher: (input, options) => {
         const submission = submissionRef.current
         if (!submission) throw new Error('No Seedance task in flight')
-        return generateSeedanceVideoFn({
-          data: {
-            prompt: input.prompt,
-            model: submission.model,
-            options: submission.options,
-          },
-          signal: options?.signal,
-          headers: options?.headers,
-        })
+        return callWithByok(
+          generateSeedanceVideoFn({
+            data: {
+              prompt: input.prompt,
+              model: submission.model,
+              options: submission.options,
+            },
+            signal: options?.signal,
+            headers: options?.headers,
+          }),
+        )
       },
       onResult: () => {
         // Clearing the ref is what re-opens the form to the next task.

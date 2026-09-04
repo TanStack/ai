@@ -20,7 +20,7 @@ import {
   generateWorld,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { getByokKey } from '@tanstack/ai/byok/server'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import {
   createReactorVideo,
   createReactorWorld,
@@ -150,10 +150,7 @@ const VIDEO_POLL_INTERVAL_MS = 4000
 function requireByok(provider: ByokProvider): string {
   const apiKey = getByokKey(getRequest(), provider)
   if (!apiKey) {
-    const envNames = (provider.env ?? []).join(' or ')
-    throw new Error(
-      `Missing ${provider.label} API key. Open the key dialog${envNames ? `, or set ${envNames}` : ''}.`,
-    )
+    throw byokMissing(provider)
   }
   return apiKey
 }

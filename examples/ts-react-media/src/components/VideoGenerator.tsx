@@ -8,7 +8,7 @@ import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
 import type { VideoBilling } from '@/lib/billing'
 
 import { generateVideoFn } from '@/lib/server-functions'
-import { byok, toByokProvider } from '@/lib/byok'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
@@ -473,17 +473,19 @@ function VideoModelCard({
       byok,
       byokProvider: () => toByokProvider(model.provider),
       fetcher: (input, options) =>
-        generateVideoFn({
-          data: {
-            prompt: input.prompt,
-            model: model.id,
-            ...(previousInteractionRef.current
-              ? { previousInteractionId: previousInteractionRef.current }
-              : {}),
-          },
-          signal: options?.signal,
-          headers: options?.headers,
-        }),
+        callWithByok(
+          generateVideoFn({
+            data: {
+              prompt: input.prompt,
+              model: model.id,
+              ...(previousInteractionRef.current
+                ? { previousInteractionId: previousInteractionRef.current }
+                : {}),
+            },
+            signal: options?.signal,
+            headers: options?.headers,
+          }),
+        ),
       onChunk: (chunk) => {
         const usage = readVideoBilling(chunk)
         if (usage) setBilling(usage)

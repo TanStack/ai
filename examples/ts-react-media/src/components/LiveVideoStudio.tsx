@@ -1,8 +1,14 @@
 import { useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
-import { ByokBlockedError } from '@tanstack/ai/byok'
 import { generateLiveVideoFn } from '@/lib/server-functions'
-import { byok, falByok, reactorByok } from '@/lib/byok'
+import { attachStream } from '@/lib/attach-stream'
+import {
+  byok,
+  callWithByok,
+  falByok,
+  reactorByok,
+  requestByokFromError,
+} from '@/lib/byok'
 import {
   LIVE_VIDEO_MODEL_LABELS,
   LIVE_VIDEO_MODELS,
@@ -26,8 +32,62 @@ type FalLiveSession = {
 }
 
 type LiveHandle =
-  | { provider: 'reactor'; reactor: Reactor }
+  | { provider: 'reactor'; reactor: Reactor; model: LiveVideoModelId }
   | { provider: 'fal'; session: FalLiveSession }
+
+function commandErrorMessage(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null || !('reason' in data)) {
+    return null
+  }
+  const reason = data.reason
+  return typeof reason === 'string' && reason.length > 0 ? reason : null
+}
+
+async function startReactorLive(
+  reactor: Reactor,
+  model: LiveVideoModelId,
+  prompt: string,
+  resolution: LiveVideoResolution,
+): Promise<void> {
+  if (model === 'fast-h3') {
+    await reactor.sendCommand('enqueue', { prompt })
+    return
+  }
+  if (model === 'longlive-v2') {
+    await reactor.sendCommand('set_shot', { prompt })
+    await reactor.sendCommand('start', {})
+    return
+  }
+  if (model === 'helios') {
+    await reactor.sendCommand('set_sr_scale', {
+      sr_scale: resolution === '2k' || resolution === '4k' ? '4x' : '2x',
+    })
+    await reactor.sendCommand('set_prompt', { prompt })
+    await reactor.sendCommand('start', {})
+    return
+  }
+  if (resolution === '1080p' || resolution === '2k' || resolution === '4k') {
+    await reactor.sendCommand('set_resolution', { resolution })
+  }
+  await reactor.sendCommand('set_prompt', { prompt })
+  await reactor.sendCommand('start', {})
+}
+
+async function steerReactorLive(
+  reactor: Reactor,
+  model: LiveVideoModelId,
+  prompt: string,
+): Promise<void> {
+  if (model === 'fast-h3') {
+    await reactor.sendCommand('enqueue', { prompt })
+    return
+  }
+  if (model === 'longlive-v2') {
+    await reactor.sendCommand('set_shot', { prompt })
+    return
+  }
+  await reactor.sendCommand('set_prompt', { prompt })
+}
 
 function errorMessage(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
@@ -86,8 +146,7 @@ async function openFalSession(args: {
   const session = fal.realtime.open(wma(args.model), {
     receive: ['video', 'audio'],
     onMedia: (stream) => {
-      args.video.srcObject = stream
-      void args.video.play()
+      attachStream(args.video, stream)
     },
   })
   session.send({
@@ -109,8 +168,10 @@ export default function LiveVideoStudio() {
   const [resolution, setResolution] = useState<LiveVideoResolution>('1080p')
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const handleRef = useRef<LiveHandle | null>(null)
+  const detachStreamRef = useRef<(() => void) | null>(null)
   const falPromptVersionRef = useRef(1)
 
   const provider = liveVideoProvider(model)
@@ -120,6 +181,8 @@ export default function LiveVideoStudio() {
   async function stop() {
     const handle = handleRef.current
     handleRef.current = null
+    detachStreamRef.current?.()
+    detachStreamRef.current = null
     if (handle?.provider === 'reactor') {
       try {
         await handle.reactor.disconnect()
@@ -138,28 +201,23 @@ export default function LiveVideoStudio() {
     if (video) {
       video.srcObject = null
     }
+    setPlaying(false)
     setStatus('idle')
   }
 
   async function start() {
     setError(null)
+    setPlaying(false)
     setStatus('connecting')
     try {
-      try {
-        await byok.prepare(keyProvider.id)
-      } catch (error) {
-        if (error instanceof ByokBlockedError && error.reason === 'locked') {
-          throw new Error(
-            `Unlock the saved ${keyProvider.label} key, then start again.`,
-          )
-        }
-        throw error
-      }
+      await byok.prepare(keyProvider.id)
       const live = readLivePayload(
-        await generateLiveVideoFn({
-          data: { prompt, model, resolution },
-          headers: byok.headers(keyProvider.id),
-        }),
+        await callWithByok(
+          generateLiveVideoFn({
+            data: { prompt, model, resolution },
+            headers: byok.headers(keyProvider.id),
+          }),
+        ),
       )
       const video = videoRef.current
       if (!video) throw new Error('Video element is missing')
@@ -179,30 +237,31 @@ export default function LiveVideoStudio() {
         const reactor = new ReactorClient({
           modelName: live.model,
         })
-        handleRef.current = { provider: 'reactor', reactor }
+        handleRef.current = { provider: 'reactor', reactor, model }
 
+        reactor.on('error', (err) => {
+          setError(err.message)
+        })
+        reactor.on('message', (msg) => {
+          if (msg.type !== 'command_error') return
+          const reason = commandErrorMessage(msg.data)
+          if (reason) setError(reason)
+        })
         reactor.on('trackReceived', (name, _track, stream) => {
           if (name !== 'main_video') return
-          video.srcObject = stream
-          void video.play()
+          detachStreamRef.current?.()
+          detachStreamRef.current = attachStream(video, stream)
         })
 
         await reactor.connect(live.token)
-        if (
-          resolution === '1080p' ||
-          resolution === '2k' ||
-          resolution === '4k'
-        ) {
-          await reactor.sendCommand('set_resolution', { resolution })
-        }
-        await reactor.sendCommand('set_prompt', { prompt: live.prompt })
-        await reactor.sendCommand('start', {})
+        await startReactorLive(reactor, model, live.prompt, resolution)
       }
 
       setSteerPrompt('')
       setStatus('live')
     } catch (caught) {
       await stop()
+      requestByokFromError(caught)
       setError(errorMessage(caught))
       setStatus('error')
     }
@@ -222,7 +281,7 @@ export default function LiveVideoStudio() {
           prompt_version: falPromptVersionRef.current,
         })
       } else {
-        await handle.reactor.sendCommand('set_prompt', { prompt: next })
+        await steerReactorLive(handle.reactor, handle.model, next)
       }
       setPrompt(next)
       setSteerPrompt('')
@@ -250,13 +309,19 @@ export default function LiveVideoStudio() {
           className="aspect-video w-full bg-black"
           autoPlay
           playsInline
-          muted={false}
+          muted
+          onPlaying={() => setPlaying(true)}
         />
-        {status !== 'live' ? (
+        {status === 'idle' || status === 'error' ? (
+          <p className="px-4 py-3 text-sm text-gray-400">
+            The live stream appears here after you start a session.
+          </p>
+        ) : null}
+        {status === 'connecting' || (status === 'live' && !playing) ? (
           <p className="px-4 py-3 text-sm text-gray-400">
             {status === 'connecting'
               ? 'Connecting to the video model…'
-              : 'The live stream appears here after you start a session.'}
+              : 'Waiting for the first frame…'}
           </p>
         ) : null}
       </div>

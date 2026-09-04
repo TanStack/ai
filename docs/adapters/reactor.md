@@ -99,6 +99,7 @@ Reactor video is a live stream, not a finished file. `generateLive()` returns a 
 import { generateLive } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
+const apiKey = process.env.REACTOR_API_KEY ?? ''
 const live = await generateLive({
   adapter: reactorVideo('helios', { apiKey }),
   prompt: 'A neon cyberpunk city at night, slow aerial drift',
@@ -125,6 +126,9 @@ Pass a text prompt only. Set a reference image in the browser with `uploadFile` 
 Orbis reads these on the next `start`. Put them in `modelOptions`. The browser applies them with `sendCommand` before `start`.
 
 ```ts
+import { generateWorld } from '@tanstack/ai'
+import { reactorWorld } from '@tanstack/ai-reactor'
+
 const world = await generateWorld({
   adapter: reactorWorld('visko-orbis-stable'),
   prompt: 'Black volcanic cliffs, slow aerial camera',
@@ -146,6 +150,9 @@ const world = await generateWorld({
 ## Custom endpoint
 
 ```ts
+import { reactorWorld } from '@tanstack/ai-reactor'
+
+const apiKey = process.env.REACTOR_API_KEY ?? ''
 const adapter = reactorWorld('visko-orbis-stable', {
   apiKey,
   baseUrl: 'https://api.reactor.inc',

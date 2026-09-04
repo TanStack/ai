@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useByok } from '@tanstack/ai-react'
 import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 import { byok, getEnvKeyStatus } from '@/lib/byok'
 
@@ -10,6 +11,7 @@ const navLinkActiveClass = 'bg-gray-700 text-white'
 export default function Header() {
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({})
+  const snapshot = useByok(byok)
 
   useEffect(() => {
     void byok.ready()
@@ -18,6 +20,10 @@ export default function Header() {
   useEffect(() => {
     void getEnvKeyStatus().then(setEnvStatus)
   }, [])
+
+  useEffect(() => {
+    if (snapshot.prompt) setKeyDialogOpen(true)
+  }, [snapshot.prompt])
 
   return (
     <header className="p-4 flex items-center bg-gray-800 text-white shadow-lg">
@@ -38,13 +44,6 @@ export default function Header() {
           activeOptions={{ exact: true }}
         >
           Generators
-        </Link>
-        <Link
-          to="/seedance"
-          className={navLinkClass}
-          activeProps={{ className: `${navLinkClass} ${navLinkActiveClass}` }}
-        >
-          Seedance Studio
         </Link>
         <ByokKeyDialog
           open={keyDialogOpen}

@@ -27,7 +27,7 @@ Call `generateLive()` on the server. It returns a short-lived token, a model slu
 
 Pick one adapter. Reactor and fal both mint a token. They do not return a download URL.
 
-```ts
+```ts group=live-reactor
 import { generateLive } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
@@ -61,21 +61,22 @@ The server half is the same for every live adapter. The browser client is not.
 
 Install `@reactor-team/js-sdk`. Connect with the token. Then set the prompt and start.
 
-```ts
+```ts group=live-reactor
 import { Reactor } from '@reactor-team/js-sdk'
 
-const reactor = new Reactor({ modelName: model })
+const reactor = new Reactor({ modelName: live.model })
 const video = document.querySelector('video')
 
 reactor.on('trackReceived', (name, _track, stream) => {
   if (name !== 'main_video') return
   if (!video) return
+  video.muted = true
   video.srcObject = stream
-  void video.play()
+  void video.play().catch(() => {})
 })
 
-await reactor.connect(token)
-await reactor.sendCommand('set_prompt', { prompt })
+await reactor.connect(live.token)
+await reactor.sendCommand('set_prompt', { prompt: live.prompt })
 await reactor.sendCommand('start', {})
 ```
 
@@ -87,25 +88,26 @@ See the [Reactor adapter](../adapters/reactor) for model ids and provider option
 
 Install `@fal-ai/client@alpha`. Open the WMA session with the minted token. Then send `configure`.
 
-```ts
+```ts ignore
 import { createFalClient } from '@fal-ai/client'
 import { wma } from '@fal-ai/client/realtime'
 
-const fal = createFalClient({ credentials: token })
+const fal = createFalClient({ credentials: live.token })
 const video = document.querySelector('video')
 
 const session = fal.realtime.open(wma('minimax/h3-max/director'), {
   receive: ['video', 'audio'],
   onMedia: (stream) => {
     if (!video) return
+    video.muted = true
     video.srcObject = stream
-    void video.play()
+    void video.play().catch(() => {})
   },
 })
 
 session.send({
   type: 'configure',
-  prompt,
+  prompt: live.prompt,
   prompt_version: 1,
   protocol_version: 1,
 })

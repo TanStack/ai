@@ -106,8 +106,9 @@ const reactor = new Reactor({ modelName: model })
 
 reactor.on('trackReceived', (name, _track, stream) => {
   if (name !== 'main_video') return
+  video.muted = true
   video.srcObject = stream
-  void video.play()
+  void video.play().catch(() => {})
 })
 
 await reactor.connect(token)

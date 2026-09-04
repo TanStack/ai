@@ -1,8 +1,13 @@
 import { useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
-import { ByokBlockedError } from '@tanstack/ai/byok'
 import { generateWorldFn } from '@/lib/server-functions'
-import { byok, reactorByok } from '@/lib/byok'
+import { attachStream } from '@/lib/attach-stream'
+import {
+  byok,
+  callWithByok,
+  reactorByok,
+  requestByokFromError,
+} from '@/lib/byok'
 import {
   WORLD_MODEL_LABELS,
   WORLD_MODELS,
@@ -55,12 +60,16 @@ export default function WorldStudio() {
   const [resolution, setResolution] = useState<WorldResolution>('1080p')
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
+  const detachStreamRef = useRef<(() => void) | null>(null)
 
   async function stop() {
     const reactor = reactorRef.current
     reactorRef.current = null
+    detachStreamRef.current?.()
+    detachStreamRef.current = null
     if (reactor) {
       try {
         await reactor.disconnect()
@@ -72,26 +81,23 @@ export default function WorldStudio() {
     if (video) {
       video.srcObject = null
     }
+    setPlaying(false)
     setStatus('idle')
   }
 
   async function start() {
     setError(null)
+    setPlaying(false)
     setStatus('connecting')
     try {
-      try {
-        await byok.prepare(reactorByok.id)
-      } catch (error) {
-        if (error instanceof ByokBlockedError && error.reason === 'locked') {
-          throw new Error('Unlock the saved Reactor key, then start again.')
-        }
-        throw error
-      }
+      await byok.prepare(reactorByok.id)
       const world = readWorldPayload(
-        await generateWorldFn({
-          data: { prompt, model, resolution },
-          headers: byok.headers(reactorByok.id),
-        }),
+        await callWithByok(
+          generateWorldFn({
+            data: { prompt, model, resolution },
+            headers: byok.headers(reactorByok.id),
+          }),
+        ),
       )
 
       const { Reactor: ReactorClient } = await import('@reactor-team/js-sdk')
@@ -100,24 +106,43 @@ export default function WorldStudio() {
       })
       reactorRef.current = reactor
 
+      reactor.on('error', (err) => {
+        setError(err.message)
+      })
+      reactor.on('message', (msg) => {
+        if (msg.type !== 'command_error') return
+        if (typeof msg.data !== 'object' || msg.data === null) return
+        if (!('reason' in msg.data)) return
+        const reason = msg.data.reason
+        if (typeof reason === 'string' && reason.length > 0) {
+          setError(reason)
+        }
+      })
       reactor.on('trackReceived', (name, _track, stream) => {
         if (name !== 'main_video') return
         const video = videoRef.current
         if (!video) return
-        video.srcObject = stream
-        void video.play()
+        detachStreamRef.current?.()
+        detachStreamRef.current = attachStream(video, stream)
       })
 
       await reactor.connect(world.token)
-      await reactor.sendCommand('set_resolution', {
-        resolution,
-      })
+      if (model === 'helios') {
+        await reactor.sendCommand('set_sr_scale', {
+          sr_scale: resolution === '2k' || resolution === '4k' ? '4x' : '2x',
+        })
+      } else {
+        await reactor.sendCommand('set_resolution', {
+          resolution,
+        })
+      }
       await reactor.sendCommand('set_prompt', { prompt: world.prompt })
       await reactor.sendCommand('start', {})
       setSteerPrompt('')
       setStatus('live')
     } catch (caught) {
       await stop()
+      requestByokFromError(caught)
       setError(errorMessage(caught))
       setStatus('error')
     }
@@ -154,13 +179,19 @@ export default function WorldStudio() {
           className="aspect-video w-full bg-black"
           autoPlay
           playsInline
-          muted={false}
+          muted
+          onPlaying={() => setPlaying(true)}
         />
-        {status !== 'live' ? (
+        {status === 'idle' || status === 'error' ? (
+          <p className="px-4 py-3 text-sm text-gray-400">
+            The live stream appears here after you start a session.
+          </p>
+        ) : null}
+        {status === 'connecting' || (status === 'live' && !playing) ? (
           <p className="px-4 py-3 text-sm text-gray-400">
             {status === 'connecting'
               ? 'Connecting to the world model…'
-              : 'The live stream appears here after you start a session.'}
+              : 'Waiting for the first frame…'}
           </p>
         ) : null}
       </div>
