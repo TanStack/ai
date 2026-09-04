@@ -33,9 +33,7 @@ async function getDriver(): Promise<IsolateDriver> {
   return cachedDriver
 }
 
-export const Route = createFileRoute(
-  '/_execute-prompt/api/execute-prompt',
-)({
+export const Route = createFileRoute('/_execute-prompt/api/execute-prompt')({
   server: {
     handlers: {
       POST: async ({ request }) => {
