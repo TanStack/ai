@@ -39,24 +39,35 @@ A full working app is in [`examples/ts-react-world`](https://github.com/TanStack
 
 ## API key
 
-Create a key in the [Reactor dashboard](https://www.reactor.inc/dashboard). Keys start with `rk_`. Set `REACTOR_API_KEY` on the server, or pass `apiKey` to the adapter.
+Create a key in the [Reactor dashboard](https://www.reactor.inc/dashboard). Keys start with `rk_`.
+
+The example app uses [Bring Your Own Key](../advanced/byok). The browser pastes the key. The relay reads `x-byok-reactor`, then `REACTOR_API_KEY`.
 
 ```ts
 import { generateWorld } from '@tanstack/ai'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import { reactorWorld } from '@tanstack/ai-reactor'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
 
-const apiKey = process.env.REACTOR_API_KEY
-if (!apiKey) {
-  throw new Error('REACTOR_API_KEY is not set')
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, reactorByok)
+  if (!apiKey) return byokMissing(reactorByok)
+
+  const world = await generateWorld({
+    adapter: reactorWorld('visko-orbis-stable', { apiKey }),
+    prompt: 'A neon cyberpunk city at night, slow aerial drift',
+  })
+
+  return Response.json({
+    token: world.token,
+    model: world.model,
+    prompt: world.prompt,
+    expiresAt: world.expiresAt,
+  })
 }
-
-const world = await generateWorld({
-  adapter: reactorWorld('visko-orbis-stable', { apiKey }),
-  prompt: 'A neon cyberpunk city at night, slow aerial drift',
-})
 ```
 
-The adapter mints a **session-scoped** token for that model only. Hand `world.token`, `world.model`, and `world.prompt` to the browser. Do not send the API key.
+The adapter mints a **session-scoped** token for that model only. Hand `world.token`, `world.model`, and `world.prompt` to the browser. Do not put the API key in the JSON body.
 
 ## Models
 

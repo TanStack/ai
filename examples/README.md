@@ -131,20 +131,21 @@ pnpm dev
 
 ### World generation (ts-react-world)
 
-A single-page app that opens a live Reactor world from a text prompt. The
-server calls `generateWorld()`. The browser connects and can steer the scene
-mid-run.
+A single-page app that opens a live Reactor world from a text prompt. Paste
+a Reactor key in the browser (BYOK). The relay calls `generateWorld()`. The
+page connects and can steer the scene mid-run.
 
 **Tech Stack:**
 
 - TanStack Start (full-stack React framework)
 - `@tanstack/ai` (the `generateWorld()` activity)
 - `@tanstack/ai-reactor` (Reactor world and video adapter)
+- `@tanstack/ai-client` / `@tanstack/ai-react` (BYOK)
 - `@reactor-team/js-sdk` (browser connect and video)
 
 **Features:**
 
-- ✅ Server-side token mint (API key never reaches the browser)
+- ✅ BYOK (`x-byok-reactor` header, env fallback)
 - ✅ Live video stream from Orbis, Helios, and other Reactor world models
 - ✅ Mid-run prompt steering
 - ✅ Resolution picker for Orbis delivery tiers
@@ -154,10 +155,11 @@ mid-run.
 ```bash
 cd examples/ts-react-world
 pnpm install
-cp .env.example .env
-# Add REACTOR_API_KEY from https://www.reactor.inc/dashboard
 pnpm dev
 ```
+
+Paste a Reactor key in the UI, or copy `.env.example` to `.env` and set
+`REACTOR_API_KEY`.
 
 📖 [Full Documentation](ts-react-world/README.md)
 

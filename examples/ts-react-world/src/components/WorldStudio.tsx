@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
+import { isByokMissingBody } from '@tanstack/ai/byok'
 import {
   EXAMPLE_PROMPTS,
   RESOLUTIONS,
@@ -7,7 +8,8 @@ import {
   WORLD_MODELS,
   isReactorWorldModel,
 } from '@/lib/models'
-import { createWorldFn } from '@/lib/server-functions'
+import { byok, reactorByok } from '@/lib/byok'
+import ReactorKey from '@/components/ReactorKey'
 import type { Reactor } from '@reactor-team/js-sdk'
 import type { ReactorWorldModel, WorldResolution } from '@/lib/models'
 
@@ -19,6 +21,68 @@ function isWorldResolution(value: string): value is WorldResolution {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function readWorldPayload(value: unknown): {
+  token: string
+  model: string
+  prompt: string
+  resolution: string
+} {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('World payload is incomplete')
+  }
+  const token =
+    'token' in value && typeof value.token === 'string' ? value.token : ''
+  const model =
+    'model' in value && typeof value.model === 'string' ? value.model : ''
+  const prompt =
+    'prompt' in value && typeof value.prompt === 'string' ? value.prompt : ''
+  const resolution =
+    'resolution' in value && typeof value.resolution === 'string'
+      ? value.resolution
+      : ''
+  if (
+    token.length === 0 ||
+    model.length === 0 ||
+    prompt.length === 0 ||
+    resolution.length === 0
+  ) {
+    throw new Error('World payload is incomplete')
+  }
+  return { token, model, prompt, resolution }
+}
+
+async function mintWorld(input: {
+  prompt: string
+  model: string
+  resolution: string
+}) {
+  const response = await fetch('/api/world', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...byok.headers(reactorByok.id),
+    },
+    body: JSON.stringify(input),
+  })
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok) {
+    if (isByokMissingBody(body)) {
+      throw new Error(
+        'Missing Reactor API key. Paste a key, or set REACTOR_API_KEY on the server.',
+      )
+    }
+    const message =
+      typeof body === 'object' &&
+      body !== null &&
+      'error' in body &&
+      typeof body.error === 'string'
+        ? body.error
+        : `World session failed (${response.status})`
+    throw new Error(message)
+  }
+  return readWorldPayload(body)
 }
 
 export default function WorldStudio() {
@@ -52,9 +116,7 @@ export default function WorldStudio() {
     setError(null)
     setStatus('connecting')
     try {
-      const world = await createWorldFn({
-        data: { prompt, model, resolution },
-      })
+      const world = await mintWorld({ prompt, model, resolution })
 
       const { Reactor: ReactorClient } = await import('@reactor-team/js-sdk')
       const reactor = new ReactorClient({
@@ -72,7 +134,7 @@ export default function WorldStudio() {
 
       await reactor.connect(world.token)
       await reactor.sendCommand('set_resolution', {
-        resolution: world.resolution,
+        resolution,
       })
       await reactor.sendCommand('set_prompt', { prompt: world.prompt })
       await reactor.sendCommand('start', {})
@@ -122,6 +184,8 @@ export default function WorldStudio() {
       </div>
 
       <div className="space-y-4 rounded-xl border border-gray-700 bg-gray-800/50 p-6">
+        <ReactorKey />
+
         <div className="flex flex-wrap gap-2">
           {EXAMPLE_PROMPTS.map((example) => (
             <button

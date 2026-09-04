@@ -1281,13 +1281,19 @@ importers:
     dependencies:
       '@reactor-team/js-sdk':
         specifier: ^3.0.1
-        version: 3.0.1(react@19.2.3)
+        version: 3.0.1(react@19.2.3)(supports-color@7.2.0)
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../packages/ai-client
+      '@tanstack/ai-react':
+        specifier: workspace:*
+        version: link:../../packages/ai-react
       '@tanstack/ai-reactor':
         specifier: workspace:*
         version: link:../../packages/ai-reactor
@@ -23966,9 +23972,9 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.7
 
-  '@reactor-team/js-sdk@3.0.1(react@19.2.3)':
+  '@reactor-team/js-sdk@3.0.1(react@19.2.3)(supports-color@7.2.0)':
     dependencies:
-      awaitqueue: 3.3.1
+      awaitqueue: 3.3.1(supports-color@7.2.0)
       hls.js: 1.7.2
       mp4box: 2.4.1
       react: 19.2.3
@@ -27468,7 +27474,7 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  awaitqueue@3.3.1:
+  awaitqueue@3.3.1(supports-color@7.2.0):
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:

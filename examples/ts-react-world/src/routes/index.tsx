@@ -10,10 +10,10 @@ function WorldPage() {
             Live world generation
           </h1>
           <p className="max-w-2xl text-gray-400">
-            The server calls{' '}
-            <code className="font-mono text-gray-300">generateWorld()</code> and
-            mints a Reactor token. The browser connects, starts the stream, and
-            can steer the scene with a new prompt.
+            Paste a Reactor key in the browser. The relay calls{' '}
+            <code className="font-mono text-gray-300">generateWorld()</code>{' '}
+            with that key, then the page connects and can steer the scene with a
+            new prompt.
           </p>
         </header>
 

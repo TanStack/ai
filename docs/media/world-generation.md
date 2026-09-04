@@ -24,13 +24,18 @@ Call `generateWorld()` on the server. It returns a short-lived token, a model sl
 
 ## 1. Mint a session on the server
 
-Keep the API key on the server. Never send it to the browser.
+The browser can paste a Reactor key. The relay reads `x-byok-reactor`, then `REACTOR_API_KEY`. Do not put the key in the JSON body.
 
 ```ts
 import { generateWorld } from '@tanstack/ai'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import { reactorWorld } from '@tanstack/ai-reactor'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
 
 export async function POST(request: Request) {
+  const apiKey = getByokKey(request, reactorByok)
+  if (!apiKey) return byokMissing(reactorByok)
+
   const body = await request.json()
   const prompt = typeof body.prompt === 'string' ? body.prompt : ''
   if (prompt.length === 0) {
@@ -38,7 +43,7 @@ export async function POST(request: Request) {
   }
 
   const world = await generateWorld({
-    adapter: reactorWorld('visko-orbis-stable'),
+    adapter: reactorWorld('visko-orbis-stable', { apiKey }),
     prompt,
   })
 
@@ -51,7 +56,7 @@ export async function POST(request: Request) {
 }
 ```
 
-`REACTOR_API_KEY` must be set, or pass `apiKey` in the adapter config.
+See [Bring Your Own Key](../advanced/byok) for the client store.
 
 ## 2. Connect in the browser
 
@@ -59,6 +64,14 @@ Install `@reactor-team/js-sdk`. Connect with the token. Then set the prompt and 
 
 ```ts
 import { Reactor } from '@reactor-team/js-sdk'
+import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
+
+const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [reactorByok],
+})
+byok.setServerCoverage(true)
 
 const video = document.querySelector('video')
 if (!video) {
@@ -67,7 +80,10 @@ if (!video) {
 
 const world = await fetch('/api/world', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    ...byok.headers(reactorByok.id),
+  },
   body: JSON.stringify({
     prompt:
       'A dramatic coastline of black volcanic cliffs at golden hour, a single unbroken take.',
