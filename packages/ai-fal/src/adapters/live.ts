@@ -24,6 +24,37 @@ export function isFalLiveModel(model: string): model is FalLiveModel {
   return (FAL_LIVE_MODELS as ReadonlyArray<string>).includes(model)
 }
 
+const WMA_PROXY_PATHS = new Set(['/ice', '/session', '/session/heartbeat'])
+
+/**
+ * URLs a Director live proxy may forward. WMA talks to `wma.fal.run`
+ * (`/ice`, `/session`, `/session/heartbeat`). ICE can fall back to
+ * `fal.run/<app>/ice`. Anything else, including `queue.fal.run`, is
+ * rejected so the proxy cannot run arbitrary fal apps.
+ */
+export function allowedFalLiveProxyTarget(raw: string): URL | null {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:') return null
+  if (url.username || url.password || url.port || url.search || url.hash) {
+    return null
+  }
+  const path = url.pathname.replace(/\/$/, '') || '/'
+  if (url.hostname === 'wma.fal.run') {
+    return WMA_PROXY_PATHS.has(path) ? url : null
+  }
+  if (url.hostname === 'fal.run') {
+    for (const app of Object.values(FAL_LIVE_APP)) {
+      if (path === `/${app}/ice`) return url
+    }
+  }
+  return null
+}
+
 /**
  * Provider options for fal live sessions. The browser applies resolution and
  * aspect ratio on the WMA `configure` message. `tokenDuration` is the only
@@ -52,8 +83,10 @@ function readFalToken(body: unknown): string {
 }
 
 /**
- * fal live-video adapter. Mints a scoped JWT so a browser can open
- * H3 Max Director with `fal.realtime.open(wma(FAL_LIVE_APP[model]))`.
+ * fal live-video adapter. Mints a scoped JWT and returns the WMA app id on
+ * `result.model`. Open with `fal.realtime.open(wma(live.model))` through a
+ * server proxy that attaches `FAL_KEY`. WMA rejects the JWT as Key
+ * credentials.
  *
  * @example
  * ```ts
@@ -64,6 +97,7 @@ function readFalToken(body: unknown): string {
  *   adapter: falLive('minimax/h3-max/director'),
  *   prompt: 'A chef tosses noodles in a steel wok, flames leaping',
  * })
+ * // live.model is 'fal-ai/minimax-h3-max-director'
  * ```
  */
 export class FalLiveAdapter<
@@ -124,7 +158,7 @@ export class FalLiveAdapter<
       const token = readFalToken(await response.json())
       const result: LiveGenerationResult = {
         id: generateId('live'),
-        model: this.model,
+        model: FAL_LIVE_APP[this.model],
         token,
         expiresAt: Date.now() + tokenDuration * 1000,
         prompt,

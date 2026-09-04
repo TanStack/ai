@@ -929,6 +929,8 @@ await generateVideo({
 #### VideoJobResult (from create)
 
 ```typescript
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
+
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation

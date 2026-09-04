@@ -62,7 +62,7 @@ See [Bring Your Own Key](../advanced/byok) for the client store.
 
 Install `@reactor-team/js-sdk`. Connect with the token. Then set the prompt and start.
 
-```ts
+```ts group=world-browser
 import { Reactor } from '@reactor-team/js-sdk'
 import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
 import { reactorByok } from '@tanstack/ai-reactor/byok'
@@ -130,7 +130,15 @@ The video element now plays a live world. A new `set_prompt` during the run morp
 
 LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
 
-```ts
+```ts group=world-browser
+const picker = document.querySelector('input[type="file"]')
+if (!(picker instanceof HTMLInputElement)) {
+  throw new Error('Pick a seed image')
+}
+const file = picker.files?.[0]
+if (file === undefined) {
+  throw new Error('Pick a seed image')
+}
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_image', { image })
 await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })

@@ -2316,17 +2316,23 @@ export interface LiveGenerationOptions<
 
 /**
  * Result of live generation. JSON-serializable so a server route can return
- * it to a browser. The browser uses `token` + `model` to open the live
- * session (set the prompt, start streaming, steer mid-run).
+ * it to a browser.
+ *
+ * Reactor: connect with `token` and `model` (the connect slug).
+ * fal: `model` is the WMA app id. Open `wma(model)` through a server proxy
+ * that attaches `FAL_KEY`. Do not send `token` as Key credentials.
  *
  * @experimental Live generation is an experimental feature and may change.
  */
 export interface LiveGenerationResult {
   /** Unique identifier for this generation */
   id: string
-  /** Model used for generation (provider connect slug or app id) */
+  /**
+   * Connect id for the browser client. Reactor: `reactor/helios`.
+   * fal: WMA app id `fal-ai/minimax-h3-max-director`.
+   */
   model: string
-  /** Short-lived session token for the client connection */
+  /** Short-lived session token. Reactor uses this to connect. fal does not. */
   token: string
   /** Token expiry as milliseconds since epoch */
   expiresAt: number

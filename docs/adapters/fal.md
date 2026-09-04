@@ -481,7 +481,7 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 
 ### `falLive(model, config?)`
 
-Creates a fal.ai live-video adapter for H3 Max Director. The browser opens WMA through a server proxy that attaches `FAL_KEY`. Use app id `fal-ai/minimax-h3-max-director`.
+Creates a fal.ai live-video adapter for H3 Max Director. `generateLive()` returns the WMA app id on `result.model` (`fal-ai/minimax-h3-max-director`). Open that id with `wma(live.model)` through a server proxy that attaches `FAL_KEY`. Do not send `live.token` as `Key` credentials. Call `allowedFalLiveProxyTarget()` in the proxy so it forwards only WMA `/ice`, `/session`, `/session/heartbeat`, and Director `/ice`.
 
 **Parameters:**
 

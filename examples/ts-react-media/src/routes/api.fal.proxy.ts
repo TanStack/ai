@@ -1,20 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { allowedFalLiveProxyTarget } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 
-const ALLOWED_HOSTS = new Set(['wma.fal.run', 'fal.run', 'queue.fal.run'])
-
-function allowedTarget(raw: string): URL | null {
-  let url: URL
-  try {
-    url = new URL(raw)
-  } catch {
-    return null
-  }
-  if (url.protocol !== 'https:') return null
-  if (!ALLOWED_HOSTS.has(url.hostname)) return null
-  return url
-}
+// Director WMA auth stays on the server (`Key ${apiKey}`). The allowlist
+// is an SSRF gate: the browser must not send a JWT as Key credentials,
+// and this route must not run arbitrary fal apps.
 
 async function proxyFal(request: Request): Promise<Response> {
   const apiKey = getByokKey(request, falByok)
@@ -24,7 +15,7 @@ async function proxyFal(request: Request): Promise<Response> {
   if (!target) {
     return Response.json({ error: 'Missing x-fal-target-url' }, { status: 400 })
   }
-  const url = allowedTarget(target)
+  const url = allowedFalLiveProxyTarget(target)
   if (!url) {
     return Response.json({ error: 'Invalid fal target' }, { status: 400 })
   }

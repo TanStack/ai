@@ -21,6 +21,7 @@ export {
   FAL_LIVE_APP,
   FAL_LIVE_MODELS,
   isFalLiveModel,
+  allowedFalLiveProxyTarget,
 } from './adapters/live'
 export type {
   FalLiveModel,

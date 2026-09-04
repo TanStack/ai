@@ -122,6 +122,17 @@ Pass a text prompt to `generateWorld()` / `generateLive()`. Those calls mint a t
 After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
 
 ```ts
+import { Reactor } from '@reactor-team/js-sdk'
+
+const reactor = new Reactor({ modelName: 'reactor/lingbot' })
+const picker = document.querySelector('input[type="file"]')
+if (!(picker instanceof HTMLInputElement)) {
+  throw new Error('Pick a seed image')
+}
+const file = picker.files?.[0]
+if (file === undefined) {
+  throw new Error('Pick a seed image')
+}
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_image', { image })
 await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
@@ -135,6 +146,9 @@ Helios can take the same `File` with `set_conditioning` so prompt and image land
 Orbis reads these on the next `start`. Keep them in client state. Send them with `sendCommand` after `connect`. They are not token-mint fields.
 
 ```ts
+import { Reactor } from '@reactor-team/js-sdk'
+
+const reactor = new Reactor({ modelName: 'reactor/visko-orbis-stable' })
 await reactor.sendCommand('set_resolution', { resolution: '2k' })
 await reactor.sendCommand('set_seed', { seed: 42 })
 await reactor.sendCommand('set_audio_enabled', { enabled: true })

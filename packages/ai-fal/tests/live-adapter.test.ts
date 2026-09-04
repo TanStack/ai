@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateLive } from '@tanstack/ai'
-import { createFalLive, FAL_LIVE_APP, falLive, isFalLiveModel } from '../src'
+import {
+  allowedFalLiveProxyTarget,
+  createFalLive,
+  FAL_LIVE_APP,
+  falLive,
+  isFalLiveModel,
+} from '../src'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -20,7 +26,35 @@ describe('fal live adapter', () => {
     )
   })
 
-  it('mints a scoped realtime token and returns it from generateLive', async () => {
+  it('allows only Director WMA and ICE fallback URLs through the live proxy', () => {
+    const allowed = [
+      'https://wma.fal.run/ice',
+      'https://wma.fal.run/session',
+      'https://wma.fal.run/session/heartbeat',
+      'https://wma.fal.run/session/',
+      'https://fal.run/fal-ai/minimax-h3-max-director/ice',
+    ]
+    for (const raw of allowed) {
+      expect(allowedFalLiveProxyTarget(raw)?.href).toBe(new URL(raw).href)
+    }
+
+    const rejected = [
+      'https://queue.fal.run/fal-ai/flux/dev',
+      'https://fal.run/fal-ai/flux/dev',
+      'https://fal.run/fal-ai/minimax-h3-max-director',
+      'https://wma.fal.run/tokens',
+      'https://wma.fal.run/session?next=/ice',
+      'http://wma.fal.run/session',
+      'https://evil.example/steal',
+      'https://user:pass@wma.fal.run/session',
+      'not-a-url',
+    ]
+    for (const raw of rejected) {
+      expect(allowedFalLiveProxyTarget(raw)).toBeNull()
+    }
+  })
+
+  it('mints a scoped token and returns the WMA app id as model', async () => {
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe('https://rest.fal.ai/tokens/')
@@ -50,7 +84,7 @@ describe('fal live adapter', () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(result.token).toBe('jwt-fal')
-    expect(result.model).toBe('minimax/h3-max/director')
+    expect(result.model).toBe('fal-ai/minimax-h3-max-director')
     expect(result.prompt).toBe(
       'Live shopping stream: a host holds up a gold watch',
     )

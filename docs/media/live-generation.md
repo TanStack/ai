@@ -2,7 +2,7 @@
 title: Live Generation
 id: live-generation
 order: 6.5
-description: "Open a live, prompt-steerable video session with generateLive(). Mint a token on the server, connect in the browser, and steer the stream with new prompts."
+description: "Open a live, prompt-steerable video session with generateLive(). Mint a connect payload on the server, connect in the browser, and steer the stream with new prompts."
 keywords:
   - tanstack ai
   - live generation
@@ -19,13 +19,13 @@ keywords:
 
 You want a video that plays while it generates. You also want to change the prompt mid-run. A finite video job stops with a file. `generateLive()` opens a session instead.
 
-Call `generateLive()` on the server. It returns a short-lived token, a model slug, and the prompt. The browser connects, sets the prompt, and starts the stream.
+Call `generateLive()` on the server. It returns a connect payload: a model id, a prompt, and a token. The browser uses that payload to open the stream.
 
 > **Experimental.** The API can change. Live models bill per session-second while a GPU is held.
 
 ## 1. Mint a session on the server
 
-Pick one adapter. Reactor and fal both mint a token. They do not return a download URL.
+Pick one adapter. They do not return a download URL.
 
 ```ts group=live-reactor
 import { generateLive } from '@tanstack/ai'
@@ -39,7 +39,7 @@ const live = await generateLive({
 // Hand live.token, live.model, and live.prompt to the browser.
 ```
 
-```ts
+```ts group=live-fal
 import { generateLive } from '@tanstack/ai'
 import { falLive } from '@tanstack/ai-fal'
 
@@ -47,6 +47,8 @@ const live = await generateLive({
   adapter: falLive('minimax/h3-max/director'),
   prompt: 'Live shopping stream: a host holds up a gold watch to camera',
 })
+
+// live.model is 'fal-ai/minimax-h3-max-director'. Hand it to the browser.
 ```
 
 Set `REACTOR_API_KEY` or `FAL_KEY`, or pass `apiKey` in the adapter config. Do not put the key in the JSON body.
@@ -94,7 +96,15 @@ FastH3 uses `enqueue` only. LongLive uses `set_shot` then `start`.
 
 Helios can also take a seed image. Pass a `File` from `<input type="file">`. Do not send base64.
 
-```ts
+```ts group=live-reactor
+const picker = document.querySelector('input[type="file"]')
+if (!(picker instanceof HTMLInputElement)) {
+  throw new Error('Pick a seed image')
+}
+const file = picker.files?.[0]
+if (file === undefined) {
+  throw new Error('Pick a seed image')
+}
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_conditioning', { prompt: live.prompt, image })
 await reactor.sendCommand('start', {})
@@ -106,18 +116,18 @@ See the [Reactor adapter](../adapters/reactor) for model ids.
 
 ### fal H3 Max Director
 
-Install `@fal-ai/client@alpha`. Keep `FAL_KEY` on the server. Open WMA through a proxy with app id `fal-ai/minimax-h3-max-director`. Then send `configure`.
+Install `@fal-ai/client@alpha`. Keep `FAL_KEY` on the server. `live.model` is the WMA app id. Open WMA through a proxy that attaches the key. Do not send `live.token` as `Key` credentials.
 
-The example proxy is `src/routes/api.fal.proxy.ts` in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). It attaches the key and forwards to `wma.fal.run`.
+The example proxy is `src/routes/api.fal.proxy.ts` in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). It attaches the key and forwards only to `wma.fal.run` (`/ice`, `/session`, `/session/heartbeat`) and Director `/ice`.
 
-```ts ignore
+```ts group=live-fal
 import { createFalClient } from '@fal-ai/client'
 import { wma } from '@fal-ai/client/realtime'
 
 const fal = createFalClient({ proxyUrl: '/api/fal/proxy' })
 const video = document.querySelector('video')
 
-const session = fal.realtime.open(wma('fal-ai/minimax-h3-max-director'), {
+const session = fal.realtime.open(wma(live.model), {
   receive: ['video', 'audio'],
   onError: (error) => {
     console.error(error)
@@ -159,4 +169,4 @@ For Orbis and LingBot, use [World Generation](./world-generation). For a file th
 
 ## What you have now
 
-A server call that mints a live session token. The browser connects and steers the stream until you stop.
+A server call that returns a connect payload. The browser opens the stream and steers it until you stop.

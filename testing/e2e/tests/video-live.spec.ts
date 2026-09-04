@@ -51,7 +51,7 @@ test.describe('generateLive activity', () => {
     expect(body.error ?? null).toBeNull()
     expect(body.ok).toBe(true)
     expect(body.token).toBe('jwt-fal-e2e')
-    expect(body.model).toBe('minimax/h3-max/director')
+    expect(body.model).toBe('fal-ai/minimax-h3-max-director')
     expect(body.status).toBe('ready')
     expect(body.expiresAt).toBeGreaterThan(before + 290_000)
     expect(body.expiresAt).toBeLessThan(before + 310_000)
