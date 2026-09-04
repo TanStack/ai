@@ -2219,6 +2219,64 @@ export interface VideoUrlResult {
 }
 
 // ============================================================================
+// World Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for world generation (live, prompt-steerable sessions).
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for world generation */
+  model: string
+  /** Natural-language description of the world or scene */
+  prompt: string
+  /** Model-specific options (resolution, seed, audio, …) */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateWorld() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of world generation. JSON-serializable so a server route can return
+ * it to a browser. The browser uses `token` + `model` to open the live
+ * session (set the prompt, start streaming, steer mid-run).
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /** Model used for generation (provider connect slug) */
+  model: string
+  /** Short-lived session token for the client connection */
+  token: string
+  /** Token expiry as milliseconds since epoch */
+  expiresAt: number
+  /** Prompt the client should send when it starts the session */
+  prompt: string
+  /** Session status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
 // Text-to-Speech (TTS) Types
 // ============================================================================
 

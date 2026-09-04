@@ -190,7 +190,7 @@ Learn more in the
 
 - [Generations](https://tanstack.com/ai/latest/docs/media/generations) - one
   pattern for image generation, text-to-speech, transcription, summarization,
-  audio generation, and video generation.
+  audio generation, video generation, and world generation.
 - [Realtime Voice Chat](https://tanstack.com/ai/latest/docs/media/realtime-chat) -
   build low-latency realtime voice experiences.
 - [Code Mode](https://tanstack.com/ai/latest/docs/code-mode/code-mode) - let
@@ -215,6 +215,7 @@ Official adapters include:
 | [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects           |
 | [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR          |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                         |
+| [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world generation (Orbis, Happy Oyster, LingBot, Helios)                 |
 | [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,

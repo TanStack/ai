@@ -7,6 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
+- **Need a live world stream?** → [World generation (ts-react-world)](#world-generation-ts-react-world)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
@@ -125,6 +126,40 @@ pnpm dev
 ```
 
 📖 [Full Documentation](ts-react-rerank/README.md)
+
+---
+
+### World generation (ts-react-world)
+
+A single-page app that opens a live Reactor world from a text prompt. The
+server calls `generateWorld()`. The browser connects and can steer the scene
+mid-run.
+
+**Tech Stack:**
+
+- TanStack Start (full-stack React framework)
+- `@tanstack/ai` (the `generateWorld()` activity)
+- `@tanstack/ai-reactor` (Reactor world adapter)
+- `@reactor-team/js-sdk` (browser connect and video)
+
+**Features:**
+
+- ✅ Server-side token mint (API key never reaches the browser)
+- ✅ Live video stream from Orbis, Helios, and other Reactor world models
+- ✅ Mid-run prompt steering
+- ✅ Resolution picker for Orbis delivery tiers
+
+**Getting Started:**
+
+```bash
+cd examples/ts-react-world
+pnpm install
+cp .env.example .env
+# Add REACTOR_API_KEY from https://www.reactor.inc/dashboard
+pnpm dev
+```
+
+📖 [Full Documentation](ts-react-world/README.md)
 
 ---
 

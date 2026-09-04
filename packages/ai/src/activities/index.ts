@@ -23,6 +23,7 @@ import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
+import type { AnyWorldAdapter } from './generateWorld/adapter'
 
 // ===========================
 // Chat Activity
@@ -211,6 +212,25 @@ export {
 } from './embed/adapter'
 
 // ===========================
+// World Activity (Experimental)
+// ===========================
+
+export {
+  kind as worldKind,
+  generateWorld,
+  type WorldActivityOptions,
+  type WorldActivityResult,
+  type WorldProviderOptions,
+} from './generateWorld/index'
+
+export {
+  BaseWorldAdapter,
+  type WorldAdapter,
+  type WorldAdapterConfig,
+  type AnyWorldAdapter,
+} from './generateWorld/adapter'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 
@@ -225,6 +245,7 @@ export type AIAdapter =
   | AnyTranscriptionAdapter
   | AnyEmbeddingAdapter
   | AnyRerankAdapter
+  | AnyWorldAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -237,3 +258,4 @@ export type AdapterKind =
   | 'transcription'
   | 'embedding'
   | 'rerank'
+  | 'world'

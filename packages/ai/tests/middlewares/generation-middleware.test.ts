@@ -5,6 +5,7 @@ import {
   generateSpeech,
   generateTranscription,
   generateVideo,
+  generateWorld,
   getVideoJobStatus,
   summarize,
 } from '../../src/index'
@@ -98,6 +99,38 @@ describe('generation middleware — wiring', () => {
     expect(events.finish[0]!.info.usage?.cost).toBe(0.04)
     expect(events.error).toHaveLength(0)
     // start/finish share the correlation id (same context object).
+    expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
+  })
+
+  it('generateWorld fires start then finish', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'world' as const,
+      name: 'reactor',
+      model: 'visko-orbis-stable',
+      createWorld: vi.fn(async () => ({
+        id: 'world-1',
+        model: 'reactor/visko-orbis-stable',
+        token: 'jwt',
+        expiresAt: Date.now() + 60_000,
+        prompt: 'a world',
+        status: 'ready' as const,
+      })),
+    }
+
+    const result = await generateWorld({
+      adapter: adapter as any,
+      prompt: 'a world',
+      middleware: [middleware],
+      debug: false,
+    })
+
+    expect(result.token).toBe('jwt')
+    expect(events.start).toHaveLength(1)
+    expect(events.start[0]!.activity).toBe('world')
+    expect(events.start[0]!.provider).toBe('reactor')
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
     expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
   })
 

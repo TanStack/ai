@@ -15,9 +15,11 @@ keywords:
 
 # Generations
 
-You want an image, some speech, a transcript or a video, not a conversation. Every one
+You want an image, some speech, a transcript, a video, or a live world, not a conversation. Every one
 of those is a **generation**: one request, one result. They all share the same shape, so
 learning one teaches you the rest.
+
+For a live, prompt-steerable stream that does not end as a file, see [World Generation](./world-generation).
 
 ## The fastest path
 

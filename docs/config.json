@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Quick Start",
@@ -223,7 +223,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-08"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Compaction",
@@ -567,7 +567,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Realtime Voice Chat",
@@ -610,6 +610,11 @@
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-31"
+        },
+        {
+          "label": "World Generation",
+          "to": "media/world-generation",
+          "addedAt": "2026-09-04"
         },
         {
           "label": "Generation Hooks",
@@ -1001,6 +1006,11 @@
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "Reactor",
+          "to": "adapters/reactor",
+          "addedAt": "2026-09-04"
         },
         {
           "label": "OpenRouter Adapter",

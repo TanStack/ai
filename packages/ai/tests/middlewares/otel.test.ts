@@ -1439,6 +1439,7 @@ describe('otelMiddleware — media activities', () => {
       ['audio', 'audio_generation'],
       ['tts', 'text_to_speech'],
       ['transcription', 'transcription'],
+      ['world', 'world_generation'],
     ]
     for (const [activity, operation] of cases) {
       const { tracer, spans } = createFakeTracer()

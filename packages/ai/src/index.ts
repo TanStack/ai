@@ -10,6 +10,7 @@ export {
   generateSpeech,
   generateTranscription,
   embed,
+  generateWorld,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -22,6 +23,7 @@ export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
+export { createWorldOptions } from './activities/generateWorld/index'
 
 // Re-export types
 export type {
@@ -44,6 +46,8 @@ export type {
   EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
+  AnyWorldAdapter,
+  WorldAdapter,
 } from './activities/index'
 
 // Rerank adapter base + types

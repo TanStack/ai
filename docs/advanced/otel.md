@@ -246,6 +246,7 @@ Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.op
 | `generateAudio` | `audio_generation` |
 | `generateSpeech` | `text_to_speech` |
 | `generateTranscription` | `transcription` |
+| `generateWorld` | `world_generation` |
 | `summarize` | `summarize` |
 
 The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including the `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` pair for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle. Non-streaming video is two calls, so the submit itself emits no span — the run opens once the provider accepts the job, and the `getVideoJobStatus()` poll that observes a terminal state ends it. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
