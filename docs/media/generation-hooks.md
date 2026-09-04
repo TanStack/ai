@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 }
 ```
 
-The same pattern applies to all generation types -- swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, or `generateVideo`. See the individual media guides for server-side details.
+The same pattern applies to all generation types. Swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, `generateVideo`, `generateLive`, or `generateWorld`. See the individual media guides for server-side details.
 
 ## useGenerateImage
 

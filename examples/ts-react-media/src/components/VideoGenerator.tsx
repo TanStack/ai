@@ -8,6 +8,7 @@ import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
 import type { VideoBilling } from '@/lib/billing'
 
 import { generateVideoFn } from '@/lib/server-functions'
+import { byok, toByokProvider } from '@/lib/byok'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
@@ -469,6 +470,8 @@ function VideoModelCard({
       // `options.signal` is the hook's abort signal. Forwarding it matters
       // more here than for images: cancelling the response is what ends the
       // server's polling loop instead of leaving it running to the timeout.
+      byok,
+      byokProvider: () => toByokProvider(model.provider),
       fetcher: (input, options) =>
         generateVideoFn({
           data: {
@@ -479,6 +482,7 @@ function VideoModelCard({
               : {}),
           },
           signal: options?.signal,
+          headers: options?.headers,
         }),
       onChunk: (chunk) => {
         const usage = readVideoBilling(chunk)

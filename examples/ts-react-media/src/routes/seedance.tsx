@@ -14,9 +14,9 @@ function SeedancePage() {
           </h1>
           <p className="text-gray-400">
             BytePlus Seedance video generation, straight from the ModelArk task
-            API — no fal in between. The server holds{' '}
-            <code className="text-gray-300">ARK_API_KEY</code>; the browser only
-            ever sees job ids.
+            API — no fal in between. Paste a BytePlus key in the header dialog,
+            or set <code className="text-gray-300">ARK_API_KEY</code> on the
+            server.
           </p>
         </div>
 

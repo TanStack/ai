@@ -1,5 +1,4 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseLiveAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
 import {
   mintReactorSessionToken,
@@ -7,32 +6,23 @@ import {
   resolveReactorApiUrl,
 } from '../utils/client'
 import { REACTOR_VIDEO_SLUGS } from '../model-meta'
-import type {
-  VideoGenerationOptions,
-  VideoJobResult,
-  VideoStatusResult,
-  VideoUrlResult,
-} from '@tanstack/ai'
 import type { ReactorClientConfig } from '../utils/client'
+import type { LiveGenerationOptions, LiveGenerationResult } from '@tanstack/ai'
 import type {
   ReactorVideoModel,
-  ReactorVideoModelProviderOptionsByName,
   ReactorVideoProviderOptions,
 } from '../model-meta'
 
-const LIVE_SESSION_ERROR =
-  'Reactor video is a live session. generateVideo() returns a token; connect with @reactor-team/js-sdk. There is no job URL to poll.'
-
 /**
- * Reactor video adapter. Mints a session-scoped JWT so a browser can connect
- * with `@reactor-team/js-sdk`, set the prompt, and start the live stream.
+ * Reactor live-video adapter. Mints a session-scoped JWT so a browser can
+ * connect with `@reactor-team/js-sdk`, set the prompt, and start the stream.
  *
  * @example
  * ```ts
- * import { generateVideo } from '@tanstack/ai'
+ * import { generateLive } from '@tanstack/ai'
  * import { reactorVideo } from '@tanstack/ai-reactor'
  *
- * const video = await generateVideo({
+ * const live = await generateLive({
  *   adapter: reactorVideo('helios'),
  *   prompt: 'A neon cyberpunk city at night',
  * })
@@ -40,50 +30,26 @@ const LIVE_SESSION_ERROR =
  */
 export class ReactorVideoAdapter<
   TModel extends ReactorVideoModel,
-> extends BaseVideoAdapter<
-  TModel,
-  ReactorVideoProviderOptions,
-  ReactorVideoModelProviderOptionsByName
-> {
+> extends BaseLiveAdapter<TModel, ReactorVideoProviderOptions> {
   readonly name = 'reactor' as const
   private readonly clientConfig: ReactorClientConfig
   private readonly apiKey: string
 
   constructor(model: TModel, config: ReactorClientConfig = {}) {
-    super({}, model)
+    super(model, {})
     this.apiKey = resolveReactorApiKey(config)
     this.clientConfig = config
   }
 
-  async createVideoJob(
-    options: VideoGenerationOptions<ReactorVideoProviderOptions>,
-  ): Promise<VideoJobResult> {
-    const resolved = resolveMediaPrompt(options.prompt)
-    if (resolved.videos.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not support video prompt parts.`,
-      )
-    }
-    if (resolved.audios.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not support audio prompt parts.`,
-      )
-    }
-    if (resolved.images.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not upload reference images. Pass a text prompt. After connect, call uploadFile and set_image in the browser.`,
-      )
-    }
-    if (resolved.text.length === 0) {
-      throw new Error(`${this.name}.createVideoJob requires a text prompt.`)
-    }
-
-    const { logger, abortSignal } = options
+  async createLive(
+    options: LiveGenerationOptions<ReactorVideoProviderOptions>,
+  ): Promise<LiveGenerationResult> {
+    const { logger, prompt, abortSignal } = options
     const modelSlug = REACTOR_VIDEO_SLUGS[this.model]
     const apiUrl = resolveReactorApiUrl(this.clientConfig)
 
     logger.request(
-      `activity=generateVideo provider=reactor model=${modelSlug}`,
+      `activity=generateLive provider=reactor model=${modelSlug}`,
       { provider: 'reactor', model: modelSlug },
     )
 
@@ -96,40 +62,33 @@ export class ReactorVideoAdapter<
         abortSignal,
       })
 
-      const result: VideoJobResult = {
-        jobId: generateId('video'),
+      const result: LiveGenerationResult = {
+        id: generateId('live'),
         model: modelSlug,
         token: token.jwt,
         expiresAt: token.expires_at * 1000,
-        prompt: resolved.text,
+        prompt,
+        status: 'ready',
       }
 
       logger.output(
-        `activity=generateVideo provider=reactor model=${modelSlug}`,
-        { model: modelSlug, live: true },
+        `activity=generateLive provider=reactor model=${modelSlug}`,
+        { model: modelSlug, status: result.status },
       )
 
       return result
     } catch (error) {
-      logger.errors('reactor.createVideoJob failed', {
+      logger.errors('reactor.createLive failed', {
         error,
-        source: 'reactor.createVideoJob',
+        source: 'reactor.createLive',
       })
       throw error
     }
   }
-
-  async getVideoStatus(_jobId: string): Promise<VideoStatusResult> {
-    throw new Error(LIVE_SESSION_ERROR)
-  }
-
-  async getVideoUrl(_jobId: string): Promise<VideoUrlResult> {
-    throw new Error(LIVE_SESSION_ERROR)
-  }
 }
 
 /**
- * Create a Reactor video adapter. Reads `REACTOR_API_KEY` when `apiKey` is
+ * Create a Reactor live-video adapter. Reads `REACTOR_API_KEY` when `apiKey` is
  * omitted.
  */
 export function reactorVideo<TModel extends ReactorVideoModel>(
@@ -140,7 +99,7 @@ export function reactorVideo<TModel extends ReactorVideoModel>(
 }
 
 /**
- * Create a Reactor video adapter with an explicit API key.
+ * Create a Reactor live-video adapter with an explicit API key.
  */
 export function createReactorVideo<TModel extends ReactorVideoModel>(
   model: TModel,

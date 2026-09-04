@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 
-test.describe('generateVideo live session', () => {
+test.describe('generateLive activity', () => {
   test('returns a session token payload for the client', async ({
     request,
   }) => {
@@ -13,6 +13,7 @@ test.describe('generateVideo live session', () => {
       ok: boolean
       model?: string
       prompt?: string
+      status?: string
       hasToken?: boolean
       error?: string
     }
@@ -21,6 +22,7 @@ test.describe('generateVideo live session', () => {
     expect(body.ok).toBe(true)
     expect(body.model).toBe('reactor/helios')
     expect(body.prompt).toBe('A neon cyberpunk city at night')
+    expect(body.status).toBe('ready')
     expect(body.hasToken).toBe(true)
   })
 })

@@ -1040,6 +1040,56 @@ export interface WorldUsageEvent extends BaseEventContext {
   modelOptions?: Record<string, unknown>
 }
 
+// ===========================
+// Live Events
+// ===========================
+
+/** Emitted when a live generation request starts. */
+export interface LiveRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request completes. */
+export interface LiveRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request fails. */
+export interface LiveRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when live usage metrics are available. */
+export interface LiveUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
 // ---------------------------------------------------------------------------
 // Compaction events
 // ---------------------------------------------------------------------------
@@ -1441,6 +1491,12 @@ export interface AIDevtoolsEventMap {
   'world:request:completed': WorldRequestCompletedEvent
   'world:request:error': WorldRequestErrorEvent
   'world:usage': WorldUsageEvent
+
+  // Live events
+  'live:request:started': LiveRequestStartedEvent
+  'live:request:completed': LiveRequestCompletedEvent
+  'live:request:error': LiveRequestErrorEvent
+  'live:usage': LiveUsageEvent
 
   // Client events
   'client:created': ClientCreatedEvent

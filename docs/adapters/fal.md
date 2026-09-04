@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()`, `generateVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()` but does not support `chat()` or tools.
+The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, live, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused**. It supports `generateImage()`, `generateVideo()`, `generateLive()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()`. It does not support `chat()` or tools.
 
 For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
@@ -472,6 +472,19 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 - `config.proxyUrl?` - Proxy URL for client-side usage
 
 **Returns:** A `FalVideoAdapter` instance for use with `generateVideo()` and `getVideoJobStatus()`.
+
+### `falLive(model, config?)`
+
+Creates a fal.ai live-video adapter. It mints a realtime JWT for H3 Max Director.
+
+**Parameters:**
+
+- `model` - `"minimax/h3-max/director"`
+- `config.apiKey?` - Your fal.ai API key (falls back to `FAL_KEY` env var)
+
+**Returns:** A `FalLiveAdapter` instance for use with `generateLive()`.
+
+See [Live Generation](../media/live-generation) for the browser connect step.
 
 ### `falSpeech(model, config?)`
 

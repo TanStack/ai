@@ -45,6 +45,7 @@ export type GenerationActivity =
   | 'rerank'
   | 'summarize'
   | 'world'
+  | 'live'
 
 /**
  * Stable context passed to every {@link GenerationMiddleware} hook. Created

@@ -612,6 +612,11 @@
           "updatedAt": "2026-09-04"
         },
         {
+          "label": "Live Generation",
+          "to": "media/live-generation",
+          "addedAt": "2026-09-04"
+        },
+        {
           "label": "World Generation",
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
@@ -621,7 +626,7 @@
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         }
       ],
       "tab": "guides"
@@ -918,7 +923,8 @@
         {
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Extend Adapter",
@@ -928,7 +934,8 @@
         {
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
-          "addedAt": "2026-05-25"
+          "addedAt": "2026-05-25",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Approval Flow Processing",
@@ -1006,7 +1013,7 @@
           "label": "fal.ai",
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Reactor",

@@ -130,7 +130,7 @@ testing/
 
 examples/                # Example applications
 ├── ts-react-chat/       # React chat example
-├── ts-react-world/      # Live world generation (Reactor)
+├── ts-react-media/      # Image, video, live, and world generation
 ├── ts-solid-chat/       # Solid chat example
 ├── ts-vue-chat/         # Vue chat example
 ├── ts-svelte-chat/      # Svelte chat example

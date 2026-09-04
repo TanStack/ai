@@ -1,12 +1,13 @@
 import { createServerFn } from '@tanstack/react-start'
-import { falImage, falVideo } from '@tanstack/ai-fal'
-import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
-import { grokImage, grokVideo } from '@tanstack/ai-grok'
-import { openRouterVideo } from '@tanstack/ai-openrouter'
+import { getRequest } from '@tanstack/react-start/server'
+import { falImage, falLive, falVideo, isFalLiveModel } from '@tanstack/ai-fal'
+import { createGeminiImage, createGeminiVideo } from '@tanstack/ai-gemini'
+import { createGrokImage, createGrokVideo } from '@tanstack/ai-grok'
+import { createOpenRouterVideo } from '@tanstack/ai-openrouter'
 import {
   BYTEPLUS_VIDEO_MODELS,
-  byteplusImage,
-  byteplusVideo,
+  createBytePlusImage,
+  createBytePlusVideo,
   getBytePlusVideoDurationOptions,
   resolveBytePlusVideoResolution,
   supportsLastFrame,
@@ -14,9 +15,37 @@ import {
 } from '@tanstack/ai-byteplus'
 import {
   generateImage,
+  generateLive,
   generateVideo,
+  generateWorld,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import { getByokKey } from '@tanstack/ai/byok/server'
+import {
+  createReactorVideo,
+  createReactorWorld,
+  isReactorWorldModel,
+} from '@tanstack/ai-reactor'
+import {
+  byteplusByok,
+  falByok,
+  geminiByok,
+  grokByok,
+  openrouterByok,
+  reactorByok,
+} from '@/lib/byok'
+import type { ByokProvider } from '@tanstack/ai/byok'
+import type {
+  LiveVideoModelId,
+  LiveVideoResolution,
+  ReactorWorldModel,
+  WorldResolution,
+} from './models'
+import {
+  isLiveVideoModelId,
+  liveVideoProvider,
+  WORLD_RESOLUTIONS,
+} from './models'
 
 import type { StreamChunk } from '@tanstack/ai'
 import type {
@@ -118,6 +147,69 @@ function asImageToVideoPrompt(
  */
 const VIDEO_POLL_INTERVAL_MS = 4000
 
+function requireByok(provider: ByokProvider): string {
+  const apiKey = getByokKey(getRequest(), provider)
+  if (!apiKey) {
+    const envNames = (provider.env ?? []).join(' or ')
+    throw new Error(
+      `Missing ${provider.label} API key. Open the key dialog${envNames ? `, or set ${envNames}` : ''}.`,
+    )
+  }
+  return apiKey
+}
+
+function falI(model: Parameters<typeof falImage>[0]) {
+  return falImage(model, { apiKey: requireByok(falByok) })
+}
+
+function falV(model: Parameters<typeof falVideo>[0]) {
+  return falVideo(model, { apiKey: requireByok(falByok) })
+}
+
+function falL(model: Parameters<typeof falLive>[0]) {
+  return falLive(model, { apiKey: requireByok(falByok) })
+}
+
+function grokI(model: Parameters<typeof createGrokImage>[0]) {
+  return createGrokImage(model, requireByok(grokByok))
+}
+
+function grokV(model: Parameters<typeof createGrokVideo>[0]) {
+  return createGrokVideo(model, requireByok(grokByok))
+}
+
+function geminiI(model: Parameters<typeof createGeminiImage>[0]) {
+  return createGeminiImage(model, requireByok(geminiByok))
+}
+
+function geminiV(model: Parameters<typeof createGeminiVideo>[0]) {
+  return createGeminiVideo(model, requireByok(geminiByok))
+}
+
+function byteplusI(model: Parameters<typeof createBytePlusImage>[0]) {
+  return createBytePlusImage(model, requireByok(byteplusByok))
+}
+
+function byteplusV(model: Parameters<typeof createBytePlusVideo>[0]) {
+  return createBytePlusVideo(model, requireByok(byteplusByok))
+}
+
+function openRouterV(model: Parameters<typeof createOpenRouterVideo>[0]) {
+  return createOpenRouterVideo(model, requireByok(openrouterByok))
+}
+
+function reactorV(model: Parameters<typeof createReactorVideo>[0]) {
+  return createReactorVideo(model, requireByok(reactorByok))
+}
+
+function reactorW(model: Parameters<typeof createReactorWorld>[0]) {
+  return createReactorWorld(model, requireByok(reactorByok))
+}
+
+function isWorldResolution(value: string): value is WorldResolution {
+  return (WORLD_RESOLUTIONS as ReadonlyArray<string>).includes(value)
+}
+
 export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
@@ -132,7 +224,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     switch (data.model) {
       case 'fal-ai/nano-banana-pro': {
         return generateImage({
-          adapter: falImage('fal-ai/nano-banana-pro'),
+          adapter: falI('fal-ai/nano-banana-pro'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
@@ -149,7 +241,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // Pass aspect_ratio via modelOptions and let the endpoint pick its
         // default resolution, which both type-checks and works at runtime.
         return generateImage({
-          adapter: falImage('xai/grok-imagine-image'),
+          adapter: falI('xai/grok-imagine-image'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           modelOptions: { aspect_ratio: '16:9' },
@@ -161,7 +253,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // prompt parts for image-conditioned generation, so we narrow with
         // asImagePrompt. Sizing uses the aspect-ratio template.
         return generateImage({
-          adapter: grokImage('grok-imagine-image'),
+          adapter: grokI('grok-imagine-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9',
@@ -171,7 +263,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // xAI's recommended Imagine model; `quality` is a 2.0-only option
         // ('low' | 'medium', default 'medium').
         return generateImage({
-          adapter: grokImage('grok-imagine-image-2.0'),
+          adapter: grokI('grok-imagine-image-2.0'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9',
@@ -180,7 +272,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'grok-imagine-image-quality': {
         return generateImage({
-          adapter: grokImage('grok-imagine-image-quality'),
+          adapter: grokI('grok-imagine-image-quality'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9',
@@ -189,7 +281,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'fal-ai/flux-2/klein/9b': {
         // NOTE: Newer models are untyped (at the moment)
         return generateImage({
-          adapter: falImage('fal-ai/flux-2/klein/9b'),
+          adapter: falI('fal-ai/flux-2/klein/9b'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: 'landscape_16_9',
@@ -197,7 +289,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'fal-ai/z-image/turbo': {
         return generateImage({
-          adapter: falImage('fal-ai/z-image/turbo'),
+          adapter: falI('fal-ai/z-image/turbo'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: 'landscape_16_9',
@@ -209,7 +301,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'gemini-3.1-flash-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3.1-flash-image'),
+          adapter: geminiI('gemini-3.1-flash-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
@@ -217,7 +309,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'gemini-3-pro-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3-pro-image'),
+          adapter: geminiI('gemini-3-pro-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
@@ -225,7 +317,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'imagen-4.0-ultra-generate-001': {
         return generateImage({
-          adapter: geminiImage('imagen-4.0-ultra-generate-001'),
+          adapter: geminiI('imagen-4.0-ultra-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
@@ -233,7 +325,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'imagen-4.0-generate-001': {
         return generateImage({
-          adapter: geminiImage('imagen-4.0-generate-001'),
+          adapter: geminiI('imagen-4.0-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
@@ -241,7 +333,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       }
       case 'imagen-4.0-fast-generate-001': {
         return generateImage({
-          adapter: geminiImage('imagen-4.0-fast-generate-001'),
+          adapter: geminiI('imagen-4.0-fast-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
           size: '1024x1024',
@@ -253,7 +345,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         // Seedream models accept reference images, so image prompt parts are
         // passed straight through.
         return generateImage({
-          adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
+          adapter: byteplusI('dola-seedream-5-0-pro-260628'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '2K',
@@ -302,7 +394,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
   switch (data.model) {
     // Text-to-video models
     case 'fal-ai/kling-video/v3/pro/text-to-video': {
-      const adapter = falVideo('fal-ai/kling-video/v3/pro/text-to-video')
+      const adapter = falV('fal-ai/kling-video/v3/pro/text-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -313,7 +405,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       })
     }
     case 'fal-ai/veo3.1': {
-      const adapter = falVideo('fal-ai/veo3.1')
+      const adapter = falV('fal-ai/veo3.1')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -327,7 +419,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('xai/grok-imagine-video/text-to-video'),
+        adapter: falV('xai/grok-imagine-video/text-to-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
         duration: 5,
@@ -341,7 +433,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: grokVideo('grok-imagine-video'),
+        adapter: grokV('grok-imagine-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
         duration: 5,
@@ -353,7 +445,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: grokVideo('grok-imagine-video-1.5'),
+        adapter: grokV('grok-imagine-video-1.5'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_1080p',
         duration: 5,
@@ -368,14 +460,14 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: byteplusVideo('dreamina-seedance-2-0-260128'),
+        adapter: byteplusV('dreamina-seedance-2-0-260128'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
         duration: 5,
       })
     }
     case 'fal-ai/ltx-2.3/text-to-video/fast': {
-      const adapter = falVideo('fal-ai/ltx-2.3/text-to-video/fast')
+      const adapter = falV('fal-ai/ltx-2.3/text-to-video/fast')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -387,7 +479,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     }
     // Image-to-video models
     case 'fal-ai/kling-video/v3/pro/image-to-video': {
-      const adapter = falVideo('fal-ai/kling-video/v3/pro/image-to-video')
+      const adapter = falV('fal-ai/kling-video/v3/pro/image-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -400,7 +492,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       })
     }
     case 'fal-ai/veo3.1/image-to-video': {
-      const adapter = falVideo('fal-ai/veo3.1/image-to-video')
+      const adapter = falV('fal-ai/veo3.1/image-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -414,7 +506,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('xai/grok-imagine-video/image-to-video'),
+        adapter: falV('xai/grok-imagine-video/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_720p',
         duration: 5,
@@ -427,14 +519,14 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: grokVideo('grok-imagine-video-1.5'),
+        adapter: grokV('grok-imagine-video-1.5'),
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_720p',
         duration: 5,
       })
     }
     case 'fal-ai/ltx-2.3/image-to-video/fast': {
-      const adapter = falVideo('fal-ai/ltx-2.3/image-to-video/fast')
+      const adapter = falV('fal-ai/ltx-2.3/image-to-video/fast')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -466,7 +558,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: geminiVideo('gemini-omni-1.1-flash'),
+        adapter: geminiV('gemini-omni-1.1-flash'),
         prompt,
         size: aspectRatio ?? '16:9',
         ...(duration !== undefined ? { duration } : {}),
@@ -489,7 +581,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     // `snapDuration()` to coerce a raw UI seconds value to the model's
     // nearest supported duration.
     case 'bytedance/seedance-2.0': {
-      const adapter = openRouterVideo('bytedance/seedance-2.0')
+      const adapter = openRouterV('bytedance/seedance-2.0')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -501,7 +593,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       })
     }
     case 'google/veo-3.1': {
-      const adapter = openRouterVideo('google/veo-3.1')
+      const adapter = openRouterV('google/veo-3.1')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -675,7 +767,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
     // frame/reference exclusivity before anything reaches Ark. For a custom
     // id every one of those guards is off by design: the duration goes
     // through verbatim and Ark is the authority.
-    adapter: byteplusVideo(data.model),
+    adapter: byteplusV(data.model),
     // Passed through un-narrowed, unlike the other generators: Seedance's
     // reference mode takes video and audio parts as well as images (the
     // template presets send both), and which of them a given model allows is
@@ -702,3 +794,90 @@ export const generateSeedanceVideoFn = createServerFn({ method: 'POST' })
     return data
   })
   .handler(({ data }) => toServerSentEventsResponse(seedanceStream(data)))
+
+interface LiveVideoRequest {
+  prompt: string
+  model: LiveVideoModelId
+  resolution: LiveVideoResolution
+}
+
+/**
+ * Mints a live-video session. The browser then connects with the provider
+ * client (`@reactor-team/js-sdk` or `@fal-ai/client`). There is no job URL.
+ */
+export const generateLiveVideoFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: LiveVideoRequest) => {
+    if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
+      throw new Error('Prompt is required')
+    }
+    if (!isLiveVideoModelId(data.model)) {
+      throw new Error(`Unknown live video model: ${data.model}`)
+    }
+    return data
+  })
+  .handler(async ({ data }) => {
+    const prompt = data.prompt.trim()
+    const provider = liveVideoProvider(data.model)
+    const live = isFalLiveModel(data.model)
+      ? await generateLive({
+          adapter: falL(data.model),
+          prompt,
+          debug: false,
+        })
+      : await generateLive({
+          adapter: reactorV(data.model),
+          prompt,
+          ...(data.resolution === '1080p' ||
+          data.resolution === '2k' ||
+          data.resolution === '4k'
+            ? { modelOptions: { resolution: data.resolution } }
+            : {}),
+          debug: false,
+        })
+    return {
+      token: live.token,
+      model: live.model,
+      prompt: live.prompt,
+      expiresAt: live.expiresAt,
+      provider,
+    }
+  })
+
+interface WorldRequest {
+  prompt: string
+  model: ReactorWorldModel
+  resolution: WorldResolution
+}
+
+/**
+ * Mints a Reactor world session. The browser then connects with
+ * `@reactor-team/js-sdk`. There is no job URL to poll.
+ */
+export const generateWorldFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: WorldRequest) => {
+    if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
+      throw new Error('Prompt is required')
+    }
+    if (!isReactorWorldModel(data.model)) {
+      throw new Error(`Unknown world model: ${data.model}`)
+    }
+    if (!isWorldResolution(data.resolution)) {
+      throw new Error(`Unknown resolution: ${data.resolution}`)
+    }
+    return data
+  })
+  .handler(async ({ data }) => {
+    const world = await generateWorld({
+      adapter: reactorW(data.model),
+      prompt: data.prompt.trim(),
+      modelOptions: { resolution: data.resolution },
+      debug: false,
+    })
+    return {
+      token: world.token,
+      model: world.model,
+      prompt: world.prompt,
+      expiresAt: world.expiresAt,
+      resolution: data.resolution,
+    }
+  })

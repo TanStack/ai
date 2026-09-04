@@ -12,6 +12,8 @@ minimumReleaseAgeExclude:
   - '@copilotkit/aimock'
   # Reactor JS SDK; the example app needs the current 3.x client.
   - '@reactor-team/js-sdk'
+  # fal WMA client for H3 Max Director in the media example.
+  - '@fal-ai/client'
   # Build-time devDep; 0.6.0 is the release carrying the dts-5/Vite-8 fix
   # (TanStack/config#403) this toolchain migration depends on.
   - '@tanstack/vite-config@0.6.0'

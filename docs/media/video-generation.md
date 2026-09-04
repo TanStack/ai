@@ -84,29 +84,7 @@ const { jobId, model } = await generateVideo({
 console.log("Job started:", jobId);
 ```
 
-## Live sessions (Reactor)
-
-You want video that plays while it generates. You also want to change the prompt mid-run. A Sora job finishes as a file. Reactor opens a live session instead.
-
-1. Mint a token on the server with `generateVideo()` and `reactorVideo()`.
-2. Send `token`, `model`, and `prompt` to the browser.
-3. Connect with `@reactor-team/js-sdk`, set the prompt, and start.
-
-```ts
-import { generateVideo } from '@tanstack/ai'
-import { reactorVideo } from '@tanstack/ai-reactor'
-
-const video = await generateVideo({
-  adapter: reactorVideo('helios'),
-  prompt: 'A neon cyberpunk city at night, slow aerial drift',
-})
-
-// Hand video.token, video.model, and video.prompt to the browser.
-```
-
-`REACTOR_API_KEY` must be set, or pass `apiKey` in the adapter config. Do not poll `getVideoJobStatus()`. There is no download URL.
-
-Connect in the browser the same way as [World Generation](./world-generation). The [Reactor adapter](../adapters/reactor) lists the video model ids.
+For a stream that plays while it generates, and that you can steer with a new prompt, use [Live Generation](./live-generation). `generateVideo()` is the job path: create, poll, then fetch a file URL.
 
 ### Polling for Status
 

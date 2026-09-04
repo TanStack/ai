@@ -1,32 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateVideo, type VideoAdapter } from '@tanstack/ai'
+import { generateLive, type LiveAdapter } from '@tanstack/ai'
 
 /**
- * Drives `generateVideo()` against an in-process live-session mock so the
- * token result shape is covered without a live Reactor connection.
+ * Drives `generateLive()` against an in-process mock so the token result
+ * shape is covered without a live provider connection.
  */
-function mockLiveVideoAdapter(): VideoAdapter {
+function mockLiveAdapter(): LiveAdapter {
   return {
-    kind: 'video',
-    name: 'mock-video',
+    kind: 'live',
+    name: 'mock-live',
     model: 'helios',
-    '~types': {} as VideoAdapter['~types'],
-    availableDurations: () => ({ kind: 'none' }),
-    snapDuration: () => undefined,
-    createVideoJob: async (options) => ({
-      jobId: 'video-e2e',
+    '~types': { providerOptions: {} },
+    createLive: async (options) => ({
+      id: 'live-e2e',
       model: 'reactor/helios',
       token: 'jwt-e2e',
       expiresAt: Date.now() + 60_000,
-      prompt:
-        typeof options.prompt === 'string' ? options.prompt : 'a default scene',
+      prompt: options.prompt,
+      status: 'ready',
     }),
-    getVideoStatus: async () => {
-      throw new Error('live session')
-    },
-    getVideoUrl: async () => {
-      throw new Error('live session')
-    },
   }
 }
 
@@ -39,8 +31,8 @@ export const Route = createFileRoute('/api/video-live')({
           typeof body.prompt === 'string' ? body.prompt : 'a default scene'
 
         try {
-          const result = await generateVideo({
-            adapter: mockLiveVideoAdapter(),
+          const result = await generateLive({
+            adapter: mockLiveAdapter(),
             prompt,
             debug: false,
           })
@@ -48,7 +40,8 @@ export const Route = createFileRoute('/api/video-live')({
             ok: true,
             model: result.model,
             prompt: result.prompt,
-            hasToken: Boolean(result.token && result.token.length > 0),
+            status: result.status,
+            hasToken: result.token.length > 0,
           })
         } catch (error) {
           return Response.json(

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateVideo } from '@tanstack/ai'
+import { generateLive } from '@tanstack/ai'
 import {
   createReactorVideo,
   isReactorVideoModel,
@@ -21,7 +21,7 @@ describe('Reactor video adapter', () => {
     expect(isReactorVideoModel('lingbot')).toBe(false)
   })
 
-  it('mints a scoped session token and returns it from generateVideo', async () => {
+  it('mints a scoped session token and returns it from generateLive', async () => {
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe('https://api.reactor.inc/tokens')
@@ -42,7 +42,7 @@ describe('Reactor video adapter', () => {
       },
     )
 
-    const result = await generateVideo({
+    const result = await generateLive({
       adapter: reactorVideo('helios', {
         apiKey: 'rk_test',
         fetch: fetchImpl,
@@ -57,8 +57,8 @@ describe('Reactor video adapter', () => {
     expect(result.prompt).toBe(
       'A neon cyberpunk city at night, slow aerial drift',
     )
+    expect(result.status).toBe('ready')
     expect(result.expiresAt).toBe(1_800_000_000 * 1000)
-    expect(result.jobId).toMatch(/^video/)
   })
 
   it('createReactorVideo passes the explicit key', async () => {
@@ -67,7 +67,7 @@ describe('Reactor video adapter', () => {
         jsonResponse({ jwt: 'jwt-create', expires_at: 1_800_000_000 }),
     )
 
-    await generateVideo({
+    await generateLive({
       adapter: createReactorVideo('fast-h3', 'rk_explicit', {
         fetch: fetchImpl,
       }),
@@ -97,7 +97,7 @@ describe('Reactor video adapter', () => {
     )
 
     await expect(
-      generateVideo({
+      generateLive({
         adapter: reactorVideo('visko-orbis-stable', {
           apiKey: 'rk_test',
           fetch: fetchImpl,
@@ -122,32 +122,5 @@ describe('Reactor video adapter', () => {
         process.env.REACTOR_API_KEY = previous
       }
     }
-  })
-
-  it('rejects image prompt parts', async () => {
-    await expect(
-      generateVideo({
-        adapter: reactorVideo('helios', {
-          apiKey: 'rk_test',
-          fetch: vi.fn(),
-        }),
-        prompt: [
-          { type: 'text', content: 'animate this still' },
-          {
-            type: 'image',
-            source: { type: 'url', value: 'https://example.com/seed.png' },
-          },
-        ],
-        debug: false,
-      }),
-    ).rejects.toThrow(/does not upload reference images/)
-  })
-
-  it('throws on getVideoStatus and getVideoUrl', async () => {
-    const adapter = reactorVideo('helios', { apiKey: 'rk_test' })
-    await expect(adapter.getVideoStatus('job-1')).rejects.toThrow(
-      /live session/,
-    )
-    await expect(adapter.getVideoUrl('job-1')).rejects.toThrow(/live session/)
   })
 })

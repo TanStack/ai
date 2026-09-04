@@ -44,18 +44,18 @@ const world = await generateWorld({
 // Hand world.token, world.model, and world.prompt to the browser.
 ```
 
-### Server: mint a video session token
+### Server: mint a live video session token
 
 ```typescript
-import { generateVideo } from '@tanstack/ai'
+import { generateLive } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
-const video = await generateVideo({
+const live = await generateLive({
   adapter: reactorVideo('helios'),
   prompt: 'A neon cyberpunk city at night',
 })
 
-// Hand video.token, video.model, and video.prompt to the browser.
+// Hand live.token, live.model, and live.prompt to the browser.
 ```
 
 Set `REACTOR_API_KEY`, or pass `apiKey` in the adapter config. The browser connects with `@reactor-team/js-sdk`. See the [Reactor adapter docs](https://tanstack.com/ai/latest/docs/adapters/reactor).

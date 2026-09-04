@@ -7,7 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
-- **Need a live world stream?** → [World generation (ts-react-world)](#world-generation-ts-react-world)
+- **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
@@ -129,39 +129,19 @@ pnpm dev
 
 ---
 
-### World generation (ts-react-world)
+### World generation (ts-react-media)
 
-A single-page app that opens a live Reactor world from a text prompt. Paste
-a Reactor key in the browser (BYOK). The relay calls `generateWorld()`. The
-page connects and can steer the scene mid-run.
-
-**Tech Stack:**
-
-- TanStack Start (full-stack React framework)
-- `@tanstack/ai` (the `generateWorld()` activity)
-- `@tanstack/ai-reactor` (Reactor world and video adapter)
-- `@tanstack/ai-client` / `@tanstack/ai-react` (BYOK)
-- `@reactor-team/js-sdk` (browser connect and video)
-
-**Features:**
-
-- ✅ BYOK (`x-byok-reactor` header, env fallback)
-- ✅ Live video stream from Orbis, Helios, and other Reactor world models
-- ✅ Mid-run prompt steering
-- ✅ Resolution picker for Orbis delivery tiers
-
-**Getting Started:**
+The media example has a **World** tab. Paste a Reactor key in the header
+dialog. The relay calls `generateWorld()`. The page connects and can steer
+the scene mid-run.
 
 ```bash
-cd examples/ts-react-world
+cd examples/ts-react-media
 pnpm install
 pnpm dev
 ```
 
-Paste a Reactor key in the UI, or copy `.env.example` to `.env` and set
-`REACTOR_API_KEY`.
-
-📖 [Full Documentation](ts-react-world/README.md)
+Open the World tab. Paste a Reactor key, or set `REACTOR_API_KEY`.
 
 ---
 

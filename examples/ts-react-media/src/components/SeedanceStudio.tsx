@@ -36,6 +36,7 @@ import type {
 } from '@/lib/seedance'
 
 import { generateSeedanceVideoFn } from '@/lib/server-functions'
+import { byok, toByokProvider } from '@/lib/byok'
 import { mediaUrlToPart, readMediaFile, toImagePart } from '@/lib/media'
 import { readVideoBilling } from '@/lib/billing'
 import { getRandomVideoPrompt } from '@/lib/prompts'
@@ -235,6 +236,8 @@ export default function SeedanceStudio({
   const { generate, result, jobId, videoStatus, isLoading, error } =
     useGenerateVideo({
       threadId: 'seedance-studio',
+      byok,
+      byokProvider: () => toByokProvider('byteplus'),
       // `options.signal` is the hook's abort signal; cancelling the response
       // is what ends the server's polling loop instead of leaving it running
       // to the 30-minute ceiling.
@@ -248,6 +251,7 @@ export default function SeedanceStudio({
             options: submission.options,
           },
           signal: options?.signal,
+          headers: options?.headers,
         })
       },
       onResult: () => {

@@ -63,9 +63,9 @@ export type ReactorWorldModelProviderOptionsByName = {
  * `REACTOR_VIDEO_SLUGS` maps each id to the `modelName` the Reactor SDK
  * connects with.
  *
- * These models stream live video over WebRTC. They do not return a download
- * URL. X2 and SANA-Streaming need a live source track, so they are not in
- * this list.
+ * These models stream live video over WebRTC. Use them with `generateLive()`.
+ * They do not return a download URL. X2 and SANA-Streaming need a live source
+ * track, so they are not in this list.
  */
 
 export const REACTOR_VIDEO_MODELS = [

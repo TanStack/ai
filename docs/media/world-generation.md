@@ -129,9 +129,9 @@ The video element now plays a live world. A new `set_prompt` during the run morp
 | `lingbot-world-2` | `reactor/lingbot-world-2` | Image-anchored navigable world |
 | `helios` | `reactor/helios` | Interactive realtime video |
 
-See the [Reactor adapter](../adapters/reactor) for API keys, token scope, and provider options. Helios and Orbis also work with `generateVideo()` and `reactorVideo()`. See [Video Generation](./video-generation).
+See the [Reactor adapter](../adapters/reactor) for API keys, token scope, and provider options. Helios and Orbis also work with `generateLive()` and `reactorVideo()`. See [Live Generation](./live-generation).
 
-A full app lives in [`examples/ts-react-world`](https://github.com/TanStack/ai/tree/main/examples/ts-react-world).
+A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab.
 
 ## What you have now
 

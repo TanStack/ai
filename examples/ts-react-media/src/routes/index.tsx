@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { Clapperboard, Film, ImageIcon, Sparkles } from 'lucide-react'
+import {
+  Clapperboard,
+  Film,
+  Globe,
+  ImageIcon,
+  Radio,
+  Sparkles,
+} from 'lucide-react'
 import ImageGenerator from '@/components/ImageGenerator'
-import VideoGenerator from '@/components/VideoGenerator'
+import LiveVideoStudio from '@/components/LiveVideoStudio'
 import OmniStudio from '@/components/OmniStudio'
+import VideoGenerator from '@/components/VideoGenerator'
+import WorldStudio from '@/components/WorldStudio'
 
-type Tab = 'image' | 'video' | 'omni'
+type Tab = 'image' | 'video' | 'live' | 'world' | 'omni'
 
 function VisualPage() {
   const [activeTab, setActiveTab] = useState<Tab>('image')
@@ -21,7 +30,7 @@ function VisualPage() {
             Visual Content Generator
           </h1>
           <p className="text-gray-400">
-            Generate images and videos using AI models
+            Generate images, videos, live streams, and worlds using AI models
           </p>
         </div>
 
@@ -49,6 +58,28 @@ function VisualPage() {
             Video
           </button>
           <button
+            onClick={() => setActiveTab('live')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'live'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <Radio className="w-5 h-5" />
+            Live
+          </button>
+          <button
+            onClick={() => setActiveTab('world')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'world'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <Globe className="w-5 h-5" />
+            World
+          </button>
+          <button
             onClick={() => setActiveTab('omni')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'omni'
@@ -73,6 +104,10 @@ function VisualPage() {
             <ImageGenerator onImageGenerated={setLastGeneratedImage} />
           ) : activeTab === 'video' ? (
             <VideoGenerator initialImageUrl={lastGeneratedImage} />
+          ) : activeTab === 'live' ? (
+            <LiveVideoStudio />
+          ) : activeTab === 'world' ? (
+            <WorldStudio />
           ) : (
             <OmniStudio />
           )}

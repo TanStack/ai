@@ -4,6 +4,7 @@ import {
   generateImage,
   generateSpeech,
   generateTranscription,
+  generateLive,
   generateVideo,
   generateWorld,
   getVideoJobStatus,
@@ -128,6 +129,38 @@ describe('generation middleware — wiring', () => {
     expect(result.token).toBe('jwt')
     expect(events.start).toHaveLength(1)
     expect(events.start[0]!.activity).toBe('world')
+    expect(events.start[0]!.provider).toBe('reactor')
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+    expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
+  })
+
+  it('generateLive fires start then finish', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'live' as const,
+      name: 'reactor',
+      model: 'helios',
+      createLive: vi.fn(async () => ({
+        id: 'live-1',
+        model: 'reactor/helios',
+        token: 'jwt',
+        expiresAt: Date.now() + 60_000,
+        prompt: 'a shot',
+        status: 'ready' as const,
+      })),
+    }
+
+    const result = await generateLive({
+      adapter: adapter as any,
+      prompt: 'a shot',
+      middleware: [middleware],
+      debug: false,
+    })
+
+    expect(result.token).toBe('jwt')
+    expect(events.start).toHaveLength(1)
+    expect(events.start[0]!.activity).toBe('live')
     expect(events.start[0]!.provider).toBe('reactor')
     expect(events.finish).toHaveLength(1)
     expect(events.error).toHaveLength(0)
@@ -304,36 +337,6 @@ describe('generation middleware — wiring', () => {
     expect(events.error).toHaveLength(0)
     // Correlation rides the jobId; nothing extra is bolted onto the result.
     expect(job).not.toHaveProperty('runId')
-  })
-
-  it('generateVideo (non-streaming) finishes a live session on create', async () => {
-    const { middleware, events } = recordingMiddleware()
-    const adapter = {
-      kind: 'video' as const,
-      name: 'reactor',
-      model: 'helios',
-      createVideoJob: vi.fn(async () => ({
-        jobId: 'video-1',
-        model: 'reactor/helios',
-        token: 'jwt-live',
-        expiresAt: 1,
-        prompt: 'a city',
-      })),
-      getVideoStatus: vi.fn(),
-      getVideoUrl: vi.fn(),
-    }
-
-    const job = await generateVideo({
-      adapter: adapter as any,
-      prompt: 'a city',
-      threadId: 'video:live',
-      middleware: [middleware],
-    })
-
-    expect(job.token).toBe('jwt-live')
-    expect(events.start[0]!.runId).toBe('video:reactor:video-1')
-    expect(events.finish).toHaveLength(1)
-    expect(events.error).toHaveLength(0)
   })
 
   // The submit is not free to pick its own id: the poll can only recompute one

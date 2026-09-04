@@ -1,3 +1,13 @@
+import {
+  REACTOR_VIDEO_MODELS,
+  REACTOR_WORLD_MODELS,
+  isReactorVideoModel,
+  isReactorWorldModel,
+} from '@tanstack/ai-reactor'
+import { isFalLiveModel } from '@tanstack/ai-fal'
+import type { ReactorVideoModel, ReactorWorldModel } from '@tanstack/ai-reactor'
+import type { FalLiveModel } from '@tanstack/ai-fal'
+
 export const IMAGE_MODELS = [
   {
     id: 'fal-ai/nano-banana-pro',
@@ -231,6 +241,87 @@ export const VIDEO_MODELS = [
 export type ImageModel = (typeof IMAGE_MODELS)[number]
 export type VideoModel = (typeof VIDEO_MODELS)[number]
 export type VideoMode = 'text-to-video' | 'image-to-video'
+
+export type LiveVideoProvider = 'reactor' | 'fal'
+
+export type LiveVideoModelId = ReactorVideoModel | FalLiveModel
+
+export const LIVE_VIDEO_MODELS: ReadonlyArray<{
+  id: LiveVideoModelId
+  provider: LiveVideoProvider
+}> = [
+  ...REACTOR_VIDEO_MODELS.map((id) => ({
+    id,
+    provider: 'reactor' as const,
+  })),
+  { id: 'minimax/h3-max/director', provider: 'fal' },
+]
+
+export const LIVE_VIDEO_MODEL_LABELS: Record<LiveVideoModelId, string> = {
+  helios: 'Helios (Reactor)',
+  'fast-h3': 'FastH3 (Reactor)',
+  'visko-orbis-stable': 'Orbis Stable (Reactor)',
+  'visko-orbis-dynamic': 'Orbis Dynamic (Reactor)',
+  'longlive-v2': 'LongLive 2 (Reactor)',
+  ltx2: 'LTX (Reactor)',
+  'minimax/h3-max/director': 'H3 Max Director (fal)',
+}
+
+export const LIVE_VIDEO_PROMPTS = [
+  'Live shopping stream: a host holds up a gold watch to camera, studio lights, product close-up, talking to viewers.',
+  'Fake news channel: an anchor at a glass desk, lower-thirds ticker, breaking-news sting, locked-off studio shot.',
+  'A red sports car powerslides a mountain hairpin, gravel spraying, golden hour, helicopter tracking alongside.',
+  'A chef tosses noodles in a steel wok, flames leaping, close-up, steam toward the lens.',
+  'A violinist plays on a rain-soaked rooftop at night, city lights behind, slow push-in.',
+] as const
+
+export const REACTOR_LIVE_RESOLUTIONS = ['1080p', '2k', '4k'] as const
+export const FAL_LIVE_RESOLUTIONS = ['480p', '768p'] as const
+
+export type ReactorLiveResolution = (typeof REACTOR_LIVE_RESOLUTIONS)[number]
+export type FalLiveResolution = (typeof FAL_LIVE_RESOLUTIONS)[number]
+export type LiveVideoResolution = ReactorLiveResolution | FalLiveResolution
+
+export function liveVideoProvider(model: LiveVideoModelId): LiveVideoProvider {
+  return isFalLiveModel(model) ? 'fal' : 'reactor'
+}
+
+export function liveVideoResolutions(
+  provider: LiveVideoProvider,
+): ReadonlyArray<LiveVideoResolution> {
+  return provider === 'fal' ? FAL_LIVE_RESOLUTIONS : REACTOR_LIVE_RESOLUTIONS
+}
+
+export function isLiveVideoModelId(value: string): value is LiveVideoModelId {
+  return isReactorVideoModel(value) || isFalLiveModel(value)
+}
+
+export { isReactorVideoModel, isFalLiveModel, isReactorWorldModel }
+export type { ReactorVideoModel, FalLiveModel, ReactorWorldModel }
+
+export const WORLD_MODELS = REACTOR_WORLD_MODELS
+
+export const WORLD_MODEL_LABELS: Record<ReactorWorldModel, string> = {
+  'visko-orbis-stable': 'Orbis Stable',
+  'visko-orbis-dynamic': 'Orbis Dynamic',
+  'happy-oyster-adventure': 'Happy Oyster (adventure)',
+  'happy-oyster-director': 'Happy Oyster (director)',
+  'lingbot-world-2': 'LingBot World 2',
+  lingbot: 'LingBot',
+  helios: 'Helios',
+}
+
+export const WORLD_PROMPTS = [
+  'A black volcanic coastline at golden hour, tide pools, a cliff path you can keep walking.',
+  'A neon rain-soaked city of alleys, markets, and towers you can wander at street level.',
+  'A cedar forest at dawn, mist in the trees, a trail beside a stream.',
+  'A desert canyon at noon, a dry riverbed between red rock walls, open sky above.',
+  'A snowbound mountain village at dusk, lanterns in the windows, one main street.',
+] as const
+
+export const WORLD_RESOLUTIONS = REACTOR_LIVE_RESOLUTIONS
+
+export type WorldResolution = (typeof WORLD_RESOLUTIONS)[number]
 
 /**
  * Gemini Omni Flash task modes (`generation_config.video_config.task`).

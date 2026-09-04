@@ -1,9 +1,9 @@
 /**
  * Video Activity (Experimental)
  *
- * Generates videos from text prompts. Most adapters use a jobs/polling
- * architecture. Live-session adapters (for example Reactor) return a token
- * on create instead of a download URL.
+ * Generates videos from text prompts. Adapters use a jobs/polling
+ * architecture: create a job, poll for status, then fetch a download URL.
+ * For a live, prompt-steerable stream, use generateLive().
  * This is a self-contained module with implementation, types, and JSDoc.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -130,12 +130,6 @@ export type VideoDurationForAdapter<TAdapter> =
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
-function isLiveVideoSession(
-  job: VideoJobResult,
-): job is VideoJobResult & { token: string } {
-  return typeof job.token === 'string' && job.token.length > 0
 }
 // ===========================
 
@@ -541,21 +535,11 @@ async function runCreateVideoJob<
   logger.output(`activity=generateVideo jobId=${jobResult.jobId}`, {
     jobId: jobResult.jobId,
     model: jobResult.model,
-    ...(isLiveVideoSession(jobResult) ? { live: true } : {}),
   })
 
   const mwCtx = contextFor(videoRunIdForJob(adapter.name, jobResult.jobId))
   await runGenerationStart(middleware, mwCtx)
-  const result = await applyGenerationResultTransforms(mwCtx, jobResult)
-  // A live session finishes on create: the server work is the token mint, not
-  // a later poll. Finite jobs stay open until getVideoJobStatus sees a
-  // terminal provider state.
-  if (isLiveVideoSession(result)) {
-    await runGenerationFinish(middleware, mwCtx, {
-      duration: Date.now() - startTime,
-    })
-  }
-  return result
+  return await applyGenerationResultTransforms(mwCtx, jobResult)
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -678,47 +662,6 @@ async function* runStreamingVideoGeneration<
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
       timestamp: Date.now(),
-    }
-
-    if (isLiveVideoSession(jobResult)) {
-      logger.output(
-        `activity=generateVideo jobId=${jobResult.jobId} status=live`,
-        { jobId: jobResult.jobId, model: jobResult.model },
-      )
-
-      const liveResult = {
-        jobId: jobResult.jobId,
-        status: 'completed' as const,
-        model: jobResult.model,
-        token: jobResult.token,
-        ...(jobResult.expiresAt !== undefined
-          ? { expiresAt: jobResult.expiresAt }
-          : {}),
-        ...(jobResult.prompt !== undefined ? { prompt: jobResult.prompt } : {}),
-      }
-      const result = await applyGenerationResultTransforms(mwCtx, liveResult)
-
-      await runGenerationFinish(middleware, mwCtx, {
-        duration: Date.now() - obsStartTime,
-      })
-      settled = true
-      abortControls.clear()
-
-      yield {
-        type: 'CUSTOM',
-        name: 'generation:result',
-        value: result,
-        timestamp: Date.now(),
-      }
-
-      yield* normalizeStreamChunk({
-        type: 'RUN_FINISHED',
-        runId,
-        threadId: wireThreadId,
-        finishReason: 'stop',
-        timestamp: Date.now(),
-      } as AdapterYieldChunk)
-      return
     }
 
     // Poll for completion

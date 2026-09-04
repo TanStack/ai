@@ -2178,16 +2178,6 @@ export interface VideoJobResult {
    * refs for persisted prompt INPUTS (e.g. a start frame).
    */
   artifacts?: Array<PersistedArtifactRef>
-  /**
-   * Live-session token when the adapter opens a realtime stream instead of a
-   * finite job. When set, connect with the provider client SDK using `token`
-   * and `model`. There is no download URL to poll.
-   */
-  token?: string
-  /** Token expiry as milliseconds since epoch, when `token` is set. */
-  expiresAt?: number
-  /** Prompt the client should send when it starts a live session. */
-  prompt?: string
 }
 
 /**
@@ -2271,6 +2261,64 @@ export interface WorldGenerationResult {
   /** Unique identifier for this generation */
   id: string
   /** Model used for generation (provider connect slug) */
+  model: string
+  /** Short-lived session token for the client connection */
+  token: string
+  /** Token expiry as milliseconds since epoch */
+  expiresAt: number
+  /** Prompt the client should send when it starts the session */
+  prompt: string
+  /** Session status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
+// Live Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for live generation (prompt-steerable video sessions).
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for live generation */
+  model: string
+  /** Natural-language description of the shot or scene */
+  prompt: string
+  /** Model-specific options (resolution, seed, aspect ratio, …) */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateLive() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of live generation. JSON-serializable so a server route can return
+ * it to a browser. The browser uses `token` + `model` to open the live
+ * session (set the prompt, start streaming, steer mid-run).
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /** Model used for generation (provider connect slug or app id) */
   model: string
   /** Short-lived session token for the client connection */
   token: string
