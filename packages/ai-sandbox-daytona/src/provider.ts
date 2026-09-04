@@ -1,4 +1,5 @@
-import { Daytona } from '@daytona/sdk'
+import { createHash } from 'node:crypto'
+import { Daytona, DaytonaConflictError } from '@daytona/sdk'
 import { DAYTONA_CAPS, DaytonaHandle } from './handle'
 import type {
   CreateSandboxFromSnapshotParams,
@@ -51,6 +52,21 @@ function shQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/**
+ * Organization Secret names must match `^[a-zA-Z_][a-zA-Z0-9_-]*$`.
+ * The value hash keeps two different values for the same env key from sharing one Secret.
+ */
+function daytonaOrgSecretName(envKey: string, value: string): string {
+  const hash = createHash('sha256').update(value).digest('hex').slice(0, 12)
+  const safe = envKey.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const body = /^[a-zA-Z_]/.test(safe) ? safe : `k_${safe}`
+  return `tanstack_${body}_${hash}`
+}
+
+function isConflictError(error: unknown): boolean {
+  return error instanceof DaytonaConflictError
+}
+
 class DaytonaProvider implements SandboxProvider {
   readonly name = 'daytona'
   private readonly daytona: Daytona
@@ -80,15 +96,17 @@ class DaytonaProvider implements SandboxProvider {
    */
   private async wrapCreated(
     sandbox: Awaited<ReturnType<Daytona['create']>>,
+    applyEnvSet: boolean,
   ): Promise<SandboxHandle> {
     await sandbox.process.executeCommand(`mkdir -p ${shQuote(this.workdir)}`)
-    return new DaytonaHandle({ sandbox, workdir: this.workdir })
+    return new DaytonaHandle({ sandbox, workdir: this.workdir, applyEnvSet })
   }
 
   private createParams(input: {
     snapshot?: string
     id?: string
     policy?: SandboxCreateInput['policy']
+    secrets?: Record<string, string>
   }): CreateSandboxFromSnapshotParams {
     return {
       language: this.config.language ?? 'typescript',
@@ -103,37 +121,62 @@ class DaytonaProvider implements SandboxProvider {
       ...(input.policy?.capabilities?.network === 'deny'
         ? { networkBlockAll: true }
         : {}),
+      ...(input.secrets !== undefined ? { secrets: input.secrets } : {}),
     }
   }
 
-  private async wrapReady(
-    sandbox: Awaited<ReturnType<Daytona['create']>>,
+  /**
+   * Create-or-reuse organization Secrets and return env-var → secret-name.
+   * Empty values are skipped. A 409 means this name (key + value hash) already
+   * exists, so the mapping can reuse it.
+   */
+  private async ensureOrgSecrets(
     env?: Record<string, string>,
-  ): Promise<SandboxHandle> {
-    const handle = await this.wrapCreated(sandbox)
-    if (env !== undefined) await handle.env.set(env)
-    return handle
+  ): Promise<Record<string, string> | undefined> {
+    if (env === undefined) return undefined
+    const secrets: Record<string, string> = {}
+    for (const [key, value] of Object.entries(env)) {
+      if (value === '') continue
+      const name = daytonaOrgSecretName(key, value)
+      try {
+        await this.daytona.secret.create({
+          name,
+          value,
+          description: 'TanStack AI workspace secret',
+        })
+      } catch (error) {
+        if (!isConflictError(error)) throw error
+      }
+      secrets[key] = name
+    }
+    return Object.keys(secrets).length > 0 ? secrets : undefined
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
+    const secrets = await this.ensureOrgSecrets(input.env)
     const sandbox = await this.daytona.create(
       this.createParams({
         snapshot: this.config.snapshot,
         id: input.id,
         policy: input.policy,
+        ...(secrets !== undefined ? { secrets } : {}),
       }),
     )
-    return this.wrapReady(sandbox, input.env)
+    // Workspace secrets live in Daytona OS env as placeholders. Do not overlay
+    // plaintext via env.set (bootstrap and resume also call env.set).
+    return this.wrapCreated(sandbox, secrets === undefined)
   }
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
+    const secrets = await this.ensureOrgSecrets(input.env)
     const sandbox = await this.daytona.create(
       this.createParams({
         snapshot: input.snapshotId,
         policy: input.policy,
+        ...(secrets !== undefined ? { secrets } : {}),
       }),
     )
-    return this.wrapReady(sandbox, input.env)
+    return this.wrapCreated(sandbox, secrets === undefined)
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
@@ -144,7 +187,13 @@ class DaytonaProvider implements SandboxProvider {
       if (sandbox.state === 'stopped' || sandbox.state === 'archived') {
         await sandbox.start()
       }
-      return new DaytonaHandle({ sandbox, workdir: this.workdir })
+      // Secrets mounted at create stay in the sandbox env as placeholders.
+      // applyWorkspaceSecrets would otherwise overlay plaintext on spawn/exec.
+      return new DaytonaHandle({
+        sandbox,
+        workdir: this.workdir,
+        applyEnvSet: false,
+      })
     } catch {
       // Gone / not found.
       return null

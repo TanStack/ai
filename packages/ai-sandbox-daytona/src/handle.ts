@@ -3,8 +3,10 @@
  * isolation: fs/exec/git operate inside the remote sandbox; paths are real
  * sandbox paths (default workdir `/home/daytona/workspace`).
  *
- * fs and git use the native Daytona SDK. Blocking exec sends env through
- * `executeCommand`'s env argument so secret values never enter the stored
+ * fs and git use the native Daytona SDK. Workspace secrets are mounted as
+ * Daytona organization Secrets at create (opaque `dtn_secret_*` placeholders
+ * in the sandbox env). Blocking exec sends leftover per-call env through
+ * `executeCommand`'s env argument so those values never enter the stored
  * command string. Spawn sources a workdir env file for the same reason.
  *
  * NOTE: Daytona's `executeCommand` returns a single combined `result` string
@@ -151,6 +153,13 @@ export interface DaytonaHandleDeps {
   sandbox: Sandbox
   /** Working directory inside the sandbox (the `/workspace` virtual root maps here). */
   workdir: string
+  /**
+   * When false, `env.set` does not overlay values onto exec/spawn. Use this
+   * after workspace secrets are mounted as Daytona organization Secrets so
+   * later `env.set` (bootstrap, resume) cannot put plaintext into command
+   * env, the spawn env file, or the process environment.
+   */
+  applyEnvSet?: boolean
 }
 
 export class DaytonaHandle implements SandboxHandle {
@@ -166,11 +175,13 @@ export class DaytonaHandle implements SandboxHandle {
 
   private readonly sandbox: Sandbox
   private readonly workdir: string
+  private readonly applyEnvSet: boolean
   private readonly envVars: Record<string, string> = {}
 
   constructor(deps: DaytonaHandleDeps) {
     this.sandbox = deps.sandbox
     this.workdir = deps.workdir
+    this.applyEnvSet = deps.applyEnvSet ?? true
     this.workspaceRoot = deps.workdir
     this.id = deps.sandbox.id
 
@@ -234,7 +245,7 @@ export class DaytonaHandle implements SandboxHandle {
 
     this.env = {
       set: (vars) => {
-        Object.assign(this.envVars, vars)
+        if (this.applyEnvSet) Object.assign(this.envVars, vars)
         return Promise.resolve()
       },
     }
