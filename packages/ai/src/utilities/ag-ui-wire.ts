@@ -101,6 +101,10 @@ export function uiMessagesToWire(
   }
 
   for (const msg of messages) {
+    if (msg.role === 'activity') {
+      continue
+    }
+
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
       const id = uniqueToolWireId(
         toolWireId(msg.id, msg.toolCallId, assistantIds),
@@ -294,7 +298,7 @@ function toAnchor(
 ): WireAssistantMessage
 function toAnchor(
   msg: UIMessage,
-  role: UIMessage['role'],
+  role: 'system' | 'user' | 'assistant',
   extras: {
     content?: string | Array<InputContent>
     toolCalls?: Array<ToolCall>
