@@ -57,7 +57,9 @@ import type {
   ToolCallState,
   ToolResultState,
 } from './types'
+import { applyPatch } from 'fast-json-patch'
 import type {
+  ActivityPart,
   ContentPart,
   Interrupt,
   MessagePart,
@@ -533,7 +535,7 @@ export class StreamProcessor {
    *
    * Central dispatch for all AG-UI events. Each event type maps to a specific
    * handler. Events not listed in the switch are intentionally ignored
-   * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   * (STATE_SNAPSHOT, STATE_DELTA).
    *
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
@@ -653,6 +655,18 @@ export class StreamProcessor {
       case 'STEP_STARTED':
         this.handleStepStartedEvent(
           chunk as Extract<StreamChunk, { type: 'STEP_STARTED' }>,
+        )
+        break
+
+      case 'ACTIVITY_SNAPSHOT':
+        this.handleActivitySnapshotEvent(
+          chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+        )
+        break
+
+      case 'ACTIVITY_DELTA':
+        this.handleActivityDeltaEvent(
+          chunk as Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
         )
         break
 
@@ -784,9 +798,12 @@ export class StreamProcessor {
 
     // Check if a message with preferredId already exists (reconnect/resume case).
     // Hydrate transient state from the existing message instead of duplicating it.
+    // Activity messages occupy the same id space as text; do not steal their id.
     if (preferredId) {
       const existingMsg = this.messages.find((m) => m.id === preferredId)
-      if (existingMsg) {
+      if (existingMsg?.role === 'activity') {
+        preferredId = undefined
+      } else if (existingMsg) {
         const state = this.createMessageState(preferredId, existingMsg.role)
         this.activeMessageIds.add(preferredId)
 
@@ -883,6 +900,11 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
   ): void {
     const { messageId, role } = chunk
+    if (
+      this.messages.some((m) => m.id === messageId && m.role === 'activity')
+    ) {
+      return
+    }
 
     // Map 'tool' and 'developer' roles to 'assistant' for both UIMessage and MessageStreamState
     // (UIMessage doesn't support 'tool'/'developer' role, and lookups like
@@ -1165,11 +1187,10 @@ export class StreamProcessor {
       }
 
       // Prefer the message that actually contains the matching tool-call
-      // part. AG-UI `reasoning`/`activity` messages also normalize to
-      // `role: 'assistant'`, so anchoring into the nearest assistant alone
-      // could separate a result from its call (and a later
-      // `addToolResult(toolCallId)` would then append a duplicate result
-      // next to the call).
+      // part. AG-UI `reasoning` messages normalize to `role: 'assistant'`,
+      // so anchoring into the nearest assistant alone could separate a
+      // result from its call (and a later `addToolResult(toolCallId)`
+      // would then append a duplicate result next to the call).
       const target =
         reconciled.findLast((m) =>
           m.parts.some(
@@ -1320,6 +1341,13 @@ export class StreamProcessor {
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
+    if (
+      this.messages.some(
+        (m) => m.id === chunk.messageId && m.role === 'activity',
+      )
+    ) {
+      return
+    }
     const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
@@ -1849,6 +1877,106 @@ export class StreamProcessor {
     // No active message yet — defer until ensureAssistantMessage in
     // REASONING_MESSAGE_CONTENT
     this.pendingThinkingStepId = stepId
+  }
+
+  /**
+   * Handle ACTIVITY_SNAPSHOT. Creates or replaces a frontend-only activity
+   * message. Does not create MessageStreamState (that path feeds
+   * ProcessorResult.content).
+   */
+  private handleActivitySnapshotEvent(
+    chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+  ): void {
+    const { messageId, activityType, content } = chunk
+    const replace = chunk.replace ?? true
+    const existingIndex = this.messages.findIndex((m) => m.id === messageId)
+    const existing =
+      existingIndex >= 0 ? this.messages[existingIndex] : undefined
+
+    if (existing && !replace) return
+
+    const next: UIMessage = {
+      id: messageId,
+      role: 'activity',
+      parts: [
+        {
+          type: 'activity',
+          activityType,
+          content: structuredClone(content ?? {}),
+        },
+      ],
+      ...(existing?.role === 'activity' && existing.metadata != null
+        ? { metadata: existing.metadata }
+        : {}),
+      ...(existing?.role === 'activity' && existing.createdAt != null
+        ? { createdAt: existing.createdAt }
+        : {}),
+      ...(existing?.role === 'activity' && existing.name != null
+        ? { name: existing.name }
+        : {}),
+    }
+
+    if (existingIndex === -1) {
+      this.messages = [...this.messages, next]
+    } else {
+      this.messages = this.messages.map((msg, index) =>
+        index === existingIndex ? next : msg,
+      )
+    }
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Handle ACTIVITY_DELTA. Applies RFC 6902 patches to an existing activity
+   * `content`. Missing or non-activity ids are no-ops. Patch failure leaves
+   * the previous content in place.
+   */
+  private handleActivityDeltaEvent(
+    chunk: Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+  ): void {
+    const { messageId, activityType, patch } = chunk
+    const existingIndex = this.messages.findIndex((m) => m.id === messageId)
+    if (existingIndex === -1) return
+
+    const existing = this.messages[existingIndex]
+    if (existing == null || existing.role !== 'activity') {
+      console.warn(
+        `ACTIVITY_DELTA: Message '${messageId}' is not an activity message`,
+      )
+      return
+    }
+
+    const activityPart = existing.parts.find(
+      (part): part is ActivityPart => part.type === 'activity',
+    )
+    const baseContent = structuredClone(activityPart?.content ?? {})
+
+    try {
+      const result = applyPatch(baseContent, patch ?? [], true, false)
+      const updatedContent = structuredClone(
+        result.newDocument as Record<string, any>,
+      )
+      const nextPart: ActivityPart = {
+        type: 'activity',
+        activityType,
+        content: updatedContent,
+      }
+      const parts = activityPart
+        ? existing.parts.map((part) =>
+            part.type === 'activity' ? nextPart : part,
+          )
+        : [nextPart]
+      this.messages = this.messages.map((msg, index) =>
+        index === existingIndex ? { ...msg, parts } : msg,
+      )
+      this.emitMessagesChange()
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.warn(
+        `Failed to apply activity patch for '${messageId}': ${errorMessage}`,
+      )
+    }
   }
 
   /**
