@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { openAIModelRejectsSamplingParams } from '../src/model-meta'
 
 describe('openAIModelRejectsSamplingParams', () => {
-  it('flags o-series and GPT-5 reasoning models', () => {
+  it('flags o-series, GPT-5, and GPT-6 reasoning models', () => {
     for (const model of [
+      'gpt-6-astra',
+      // Synthetic future names verify family matching without catalog entries.
+      'gpt-6-future',
+      'gpt-6-astra-2099-01-01',
       'o1',
       'o1-pro',
       'o3',
@@ -30,6 +34,8 @@ describe('openAIModelRejectsSamplingParams', () => {
 
   it('leaves chat-latest and pre-5 chat models alone', () => {
     for (const model of [
+      'gpt-6-chat-latest',
+      'gpt-6-future-chat-latest',
       'gpt-5-chat-latest',
       'gpt-5.1-chat-latest',
       'gpt-5.2-chat-latest',

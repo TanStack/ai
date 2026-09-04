@@ -176,6 +176,39 @@ export interface OpenAIReasoningOptions {
   }
 }
 
+/** Reasoning levels supported by GPT-6 Astra. */
+type AstraReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export type OpenAIAstraOptions = Omit<
+  OpenAIBaseOptions,
+  'top_logprobs' | 'include' | 'prompt_cache_retention'
+> &
+  OpenAIStructuredOutputOptions &
+  OpenAIToolsOptions &
+  OpenAIStreamingOptions &
+  OpenAIMetadataOptions & {
+    reasoning?: {
+      effort?: AstraReasoningEffort
+      summary?: ReasoningSummary
+    }
+    include?: Array<
+      Exclude<
+        OpenAI.Responses.ResponseIncludable,
+        'message.output_text.logprobs'
+      >
+    >
+  }
+
+/** Astra tool calls require the Responses API. */
+export type OpenAIAstraChatCompletionsOptions = Pick<
+  OpenAI.Chat.ChatCompletionCreateParamsStreaming,
+  | 'max_completion_tokens'
+  | 'response_format'
+  | 'store'
+  | 'metadata'
+  | 'service_tier'
+> & { reasoning_effort?: AstraReasoningEffort }
+
 /**
  * Reasoning options for computer-use-preview model (includes 'concise' summary).
  */

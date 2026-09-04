@@ -148,6 +148,15 @@ export class OpenAITextAdapter<
       delete request.top_p
     }
 
+    if (options.model === 'gpt-6-astra') {
+      delete request.top_logprobs
+      if (request.include) {
+        request.include = request.include.filter(
+          (item) => item !== 'message.output_text.logprobs',
+        )
+      }
+    }
+
     // Reasoning models pair each function_call with a reasoning item. Request
     // the encrypted blob so convertMessagesToInput can replay it. Pre-5 chat
     // models do not emit those items, so leave include unset for them.

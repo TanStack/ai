@@ -1,4 +1,5 @@
 import type {
+  OpenAIAstraOptions,
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
   OpenAIReasoningOptions,
@@ -68,6 +69,34 @@ interface ModelMeta<TProviderOptions = unknown> {
    */
   providerOptions?: TProviderOptions
 }
+
+// https://developers.openai.com/api/docs/models/gpt-6-astra
+const GPT_6_ASTRA = {
+  name: 'gpt-6-astra',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-04-30',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions', 'batch'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: { normal: 10, cached: 1 },
+    output: { normal: 50 },
+  },
+} as const satisfies ModelMeta<OpenAIAstraOptions>
 
 const GPT5_2 = {
   name: 'gpt-5.2',
@@ -2450,6 +2479,7 @@ const GPT_5_6_TERRA_PRO = {
 >
 
 export const OPENAI_CHAT_MODELS = [
+  GPT_6_ASTRA.name,
   GPT_5_6_LUNA_PRO.name,
   GPT_5_6_SOL_PRO.name,
   GPT_5_6_TERRA_PRO.name,
@@ -2520,18 +2550,19 @@ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
  * Whether a model rejects the `temperature` / `top_p` sampling knobs.
  *
  * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
- * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
- * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
- * still accept them, so those are excluded. Matching by name (rather than a
- * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
+ * and GPT-6 families — reject `temperature` and `top_p`. Their `*-chat-latest`
+ * counterparts are ordinary chat models that still accept them, so those are
+ * excluded. Matching by name (rather than a
+ * per-model flag) covers new GPT-5 and GPT-6 reasoning model names automatically.
  * See the note in `text/text-provider-options.ts`.
  */
 export function openAIModelRejectsSamplingParams(model: string): boolean {
   if (/^o\d/.test(model)) return true
-  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  if (/^gpt-[56]/.test(model) && !model.endsWith('-chat-latest')) return true
   if (model === 'codex-mini-latest') return true
   return false
 }
+
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
@@ -2635,6 +2666,7 @@ export type OpenAIEmbeddingModelInputModalitiesByName = {
  * Manually defined to ensure accurate type narrowing per model.
  */
 export type OpenAIChatModelProviderOptionsByName = {
+  [GPT_6_ASTRA.name]: OpenAIAstraOptions
   [GPT5_2.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
@@ -2896,6 +2928,7 @@ export type OpenAIChatModelProviderOptionsByName = {
  * tuple from each model constant.
  */
 export type OpenAIChatModelToolCapabilitiesByName = {
+  [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.tools
   [GPT5_2.name]: typeof GPT5_2.supports.tools
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.tools
   [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.tools
@@ -2955,6 +2988,7 @@ export type OpenAIChatModelToolCapabilitiesByName = {
  * when consumed by external packages.
  */
 export type OpenAIModelInputModalitiesByName = {
+  [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.input
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
   [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.input
