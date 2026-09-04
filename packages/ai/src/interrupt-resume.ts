@@ -14,6 +14,7 @@ import {
   isStandardSchema,
   validateWithStandardSchema,
 } from './activities/chat/tools/schema-converter'
+import { tanstackMetadata } from './utilities/merge-metadata'
 import type {
   InterruptBinding,
   InterruptSubmissionError,
@@ -93,6 +94,33 @@ function stringField(
   key: string,
 ): string | undefined {
   return typeof value[key] === 'string' ? value[key] : undefined
+}
+
+type ClientToolResumeResult =
+  | { state: 'output-available'; output: unknown }
+  | { state: 'output-error'; errorText: string }
+
+function clientToolResult(
+  entry: RunAgentResumeItem,
+): ClientToolResumeResult | null {
+  if (tanstackMetadata(entry)?.state === 'output-error') {
+    const result = objectValue(entry.payload)
+    if (
+      !result ||
+      Object.keys(result).length !== 1 ||
+      typeof result.error !== 'string'
+    ) {
+      return null
+    }
+    return {
+      state: 'output-error',
+      errorText: result.error,
+    }
+  }
+  return {
+    state: 'output-available',
+    output: entry.payload,
+  }
 }
 
 function normalizeIssuePath(
@@ -528,7 +556,19 @@ export async function validateInterruptResumeBatch(
     if (schemaDrifted) continue
 
     if (binding.kind === 'client-tool-execution') {
-      if (responseSchema !== undefined) {
+      const result = clientToolResult(entry)
+      if (!result) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'invalid-tool-output',
+            `Tool ${binding.toolName} result is invalid.`,
+          ),
+        )
+        continue
+      }
+      if (result.state === 'output-available' && responseSchema !== undefined) {
         await pushSchemaIssues({
           request: input,
           errors,
@@ -539,13 +579,16 @@ export async function validateInterruptResumeBatch(
           label: `Tool ${binding.toolName} output is invalid`,
         })
       }
-      if (tool.outputSchema !== undefined) {
+      if (
+        result.state === 'output-available' &&
+        tool.outputSchema !== undefined
+      ) {
         await pushSchemaIssues({
           request: input,
           errors,
           interruptId: record.interruptId,
           schema: tool.outputSchema,
-          value: entry.payload,
+          value: result.output,
           code: 'invalid-tool-output',
           label: `Tool ${binding.toolName} output is invalid`,
         })
@@ -682,6 +725,7 @@ export async function validateInterruptResumeBatch(
   const canonical = canonicalizeInterruptResolutions(input.resume ?? [])
   const approvals = new Map<string, ToolApprovalResolution>()
   const clientToolResults = new Map<string, unknown>()
+  const clientToolErrors = new Map<string, string>()
   const genericInterrupts = new Map<
     string,
     | { interruptId: string; status: 'resolved'; payload: unknown }
@@ -738,7 +782,13 @@ export async function validateInterruptResumeBatch(
       continue
     }
     if (binding.kind === 'client-tool-execution') {
-      clientToolResults.set(binding.toolCallId, entry.payload)
+      const result = clientToolResult(entry)
+      if (!result) continue
+      if (result.state === 'output-error') {
+        clientToolErrors.set(binding.toolCallId, result.errorText)
+      } else {
+        clientToolResults.set(binding.toolCallId, result.output)
+      }
       continue
     }
     const envelope = objectValue(entry.payload)
@@ -781,6 +831,7 @@ export async function validateInterruptResumeBatch(
     resumeToolState: {
       approvals,
       clientToolResults,
+      clientToolErrors,
       genericInterrupts,
       deniedToolResults,
       cancelledToolCallIds,

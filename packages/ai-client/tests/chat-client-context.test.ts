@@ -5,6 +5,10 @@ import { ChatClient } from '../src/chat-client'
 import { createTextChunks, createToolCallChunks } from './test-utils'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
+const asyncCountSchema = z
+  .object({ count: z.number() })
+  .refine(async ({ count }) => count > 0, 'expected positive count')
+
 function findToolCallPart(client: ChatClient, toolCallId: string) {
   for (const message of client.getMessages()) {
     if (message.role !== 'assistant') {
@@ -321,6 +325,48 @@ describe('ChatClient runtime context', () => {
     })
   })
 
+  it('awaits asynchronous outputSchema validation for executable client tools', async () => {
+    const firstChunks = createToolCallChunks([
+      {
+        id: 'tc-async-executable-output',
+        name: 'async_output_tool',
+        arguments: '{}',
+      },
+    ])
+    const secondChunks = createTextChunks('done', 'msg-async-output')
+    let callIndex = 0
+
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, abortSignal) {
+        const chunks = callIndex === 0 ? firstChunks : secondChunks
+        callIndex++
+        for (const chunk of chunks) {
+          if (abortSignal?.aborted) return
+          yield chunk
+        }
+      },
+    }
+
+    const tool = toolDefinition({
+      name: 'async_output_tool',
+      description: 'Returns asynchronously validated output',
+      outputSchema: asyncCountSchema,
+    }).client(() => ({ count: 1 }))
+
+    const client = new ChatClient({ connection: adapter, tools: [tool] })
+    await client.sendMessage('call async output tool')
+
+    expect(
+      findToolCallPart(client, 'tc-async-executable-output'),
+    ).toMatchObject({
+      state: 'input-complete',
+      output: { count: 1 },
+    })
+    expect(
+      findToolResultPart(client, 'tc-async-executable-output'),
+    ).toMatchObject({ state: 'complete' })
+  })
+
   it('renders a client tool that throws an empty-message error as terminal "error" (issue #718)', async () => {
     const firstChunks = createToolCallChunks([
       {
@@ -369,11 +415,11 @@ describe('ChatClient runtime context', () => {
     })
   })
 
-  it('validates manual client tool results against outputSchema', async () => {
+  it('awaits asynchronous outputSchema validation for manual client tool results', async () => {
     const tool = toolDefinition({
       name: 'manual_invalid_output_tool',
       description: 'Validates manual output',
-      outputSchema: z.object({ count: z.number() }),
+      outputSchema: asyncCountSchema,
     }).client(() => ({ count: 1 }))
 
     const client = new ChatClient({
@@ -403,13 +449,13 @@ describe('ChatClient runtime context', () => {
     await client.addToolResult({
       toolCallId: 'tc-manual-invalid-output',
       tool: 'manual_invalid_output_tool',
-      output: JSON.parse('{"count":"not-a-number"}'),
+      output: { count: 0 },
     })
 
     expect(findToolCallPart(client, 'tc-manual-invalid-output')).toMatchObject({
       state: 'error',
       output: {
-        error: expect.stringContaining('expected number'),
+        error: 'expected positive count',
       },
     })
     expect(
