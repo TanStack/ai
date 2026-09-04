@@ -38,6 +38,7 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai-parallel": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",

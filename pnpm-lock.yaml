@@ -2459,6 +2459,22 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/ai-parallel:
+    dependencies:
+      parallel-web:
+        specifier: ^1.3.0
+        version: 1.3.0
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
   packages/ai-perplexity:
     devDependencies:
       '@tanstack/ai':
@@ -3175,6 +3191,9 @@ importers:
       '@tanstack/ai-openrouter':
         specifier: workspace:*
         version: link:../../packages/ai-openrouter
+      '@tanstack/ai-parallel':
+        specifier: workspace:*
+        version: link:../../packages/ai-parallel
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence
@@ -15006,6 +15025,9 @@ packages:
 
   package-manager-detector@1.6.0:
     resolution: {integrity: sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA==}
+
+  parallel-web@1.3.0:
+    resolution: {integrity: sha512-uCJxbjAU0ZMvXi0XHNSBY5B5r7SBAuTfYtkbiW+tQqRxAmq/FHZ/h57Q4zclnnX6CgTW+PQDk2NPH9Q7ULYbMw==}
 
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
@@ -32724,6 +32746,8 @@ snapshots:
       quansync: 0.2.11
 
   package-manager-detector@1.6.0: {}
+
+  parallel-web@1.3.0: {}
 
   parent-module@1.0.1:
     dependencies:
