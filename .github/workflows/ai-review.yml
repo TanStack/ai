@@ -2,11 +2,16 @@ name: AI review
 
 # In-process Grok review bot. Checks out this repo's default branch for the
 # script, then fetches the PR head into a second worktree for read/edit.
+#
+# Auto review runs on cron, not on `pull_request`: a fork's `pull_request`
+# event gets no repo secrets, so the job could never start on the PRs that
+# most need it. The scheduled sweep picks up every open PR instead.
+#
 # Never pull_request_target. Never pnpm install in the PR tree.
 
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, labeled]
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -17,8 +22,10 @@ on:
     types: [created]
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
-  cancel-in-progress: true
+  group: >-
+    ai-review-${{ github.event_name == 'schedule' && 'sweep'
+    || github.event.issue.number || github.event.inputs.pr_number }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 permissions: {}
 
@@ -26,24 +33,13 @@ jobs:
   review:
     name: Review
     if: >
-      (github.event_name == 'pull_request'
-        && github.event.action != 'labeled'
-        && github.event.pull_request.draft == false
-        && github.event.pull_request.user.login != 'AlemTuzlak'
-        && github.event.pull_request.user.login != 'tombeckenham'
-        && github.event.pull_request.user.login != 'jherr')
-      || (github.event_name == 'pull_request'
-        && github.event.action == 'labeled'
-        && github.event.label.name == 'ai-review'
-        && (github.event.sender.login == 'AlemTuzlak'
-          || github.event.sender.login == 'tombeckenham'
-          || github.event.sender.login == 'jherr'))
+      github.event_name == 'schedule'
       || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request
         && startsWith(github.event.comment.body, '/ai-review'))
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -57,12 +53,12 @@ jobs:
       - name: Build packages
         run: pnpm exec nx run @tanstack/ai-grok-build:build
       - name: Add PR head worktree
+        if: github.event_name != 'schedule'
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           GH_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER_PULL: ${{ github.event.pull_request.number }}
           PR_NUMBER_ISSUE: ${{ github.event.issue.number }}
           PR_NUMBER_DISPATCH: ${{ github.event.inputs.pr_number }}
         shell: bash
@@ -72,9 +68,6 @@ jobs:
             exit 1
           fi
           case "${EVENT_NAME}" in
-            pull_request)
-              PR_NUMBER="${PR_NUMBER_PULL}"
-              ;;
             issue_comment)
               PR_NUMBER="${PR_NUMBER_ISSUE}"
               ;;
@@ -98,8 +91,15 @@ jobs:
           echo "AI_REVIEW_HEAD_COMMIT_AUTHOR=${LOGIN}" >> "${GITHUB_ENV}"
           echo "AI_REVIEW_MACHINE_USER=${MACHINE}" >> "${GITHUB_ENV}"
       - name: Run review
+        if: github.event_name != 'schedule'
         run: pnpm ai-review
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           AI_REVIEW_WORKTREE: ${{ github.workspace }}/.pr-head
+      - name: Run sweep
+        if: github.event_name == 'schedule'
+        run: pnpm ai-review:sweep
+        env:
+          AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
