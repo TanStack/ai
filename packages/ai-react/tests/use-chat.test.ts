@@ -1,7 +1,13 @@
 import { EventType } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode, Suspense, createElement, useState } from 'react'
+import {
+  StrictMode,
+  Suspense,
+  createElement,
+  useLayoutEffect,
+  useState,
+} from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
@@ -204,6 +210,43 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(initialMessages)
     })
 
+    it('throws on in-place messages.push and accepts setMessages', () => {
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+        ],
+      })
+
+      expect(Object.isFrozen(result.current.messages)).toBe(true)
+      expect(() => {
+        Array.prototype.push.call(result.current.messages, {
+          id: 'x',
+          role: 'user',
+          parts: [{ type: 'text', content: 'nope' }],
+          createdAt: new Date(),
+        })
+      }).toThrow(TypeError)
+
+      act(() => {
+        result.current.setMessages([
+          ...result.current.messages,
+          {
+            id: 'ok',
+            role: 'user',
+            parts: [{ type: 'text', content: 'ok' }],
+            createdAt: new Date(),
+          },
+        ])
+      })
+      expect(result.current.messages).toHaveLength(2)
+    })
+
     it('should initialize with persisted messages', async () => {
       const adapter = createMockConnectionAdapter()
       const persistedMessages: Array<UIMessage> = [
@@ -232,7 +275,7 @@ describe('useChat', () => {
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
     })
 
-    it('should forward synchronous persisted interrupt hydration', () => {
+    it('forwards persisted interrupt hydration from a synchronous store', async () => {
       const onInterruptStateChange = vi.fn()
       const persistence = {
         getItem: vi.fn(() => ({
@@ -254,12 +297,368 @@ describe('useChat', () => {
         { wrapper: StrictMode },
       )
 
-      expect(result.current.interrupts).toHaveLength(2)
+      await waitFor(() => {
+        expect(result.current.interrupts).toHaveLength(2)
+      })
       expect(onInterruptStateChange).toHaveBeenCalledOnce()
       expect(onInterruptStateChange).toHaveBeenCalledWith(
         expect.objectContaining({ interrupts: result.current.interrupts }),
         { source: 'hydrate' },
       )
+    })
+
+    it('keeps the server message count for the first hydration render', async () => {
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'server-message',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Server message' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistedMessages: Array<UIMessage> = [
+        ...initialMessages,
+        {
+          id: 'persisted-message',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Persisted message' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => persistedMessages),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const renderCounts: Array<number> = []
+      const onRecoverableError = vi.fn()
+      const container = document.createElement('div')
+      container.innerHTML = '<div data-testid="message-count">1</div>'
+      document.body.append(container)
+
+      function HydratedChat() {
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'hydrated-message-chat',
+          initialMessages,
+          persistence,
+        })
+        renderCounts.push(chat.messages.length)
+        return createElement(
+          'div',
+          { 'data-testid': 'message-count' },
+          chat.messages.length,
+        )
+      }
+
+      const view = render(
+        createElement(StrictMode, null, createElement(HydratedChat)),
+        { container, hydrate: true, onRecoverableError },
+      )
+
+      expect(renderCounts[0]).toBe(1)
+      await waitFor(() => {
+        expect(view.getByTestId('message-count').textContent).toBe('2')
+      })
+      expect(persistence.getItem).toHaveBeenCalledOnce()
+      expect(onRecoverableError).not.toHaveBeenCalled()
+    })
+
+    it('keeps server interrupts empty until persistence hydration starts after commit', async () => {
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const renderCounts: Array<number> = []
+      const hydrationCommitStates: Array<boolean> = []
+      const onRecoverableError = vi.fn()
+      const container = document.createElement('div')
+      container.innerHTML = '<div data-testid="interrupt-count">0</div>'
+      document.body.append(container)
+
+      function HydratedInterrupts() {
+        let committed = false
+        useLayoutEffect(() => {
+          committed = true
+        }, [])
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'hydrated-interrupt-chat',
+          persistence,
+          onInterruptStateChange: (_state, context) => {
+            if (context.source === 'hydrate') {
+              hydrationCommitStates.push(committed)
+            }
+          },
+        })
+        renderCounts.push(chat.interrupts.length)
+        return createElement(
+          'div',
+          { 'data-testid': 'interrupt-count' },
+          chat.interrupts.length,
+        )
+      }
+
+      const view = render(
+        createElement(StrictMode, null, createElement(HydratedInterrupts)),
+        { container, hydrate: true, onRecoverableError },
+      )
+
+      expect(renderCounts[0]).toBe(0)
+      await waitFor(() => {
+        expect(view.getByTestId('interrupt-count').textContent).toBe('2')
+      })
+      expect(hydrationCommitStates).toEqual([true])
+      expect(persistence.getItem).toHaveBeenCalledOnce()
+      expect(onRecoverableError).not.toHaveBeenCalled()
+    })
+
+    it('keeps the initial resume snapshot through hydration before rejoining the stored run', async () => {
+      const initialResumeSnapshot = createInterruptResumeSnapshot()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: {
+            schemaVersion: 2,
+            resumeState: {
+              threadId: 'hydrated-resume-chat',
+              runId: 'stored-run',
+            },
+          },
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const joinRun = vi.fn(async function* (_runId: string) {})
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun,
+      }
+      const renderCounts: Array<number> = []
+      const onRecoverableError = vi.fn()
+      const container = document.createElement('div')
+      container.innerHTML = '<div data-testid="interrupt-count">2</div>'
+      document.body.append(container)
+
+      function HydratedResume() {
+        const chat = useChat({
+          connection,
+          threadId: 'hydrated-resume-chat',
+          initialResumeSnapshot,
+          persistence,
+        })
+        renderCounts.push(chat.interrupts.length)
+        return createElement(
+          'div',
+          { 'data-testid': 'interrupt-count' },
+          chat.interrupts.length,
+        )
+      }
+
+      const view = render(createElement(HydratedResume), {
+        container,
+        hydrate: true,
+        onRecoverableError,
+      })
+
+      expect(renderCounts[0]).toBe(2)
+      expect(joinRun).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(view.getByTestId('interrupt-count').textContent).toBe('0')
+        expect(joinRun).toHaveBeenCalledOnce()
+      })
+      expect(joinRun).toHaveBeenCalledWith('stored-run', expect.anything())
+      expect(persistence.getItem).toHaveBeenCalledOnce()
+      expect(onRecoverableError).not.toHaveBeenCalled()
+    })
+
+    it('preserves the persistence adapter receiver for reads, writes, and removal', async () => {
+      class ReceiverSensitivePersistence implements ChatClientPersistence {
+        calls: Array<string> = []
+
+        getItem(id: string) {
+          this.calls.push(`get:${id}`)
+          return []
+        }
+
+        setItem(id: string) {
+          this.calls.push(`set:${id}`)
+        }
+
+        removeItem(id: string) {
+          this.calls.push(`remove:${id}`)
+        }
+      }
+
+      const persistence = new ReceiverSensitivePersistence()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Persisted reply'),
+        }),
+        threadId: 'receiver-chat',
+        persistence,
+      })
+
+      await waitFor(() => {
+        expect(persistence.calls).toContain('get:receiver-chat')
+      })
+      await act(async () => {
+        await result.current.sendMessage('Persist me')
+      })
+      await waitFor(() => {
+        expect(persistence.calls).toContain('set:receiver-chat')
+      })
+      const removalsBeforeClear = persistence.calls.filter(
+        (call) => call === 'remove:receiver-chat',
+      ).length
+      act(() => result.current.clear())
+      await waitFor(() => {
+        const removalsAfterClear = persistence.calls.filter(
+          (call) => call === 'remove:receiver-chat',
+        ).length
+        expect(removalsAfterClear).toBeGreaterThan(removalsBeforeClear)
+      })
+    })
+
+    it('keeps initial state when a synchronous persistence read throws during hydration', async () => {
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'initial-message',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Initial' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(() => {
+          throw new Error('storage unavailable')
+        }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const onInterruptStateChange = vi.fn()
+      const onRecoverableError = vi.fn()
+      const container = document.createElement('div')
+      container.innerHTML = '<div data-testid="message-count">1</div>'
+      document.body.append(container)
+
+      function HydratedChat() {
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'throwing-sync-chat',
+          initialMessages,
+          persistence,
+          onInterruptStateChange,
+        })
+        return createElement(
+          'div',
+          { 'data-testid': 'message-count' },
+          chat.messages.length,
+        )
+      }
+
+      const view = render(createElement(HydratedChat), {
+        container,
+        hydrate: true,
+        onRecoverableError,
+      })
+
+      await waitFor(() => {
+        expect(persistence.getItem).toHaveBeenCalledOnce()
+      })
+      expect(view.getByTestId('message-count').textContent).toBe('1')
+      expect(onInterruptStateChange).not.toHaveBeenCalled()
+      expect(onRecoverableError).not.toHaveBeenCalled()
+    })
+
+    it('keeps initial state when an asynchronous persistence read rejects', async () => {
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'initial-message',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Initial' }],
+          createdAt: new Date(),
+        },
+      ]
+      const persistence = {
+        getItem: vi.fn(async () => {
+          throw new Error('storage unavailable')
+        }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const onInterruptStateChange = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        threadId: 'throwing-async-chat',
+        initialMessages,
+        persistence,
+        onInterruptStateChange,
+      })
+
+      await waitFor(() => {
+        expect(persistence.getItem).toHaveBeenCalledOnce()
+      })
+      expect(result.current.messages).toEqual(initialMessages)
+      expect(onInterruptStateChange).not.toHaveBeenCalled()
+    })
+
+    it('applies asynchronous persistence only after attach and commit', async () => {
+      const hydration = createDeferred<{
+        messages: Array<UIMessage>
+        resume: ReturnType<typeof createInterruptResumeSnapshot>
+      }>()
+      let committed = false
+      const readCommitStates: Array<boolean> = []
+      const hydrationCommitStates: Array<boolean> = []
+      const persistence = {
+        getItem: vi.fn(() => {
+          readCommitStates.push(committed)
+          return hydration.promise
+        }),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      function useHydratedChat() {
+        useLayoutEffect(() => {
+          committed = true
+        }, [])
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'async-hydration-chat',
+          persistence,
+          onInterruptStateChange: (_state, context) => {
+            if (context.source === 'hydrate') {
+              hydrationCommitStates.push(committed)
+            }
+          },
+        })
+        return chat.interrupts.length
+      }
+
+      const { result } = renderHook(() => useHydratedChat())
+
+      expect(result.current).toBe(0)
+      await waitFor(() => {
+        expect(persistence.getItem).toHaveBeenCalledOnce()
+      })
+      expect(readCommitStates).toEqual([true])
+      await act(async () => {
+        hydration.resolve({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })
+        await hydration.promise
+      })
+      await waitFor(() => {
+        expect(result.current).toBe(2)
+      })
+      expect(hydrationCommitStates).toEqual([true])
     })
 
     it('does not publish async hydration from an abandoned render', async () => {
@@ -302,6 +701,7 @@ describe('useChat', () => {
         await hydration.promise
       })
 
+      expect(persistence.getItem).not.toHaveBeenCalled()
       expect(onInterruptStateChange).not.toHaveBeenCalled()
     })
 

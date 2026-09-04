@@ -52,9 +52,12 @@ import type {
   ChatDevtoolsBridge,
   ChatDevtoolsBridgeOptions,
 } from './devtools'
+import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   BoundInterrupts,
   ChatClientOptions,
+  ChatClientSnapshot,
   ChatClientState,
   ChatFetcher,
   ChatInterruptState,
@@ -348,6 +351,24 @@ export class ChatClient<
   private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
   private currentRunId: string | null = null
+  private readonly snapshotAtom: Atom<ChatClientSnapshot<TTools, TInterrupts>> =
+    createAtom<ChatClientSnapshot<TTools, TInterrupts>>({
+      messages: [],
+      status: 'ready',
+      isLoading: false,
+      error: undefined,
+      isSubscribed: false,
+      connectionStatus: 'disconnected',
+      sessionGenerating: false,
+      queue: [],
+      runId: null,
+      interruptState: {
+        interrupts: Object.freeze([]),
+        pendingInterrupts: Object.freeze([]),
+        interruptErrors: Object.freeze([]),
+        resuming: false,
+      } as ChatInterruptState<TTools, TInterrupts>,
+    })
   // Interrupt-resume tracking: the run/thread of the most recent interrupted
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
@@ -649,6 +670,11 @@ export class ChatClient<
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.persistor?.notifyMessagesChanged(messages)
+          this.patchSnapshot({
+            messages: this.freezeSnapshotMessages(
+              messages as Array<UIMessage<TTools>>,
+            ),
+          })
           this.callbacksRef.current.onMessagesChange(messages)
         },
         onStreamStart: () => {
@@ -866,6 +892,7 @@ export class ChatClient<
       },
     })
 
+    this.snapshotAtom.set(this.readSnapshot())
     this.persistor?.hydrateAsync(persistedState)
 
     this.rejoinRunId = rejoinRunId
@@ -1289,6 +1316,7 @@ export class ChatClient<
   private setCurrentRunId(runId: string | null): void {
     if (this.currentRunId === runId) return
     this.currentRunId = runId
+    this.patchSnapshot({ runId })
     this.callbacksRef.current.onRunIdChange(runId)
   }
 
@@ -1480,26 +1508,134 @@ export class ChatClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
+  private freezeSnapshotPart<TPart extends ContentPart | MessagePart<TTools>>(
+    part: TPart,
+  ): TPart {
+    return Object.freeze({
+      ...part,
+      ...('source' in part &&
+      typeof part.source === 'object' &&
+      part.source !== null
+        ? { source: Object.freeze({ ...part.source }) }
+        : {}),
+      ...(part.type === 'tool-call' && 'approval' in part && part.approval
+        ? { approval: Object.freeze({ ...part.approval }) }
+        : {}),
+      ...(part.type === 'tool-result' && Array.isArray(part.content)
+        ? {
+            content: Object.freeze(
+              part.content.map((contentPart) =>
+                this.freezeSnapshotPart(contentPart),
+              ),
+            ),
+          }
+        : {}),
+    }) as TPart
+  }
+
+  private freezeSnapshotMessages(
+    messages: Array<UIMessage<TTools>>,
+  ): ReadonlyArray<UIMessage<TTools>> {
+    return Object.freeze(
+      messages.map((message) =>
+        Object.freeze({
+          ...message,
+          parts: Object.freeze(
+            message.parts.map((part) => this.freezeSnapshotPart(part)),
+          ),
+        }),
+      ),
+    ) as ReadonlyArray<UIMessage<TTools>>
+  }
+
+  private freezeSnapshotQueue(
+    queue: Array<QueuedMessage>,
+  ): ReadonlyArray<QueuedMessage> {
+    return Object.freeze(
+      queue.map((item) =>
+        Object.freeze({
+          ...item,
+          ...(typeof item.content === 'object'
+            ? {
+                content: Object.freeze({
+                  ...item.content,
+                  ...(Array.isArray(item.content.content)
+                    ? {
+                        content: Object.freeze(
+                          item.content.content.map((part) =>
+                            this.freezeSnapshotPart(part),
+                          ),
+                        ),
+                      }
+                    : {}),
+                }),
+              }
+            : {}),
+        }),
+      ),
+    ) as ReadonlyArray<QueuedMessage>
+  }
+
+  private readSnapshot(): ChatClientSnapshot<TTools, TInterrupts> {
+    return Object.freeze({
+      messages: this.freezeSnapshotMessages(
+        this.processor.getMessages() as Array<UIMessage<TTools>>,
+      ),
+      status: this.status,
+      isLoading: this.isLoading,
+      error: this.error,
+      isSubscribed: this.isSubscribed,
+      connectionStatus: this.connectionStatus,
+      sessionGenerating: this.sessionGenerating,
+      queue: this.freezeSnapshotQueue(this.getQueue()),
+      runId: this.currentRunId,
+      interruptState: this.interruptManager.getState(),
+    })
+  }
+
+  private patchSnapshot(
+    patch: Partial<ChatClientSnapshot<TTools, TInterrupts>>,
+  ): void {
+    patchAtom(this.snapshotAtom, patch)
+  }
+
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   *
+   * Named separately from {@link subscribe} (the live connection loop).
+   */
+  subscribeSnapshot = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. Frozen. Nested messages and queue entries are copies. */
+  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
+    this.snapshotAtom.get()
+
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading
+    this.patchSnapshot({ isLoading })
     this.callbacksRef.current.onLoadingChange(isLoading)
     this.events.loadingChanged(isLoading)
   }
 
   private setStatus(status: ChatClientState): void {
     this.status = status
+    this.patchSnapshot({ status })
     this.callbacksRef.current.onStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
   }
 
   private setIsSubscribed(isSubscribed: boolean): void {
     this.isSubscribed = isSubscribed
+    this.patchSnapshot({ isSubscribed })
     this.callbacksRef.current.onSubscriptionChange(isSubscribed)
     this.devtoolsBridge.emitSnapshot()
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
     this.connectionStatus = status
+    this.patchSnapshot({ connectionStatus: status })
     this.callbacksRef.current.onConnectionStatusChange(status)
     this.devtoolsBridge.emitSnapshot()
   }
@@ -1507,6 +1643,7 @@ export class ChatClient<
   private setSessionGenerating(isGenerating: boolean): void {
     if (this.sessionGenerating === isGenerating) return
     this.sessionGenerating = isGenerating
+    this.patchSnapshot({ sessionGenerating: isGenerating })
     this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
     this.devtoolsBridge.emitSnapshot()
   }
@@ -1516,6 +1653,7 @@ export class ChatClient<
     // Capture state before invoking callbacks so a synchronous nested change
     // cannot pair this publication's source with a later manager snapshot.
     const interruptState = this.interruptManager.getState()
+    this.patchSnapshot({ interruptState })
     // Persist (or clear) the durable resume snapshot so a full page reload can
     // rehydrate pending interrupts and rejoin the run. Folded into the same
     // persistence adapter that stores messages (one record per chat).
@@ -1558,6 +1696,7 @@ export class ChatClient<
 
   private setError(error: Error | undefined): void {
     this.error = error
+    this.patchSnapshot({ error })
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
   }
@@ -2973,7 +3112,9 @@ export class ChatClient<
   }
 
   private emitQueueChange(): void {
-    this.callbacksRef.current.onQueueChange(this.getQueue())
+    const queue = this.getQueue()
+    this.patchSnapshot({ queue: this.freezeSnapshotQueue(queue) })
+    this.callbacksRef.current.onQueueChange(queue)
     this.devtoolsBridge.emitSnapshot()
   }
 

@@ -486,7 +486,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Generation Persistence",

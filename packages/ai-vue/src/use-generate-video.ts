@@ -231,34 +231,6 @@ export function useGenerateVideo<TTransformed = void>(
     onStatusUpdate: (s: VideoStatusInfo) => {
       if (!disposed) options.onStatusUpdate?.(s)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result.value = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading.value = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error.value = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status.value = s
-    },
-    onJobIdChange: (id: string | null) => {
-      if (disposed) return
-      jobId.value = id
-    },
-    onVideoStatusChange: (s: VideoStatusInfo | null) => {
-      if (disposed) return
-      videoStatus.value = s
-    },
-    onResumeStateChange: (rs: { runId: string } | null) => {
-      if (disposed) return
-      runId.value = rs?.runId ?? null
-    },
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -278,6 +250,19 @@ export function useGenerateVideo<TTransformed = void>(
       'useGenerateVideo requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.value = next.result
+    isLoading.value = next.isLoading
+    error.value = next.error
+    status.value = next.status
+    runId.value = next.runId
+    jobId.value = next.jobId
+    videoStatus.value = next.videoStatus
+  }
+  applySnapshot()
+  onScopeDispose(client.subscribe(applySnapshot))
 
   // Sync body changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`

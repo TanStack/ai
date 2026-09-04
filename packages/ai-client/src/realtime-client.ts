@@ -1,4 +1,6 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
+import { createAtom, subscribeAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -57,6 +59,9 @@ export class RealtimeClient {
     pendingAssistantTranscript: null,
     error: null,
   }
+  private readonly snapshotAtom: Atom<RealtimeClientState> = createAtom(
+    this.buildSnapshot(),
+  )
 
   constructor(options: RealtimeClientOptions) {
     this.options = {
@@ -88,7 +93,13 @@ export class RealtimeClient {
       return
     }
 
-    this.updateState({ status: 'connecting', error: null })
+    this.updateState({
+      status: 'connecting',
+      error: null,
+      messages: [],
+      pendingUserTranscript: null,
+      pendingAssistantTranscript: null,
+    })
 
     try {
       // Fetch token from server
@@ -195,6 +206,7 @@ export class RealtimeClient {
       return
     }
     this.connection.interrupt()
+    this.updateState({ pendingAssistantTranscript: null })
   }
 
   // ============================================================================
@@ -331,6 +343,16 @@ export class RealtimeClient {
     }
   }
 
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. */
+  getSnapshot = (): RealtimeClientState => this.snapshotAtom.get()
+
   // ============================================================================
   // Cleanup
   // ============================================================================
@@ -349,11 +371,18 @@ export class RealtimeClient {
   // ============================================================================
 
   private updateState(updates: Partial<RealtimeClientState>): void {
+    const changed = Object.keys(updates).some((key) => {
+      const stateKey = key as keyof RealtimeClientState
+      return !Object.is(this.state[stateKey], updates[stateKey])
+    })
+    if (!changed) return
     this.state = { ...this.state, ...updates }
+    this.snapshotAtom.set(this.buildSnapshot())
+    const snapshot = this.snapshotAtom.get()
 
     // Notify callbacks
     for (const callback of this.stateChangeCallbacks) {
-      callback(this.state)
+      callback(snapshot)
     }
 
     // Notify specific callbacks
@@ -362,6 +391,31 @@ export class RealtimeClient {
     }
     if ('mode' in updates && updates.mode !== undefined) {
       this.options.onModeChange?.(updates.mode)
+    }
+  }
+
+  private buildSnapshot(): RealtimeClientState {
+    return {
+      ...this.state,
+      messages: Object.freeze(
+        this.state.messages.map((message) =>
+          Object.freeze({
+            ...message,
+            parts: Object.freeze(
+              message.parts.map((part) =>
+                Object.freeze({
+                  ...part,
+                  ...('source' in part &&
+                  typeof part.source === 'object' &&
+                  part.source !== null
+                    ? { source: Object.freeze({ ...part.source }) }
+                    : {}),
+                }),
+              ),
+            ),
+          }),
+        ),
+      ) as Array<RealtimeMessage>,
     }
   }
 

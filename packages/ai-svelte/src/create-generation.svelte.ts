@@ -233,26 +233,6 @@ export function createGeneration<
     onChunk: (c: StreamChunk) => {
       if (!disposed) options.onChunk?.(c)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status = s
-    },
-    onResumeStateChange: (rs) => {
-      if (disposed) return
-      runId = rs?.runId ?? null
-    },
   }
 
   const persistenceProps =
@@ -287,6 +267,17 @@ export function createGeneration<
     )
   }
 
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result = next.result
+    isLoading = next.isLoading
+    error = next.error
+    status = next.status
+    runId = next.runId
+  }
+  applySnapshot()
+  let unsubscribeSnapshot = client.subscribe(applySnapshot)
+
   // Mount devtools only. Generation runs are never auto-started on setup —
   // persisted state is read-only for display.
   client.mountDevtools()
@@ -301,7 +292,11 @@ export function createGeneration<
     // frameworks revive via mountDevtools() in their mount effects), so an
     // explicit generate() after dispose() is the Svelte revive path: bring
     // the client and the reactive bindings back together.
-    disposed = false
+    if (disposed) {
+      disposed = false
+      applySnapshot()
+      unsubscribeSnapshot = client.subscribe(applySnapshot)
+    }
     client.mountDevtools()
     await client.generate(input)
   }
@@ -316,6 +311,8 @@ export function createGeneration<
 
   const dispose = () => {
     disposed = true
+    unsubscribeSnapshot()
+    unsubscribeSnapshot = () => {}
     client.dispose()
   }
 

@@ -108,12 +108,12 @@ export interface RealtimeClientOptions {
  * Internal state of the RealtimeClient
  */
 export interface RealtimeClientState {
-  status: RealtimeStatus
-  mode: RealtimeMode
-  messages: Array<RealtimeMessage>
-  pendingUserTranscript: string | null
-  pendingAssistantTranscript: string | null
-  error: Error | null
+  readonly status: RealtimeStatus
+  readonly mode: RealtimeMode
+  readonly messages: Array<RealtimeMessage>
+  readonly pendingUserTranscript: string | null
+  readonly pendingAssistantTranscript: string | null
+  readonly error: Error | null
 }
 
 /**

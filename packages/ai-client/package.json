@@ -71,7 +71,8 @@
   "dependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-event-client": "workspace:^",
-    "@tanstack/ai-utils": "workspace:^"
+    "@tanstack/ai-utils": "workspace:^",
+    "@tanstack/store": "^0.11.1"
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",

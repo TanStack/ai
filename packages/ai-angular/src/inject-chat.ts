@@ -74,7 +74,7 @@ export function injectChat<
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
-  const queue = signal<Array<QueuedMessage>>([])
+  const queue = signal<ReadonlyArray<QueuedMessage>>([])
   const runId = signal<string | null>(null)
   const interruptState = signal<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
@@ -133,13 +133,7 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
-    onRunIdChange: (nextRunId) => runId.set(nextRunId),
-    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
-    // signal (via `onRunIdChange`) and pending interrupts arrive through
-    // `onInterruptStateChange`, so there is nothing left for it to do — and it
-    // is not a public option here, matching the other framework packages.
     onInterruptStateChange: (nextInterruptState, context) => {
-      interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
     tools: options.tools,
@@ -151,19 +145,24 @@ export function injectChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (m: Array<UIMessage<TTools>>) => messages.set(m),
-    onLoadingChange: (v: boolean) => isLoading.set(v),
-    onStatusChange: (v: ChatClientState) => status.set(v),
-    onErrorChange: (v: Error | undefined) => error.set(v),
-    onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
-    onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
-    onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
     ...(options.queue !== undefined && { queue: options.queue }),
-    onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
   })
 
-  messages.set(client.getMessages())
-  interruptState.set(client.getInterruptState())
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    messages.set(next.messages as Array<UIMessage<TTools>>)
+    isLoading.set(next.isLoading)
+    error.set(next.error)
+    status.set(next.status)
+    isSubscribed.set(next.isSubscribed)
+    connectionStatus.set(next.connectionStatus)
+    sessionGenerating.set(next.sessionGenerating)
+    queue.set(next.queue)
+    runId.set(next.runId)
+    interruptState.set(next.interruptState)
+  }
+  applySnapshot()
+  const unsubscribeSnapshot = client.subscribeSnapshot(applySnapshot)
 
   // START TAILING HERE, not in the constructor. A client is idle until something
   // attaches it, so a client that gets built and thrown away never opens a
@@ -217,6 +216,7 @@ export function injectChat<
   )
 
   destroyRef.onDestroy(() => {
+    unsubscribeSnapshot()
     // Release the connection first: the counterpart of the `attach` above.
     client.detach()
     if (liveSource?.()) {
