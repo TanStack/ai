@@ -20,7 +20,12 @@ function isWorldResolution(value: string): value is WorldResolution {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (!(error instanceof Error)) return String(error)
+  const cause = error.cause
+  if (cause instanceof Error && cause.message.length > 0) {
+    return `${error.message} ${cause.message}`
+  }
+  return error.message
 }
 
 function readWorldPayload(value: unknown): {

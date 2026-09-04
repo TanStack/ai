@@ -21,10 +21,15 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000. Paste a key from https://www.reactor.inc/dashboard
+Open the URL Vite prints (http://localhost:3000 if that port is free). Paste a
+key from https://www.reactor.inc/dashboard
 (keys start with `rk_`). You can also copy `.env.example` to `.env` and set
 `REACTOR_API_KEY` if you want the relay to use an env key when the browser
 has none.
+
+If the page says `reactor-wasm failed to load`, stop the old Vite process and
+run `pnpm --filter ts-react-world dev` again so it does not pre-bundle the
+Reactor SDK.
 
 ## What the example shows
 
