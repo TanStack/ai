@@ -28,7 +28,9 @@ test.describe('generateLiveVideo activity', () => {
     expect(body.expiresAt).toBe(1_800_000_000 * 1000)
   })
 
-  test('mints a fal realtime token through falLiveVideo', async ({ request }) => {
+  test('mints a fal realtime token through falLiveVideo', async ({
+    request,
+  }) => {
     const before = Date.now()
     const res = await request.post('/api/video-live', {
       data: {
