@@ -2193,7 +2193,16 @@ export class ChatClient<
       return
     }
 
-    // Type assertion: after checking for system, we know it's user or assistant
+    // Activity is frontend-only. Keep it in the transcript; do not start a run.
+    if (normalizedMessage.role === 'activity') {
+      const uiMessage = normalizedMessage as UIMessage
+      this.events.messageAppended(uiMessage)
+      const messages = this.processor.getMessages()
+      this.processor.setMessages([...messages, uiMessage])
+      this.devtoolsBridge.emitSnapshot()
+      return
+    }
+
     const uiMessage = normalizedMessage as UIMessage
 
     // Emit message appended event
@@ -2261,8 +2270,11 @@ export class ChatClient<
     let runTerminalEventEmitted = false
 
     try {
-      // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = this.processor.getMessages()
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // Activity is frontend-only — never send it as model input.
+      const messages = this.processor
+        .getMessages()
+        .filter((m) => m.role !== 'activity')
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -2872,6 +2884,7 @@ export class ChatClient<
    * Get current messages
    */
   getMessages(): Array<UIMessage<TTools>> {
+    // StreamProcessor is untyped over client tools / output schema.
     return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
