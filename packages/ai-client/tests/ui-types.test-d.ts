@@ -40,3 +40,7 @@ expectTypeOf<AnyInterrupt>().toEqualTypeOf<ChatUIInterrupt>()
 type TextSelected = ChatUISelectedPartOf<typeof chatOptions, 'text'>
 expectTypeOf<TextSelected['part']['type']>().toEqualTypeOf<'text'>()
 expectTypeOf<TextSelected['part']['content']>().toEqualTypeOf<string>()
+
+type ActivitySelected = ChatUISelectedPartOf<typeof chatOptions, 'activity'>
+expectTypeOf<ActivitySelected['part']['type']>().toEqualTypeOf<'activity'>()
+expectTypeOf<ActivitySelected['part']['activityType']>().toEqualTypeOf<string>()

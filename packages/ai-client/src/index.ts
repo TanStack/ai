@@ -32,6 +32,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  ActivityPart,
   StructuredOutputPart,
   // Client configuration types
   ChatClientPersistence,

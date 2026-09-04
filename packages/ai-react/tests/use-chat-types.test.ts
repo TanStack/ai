@@ -74,6 +74,9 @@ describe('useChat() return type', () => {
       type R = UseChatReturn<NoTools>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeBoolean()
+      expectTypeOf<R['messages'][number]['role']>().toEqualTypeOf<
+        'system' | 'user' | 'assistant' | 'activity'
+      >()
     })
   })
 
