@@ -3,7 +3,7 @@
  *
  * Generates videos from text prompts. Adapters use a jobs/polling
  * architecture: create a job, poll for status, then fetch a download URL.
- * For a live, prompt-steerable stream, use generateLive().
+ * For a live, prompt-steerable stream, use generateLiveVideo().
  * This is a self-contained module with implementation, types, and JSDoc.
  *
  * @experimental Video generation is an experimental feature and may change.

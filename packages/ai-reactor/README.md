@@ -47,10 +47,10 @@ const world = await generateWorld({
 ### Server: mint a live video session token
 
 ```typescript
-import { generateLive } from '@tanstack/ai'
+import { generateLiveVideo } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
-const live = await generateLive({
+const live = await generateLiveVideo({
   adapter: reactorVideo('helios'),
   prompt: 'A neon cyberpunk city at night',
 })

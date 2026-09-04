@@ -89,7 +89,7 @@ streaming is handled for you. All three are written out in
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
-| Live generation | `generateLive()` | - | [Live Generation](./live-generation) |
+| Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
 | World generation | `generateWorld()` | - | [World Generation](./world-generation) |
 
 > **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live and world sessions mint a token. There is no download URL.

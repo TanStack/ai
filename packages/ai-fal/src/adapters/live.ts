@@ -1,27 +1,30 @@
-import { BaseLiveAdapter } from '@tanstack/ai/adapters'
+import { BaseLiveVideoAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
 import { getFalApiKeyFromEnv } from '../utils/client'
-import type { LiveGenerationOptions, LiveGenerationResult } from '@tanstack/ai'
+import type {
+  LiveVideoGenerationOptions,
+  LiveVideoGenerationResult,
+} from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
 
 const DEFAULT_FAL_TOKEN_URL = 'https://rest.fal.ai/tokens/'
 const DEFAULT_TOKEN_DURATION_SECONDS = 300
 
-export const FAL_LIVE_MODELS = ['minimax/h3-max/director'] as const
+export const FAL_LIVE_VIDEO_MODELS = ['minimax/h3-max/director'] as const
 
-export type FalLiveModel = (typeof FAL_LIVE_MODELS)[number]
+export type FalLiveVideoModel = (typeof FAL_LIVE_VIDEO_MODELS)[number]
 
 /**
  * WMA / token app id for each public live model. Director's AsyncAPI lives at
  * `fal-ai/minimax-h3-max-director`. `wma()` and `/tokens/` must use this id:
  * `minimax/h3-max/director` parses as alias `h3-max`.
  */
-export const FAL_LIVE_APP = {
+export const FAL_LIVE_VIDEO_APP = {
   'minimax/h3-max/director': 'fal-ai/minimax-h3-max-director',
-} as const satisfies Record<FalLiveModel, string>
+} as const satisfies Record<FalLiveVideoModel, string>
 
-export function isFalLiveModel(model: string): model is FalLiveModel {
-  return (FAL_LIVE_MODELS as ReadonlyArray<string>).includes(model)
+export function isFalLiveVideoModel(model: string): model is FalLiveVideoModel {
+  return (FAL_LIVE_VIDEO_MODELS as ReadonlyArray<string>).includes(model)
 }
 
 const WMA_PROXY_PATHS = new Set(['/ice', '/session', '/session/heartbeat'])
@@ -32,7 +35,7 @@ const WMA_PROXY_PATHS = new Set(['/ice', '/session', '/session/heartbeat'])
  * `fal.run/<app>/ice`. Anything else, including `queue.fal.run`, is
  * rejected so the proxy cannot run arbitrary fal apps.
  */
-export function allowedFalLiveProxyTarget(raw: string): URL | null {
+export function allowedFalLiveVideoProxyTarget(raw: string): URL | null {
   let url: URL
   try {
     url = new URL(raw)
@@ -48,7 +51,7 @@ export function allowedFalLiveProxyTarget(raw: string): URL | null {
     return WMA_PROXY_PATHS.has(path) ? url : null
   }
   if (url.hostname === 'fal.run') {
-    for (const app of Object.values(FAL_LIVE_APP)) {
+    for (const app of Object.values(FAL_LIVE_VIDEO_APP)) {
       if (path === `/${app}/ice`) return url
     }
   }
@@ -60,13 +63,13 @@ export function allowedFalLiveProxyTarget(raw: string): URL | null {
  * aspect ratio on the WMA `configure` message. `tokenDuration` is the only
  * server-side field: it sets how long the minted JWT lasts.
  */
-export interface FalLiveProviderOptions {
+export interface FalLiveVideoProviderOptions {
   /** JWT lifetime in seconds. Defaults to 300. */
   tokenDuration?: number
 }
 
-export type FalLiveModelProviderOptionsByName = {
-  [M in FalLiveModel]: FalLiveProviderOptions
+export type FalLiveVideoModelProviderOptionsByName = {
+  [M in FalLiveVideoModel]: FalLiveVideoProviderOptions
 }
 
 function resolveFalLiveApiKey(config?: FalClientConfig): string {
@@ -90,19 +93,19 @@ function readFalToken(body: unknown): string {
  *
  * @example
  * ```ts
- * import { generateLive } from '@tanstack/ai'
- * import { falLive } from '@tanstack/ai-fal'
+ * import { generateLiveVideo } from '@tanstack/ai'
+ * import { falLiveVideo } from '@tanstack/ai-fal'
  *
- * const live = await generateLive({
- *   adapter: falLive('minimax/h3-max/director'),
+ * const live = await generateLiveVideo({
+ *   adapter: falLiveVideo('minimax/h3-max/director'),
  *   prompt: 'A chef tosses noodles in a steel wok, flames leaping',
  * })
  * // live.model is 'fal-ai/minimax-h3-max-director'
  * ```
  */
-export class FalLiveAdapter<
-  TModel extends FalLiveModel,
-> extends BaseLiveAdapter<TModel, FalLiveProviderOptions> {
+export class FalLiveVideoAdapter<
+  TModel extends FalLiveVideoModel,
+> extends BaseLiveVideoAdapter<TModel, FalLiveVideoProviderOptions> {
   readonly name = 'fal' as const
   private readonly clientConfig: FalClientConfig | undefined
   private readonly apiKey: string
@@ -113,18 +116,21 @@ export class FalLiveAdapter<
     this.clientConfig = config
   }
 
-  async createLive(
-    options: LiveGenerationOptions<FalLiveProviderOptions>,
-  ): Promise<LiveGenerationResult> {
+  async createLiveVideo(
+    options: LiveVideoGenerationOptions<FalLiveVideoProviderOptions>,
+  ): Promise<LiveVideoGenerationResult> {
     const { logger, prompt, abortSignal, modelOptions } = options
     const tokenDuration =
       modelOptions?.tokenDuration ?? DEFAULT_TOKEN_DURATION_SECONDS
     const fetchImpl = this.clientConfig?.fetch ?? globalThis.fetch
 
-    logger.request(`activity=generateLive provider=fal model=${this.model}`, {
-      provider: 'fal',
-      model: this.model,
-    })
+    logger.request(
+      `activity=generateLiveVideo provider=fal model=${this.model}`,
+      {
+        provider: 'fal',
+        model: this.model,
+      },
+    )
 
     if (typeof fetchImpl !== 'function') {
       throw new Error(
@@ -140,7 +146,7 @@ export class FalLiveAdapter<
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          allowed_apps: [FAL_LIVE_APP[this.model]],
+          allowed_apps: [FAL_LIVE_VIDEO_APP[this.model]],
           token_expiration: tokenDuration,
         }),
         ...(abortSignal ? { signal: abortSignal } : {}),
@@ -156,25 +162,28 @@ export class FalLiveAdapter<
       }
 
       const token = readFalToken(await response.json())
-      const result: LiveGenerationResult = {
-        id: generateId('live'),
-        model: FAL_LIVE_APP[this.model],
+      const result: LiveVideoGenerationResult = {
+        id: generateId('liveVideo'),
+        model: FAL_LIVE_VIDEO_APP[this.model],
         token,
         expiresAt: Date.now() + tokenDuration * 1000,
         prompt,
         status: 'ready',
       }
 
-      logger.output(`activity=generateLive provider=fal model=${this.model}`, {
-        model: this.model,
-        status: result.status,
-      })
+      logger.output(
+        `activity=generateLiveVideo provider=fal model=${this.model}`,
+        {
+          model: this.model,
+          status: result.status,
+        },
+      )
 
       return result
     } catch (error) {
-      logger.errors('fal.createLive failed', {
+      logger.errors('fal.createLiveVideo failed', {
         error,
-        source: 'fal.createLive',
+        source: 'fal.createLiveVideo',
       })
       throw error
     }
@@ -184,20 +193,20 @@ export class FalLiveAdapter<
 /**
  * Create a fal live-video adapter. Reads `FAL_KEY` when `apiKey` is omitted.
  */
-export function falLive<TModel extends FalLiveModel>(
+export function falLiveVideo<TModel extends FalLiveVideoModel>(
   model: TModel,
   config?: FalClientConfig,
-): FalLiveAdapter<TModel> {
-  return new FalLiveAdapter(model, config)
+): FalLiveVideoAdapter<TModel> {
+  return new FalLiveVideoAdapter(model, config)
 }
 
 /**
  * Create a fal live-video adapter with an explicit API key.
  */
-export function createFalLive<TModel extends FalLiveModel>(
+export function createFalLiveVideo<TModel extends FalLiveVideoModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<FalClientConfig, 'apiKey'>,
-): FalLiveAdapter<TModel> {
-  return new FalLiveAdapter(model, { ...config, apiKey })
+): FalLiveVideoAdapter<TModel> {
+  return new FalLiveVideoAdapter(model, { ...config, apiKey })
 }

@@ -11,11 +11,11 @@ import {
   requestByokFromError,
 } from '@/lib/byok'
 import {
-  FAL_LIVE_APP,
+  FAL_LIVE_VIDEO_APP,
   LIVE_VIDEO_MODEL_LABELS,
   LIVE_VIDEO_MODELS,
   LIVE_VIDEO_PROMPTS,
-  isFalLiveModel,
+  isFalLiveVideoModel,
   isLiveVideoModelId,
   liveVideoProvider,
   liveVideoResolutions,
@@ -157,8 +157,8 @@ async function openFalSession(args: {
       return fetch(input, { ...init, headers })
     },
   })
-  const wmaApp = isFalLiveModel(args.model)
-    ? FAL_LIVE_APP[args.model]
+  const wmaApp = isFalLiveVideoModel(args.model)
+    ? FAL_LIVE_VIDEO_APP[args.model]
     : args.model
   const session = fal.realtime.open(wma(wmaApp), {
     receive: ['video', 'audio'],

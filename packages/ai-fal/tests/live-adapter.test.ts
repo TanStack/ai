@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateLive } from '@tanstack/ai'
+import { generateLiveVideo } from '@tanstack/ai'
 import {
-  allowedFalLiveProxyTarget,
-  createFalLive,
-  FAL_LIVE_APP,
-  falLive,
-  isFalLiveModel,
+  allowedFalLiveVideoProxyTarget,
+  createFalLiveVideo,
+  FAL_LIVE_VIDEO_APP,
+  falLiveVideo,
+  isFalLiveVideoModel,
 } from '../src'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -17,11 +17,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe('fal live adapter', () => {
   it('narrows the Director model id', () => {
-    expect(isFalLiveModel('minimax/h3-max/director')).toBe(true)
-    expect(isFalLiveModel('fal-ai/kling-video/v3/pro/text-to-video')).toBe(
+    expect(isFalLiveVideoModel('minimax/h3-max/director')).toBe(true)
+    expect(isFalLiveVideoModel('fal-ai/kling-video/v3/pro/text-to-video')).toBe(
       false,
     )
-    expect(FAL_LIVE_APP['minimax/h3-max/director']).toBe(
+    expect(FAL_LIVE_VIDEO_APP['minimax/h3-max/director']).toBe(
       'fal-ai/minimax-h3-max-director',
     )
   })
@@ -35,7 +35,7 @@ describe('fal live adapter', () => {
       'https://fal.run/fal-ai/minimax-h3-max-director/ice',
     ]
     for (const raw of allowed) {
-      expect(allowedFalLiveProxyTarget(raw)?.href).toBe(new URL(raw).href)
+      expect(allowedFalLiveVideoProxyTarget(raw)?.href).toBe(new URL(raw).href)
     }
 
     const rejected = [
@@ -50,7 +50,7 @@ describe('fal live adapter', () => {
       'not-a-url',
     ]
     for (const raw of rejected) {
-      expect(allowedFalLiveProxyTarget(raw)).toBeNull()
+      expect(allowedFalLiveVideoProxyTarget(raw)).toBeNull()
     }
   })
 
@@ -73,8 +73,8 @@ describe('fal live adapter', () => {
       },
     )
 
-    const result = await generateLive({
-      adapter: falLive('minimax/h3-max/director', {
+    const result = await generateLiveVideo({
+      adapter: falLiveVideo('minimax/h3-max/director', {
         apiKey: 'fal_test',
         fetch: fetchImpl,
       }),
@@ -103,8 +103,8 @@ describe('fal live adapter', () => {
       },
     )
 
-    await generateLive({
-      adapter: falLive('minimax/h3-max/director', {
+    await generateLiveVideo({
+      adapter: falLiveVideo('minimax/h3-max/director', {
         apiKey: 'fal_test',
         fetch: fetchImpl,
       }),
@@ -116,14 +116,14 @@ describe('fal live adapter', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('createFalLive passes the explicit key', async () => {
+  it('createFalLiveVideo passes the explicit key', async () => {
     const fetchImpl = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         jsonResponse({ token: 'jwt-create' }),
     )
 
-    await generateLive({
-      adapter: createFalLive('minimax/h3-max/director', 'fal_explicit', {
+    await generateLiveVideo({
+      adapter: createFalLiveVideo('minimax/h3-max/director', 'fal_explicit', {
         fetch: fetchImpl,
       }),
       prompt: 'a violinist on a rooftop',
@@ -144,8 +144,8 @@ describe('fal live adapter', () => {
     )
 
     await expect(
-      generateLive({
-        adapter: falLive('minimax/h3-max/director', {
+      generateLiveVideo({
+        adapter: falLiveVideo('minimax/h3-max/director', {
           apiKey: 'fal_test',
           fetch: fetchImpl,
         }),
@@ -161,8 +161,8 @@ describe('fal live adapter', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}))
 
     await expect(
-      generateLive({
-        adapter: falLive('minimax/h3-max/director', {
+      generateLiveVideo({
+        adapter: falLiveVideo('minimax/h3-max/director', {
           apiKey: 'fal_test',
           fetch: fetchImpl,
         }),
@@ -176,7 +176,7 @@ describe('fal live adapter', () => {
     const previous = process.env.FAL_KEY
     delete process.env.FAL_KEY
     try {
-      expect(() => falLive('minimax/h3-max/director')).toThrow(/FAL_KEY/)
+      expect(() => falLiveVideo('minimax/h3-max/director')).toThrow(/FAL_KEY/)
     } finally {
       if (previous === undefined) {
         delete process.env.FAL_KEY

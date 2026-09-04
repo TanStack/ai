@@ -2,11 +2,11 @@
 title: Live Generation
 id: live-generation
 order: 6.5
-description: "Open a live, prompt-steerable video session with generateLive(). Mint a connect payload on the server, connect in the browser, and steer the stream with new prompts."
+description: "Open a live, prompt-steerable video session with generateLiveVideo(). Mint a connect payload on the server, connect in the browser, and steer the stream with new prompts."
 keywords:
   - tanstack ai
   - live generation
-  - generateLive
+  - generateLiveVideo
   - reactor
   - fal
   - h3 max director
@@ -17,9 +17,9 @@ keywords:
 
 # Live Generation (Experimental)
 
-You want a video that plays while it generates. You also want to change the prompt mid-run. A finite video job stops with a file. `generateLive()` opens a session instead.
+You want a video that plays while it generates. You also want to change the prompt mid-run. A finite video job stops with a file. `generateLiveVideo()` opens a session instead.
 
-Call `generateLive()` on the server. It returns a connect payload: a model id, a prompt, and a token. The browser uses that payload to open the stream.
+Call `generateLiveVideo()` on the server. It returns a connect payload: a model id, a prompt, and a token. The browser uses that payload to open the stream.
 
 > **Experimental.** The API can change. Live models bill per session-second while a GPU is held.
 
@@ -28,10 +28,10 @@ Call `generateLive()` on the server. It returns a connect payload: a model id, a
 Pick one adapter. They do not return a download URL.
 
 ```ts group=live-reactor
-import { generateLive } from '@tanstack/ai'
+import { generateLiveVideo } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
-const live = await generateLive({
+const live = await generateLiveVideo({
   adapter: reactorVideo('helios'),
   prompt: 'A chef tosses noodles in a steel wok, flames leaping',
 })
@@ -40,11 +40,11 @@ const live = await generateLive({
 ```
 
 ```ts group=live-fal
-import { generateLive } from '@tanstack/ai'
-import { falLive } from '@tanstack/ai-fal'
+import { generateLiveVideo } from '@tanstack/ai'
+import { falLiveVideo } from '@tanstack/ai-fal'
 
-const live = await generateLive({
-  adapter: falLive('minimax/h3-max/director'),
+const live = await generateLiveVideo({
+  adapter: falLiveVideo('minimax/h3-max/director'),
   prompt: 'Live shopping stream: a host holds up a gold watch to camera',
 })
 
@@ -163,7 +163,7 @@ Director bills a 60 second minimum. Resolution is `480p` or `768p`. See the [fal
 | `reactorVideo()` | `helios` | Interactive realtime video |
 | `reactorVideo()` | `fast-h3` | Fast live clips on a live track |
 | `reactorVideo()` | `longlive-v2` | Shot-based live clips |
-| `falLive()` | `minimax/h3-max/director` | Steerable live stream over WMA |
+| `falLiveVideo()` | `minimax/h3-max/director` | Steerable live stream over WMA |
 
 For Orbis and LingBot, use [World Generation](./world-generation). For a file that finishes, use [Video Generation](./video-generation).
 

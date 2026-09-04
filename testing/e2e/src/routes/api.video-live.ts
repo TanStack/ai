@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateLive } from '@tanstack/ai'
-import { falLive, isFalLiveModel } from '@tanstack/ai-fal'
+import { generateLiveVideo } from '@tanstack/ai'
+import { falLiveVideo, isFalLiveVideoModel } from '@tanstack/ai-fal'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
 const EXPIRES_AT = 1_800_000_000
@@ -42,9 +42,9 @@ export const Route = createFileRoute('/api/video-live')({
         const prompt = body.prompt.trim()
 
         try {
-          const result = isFalLiveModel(model)
-            ? await generateLive({
-                adapter: falLive(model, {
+          const result = isFalLiveVideoModel(model)
+            ? await generateLiveVideo({
+                adapter: falLiveVideo(model, {
                   apiKey: 'fal_e2e',
                   fetch: fail
                     ? tokenFetch('no credits', 402, 'Payment Required')
@@ -53,7 +53,7 @@ export const Route = createFileRoute('/api/video-live')({
                 prompt,
                 debug: false,
               })
-            : await generateLive({
+            : await generateLiveVideo({
                 adapter: reactorVideo('helios', {
                   apiKey: 'rk_e2e',
                   fetch: fail

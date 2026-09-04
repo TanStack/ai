@@ -1,4 +1,4 @@
-import { BaseLiveAdapter } from '@tanstack/ai/adapters'
+import { BaseLiveVideoAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
 import {
   mintReactorSessionToken,
@@ -7,7 +7,10 @@ import {
 } from '../utils/client'
 import { REACTOR_VIDEO_SLUGS } from '../model-meta'
 import type { ReactorClientConfig } from '../utils/client'
-import type { LiveGenerationOptions, LiveGenerationResult } from '@tanstack/ai'
+import type {
+  LiveVideoGenerationOptions,
+  LiveVideoGenerationResult,
+} from '@tanstack/ai'
 import type {
   ReactorVideoModel,
   ReactorVideoProviderOptions,
@@ -19,10 +22,10 @@ import type {
  *
  * @example
  * ```ts
- * import { generateLive } from '@tanstack/ai'
+ * import { generateLiveVideo } from '@tanstack/ai'
  * import { reactorVideo } from '@tanstack/ai-reactor'
  *
- * const live = await generateLive({
+ * const live = await generateLiveVideo({
  *   adapter: reactorVideo('helios'),
  *   prompt: 'A neon cyberpunk city at night',
  * })
@@ -30,7 +33,7 @@ import type {
  */
 export class ReactorVideoAdapter<
   TModel extends ReactorVideoModel,
-> extends BaseLiveAdapter<TModel, ReactorVideoProviderOptions> {
+> extends BaseLiveVideoAdapter<TModel, ReactorVideoProviderOptions> {
   readonly name = 'reactor' as const
   private readonly clientConfig: ReactorClientConfig
   private readonly apiKey: string
@@ -41,15 +44,15 @@ export class ReactorVideoAdapter<
     this.clientConfig = config
   }
 
-  async createLive(
-    options: LiveGenerationOptions<ReactorVideoProviderOptions>,
-  ): Promise<LiveGenerationResult> {
+  async createLiveVideo(
+    options: LiveVideoGenerationOptions<ReactorVideoProviderOptions>,
+  ): Promise<LiveVideoGenerationResult> {
     const { logger, prompt, abortSignal } = options
     const modelSlug = REACTOR_VIDEO_SLUGS[this.model]
     const apiUrl = resolveReactorApiUrl(this.clientConfig)
 
     logger.request(
-      `activity=generateLive provider=reactor model=${modelSlug}`,
+      `activity=generateLiveVideo provider=reactor model=${modelSlug}`,
       { provider: 'reactor', model: modelSlug },
     )
 
@@ -62,8 +65,8 @@ export class ReactorVideoAdapter<
         abortSignal,
       })
 
-      const result: LiveGenerationResult = {
-        id: generateId('live'),
+      const result: LiveVideoGenerationResult = {
+        id: generateId('liveVideo'),
         model: modelSlug,
         token: token.jwt,
         expiresAt: token.expires_at * 1000,
@@ -72,15 +75,15 @@ export class ReactorVideoAdapter<
       }
 
       logger.output(
-        `activity=generateLive provider=reactor model=${modelSlug}`,
+        `activity=generateLiveVideo provider=reactor model=${modelSlug}`,
         { model: modelSlug, status: result.status },
       )
 
       return result
     } catch (error) {
-      logger.errors('reactor.createLive failed', {
+      logger.errors('reactor.createLiveVideo failed', {
         error,
-        source: 'reactor.createLive',
+        source: 'reactor.createLiveVideo',
       })
       throw error
     }

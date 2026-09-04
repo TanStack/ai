@@ -1,6 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { falImage, falLive, falVideo, isFalLiveModel } from '@tanstack/ai-fal'
+import {
+  falImage,
+  falLiveVideo,
+  falVideo,
+  isFalLiveVideoModel,
+} from '@tanstack/ai-fal'
 import { createGeminiImage, createGeminiVideo } from '@tanstack/ai-gemini'
 import { createGrokImage, createGrokVideo } from '@tanstack/ai-grok'
 import { createOpenRouterVideo } from '@tanstack/ai-openrouter'
@@ -15,7 +20,7 @@ import {
 } from '@tanstack/ai-byteplus'
 import {
   generateImage,
-  generateLive,
+  generateLiveVideo,
   generateVideo,
   generateWorld,
   toServerSentEventsResponse,
@@ -163,8 +168,8 @@ function falV(model: Parameters<typeof falVideo>[0]) {
   return falVideo(model, { apiKey: requireByok(falByok) })
 }
 
-function falL(model: Parameters<typeof falLive>[0]) {
-  return falLive(model, { apiKey: requireByok(falByok) })
+function falL(model: Parameters<typeof falLiveVideo>[0]) {
+  return falLiveVideo(model, { apiKey: requireByok(falByok) })
 }
 
 function grokI(model: Parameters<typeof createGrokImage>[0]) {
@@ -815,13 +820,13 @@ export const generateLiveVideoFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const prompt = data.prompt.trim()
     const provider = liveVideoProvider(data.model)
-    const live = isFalLiveModel(data.model)
-      ? await generateLive({
+    const live = isFalLiveVideoModel(data.model)
+      ? await generateLiveVideo({
           adapter: falL(data.model),
           prompt,
           debug: false,
         })
-      : await generateLive({
+      : await generateLiveVideo({
           adapter: reactorV(data.model),
           prompt,
           ...(data.resolution === '1080p' ||

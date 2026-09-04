@@ -4,7 +4,7 @@ import {
   generateImage,
   generateSpeech,
   generateTranscription,
-  generateLive,
+  generateLiveVideo,
   generateVideo,
   generateWorld,
   getVideoJobStatus,
@@ -135,13 +135,13 @@ describe('generation middleware — wiring', () => {
     expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
   })
 
-  it('generateLive fires start then finish', async () => {
+  it('generateLiveVideo fires start then finish', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {
-      kind: 'live' as const,
+      kind: 'liveVideo' as const,
       name: 'reactor',
       model: 'helios',
-      createLive: vi.fn(async () => ({
+      createLiveVideo: vi.fn(async () => ({
         id: 'live-1',
         model: 'reactor/helios',
         token: 'jwt',
@@ -151,7 +151,7 @@ describe('generation middleware — wiring', () => {
       })),
     }
 
-    const result = await generateLive({
+    const result = await generateLiveVideo({
       adapter: adapter as any,
       prompt: 'a shot',
       middleware: [middleware],
@@ -160,7 +160,7 @@ describe('generation middleware — wiring', () => {
 
     expect(result.token).toBe('jwt')
     expect(events.start).toHaveLength(1)
-    expect(events.start[0]!.activity).toBe('live')
+    expect(events.start[0]!.activity).toBe('liveVideo')
     expect(events.start[0]!.provider).toBe('reactor')
     expect(events.finish).toHaveLength(1)
     expect(events.error).toHaveLength(0)

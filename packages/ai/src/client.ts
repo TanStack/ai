@@ -5,7 +5,7 @@ import type {
   TranscriptionOptions,
   VideoGenerationOptions,
   WorldGenerationOptions,
-  LiveGenerationOptions,
+  LiveVideoGenerationOptions,
 } from './types'
 
 export type GenerationKind =
@@ -15,7 +15,7 @@ export type GenerationKind =
   | 'video'
   | 'transcription'
   | 'world'
-  | 'live'
+  | 'liveVideo'
 
 type GenerationInputByKind = {
   image: Omit<ImageGenerationOptions, 'logger' | 'model'>
@@ -24,7 +24,7 @@ type GenerationInputByKind = {
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
-  live: Omit<LiveGenerationOptions, 'logger' | 'model'>
+  liveVideo: Omit<LiveVideoGenerationOptions, 'logger' | 'model'>
 }
 
 export interface GenerationParams<TKind extends GenerationKind> {
@@ -41,7 +41,7 @@ const generationKinds = [
   'video',
   'transcription',
   'world',
-  'live',
+  'liveVideo',
 ] as const satisfies ReadonlyArray<GenerationKind>
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1045,7 +1045,7 @@ export interface WorldUsageEvent extends BaseEventContext {
 // ===========================
 
 /** Emitted when a live generation request starts. */
-export interface LiveRequestStartedEvent extends BaseEventContext {
+export interface LiveVideoRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1056,7 +1056,7 @@ export interface LiveRequestStartedEvent extends BaseEventContext {
 }
 
 /** Emitted when a live generation request completes. */
-export interface LiveRequestCompletedEvent extends BaseEventContext {
+export interface LiveVideoRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1069,7 +1069,7 @@ export interface LiveRequestCompletedEvent extends BaseEventContext {
 }
 
 /** Emitted when a live generation request fails. */
-export interface LiveRequestErrorEvent extends BaseEventContext {
+export interface LiveVideoRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1081,7 +1081,7 @@ export interface LiveRequestErrorEvent extends BaseEventContext {
 }
 
 /** Emitted when live usage metrics are available. */
-export interface LiveUsageEvent extends BaseEventContext {
+export interface LiveVideoUsageEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1493,10 +1493,10 @@ export interface AIDevtoolsEventMap {
   'world:usage': WorldUsageEvent
 
   // Live events
-  'live:request:started': LiveRequestStartedEvent
-  'live:request:completed': LiveRequestCompletedEvent
-  'live:request:error': LiveRequestErrorEvent
-  'live:usage': LiveUsageEvent
+  'liveVideo:request:started': LiveVideoRequestStartedEvent
+  'liveVideo:request:completed': LiveVideoRequestCompletedEvent
+  'liveVideo:request:error': LiveVideoRequestErrorEvent
+  'liveVideo:usage': LiveVideoUsageEvent
 
   // Client events
   'client:created': ClientCreatedEvent

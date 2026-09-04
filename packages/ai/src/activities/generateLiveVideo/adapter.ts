@@ -1,11 +1,14 @@
-import type { LiveGenerationOptions, LiveGenerationResult } from '../../types'
+import type {
+  LiveVideoGenerationOptions,
+  LiveVideoGenerationResult,
+} from '../../types'
 
 /**
  * Configuration for live generation adapter instances.
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export interface LiveAdapterConfig {
+export interface LiveVideoAdapterConfig {
   apiKey?: string
   baseUrl?: string
   timeout?: number
@@ -25,12 +28,12 @@ export interface LiveAdapterConfig {
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export interface LiveAdapter<
+export interface LiveVideoAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
-  readonly kind: 'live'
+  readonly kind: 'liveVideo'
   /** Adapter name identifier */
   readonly name: string
   /** The model this adapter is configured for */
@@ -49,16 +52,16 @@ export interface LiveAdapter<
    * Server adapters typically mint a short-lived token and return it with the
    * prompt so a browser can connect, set the prompt, and start streaming.
    */
-  createLive: (
-    options: LiveGenerationOptions<TProviderOptions>,
-  ) => Promise<LiveGenerationResult>
+  createLiveVideo: (
+    options: LiveVideoGenerationOptions<TProviderOptions>,
+  ) => Promise<LiveVideoGenerationResult>
 }
 
 /**
- * A LiveAdapter with any/unknown type parameters.
+ * A LiveVideoAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyLiveAdapter = LiveAdapter<any, any>
+export type AnyLiveVideoAdapter = LiveVideoAdapter<any, any>
 
 /**
  * Abstract base class for live generation adapters.
@@ -66,11 +69,11 @@ export type AnyLiveAdapter = LiveAdapter<any, any>
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export abstract class BaseLiveAdapter<
+export abstract class BaseLiveVideoAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-> implements LiveAdapter<TModel, TProviderOptions> {
-  readonly kind = 'live' as const
+> implements LiveVideoAdapter<TModel, TProviderOptions> {
+  readonly kind = 'liveVideo' as const
   abstract readonly name: string
   readonly model: TModel
 
@@ -79,16 +82,16 @@ export abstract class BaseLiveAdapter<
     providerOptions: TProviderOptions
   }
 
-  protected config: LiveAdapterConfig
+  protected config: LiveVideoAdapterConfig
 
-  constructor(model: TModel, config: LiveAdapterConfig = {}) {
+  constructor(model: TModel, config: LiveVideoAdapterConfig = {}) {
     this.config = config
     this.model = model
   }
 
-  abstract createLive(
-    options: LiveGenerationOptions<TProviderOptions>,
-  ): Promise<LiveGenerationResult>
+  abstract createLiveVideo(
+    options: LiveVideoGenerationOptions<TProviderOptions>,
+  ): Promise<LiveVideoGenerationResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

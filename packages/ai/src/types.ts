@@ -2288,7 +2288,7 @@ export interface WorldGenerationResult {
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export interface LiveGenerationOptions<
+export interface LiveVideoGenerationOptions<
   TProviderOptions extends object = object,
 > {
   /** The model to use for live generation */
@@ -2301,7 +2301,7 @@ export interface LiveGenerationOptions<
    */
   modelOptions?: TProviderOptions
   /**
-   * Internal logger threaded from the generateLive() entry point. Adapters
+   * Internal logger threaded from the generateLiveVideo() entry point. Adapters
    * must call logger.request() before the SDK call and logger.errors() in
    * catch blocks.
    */
@@ -2324,7 +2324,7 @@ export interface LiveGenerationOptions<
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export interface LiveGenerationResult {
+export interface LiveVideoGenerationResult {
   /** Unique identifier for this generation */
   id: string
   /**

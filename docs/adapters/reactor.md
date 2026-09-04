@@ -10,13 +10,13 @@ keywords:
   - orbis
   - helios
   - generateWorld
-  - generateLive
+  - generateLiveVideo
   - adapter
 ---
 
 Reactor hosts live world and video models. You describe a scene. Then you open a session and stream video. You can steer the stream with a new prompt.
 
-Use `reactorWorld()` with `generateWorld()` for navigable worlds. Use `reactorVideo()` with `generateLive()` for live video models. Both mint a session token. Neither supports `chat()`.
+Use `reactorWorld()` with `generateWorld()` for navigable worlds. Use `reactorVideo()` with `generateLiveVideo()` for live video models. Both mint a session token. Neither supports `chat()`.
 
 ## Installation
 
@@ -93,14 +93,14 @@ const adapter = reactorWorld('visko-orbis-stable')
 
 ## Live video
 
-Reactor video is a live stream, not a finished file. `generateLive()` returns a token. The browser connects, sets the prompt, and plays the track.
+Reactor video is a live stream, not a finished file. `generateLiveVideo()` returns a token. The browser connects, sets the prompt, and plays the track.
 
 ```ts
-import { generateLive } from '@tanstack/ai'
+import { generateLiveVideo } from '@tanstack/ai'
 import { reactorVideo } from '@tanstack/ai-reactor'
 
 const apiKey = process.env.REACTOR_API_KEY ?? ''
-const live = await generateLive({
+const live = await generateLiveVideo({
   adapter: reactorVideo('helios', { apiKey }),
   prompt: 'A neon cyberpunk city at night, slow aerial drift',
 })
@@ -115,9 +115,9 @@ Hand `live.token`, `live.model`, and `live.prompt` to the browser. Connect as sh
 | `longlive-v2` | `reactor/longlive-v2` |
 | `ltx2` | `reactor/ltx2` |
 
-`helios` also works with `reactorWorld()`. Pick `generateLive()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
+`helios` also works with `reactorWorld()`. Pick `generateLiveVideo()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
 
-Pass a text prompt to `generateWorld()` / `generateLive()`. Those calls mint a token. They do not send resolution or a seed image.
+Pass a text prompt to `generateWorld()` / `generateLiveVideo()`. Those calls mint a token. They do not send resolution or a seed image.
 
 After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
 

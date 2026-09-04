@@ -29,24 +29,24 @@ import {
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
-import type { LiveAdapter } from './adapter'
-import type { StreamChunk, LiveGenerationResult } from '../../types'
+import type { LiveVideoAdapter } from './adapter'
+import type { StreamChunk, LiveVideoGenerationResult } from '../../types'
 
 // ===========================
 // Activity Kind
 // ===========================
 
 /** The adapter kind this activity handles */
-export const kind = 'live' as const
+export const kind = 'liveVideo' as const
 
 // ===========================
 // Type Extraction Helpers
 // ===========================
 
 /**
- * Extract provider options from a LiveAdapter via ~types.
+ * Extract provider options from a LiveVideoAdapter via ~types.
  */
-export type LiveProviderOptions<TAdapter> = TAdapter extends {
+export type LiveVideoProviderOptions<TAdapter> = TAdapter extends {
   '~types': { providerOptions: infer P extends object }
 }
   ? P
@@ -65,8 +65,8 @@ export type LiveProviderOptions<TAdapter> = TAdapter extends {
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export interface LiveActivityOptions<
-  TAdapter extends LiveAdapter<string, LiveProviderOptions<TAdapter>>,
+export interface LiveVideoActivityOptions<
+  TAdapter extends LiveVideoAdapter<string, LiveVideoProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
   /** The live adapter to use (must be created with a model) */
@@ -74,11 +74,11 @@ export interface LiveActivityOptions<
   /** Natural-language description of the shot or scene */
   prompt: string
   /** Provider-specific options for live generation */
-  modelOptions?: LiveProviderOptions<TAdapter>
+  modelOptions?: LiveVideoProviderOptions<TAdapter>
   /**
    * Whether to wrap the token result as StreamChunks for SSE transport.
    * This is not the live video. When false or omitted, returns
-   * Promise<LiveGenerationResult>.
+   * Promise<LiveVideoGenerationResult>.
    *
    * @default false
    */
@@ -119,12 +119,12 @@ export interface LiveActivityOptions<
 /**
  * Result type for the live generation activity.
  * - If stream is true: AsyncIterable<StreamChunk>
- * - Otherwise: Promise<LiveGenerationResult>
+ * - Otherwise: Promise<LiveVideoGenerationResult>
  */
-export type LiveActivityResult<TStream extends boolean = false> =
+export type LiveVideoActivityResult<TStream extends boolean = false> =
   TStream extends true
     ? AsyncIterable<StreamChunk>
-    : Promise<LiveGenerationResult>
+    : Promise<LiveVideoGenerationResult>
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -139,10 +139,10 @@ function createId(prefix: string): string {
  *
  * @example Mint a session token on the server
  * ```ts
- * import { generateLive } from '@tanstack/ai'
+ * import { generateLiveVideo } from '@tanstack/ai'
  * import { reactorVideo } from '@tanstack/ai-reactor'
  *
- * const live = await generateLive({
+ * const live = await generateLiveVideo({
  *   adapter: reactorVideo('helios'),
  *   prompt: 'A red sports car powerslides a mountain hairpin',
  * })
@@ -152,29 +152,29 @@ function createId(prefix: string): string {
  *
  * @experimental Live generation is an experimental feature and may change.
  */
-export function generateLive<
-  TAdapter extends LiveAdapter<string, LiveProviderOptions<TAdapter>>,
+export function generateLiveVideo<
+  TAdapter extends LiveVideoAdapter<string, LiveVideoProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(
-  options: LiveActivityOptions<TAdapter, TStream>,
-): LiveActivityResult<TStream> {
+  options: LiveVideoActivityOptions<TAdapter, TStream>,
+): LiveVideoActivityResult<TStream> {
   if (options.stream) {
     return streamGenerationResult(
-      (resolved) => runGenerateLive({ ...options, runId: resolved.runId }),
+      (resolved) => runGenerateLiveVideo({ ...options, runId: resolved.runId }),
       options,
-    ) as LiveActivityResult<TStream>
+    ) as LiveVideoActivityResult<TStream>
   }
-  return runGenerateLive(options) as LiveActivityResult<TStream>
+  return runGenerateLiveVideo(options) as LiveVideoActivityResult<TStream>
 }
 
 /**
  * Run the core live generation logic (non-streaming).
  */
-async function runGenerateLive<
-  TAdapter extends LiveAdapter<string, LiveProviderOptions<TAdapter>>,
+async function runGenerateLiveVideo<
+  TAdapter extends LiveVideoAdapter<string, LiveVideoProviderOptions<TAdapter>>,
 >(
-  options: LiveActivityOptions<TAdapter, boolean>,
-): Promise<LiveGenerationResult> {
+  options: LiveVideoActivityOptions<TAdapter, boolean>,
+): Promise<LiveVideoGenerationResult> {
   const {
     adapter,
     stream: _stream,
@@ -187,7 +187,7 @@ async function runGenerateLive<
     ...rest
   } = options
   const model = adapter.model
-  const requestId = createId('live')
+  const requestId = createId('liveVideo')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const abortControls = createActivityAbortControls({
@@ -201,7 +201,7 @@ async function runGenerateLive<
 
   const mwCtx = createGenerationContext({
     requestId,
-    activity: 'live',
+    activity: 'liveVideo',
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
@@ -213,7 +213,7 @@ async function runGenerateLive<
 
   await runGenerationStart(middleware, mwCtx)
 
-  aiEventClient.emit('live:request:started', {
+  aiEventClient.emit('liveVideo:request:started', {
     requestId,
     provider: adapter.name,
     model,
@@ -224,14 +224,14 @@ async function runGenerateLive<
     }),
   })
 
-  logger.request(`activity=generateLive provider=${providerName}`, {
+  logger.request(`activity=generateLiveVideo provider=${providerName}`, {
     provider: providerName,
     model,
   })
 
   try {
     const rawResult = await raceWithAbort(
-      adapter.createLive({
+      adapter.createLiveVideo({
         ...rest,
         model,
         logger,
@@ -243,7 +243,7 @@ async function runGenerateLive<
     const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const elapsedMs = Date.now() - startTime
 
-    aiEventClient.emit('live:request:completed', {
+    aiEventClient.emit('liveVideo:request:completed', {
       requestId,
       provider: adapter.name,
       model: result.model,
@@ -257,7 +257,7 @@ async function runGenerateLive<
     })
 
     if (result.usage) {
-      aiEventClient.emit('live:usage', {
+      aiEventClient.emit('liveVideo:usage', {
         requestId,
         model: result.model,
         usage: result.usage,
@@ -268,7 +268,7 @@ async function runGenerateLive<
       })
     }
 
-    logger.output(`activity=generateLive provider=${providerName}`, {
+    logger.output(`activity=generateLiveVideo provider=${providerName}`, {
       model: result.model,
       status: result.status,
     })
@@ -284,7 +284,7 @@ async function runGenerateLive<
     abortControls.clear()
     const elapsedMs = Date.now() - startTime
     const err = error as Error
-    aiEventClient.emit('live:request:error', {
+    aiEventClient.emit('liveVideo:request:error', {
       requestId,
       provider: adapter.name,
       model,
@@ -306,9 +306,9 @@ async function runGenerateLive<
         duration: elapsedMs,
       })
     }
-    logger.errors('generateLive activity failed', {
+    logger.errors('generateLiveVideo activity failed', {
       error,
-      source: 'generateLive',
+      source: 'generateLiveVideo',
     })
     throw error
   }
@@ -319,17 +319,21 @@ async function runGenerateLive<
 // ===========================
 
 /**
- * Create typed options for the generateLive() function without executing.
+ * Create typed options for the generateLiveVideo() function without executing.
  */
-export function createLiveOptions<
-  TAdapter extends LiveAdapter<string, LiveProviderOptions<TAdapter>>,
+export function createLiveVideoOptions<
+  TAdapter extends LiveVideoAdapter<string, LiveVideoProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(
-  options: LiveActivityOptions<TAdapter, TStream>,
-): LiveActivityOptions<TAdapter, TStream> {
+  options: LiveVideoActivityOptions<TAdapter, TStream>,
+): LiveVideoActivityOptions<TAdapter, TStream> {
   return options
 }
 
 // Re-export adapter types
-export type { LiveAdapter, LiveAdapterConfig, AnyLiveAdapter } from './adapter'
-export { BaseLiveAdapter } from './adapter'
+export type {
+  LiveVideoAdapter,
+  LiveVideoAdapterConfig,
+  AnyLiveVideoAdapter,
+} from './adapter'
+export { BaseLiveVideoAdapter } from './adapter'

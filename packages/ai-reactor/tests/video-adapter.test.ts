@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateLive } from '@tanstack/ai'
+import { generateLiveVideo } from '@tanstack/ai'
 import {
   createReactorVideo,
   isReactorVideoModel,
@@ -22,7 +22,7 @@ describe('Reactor video adapter', () => {
     expect(isReactorVideoModel('lingbot')).toBe(false)
   })
 
-  it('mints a scoped session token and returns it from generateLive', async () => {
+  it('mints a scoped session token and returns it from generateLiveVideo', async () => {
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         expect(String(input)).toBe('https://api.reactor.inc/tokens')
@@ -43,7 +43,7 @@ describe('Reactor video adapter', () => {
       },
     )
 
-    const result = await generateLive({
+    const result = await generateLiveVideo({
       adapter: reactorVideo('helios', {
         apiKey: 'rk_test',
         fetch: fetchImpl,
@@ -68,7 +68,7 @@ describe('Reactor video adapter', () => {
         jsonResponse({ jwt: 'jwt-create', expires_at: 1_800_000_000 }),
     )
 
-    await generateLive({
+    await generateLiveVideo({
       adapter: createReactorVideo('fast-h3', 'rk_explicit', {
         fetch: fetchImpl,
       }),
@@ -98,7 +98,7 @@ describe('Reactor video adapter', () => {
     )
 
     await expect(
-      generateLive({
+      generateLiveVideo({
         adapter: reactorVideo('helios', {
           apiKey: 'rk_test',
           fetch: fetchImpl,

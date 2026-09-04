@@ -15,18 +15,18 @@ export { FalVideoAdapter, falVideo } from './adapters/video'
 // ============================================================================
 
 export {
-  FalLiveAdapter,
-  falLive,
-  createFalLive,
-  FAL_LIVE_APP,
-  FAL_LIVE_MODELS,
-  isFalLiveModel,
-  allowedFalLiveProxyTarget,
+  FalLiveVideoAdapter,
+  falLiveVideo,
+  createFalLiveVideo,
+  FAL_LIVE_VIDEO_APP,
+  FAL_LIVE_VIDEO_MODELS,
+  isFalLiveVideoModel,
+  allowedFalLiveVideoProxyTarget,
 } from './adapters/live'
 export type {
-  FalLiveModel,
-  FalLiveProviderOptions,
-  FalLiveModelProviderOptionsByName,
+  FalLiveVideoModel,
+  FalLiveVideoProviderOptions,
+  FalLiveVideoModelProviderOptionsByName,
 } from './adapters/live'
 
 // ============================================================================

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 
-test.describe('generateLive activity', () => {
+test.describe('generateLiveVideo activity', () => {
   test('mints a Reactor session token through reactorVideo', async ({
     request,
   }) => {
@@ -28,7 +28,7 @@ test.describe('generateLive activity', () => {
     expect(body.expiresAt).toBe(1_800_000_000 * 1000)
   })
 
-  test('mints a fal realtime token through falLive', async ({ request }) => {
+  test('mints a fal realtime token through falLiveVideo', async ({ request }) => {
     const before = Date.now()
     const res = await request.post('/api/video-live', {
       data: {

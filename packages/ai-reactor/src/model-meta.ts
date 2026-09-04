@@ -63,7 +63,7 @@ export type ReactorWorldModelProviderOptionsByName = {
  * `REACTOR_VIDEO_SLUGS` maps each id to the `modelName` the Reactor SDK
  * connects with.
  *
- * These models stream live video over WebRTC. Use them with `generateLive()`.
+ * These models stream live video over WebRTC. Use them with `generateLiveVideo()`.
  * They do not return a download URL. X2 and SANA-Streaming need a live source
  * track, so they are not in this list.
  */
@@ -92,7 +92,7 @@ export type ReactorVideoSlug = (typeof REACTOR_VIDEO_SLUGS)[ReactorVideoModel]
 
 /**
  * Browser session commands for Reactor video models. Same fields as world.
- * `createLive` does not send these. Keep them in client state and apply after
+ * `createLiveVideo` does not send these. Keep them in client state and apply after
  * connect.
  */
 export type ReactorVideoProviderOptions = ReactorWorldProviderOptions

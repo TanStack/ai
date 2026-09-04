@@ -64,7 +64,7 @@ Each helper mirrors the activity it pairs with. Same options, same return type.
 | `createImageOptions` | `generateImage()` | image adapter (e.g. `openaiImage`, `falImage`) |
 | `createAudioOptions` | `generateAudio()` | audio adapter (e.g. `falAudio`, `geminiAudio`) |
 | `createVideoOptions` | `generateVideo()` / `getVideoJobStatus()` | video adapter (e.g. `falVideo`, `openaiVideo`) |
-| `createLiveOptions` | `generateLive()` | live adapter (e.g. `reactorVideo`, `falLive`) |
+| `createLiveVideoOptions` | `generateLiveVideo()` | live adapter (e.g. `reactorVideo`, `falLiveVideo`) |
 | `createWorldOptions` | `generateWorld()` | world adapter (e.g. `reactorWorld`) |
 | `createSpeechOptions` | `generateSpeech()` | speech adapter (e.g. `openaiSpeech`, `elevenlabsSpeech`) |
 | `createTranscriptionOptions` | `generateTranscription()` | transcription adapter (e.g. `openaiTranscription`, `falTranscription`) |

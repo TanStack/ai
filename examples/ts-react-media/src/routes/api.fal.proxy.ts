@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-import { allowedFalLiveProxyTarget } from '@tanstack/ai-fal'
+import { allowedFalLiveVideoProxyTarget } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 
 // Director WMA auth stays on the server (`Key ${apiKey}`). The allowlist
@@ -15,7 +15,7 @@ async function proxyFal(request: Request): Promise<Response> {
   if (!target) {
     return Response.json({ error: 'Missing x-fal-target-url' }, { status: 400 })
   }
-  const url = allowedFalLiveProxyTarget(target)
+  const url = allowedFalLiveVideoProxyTarget(target)
   if (!url) {
     return Response.json({ error: 'Invalid fal target' }, { status: 400 })
   }

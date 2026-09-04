@@ -3,9 +3,9 @@ import {
   isReactorVideoModel,
   isReactorWorldModel,
 } from '@tanstack/ai-reactor'
-import { FAL_LIVE_APP, isFalLiveModel } from '@tanstack/ai-fal'
+import { FAL_LIVE_VIDEO_APP, isFalLiveVideoModel } from '@tanstack/ai-fal'
 import type { ReactorVideoModel, ReactorWorldModel } from '@tanstack/ai-reactor'
-import type { FalLiveModel } from '@tanstack/ai-fal'
+import type { FalLiveVideoModel } from '@tanstack/ai-fal'
 
 export const IMAGE_MODELS = [
   {
@@ -243,7 +243,7 @@ export type VideoMode = 'text-to-video' | 'image-to-video'
 
 export type LiveVideoProvider = 'reactor' | 'fal'
 
-export type LiveVideoModelId = ReactorVideoModel | FalLiveModel
+export type LiveVideoModelId = ReactorVideoModel | FalLiveVideoModel
 
 export const LIVE_VIDEO_MODELS: ReadonlyArray<{
   id: LiveVideoModelId
@@ -280,7 +280,7 @@ export type FalLiveResolution = (typeof FAL_LIVE_RESOLUTIONS)[number]
 export type LiveVideoResolution = ReactorLiveResolution | FalLiveResolution
 
 export function liveVideoProvider(model: LiveVideoModelId): LiveVideoProvider {
-  return isFalLiveModel(model) ? 'fal' : 'reactor'
+  return isFalLiveVideoModel(model) ? 'fal' : 'reactor'
 }
 
 export function liveVideoResolutions(
@@ -290,16 +290,16 @@ export function liveVideoResolutions(
 }
 
 export function isLiveVideoModelId(value: string): value is LiveVideoModelId {
-  return isReactorVideoModel(value) || isFalLiveModel(value)
+  return isReactorVideoModel(value) || isFalLiveVideoModel(value)
 }
 
 export {
-  FAL_LIVE_APP,
+  FAL_LIVE_VIDEO_APP,
   isReactorVideoModel,
-  isFalLiveModel,
+  isFalLiveVideoModel,
   isReactorWorldModel,
 }
-export type { ReactorVideoModel, FalLiveModel, ReactorWorldModel }
+export type { ReactorVideoModel, FalLiveVideoModel, ReactorWorldModel }
 
 export const WORLD_MODELS = [
   'visko-orbis-stable',
