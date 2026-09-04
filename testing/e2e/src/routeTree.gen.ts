@@ -35,6 +35,7 @@ import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
+import { Route as ApiUnknownChatOptionsRouteImport } from './routes/api.unknown-chat-options'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
@@ -232,6 +233,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUnknownChatOptionsRoute = ApiUnknownChatOptionsRouteImport.update({
+  id: '/api/unknown-chat-options',
+  path: '/api/unknown-chat-options',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -668,6 +674,7 @@ export interface FileRoutesByFullPath {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/unknown-chat-options': typeof ApiUnknownChatOptionsRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -762,6 +769,7 @@ export interface FileRoutesByTo {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/unknown-chat-options': typeof ApiUnknownChatOptionsRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -857,6 +865,7 @@ export interface FileRoutesById {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/unknown-chat-options': typeof ApiUnknownChatOptionsRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -953,6 +962,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/unknown-chat-options'
     | '/api/video'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1047,6 +1057,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/unknown-chat-options'
     | '/api/video'
     | '/$provider'
     | '/api/audio/stream'
@@ -1141,6 +1152,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/unknown-chat-options'
     | '/api/video'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1236,6 +1248,7 @@ export interface RootRouteChildren {
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
+  ApiUnknownChatOptionsRoute: typeof ApiUnknownChatOptionsRoute
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
@@ -1422,6 +1435,13 @@ declare module '@tanstack/react-router' {
       path: '/api/video'
       fullPath: '/api/video'
       preLoaderRoute: typeof ApiVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/unknown-chat-options': {
+      id: '/api/unknown-chat-options'
+      path: '/api/unknown-chat-options'
+      fullPath: '/api/unknown-chat-options'
+      preLoaderRoute: typeof ApiUnknownChatOptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -2033,6 +2053,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
+  ApiUnknownChatOptionsRoute: ApiUnknownChatOptionsRoute,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ProviderIndexRoute: ProviderIndexRoute,
 }

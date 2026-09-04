@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { z } from 'zod'
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { streamToText } from '../../stream-to-response.js'
@@ -572,6 +573,54 @@ export interface TextActivityOptions<
    * means only the `errors` category is active.
    */
   debug?: DebugOption
+}
+
+const CHAT_OPTIONS_SCHEMA = z.object({
+  adapter: z.unknown(),
+  messages: z.unknown(),
+  systemPrompts: z.unknown(),
+  tools: z.unknown(),
+  mcp: z.unknown(),
+  metadata: z.unknown(),
+  modelOptions: z.unknown(),
+  abortController: z.unknown(),
+  agentLoopStrategy: z.unknown(),
+  lazyToolsConfig: z.unknown(),
+  conversationId: z.unknown(),
+  threadId: z.unknown(),
+  runId: z.unknown(),
+  parentRunId: z.unknown(),
+  state: z.unknown(),
+  resume: z.unknown(),
+  outputSchema: z.unknown(),
+  stream: z.unknown(),
+  middleware: z.unknown(),
+  context: z.unknown(),
+  debug: z.unknown(),
+})
+const CHAT_OPTION_KEYS: ReadonlySet<string> = new Set(
+  CHAT_OPTIONS_SCHEMA.keyof().options,
+)
+
+function warnOnUnknownChatOptions(
+  options: Pick<
+    TextActivityOptions<AnyTextAdapter, SchemaInput, boolean>,
+    'debug'
+  > &
+    object,
+): void {
+  const unknownKeys = Object.keys(options).filter(
+    (key) => !CHAT_OPTION_KEYS.has(key),
+  )
+  if (unknownKeys.length === 0) return
+
+  const hint = unknownKeys.includes('providerOptions')
+    ? ' Did you mean `modelOptions`?'
+    : ''
+  resolveDebugOption(options.debug).warn(
+    `chat() received unknown top-level option(s): ${unknownKeys.join(', ')}.${hint}`,
+    { unknownKeys },
+  )
 }
 
 // ===========================
@@ -4666,6 +4715,7 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
+  warnOnUnknownChatOptions(options)
   validateInterruptDefinitions(options.interrupts)
   validateCapabilities(
     readRuntimeMiddleware(options.middleware) ?? [],
