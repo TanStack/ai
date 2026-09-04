@@ -712,6 +712,79 @@ describe('GeminiAdapter through AI', () => {
     expect(textParts[0].text).toBe("what's a good electric guitar?")
   })
 
+  it('preserves both functionResponse parts when two parallel calls hit the same tool', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: '50 USD and 30 EUR logged' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'log 50 USD and 30 EUR' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"USD"}',
+              },
+            },
+            {
+              id: 'call_2',
+              type: 'function',
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"EUR"}',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"rate":1}' },
+        { role: 'tool', toolCallId: 'call_2', content: '{"rate":0.9}' },
+      ],
+      tools: [weatherTool],
+    })) {
+      /* consume */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    const lastMsg = payload.contents[payload.contents.length - 1]
+    const functionResponses = lastMsg.parts.filter(
+      (p: any) => p.functionResponse,
+    )
+
+    // Two parallel calls to the SAME tool ("lookupCurrency" twice) share a
+    // `name` but have distinct `id`s. Deduping by name (the old behavior)
+    // dropped one response, leaving Gemini with fewer response parts than
+    // call parts and a 400 on the next request.
+    expect(functionResponses).toHaveLength(2)
+    expect(
+      functionResponses.map((p: any) => p.functionResponse.id).sort(),
+    ).toEqual(['call_1', 'call_2'])
+  })
+
   it('reads Part-level thoughtSignature from Gemini 3.x streaming response', async () => {
     const thoughtSig = 'base64-encoded-thought-signature-xyz'
 
