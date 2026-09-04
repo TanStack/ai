@@ -7,8 +7,9 @@ export default function ReactorKey() {
   const snapshot = useByok(byok)
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
+  const [unlocking, setUnlocking] = useState(false)
   const status = snapshot.status[reactorByok.id]
-  const saved = status?.state === 'set'
+  const saved = status?.state === 'set' || status?.state === 'locked'
   const masked = status && 'masked' in status ? status.masked : ''
 
   return (
@@ -41,6 +42,41 @@ export default function ReactorKey() {
         If you leave this empty, the relay uses{' '}
         <code className="font-mono">REACTOR_API_KEY</code>.
       </p>
+      {byok.storage.warning ? (
+        <p className="text-xs text-amber-400">{byok.storage.warning}</p>
+      ) : null}
+      {snapshot.storageError ? (
+        <p className="text-xs text-red-400">{snapshot.storageError}</p>
+      ) : null}
+      {snapshot.locked ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm text-gray-200">
+          <span>
+            Saved keys are locked
+            {masked ? ` (••${masked})` : ''}. Unlock to use them.
+          </span>
+          <button
+            type="button"
+            disabled={unlocking}
+            className="rounded-md bg-purple-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-500 disabled:opacity-50"
+            onClick={() => {
+              setUnlocking(true)
+              setError('')
+              void byok
+                .unlock()
+                .catch((caught: unknown) => {
+                  setError(
+                    caught instanceof Error
+                      ? caught.message
+                      : 'Could not unlock keys',
+                  )
+                })
+                .finally(() => setUnlocking(false))
+            }}
+          >
+            {unlocking ? 'Unlocking…' : 'Unlock'}
+          </button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <input
           type="password"

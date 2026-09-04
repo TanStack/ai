@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
-import { isByokMissingBody } from '@tanstack/ai/byok'
+import { ByokBlockedError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   EXAMPLE_PROMPTS,
   RESOLUTIONS,
@@ -58,6 +58,14 @@ async function mintWorld(input: {
   model: string
   resolution: string
 }) {
+  try {
+    await byok.prepare(reactorByok.id)
+  } catch (error) {
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      throw new Error('Unlock the saved Reactor key, then start again.')
+    }
+    throw error
+  }
   const response = await fetch('/api/world', {
     method: 'POST',
     headers: {
