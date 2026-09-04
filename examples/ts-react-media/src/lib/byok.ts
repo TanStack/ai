@@ -69,28 +69,31 @@ function byokMissingFromUnknown(value: unknown): ByokMissingError | null {
  * is the JSON string. Rehydrate that (or a raw Response) into
  * `ByokMissingError` so generation hooks and Live/World can `byok.request`.
  */
+async function throwIfFailedResponse(response: Response): Promise<never> {
+  const text = await response.clone().text()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    parsed = null
+  }
+  const missing = byokMissingFromUnknown(parsed)
+  if (missing) throw missing
+  throw new Error(
+    `Request failed (${response.status})${text ? `: ${text}` : ''}`,
+  )
+}
+
 export async function callWithByok<T>(task: Promise<T>): Promise<T> {
   try {
     const result = await task
     if (result instanceof Response) {
-      const missing = byokMissingFromUnknown(
-        await result
-          .clone()
-          .json()
-          .catch(() => null),
-      )
-      if (missing) throw missing
+      await throwIfFailedResponse(result)
     }
     return result
   } catch (error) {
     if (error instanceof Response) {
-      const missing = byokMissingFromUnknown(
-        await error
-          .clone()
-          .json()
-          .catch(() => null),
-      )
-      if (missing) throw missing
+      await throwIfFailedResponse(error)
     }
     const missing = byokMissingFromUnknown(error)
     if (missing) throw missing

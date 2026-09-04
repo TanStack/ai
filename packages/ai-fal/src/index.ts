@@ -18,6 +18,7 @@ export {
   FalLiveAdapter,
   falLive,
   createFalLive,
+  FAL_LIVE_APP,
   FAL_LIVE_MODELS,
   isFalLiveModel,
 } from './adapters/live'

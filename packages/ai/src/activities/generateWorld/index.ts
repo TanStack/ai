@@ -1,9 +1,9 @@
 /**
  * World Activity (Experimental)
  *
- * Opens a live, prompt-steerable world session. Unlike generateVideo (a job
- * that finishes with a URL), a world stays open: the client connects with the
- * returned token, sets the prompt, and streams until pause/reset/close.
+ * Mints a session token for a live, prompt-steerable world. Unlike
+ * generateVideo (a job that finishes with a URL), the browser then connects
+ * with the token, sets the prompt, and streams until pause/reset/close.
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -76,9 +76,9 @@ export interface WorldActivityOptions<
   /** Provider-specific options for world generation */
   modelOptions?: WorldProviderOptions<TAdapter>
   /**
-   * Whether to stream the generation result.
-   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
-   * When false or not provided, returns a Promise<WorldGenerationResult>.
+   * Whether to wrap the token result as StreamChunks for SSE transport.
+   * This is not the live video. When false or omitted, returns
+   * Promise<WorldGenerationResult>.
    *
    * @default false
    */
@@ -100,9 +100,8 @@ export interface WorldActivityOptions<
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
-   * Maximum duration of this activity invocation in milliseconds.
-   * No SDK-wide default — choose a value suitable for the provider and job.
-   * Composed with {@link abortSignal}; the first abort wins.
+   * Maximum duration of the token mint in milliseconds.
+   * No SDK-wide default. Composed with {@link abortSignal}; the first abort wins.
    */
   timeout?: number
   /**

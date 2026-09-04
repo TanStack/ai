@@ -6,13 +6,17 @@
 export function attachStream(
   video: HTMLVideoElement,
   stream: MediaStream,
+  onError?: (error: unknown) => void,
 ): () => void {
   const attach = (reset: boolean) => {
     if (reset) {
       video.srcObject = null
     }
     video.srcObject = stream
-    void video.play().catch(() => {})
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      onError?.(error)
+    })
   }
   attach(false)
   const onUnmute = () => attach(true)

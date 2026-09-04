@@ -3170,6 +3170,9 @@ importers:
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs
+      '@tanstack/ai-fal':
+        specifier: workspace:*
+        version: link:../../packages/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/ai-gemini
@@ -3209,6 +3212,9 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
+      '@tanstack/ai-reactor':
+        specifier: workspace:*
+        version: link:../../packages/ai-reactor
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox

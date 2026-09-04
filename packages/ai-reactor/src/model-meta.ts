@@ -37,9 +37,9 @@ export type ReactorWorldSlug = (typeof REACTOR_WORLD_SLUGS)[ReactorWorldModel]
 export type ReactorWorldResolution = '1080p' | '2k' | '4k'
 
 /**
- * Provider options for Reactor world models. The browser applies these when
- * it opens the session (`set_resolution`, `set_seed`, `set_audio_enabled`,
- * `set_audio_prompt`).
+ * Browser session commands for Reactor world models (`set_resolution`,
+ * `set_seed`, `set_audio_enabled`, `set_audio_prompt`). `createWorld` does
+ * not send these. Keep them in client state and apply after connect.
  */
 export interface ReactorWorldProviderOptions {
   /** Delivery resolution for Orbis. Ignored by models that do not expose it. */
@@ -71,8 +71,6 @@ export type ReactorWorldModelProviderOptionsByName = {
 export const REACTOR_VIDEO_MODELS = [
   'helios',
   'fast-h3',
-  'visko-orbis-stable',
-  'visko-orbis-dynamic',
   'longlive-v2',
   'ltx2',
 ] as const
@@ -86,8 +84,6 @@ export function isReactorVideoModel(model: string): model is ReactorVideoModel {
 export const REACTOR_VIDEO_SLUGS = {
   helios: 'reactor/helios',
   'fast-h3': 'reactor/fast-h3',
-  'visko-orbis-stable': 'reactor/visko-orbis-stable',
-  'visko-orbis-dynamic': 'reactor/visko-orbis-dynamic',
   'longlive-v2': 'reactor/longlive-v2',
   ltx2: 'reactor/ltx2',
 } as const satisfies Record<ReactorVideoModel, string>
@@ -95,9 +91,9 @@ export const REACTOR_VIDEO_SLUGS = {
 export type ReactorVideoSlug = (typeof REACTOR_VIDEO_SLUGS)[ReactorVideoModel]
 
 /**
- * Provider options for Reactor video models. The browser applies these when
- * it opens the session (`set_resolution`, `set_seed`, `set_audio_enabled`,
- * `set_audio_prompt`).
+ * Browser session commands for Reactor video models. Same fields as world.
+ * `createLive` does not send these. Keep them in client state and apply after
+ * connect.
  */
 export type ReactorVideoProviderOptions = ReactorWorldProviderOptions
 

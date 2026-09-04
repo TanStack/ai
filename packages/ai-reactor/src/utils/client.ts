@@ -74,10 +74,12 @@ export async function mintReactorSessionToken(args: {
     throw new Error('Reactor token response did not include a jwt.')
   }
 
-  const expiresAt =
-    typeof body.expires_at === 'number' && Number.isFinite(body.expires_at)
-      ? body.expires_at
-      : Math.floor(Date.now() / 1000) + 3600
+  if (
+    typeof body.expires_at !== 'number' ||
+    !Number.isFinite(body.expires_at)
+  ) {
+    throw new Error('Reactor token response did not include expires_at.')
+  }
 
-  return { jwt: body.jwt, expires_at: expiresAt }
+  return { jwt: body.jwt, expires_at: body.expires_at }
 }

@@ -1,47 +1,75 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateLive, type LiveAdapter } from '@tanstack/ai'
+import { generateLive } from '@tanstack/ai'
+import { falLive, isFalLiveModel } from '@tanstack/ai-fal'
+import { reactorVideo } from '@tanstack/ai-reactor'
 
-/**
- * Drives `generateLive()` against an in-process mock so the token result
- * shape is covered without a live provider connection.
- */
-function mockLiveAdapter(): LiveAdapter {
-  return {
-    kind: 'live',
-    name: 'mock-live',
-    model: 'helios',
-    '~types': { providerOptions: {} },
-    createLive: async (options) => ({
-      id: 'live-e2e',
-      model: 'reactor/helios',
-      token: 'jwt-e2e',
-      expiresAt: Date.now() + 60_000,
-      prompt: options.prompt,
-      status: 'ready',
-    }),
-  }
+const EXPIRES_AT = 1_800_000_000
+
+function tokenFetch(
+  body: unknown,
+  status = 200,
+  statusText = 'OK',
+): typeof fetch {
+  return async () =>
+    new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+      status,
+      statusText,
+      headers: { 'Content-Type': 'application/json' },
+    })
 }
 
 export const Route = createFileRoute('/api/video-live')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { prompt?: unknown }
-        const prompt =
-          typeof body.prompt === 'string' ? body.prompt : 'a default scene'
+        const body = (await request.json()) as {
+          prompt?: unknown
+          model?: unknown
+          fail?: unknown
+        }
+        if (
+          typeof body.prompt !== 'string' ||
+          body.prompt.trim().length === 0
+        ) {
+          return Response.json(
+            { ok: false, error: 'Prompt is required' },
+            { status: 400 },
+          )
+        }
+
+        const model = typeof body.model === 'string' ? body.model : 'helios'
+        const fail = body.fail === true
+        const prompt = body.prompt.trim()
 
         try {
-          const result = await generateLive({
-            adapter: mockLiveAdapter(),
-            prompt,
-            debug: false,
-          })
+          const result = isFalLiveModel(model)
+            ? await generateLive({
+                adapter: falLive(model, {
+                  apiKey: 'fal_e2e',
+                  fetch: fail
+                    ? tokenFetch('no credits', 402, 'Payment Required')
+                    : tokenFetch({ token: 'jwt-fal-e2e' }),
+                }),
+                prompt,
+                debug: false,
+              })
+            : await generateLive({
+                adapter: reactorVideo('helios', {
+                  apiKey: 'rk_e2e',
+                  fetch: fail
+                    ? tokenFetch('no credits', 402, 'Payment Required')
+                    : tokenFetch({ jwt: 'jwt-e2e', expires_at: EXPIRES_AT }),
+                }),
+                prompt,
+                debug: false,
+              })
           return Response.json({
             ok: true,
+            token: result.token,
             model: result.model,
             prompt: result.prompt,
             status: result.status,
-            hasToken: result.token.length > 0,
+            expiresAt: result.expiresAt,
           })
         } catch (error) {
           return Response.json(

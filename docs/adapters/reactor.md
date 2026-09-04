@@ -112,40 +112,40 @@ Hand `live.token`, `live.model`, and `live.prompt` to the browser. Connect as sh
 | --- | --- |
 | `helios` | `reactor/helios` |
 | `fast-h3` | `reactor/fast-h3` |
-| `visko-orbis-stable` | `reactor/visko-orbis-stable` |
-| `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` |
 | `longlive-v2` | `reactor/longlive-v2` |
 | `ltx2` | `reactor/ltx2` |
 
-`helios` and Orbis also work with `reactorWorld()`. Pick `generateLive()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
+`helios` also works with `reactorWorld()`. Pick `generateLive()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
 
-Pass a text prompt only. Set a reference image in the browser with `uploadFile` and `set_image` after connect.
+Pass a text prompt to `generateWorld()` / `generateLive()`. Those calls mint a token. They do not send resolution or a seed image.
 
-## Provider options
-
-Orbis reads these on the next `start`. Put them in `modelOptions`. The browser applies them with `sendCommand` before `start`.
+After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
 
 ```ts
-import { generateWorld } from '@tanstack/ai'
-import { reactorWorld } from '@tanstack/ai-reactor'
-
-const world = await generateWorld({
-  adapter: reactorWorld('visko-orbis-stable'),
-  prompt: 'Black volcanic cliffs, slow aerial camera',
-  modelOptions: {
-    resolution: '2k',
-    seed: 42,
-    audioEnabled: true,
-  },
-})
+const image = await reactor.uploadFile(file)
+await reactor.sendCommand('set_image', { image })
+await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('start', {})
 ```
 
-| Option | Meaning |
-| --- | --- |
-| `resolution` | `1080p`, `2k`, or `4k` delivery tier |
-| `seed` | RNG seed for the next run |
-| `audioEnabled` | When `false`, skip audio compute |
-| `audioPrompt` | Sound description, or `""` for picture-driven audio |
+Helios can take the same `File` with `set_conditioning` so prompt and image land together.
+
+## Browser session options
+
+Orbis reads these on the next `start`. Keep them in client state. Send them with `sendCommand` after `connect`. They are not token-mint fields.
+
+```ts
+await reactor.sendCommand('set_resolution', { resolution: '2k' })
+await reactor.sendCommand('set_seed', { seed: 42 })
+await reactor.sendCommand('set_audio_enabled', { enabled: true })
+```
+
+| Option | Command | Meaning |
+| --- | --- | --- |
+| `resolution` | `set_resolution` | `1080p`, `2k`, or `4k` delivery tier |
+| `seed` | `set_seed` | RNG seed for the next run |
+| `audioEnabled` | `set_audio_enabled` | When `false`, skip audio compute |
+| `audioPrompt` | `set_audio_prompt` | Sound description, or `""` for picture-driven audio |
 
 ## Custom endpoint
 

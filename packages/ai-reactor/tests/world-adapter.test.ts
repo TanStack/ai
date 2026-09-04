@@ -109,6 +109,38 @@ describe('Reactor world adapter', () => {
     )
   })
 
+  it('throws when the token body has no jwt', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ expires_at: 1_800_000_000 }),
+    )
+
+    await expect(
+      generateWorld({
+        adapter: reactorWorld('visko-orbis-stable', {
+          apiKey: 'rk_test',
+          fetch: fetchImpl,
+        }),
+        prompt: 'a forest',
+        debug: false,
+      }),
+    ).rejects.toThrow(/did not include a jwt/)
+  })
+
+  it('throws when expires_at is missing', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ jwt: 'jwt-live' }))
+
+    await expect(
+      generateWorld({
+        adapter: reactorWorld('lingbot', {
+          apiKey: 'rk_test',
+          fetch: fetchImpl,
+        }),
+        prompt: 'a forest',
+        debug: false,
+      }),
+    ).rejects.toThrow(/did not include expires_at/)
+  })
+
   it('throws when REACTOR_API_KEY is missing', () => {
     const previous = process.env.REACTOR_API_KEY
     delete process.env.REACTOR_API_KEY

@@ -4,12 +4,21 @@ import { getFalApiKeyFromEnv } from '../utils/client'
 import type { LiveGenerationOptions, LiveGenerationResult } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
 
-const DEFAULT_FAL_REALTIME_TOKEN_URL = 'https://rest.fal.ai/tokens/realtime'
+const DEFAULT_FAL_TOKEN_URL = 'https://rest.fal.ai/tokens/'
 const DEFAULT_TOKEN_DURATION_SECONDS = 300
 
 export const FAL_LIVE_MODELS = ['minimax/h3-max/director'] as const
 
 export type FalLiveModel = (typeof FAL_LIVE_MODELS)[number]
+
+/**
+ * WMA / token app id for each public live model. Director's AsyncAPI lives at
+ * `fal-ai/minimax-h3-max-director`. `wma()` and `/tokens/` must use this id:
+ * `minimax/h3-max/director` parses as alias `h3-max`.
+ */
+export const FAL_LIVE_APP = {
+  'minimax/h3-max/director': 'fal-ai/minimax-h3-max-director',
+} as const satisfies Record<FalLiveModel, string>
 
 export function isFalLiveModel(model: string): model is FalLiveModel {
   return (FAL_LIVE_MODELS as ReadonlyArray<string>).includes(model)
@@ -33,18 +42,18 @@ function resolveFalLiveApiKey(config?: FalClientConfig): string {
   return config?.apiKey ?? getFalApiKeyFromEnv()
 }
 
-function readFalRealtimeToken(body: unknown): string {
+function readFalToken(body: unknown): string {
   if (typeof body === 'string' && body.length > 0) return body
   if (typeof body === 'object' && body !== null && 'token' in body) {
     const token = body.token
     if (typeof token === 'string' && token.length > 0) return token
   }
-  throw new Error('fal realtime token response did not include a token.')
+  throw new Error('fal token response did not include a token.')
 }
 
 /**
- * fal live-video adapter. Mints a scoped realtime JWT so a browser can open
- * H3 Max Director with `fal.realtime.open(wma(...))`.
+ * fal live-video adapter. Mints a scoped JWT so a browser can open
+ * H3 Max Director with `fal.realtime.open(wma(FAL_LIVE_APP[model]))`.
  *
  * @example
  * ```ts
@@ -90,15 +99,15 @@ export class FalLiveAdapter<
     }
 
     try {
-      const response = await fetchImpl(DEFAULT_FAL_REALTIME_TOKEN_URL, {
+      const response = await fetchImpl(DEFAULT_FAL_TOKEN_URL, {
         method: 'POST',
         headers: {
           Authorization: `Key ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          allowed_apps: [this.model],
-          duration: tokenDuration,
+          allowed_apps: [FAL_LIVE_APP[this.model]],
+          token_expiration: tokenDuration,
         }),
         ...(abortSignal ? { signal: abortSignal } : {}),
       })
@@ -106,13 +115,13 @@ export class FalLiveAdapter<
       if (!response.ok) {
         const detail = await response.text().catch(() => '')
         throw new Error(
-          `fal realtime token request failed (${response.status}${
+          `fal token request failed (${response.status}${
             response.statusText ? ` ${response.statusText}` : ''
           })${detail ? `: ${detail}` : ''}`,
         )
       }
 
-      const token = readFalRealtimeToken(await response.json())
+      const token = readFalToken(await response.json())
       const result: LiveGenerationResult = {
         id: generateId('live'),
         model: this.model,

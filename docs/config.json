@@ -614,7 +614,8 @@
         {
           "label": "Live Generation",
           "to": "media/live-generation",
-          "addedAt": "2026-09-04"
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "World Generation",

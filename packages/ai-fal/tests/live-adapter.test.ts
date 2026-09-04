@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateLive } from '@tanstack/ai'
-import { createFalLive, falLive, isFalLiveModel } from '../src'
+import {
+  createFalLive,
+  FAL_LIVE_APP,
+  falLive,
+  isFalLiveModel,
+} from '../src'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -15,12 +20,15 @@ describe('fal live adapter', () => {
     expect(isFalLiveModel('fal-ai/kling-video/v3/pro/text-to-video')).toBe(
       false,
     )
+    expect(FAL_LIVE_APP['minimax/h3-max/director']).toBe(
+      'fal-ai/minimax-h3-max-director',
+    )
   })
 
   it('mints a scoped realtime token and returns it from generateLive', async () => {
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(String(input)).toBe('https://rest.fal.ai/tokens/realtime')
+        expect(String(input)).toBe('https://rest.fal.ai/tokens/')
         expect(init?.method).toBe('POST')
         expect(init?.headers).toMatchObject({
           Authorization: 'Key fal_test',
@@ -28,10 +36,10 @@ describe('fal live adapter', () => {
         })
         const body = JSON.parse(String(init?.body)) as {
           allowed_apps: Array<string>
-          duration: number
+          token_expiration: number
         }
-        expect(body.allowed_apps).toEqual(['minimax/h3-max/director'])
-        expect(body.duration).toBe(300)
+        expect(body.allowed_apps).toEqual(['fal-ai/minimax-h3-max-director'])
+        expect(body.token_expiration).toBe(300)
         return jsonResponse({ token: 'jwt-fal' })
       },
     )
@@ -58,8 +66,10 @@ describe('fal live adapter', () => {
   it('honors tokenDuration in modelOptions', async () => {
     const fetchImpl = vi.fn(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body)) as { duration: number }
-        expect(body.duration).toBe(120)
+        const body = JSON.parse(String(init?.body)) as {
+          token_expiration: number
+        }
+        expect(body.token_expiration).toBe(120)
         return jsonResponse({ token: 'jwt-short' })
       },
     )
@@ -114,8 +124,23 @@ describe('fal live adapter', () => {
         debug: false,
       }),
     ).rejects.toThrow(
-      /fal realtime token request failed \(402 Payment Required\): no credits/,
+      /fal token request failed \(402 Payment Required\): no credits/,
     )
+  })
+
+  it('throws when the token body has no token', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}))
+
+    await expect(
+      generateLive({
+        adapter: falLive('minimax/h3-max/director', {
+          apiKey: 'fal_test',
+          fetch: fetchImpl,
+        }),
+        prompt: 'a forest',
+        debug: false,
+      }),
+    ).rejects.toThrow(/did not include a token/)
   })
 
   it('throws when FAL_KEY is missing', () => {

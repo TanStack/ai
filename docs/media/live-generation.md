@@ -59,7 +59,7 @@ The server half is the same for every live adapter. The browser client is not.
 
 ### Reactor
 
-Install `@reactor-team/js-sdk`. Connect with the token. Then set the prompt and start.
+Install `@reactor-team/js-sdk`. Connect with the token. Helios uses `set_sr_scale`, then `set_prompt`, then `start`.
 
 ```ts group=live-reactor
 import { Reactor } from '@reactor-team/js-sdk'
@@ -71,37 +71,64 @@ reactor.on('trackReceived', (name, _track, stream) => {
   if (name !== 'main_video') return
   if (!video) return
   video.muted = true
-  video.srcObject = stream
-  void video.play().catch(() => {})
+  const attach = () => {
+    video.srcObject = null
+    video.srcObject = stream
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    })
+  }
+  attach()
+  for (const track of stream.getTracks()) {
+    track.addEventListener('unmute', attach)
+  }
 })
 
 await reactor.connect(live.token)
+await reactor.sendCommand('set_sr_scale', { sr_scale: '2x' })
 await reactor.sendCommand('set_prompt', { prompt: live.prompt })
+await reactor.sendCommand('start', {})
+```
+
+FastH3 uses `enqueue` only. LongLive uses `set_shot` then `start`.
+
+Helios can also take a seed image. Pass a `File` from `<input type="file">`. Do not send base64.
+
+```ts
+const image = await reactor.uploadFile(file)
+await reactor.sendCommand('set_conditioning', { prompt: live.prompt, image })
 await reactor.sendCommand('start', {})
 ```
 
 A later `set_prompt` morphs the shot at the next chunk.
 
-See the [Reactor adapter](../adapters/reactor) for model ids and provider options.
+See the [Reactor adapter](../adapters/reactor) for model ids.
 
 ### fal H3 Max Director
 
-Install `@fal-ai/client@alpha`. Open the WMA session with the minted token. Then send `configure`.
+Install `@fal-ai/client@alpha`. Keep `FAL_KEY` on the server. Open WMA through a proxy with app id `fal-ai/minimax-h3-max-director`. Then send `configure`.
+
+The example proxy is `src/routes/api.fal.proxy.ts` in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). It attaches the key and forwards to `wma.fal.run`.
 
 ```ts ignore
 import { createFalClient } from '@fal-ai/client'
 import { wma } from '@fal-ai/client/realtime'
 
-const fal = createFalClient({ credentials: live.token })
+const fal = createFalClient({ proxyUrl: '/api/fal/proxy' })
 const video = document.querySelector('video')
 
-const session = fal.realtime.open(wma('minimax/h3-max/director'), {
+const session = fal.realtime.open(wma('fal-ai/minimax-h3-max-director'), {
   receive: ['video', 'audio'],
+  onError: (error) => {
+    console.error(error)
+  },
   onMedia: (stream) => {
     if (!video) return
     video.muted = true
     video.srcObject = stream
-    void video.play().catch(() => {})
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    })
   },
 })
 
@@ -111,6 +138,8 @@ session.send({
   prompt_version: 1,
   protocol_version: 1,
 })
+
+await session.ready
 ```
 
 To steer, send `{ type: 'prompt', prompt, prompt_version }` and increase `prompt_version` each time. To stop, send `{ type: 'stop' }` and close the session.
@@ -123,11 +152,10 @@ Director bills a 60 second minimum. Resolution is `480p` or `768p`. See the [fal
 | --- | --- | --- |
 | `reactorVideo()` | `helios` | Interactive realtime video |
 | `reactorVideo()` | `fast-h3` | Fast live clips on a live track |
+| `reactorVideo()` | `longlive-v2` | Shot-based live clips |
 | `falLive()` | `minimax/h3-max/director` | Steerable live stream over WMA |
 
-Reactor also lists Orbis, LongLive, and LTX. Those ids are in the [Reactor adapter](../adapters/reactor).
-
-For a navigable place you stay in, use [World Generation](./world-generation). For a file that finishes, use [Video Generation](./video-generation).
+For Orbis and LingBot, use [World Generation](./world-generation). For a file that finishes, use [Video Generation](./video-generation).
 
 ## What you have now
 

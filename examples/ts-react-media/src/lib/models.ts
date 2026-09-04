@@ -1,10 +1,9 @@
 import {
   REACTOR_VIDEO_MODELS,
-  REACTOR_WORLD_MODELS,
   isReactorVideoModel,
   isReactorWorldModel,
 } from '@tanstack/ai-reactor'
-import { isFalLiveModel } from '@tanstack/ai-fal'
+import { FAL_LIVE_APP, isFalLiveModel } from '@tanstack/ai-fal'
 import type { ReactorVideoModel, ReactorWorldModel } from '@tanstack/ai-reactor'
 import type { FalLiveModel } from '@tanstack/ai-fal'
 
@@ -250,7 +249,7 @@ export const LIVE_VIDEO_MODELS: ReadonlyArray<{
   id: LiveVideoModelId
   provider: LiveVideoProvider
 }> = [
-  ...REACTOR_VIDEO_MODELS.map((id) => ({
+  ...REACTOR_VIDEO_MODELS.filter((id) => id !== 'ltx2').map((id) => ({
     id,
     provider: 'reactor' as const,
   })),
@@ -260,8 +259,6 @@ export const LIVE_VIDEO_MODELS: ReadonlyArray<{
 export const LIVE_VIDEO_MODEL_LABELS: Record<LiveVideoModelId, string> = {
   helios: 'Helios (Reactor)',
   'fast-h3': 'FastH3 (Reactor)',
-  'visko-orbis-stable': 'Orbis Stable (Reactor)',
-  'visko-orbis-dynamic': 'Orbis Dynamic (Reactor)',
   'longlive-v2': 'LongLive 2 (Reactor)',
   ltx2: 'LTX (Reactor)',
   'minimax/h3-max/director': 'H3 Max Director (fal)',
@@ -296,10 +293,21 @@ export function isLiveVideoModelId(value: string): value is LiveVideoModelId {
   return isReactorVideoModel(value) || isFalLiveModel(value)
 }
 
-export { isReactorVideoModel, isFalLiveModel, isReactorWorldModel }
+export {
+  FAL_LIVE_APP,
+  isReactorVideoModel,
+  isFalLiveModel,
+  isReactorWorldModel,
+}
 export type { ReactorVideoModel, FalLiveModel, ReactorWorldModel }
 
-export const WORLD_MODELS = REACTOR_WORLD_MODELS
+export const WORLD_MODELS = [
+  'visko-orbis-stable',
+  'visko-orbis-dynamic',
+  'lingbot-world-2',
+  'lingbot',
+  'helios',
+] as const satisfies ReadonlyArray<ReactorWorldModel>
 
 export const WORLD_MODEL_LABELS: Record<ReactorWorldModel, string> = {
   'visko-orbis-stable': 'Orbis Stable',

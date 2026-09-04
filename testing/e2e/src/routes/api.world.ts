@@ -1,47 +1,61 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateWorld, type WorldAdapter } from '@tanstack/ai'
+import { generateWorld } from '@tanstack/ai'
+import { reactorWorld } from '@tanstack/ai-reactor'
 
-/**
- * Drives `generateWorld()` against an in-process mock adapter so the activity
- * wiring (options, result shape) is covered without a live Reactor session.
- */
-function mockWorldAdapter(): WorldAdapter {
-  return {
-    kind: 'world',
-    name: 'mock-world',
-    model: 'visko-orbis-stable',
-    '~types': { providerOptions: {} },
-    createWorld: async (options) => ({
-      id: 'world-e2e',
-      model: 'reactor/visko-orbis-stable',
-      token: 'jwt-e2e',
-      expiresAt: Date.now() + 60_000,
-      prompt: options.prompt,
-      status: 'ready',
-    }),
-  }
+const EXPIRES_AT = 1_800_000_000
+
+function tokenFetch(
+  body: unknown,
+  status = 200,
+  statusText = 'OK',
+): typeof fetch {
+  return async () =>
+    new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+      status,
+      statusText,
+      headers: { 'Content-Type': 'application/json' },
+    })
 }
 
 export const Route = createFileRoute('/api/world')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as { prompt?: unknown }
-        const prompt =
-          typeof body.prompt === 'string' ? body.prompt : 'a default world'
+        const body = (await request.json()) as {
+          prompt?: unknown
+          fail?: unknown
+        }
+        if (
+          typeof body.prompt !== 'string' ||
+          body.prompt.trim().length === 0
+        ) {
+          return Response.json(
+            { ok: false, error: 'Prompt is required' },
+            { status: 400 },
+          )
+        }
+
+        const fetchImpl =
+          body.fail === true
+            ? tokenFetch('no credits', 402, 'Payment Required')
+            : tokenFetch({ jwt: 'jwt-e2e', expires_at: EXPIRES_AT })
 
         try {
           const result = await generateWorld({
-            adapter: mockWorldAdapter(),
-            prompt,
+            adapter: reactorWorld('visko-orbis-stable', {
+              apiKey: 'rk_e2e',
+              fetch: fetchImpl,
+            }),
+            prompt: body.prompt.trim(),
             debug: false,
           })
           return Response.json({
             ok: true,
+            token: result.token,
             model: result.model,
             prompt: result.prompt,
             status: result.status,
-            hasToken: result.token.length > 0,
+            expiresAt: result.expiresAt,
           })
         } catch (error) {
           return Response.json(

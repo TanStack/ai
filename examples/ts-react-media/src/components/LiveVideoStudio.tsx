@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateLiveVideoFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
+import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
   callWithByok,
@@ -10,13 +11,19 @@ import {
   requestByokFromError,
 } from '@/lib/byok'
 import {
+  FAL_LIVE_APP,
   LIVE_VIDEO_MODEL_LABELS,
   LIVE_VIDEO_MODELS,
   LIVE_VIDEO_PROMPTS,
+  isFalLiveModel,
   isLiveVideoModelId,
   liveVideoProvider,
   liveVideoResolutions,
 } from '@/lib/models'
+import {
+  liveAcceptsSeedImage,
+  watchReactorFailure,
+} from '@/lib/reactor-session'
 import type { Reactor } from '@reactor-team/js-sdk'
 import type {
   LiveVideoModelId,
@@ -35,19 +42,12 @@ type LiveHandle =
   | { provider: 'reactor'; reactor: Reactor; model: LiveVideoModelId }
   | { provider: 'fal'; session: FalLiveSession }
 
-function commandErrorMessage(data: unknown): string | null {
-  if (typeof data !== 'object' || data === null || !('reason' in data)) {
-    return null
-  }
-  const reason = data.reason
-  return typeof reason === 'string' && reason.length > 0 ? reason : null
-}
-
 async function startReactorLive(
   reactor: Reactor,
   model: LiveVideoModelId,
   prompt: string,
   resolution: LiveVideoResolution,
+  seedFile: File | null,
 ): Promise<void> {
   if (model === 'fast-h3') {
     await reactor.sendCommand('enqueue', { prompt })
@@ -62,7 +62,12 @@ async function startReactorLive(
     await reactor.sendCommand('set_sr_scale', {
       sr_scale: resolution === '2k' || resolution === '4k' ? '4x' : '2x',
     })
-    await reactor.sendCommand('set_prompt', { prompt })
+    if (seedFile) {
+      const image = await reactor.uploadFile(seedFile)
+      await reactor.sendCommand('set_conditioning', { prompt, image })
+    } else {
+      await reactor.sendCommand('set_prompt', { prompt })
+    }
     await reactor.sendCommand('start', {})
     return
   }
@@ -134,19 +139,51 @@ function defaultResolution(provider: LiveVideoProvider): LiveVideoResolution {
 }
 
 async function openFalSession(args: {
-  token: string
   model: string
   prompt: string
   resolution: LiveVideoResolution
-  video: HTMLVideoElement
+  onMedia: (stream: MediaStream) => void
+  onError: (error: unknown) => void
 }): Promise<FalLiveSession> {
   const { createFalClient } = await import('@fal-ai/client')
   const { wma } = await import('@fal-ai/client/realtime')
-  const fal = createFalClient({ credentials: args.token })
-  const session = fal.realtime.open(wma(args.model), {
+  const fal = createFalClient({
+    proxyUrl: '/api/fal/proxy',
+    fetch: (input, init) => {
+      const headers = new Headers(init?.headers)
+      for (const [name, value] of Object.entries(byok.headers(falByok.id))) {
+        headers.set(name, value)
+      }
+      return fetch(input, { ...init, headers })
+    },
+  })
+  const wmaApp = isFalLiveModel(args.model)
+    ? FAL_LIVE_APP[args.model]
+    : args.model
+  const session = fal.realtime.open(wma(wmaApp), {
     receive: ['video', 'audio'],
-    onMedia: (stream) => {
-      attachStream(args.video, stream)
+    onMedia: args.onMedia,
+    onError: args.onError,
+    onData: (raw) => {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(String(raw))
+      } catch {
+        return
+      }
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        'type' in parsed &&
+        parsed.type === 'error' &&
+        'error' in parsed &&
+        typeof parsed.error === 'string'
+      ) {
+        args.onError(new Error(parsed.error))
+      }
+    },
+    onState: (state) => {
+      if (state === 'failed') args.onError(new Error('Live session failed'))
     },
   })
   session.send({
@@ -158,6 +195,7 @@ async function openFalSession(args: {
       ? { resolution: args.resolution }
       : {}),
   })
+  await session.ready
   return session
 }
 
@@ -166,19 +204,26 @@ export default function LiveVideoStudio() {
   const [steerPrompt, setSteerPrompt] = useState('')
   const [model, setModel] = useState<LiveVideoModelId>('helios')
   const [resolution, setResolution] = useState<LiveVideoResolution>('1080p')
+  const [seedFile, setSeedFile] = useState<File | null>(null)
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const handleRef = useRef<LiveHandle | null>(null)
   const detachStreamRef = useRef<(() => void) | null>(null)
+  const unwatchRef = useRef<(() => void) | null>(null)
   const falPromptVersionRef = useRef(1)
+  const statusRef = useRef<SessionStatus>('idle')
+  statusRef.current = status
 
   const provider = liveVideoProvider(model)
   const resolutions = liveVideoResolutions(provider)
   const keyProvider = provider === 'fal' ? falByok : reactorByok
+  const showSeedField = liveAcceptsSeedImage(model)
 
-  async function stop() {
+  async function teardown() {
+    unwatchRef.current?.()
+    unwatchRef.current = null
     const handle = handleRef.current
     handleRef.current = null
     detachStreamRef.current?.()
@@ -201,9 +246,19 @@ export default function LiveVideoStudio() {
     if (video) {
       video.srcObject = null
     }
+  }
+
+  async function stop() {
+    await teardown()
     setPlaying(false)
     setStatus('idle')
   }
+
+  useEffect(() => {
+    return () => {
+      void teardown()
+    }
+  }, [])
 
   async function start() {
     setError(null)
@@ -225,11 +280,23 @@ export default function LiveVideoStudio() {
       if (live.provider === 'fal') {
         falPromptVersionRef.current = 1
         const session = await openFalSession({
-          token: live.token,
           model: live.model,
           prompt: live.prompt,
           resolution,
-          video,
+          onMedia: (stream) => {
+            detachStreamRef.current?.()
+            detachStreamRef.current = attachStream(
+              video,
+              stream,
+              (playError) => {
+                setError(errorMessage(playError))
+              },
+            )
+          },
+          onError: (openError) => {
+            setError(errorMessage(openError))
+            setStatus('error')
+          },
         })
         handleRef.current = { provider: 'fal', session }
       } else {
@@ -239,22 +306,32 @@ export default function LiveVideoStudio() {
         })
         handleRef.current = { provider: 'reactor', reactor, model }
 
-        reactor.on('error', (err) => {
-          setError(err.message)
+        let rejectStart: ((error: Error) => void) | undefined
+        const startFailed = new Promise<never>((_, reject) => {
+          rejectStart = reject
         })
-        reactor.on('message', (msg) => {
-          if (msg.type !== 'command_error') return
-          const reason = commandErrorMessage(msg.data)
-          if (reason) setError(reason)
+        unwatchRef.current = watchReactorFailure(reactor, (message) => {
+          setError(message)
+          rejectStart?.(new Error(message))
+          if (statusRef.current === 'live') setStatus('error')
         })
         reactor.on('trackReceived', (name, _track, stream) => {
           if (name !== 'main_video') return
           detachStreamRef.current?.()
-          detachStreamRef.current = attachStream(video, stream)
+          detachStreamRef.current = attachStream(video, stream, (playError) => {
+            setError(errorMessage(playError))
+          })
         })
 
         await reactor.connect(live.token)
-        await startReactorLive(reactor, model, live.prompt, resolution)
+        try {
+          await Promise.race([
+            startReactorLive(reactor, model, live.prompt, resolution, seedFile),
+            startFailed,
+          ])
+        } finally {
+          rejectStart = undefined
+        }
       }
 
       setSteerPrompt('')
@@ -347,6 +424,11 @@ export default function LiveVideoStudio() {
               else setPrompt(next)
             }}
             disabled={isBusy}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey) return
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }}
             rows={2}
             placeholder={
               isLive
@@ -459,6 +541,15 @@ export default function LiveVideoStudio() {
               ))}
             </select>
           </label>
+
+          {isLive || !showSeedField ? null : (
+            <SeedImageField
+              file={seedFile}
+              onChange={setSeedFile}
+              required={false}
+              disabled={isBusy}
+            />
+          )}
         </div>
       </form>
 

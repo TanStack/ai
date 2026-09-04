@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
+import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
   callWithByok,
@@ -15,6 +16,12 @@ import {
   WORLD_RESOLUTIONS,
   isReactorWorldModel,
 } from '@/lib/models'
+import {
+  LINGBOT_START_PROMPT,
+  setReactorImage,
+  watchReactorFailure,
+  worldNeedsSeedImage,
+} from '@/lib/reactor-session'
 import type { Reactor } from '@reactor-team/js-sdk'
 import type { ReactorWorldModel, WorldResolution } from '@/lib/models'
 
@@ -53,19 +60,59 @@ function readWorldPayload(value: unknown): {
   return { token, model, prompt }
 }
 
+async function startReactorWorld(
+  reactor: Reactor,
+  model: ReactorWorldModel,
+  prompt: string,
+  resolution: WorldResolution,
+  seedFile: File | null,
+): Promise<void> {
+  if (model === 'helios') {
+    await reactor.sendCommand('set_sr_scale', {
+      sr_scale: resolution === '2k' || resolution === '4k' ? '4x' : '2x',
+    })
+  } else if (!worldNeedsSeedImage(model)) {
+    await reactor.sendCommand('set_resolution', { resolution })
+  }
+  if (worldNeedsSeedImage(model)) {
+    if (!seedFile) throw new Error('LingBot needs a seed image before start')
+    await setReactorImage(reactor, seedFile)
+    await reactor.sendCommand('set_prompt', { prompt: LINGBOT_START_PROMPT })
+    await reactor.sendCommand('start', {})
+    return
+  }
+  if (seedFile) {
+    const image = await reactor.uploadFile(seedFile)
+    await reactor.sendCommand('set_conditioning', { prompt, image })
+    await reactor.sendCommand('start', {})
+    return
+  }
+  await reactor.sendCommand('set_prompt', { prompt })
+  await reactor.sendCommand('start', {})
+}
+
 export default function WorldStudio() {
   const [prompt, setPrompt] = useState<string>(WORLD_PROMPTS[0] ?? '')
   const [steerPrompt, setSteerPrompt] = useState('')
   const [model, setModel] = useState<ReactorWorldModel>('visko-orbis-stable')
   const [resolution, setResolution] = useState<WorldResolution>('1080p')
+  const [seedFile, setSeedFile] = useState<File | null>(null)
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
   const detachStreamRef = useRef<(() => void) | null>(null)
+  const unwatchRef = useRef<(() => void) | null>(null)
+  const statusRef = useRef<SessionStatus>('idle')
+  statusRef.current = status
 
-  async function stop() {
+  const needsSeed = worldNeedsSeedImage(model)
+  const showSeedField = needsSeed || model === 'helios'
+
+  async function teardown() {
+    unwatchRef.current?.()
+    unwatchRef.current = null
     const reactor = reactorRef.current
     reactorRef.current = null
     detachStreamRef.current?.()
@@ -81,20 +128,34 @@ export default function WorldStudio() {
     if (video) {
       video.srcObject = null
     }
+  }
+
+  async function stop() {
+    await teardown()
     setPlaying(false)
     setStatus('idle')
   }
+
+  useEffect(() => {
+    return () => {
+      void teardown()
+    }
+  }, [])
 
   async function start() {
     setError(null)
     setPlaying(false)
     setStatus('connecting')
     try {
+      if (needsSeed && !seedFile) {
+        throw new Error('LingBot needs a seed image before start')
+      }
       await byok.prepare(reactorByok.id)
+      const mintPrompt = needsSeed ? LINGBOT_START_PROMPT : prompt
       const world = readWorldPayload(
         await callWithByok(
           generateWorldFn({
-            data: { prompt, model, resolution },
+            data: { prompt: mintPrompt, model, resolution },
             headers: byok.headers(reactorByok.id),
           }),
         ),
@@ -106,38 +167,38 @@ export default function WorldStudio() {
       })
       reactorRef.current = reactor
 
-      reactor.on('error', (err) => {
-        setError(err.message)
+      let rejectStart: ((error: Error) => void) | undefined
+      const startFailed = new Promise<never>((_, reject) => {
+        rejectStart = reject
       })
-      reactor.on('message', (msg) => {
-        if (msg.type !== 'command_error') return
-        if (typeof msg.data !== 'object' || msg.data === null) return
-        if (!('reason' in msg.data)) return
-        const reason = msg.data.reason
-        if (typeof reason === 'string' && reason.length > 0) {
-          setError(reason)
-        }
+      unwatchRef.current = watchReactorFailure(reactor, (message) => {
+        setError(message)
+        rejectStart?.(new Error(message))
+        if (statusRef.current === 'live') setStatus('error')
       })
       reactor.on('trackReceived', (name, _track, stream) => {
         if (name !== 'main_video') return
         const video = videoRef.current
-        if (!video) return
+        if (!video) {
+          setError('Video element is missing')
+          setStatus('error')
+          return
+        }
         detachStreamRef.current?.()
-        detachStreamRef.current = attachStream(video, stream)
+        detachStreamRef.current = attachStream(video, stream, (playError) => {
+          setError(errorMessage(playError))
+        })
       })
 
       await reactor.connect(world.token)
-      if (model === 'helios') {
-        await reactor.sendCommand('set_sr_scale', {
-          sr_scale: resolution === '2k' || resolution === '4k' ? '4x' : '2x',
-        })
-      } else {
-        await reactor.sendCommand('set_resolution', {
-          resolution,
-        })
+      try {
+        await Promise.race([
+          startReactorWorld(reactor, model, world.prompt, resolution, seedFile),
+          startFailed,
+        ])
+      } finally {
+        rejectStart = undefined
       }
-      await reactor.sendCommand('set_prompt', { prompt: world.prompt })
-      await reactor.sendCommand('start', {})
       setSteerPrompt('')
       setStatus('live')
     } catch (caught) {
@@ -164,13 +225,18 @@ export default function WorldStudio() {
 
   const isLive = status === 'live'
   const isBusy = status === 'connecting'
+  const canStart =
+    !isBusy && (needsSeed ? seedFile !== null : prompt.trim().length > 0)
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-400">
         Live Reactor world. Paste a key in the header dialog, or set{' '}
         <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
-        server. Then start a session and type under the view to steer.
+        server.
+        {needsSeed
+          ? ' Attach a seed image, start, then type to steer.'
+          : ' Then start a session and type under the view to steer.'}
       </p>
 
       <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
@@ -204,30 +270,37 @@ export default function WorldStudio() {
             void steer()
             return
           }
-          if (!isBusy && prompt.trim().length > 0) void start()
+          if (canStart) void start()
         }}
       >
         <label className="block">
           <span className="sr-only">{isLive ? 'Steer prompt' : 'Prompt'}</span>
           <textarea
-            value={isLive ? steerPrompt : prompt}
+            value={isLive ? steerPrompt : needsSeed ? '' : prompt}
             onChange={(event) => {
               const next = event.target.value
               if (isLive) setSteerPrompt(next)
               else setPrompt(next)
             }}
-            disabled={isBusy}
+            disabled={isBusy || (needsSeed && !isLive)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey) return
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }}
             rows={2}
             placeholder={
               isLive
                 ? 'Steer the scene. The picture morphs at the next chunk.'
-                : 'Describe the world to generate…'
+                : needsSeed
+                  ? 'Prompt is for steering after start.'
+                  : 'Describe the world to generate…'
             }
             className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none disabled:opacity-50"
           />
         </label>
 
-        {isLive ? null : (
+        {isLive || needsSeed ? null : (
           <div className="flex flex-wrap gap-1.5">
             {WORLD_PROMPTS.map((example) => (
               <button
@@ -270,7 +343,7 @@ export default function WorldStudio() {
           ) : (
             <button
               type="submit"
-              disabled={isBusy || prompt.trim().length === 0}
+              disabled={!canStart}
               className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -297,24 +370,35 @@ export default function WorldStudio() {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-gray-400">
-            <span className="sr-only">Resolution</span>
-            <select
-              value={resolution}
-              onChange={(event) => {
-                const next = event.target.value
-                if (isWorldResolution(next)) setResolution(next)
-              }}
-              disabled={isLive || isBusy}
-              className="rounded-lg border border-gray-700 bg-gray-900 px-2 py-2 text-sm text-white focus:border-purple-500 focus:outline-none disabled:opacity-50"
-            >
-              {WORLD_RESOLUTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
+          {needsSeed ? null : (
+            <label className="flex items-center gap-2 text-sm text-gray-400">
+              <span className="sr-only">Resolution</span>
+              <select
+                value={resolution}
+                onChange={(event) => {
+                  const next = event.target.value
+                  if (isWorldResolution(next)) setResolution(next)
+                }}
+                disabled={isLive || isBusy}
+                className="rounded-lg border border-gray-700 bg-gray-900 px-2 py-2 text-sm text-white focus:border-purple-500 focus:outline-none disabled:opacity-50"
+              >
+                {WORLD_RESOLUTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {isLive || !showSeedField ? null : (
+            <SeedImageField
+              file={seedFile}
+              onChange={setSeedFile}
+              required={needsSeed}
+              disabled={isBusy}
+            />
+          )}
         </div>
       </form>
 

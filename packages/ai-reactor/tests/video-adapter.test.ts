@@ -18,6 +18,7 @@ describe('Reactor video adapter', () => {
   it('narrows known video model ids', () => {
     expect(isReactorVideoModel('helios')).toBe(true)
     expect(isReactorVideoModel('fast-h3')).toBe(true)
+    expect(isReactorVideoModel('visko-orbis-stable')).toBe(false)
     expect(isReactorVideoModel('lingbot')).toBe(false)
   })
 
@@ -98,7 +99,7 @@ describe('Reactor video adapter', () => {
 
     await expect(
       generateLive({
-        adapter: reactorVideo('visko-orbis-stable', {
+        adapter: reactorVideo('helios', {
           apiKey: 'rk_test',
           fetch: fetchImpl,
         }),

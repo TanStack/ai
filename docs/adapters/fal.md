@@ -396,6 +396,12 @@ const sfx = await generateAudio({
 | `fal-ai/ltx-2/text-to-video/fast` | Text-to-Video | Fast text-to-video |
 | `fal-ai/ltx-2/image-to-video/fast` | Image-to-Video | Fast image-to-video animation |
 
+### Live Models
+
+| Model | Mode | Description |
+|-------|------|-------------|
+| `minimax/h3-max/director` | Live | Steerable live stream. Use `falLive()` with `generateLive()`. |
+
 ### Text-to-Speech Models
 
 | Model | Description |
@@ -475,7 +481,7 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 
 ### `falLive(model, config?)`
 
-Creates a fal.ai live-video adapter. It mints a realtime JWT for H3 Max Director.
+Creates a fal.ai live-video adapter for H3 Max Director. The browser opens WMA through a server proxy that attaches `FAL_KEY`. Use app id `fal-ai/minimax-h3-max-director`.
 
 **Parameters:**
 

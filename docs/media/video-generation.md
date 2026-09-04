@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, fal.ai, or Reactor using TanStack AI's experimental generateVideo() API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() API."
 keywords:
   - tanstack ai
   - video generation
@@ -16,7 +16,6 @@ keywords:
   - byteplus
   - openrouter
   - fal
-  - reactor
   - generateVideo
   - jobs api
   - experimental
@@ -46,7 +45,7 @@ TanStack AI provides experimental support for video generation through dedicated
 2. **Poll for status** - Check the job status until it's complete
 3. **Retrieve the video** - Get the URL to download/view the generated video
 
-Reactor is different. It opens a live WebRTC session and returns a token. See [Live sessions (Reactor)](#live-sessions-reactor).
+For a prompt-steerable live stream (no download URL), use [Live Generation](./live-generation) or [World Generation](./world-generation).
 
 Currently supported:
 
@@ -56,7 +55,6 @@ Currently supported:
 - **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 - **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
-- **Reactor**: Helios, FastH3, Orbis, LongLive, and LTX as a live stream (token plus `@reactor-team/js-sdk`)
 
 > **Video runs take minutes — don't lose them to a reload.** This is the
 > strongest case for [Generation Persistence](../persistence/generation-persistence):
@@ -934,9 +932,7 @@ await generateVideo({
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation
-  token?: string; // Live-session token (Reactor). No download URL when set.
-  expiresAt?: number; // Token expiry as milliseconds since epoch
-  prompt?: string; // Prompt the client should send when it starts a live session
+  artifacts?: Array<PersistedArtifactRef>
 }
 ```
 

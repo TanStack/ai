@@ -18,7 +18,7 @@ keywords:
 
 You want a world that generates while the viewer watches or changes the prompt. A finite video job stops. `generateWorld()` opens a live session instead.
 
-Call `generateWorld()` on the server. It returns a short-lived token, a model slug, and the prompt. The browser connects, sets the prompt, and starts the stream.
+Call `generateWorld()` on the server. It returns a short-lived token, a model slug, and the prompt. The browser connects, sets the prompt, and starts the stream. LingBot also needs a seed image after connect.
 
 > **Experimental.** The API can change. World models bill per session-second while a GPU is held.
 
@@ -107,16 +107,35 @@ const reactor = new Reactor({ modelName: model })
 reactor.on('trackReceived', (name, _track, stream) => {
   if (name !== 'main_video') return
   video.muted = true
-  video.srcObject = stream
-  void video.play().catch(() => {})
+  const attach = () => {
+    video.srcObject = null
+    video.srcObject = stream
+    void video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    })
+  }
+  attach()
+  for (const track of stream.getTracks()) {
+    track.addEventListener('unmute', attach)
+  }
 })
 
 await reactor.connect(token)
+await reactor.sendCommand('set_resolution', { resolution: '1080p' })
 await reactor.sendCommand('set_prompt', { prompt })
 await reactor.sendCommand('start', {})
 ```
 
 The video element now plays a live world. A new `set_prompt` during the run morphs the scene at the next chunk.
+
+LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
+
+```ts
+const image = await reactor.uploadFile(file)
+await reactor.sendCommand('set_image', { image })
+await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('start', {})
+```
 
 ## Models
 
@@ -126,11 +145,11 @@ The video element now plays a live world. A new `set_prompt` during the run morp
 | --- | --- | --- |
 | `visko-orbis-stable` | `reactor/visko-orbis-stable` | Steerable video with realtime audio |
 | `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` | Same family, live resolution switch |
-| `happy-oyster-adventure` | `reactor/happy-oyster-adventure` | Explorable world, held controls |
 | `lingbot-world-2` | `reactor/lingbot-world-2` | Image-anchored navigable world |
+| `lingbot` | `reactor/lingbot` | Image-anchored navigable video |
 | `helios` | `reactor/helios` | Interactive realtime video |
 
-See the [Reactor adapter](../adapters/reactor) for API keys, token scope, and provider options. Helios and Orbis also work with `generateLive()` and `reactorVideo()`. See [Live Generation](./live-generation).
+Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect. See the [Reactor adapter](../adapters/reactor) for every id. Helios also works with `generateLive()` and `reactorVideo()`. See [Live Generation](./live-generation).
 
 A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab.
 

@@ -167,6 +167,32 @@ describe('generation middleware — wiring', () => {
     expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
   })
 
+  it('generateWorld fires error and rethrows', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'world' as const,
+      name: 'reactor',
+      model: 'visko-orbis-stable',
+      createWorld: vi.fn(async () => {
+        throw new Error('world boom')
+      }),
+    }
+
+    await expect(
+      generateWorld({
+        adapter: adapter as any,
+        prompt: 'x',
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('world boom')
+
+    expect(events.start).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+    expect(events.error).toHaveLength(1)
+    expect((events.error[0]!.info.error as Error).message).toBe('world boom')
+  })
+
   it('generateImage fires error and rethrows', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {

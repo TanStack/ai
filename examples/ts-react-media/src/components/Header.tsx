@@ -18,7 +18,9 @@ export default function Header() {
   }, [])
 
   useEffect(() => {
-    void getEnvKeyStatus().then(setEnvStatus)
+    void getEnvKeyStatus()
+      .then(setEnvStatus)
+      .catch(() => setEnvStatus({}))
   }, [])
 
   useEffect(() => {

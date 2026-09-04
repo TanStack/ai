@@ -2234,7 +2234,10 @@ export interface WorldGenerationOptions<
   model: string
   /** Natural-language description of the world or scene */
   prompt: string
-  /** Model-specific options (resolution, seed, audio, …) */
+  /**
+   * Provider mint options. Reactor resolution/seed/audio are browser
+   * `sendCommand` fields, not token-mint fields.
+   */
   modelOptions?: TProviderOptions
   /**
    * Internal logger threaded from the generateWorld() entry point. Adapters
@@ -2292,7 +2295,10 @@ export interface LiveGenerationOptions<
   model: string
   /** Natural-language description of the shot or scene */
   prompt: string
-  /** Model-specific options (resolution, seed, aspect ratio, …) */
+  /**
+   * Provider mint options. For fal live this is `tokenDuration`. Reactor
+   * resolution/seed/audio are browser `sendCommand` fields.
+   */
   modelOptions?: TProviderOptions
   /**
    * Internal logger threaded from the generateLive() entry point. Adapters

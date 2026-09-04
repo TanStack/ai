@@ -66,6 +66,21 @@ describe('generateWorld', () => {
     expect(options.abortSignal).toBe(abort.signal)
   })
 
+  it('times out a hanging adapter', async () => {
+    const adapter = mockWorldAdapter({
+      createWorld: () => new Promise(() => {}),
+    })
+
+    await expect(
+      generateWorld({
+        adapter,
+        prompt: 'x',
+        timeout: 50,
+        debug: false,
+      }),
+    ).rejects.toThrow()
+  })
+
   it('rethrows adapter errors', async () => {
     const adapter = mockWorldAdapter({
       createWorld: vi.fn(async () => {
