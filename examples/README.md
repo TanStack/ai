@@ -139,7 +139,7 @@ mid-run.
 
 - TanStack Start (full-stack React framework)
 - `@tanstack/ai` (the `generateWorld()` activity)
-- `@tanstack/ai-reactor` (Reactor world adapter)
+- `@tanstack/ai-reactor` (Reactor world and video adapter)
 - `@reactor-team/js-sdk` (browser connect and video)
 
 **Features:**

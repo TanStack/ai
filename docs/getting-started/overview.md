@@ -125,7 +125,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
 - **@tanstack/ai-byteplus** - BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech)
 - **@tanstack/ai-fal** - fal (image & video generation)
-- **@tanstack/ai-reactor** - Reactor (live world generation: Orbis, Happy Oyster, LingBot, Helios)
+- **@tanstack/ai-reactor** - Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3)
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
 - **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription) and AI Gateway routing
 - **@tanstack/ai-lovable** - Lovable AI Gateway (Google and OpenAI chat, image, video, embeddings, and speech via one project key)

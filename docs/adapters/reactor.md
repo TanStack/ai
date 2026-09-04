@@ -1,17 +1,22 @@
 ---
 title: Reactor
 id: reactor-adapter
-description: "Generate live worlds with Reactor models in TanStack AI via the @tanstack/ai-reactor adapter."
+description: "Generate live worlds and video with Reactor models in TanStack AI via the @tanstack/ai-reactor adapter."
 keywords:
   - tanstack ai
   - reactor
   - world generation
+  - video generation
   - orbis
+  - helios
   - generateWorld
+  - generateVideo
   - adapter
 ---
 
-Reactor hosts live world models. You describe a scene. Then you open a session and stream video. You can steer the stream with a new prompt. This adapter is for `generateWorld()`. It does not support `chat()`.
+Reactor hosts live world and video models. You describe a scene. Then you open a session and stream video. You can steer the stream with a new prompt.
+
+Use `reactorWorld()` with `generateWorld()` for navigable worlds. Use `reactorVideo()` with `generateVideo()` for live video models. Both mint a session token. Neither supports `chat()`.
 
 ## Installation
 
@@ -28,7 +33,7 @@ octane: @tanstack/ai-reactor
 
 <!-- ::end:tabs -->
 
-Peer dependency: `@tanstack/ai`. The browser also needs `@reactor-team/js-sdk` to connect and play the stream. See [World Generation](../media/world-generation).
+Peer dependency: `@tanstack/ai`. The browser also needs `@reactor-team/js-sdk` to connect and play the stream. See [World Generation](../media/world-generation) and [Video Generation](../media/video-generation).
 
 A full working app is in [`examples/ts-react-world`](https://github.com/TanStack/ai/tree/main/examples/ts-react-world).
 
@@ -75,6 +80,35 @@ const adapter = reactorWorld('visko-orbis-stable')
 
 `world.model` is the connect slug. Pass it to `new Reactor({ modelName })`.
 
+## Video
+
+Reactor video is a live stream, not a finished file. `generateVideo()` returns a token. The browser connects, sets the prompt, and plays the track. Do not call `getVideoJobStatus()` or wait for a download URL.
+
+```ts
+import { generateVideo } from '@tanstack/ai'
+import { reactorVideo } from '@tanstack/ai-reactor'
+
+const video = await generateVideo({
+  adapter: reactorVideo('helios', { apiKey }),
+  prompt: 'A neon cyberpunk city at night, slow aerial drift',
+})
+```
+
+Hand `video.token`, `video.model`, and `video.prompt` to the browser. Connect the same way as in [World Generation](../media/world-generation).
+
+| Id | Connect slug |
+| --- | --- |
+| `helios` | `reactor/helios` |
+| `fast-h3` | `reactor/fast-h3` |
+| `visko-orbis-stable` | `reactor/visko-orbis-stable` |
+| `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` |
+| `longlive-v2` | `reactor/longlive-v2` |
+| `ltx2` | `reactor/ltx2` |
+
+`helios` and Orbis also work with `reactorWorld()`. Pick `generateVideo()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
+
+Pass a text prompt only. Set a reference image in the browser with `uploadFile` and `set_image` after connect.
+
 ## Provider options
 
 Orbis reads these on the next `start`. Put them in `modelOptions`. The browser applies them with `sendCommand` before `start`.
@@ -109,4 +143,4 @@ const adapter = reactorWorld('visko-orbis-stable', {
 
 ## What you have now
 
-A server call that mints a scoped Reactor token for one world model. Next: connect in the browser as shown in [World Generation](../media/world-generation).
+A server call that mints a scoped Reactor token for one world or video model. Next: connect in the browser as shown in [World Generation](../media/world-generation).

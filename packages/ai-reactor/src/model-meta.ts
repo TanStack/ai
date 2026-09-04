@@ -55,3 +55,52 @@ export interface ReactorWorldProviderOptions {
 export type ReactorWorldModelProviderOptionsByName = {
   [M in ReactorWorldModel]: ReactorWorldProviderOptions
 }
+
+/**
+ * Reactor video-model ids and connect slugs.
+ *
+ * Ids are the short names passed to `reactorVideo('helios')`.
+ * `REACTOR_VIDEO_SLUGS` maps each id to the `modelName` the Reactor SDK
+ * connects with.
+ *
+ * These models stream live video over WebRTC. They do not return a download
+ * URL. X2 and SANA-Streaming need a live source track, so they are not in
+ * this list.
+ */
+
+export const REACTOR_VIDEO_MODELS = [
+  'helios',
+  'fast-h3',
+  'visko-orbis-stable',
+  'visko-orbis-dynamic',
+  'longlive-v2',
+  'ltx2',
+] as const
+
+export type ReactorVideoModel = (typeof REACTOR_VIDEO_MODELS)[number]
+
+export function isReactorVideoModel(model: string): model is ReactorVideoModel {
+  return (REACTOR_VIDEO_MODELS as ReadonlyArray<string>).includes(model)
+}
+
+export const REACTOR_VIDEO_SLUGS = {
+  helios: 'reactor/helios',
+  'fast-h3': 'reactor/fast-h3',
+  'visko-orbis-stable': 'reactor/visko-orbis-stable',
+  'visko-orbis-dynamic': 'reactor/visko-orbis-dynamic',
+  'longlive-v2': 'reactor/longlive-v2',
+  ltx2: 'reactor/ltx2',
+} as const satisfies Record<ReactorVideoModel, string>
+
+export type ReactorVideoSlug = (typeof REACTOR_VIDEO_SLUGS)[ReactorVideoModel]
+
+/**
+ * Provider options for Reactor video models. The browser applies these when
+ * it opens the session (`set_resolution`, `set_seed`, `set_audio_enabled`,
+ * `set_audio_prompt`).
+ */
+export type ReactorVideoProviderOptions = ReactorWorldProviderOptions
+
+export type ReactorVideoModelProviderOptionsByName = {
+  [M in ReactorVideoModel]: ReactorVideoProviderOptions
+}

@@ -20,7 +20,7 @@
 
 # @tanstack/ai-reactor
 
-Reactor adapter for TanStack AI live world generation (Orbis, Happy Oyster, LingBot, Helios).
+Reactor adapter for TanStack AI live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3).
 
 ## Installation
 
@@ -42,6 +42,20 @@ const world = await generateWorld({
 })
 
 // Hand world.token, world.model, and world.prompt to the browser.
+```
+
+### Server: mint a video session token
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { reactorVideo } from '@tanstack/ai-reactor'
+
+const video = await generateVideo({
+  adapter: reactorVideo('helios'),
+  prompt: 'A neon cyberpunk city at night',
+})
+
+// Hand video.token, video.model, and video.prompt to the browser.
 ```
 
 Set `REACTOR_API_KEY`, or pass `apiKey` in the adapter config. The browser connects with `@reactor-team/js-sdk`. See the [Reactor adapter docs](https://tanstack.com/ai/latest/docs/adapters/reactor).

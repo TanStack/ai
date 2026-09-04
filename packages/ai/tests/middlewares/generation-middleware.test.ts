@@ -306,6 +306,36 @@ describe('generation middleware — wiring', () => {
     expect(job).not.toHaveProperty('runId')
   })
 
+  it('generateVideo (non-streaming) finishes a live session on create', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'reactor',
+      model: 'helios',
+      createVideoJob: vi.fn(async () => ({
+        jobId: 'video-1',
+        model: 'reactor/helios',
+        token: 'jwt-live',
+        expiresAt: 1,
+        prompt: 'a city',
+      })),
+      getVideoStatus: vi.fn(),
+      getVideoUrl: vi.fn(),
+    }
+
+    const job = await generateVideo({
+      adapter: adapter as any,
+      prompt: 'a city',
+      threadId: 'video:live',
+      middleware: [middleware],
+    })
+
+    expect(job.token).toBe('jwt-live')
+    expect(events.start[0]!.runId).toBe('video:reactor:video-1')
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+  })
+
   // The submit is not free to pick its own id: the poll can only recompute one
   // derived from the job, so honoring a custom id here would resurrect exactly
   // the "forgot to pass it through" split-record bug this design removes.

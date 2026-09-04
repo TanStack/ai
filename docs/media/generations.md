@@ -90,7 +90,7 @@ streaming is handled for you. All three are written out in
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
 
-> **Note:** Video generation uses a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. See the [Video Generation](./video-generation) guide for details.
+> **Note:** Most video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Reactor returns a live-session token. There is no download URL. See the [Video Generation](./video-generation) guide for details.
 
 ## Advanced
 

@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, fal.ai, or Reactor using TanStack AI's experimental generateVideo() API."
 keywords:
   - tanstack ai
   - video generation
@@ -16,6 +16,7 @@ keywords:
   - byteplus
   - openrouter
   - fal
+  - reactor
   - generateVideo
   - jobs api
   - experimental
@@ -39,11 +40,13 @@ keywords:
 
 ## Overview
 
-TanStack AI provides experimental support for video generation through dedicated video adapters. Unlike image generation, video generation is an **asynchronous operation** that uses a jobs/polling pattern:
+TanStack AI provides experimental support for video generation through dedicated video adapters. Most providers are **asynchronous** and use a jobs/polling pattern:
 
 1. **Create a job** - Submit a prompt and receive a job ID
 2. **Poll for status** - Check the job status until it's complete
 3. **Retrieve the video** - Get the URL to download/view the generated video
+
+Reactor is different. It opens a live WebRTC session and returns a token. See [Live sessions (Reactor)](#live-sessions-reactor).
 
 Currently supported:
 
@@ -53,6 +56,7 @@ Currently supported:
 - **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 - **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
+- **Reactor**: Helios, FastH3, Orbis, LongLive, and LTX as a live stream (token plus `@reactor-team/js-sdk`)
 
 > **Video runs take minutes — don't lose them to a reload.** This is the
 > strongest case for [Generation Persistence](../persistence/generation-persistence):
@@ -79,6 +83,30 @@ const { jobId, model } = await generateVideo({
 
 console.log("Job started:", jobId);
 ```
+
+## Live sessions (Reactor)
+
+You want video that plays while it generates. You also want to change the prompt mid-run. A Sora job finishes as a file. Reactor opens a live session instead.
+
+1. Mint a token on the server with `generateVideo()` and `reactorVideo()`.
+2. Send `token`, `model`, and `prompt` to the browser.
+3. Connect with `@reactor-team/js-sdk`, set the prompt, and start.
+
+```ts
+import { generateVideo } from '@tanstack/ai'
+import { reactorVideo } from '@tanstack/ai-reactor'
+
+const video = await generateVideo({
+  adapter: reactorVideo('helios'),
+  prompt: 'A neon cyberpunk city at night, slow aerial drift',
+})
+
+// Hand video.token, video.model, and video.prompt to the browser.
+```
+
+`REACTOR_API_KEY` must be set, or pass `apiKey` in the adapter config. Do not poll `getVideoJobStatus()`. There is no download URL.
+
+Connect in the browser the same way as [World Generation](./world-generation). The [Reactor adapter](../adapters/reactor) lists the video model ids.
 
 ### Polling for Status
 
@@ -928,6 +956,9 @@ await generateVideo({
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation
+  token?: string; // Live-session token (Reactor). No download URL when set.
+  expiresAt?: number; // Token expiry as milliseconds since epoch
+  prompt?: string; // Prompt the client should send when it starts a live session
 }
 ```
 

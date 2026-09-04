@@ -609,12 +609,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-31"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "World Generation",
           "to": "media/world-generation",
-          "addedAt": "2026-09-04"
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Generation Hooks",
@@ -1010,7 +1011,8 @@
         {
           "label": "Reactor",
           "to": "adapters/reactor",
-          "addedAt": "2026-09-04"
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "OpenRouter Adapter",

@@ -2178,6 +2178,16 @@ export interface VideoJobResult {
    * refs for persisted prompt INPUTS (e.g. a start frame).
    */
   artifacts?: Array<PersistedArtifactRef>
+  /**
+   * Live-session token when the adapter opens a realtime stream instead of a
+   * finite job. When set, connect with the provider client SDK using `token`
+   * and `model`. There is no download URL to poll.
+   */
+  token?: string
+  /** Token expiry as milliseconds since epoch, when `token` is set. */
+  expiresAt?: number
+  /** Prompt the client should send when it starts a live session. */
+  prompt?: string
 }
 
 /**
