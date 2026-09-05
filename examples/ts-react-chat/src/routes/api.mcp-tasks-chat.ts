@@ -1,16 +1,14 @@
 /**
- * /api/mcp-pool — createMCPClients pool pattern.
+ * /api/mcp-tasks-chat — task-required MCP tool execution via chat({ mcp }).
  *
- * Demonstrates the createMCPClients() pool API with THREE servers:
- *   1. A pool of three keyless MCP servers is created in one call.
- *   2. createMCPClients() auto-prefixes each server's tools with its config key
- *      (everything_*, memory_*, thinking_*) to prevent name collisions.
- *   3. The pool is passed to chat() via mcp.clients — chat() owns discovery
- *      and closes all three connections when the stream drains (connection: 'close').
+ * Connects to the in-process Streamable HTTP MCP server at
+ * `/api/mcp-tasks-server` (same origin), whose only tool declares
+ * `execution.taskSupport: 'required'`. `@tanstack/ai-mcp` detects this during
+ * discovery and routes the call through the SDK's experimental task flow
+ * (create task → poll status → fetch result) instead of ordinary `tools/call`.
  *
- * Uses @modelcontextprotocol/server-everything, @modelcontextprotocol/server-memory,
- * and @modelcontextprotocol/server-sequential-thinking (all keyless, via npx).
- * Only OPENAI_API_KEY is required — no MCP-specific API keys needed.
+ * From chat()'s perspective nothing changes — the tool call resolves like any
+ * other, just ~4 seconds later while the UI shows the pending tool call.
  */
 import { createFileRoute } from '@tanstack/react-router'
 import {
@@ -19,15 +17,10 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import { createMCPClient } from '@tanstack/ai-mcp'
 import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
-import { createMCPClients } from '@tanstack/ai-mcp'
-import {
-  everythingTransport,
-  memoryTransport,
-  sequentialThinkingTransport,
-} from '@/lib/mcp-servers'
 
-export const Route = createFileRoute('/api/mcp-pool')({
+export const Route = createFileRoute('/api/mcp-tasks-chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -49,26 +42,23 @@ export const Route = createFileRoute('/api/mcp-pool')({
           )
         }
 
-        let pool
+        let client
         try {
-          // createMCPClients connects all three servers in parallel and
-          // auto-prefixes tools with the config key (everything_*, memory_*,
-          // thinking_*) to prevent collisions.
-          // OPENAI_API_KEY is used by the LLM adapter (separate from the
-          // keyless MCP server transports which need no credentials).
-          pool = await createMCPClients({
-            everything: { transport: everythingTransport() },
-            memory: { transport: memoryTransport() },
-            thinking: { transport: sequentialThinkingTransport() },
+          // The task server is hosted by this same dev server — derive its
+          // URL from the incoming request so the demo works on any port.
+          const origin = new URL(request.url).origin
+          client = await createMCPClient({
+            transport: { type: 'http', url: `${origin}/api/mcp-tasks-server` },
           })
 
-          // chat() manages discovery and closes all pool connections on drain.
-          // The model is encoded in the adapter; do not pass it separately.
+          // chat() discovers the task-required tool and closes the client
+          // when the stream drains — connection: 'close' (the default; shown
+          // explicitly). The model is encoded in the adapter.
           const stream = chat({
             adapter: resolveTextAdapter(params.forwardedProps.provider),
             messages: params.messages,
             mcp: {
-              clients: [pool],
+              clients: [client],
               connection: 'close',
             },
             agentLoopStrategy: maxIterations(20),
@@ -79,10 +69,10 @@ export const Route = createFileRoute('/api/mcp-pool')({
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
-          // chat() only owns the pool once the stream is consumed — if
+          // chat() only owns the client once the stream is consumed — if
           // setup throws before the response is returned, close it here.
-          if (pool) await pool.close().catch(() => {})
-          console.error('[api.mcp-pool] Error:', {
+          if (client) await client.close().catch(() => {})
+          console.error('[api.mcp-tasks-chat] Error:', {
             message: error?.message,
             name: error?.name,
             stack: error?.stack,

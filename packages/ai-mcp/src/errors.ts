@@ -18,14 +18,17 @@ export class DuplicateToolNameError extends Error {
   }
 }
 
+/**
+ * Thrown when a task-required tool is explicitly bound via `mcp.tools([...])`
+ * or called via `callTool()` but the server does not declare the tasks
+ * capability for tools/call, so the call could never execute.
+ * (Auto-discovery silently skips such tools.)
+ */
 export class MCPTaskRequiredToolError extends Error {
   constructor(public readonly toolName: string) {
     super(
-      `MCP tool "${toolName}" declares \`execution.taskSupport: 'required'\` — it can ` +
-        `only be invoked via the MCP SDK's experimental task-based execution ` +
-        `(client.experimental.tasks.callToolStream()), which @tanstack/ai-mcp does not ` +
-        `support yet. Task-required tools are excluded from tools() auto-discovery; ` +
-        `binding one explicitly via tools([toolDefinition(...)]) is an error.`,
+      `MCP tool "${toolName}" requires task-based execution, but the server ` +
+        `does not declare the tasks capability for tools/call`,
     )
     this.name = 'MCPTaskRequiredToolError'
   }
