@@ -119,5 +119,4 @@ describe('GPT-6 Astra', () => {
       }),
     ).toThrow('GPT-6 Astra tool calls require openaiText')
   })
-
 })
