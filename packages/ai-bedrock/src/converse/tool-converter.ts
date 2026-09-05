@@ -3,11 +3,14 @@ import type {
   ToolConfiguration,
 } from '@aws-sdk/client-bedrock-runtime'
 import type { DocumentType } from '@smithy/types'
+import type { BedrockCachePoint } from '../message-types'
 
 export interface ConverseToolInput {
   name: string
   description?: string
   inputSchema: unknown
+  /** Emit a `cachePoint` entry right after this tool. */
+  cachePoint?: BedrockCachePoint
 }
 
 export type ToolChoiceInput =
@@ -26,13 +29,16 @@ export function toToolConfig(
   if (choice === 'none') return undefined
   const toolChoice = mapChoice(choice)
   return {
-    tools: tools.map((t) => ({
-      toolSpec: {
-        name: t.name,
-        ...(t.description ? { description: t.description } : {}),
-        inputSchema: { json: t.inputSchema as DocumentType },
+    tools: tools.flatMap((t) => [
+      {
+        toolSpec: {
+          name: t.name,
+          ...(t.description ? { description: t.description } : {}),
+          inputSchema: { json: t.inputSchema as DocumentType },
+        },
       },
-    })),
+      ...(t.cachePoint ? [{ cachePoint: t.cachePoint }] : []),
+    ]),
     ...(toolChoice ? { toolChoice } : {}),
   }
 }

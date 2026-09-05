@@ -297,6 +297,8 @@ The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-
 
 **Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
 
+**Partial coverage:** `bedrock-converse-cache.spec.ts` drives the real Converse adapter through the AWS SDK against a hand-crafted mount (`/bedrock-converse-cache` in `global-setup.ts`) that encodes `vnd.amazon.eventstream` frames with `@smithy/eventstream-codec`. It covers `metadata.cachePoint` placement and the cache usage counters. The mount answers one fixed stream, so it is not a general Converse replay.
+
 **Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
 
 ### BytePlus (Ark) path handling and record-mode gap
