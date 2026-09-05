@@ -179,7 +179,7 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Every request includes the full system prompt and tool list. Add a `cachePoint` to make that prefix eligible for caching. A later request can read matching tokens at the reduced cache rate. Bedrock bills tokens that miss the cache at the standard input rate.
+Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 
