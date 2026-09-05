@@ -6,6 +6,7 @@ import {
   deriveAesKey,
   encryptKeyring,
   isPasskeyStorageSupported,
+  requireUserActivation,
 } from '../src/byok'
 import type { KeyringStorage } from '../src/byok'
 
@@ -22,6 +23,24 @@ describe('passkey crypto', () => {
 describe('isPasskeyStorageSupported', () => {
   it('returns a boolean', () => {
     expect(typeof isPasskeyStorageSupported()).toBe('boolean')
+  })
+})
+
+describe('requireUserActivation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('throws when transient activation is gone (avoids a silent get() hang)', () => {
+    vi.stubGlobal('navigator', { userActivation: { isActive: false } })
+    expect(() => requireUserActivation('unlock')).toThrow(/fresh user action/i)
+  })
+
+  it('passes when activation is active or the API is unavailable', () => {
+    vi.stubGlobal('navigator', { userActivation: { isActive: true } })
+    expect(() => requireUserActivation('unlock')).not.toThrow()
+    vi.stubGlobal('navigator', {})
+    expect(() => requireUserActivation('unlock')).not.toThrow()
   })
 })
 

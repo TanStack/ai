@@ -196,6 +196,27 @@ function requirePublicKeyCredential(
   return credential
 }
 
+/**
+ * Some browsers (Dia, Safari) silently suppress `navigator.credentials.get()`
+ * — no prompt, never resolves — when it runs without transient user activation.
+ * The activation from a click expires (~5s) and is lost across enough async
+ * work, so an unlock buried deep in a send pipeline just hangs. Fail fast with
+ * a clear, catchable error so the app can re-run it from a fresh gesture.
+ *
+ * Exported for testing.
+ */
+export function requireUserActivation(action: string): void {
+  // ponytail: only enforce where the API exists; absent means "can't tell", so
+  // fall through rather than block a ceremony that would have worked.
+  const activation = globalThis.navigator?.userActivation
+  if (activation && activation.isActive === false) {
+    throw new Error(
+      `Passkey ${action} needs a fresh user action (e.g. a click). Run it ` +
+        'directly from the event handler, before awaiting other work.',
+    )
+  }
+}
+
 async function registerPasskey(
   rpName: string,
   userName: string,
@@ -245,6 +266,7 @@ async function evaluatePrf(
   credentialId: BufferSource,
   salt: BufferSource,
 ): Promise<BufferSource> {
+  requireUserActivation('unlock')
   const credential = requirePublicKeyCredential(
     await navigator.credentials.get({
       publicKey: {

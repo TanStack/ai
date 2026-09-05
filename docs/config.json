@@ -885,7 +885,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Debug Logging",
