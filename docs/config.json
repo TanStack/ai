@@ -940,7 +940,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Anthropic",

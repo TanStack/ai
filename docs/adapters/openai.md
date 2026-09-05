@@ -46,6 +46,34 @@ const stream = chat({
 });
 ```
 
+## GPT-6 Astra
+
+Use `openaiText("gpt-6-astra")` for text, images, and tool calls through the Responses API.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6-astra"),
+  messages: [{ role: "user", content: "Explain this design tradeoff." }],
+  modelOptions: {
+    reasoning: { effort: "max", summary: "auto" },
+  },
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") process.stdout.write(chunk.delta);
+}
+```
+
+- Reasoning effort accepts `low`, `medium`, `high`, `xhigh`, or `max`.
+- The context window is 1,050,000 tokens. The maximum output is 128,000 tokens.
+- The adapter removes `temperature` and `top_p` from Astra requests. Astra does not support log-probability options.
+- For text without tools, `openaiChatCompletions("gpt-6-astra")` accepts native `reasoning_effort` and `max_completion_tokens` options. These option types are specific to Astra; other models retain their existing option types. Tool calls require `openaiText`.
+
+See the [OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model) for Astra API restrictions and prompt caching changes.
+
 ## Chat Completions API
 
 `@tanstack/ai-openai` ships two text adapters that hit different OpenAI endpoints. `openaiText` (default) calls the Responses API (`/v1/responses`). `openaiChatCompletions` calls the older Chat Completions API (`/v1/chat/completions`).

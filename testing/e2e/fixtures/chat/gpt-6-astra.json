@@ -1,0 +1,11 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "model": "gpt-6-astra",
+        "userMessage": "[gpt-6-astra] recommend a guitar"
+      },
+      "response": { "content": "Try the Fender Stratocaster." }
+    }
+  ]
+}
