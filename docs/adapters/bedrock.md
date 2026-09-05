@@ -179,7 +179,7 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Every request sends the full system prompt and tool list again, and Bedrock bills them at the full input rate each time. Add a `cachePoint` to cache that prefix. Bedrock then reads it back at the cache rate for 5 minutes after the last use.
+Every request includes the full system prompt and tool list. Add a `cachePoint` to make that prefix eligible for caching. A later request can read matching tokens at the reduced cache rate. Bedrock bills tokens that miss the cache at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 
@@ -218,7 +218,7 @@ const stream = chat({
 Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list to cache the tool definitions.
 
 - Bedrock accepts up to four checkpoints per request.
-- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read refreshes the timer. If a request mixes both, place every `1h` checkpoint before the first `5m` checkpoint.
+- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read refreshes the timer. Bedrock processes tool checkpoints first, then system prompt checkpoints, and then message checkpoints. If a request mixes both TTLs, place every `1h` checkpoint before the first `5m` checkpoint in that combined order.
 - A checkpoint below the model's minimum size is ignored. The request still succeeds, and nothing is cached.
 
 ### Token usage
