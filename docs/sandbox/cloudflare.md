@@ -126,6 +126,42 @@ migrated in place on first read — nothing to run, but note that
 `GET /runs/:id` and the WebSocket terminal `status` frame now carry the
 converged status strings and field names.
 
+### Stall watchdog
+
+`createCloudflareSandboxAgent` sets one stall policy for the whole app. The
+`stallTimeoutMs` field applies to every run in both `do-drives` (the default)
+and `colocated` mode:
+
+| Value | Behavior |
+| --- | --- |
+| Omitted | Treat the run as stalled after `300000` ms (five minutes) without persisted activity |
+| Positive safe integer | Use that many milliseconds as the stall threshold |
+| `false` | Disable stall detection |
+
+```ts
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import { createCloudflareSandboxAgent } from '@tanstack/ai-sandbox-cloudflare/agent'
+
+export const agent = createCloudflareSandboxAgent({
+  adapter: () => grokBuildText('grok-build'),
+  stallTimeoutMs: 10 * 60_000,
+})
+```
+
+The alarm checks every 30 seconds, or every `stallTimeoutMs` when that is
+shorter, so detection can lag the configured threshold by up to one check
+interval. Persisted run events refresh
+`updatedAt`; authenticated `/_bridge` and `/tool-exec` callbacks also refresh it
+on arrival and completion. Unknown-run and unauthorized requests do not.
+
+Choose a timeout longer than the longest legitimate quiet period. Native
+operations that emit no event and make no callback are invisible to the
+watchdog. An authenticated callback is protected while it remains in flight.
+A callback that never completes can leave an orphaned `running` record.
+Disabling the watchdog with `false` can do the same. When a stall is detected, the watchdog marks
+the run log `failed`; it may not kill the underlying agent process or container.
+Use provider lifecycle controls and [reaping](./reaping) for resource cleanup.
+
 ### Three layers, three homes
 
 Keep these separate — each has a different home on Cloudflare, and conflating
