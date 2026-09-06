@@ -74,8 +74,11 @@ After a reload, look at `messages` for `role: 'activity'` rows.
 A client adapter stores each of those rows as a `UIMessage` with the same `id`
 and content. The next `sendMessage` does not send them as model input.
 
-`persistence: true` and the server `MessageStore` do not store activity. A
-reload that hydrates from the server does not restore those rows.
+`persistence: true` stores activity in client JSON. The server `MessageStore`
+does not store activity. An optional `activities` store does.
+
+A reload that hydrates from the server restores those rows only when that
+store is present.
 
 ### Handle restored client tools
 

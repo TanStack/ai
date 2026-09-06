@@ -57,9 +57,11 @@ import type {
   ToolCallState,
   ToolResultState,
 } from './types'
-import { applyPatch } from 'fast-json-patch'
+import {
+  applyActivityDeltaToUIMessages,
+  applyActivitySnapshotToUIMessages,
+} from '../activity-records'
 import type {
-  ActivityPart,
   ContentPart,
   Interrupt,
   MessagePart,
@@ -1915,42 +1917,7 @@ export class StreamProcessor {
   private handleActivitySnapshotEvent(
     chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
   ): void {
-    const { messageId, activityType, content } = chunk
-    const replace = chunk.replace ?? true
-    const existingIndex = this.messages.findIndex((m) => m.id === messageId)
-    const existing =
-      existingIndex >= 0 ? this.messages[existingIndex] : undefined
-
-    if (existing && !replace) return
-
-    const next: UIMessage = {
-      id: messageId,
-      role: 'activity',
-      parts: [
-        {
-          type: 'activity',
-          activityType,
-          content: structuredClone(content ?? {}),
-        },
-      ],
-      ...(existing?.role === 'activity' && existing.metadata != null
-        ? { metadata: existing.metadata }
-        : {}),
-      ...(existing?.role === 'activity' && existing.createdAt != null
-        ? { createdAt: existing.createdAt }
-        : {}),
-      ...(existing?.role === 'activity' && existing.name != null
-        ? { name: existing.name }
-        : {}),
-    }
-
-    if (existingIndex === -1) {
-      this.messages = [...this.messages, next]
-    } else {
-      this.messages = this.messages.map((msg, index) =>
-        index === existingIndex ? next : msg,
-      )
-    }
+    this.messages = applyActivitySnapshotToUIMessages(this.messages, chunk)
     this.emitMessagesChange()
   }
 
@@ -1962,49 +1929,8 @@ export class StreamProcessor {
   private handleActivityDeltaEvent(
     chunk: Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
   ): void {
-    const { messageId, activityType, patch } = chunk
-    const existingIndex = this.messages.findIndex((m) => m.id === messageId)
-    if (existingIndex === -1) return
-
-    const existing = this.messages[existingIndex]
-    if (existing == null || existing.role !== 'activity') {
-      console.warn(
-        `ACTIVITY_DELTA: Message '${messageId}' is not an activity message`,
-      )
-      return
-    }
-
-    const activityPart = existing.parts.find(
-      (part): part is ActivityPart => part.type === 'activity',
-    )
-    const baseContent = structuredClone(activityPart?.content ?? {})
-
-    try {
-      const result = applyPatch(baseContent, patch ?? [], true, false)
-      const updatedContent = structuredClone(
-        result.newDocument as Record<string, any>,
-      )
-      const nextPart: ActivityPart = {
-        type: 'activity',
-        activityType,
-        content: updatedContent,
-      }
-      const parts = activityPart
-        ? existing.parts.map((part) =>
-            part.type === 'activity' ? nextPart : part,
-          )
-        : [nextPart]
-      this.messages = this.messages.map((msg, index) =>
-        index === existingIndex ? { ...msg, parts } : msg,
-      )
-      this.emitMessagesChange()
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      console.warn(
-        `Failed to apply activity patch for '${messageId}': ${errorMessage}`,
-      )
-    }
+    this.messages = applyActivityDeltaToUIMessages(this.messages, chunk)
+    this.emitMessagesChange()
   }
 
   /**

@@ -2,6 +2,7 @@ import { expectTypeOf } from 'vitest'
 import {
   composePersistence,
   defineAIPersistence,
+  defineActivityStore,
   defineInterruptStore,
   defineMessageStore,
   defineMetadataStore,
@@ -14,6 +15,7 @@ import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AIPersistence,
+  ActivityStore,
   ArtifactStore,
   BlobStore,
   ChatPersistence,
@@ -27,6 +29,7 @@ import type {
 } from '../src'
 
 declare const messages: MessageStore
+declare const activities: ActivityStore
 declare const replacementMessages: MessageStore & {
   readonly source: 'override-messages'
 }
@@ -131,6 +134,7 @@ expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 expectTypeOf(memoryPersistence()).toEqualTypeOf<
   AIPersistence<{
     messages: MessageStore
+    activities: ActivityStore
     runs: RunStore
     generationRuns: GenerationRunStore
     interrupts: InterruptStore
@@ -206,9 +210,15 @@ expectTypeOf(memoryPersistence().stores).not.toHaveProperty('locks')
 // compose into defineAIPersistence with exact presence.
 // ---------------------------------------------------------------------------
 expectTypeOf(defineMessageStore(messages)).toEqualTypeOf<MessageStore>()
+expectTypeOf(defineActivityStore(activities)).toEqualTypeOf<ActivityStore>()
 expectTypeOf(defineRunStore(runs)).toEqualTypeOf<RunStore>()
 expectTypeOf(defineInterruptStore(interrupts)).toEqualTypeOf<InterruptStore>()
 expectTypeOf(defineMetadataStore(metadata)).toEqualTypeOf<MetadataStore>()
+
+defineActivityStore(
+  // @ts-expect-error saveActivities is required by ActivityStore
+  { loadActivities: () => Promise.resolve([]) },
+)
 
 // A store impl missing a contract method is rejected at the typer.
 defineMessageStore(

@@ -52,6 +52,7 @@ const context: ChatMiddlewareContext = {
   currentMessageId: null,
   accumulatedContent: '',
   messages: [],
+  activities: [],
   createId: (prefix) => prefix,
   capabilities: new CapabilityRegistry(),
   get: () => {

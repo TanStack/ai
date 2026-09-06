@@ -6,6 +6,7 @@ describe('memoryPersistence', () => {
   it('returns a namespaced AIPersistence with every state store present', () => {
     const p = memoryPersistence()
     expect(p.stores.messages).toBeDefined()
+    expect(p.stores.activities).toBeDefined()
     expect(p.stores.runs).toBeDefined()
     expect(p.stores.interrupts).toBeDefined()
     expect(p.stores.metadata).toBeDefined()
@@ -13,6 +14,7 @@ describe('memoryPersistence', () => {
 
   it('exposes the complete state store set (no locks)', () => {
     expect(Object.keys(memoryPersistence().stores).sort()).toEqual([
+      'activities',
       'artifacts',
       'blobs',
       'generationRuns',
@@ -88,6 +90,45 @@ describe('memoryPersistence', () => {
       await messages!.saveThread('t1', [{ role: 'user', content: 'hi' }])
       expect(await messages!.loadThread('t1')).toEqual([
         { role: 'user', content: 'hi' },
+      ])
+    })
+  })
+
+  describe('activities', () => {
+    it('round-trips a thread and replaces the full list', async () => {
+      const { activities } = memoryPersistence().stores
+      expect(await activities!.loadActivities('unknown')).toEqual([])
+      await activities!.saveActivities('t1', [
+        {
+          id: 'act-1',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          index: 1,
+        },
+      ])
+      expect(await activities!.loadActivities('t1')).toEqual([
+        {
+          id: 'act-1',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          index: 1,
+        },
+      ])
+      await activities!.saveActivities('t1', [
+        {
+          id: 'act-2',
+          activityType: 'PLAN',
+          content: { steps: [] },
+          index: 0,
+        },
+      ])
+      expect(await activities!.loadActivities('t1')).toEqual([
+        {
+          id: 'act-2',
+          activityType: 'PLAN',
+          content: { steps: [] },
+          index: 0,
+        },
       ])
     })
   })
