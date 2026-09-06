@@ -1,4 +1,5 @@
 import type {
+  ActivityMessage,
   AssistantMessage,
   InputContent,
   ReasoningMessage,
@@ -8,6 +9,7 @@ import type {
   UserMessage,
 } from '@ag-ui/core'
 import type {
+  ActivityPart,
   ContentPart,
   MessagePart,
   ModelMessage,
@@ -34,6 +36,7 @@ type WireToolMessage = WithMetadata<
   }
 >
 type WireReasoningMessage = WithMetadata<ReasoningMessage>
+type WireActivityMessage = WithMetadata<ActivityMessage>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -68,6 +71,7 @@ export type WireMessage =
   | WireAssistantMessage
   | WireToolMessage
   | WireReasoningMessage
+  | WireActivityMessage
 
 /**
  * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
@@ -76,11 +80,16 @@ export type WireMessage =
  * on assistant messages are additionally emitted as fan-out
  * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
  * server consumers. Set `includeSnapshotStructuredOutput` to retain complete
- * structured-output metadata for UI snapshots.
+ * structured-output metadata for UI snapshots. Set `includeActivity` to emit
+ * AG-UI `ActivityMessage` rows (MESSAGES_SNAPSHOT only — default omit so
+ * RunAgentInput never carries activity).
  */
 export function uiMessagesToWire(
   messages: Array<UIMessage | ModelMessage>,
-  options?: { includeSnapshotStructuredOutput: boolean },
+  options?: {
+    includeSnapshotStructuredOutput?: boolean
+    includeActivity?: boolean
+  },
 ): Array<WireMessage> {
   const wire: Array<WireMessage> = []
   const usedWireIds = new Set<string>(
@@ -92,6 +101,7 @@ export function uiMessagesToWire(
   )
   const includeSnapshotStructuredOutput =
     options?.includeSnapshotStructuredOutput ?? false
+  const includeActivity = options?.includeActivity ?? false
 
   const assistantIds = new Set<string>()
   for (const msg of messages) {
@@ -102,6 +112,20 @@ export function uiMessagesToWire(
 
   for (const msg of messages) {
     if (msg.role === 'activity') {
+      if (includeActivity && 'parts' in msg) {
+        const part = msg.parts.find(
+          (p): p is ActivityPart => p.type === 'activity',
+        )
+        if (part) {
+          const activity: WireActivityMessage = {
+            id: msg.id,
+            role: 'activity',
+            activityType: part.activityType,
+            content: structuredClone(part.content),
+          }
+          wire.push(activity)
+        }
+      }
       continue
     }
 

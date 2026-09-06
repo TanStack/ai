@@ -1055,16 +1055,44 @@ export class StreamProcessor {
     const normalized = this.mergeReasoningFanOut(
       chunk.messages.map(aguiSnapshotMessageToUIMessage),
     )
-    this.messages = this.reconcileSnapshotToolCalls(
-      normalized,
+    this.messages = this.mergeOmittedActivity(
       prevMessages,
-    ).map((msg) => {
-      if (msg.metadata != null) return msg
-      const prev = prevById.get(msg.id)
-      if (prev?.metadata == null) return msg
-      return { ...msg, metadata: prev.metadata }
-    })
+      this.reconcileSnapshotToolCalls(normalized, prevMessages).map((msg) => {
+        if (msg.metadata != null) return msg
+        const prev = prevById.get(msg.id)
+        if (prev?.metadata == null) return msg
+        return { ...msg, metadata: prev.metadata }
+      }),
+    )
     this.emitMessagesChange()
+  }
+
+  /**
+   * Snapshot is authoritative for user/assistant/system. Activity omitted
+   * from the snapshot (TanStack chat() still builds snapshots from
+   * ModelMessage[]) stays in the transcript so persist/reconnect cannot
+   * wipe it. Snapshot activity rows win when the id is present.
+   */
+  private mergeOmittedActivity(
+    prevMessages: Array<UIMessage>,
+    snapshot: Array<UIMessage>,
+  ): Array<UIMessage> {
+    const snapshotById = new Map(snapshot.map((msg) => [msg.id, msg]))
+    const used = new Set<string>()
+    const out: Array<UIMessage> = []
+    for (const prev of prevMessages) {
+      const fromSnap = snapshotById.get(prev.id)
+      if (fromSnap) {
+        out.push(fromSnap)
+        used.add(prev.id)
+      } else if (prev.role === 'activity') {
+        out.push(prev)
+      }
+    }
+    for (const msg of snapshot) {
+      if (!used.has(msg.id)) out.push(msg)
+    }
+    return out
   }
 
   /**

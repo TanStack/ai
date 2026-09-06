@@ -5368,6 +5368,73 @@ describe('StreamProcessor', () => {
       expect(messages[0]?.role).toBe('activity')
       expect(messages[0]?.parts.some((p) => p.type === 'text')).toBe(false)
     })
+
+    it('MESSAGES_SNAPSHOT with ActivityMessage restores activity id and content', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'hi' },
+          {
+            id: 'act-1',
+            role: 'activity',
+            activityType: 'SEARCH',
+            content: { query: 'tanstack' },
+          },
+          { id: 'a1', role: 'assistant', content: 'done' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages.map((m) => m.role)).toEqual([
+        'user',
+        'activity',
+        'assistant',
+      ])
+      const activity = messages[1]
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack' })
+      expect(processor.toModelMessages().map((m) => m.role)).not.toContain(
+        'activity',
+      )
+    })
+
+    it('MESSAGES_SNAPSHOT without activity keeps the previous activity row', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        ev.activitySnapshot('act-1', 'SEARCH', { query: 'keep-me' }),
+      )
+      processor.addUserMessage('hi')
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'hi' },
+          { id: 'a1', role: 'assistant', content: 'done' },
+        ],
+        timestamp: Date.now(),
+      })
+
+      const messages = processor.getMessages()
+      expect(messages.map((m) => m.role)).toEqual([
+        'activity',
+        'user',
+        'assistant',
+      ])
+      const activity = messages.find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.content).toEqual({ query: 'keep-me' })
+      expect(processor.toModelMessages().map((m) => m.role)).not.toContain(
+        'activity',
+      )
+    })
   })
 
   // ==========================================================================
