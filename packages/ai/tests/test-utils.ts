@@ -140,6 +140,28 @@ export const ev = {
     stepName,
     timestamp: Date.now(),
   }),
+  activitySnapshot: (
+    messageId: string,
+    activityType: string,
+    content: Record<string, unknown>,
+    replace?: boolean,
+  ) =>
+    chunk(EventType.ACTIVITY_SNAPSHOT, {
+      messageId,
+      activityType,
+      content,
+      ...(replace !== undefined ? { replace } : {}),
+    }),
+  activityDelta: (
+    messageId: string,
+    activityType: string,
+    patch: Array<Record<string, unknown>>,
+  ) =>
+    chunk(EventType.ACTIVITY_DELTA, {
+      messageId,
+      activityType,
+      patch,
+    }),
 }
 
 // ============================================================================

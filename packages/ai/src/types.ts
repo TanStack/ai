@@ -470,6 +470,17 @@ export interface ActivityPart {
 }
 
 /**
+ * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
+ * `index` is the insert position in the reconstructed UI transcript.
+ */
+export interface ActivityRecord {
+  id: string
+  activityType: string
+  content: Record<string, unknown>
+  index: number
+}
+
+/**
  * Recursive `Partial` — every nested field becomes optional. Used as the
  * `partial` type on a streaming structured-output part since the progressive
  * JSON parse hands back objects whose fields are only filled in as bytes

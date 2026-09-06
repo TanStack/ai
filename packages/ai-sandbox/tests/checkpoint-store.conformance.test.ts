@@ -12,7 +12,11 @@ runSandboxCheckpointStoreConformance(
 )
 
 runSandboxCheckpointForkConformance('memory snapshots', memorySandboxSnapshots)
-runPersistenceConformance('memory snapshots persistence', async () => {
-  const { persistence } = await memorySandboxSnapshots()
-  return persistence
-})
+runPersistenceConformance(
+  'memory snapshots persistence',
+  async () => {
+    const { persistence } = await memorySandboxSnapshots()
+    return persistence
+  },
+  { skip: ['activities'] },
+)

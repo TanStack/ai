@@ -1,4 +1,7 @@
-import { modelMessagesToUIMessages } from '@tanstack/ai'
+import {
+  interleaveActivityRecords,
+  modelMessagesToUIMessages,
+} from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai'
 import { validateReconstructChatStores } from './types'
 import type { AIPersistence, ChatTranscriptStores } from './types'
@@ -123,6 +126,9 @@ export async function reconstructChat(
     ? await persistence.stores.runs?.findActiveRun(threadId)
     : null
   const stored = threadId ? await messageStore.loadThread(threadId) : []
+  const storedActivities = threadId
+    ? ((await persistence.stores.activities?.loadActivities(threadId)) ?? [])
+    : []
   // Pending interrupts for the thread, so a reload re-prompts the approval from
   // the server. Each stored `payload` is the full interrupt descriptor the
   // client hydrates; they share the run they paused.
@@ -131,7 +137,10 @@ export async function reconstructChat(
     : []
   const firstPending = pending[0]
   const body: ReconstructedChat = {
-    messages: modelMessagesToUIMessages(stored),
+    messages: interleaveActivityRecords(
+      modelMessagesToUIMessages(stored),
+      storedActivities,
+    ),
     activeRun: active ? { runId: active.runId } : null,
     interrupts: firstPending
       ? {

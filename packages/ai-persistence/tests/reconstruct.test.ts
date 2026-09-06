@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { memoryPersistence } from '../src/memory'
 import { reconstructChat } from '../src/reconstruct'
+import { defineAIPersistence } from '../src/types'
 import type { ReconstructedChat } from '../src/reconstruct'
 
 async function body(response: Response): Promise<ReconstructedChat> {
@@ -246,5 +247,67 @@ describe('reconstructChat', () => {
     )
     const parsed = await body(response)
     expect(textOf(parsed.messages[0]!)).toBe('via-param')
+  })
+
+  it('interleaves stored activity at the saved index', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'ok' },
+    ])
+    await persistence.stores.activities!.saveActivities('t1', [
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { q: 'x' },
+        index: 1,
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+    expect(parsed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+    expect(parsed.messages[1]).toMatchObject({
+      id: 'act-1',
+      role: 'activity',
+      parts: [
+        { type: 'activity', activityType: 'SEARCH', content: { q: 'x' } },
+      ],
+    })
+  })
+
+  it('leaves reconstruct unchanged when the activities store is absent', async () => {
+    const memory = memoryPersistence()
+    await memory.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'ok' },
+    ])
+    await memory.stores.activities!.saveActivities('t1', [
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { q: 'x' },
+        index: 1,
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        defineAIPersistence({ stores: { messages: memory.stores.messages! } }),
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+    expect(parsed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+    ])
   })
 })
