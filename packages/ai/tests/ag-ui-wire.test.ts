@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { MessagesSnapshotEvent } from '@ag-ui/core'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  aguiSnapshotMessageToUIMessage,
+  convertMessagesToModelMessages,
+} from '../src/activities/chat/messages'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
 
@@ -10,10 +13,9 @@ const systemWithoutContent: WireMessage = { id: 'system', role: 'system' }
 const userWithoutContent: WireMessage = { id: 'user', role: 'user' }
 const activityMessage: WireMessage = {
   id: 'activity',
-  // @ts-expect-error uiMessagesToWire never emits activity messages
   role: 'activity',
   activityType: 'status',
-  content: '',
+  content: { ok: true },
 }
 void systemWithoutContent
 void userWithoutContent
@@ -70,6 +72,33 @@ describe('uiMessagesToWire', () => {
     ])
     expect(wire).toHaveLength(1)
     expect(wire[0]).toMatchObject({ id: 'u1', role: 'user', content: 'hi' })
+  })
+
+  it('emits AG-UI ActivityMessage when includeActivity is true', () => {
+    const activity: UIMessage = {
+      id: 'act-1',
+      role: 'activity',
+      parts: [
+        { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
+      ],
+    }
+    const wire = uiMessagesToWire(
+      [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        activity,
+      ],
+      { includeActivity: true },
+    )
+    expect(wire).toHaveLength(2)
+    expect(wire[1]).toEqual({
+      id: 'act-1',
+      role: 'activity',
+      activityType: 'SEARCH',
+      content: { query: 'x' },
+    })
+
+    const restored = aguiSnapshotMessageToUIMessage(wire[1]!)
+    expect(restored).toEqual(activity)
   })
 
   it('mirrors a system UIMessage to a string content field', () => {
