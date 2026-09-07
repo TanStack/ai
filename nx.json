@@ -5,7 +5,7 @@
   "useDaemonProcess": true,
   "useInferencePlugins": false,
   "analytics": false,
-  "parallel": 15,
+  "parallel": 4,
   "tui": {
     "enabled": false
   },

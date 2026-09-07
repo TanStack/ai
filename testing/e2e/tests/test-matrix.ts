@@ -42,7 +42,45 @@ export const providers: Provider[] = [
 
 export { isSupported }
 
+/**
+ * Local `pnpm test:e2e` runs these adapter families (OpenAI, Anthropic,
+ * Gemini). Features that none of them support (TTS, image-gen, …) still
+ * run against whatever providers do. CI and `E2E_PROVIDERS=*` keep the
+ * full matrix. Comma-separated ids narrow it further (`E2E_PROVIDERS=grok`).
+ */
+const LOCAL_E2E_PROVIDERS: ReadonlySet<Provider> = new Set([
+  'openai',
+  'anthropic',
+  'gemini',
+])
+
+function requestedProviders(): 'all' | ReadonlySet<Provider> {
+  if (process.env.CI) return 'all'
+  const raw = process.env.E2E_PROVIDERS
+  if (raw === undefined || raw.trim() === '') return LOCAL_E2E_PROVIDERS
+  if (raw.trim() === '*') return 'all'
+
+  const tokens = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const known = new Set<string>(providers)
+  const unknown = tokens.filter((t) => !known.has(t))
+  if (unknown.length > 0) {
+    throw new Error(
+      `E2E_PROVIDERS has unknown provider(s): ${unknown.join(', ')}. Known: ${providers.join(', ')}`,
+    )
+  }
+  return new Set(providers.filter((p) => tokens.includes(p)))
+}
+
 /** Get only the providers that support a given feature */
 export function providersFor(feature: Feature): Provider[] {
-  return providers.filter((p) => isSupported(p, feature))
+  const supported = providers.filter((p) => isSupported(p, feature))
+  const requested = requestedProviders()
+  if (requested === 'all') return supported
+  const filtered = supported.filter((p) => requested.has(p))
+  // Feature only exists on providers outside the local default (e.g. TTS
+  // on elevenlabs). Keep those tests; don't silently drop the feature.
+  return filtered.length > 0 ? filtered : supported
 }

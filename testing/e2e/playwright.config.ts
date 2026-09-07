@@ -4,16 +4,18 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 2,
-  workers: process.env.CI ? 4 : undefined,
-  reporter: [['html', { open: 'never' }], ['list']],
+  retries: process.env.CI ? 2 : 0,
+  workers: 4,
+  reporter: process.env.CI
+    ? [['html', { open: 'never' }], ['list']]
+    : [['list']],
   timeout: 30_000,
   expect: {
     timeout: 15_000,
   },
   use: {
     baseURL: 'http://localhost:3010',
-    video: 'on',
+    video: 'retain-on-failure',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },

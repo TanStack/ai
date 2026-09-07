@@ -92,6 +92,26 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
+### Faster local runs
+
+Root `pnpm test`, `pnpm test:pr`, and `pnpm test:lib` set `VITEST_MAX_WORKERS=1`. Nx runs 4 tasks at a time (`nx.json` `parallel`). Together that stops each package from spawning one Vitest worker per CPU core while 15 packages already run in parallel.
+
+A single package still uses all cores:
+
+```bash
+cd packages/ai
+pnpm test:lib
+```
+
+Local `pnpm test:e2e` runs openai, anthropic, and gemini. Features that none of those support (TTS, image-gen, and similar) still run on the providers that do. CI always runs the full matrix.
+
+```bash
+E2E_PROVIDERS=* pnpm test:e2e          # full matrix locally
+E2E_PROVIDERS=grok pnpm test:e2e       # one provider
+```
+
+Playwright does not retry or record video locally. CI retries twice and keeps the video of a failed test.
+
 ## TypeScript configuration
 
 There is a single `tsconfig.base.json` at the repo root with the shared `compilerOptions`. Every package extends it and overrides only what's unique to that package (e.g. `outDir`, JSX runtime, framework lib).
