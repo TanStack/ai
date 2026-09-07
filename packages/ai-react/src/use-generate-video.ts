@@ -1,6 +1,13 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
 import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -175,14 +182,6 @@ export function useGenerateVideo<TTransformed = void>(
   // The hook identity is `threadId`. `hookId` is only a React recreation key.
   const clientIdentity = options.threadId ?? hookId
 
-  const [result, setResult] = useState<TOutput | null>(null)
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [videoStatus, setVideoStatus] = useState<VideoStatusInfo | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [status, setStatus] = useState<GenerationClientState>('idle')
-  const [runId, setRunId] = useState<string | null>(null)
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -235,27 +234,6 @@ export function useGenerateVideo<TTransformed = void>(
       onStatusUpdate: (s: VideoStatusInfo) => {
         if (!disposedRef.current) optionsRef.current.onStatusUpdate?.(s)
       },
-      onResultChange: (r: TOutput | null) => {
-        if (!disposedRef.current) setResult(r)
-      },
-      onLoadingChange: (l: boolean) => {
-        if (!disposedRef.current) setIsLoading(l)
-      },
-      onErrorChange: (e: Error | undefined) => {
-        if (!disposedRef.current) setError(e)
-      },
-      onStatusChange: (s: GenerationClientState) => {
-        if (!disposedRef.current) setStatus(s)
-      },
-      onJobIdChange: (id: string | null) => {
-        if (!disposedRef.current) setJobId(id)
-      },
-      onVideoStatusChange: (s: VideoStatusInfo | null) => {
-        if (!disposedRef.current) setVideoStatus(s)
-      },
-      onResumeStateChange: (rs: { runId: string } | null) => {
-        if (!disposedRef.current) setRunId(rs?.runId ?? null)
-      },
     }
 
     const persistenceProps =
@@ -288,6 +266,12 @@ export function useGenerateVideo<TTransformed = void>(
       'useGenerateVideo requires either a connection or fetcher option',
     )
   }, [clientIdentity, hookId])
+
+  const snapshot = useSyncExternalStore(
+    client.subscribe,
+    client.getSnapshot,
+    client.getSnapshot,
+  )
 
   // Sync body changes without recreating client
   useEffect(() => {
@@ -327,14 +311,14 @@ export function useGenerateVideo<TTransformed = void>(
 
   return {
     generate,
-    result,
-    jobId,
-    videoStatus,
-    isLoading,
-    error,
-    status,
+    result: snapshot.result,
+    jobId: snapshot.jobId,
+    videoStatus: snapshot.videoStatus,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
+    status: snapshot.status,
     stop,
     reset,
-    runId,
+    runId: snapshot.runId,
   }
 }

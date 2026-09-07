@@ -235,34 +235,6 @@ export function createGenerateVideo<TTransformed = void>(
     onStatusUpdate: (s: VideoStatusInfo) => {
       if (!disposed) options.onStatusUpdate?.(s)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status = s
-    },
-    onJobIdChange: (id: string | null) => {
-      if (disposed) return
-      jobId = id
-    },
-    onVideoStatusChange: (s: VideoStatusInfo | null) => {
-      if (disposed) return
-      videoStatus = s
-    },
-    onResumeStateChange: (rs: { runId: string } | null) => {
-      if (disposed) return
-      runId = rs?.runId ?? null
-    },
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -283,6 +255,19 @@ export function createGenerateVideo<TTransformed = void>(
     )
   }
 
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result = next.result
+    isLoading = next.isLoading
+    error = next.error
+    status = next.status
+    runId = next.runId
+    jobId = next.jobId
+    videoStatus = next.videoStatus
+  }
+  applySnapshot()
+  let unsubscribeSnapshot = client.subscribe(applySnapshot)
+
   // Mount devtools only. Generation runs are never auto-started on setup —
   // persisted state is read-only for display.
   client.mountDevtools()
@@ -297,7 +282,11 @@ export function createGenerateVideo<TTransformed = void>(
     // frameworks revive via mountDevtools() in their mount effects), so an
     // explicit generate() after dispose() is the Svelte revive path: bring
     // the client and the reactive bindings back together.
-    disposed = false
+    if (disposed) {
+      disposed = false
+      applySnapshot()
+      unsubscribeSnapshot = client.subscribe(applySnapshot)
+    }
     client.mountDevtools()
     await client.generate(input)
   }
@@ -312,6 +301,8 @@ export function createGenerateVideo<TTransformed = void>(
 
   const dispose = () => {
     disposed = true
+    unsubscribeSnapshot()
+    unsubscribeSnapshot = () => {}
     client.dispose()
   }
 

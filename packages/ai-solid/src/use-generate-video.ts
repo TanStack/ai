@@ -244,27 +244,6 @@ export function useGenerateVideo<TTransformed = void>(
       onStatusUpdate: (s: VideoStatusInfo) => {
         if (!disposed) options.onStatusUpdate?.(s)
       },
-      onResultChange: (r: TOutput | null) => {
-        if (!disposed) setResult(() => r)
-      },
-      onLoadingChange: (l: boolean) => {
-        if (!disposed) setIsLoading(l)
-      },
-      onErrorChange: (e: Error | undefined) => {
-        if (!disposed) setError(e)
-      },
-      onStatusChange: (s: GenerationClientState) => {
-        if (!disposed) setStatus(s)
-      },
-      onJobIdChange: (id: string | null) => {
-        if (!disposed) setJobId(id)
-      },
-      onVideoStatusChange: (s: VideoStatusInfo | null) => {
-        if (!disposed) setVideoStatus(s)
-      },
-      onResumeStateChange: (rs: { runId: string } | null) => {
-        if (!disposed) setRunId(rs?.runId ?? null)
-      },
     }
 
     if (options.connection) {
@@ -285,6 +264,19 @@ export function useGenerateVideo<TTransformed = void>(
       'useGenerateVideo requires either a connection or fetcher option',
     )
   })
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    setResult(() => next.result)
+    setIsLoading(next.isLoading)
+    setError(next.error)
+    setStatus(next.status)
+    setRunId(next.runId)
+    setJobId(next.jobId)
+    setVideoStatus(next.videoStatus)
+  }
+  applySnapshot()
+  onCleanup(client.subscribe(applySnapshot))
 
   // Sync body changes without recreating client
   createEffect(() => {

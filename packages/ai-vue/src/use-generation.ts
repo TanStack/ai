@@ -220,26 +220,6 @@ export function useGeneration<
     onChunk: (c: StreamChunk) => {
       if (!disposed) options.onChunk?.(c)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result.value = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading.value = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error.value = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status.value = s
-    },
-    onResumeStateChange: (rs) => {
-      if (disposed) return
-      runId.value = rs?.runId ?? null
-    },
   }
 
   const persistenceProps =
@@ -273,6 +253,17 @@ export function useGeneration<
       'useGeneration requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.value = next.result
+    isLoading.value = next.isLoading
+    error.value = next.error
+    status.value = next.status
+    runId.value = next.runId
+  }
+  applySnapshot()
+  onScopeDispose(client.subscribe(applySnapshot))
 
   // Sync body changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { RealtimeClient } from '@tanstack/ai-client'
-import type {
-  RealtimeMessage,
-  RealtimeMode,
-  RealtimeSessionConfig,
-  RealtimeStatus,
-} from '@tanstack/ai'
+import type { RealtimeSessionConfig } from '@tanstack/ai'
 import type {
   UseRealtimeChatOptions,
   UseRealtimeChatReturn,
@@ -58,17 +59,6 @@ const emptyTimeDomainData = new Uint8Array(128).fill(128)
 export function useRealtimeChat(
   options: UseRealtimeChatOptions,
 ): UseRealtimeChatReturn {
-  // State
-  const [status, setStatus] = useState<RealtimeStatus>('idle')
-  const [mode, setMode] = useState<RealtimeMode>('idle')
-  const [messages, setMessages] = useState<Array<RealtimeMessage>>([])
-  const [pendingUserTranscript, setPendingUserTranscript] = useState<
-    string | null
-  >(null)
-  const [pendingAssistantTranscript, setPendingAssistantTranscript] = useState<
-    string | null
-  >(null)
-  const [error, setError] = useState<Error | null>(null)
   const [inputLevel, setInputLevel] = useState(0)
   const [outputLevel, setOutputLevel] = useState(0)
 
@@ -113,15 +103,10 @@ export function useRealtimeChat(
       ...(initial.semanticEagerness !== undefined && {
         semanticEagerness: initial.semanticEagerness,
       }),
-      onStatusChange: (newStatus) => {
-        setStatus(newStatus)
-      },
       onModeChange: (newMode) => {
-        setMode(newMode)
         optionsRef.current.onModeChange?.(newMode)
       },
       onMessage: (message) => {
-        setMessages((prev) => [...prev, message])
         optionsRef.current.onMessage?.(message)
       },
       onUsage(usage) {
@@ -131,30 +116,26 @@ export function useRealtimeChat(
         optionsRef.current.onGoAway?.(timeLeft)
       },
       onError: (err) => {
-        setError(err)
         optionsRef.current.onError?.(err)
       },
       onConnect: () => {
-        setError(null)
         optionsRef.current.onConnect?.()
       },
       onDisconnect: () => {
         optionsRef.current.onDisconnect?.()
       },
       onInterrupted: () => {
-        setPendingAssistantTranscript(null)
         optionsRef.current.onInterrupted?.()
       },
-    })
-
-    // Subscribe to state changes for transcripts
-    clientRef.current.onStateChange((state) => {
-      setPendingUserTranscript(state.pendingUserTranscript)
-      setPendingAssistantTranscript(state.pendingAssistantTranscript)
     })
   }
 
   const client = clientRef.current
+  const snapshot = useSyncExternalStore(
+    client.subscribe,
+    client.getSnapshot,
+    client.getSnapshot,
+  )
 
   // Audio level animation loop
   useEffect(() => {
@@ -166,7 +147,7 @@ export function useRealtimeChat(
       animationFrameRef.current = requestAnimationFrame(updateLevels)
     }
 
-    if (status === 'connected') {
+    if (snapshot.status === 'connected') {
       updateLevels()
     }
 
@@ -176,7 +157,7 @@ export function useRealtimeChat(
         animationFrameRef.current = null
       }
     }
-  }, [status])
+  }, [snapshot.status])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -187,10 +168,6 @@ export function useRealtimeChat(
 
   // Connection methods
   const connect = useCallback(async () => {
-    setError(null)
-    setMessages([])
-    setPendingUserTranscript(null)
-    setPendingAssistantTranscript(null)
     await client.connect()
   }, [client])
 
@@ -258,16 +235,16 @@ export function useRealtimeChat(
 
   return {
     // Connection state
-    status,
-    error,
+    status: snapshot.status,
+    error: snapshot.error,
     connect,
     disconnect,
 
     // Conversation state
-    mode,
-    messages,
-    pendingUserTranscript,
-    pendingAssistantTranscript,
+    mode: snapshot.mode,
+    messages: snapshot.messages,
+    pendingUserTranscript: snapshot.pendingUserTranscript,
+    pendingAssistantTranscript: snapshot.pendingAssistantTranscript,
 
     // Voice control
     startListening,

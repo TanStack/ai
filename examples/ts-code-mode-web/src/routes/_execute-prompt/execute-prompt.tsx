@@ -29,7 +29,7 @@ import type {
   CodeExecution,
 } from '@/lib/execute-prompt-realtime-tools'
 
-export const Route = createFileRoute('/_execute-prompt/execute-prompt' as any)({
+export const Route = createFileRoute('/_execute-prompt/execute-prompt')({
   component: DashboardDemoPage,
 })
 

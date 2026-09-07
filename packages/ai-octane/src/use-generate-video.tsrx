@@ -172,12 +172,6 @@ export function useGenerateVideo<TTransformed = void>(
       onStatusUpdate: (s: VideoStatusInfo) => {
         optionsRef.current.onStatusUpdate?.(s)
       },
-      onResultChange: setResult,
-      onLoadingChange: setIsLoading,
-      onErrorChange: setError,
-      onStatusChange: setStatus,
-      onJobIdChange: setJobId,
-      onVideoStatusChange: setVideoStatus,
     }
 
     if (opts.connection) {
@@ -198,6 +192,20 @@ export function useGenerateVideo<TTransformed = void>(
       'useGenerateVideo requires either a connection or fetcher option',
     )
   }, [clientId])
+
+  useEffect(() => {
+    const applySnapshot = () => {
+      const next = client.getSnapshot()
+      setResult(next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setJobId(next.jobId)
+      setVideoStatus(next.videoStatus)
+    }
+    applySnapshot()
+    return client.subscribe(applySnapshot)
+  }, [client])
 
   // Sync body changes without recreating client
   useEffect(() => {

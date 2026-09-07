@@ -4,6 +4,8 @@ import {
   isProviderId,
   maskKey,
 } from '@tanstack/ai/byok'
+import { createAtom } from '../snapshot-atom'
+import type { Atom } from '../snapshot-atom'
 import { memoryStorage } from './storage'
 import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
 import type { Keyring, KeyringStorage } from './storage'
@@ -91,9 +93,9 @@ export class ByokClient {
   #coverageAll = false
   #coverage: Record<string, boolean> = {}
   readonly #companions: Record<string, Array<ProviderId>> = {}
-  readonly #listeners = new Set<() => void>()
-  #snapshot: ByokSnapshot
   #storageError: string | null = null
+  readonly #snapshotAtom: Atom<ByokSnapshot>
+  readonly #listeners = new Set<() => void>()
   readonly #ready: Promise<void>
 
   constructor(options: DefineByokOptions = {}) {
@@ -106,7 +108,7 @@ export class ByokClient {
       }
     }
     this.#locked = Boolean(this.storage.unlockable)
-    this.#snapshot = this.#buildSnapshot()
+    this.#snapshotAtom = createAtom<ByokSnapshot>(this.#buildSnapshot())
     this.#ready = this.#hydrate()
   }
 
@@ -115,20 +117,25 @@ export class ByokClient {
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
+    return () => this.#listeners.delete(listener)
   }
 
-  getSnapshot = (): ByokSnapshot => this.#snapshot
+  getSnapshot = (): ByokSnapshot => this.#snapshotAtom.get()
 
   #buildSnapshot(): ByokSnapshot {
-    return {
-      status: { ...this.#statuses },
+    return Object.freeze({
+      status: Object.freeze(
+        Object.fromEntries(
+          Object.entries(this.#statuses).map(([key, value]) => [
+            key,
+            value ? Object.freeze({ ...value }) : value,
+          ]),
+        ),
+      ),
       locked: this.#locked,
-      prompt: this.#prompt,
+      prompt: this.#prompt ? Object.freeze({ ...this.#prompt }) : null,
       storageError: this.#storageError,
-    }
+    })
   }
 
   keys(): Keyring {
@@ -371,7 +378,7 @@ export class ByokClient {
   }
 
   #emit(): void {
-    this.#snapshot = this.#buildSnapshot()
+    this.#snapshotAtom.set(this.#buildSnapshot())
     for (const listener of this.#listeners) listener()
   }
 }

@@ -1,5 +1,7 @@
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import type { AudioPart } from '@tanstack/ai/client'
+import { createAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 
 /** Lifecycle state of an {@link AudioRecorder}. */
 export type AudioRecorderState = 'idle' | 'recording' | 'stopping'
@@ -62,13 +64,14 @@ export class AudioRecorder {
   private stream: MediaStream | null = null
   private chunks: Array<Blob> = []
   private startedAt = 0
-  private _state: AudioRecorderState = 'idle'
+  private readonly snapshotAtom: Atom<AudioRecorderState> =
+    createAtom<AudioRecorderState>('idle')
+  private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   // True while start() is awaiting getUserMedia (state is still 'idle' then).
   private starting = false
   // Set by cancel()/teardown during that window so start() releases the
   // freshly acquired stream instead of beginning a leaked recording.
   private pendingCancel = false
-  private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   private stopResolve: ((recording: AudioRecording) => void) | null = null
   private stopReject: ((error: Error) => void) | null = null
 
@@ -87,25 +90,24 @@ export class AudioRecorder {
   }
 
   get state(): AudioRecorderState {
-    return this._state
+    return this.snapshotAtom.get()
   }
 
   subscribe(cb: (state: AudioRecorderState) => void): () => void {
     this.listeners.add(cb)
-    return () => {
-      this.listeners.delete(cb)
-    }
+    return () => this.listeners.delete(cb)
   }
 
+  /** Current recorder lifecycle state. */
+  getSnapshot = (): AudioRecorderState => this.snapshotAtom.get()
+
   private setState(state: AudioRecorderState): void {
-    this._state = state
-    for (const cb of this.listeners) {
-      cb(state)
-    }
+    this.snapshotAtom.set(state)
+    for (const listener of this.listeners) listener(state)
   }
 
   async start(): Promise<void> {
-    if (this._state !== 'idle' || this.starting) {
+    if (this.state !== 'idle' || this.starting) {
       return
     }
     this.starting = true
@@ -168,7 +170,7 @@ export class AudioRecorder {
   }
 
   stop(): Promise<AudioRecording> {
-    if (this._state !== 'recording' || !this.recorder) {
+    if (this.state !== 'recording' || !this.recorder) {
       return Promise.reject(
         new Error('AudioRecorder.stop() called while not recording'),
       )
@@ -179,7 +181,7 @@ export class AudioRecorder {
       // Some browsers/codecs never fire onstop; this watchdog unwedges the
       // recorder instead of leaking this promise forever.
       const watchdog = setTimeout(() => {
-        if (this._state !== 'stopping') {
+        if (this.state !== 'stopping') {
           return
         }
         // Detach handlers so a late onstop/onerror from the stalled recorder
@@ -215,7 +217,7 @@ export class AudioRecorder {
       this.pendingCancel = true
       return
     }
-    if (this._state === 'idle') {
+    if (this.state === 'idle') {
       return
     }
     const recorder = this.recorder

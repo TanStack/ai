@@ -224,6 +224,26 @@ test.describe('openai chat persistence', () => {
       'Fender Stratocaster',
     )
 
+    const hydrationErrors: Array<string> = []
+    page.on('pageerror', (error) => {
+      if (
+        /hydration failed|hydrated but|server rendered html/i.test(
+          error.message,
+        )
+      ) {
+        hydrationErrors.push(error.message)
+      }
+    })
+    page.on('console', (message) => {
+      const text = message.text()
+      if (
+        message.type() === 'error' &&
+        /hydration failed|hydrated but|server rendered html/i.test(text)
+      ) {
+        hydrationErrors.push(text)
+      }
+    })
+
     await page.reload()
 
     await expect(page.getByTestId('user-message')).toContainText(
@@ -232,6 +252,7 @@ test.describe('openai chat persistence', () => {
     await expect(page.getByTestId('assistant-message')).toContainText(
       'Fender Stratocaster',
     )
+    expect(hydrationErrors).toEqual([])
   })
 
   test('clear() removes the persisted conversation so a reload starts empty', async ({

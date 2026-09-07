@@ -205,21 +205,6 @@ export function injectGeneration<
     onChunk: (c: StreamChunk) => {
       if (!disposed) options.onChunk?.(c)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (!disposed) result.set(r)
-    },
-    onLoadingChange: (l: boolean) => {
-      if (!disposed) isLoading.set(l)
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (!disposed) error.set(e)
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (!disposed) status.set(s)
-    },
-    onResumeStateChange: (rs) => {
-      if (!disposed) runId.set(rs?.runId ?? null)
-    },
   }
 
   const persistenceProps =
@@ -253,6 +238,17 @@ export function injectGeneration<
     )
   }
 
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.set(next.result)
+    isLoading.set(next.isLoading)
+    error.set(next.error)
+    status.set(next.status)
+    runId.set(next.runId)
+  }
+  applySnapshot()
+  const unsubscribeSnapshot = client.subscribe(applySnapshot)
+
   if (bodySource) {
     effect(
       () => {
@@ -274,6 +270,7 @@ export function injectGeneration<
   )
   destroyRef.onDestroy(() => {
     disposed = true
+    unsubscribeSnapshot()
     client.dispose()
   })
 

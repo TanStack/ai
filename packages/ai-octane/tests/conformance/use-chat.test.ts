@@ -215,15 +215,19 @@ describe('useChat', () => {
         removeItem: vi.fn(),
       }
 
-      const { result } = renderUseChat({
-        connection: adapter,
-        threadId: 'persisted-chat',
-        persistence,
+      let firstMessages: ReadonlyArray<UIMessage> | undefined
+      const { result } = renderHook(() => {
+        const chat = useChat({
+          connection: adapter,
+          threadId: 'persisted-chat',
+          persistence,
+        })
+        firstMessages ??= chat.messages
+        return chat
       })
 
-      await waitFor(() => {
-        expect(result.current.messages).toEqual(persistedMessages)
-      })
+      expect(firstMessages).toEqual(persistedMessages)
+      expect(result.current.messages).toEqual(persistedMessages)
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
     })
 

@@ -82,11 +82,6 @@ export function useChat<
     resuming: false,
   })
 
-  const syncResumeState = () => {
-    setRunId(client().getCurrentRunId())
-    setInterruptState(client().getInterruptState())
-  }
-
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
   // message (the one after the most recent user message). Per-turn parts
@@ -94,7 +89,7 @@ export function useChat<
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Create ChatClient instance with callbacks to sync state.
+  // Build the client once per clientId. User callbacks read latest options.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
   // is read at call time. Direct assignment would freeze the callback to the
   // reference we saw at creation; the wrapper lets reactive `options` or
@@ -159,44 +154,8 @@ export function useChat<
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
-      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        setMessages(newMessages)
-      },
-      onLoadingChange: (newIsLoading: boolean) => {
-        setIsLoading(newIsLoading)
-        syncResumeState()
-      },
-      onStatusChange: (newStatus: ChatClientState) => {
-        setStatus(newStatus)
-      },
-      onErrorChange: (newError: Error | undefined) => {
-        setError(newError)
-      },
-      onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        setIsSubscribed(nextIsSubscribed)
-      },
-      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        setConnectionStatus(nextStatus)
-      },
-      onSessionGeneratingChange: (isGenerating: boolean) => {
-        setSessionGenerating(isGenerating)
-      },
       ...(options.queue !== undefined && { queue: options.queue }),
-      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-        setQueue(nextQueue)
-      },
-      onRunIdChange: (nextRunId) => {
-        setRunId(nextRunId)
-      },
-      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
-        setInterruptState((current) => ({
-          ...current,
-          interrupts: nextPendingInterrupts,
-          pendingInterrupts: nextPendingInterrupts,
-        }))
-      },
       onInterruptStateChange: (nextInterruptState, context) => {
-        setInterruptState(nextInterruptState)
         options.onInterruptStateChange?.(nextInterruptState, context)
       },
     })
@@ -204,8 +163,26 @@ export function useChat<
     // Connection and other options are captured at creation time
   }, [clientId])
 
-  setMessages(client().getMessages())
-  syncResumeState()
+  const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
+    const next = target.getSnapshot()
+    setMessages(next.messages as Array<UIMessage<TTools>>)
+    setIsLoading(next.isLoading)
+    setError(next.error)
+    setStatus(next.status)
+    setIsSubscribed(next.isSubscribed)
+    setConnectionStatus(next.connectionStatus)
+    setSessionGenerating(next.sessionGenerating)
+    setQueue(next.queue as Array<QueuedMessage>)
+    setRunId(next.runId)
+    setInterruptState(next.interruptState)
+  }
+
+  createEffect(() => {
+    const target = client()
+    applySnapshot(target)
+    const unsubscribe = target.subscribeSnapshot(() => applySnapshot(target))
+    onCleanup(unsubscribe)
+  })
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -230,6 +207,11 @@ export function useChat<
     client().unsubscribe()
   }
 
+  // First paint must see constructor hydration (sync store / resume snapshot)
+  // and the live subscribe above. `createEffect` runs after paint, so the
+  // subscribe effect cannot be the first apply.
+  applySnapshot(client())
+
   createEffect(() => {
     if (options.live) {
       client().subscribe()
@@ -245,10 +227,6 @@ export function useChat<
     // connections per origin until the page reloaded.
     client().attach()
     client().mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
-    syncResumeState()
   })
 
   // Cleanup on unmount: stop any in-flight requests.
@@ -272,27 +250,15 @@ export function useChat<
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
-    try {
-      await client().sendMessage(content, undefined, sendOptions)
-    } finally {
-      syncResumeState()
-    }
+    await client().sendMessage(content, undefined, sendOptions)
   }
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    try {
-      await client().append(message)
-    } finally {
-      syncResumeState()
-    }
+    await client().append(message)
   }
 
   const reload = async () => {
-    try {
-      await client().reload()
-    } finally {
-      syncResumeState()
-    }
+    await client().reload()
   }
 
   const stop = () => {
@@ -301,7 +267,6 @@ export function useChat<
 
   const clear = () => {
     client().clear()
-    syncResumeState()
   }
 
   const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
@@ -323,7 +288,6 @@ export function useChat<
     approved: boolean
   }) => {
     await client().addToolApprovalResponse(response)
-    syncResumeState()
   }
 
   const cancelQueued = (id: string) => client().cancelQueued(id)
@@ -332,9 +296,7 @@ export function useChat<
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => {
-    const result = await client().resumeInterrupts(resumeItems, state)
-    syncResumeState()
-    return result
+    return await client().resumeInterrupts(resumeItems, state)
   }
 
   const resolveInterrupts = (

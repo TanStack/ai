@@ -56,10 +56,13 @@ to pick one and how it differs from the `runId` the hook reports.
 The client stores one record per `threadId`, the transcript plus a small resume
 pointer. On the next load `useChat` reads it and:
 
-- **Repaints the transcript** from storage with no network. Sync adapters
-  (`localStorage` / `sessionStorage`) hydrate during construction; IndexedDB
-  hydrates asynchronously after the database opens (so the first paint may be
-  empty for a tick).
+- **Repaints the transcript** from storage with no network. In React, the first
+  committed render uses `initialMessages` and `initialResumeSnapshot`. After the
+  hook attaches, it applies browser persistence from either a synchronous or an
+  asynchronous adapter. This timing also prevents SSR hydration mismatches. A
+  direct `ChatClient` and non-React framework wrappers still apply synchronous
+  stores during construction. IndexedDB always hydrates asynchronously after
+  the database opens.
 - **Rehydrates a pending interrupt**, so an approval prompt comes back exactly as
   it was.
 - **Rejoins an in-flight run**, if a reply was still streaming when the page

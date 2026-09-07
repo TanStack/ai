@@ -65,6 +65,29 @@ export type InferGenerationOutput<TResult, TFn> = TFn extends (
 export type GenerationClientState = 'idle' | 'generating' | 'success' | 'error'
 
 /**
+ * UI snapshot published by {@link GenerationClient.subscribe} /
+ * {@link GenerationClient.getSnapshot}.
+ */
+export interface GenerationClientSnapshot<TOutput = unknown> {
+  readonly result: TOutput | null
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly status: GenerationClientState
+  readonly runId: string | null
+}
+
+/**
+ * UI snapshot published by {@link VideoGenerationClient.subscribe} /
+ * {@link VideoGenerationClient.getSnapshot}.
+ */
+export interface VideoGenerationClientSnapshot<
+  TOutput = unknown,
+> extends GenerationClientSnapshot<TOutput> {
+  readonly jobId: string | null
+  readonly videoStatus: VideoStatusInfo | null
+}
+
+/**
  * Status of a persisted/restored generation run.
  *
  * `running` / `complete` / `error` are the three the server-side mapper emits

@@ -49,7 +49,7 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-export const Route = createFileRoute('/_reporting/api/reports' as any)({
+export const Route = createFileRoute('/_reporting/api/reports')({
   server: {
     handlers: {
       POST: async ({ request }) => {
