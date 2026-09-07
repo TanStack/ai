@@ -16,6 +16,5 @@ export {
   encryptKeyring,
   isPasskeyStorageSupported,
   passkeyStorage,
-  requireUserActivation,
 } from './byok/passkey'
 export type { PasskeyStorageOptions } from './byok/passkey'

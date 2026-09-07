@@ -202,10 +202,8 @@ function requirePublicKeyCredential(
  * The activation from a click expires (~5s) and is lost across enough async
  * work, so an unlock buried deep in a send pipeline just hangs. Fail fast with
  * a clear, catchable error so the app can re-run it from a fresh gesture.
- *
- * Exported for testing.
  */
-export function requireUserActivation(action: string): void {
+function requireUserActivation(action: string): void {
   // ponytail: only enforce where the API exists; absent means "can't tell", so
   // fall through rather than block a ceremony that would have worked.
   const activation = globalThis.navigator?.userActivation
@@ -266,7 +264,6 @@ async function evaluatePrf(
   credentialId: BufferSource,
   salt: BufferSource,
 ): Promise<BufferSource> {
-  requireUserActivation('unlock')
   const credential = requirePublicKeyCredential(
     await navigator.credentials.get({
       publicKey: {
@@ -338,6 +335,7 @@ export function passkeyStorage(
     }
     const existing = await idbGet(dbName)
     if (existing) {
+      requireUserActivation('unlock')
       const prf = await evaluatePrf(existing.credentialId, existing.salt)
       cachedKey = await deriveAesKey(prf)
       cachedMeta = {
@@ -346,6 +344,8 @@ export function passkeyStorage(
       }
     } else {
       const reg = await registerPasskey(rpName, userName, rpId)
+      // Registration can consume activation. Let the browser handle its
+      // follow-up PRF ceremony rather than rejecting a valid new-key save.
       const prf = reg.prf ?? (await evaluatePrf(reg.credentialId, reg.salt))
       cachedKey = await deriveAesKey(prf)
       cachedMeta = { credentialId: reg.credentialId, salt: reg.salt }
