@@ -7817,9 +7817,9 @@
     "context_window": 256000,
     "max_tokens": 32000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
-    "tags": ["free", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "free"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -7842,7 +7842,8 @@
     ],
     "pricing": {
       "input": "0",
-      "output": "0"
+      "output": "0",
+      "varies_by_provider": true
     }
   },
   {
@@ -7879,6 +7880,74 @@
         "type": "toggle"
       }
     ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-sante",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788480000,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash Sante",
+    "description": "Ling-3.0-Flash-Sante is inclusionAI’s language model specialized for health and medicine, built on a Mixture-of-Experts architecture with 124 billion total parameters and approximately 5.1 billion active per token. With a 256K context window and function calling, it supports medical knowledge reasoning, evidence-based retrieval, and complex medical workflows while retaining general reasoning, coding, and agentic capabilities.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-sante-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788480000,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash Sante (Free)",
+    "description": "Ling-3.0-Flash-Sante is inclusionAI’s language model specialized for health and medicine, built on a Mixture-of-Experts architecture with 124 billion total parameters and approximately 5.1 billion active per token. With a 256K context window and function calling, it supports medical knowledge reasoning, evidence-based retrieval, and complex medical workflows while retaining general reasoning, coding, and agentic capabilities.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
     "pricing": {
       "input": "0",
       "output": "0"
@@ -10292,8 +10361,8 @@
     "context_window": 1000000,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
       "reasoning",
       "tool-use",
@@ -10379,7 +10448,8 @@
     "pricing": {
       "input": "0.0000045",
       "output": "0.0000225",
-      "input_cache_read": "0.00000045"
+      "input_cache_read": "0.00000045",
+      "varies_by_provider": true
     }
   },
   {
@@ -13263,15 +13333,15 @@
             "min": 272000
           }
         ],
-        "input_cache_write": "0.00000025",
+        "input_cache_write": "0.0000005",
         "input_cache_write_tiers": [
           {
-            "cost": "0.00000025",
+            "cost": "0.0000005",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.0000005",
+            "cost": "0.000001",
             "min": 272000
           }
         ]
@@ -13362,15 +13432,15 @@
                 "min": 272000
               }
             ],
-            "input_cache_write": "0.000000275",
+            "input_cache_write": "0.00000055",
             "input_cache_write_tiers": [
               {
-                "cost": "0.000000275",
+                "cost": "0.00000055",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.00000055",
+                "cost": "0.0000011",
                 "min": 272000
               }
             ]
@@ -13461,15 +13531,15 @@
           "min": 272000
         }
       ],
-      "input_cache_write": "0.00000025",
+      "input_cache_write": "0.0000005",
       "input_cache_write_tiers": [
         {
-          "cost": "0.00000025",
+          "cost": "0.0000005",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.0000005",
+          "cost": "0.000001",
           "min": 272000
         }
       ],
@@ -13512,15 +13582,15 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.000000275",
+          "input_cache_write": "0.00000055",
           "input_cache_write_tiers": [
             {
-              "cost": "0.000000275",
+              "cost": "0.00000055",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.00000055",
+              "cost": "0.0000011",
               "min": 272000
             }
           ]
@@ -13686,15 +13756,15 @@
             "min": 272000
           }
         ],
-        "input_cache_write": "0.0000025",
+        "input_cache_write": "0.000005",
         "input_cache_write_tiers": [
           {
-            "cost": "0.0000025",
+            "cost": "0.000005",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.000005",
+            "cost": "0.00001",
             "min": 272000
           }
         ]
@@ -13786,15 +13856,15 @@
                 "min": 272000
               }
             ],
-            "input_cache_write": "0.000001375",
+            "input_cache_write": "0.00000275",
             "input_cache_write_tiers": [
               {
-                "cost": "0.000001375",
+                "cost": "0.00000275",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.00000275",
+                "cost": "0.0000055",
                 "min": 272000
               }
             ]
@@ -13885,15 +13955,15 @@
           "min": 272000
         }
       ],
-      "input_cache_write": "0.0000025",
+      "input_cache_write": "0.000005",
       "input_cache_write_tiers": [
         {
-          "cost": "0.0000025",
+          "cost": "0.000005",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.000005",
+          "cost": "0.00001",
           "min": 272000
         }
       ],
@@ -13936,15 +14006,15 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.000001375",
+          "input_cache_write": "0.00000275",
           "input_cache_write_tiers": [
             {
-              "cost": "0.000001375",
+              "cost": "0.00000275",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.00000275",
+              "cost": "0.0000055",
               "min": 272000
             }
           ]
@@ -14109,15 +14179,15 @@
             "min": 272000
           }
         ],
-        "input_cache_write": "0.0000025",
+        "input_cache_write": "0.000005",
         "input_cache_write_tiers": [
           {
-            "cost": "0.0000025",
+            "cost": "0.000005",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.000005",
+            "cost": "0.00001",
             "min": 272000
           }
         ]
@@ -14209,15 +14279,15 @@
                 "min": 272000
               }
             ],
-            "input_cache_write": "0.00000275",
+            "input_cache_write": "0.0000055",
             "input_cache_write_tiers": [
               {
-                "cost": "0.00000275",
+                "cost": "0.0000055",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.0000055",
+                "cost": "0.000011",
                 "min": 272000
               }
             ]
@@ -14308,15 +14378,15 @@
           "min": 272000
         }
       ],
-      "input_cache_write": "0.0000025",
+      "input_cache_write": "0.000005",
       "input_cache_write_tiers": [
         {
-          "cost": "0.0000025",
+          "cost": "0.000005",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.000005",
+          "cost": "0.00001",
           "min": 272000
         }
       ],
@@ -14359,16 +14429,426 @@
               "min": 272000
             }
           ],
-          "input_cache_write": "0.00000275",
+          "input_cache_write": "0.0000055",
           "input_cache_write_tiers": [
             {
-              "cost": "0.00000275",
+              "cost": "0.0000055",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000055",
+              "cost": "0.000011",
               "min": 272000
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6-astra",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788480000,
+    "owned_by": "openai",
+    "name": "GPT-6 Astra",
+    "description": "GPT-6 Astra is OpenAI's most capable model for complex reasoning, coding, computer use, research, and document creation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "fast",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search",
+      "websocket-realtime"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-04-30",
+    "pricing": {
+      "input": "0.00001",
+      "input_tiers": [
+        {
+          "cost": "0.00001",
+          "max": 272001
+        },
+        {
+          "cost": "0.00002",
+          "min": 272001
+        }
+      ],
+      "output": "0.00005",
+      "output_tiers": [
+        {
+          "cost": "0.00005",
+          "max": 272001
+        },
+        {
+          "cost": "0.000075",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.000001",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.000001",
+          "max": 272001
+        },
+        {
+          "cost": "0.000002",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.0000125",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.0000125",
+          "max": 272001
+        },
+        {
+          "cost": "0.000025",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "service_tiers": {
+        "flex": {
+          "input": "0.000005",
+          "output": "0.000025",
+          "input_cache_read": "0.0000005",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.00001",
+            "output": "0.0000375",
+            "input_cache_read": "0.000001"
+          }
+        },
+        "priority": {
+          "input": "0.00002",
+          "output": "0.0001",
+          "input_cache_read": "0.000002",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.00004",
+            "output": "0.00015",
+            "input_cache_read": "0.000004"
+          }
+        }
+      },
+      "fast": {
+        "input": "0.00002",
+        "input_tiers": [
+          {
+            "cost": "0.00002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00004",
+            "min": 272001
+          }
+        ],
+        "output": "0.0001",
+        "output_tiers": [
+          {
+            "cost": "0.0001",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00015",
+            "min": 272001
+          }
+        ],
+        "input_cache_read": "0.000002",
+        "input_cache_read_tiers": [
+          {
+            "cost": "0.000002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000004",
+            "min": 272001
+          }
+        ],
+        "input_cache_write": "0.000025",
+        "input_cache_write_tiers": [
+          {
+            "cost": "0.000025",
+            "max": 272001
+          },
+          {
+            "cost": "0.00005",
+            "min": 272001
+          }
+        ]
+      },
+      "regional": {
+        "us": {
+          "input": "0.000011",
+          "input_tiers": [
+            {
+              "cost": "0.000011",
+              "max": 272001
+            },
+            {
+              "cost": "0.000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.000055",
+          "output_tiers": [
+            {
+              "cost": "0.000055",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.0000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000011",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00001375",
+              "max": 272001
+            },
+            {
+              "cost": "0.0000275",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.000022",
+            "input_tiers": [
+              {
+                "cost": "0.000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000044",
+                "min": 272001
+              }
+            ],
+            "output": "0.00011",
+            "output_tiers": [
+              {
+                "cost": "0.00011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000165",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.0000022",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.0000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000044",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.0000275",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.0000275",
+                "max": 272001
+              },
+              {
+                "cost": "0.000055",
+                "min": 272001
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6-astra-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788480000,
+    "owned_by": "openai",
+    "name": "GPT-6 Astra (Fast)",
+    "description": "GPT-6 Astra is OpenAI's most capable model for complex reasoning, coding, computer use, research, and document creation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "fast",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search",
+      "websocket-realtime"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-04-30",
+    "pricing": {
+      "input": "0.00002",
+      "input_tiers": [
+        {
+          "cost": "0.00002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00004",
+          "min": 272001
+        }
+      ],
+      "output": "0.0001",
+      "output_tiers": [
+        {
+          "cost": "0.0001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00015",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000004",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.000025",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.000025",
+          "max": 272001
+        },
+        {
+          "cost": "0.00005",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.000022",
+          "input_tiers": [
+            {
+              "cost": "0.000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.00011",
+          "output_tiers": [
+            {
+              "cost": "0.00011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.0000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000275",
+              "max": 272001
+            },
+            {
+              "cost": "0.000055",
+              "min": 272001
             }
           ]
         }
@@ -17883,6 +18363,7 @@
       }
     ],
     "knowledge": "2024-12",
+    "deprecated_at": 1788883200000,
     "pricing": {
       "input": "0.000001305",
       "output": "0.00000261",
@@ -18225,8 +18706,7 @@
     ],
     "pricing": {
       "input": "0.000001",
-      "output": "0.0000032",
-      "varies_by_provider": true
+      "output": "0.0000032"
     }
   },
   {
