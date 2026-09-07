@@ -1,6 +1,6 @@
 import type { ConnectionAdapter } from '@tanstack/ai-client'
 import type { UIMessage } from '../types'
-import type { PluggableList } from '@crazydos/vue-markdown'
+import type { CodeHighlighter, MarkdownExtension } from '@tanstack/markdown'
 
 /** @deprecated Since 0.3.0. Use `createChatHook()` from `@tanstack/ai-vue/ui` instead. Removed in 1.0.0. */
 export interface ChatProps {
@@ -97,15 +97,17 @@ export interface TextPartProps {
   userClass?: string
   /** Additional class for assistant messages (also used for system messages) */
   assistantClass?: string
-  /** Additional remark plugins, appended after the defaults. */
-  remarkPlugins?: PluggableList
-  /** Additional rehype plugins, appended after the defaults. */
-  rehypePlugins?: PluggableList
   /**
-   * Drop the built-in plugin defaults and disable the renderer's built-in
-   * sanitizer. The caller becomes responsible for sanitization.
+   * Additional TanStack Markdown extensions, appended after the built-in
+   * streaming extension.
    */
-  disableDefaultPlugins?: boolean
+  extensions?: Array<MarkdownExtension>
+  /**
+   * Synchronous code highlighter. Its output is inserted as trusted HTML,
+   * so use only a highlighter that escapes source text (for example
+   * `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`).
+   */
+  highlighter?: CodeHighlighter
 }
 
 /** @deprecated Use `createChatUI()` interrupt components with `chat.interrupts`. Deprecated in 0.3.0. Removed in 1.0.0. */

@@ -1,7 +1,10 @@
-import { SolidMarkdown } from 'solid-markdown'
-import { resolveMarkdownPlugins } from './markdown-plugins'
-import type { SolidMarkdownComponents } from 'solid-markdown'
-import type { PluggableList } from './markdown-plugins'
+import { renderHtml } from '@tanstack/markdown/html'
+import { streamingMarkdownExtension } from '@tanstack/markdown/extensions/streaming'
+import type { CodeHighlighter, MarkdownExtension } from '@tanstack/markdown'
+
+const DEFAULT_EXTENSIONS: Array<MarkdownExtension> = [
+  streamingMarkdownExtension(),
+]
 
 export interface TextPartProps {
   /** The text content to render */
@@ -14,30 +17,30 @@ export interface TextPartProps {
   userClass?: string
   /** Additional class for assistant messages (also used for system messages) */
   assistantClass?: string
-  /** Additional remark plugins, appended after the defaults. */
-  remarkPlugins?: PluggableList
   /**
-   * Additional rehype plugins. Inserted before the trailing
-   * `rehypeSanitize` so sanitization always runs last.
+   * Additional TanStack Markdown extensions, appended after the built-in
+   * streaming extension.
    */
-  rehypePlugins?: PluggableList
-  /** solid-markdown `components` overrides. */
-  components?: SolidMarkdownComponents
+  extensions?: Array<MarkdownExtension>
   /**
-   * Drop the built-in plugin defaults entirely. Disables the XSS
-   * sanitizer; the caller becomes responsible for sanitization.
+   * Synchronous code highlighter. Its output is inserted as trusted HTML,
+   * so use only a highlighter that escapes source text (for example
+   * `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`).
    */
-  disableDefaultPlugins?: boolean
+  highlighter?: CodeHighlighter
 }
 
 /**
- * TextPart component - renders markdown text with syntax highlighting.
+ * TextPart component - renders markdown text with TanStack Markdown.
  *
- * @example Add a markdown plugin (e.g. CJK bold/emphasis support)
+ * Raw HTML is escaped and executable URLs are removed, so AI output can be
+ * rendered without a separate sanitizer.
+ *
+ * @example Syntax highlighting
  * ```tsx
- * import remarkCjkFriendly from 'remark-cjk-friendly'
+ * import { highlightMarkdownCode } from './markdown-highlighter'
  *
- * <TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
+ * <TextPart content={content} highlighter={highlightMarkdownCode} />
  * ```
  */
 export function TextPart(props: TextPartProps) {
@@ -50,22 +53,18 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
-  const resolved = () =>
-    resolveMarkdownPlugins({
-      remarkPlugins: props.remarkPlugins,
-      rehypePlugins: props.rehypePlugins,
-      disableDefaultPlugins: props.disableDefaultPlugins,
+  // ponytail: TanStack Markdown has no Solid adapter, so render its (escaped)
+  // HTML string. Walk the AST with renderBlock/renderInline if per-element
+  // component overrides are ever needed.
+  const html = () =>
+    renderHtml(props.content, {
+      extensions: props.extensions
+        ? [...DEFAULT_EXTENSIONS, ...props.extensions]
+        : DEFAULT_EXTENSIONS,
+      frontmatter: false,
+      headingIds: false,
+      highlighter: props.highlighter,
     })
 
-  return (
-    <div class={combinedClass() || undefined}>
-      <SolidMarkdown
-        remarkPlugins={resolved().remarkPlugins}
-        rehypePlugins={resolved().rehypePlugins}
-        components={props.components}
-      >
-        {props.content}
-      </SolidMarkdown>
-    </div>
-  )
+  return <div class={combinedClass() || undefined} innerHTML={html()} />
 }

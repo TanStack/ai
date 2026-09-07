@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { VueMarkdown } from '@crazydos/vue-markdown'
-import { resolveMarkdownPlugins } from './markdown-plugins'
+import { renderHtml } from '@tanstack/markdown/html'
+import { streamingMarkdownExtension } from '@tanstack/markdown/extensions/streaming'
+import type { MarkdownExtension } from '@tanstack/markdown'
 import type { TextPartProps } from './types'
+
+const DEFAULT_EXTENSIONS: Array<MarkdownExtension> = [
+  streamingMarkdownExtension(),
+]
 
 const props = defineProps<TextPartProps>()
 
@@ -19,27 +24,21 @@ const combinedClass = computed(() =>
   [props.class ?? '', roleClass.value].filter(Boolean).join(' '),
 )
 
-const resolved = computed(() =>
-  resolveMarkdownPlugins({
-    remarkPlugins: props.remarkPlugins,
-    rehypePlugins: props.rehypePlugins,
-    disableDefaultPlugins: props.disableDefaultPlugins,
+// ponytail: TanStack Markdown has no Vue adapter, so render its (escaped)
+// HTML string. Walk the AST with renderBlock/renderInline if per-element
+// component overrides are ever needed.
+const html = computed(() =>
+  renderHtml(props.content, {
+    extensions: props.extensions
+      ? [...DEFAULT_EXTENSIONS, ...props.extensions]
+      : DEFAULT_EXTENSIONS,
+    frontmatter: false,
+    headingIds: false,
+    highlighter: props.highlighter,
   }),
 )
-
-// @crazydos/vue-markdown applies rehype-sanitize automatically when `sanitize`
-// is true. Disabling defaults also disables sanitize so the caller owns the
-// chain.
-const sanitize = computed(() => !props.disableDefaultPlugins)
 </script>
 
 <template>
-  <div :class="combinedClass || undefined">
-    <VueMarkdown
-      :markdown="content"
-      :remark-plugins="resolved.remarkPlugins"
-      :rehype-plugins="resolved.rehypePlugins"
-      :sanitize="sanitize"
-    />
-  </div>
+  <div :class="combinedClass || undefined" v-html="html" />
 </template>
