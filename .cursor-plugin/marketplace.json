@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
   "name": "tanstack-ai",
   "description": "Agent skills for TanStack AI — the type-safe, provider-agnostic TypeScript AI SDK.",
   "owner": {

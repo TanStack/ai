@@ -2,7 +2,7 @@
 title: Agent Skills (TanStack Intent)
 id: agent-skills
 order: 6
-description: "Install the TanStack AI plugin in Claude Code, or run TanStack Intent, to wire TanStack AI's bundled Agent Skills into Claude Code, Cursor, GitHub Copilot, and other AI coding assistants."
+description: "Install TanStack AI's Agent Skills as a Claude Code or Cursor plugin, with npx skills, or with TanStack Intent, so your coding agent knows which package to use and how."
 keywords:
   - tanstack ai
   - tanstack intent
@@ -14,7 +14,9 @@ keywords:
   - SKILL.md
   - AGENTS.md
   - claude code plugin
+  - cursor plugin
   - plugin marketplace
+  - npx skills
 ---
 > **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 
@@ -23,29 +25,31 @@ keywords:
 > [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
 > `load_skill` tool, for the model inside your app. This page is only about
 > teaching your _coding assistant_ how to use TanStack AI.
-## Fastest path: install the plugin (Claude Code)
+## Install the discovery skill
 
-In Claude Code, two commands give you skill discovery. Nothing is written into your repo.
+Pick the route for your agent. Each route gives the agent the same skill: it
+maps a task to the TanStack AI package that covers it, installs that package,
+then reads that package's own `SKILL.md`.
 
-1. Add the marketplace:
+Claude Code and Cursor, from the repo as a plugin marketplace:
 
 ```bash
 /plugin marketplace add TanStack/ai
-```
-
-2. Install the plugin:
-
-```bash
 /plugin install tanstack-ai
 ```
 
-The plugin is a map from a capability to the package that provides it. Ask for a
-feature, and your agent picks the package, installs it, then reads that
-package's `SKILL.md` from `node_modules`. The plugin carries no API guidance of
-its own, so what your agent reads always matches the version you installed.
+Any agent, with the Agent Skills CLI:
 
-The plugin installs per user. To wire the skills into the repo for your whole
-team, or for Cursor, GitHub Copilot, or Codex, follow the steps below as well.
+```bash
+npx skills add TanStack/ai
+```
+
+The plugin installs per user. `npx skills add` copies the skills into the repo,
+so your whole team and every agent in it gets them.
+
+The discovery skill holds no API guidance of its own. It points your agent at
+`node_modules/<package>/skills/**/SKILL.md`, so what the agent reads always
+matches the version you installed.
 
 ## Step 1: Install TanStack AI
 

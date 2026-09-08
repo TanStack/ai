@@ -81,7 +81,7 @@ describe('buildCatalog', () => {
     expect(buildCatalog(root)).toContain('| `@tanstack/ai` | — | a \\| b |')
   })
 
-  it('matches the catalog committed for the marketplace plugin', () => {
+  it('matches the catalog committed under skills/', () => {
     // Fails when a package is added, renamed, or starts shipping a skill:
     // run `pnpm generate:plugin-catalog`.
     expect(readFileSync(CATALOG_PATH, 'utf8')).toBe(buildCatalog('packages'))

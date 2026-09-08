@@ -1,5 +1,5 @@
 /**
- * Generates the package catalog the `tanstack-ai` marketplace plugin uses for
+ * Generates the package catalog the repo's `skills/` directory uses for
  * capability discovery. The catalog is derived from `packages/*` so a new
  * package shows up without anyone editing the skill by hand.
  *
@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const CATALOG_PATH = 'plugins/tanstack-ai/skills/tanstack-ai/packages.md'
+export const CATALOG_PATH = 'skills/tanstack-ai/packages.md'
 
 type Entry = { name: string; description: string; skills: Array<string> }
 

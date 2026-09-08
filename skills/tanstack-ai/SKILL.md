@@ -88,17 +88,17 @@ have yet.
 
 ## Wiring skills into the project permanently
 
-This plugin is per-user. To make the installed packages' skills load for
-everyone on the repo — and for agents without a plugin marketplace — bundle
-them into the project's agent config:
+A plugin install is per user. To give the skills to everyone on the repo, and
+to agents with no plugin marketplace, write them into the project:
 
 ```bash
-npx @tanstack/intent@latest install
+npx skills add TanStack/ai                  # copies these skills into the repo
+npx @tanstack/intent@latest install         # maps tasks to the installed packages' skills
 ```
 
-That writes task→skill mappings into `AGENTS.md` / `CLAUDE.md` / `.cursorrules`
-pointing at the same `node_modules/**/SKILL.md` files. It is a packaging step,
-not a prerequisite: the files are readable without it.
+`intent install` writes task mappings into `AGENTS.md`, `CLAUDE.md`, and
+`.cursorrules` that point at `node_modules/**/SKILL.md`. It packages skills. It
+is not a prerequisite here: those files are readable without it.
 
 ## Not covered here
 
