@@ -322,12 +322,22 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
  * in-flight partial is dropped only when one of these arrives — never on
  * `RUN_STARTED` alone — so a rejoin that connects but delivers no content cannot
  * leave an empty assistant bubble.
+ *
+ * Every chunk the processor answers with `ensureAssistantMessage()` has to be
+ * here. A model that reasons before it answers sends `REASONING_*` and
+ * `STEP_FINISHED` chunks first; those create the assistant message, and if the
+ * drop only ran on the later `TEXT_MESSAGE_START` it would remove that message
+ * from the list while the processor kept its state, so every text chunk after
+ * it would land on a message the transcript no longer holds.
  */
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
   'TOOL_CALL_START',
   'MESSAGES_SNAPSHOT',
+  'REASONING_MESSAGE_CONTENT',
+  'REASONING_ENCRYPTED_VALUE',
+  'STEP_FINISHED',
 ])
 
 export class ChatClient<
