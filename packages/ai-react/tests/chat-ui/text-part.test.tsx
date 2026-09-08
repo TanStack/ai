@@ -28,3 +28,20 @@ describe('TextPart', () => {
     expect(html).toContain('<span data-lang="ts">const x = 1</span>')
   })
 })
+
+describe('TextPart streaming', () => {
+  it('keeps partial code verbatim at every character boundary', () => {
+    const full =
+      '```json\n{ name: "john", age: 3 }\n```\n\nInline `{ name: "john" }`.'
+    for (let i = 1; i <= full.length; i++) {
+      const src = full.slice(0, i)
+      const html = renderToStaticMarkup(<TextPart content={src} />)
+      const partial = src.match(/\{ name: "[a-z"]*/)?.[0]
+      if (partial) {
+        expect(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')).toContain(
+          partial,
+        )
+      }
+    }
+  })
+})
