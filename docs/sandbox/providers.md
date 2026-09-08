@@ -191,9 +191,13 @@ const daytona = daytonaSandbox({
 
 - **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
 - **Auth / env:** needs `DAYTONA_API_KEY`. Put harness credentials in
-  [workspace secrets](./provisioning). They are applied to the live sandbox
-  at create, resume, and restore. They are not stored on the Daytona create
-  record, and they are not written into command history.
+  [workspace secrets](./provisioning). At create and snapshot restore,
+  Daytona stores each value as an organization Secret and mounts a
+  placeholder in the sandbox env. The create record, the dashboard env
+  view, and session command strings do not contain the real value. Daytona
+  substitutes the value on outbound HTTPS requests. Per-command `opts.env`
+  uses `executeCommand`'s env argument or a sourced env file. It never
+  writes `export KEY=` prefixes into the command string.
 - **Snapshot / resume:** point-in-time snapshots after setup (default when
   `lifecycle.snapshot` is `'after-setup'`). Pass `snapshot` on
   `daytonaSandbox()` to pick the Daytona image (for example

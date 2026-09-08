@@ -240,6 +240,37 @@ describe('DaytonaHandle env and native fs', () => {
     expect(command).not.toContain('export ')
   })
 
+  it('applyEnvSet: false keeps env.set values out of executeCommand', async () => {
+    const executeCommand = vi.fn(
+      async (
+        _command: string,
+        _cwd?: string,
+        _env?: Record<string, string>,
+      ) => ({ result: '', exitCode: 0 }),
+    )
+    const sandbox = {
+      id: 'sbx-1',
+      process: { executeCommand },
+      delete: vi.fn(async () => {}),
+    } as unknown as Sandbox
+    const handle = new DaytonaHandle({
+      sandbox,
+      workdir: '/home/daytona/workspace',
+      applyEnvSet: false,
+    })
+
+    await handle.env.set({ ANTHROPIC_API_KEY: 'sk-secret-value' })
+    await handle.process.exec('echo hello', {
+      env: { GIT_ASKPASS_TOKEN: 'ghs_secret' },
+    })
+
+    expect(executeCommand).toHaveBeenCalledWith(
+      'echo hello',
+      '/home/daytona/workspace',
+      { GIT_ASKPASS_TOKEN: 'ghs_secret' },
+    )
+  })
+
   it('writes files through native uploadFile, not a base64 exec command', async () => {
     const uploadFile = vi.fn(async () => {})
     const createFolder = vi.fn(async () => {})
