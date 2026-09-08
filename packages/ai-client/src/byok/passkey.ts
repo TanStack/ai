@@ -83,6 +83,22 @@ export function isPasskeyStorageSupported(): boolean {
 export async function deriveAesKey(
   prfOutput: BufferSource,
 ): Promise<CryptoKey> {
+  // Some passkey providers return a plain byte array instead of BufferSource.
+  if (Array.isArray(prfOutput)) {
+    if (
+      prfOutput.length !== 32 ||
+      !Array.from(prfOutput).every(
+        (byte: unknown) =>
+          typeof byte === 'number' &&
+          Number.isInteger(byte) &&
+          byte >= 0 &&
+          byte <= 255,
+      )
+    ) {
+      throw new Error('Invalid passkey PRF byte array')
+    }
+    prfOutput = new Uint8Array(prfOutput)
+  }
   const base = await crypto.subtle.importKey('raw', prfOutput, 'HKDF', false, [
     'deriveKey',
   ])

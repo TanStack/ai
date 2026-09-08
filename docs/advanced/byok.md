@@ -40,6 +40,8 @@ Passkey storage runs a WebAuthn prompt to save and to unlock a key. Some browser
 
 This activation check applies to existing keyrings. First-time registration can require a second PRF prompt, which the browser handles even if registration consumes activation.
 
+Passkey storage accepts 32-byte PRF arrays from password managers such as 1Password and converts them to binary data without changing the encryption key.
+
 ## 2. Save a key
 
 Call `byok.update("openai", value)` from your own UI. The library does not ship a dialog.
