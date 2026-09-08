@@ -1923,6 +1923,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     messages: Array<ModelMessage>,
   ): ResponseInput {
     const result: ResponseInput = []
+    const seenReasoningIds = new Set<string>()
 
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
@@ -1944,11 +1945,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        const hasMultipleReasoning = (message.thinking?.length ?? 0) > 1
+
         if (message.thinking) {
           for (const thinking of message.thinking) {
             if (!thinking.signature) continue
             const packed = unpackResponsesReasoningSignature(thinking.signature)
             if (!packed?.id) continue
+            
+            if (seenReasoningIds.has(packed.id)) continue
+            seenReasoningIds.add(packed.id)
+
             result.push({
               type: 'reasoning',
               id: packed.id,
@@ -1978,7 +1985,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             result.push({
               type: 'function_call',
               call_id: toolCall.id,
-              ...(itemId && { id: itemId }),
+              ...(!hasMultipleReasoning && itemId && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
             })
