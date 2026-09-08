@@ -251,7 +251,9 @@ on.
   ship only the activities and adapters you use.
 - [Agent Skills](https://tanstack.com/ai/latest/docs/getting-started/agent-skills) -
   install TanStack AI skills into Claude Code, Cursor, GitHub Copilot, Codex,
-  and other coding agents with TanStack Intent.
+  and other coding agents. Claude Code users can run
+  `/plugin marketplace add TanStack/ai` and `/plugin install tanstack-ai`;
+  every agent can use TanStack Intent.
 
 ## Get Involved
 

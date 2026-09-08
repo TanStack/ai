@@ -2,7 +2,7 @@
 title: Agent Skills (TanStack Intent)
 id: agent-skills
 order: 6
-description: "Use TanStack Intent to wire TanStack AI's bundled Agent Skills into Claude Code, Cursor, GitHub Copilot, and other AI coding assistants."
+description: "Install the TanStack AI plugin in Claude Code, or run TanStack Intent, to wire TanStack AI's bundled Agent Skills into Claude Code, Cursor, GitHub Copilot, and other AI coding assistants."
 keywords:
   - tanstack ai
   - tanstack intent
@@ -13,6 +13,8 @@ keywords:
   - ai coding agents
   - SKILL.md
   - AGENTS.md
+  - claude code plugin
+  - plugin marketplace
 ---
 > **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 
@@ -21,6 +23,30 @@ keywords:
 > [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
 > `load_skill` tool, for the model inside your app. This page is only about
 > teaching your _coding assistant_ how to use TanStack AI.
+## Fastest path: install the plugin (Claude Code)
+
+In Claude Code, two commands give you skill discovery. Nothing is written into your repo.
+
+1. Add the marketplace:
+
+```bash
+/plugin marketplace add TanStack/ai
+```
+
+2. Install the plugin:
+
+```bash
+/plugin install tanstack-ai
+```
+
+The plugin is a map from a capability to the package that provides it. Ask for a
+feature, and your agent picks the package, installs it, then reads that
+package's `SKILL.md` from `node_modules`. The plugin carries no API guidance of
+its own, so what your agent reads always matches the version you installed.
+
+The plugin installs per user. To wire the skills into the repo for your whole
+team, or for Cursor, GitHub Copilot, or Codex, follow the steps below as well.
+
 ## Step 1: Install TanStack AI
 
 If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.

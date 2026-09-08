@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -11,7 +17,8 @@ import {
 const roots: Array<string> = []
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0))
+    rmSync(root, { recursive: true, force: true })
 })
 
 function makePackages(
@@ -39,7 +46,10 @@ function makePackages(
 describe('collectPackages', () => {
   it('lists published packages alphabetically with their skills', () => {
     const root = makePackages([
-      { dir: 'ai-zzz', manifest: { name: '@tanstack/ai-zzz', description: 'Z' } },
+      {
+        dir: 'ai-zzz',
+        manifest: { name: '@tanstack/ai-zzz', description: 'Z' },
+      },
       {
         dir: 'ai',
         manifest: { name: '@tanstack/ai', description: 'Core' },
