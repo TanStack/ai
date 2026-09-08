@@ -1,0 +1,12 @@
+{
+  "name": "tanstack-ai",
+  "description": "Discover what TanStack AI can do, install the package that covers it, then follow that package's own SKILL.md.",
+  "version": "0.1.0",
+  "author": {
+    "name": "TanStack"
+  },
+  "homepage": "https://tanstack.com/ai",
+  "repository": "https://github.com/TanStack/ai",
+  "license": "MIT",
+  "keywords": ["tanstack", "ai", "llm", "agents", "chat", "agent-skills"]
+}

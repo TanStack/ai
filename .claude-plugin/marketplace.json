@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "tanstack-ai",
+  "description": "Agent skills for TanStack AI — the type-safe, provider-agnostic TypeScript AI SDK.",
+  "owner": {
+    "name": "TanStack"
+  },
+  "plugins": [
+    {
+      "name": "tanstack-ai",
+      "source": "./plugins/tanstack-ai",
+      "description": "Discover what TanStack AI can do, install the package that covers it, then follow that package's own SKILL.md.",
+      "version": "0.1.0",
+      "author": {
+        "name": "TanStack"
+      },
+      "homepage": "https://tanstack.com/ai",
+      "repository": "https://github.com/TanStack/ai",
+      "license": "MIT",
+      "keywords": [
+        "tanstack",
+        "ai",
+        "llm",
+        "agents",
+        "chat",
+        "tool-calling",
+        "agent-skills"
+      ],
+      "category": "developer-tools"
+    }
+  ]
+}
