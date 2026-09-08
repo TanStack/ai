@@ -179,3 +179,26 @@ export default defineComponent({
 Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).
+
+## Render markdown
+
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed, so the output is safe while it streams.
+
+```ts
+import { defineComponent, h } from 'vue'
+import { TextPart } from '@tanstack/ai-vue/ui'
+import { highlightMarkdownCode } from './markdown-highlighter'
+
+export default defineComponent({
+  props: { content: { type: String, required: true } },
+  setup(props) {
+    return () =>
+      h(TextPart, { content: props.content, highlighter: highlightMarkdownCode })
+  },
+})
+```
+
+- `highlighter`: a synchronous `CodeHighlighter`. Without it, code blocks render as plain text. Build one with `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`. See the [syntax highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
+- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
+
+The `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` props from earlier releases are gone. Use `extensions` and `highlighter` instead.
