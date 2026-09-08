@@ -8,22 +8,22 @@ guessing at the API. Packages without one are documented at
 https://tanstack.com/ai/latest/docs and in their own `src` directory, which
 ships in the published package.
 
-| Package | Skills | What it does |
-| --- | --- | --- |
-| `@tanstack/ai-angular` | — | Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-client` | — | Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations. |
-| `@tanstack/ai-devtools-core` | — | Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors. |
-| `@tanstack/ai-octane` | — | Octane bindings for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-preact` | — | Preact hooks for TanStack AI streaming chat and typed messages. |
-| `@tanstack/ai-react` | — | React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation. |
-| `@tanstack/ai-react-ui` | — | Deprecated. Import chat UI from @tanstack/ai-react/ui instead. |
-| `@tanstack/ai-remix` | — | Remix 3 bindings for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-solid` | — | Solid hooks for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-solid-ui` | — | Deprecated. Import chat UI from @tanstack/ai-solid/ui instead. |
-| `@tanstack/ai-svelte` | — | Svelte 5 bindings for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-vue` | — | Vue composables for TanStack AI streaming chat, structured outputs, and media generation. |
-| `@tanstack/ai-vue-ui` | — | Deprecated. Import chat UI from @tanstack/ai-vue/ui instead. |
-| `@tanstack/preact-ai-devtools` | — | Preact Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors. |
-| `@tanstack/react-ai-devtools` | — | React Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors. |
-| `@tanstack/solid-ai-devtools` | — | Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors. |
-| `@tanstack/svelte-ai-devtools` | — | Svelte Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors. |
+| Package                        | Skills | What it does                                                                                                             |
+| ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `@tanstack/ai-angular`         | —      | Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation.                    |
+| `@tanstack/ai-client`          | —      | Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations. |
+| `@tanstack/ai-devtools-core`   | —      | Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors.                          |
+| `@tanstack/ai-octane`          | —      | Octane bindings for TanStack AI streaming chat, structured outputs, and media generation.                                |
+| `@tanstack/ai-preact`          | —      | Preact hooks for TanStack AI streaming chat and typed messages.                                                          |
+| `@tanstack/ai-react`           | —      | React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation.                    |
+| `@tanstack/ai-react-ui`        | —      | Deprecated. Import chat UI from @tanstack/ai-react/ui instead.                                                           |
+| `@tanstack/ai-remix`           | —      | Remix 3 bindings for TanStack AI streaming chat, structured outputs, and media generation.                               |
+| `@tanstack/ai-solid`           | —      | Solid hooks for TanStack AI streaming chat, structured outputs, and media generation.                                    |
+| `@tanstack/ai-solid-ui`        | —      | Deprecated. Import chat UI from @tanstack/ai-solid/ui instead.                                                           |
+| `@tanstack/ai-svelte`          | —      | Svelte 5 bindings for TanStack AI streaming chat, structured outputs, and media generation.                              |
+| `@tanstack/ai-vue`             | —      | Vue composables for TanStack AI streaming chat, structured outputs, and media generation.                                |
+| `@tanstack/ai-vue-ui`          | —      | Deprecated. Import chat UI from @tanstack/ai-vue/ui instead.                                                             |
+| `@tanstack/preact-ai-devtools` | —      | Preact Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.                        |
+| `@tanstack/react-ai-devtools`  | —      | React Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.                         |
+| `@tanstack/solid-ai-devtools`  | —      | Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.                         |
+| `@tanstack/svelte-ai-devtools` | —      | Svelte Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.                        |

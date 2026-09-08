@@ -27,13 +27,13 @@ cat node_modules/@tanstack/ai/skills/ai-core/tool-calling/SKILL.md
 
 ## 1. Route to the capability
 
-| The task | Package | Skill it ships |
-| --- | --- | --- |
-| Use tools exposed by an MCP server | `@tanstack/ai-mcp` | `ai-mcp` |
-| Let the model orchestrate tools by writing TypeScript | `@tanstack/ai-code-mode` plus an isolate driver | `ai-code-mode` |
-| Run a harness adapter inside an isolated sandbox | `@tanstack/ai-sandbox` plus a provider | `ai-sandbox` |
-| Remember facts across conversations | `@tanstack/ai-memory` | `tanstack-ai-memory` |
-| Load SKILL.md files at runtime, inside the app's agent | `@tanstack/ai-skills` | `ai-skills` |
+| The task                                               | Package                                         | Skill it ships       |
+| ------------------------------------------------------ | ----------------------------------------------- | -------------------- |
+| Use tools exposed by an MCP server                     | `@tanstack/ai-mcp`                              | `ai-mcp`             |
+| Let the model orchestrate tools by writing TypeScript  | `@tanstack/ai-code-mode` plus an isolate driver | `ai-code-mode`       |
+| Run a harness adapter inside an isolated sandbox       | `@tanstack/ai-sandbox` plus a provider          | `ai-sandbox`         |
+| Remember facts across conversations                    | `@tanstack/ai-memory`                           | `tanstack-ai-memory` |
+| Load SKILL.md files at runtime, inside the app's agent | `@tanstack/ai-skills`                           | `ai-skills`          |
 
 [`packages.md`](./packages.md) lists every package in this group, including the
 drivers and providers below.

@@ -23,14 +23,14 @@ reactivity.
 
 [`packages.md`](./packages.md) lists every client package.
 
-| Stack | Package |
-| --- | --- |
-| React, Next.js, TanStack Start | `@tanstack/ai-react` |
-| Vue | `@tanstack/ai-vue` |
-| Solid | `@tanstack/ai-solid` |
-| Svelte 5 | `@tanstack/ai-svelte` |
+| Stack                            | Package                                                |
+| -------------------------------- | ------------------------------------------------------ |
+| React, Next.js, TanStack Start   | `@tanstack/ai-react`                                   |
+| Vue                              | `@tanstack/ai-vue`                                     |
+| Solid                            | `@tanstack/ai-solid`                                   |
+| Svelte 5                         | `@tanstack/ai-svelte`                                  |
 | Preact, Angular, Octane, Remix 3 | `@tanstack/ai-preact`, `-angular`, `-octane`, `-remix` |
-| No framework | `@tanstack/ai-client` |
+| No framework                     | `@tanstack/ai-client`                                  |
 
 Chat UI components ship inside the framework package, for example
 `@tanstack/ai-react/ui`. The old `@tanstack/ai-*-ui` packages are deprecated, so

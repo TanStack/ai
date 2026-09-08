@@ -8,26 +8,26 @@ guessing at the API. Packages without one are documented at
 https://tanstack.com/ai/latest/docs and in their own `src` directory, which
 ships in the published package.
 
-| Package | Skills | What it does |
-| --- | --- | --- |
-| `@tanstack/ai-anthropic` | — | Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs. |
-| `@tanstack/ai-bedrock` | — | Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning. |
-| `@tanstack/ai-byteplus` | — | BytePlus ModelArk adapter for TanStack AI: Seed LLM chat, Seedance video, Seedream image, and Seed Speech TTS/ASR. |
-| `@tanstack/ai-cloudflare` | — | Cloudflare adapter for TanStack AI — Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider. |
-| `@tanstack/ai-cohere` | — | Cohere adapter for TanStack AI — multimodal embeddings and document reranking. |
-| `@tanstack/ai-elevenlabs` | — | ElevenLabs adapter for TanStack AI realtime voice, text-to-speech, transcription, music, and sound effects. |
-| `@tanstack/ai-event-client` | — | Typed event client for TanStack AI devtools, observability, and streamed runtime events. |
-| `@tanstack/ai-fal` | — | fal.ai adapter for TanStack AI image, video, live, audio, speech, and transcription generation. |
-| `@tanstack/ai-gemini` | — | Google Gemini adapter for TanStack AI chat, images, speech, audio generation, and structured outputs. |
-| `@tanstack/ai-grok` | — | xAI Grok adapter for TanStack AI chat, image generation, realtime, and structured outputs. |
-| `@tanstack/ai-groq` | — | Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs. |
-| `@tanstack/ai-llmgateway` | — | LLM Gateway adapter for TanStack AI — one OpenAI-compatible endpoint for chat, tool calling, and structured outputs across many providers and models. |
-| `@tanstack/ai-lovable` | — | Lovable AI Gateway adapter for TanStack AI chat, embeddings, image, video, speech, and transcription. |
-| `@tanstack/ai-mistral` | — | Mistral adapter for TanStack AI |
-| `@tanstack/ai-ollama` | — | Ollama adapter for TanStack AI local LLM chat, tool calling, and structured outputs. |
-| `@tanstack/ai-openai` | — | OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs. |
-| `@tanstack/ai-openrouter` | — | TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs. |
-| `@tanstack/ai-perplexity` | — | Perplexity Search API client and tool for TanStack AI |
-| `@tanstack/ai-reactor` | — | Reactor adapter for TanStack AI live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3). |
-| `@tanstack/ai-vercel-gateway` | — | Vercel AI Gateway adapter for TanStack AI chat, embeddings, and image generation. |
-| `@tanstack/ai-vertex` | — | Google Vertex AI adapter for TanStack AI. Runs Gemini models on Vertex with regional endpoints and Google Cloud credentials. |
+| Package                       | Skills | What it does                                                                                                                                                                              |
+| ----------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-anthropic`      | —      | Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs.                                                                                            |
+| `@tanstack/ai-bedrock`        | —      | Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.                                                                                         |
+| `@tanstack/ai-byteplus`       | —      | BytePlus ModelArk adapter for TanStack AI: Seed LLM chat, Seedance video, Seedream image, and Seed Speech TTS/ASR.                                                                        |
+| `@tanstack/ai-cloudflare`     | —      | Cloudflare adapter for TanStack AI — Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider. |
+| `@tanstack/ai-cohere`         | —      | Cohere adapter for TanStack AI — multimodal embeddings and document reranking.                                                                                                            |
+| `@tanstack/ai-elevenlabs`     | —      | ElevenLabs adapter for TanStack AI realtime voice, text-to-speech, transcription, music, and sound effects.                                                                               |
+| `@tanstack/ai-event-client`   | —      | Typed event client for TanStack AI devtools, observability, and streamed runtime events.                                                                                                  |
+| `@tanstack/ai-fal`            | —      | fal.ai adapter for TanStack AI image, video, live, audio, speech, and transcription generation.                                                                                           |
+| `@tanstack/ai-gemini`         | —      | Google Gemini adapter for TanStack AI chat, images, speech, audio generation, and structured outputs.                                                                                     |
+| `@tanstack/ai-grok`           | —      | xAI Grok adapter for TanStack AI chat, image generation, realtime, and structured outputs.                                                                                                |
+| `@tanstack/ai-groq`           | —      | Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.                                                                                                      |
+| `@tanstack/ai-llmgateway`     | —      | LLM Gateway adapter for TanStack AI — one OpenAI-compatible endpoint for chat, tool calling, and structured outputs across many providers and models.                                     |
+| `@tanstack/ai-lovable`        | —      | Lovable AI Gateway adapter for TanStack AI chat, embeddings, image, video, speech, and transcription.                                                                                     |
+| `@tanstack/ai-mistral`        | —      | Mistral adapter for TanStack AI                                                                                                                                                           |
+| `@tanstack/ai-ollama`         | —      | Ollama adapter for TanStack AI local LLM chat, tool calling, and structured outputs.                                                                                                      |
+| `@tanstack/ai-openai`         | —      | OpenAI adapter for TanStack AI chat, tools, images, video, speech, transcription, realtime, and structured outputs.                                                                       |
+| `@tanstack/ai-openrouter`     | —      | TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.                                                                              |
+| `@tanstack/ai-perplexity`     | —      | Perplexity Search API client and tool for TanStack AI                                                                                                                                     |
+| `@tanstack/ai-reactor`        | —      | Reactor adapter for TanStack AI live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3).                                                                           |
+| `@tanstack/ai-vercel-gateway` | —      | Vercel AI Gateway adapter for TanStack AI chat, embeddings, and image generation.                                                                                                         |
+| `@tanstack/ai-vertex`         | —      | Google Vertex AI adapter for TanStack AI. Runs Gemini models on Vertex with regional endpoints and Google Cloud credentials.                                                              |

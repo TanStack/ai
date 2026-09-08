@@ -8,8 +8,8 @@ guessing at the API. Packages without one are documented at
 https://tanstack.com/ai/latest/docs and in their own `src` directory, which
 ships in the published package.
 
-| Package | Skills | What it does |
-| --- | --- | --- |
-| `@tanstack/ai-compaction` | — | Context-window compaction middleware for TanStack AI chat() |
-| `@tanstack/ai-durable-stream` | — | Delivery durability for TanStack AI over the durable-streams HTTP protocol — a resumable StreamDurability transport sink (append/read/resume) that stores zero delivery events itself. |
-| `@tanstack/ai-persistence` | `ai-persistence` | Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks. |
+| Package                       | Skills           | What it does                                                                                                                                                                           |
+| ----------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-compaction`     | —                | Context-window compaction middleware for TanStack AI chat()                                                                                                                            |
+| `@tanstack/ai-durable-stream` | —                | Delivery durability for TanStack AI over the durable-streams HTTP protocol — a resumable StreamDurability transport sink (append/read/resume) that stores zero delivery events itself. |
+| `@tanstack/ai-persistence`    | `ai-persistence` | Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.                                                                                          |

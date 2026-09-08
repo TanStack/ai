@@ -49,13 +49,13 @@ lockfile shows which package manager to use.
 
 ## 2. Route the need
 
-| The user wants to... | Read |
-| --- | --- |
-| Pick a model provider, gateway, or model id | `tanstack-ai-providers` |
-| Build the UI: hooks, chat components, devtools | `tanstack-ai-clients` |
-| Tool calling, MCP, code mode, sandboxes, coding-agent harnesses, memory | `tanstack-ai-agents` |
-| Persist chat state, resume streams, compact context | `tanstack-ai-state` |
-| Port an app from another SDK, or upgrade a deprecated API | `tanstack-ai-migration` |
+| The user wants to...                                                    | Read                    |
+| ----------------------------------------------------------------------- | ----------------------- |
+| Pick a model provider, gateway, or model id                             | `tanstack-ai-providers` |
+| Build the UI: hooks, chat components, devtools                          | `tanstack-ai-clients`   |
+| Tool calling, MCP, code mode, sandboxes, coding-agent harnesses, memory | `tanstack-ai-agents`    |
+| Persist chat state, resume streams, compact context                     | `tanstack-ai-state`     |
+| Port an app from another SDK, or upgrade a deprecated API               | `tanstack-ai-migration` |
 
 Server chat, streaming, tools, structured outputs, and media generation all live
 in `@tanstack/ai` itself. Its `ai-core` skill covers them, and routes to its own

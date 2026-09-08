@@ -14,11 +14,11 @@ description: >
 
 Two different problems get confused here. Sort them before picking a package.
 
-| Question | Layer | Package |
-| --- | --- | --- |
-| The connection dropped mid-stream. Can it carry on? | Delivery durability | `@tanstack/ai-durable-stream` |
-| The conversation must exist after a reload, on another device, or after a restart | State persistence | `@tanstack/ai-persistence` |
-| The conversation outgrew the context window | Compaction | `@tanstack/ai-compaction` |
+| Question                                                                          | Layer               | Package                       |
+| --------------------------------------------------------------------------------- | ------------------- | ----------------------------- |
+| The connection dropped mid-stream. Can it carry on?                               | Delivery durability | `@tanstack/ai-durable-stream` |
+| The conversation must exist after a reload, on another device, or after a restart | State persistence   | `@tanstack/ai-persistence`    |
+| The conversation outgrew the context window                                       | Compaction          | `@tanstack/ai-compaction`     |
 
 Reload survival in the browser alone needs no package: client persistence ships
 in `@tanstack/ai` and its framework packages. Read
