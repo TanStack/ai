@@ -1,6 +1,6 @@
 {
   "name": "tanstack-ai",
-  "description": "Discover what TanStack AI can do, install the package that covers it, then follow that package's own SKILL.md.",
+  "description": "Six skills that map a task to the TanStack AI package that covers it, install it, then follow that package's own SKILL.md: providers, clients, agents, state, and migration.",
   "version": "0.1.0",
   "author": {
     "name": "TanStack"

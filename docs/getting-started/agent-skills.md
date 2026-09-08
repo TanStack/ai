@@ -25,11 +25,11 @@ keywords:
 > [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
 > `load_skill` tool, for the model inside your app. This page is only about
 > teaching your _coding assistant_ how to use TanStack AI.
-## Install the discovery skill
+## Install the discovery skills
 
-Pick the route for your agent. Each route gives the agent the same skill: it
-maps a task to the TanStack AI package that covers it, installs that package,
-then reads that package's own `SKILL.md`.
+Pick the route for your agent. Each route installs the same skill set: skills
+that map a task to the TanStack AI package that covers it, install that package,
+then read that package's own `SKILL.md`.
 
 Claude Code and Cursor, from the repo as a plugin marketplace:
 
@@ -47,7 +47,18 @@ npx skills add TanStack/ai
 The plugin installs per user. `npx skills add` copies the skills into the repo,
 so your whole team and every agent in it gets them.
 
-The discovery skill holds no API guidance of its own. It points your agent at
+### What you get
+
+| Skill | Answers |
+|-------|---------|
+| `tanstack-ai` | What is TanStack AI, what is installed, which skill covers this task |
+| `tanstack-ai-providers` | Which provider adapter, which model id, which key |
+| `tanstack-ai-clients` | Which framework package, `useChat`, chat UI, devtools |
+| `tanstack-ai-agents` | Tool calling, MCP, Code Mode, sandboxes, harnesses, memory |
+| `tanstack-ai-state` | Chat persistence, resumable streams, interrupts, compaction |
+| `tanstack-ai-migration` | Porting from another SDK, upgrading a deprecated API |
+
+These skills hold no API guidance of their own. They point your agent at
 `node_modules/<package>/skills/**/SKILL.md`, so what the agent reads always
 matches the version you installed.
 
@@ -84,6 +95,9 @@ Agent Skills are markdown documents (`SKILL.md`) that ship inside npm packages a
 TanStack AI publishes skills inside its packages so the guidance travels with `npm update` instead of being pinned in a model's training data or copy-pasted into `CLAUDE.md` manually.
 
 ## Skills Shipped by TanStack AI
+
+The discovery skills above route into these. They ship inside the packages, so
+they teach the version the app has installed.
 
 | Package | Skill | What it teaches |
 |---------|-------|-----------------|
