@@ -137,10 +137,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'minimax/minimax-m2.5',
   'minimax/minimax-m2.5-highspeed',
   'minimax/minimax-m2.7',
-  'minimax/minimax-m2.7-free',
   'minimax/minimax-m2.7-highspeed',
   'minimax/minimax-m3',
-  'minimax/minimax-m3-free',
   'mistral/codestral',
   'mistral/devstral-2',
   'mistral/devstral-small-2',
@@ -1434,16 +1432,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'minimax/minimax-m2.7-free': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'minimax/minimax-m2.7-highspeed': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1455,16 +1443,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'minimax/minimax-m3': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'minimax/minimax-m3-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2799,10 +2777,8 @@ export type VercelGatewayModelInputModalitiesByName = {
   'minimax/minimax-m2.5': readonly ['text']
   'minimax/minimax-m2.5-highspeed': readonly ['text']
   'minimax/minimax-m2.7': readonly ['text']
-  'minimax/minimax-m2.7-free': readonly ['text']
   'minimax/minimax-m2.7-highspeed': readonly ['text']
   'minimax/minimax-m3': readonly ['text', 'image', 'document']
-  'minimax/minimax-m3-free': readonly ['text', 'image']
   'mistral/codestral': readonly ['text']
   'mistral/devstral-2': readonly ['text']
   'mistral/devstral-small-2': readonly ['text', 'image']
