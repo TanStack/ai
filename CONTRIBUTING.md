@@ -69,6 +69,12 @@ Rules the generator follows:
 
 Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
 
+## Adapter coverage file
+
+`adapter-coverage.json` at the repo root lists every adapter's activities and models. tanstack.com fetches it at request time for the AI coverage page, so it must match the packages. `pnpm generate:coverage` rebuilds it from each package's `model-meta.ts` export arrays plus the `docs/adapters/*.md` titles, and `test:coverage-json` fails CI when the committed file is stale or a new export cannot be classified.
+
+Run it after any change to a `model-meta.ts`, and add new list exports to `SUFFIX_ACTIVITIES` or `IGNORED_EXPORTS` in `scripts/generate-coverage.ts` when the test asks for it.
+
 The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on that push. After a sync, a maintainer with write access can run the PR checks from the Actions tab, or push an empty commit to `automated/sync-models`.
 
 ## Day-to-day commands

@@ -90,6 +90,16 @@
         "{workspaceRoot}/scripts/scan-dangling-dts.mjs",
         "{workspaceRoot}/packages/*/dist/**/*.d.ts"
       ]
+    },
+    "test:coverage-json": {
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/scripts/generate-coverage.ts",
+        "{workspaceRoot}/scripts/generate-coverage.test.ts",
+        "{workspaceRoot}/adapter-coverage.json",
+        "{workspaceRoot}/packages/*/src/model-meta.ts",
+        "{workspaceRoot}/docs/adapters/*.md"
+      ]
     }
   }
 }
