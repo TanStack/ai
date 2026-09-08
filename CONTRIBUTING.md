@@ -71,7 +71,7 @@ Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force
 
 ## Adapter coverage file
 
-`adapter-coverage.json` at the repo root lists every adapter's activities and models. tanstack.com fetches it at request time for the AI coverage page, so it must match the packages. `pnpm generate:coverage` rebuilds it from each package's `model-meta.ts` export arrays plus the `docs/adapters/*.md` titles, and `test:coverage-json` fails CI when the committed file is stale or a new export cannot be classified.
+`adapter-coverage.json` at the repo root lists every adapter's activities and models. tanstack.com fetches it at request time for the AI coverage page, so it must match the packages. `pnpm generate:coverage` rebuilds it from the adapter factories each package exports (`openaiText`, `falSpeech`), the model lists in its `model-meta.ts`, and the `docs/adapters/*.md` titles, and `test:coverage-json` fails CI when the committed file is stale or a new export cannot be classified.
 
 Run it after any change to a `model-meta.ts`, and add new list exports to `SUFFIX_ACTIVITIES` or `IGNORED_EXPORTS` in `scripts/generate-coverage.ts` when the test asks for it.
 

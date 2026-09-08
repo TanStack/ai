@@ -16,6 +16,7 @@
     "**/docs",
     "packages/ai-fal/src/image/generated/",
     "scripts/lovable-gateway.models.json",
+    "adapter-coverage.json",
     "pnpm-lock.yaml",
     ".angular",
     ".github"

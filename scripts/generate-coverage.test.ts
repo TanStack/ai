@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COVERAGE_PATH,
   classifyExport,
+  extractActivities,
   extractModalities,
   generateCoverage,
   serializeCoverage,
@@ -18,6 +19,32 @@ describe('generate-coverage', () => {
     expect(classifyExport('codex', 'CODEX_MODELS')).toBe('harness')
     expect(classifyExport('gemini', 'GEMINI_TTS_VOICES')).toBe('ignored')
     expect(classifyExport('openai', 'OPENAI_MYSTERY_LIST')).toBeNull()
+  })
+
+  it('reads activities from the adapter factories a package exports', () => {
+    const fal = `
+      export { FalImageAdapter, falImage } from './adapters/image'
+      export {
+        FalTranscriptionAdapter,
+        falTranscription,
+      } from './adapters/transcription'
+      export { falSpeech } from './adapters/speech'
+      export type { FalModel } from './model-meta'
+    `
+    expect(extractActivities('fal', fal).sort()).toEqual([
+      'image',
+      'speech',
+      'transcription',
+    ])
+    expect(
+      extractActivities('codex', "export { codexText } from './adapters/text'"),
+    ).toEqual(['harness'])
+    expect(
+      extractActivities(
+        'perplexity',
+        "export { perplexitySearchTool } from './search'",
+      ),
+    ).toEqual(['search'])
   })
 
   it('extracts modalities from model literals', () => {

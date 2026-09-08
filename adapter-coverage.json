@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T04:36:12.803Z",
+  "generatedAt": "2026-09-08T07:13:33.345Z",
   "activities": [
     "chat",
     "image",
@@ -14,6 +14,16 @@
     "harness"
   ],
   "adapters": [
+    {
+      "id": "acp",
+      "package": "@tanstack/ai-acp",
+      "name": "ACP-Compatible Harness",
+      "docs": "adapters/acp-compatible",
+      "activities": {
+        "harness": []
+      },
+      "models": {}
+    },
     {
       "id": "bedrock",
       "package": "@tanstack/ai-bedrock",
@@ -561,10 +571,9 @@
       "note": "Workers AI models, plus AI Gateway routing to other providers.",
       "activities": {
         "chat": [],
-        "embedding": [],
         "image": [],
-        "speech": [],
-        "transcription": []
+        "transcription": [],
+        "embedding": []
       },
       "models": {}
     },
@@ -624,7 +633,8 @@
           "eleven_text_to_sound_v1",
           "eleven_text_to_sound_v2",
           "music_v1"
-        ]
+        ],
+        "realtime": []
       },
       "models": {}
     },
@@ -636,7 +646,10 @@
       "note": "Any fal.ai endpoint. 600+ model ids are typed from the fal SDK.",
       "activities": {
         "image": [],
-        "video": []
+        "video": [],
+        "speech": [],
+        "transcription": [],
+        "audio": []
       },
       "models": {}
     },
@@ -687,6 +700,7 @@
           "lyria-3-clip-preview",
           "lyria-3-pro-preview"
         ],
+        "realtime": [],
         "embedding": [
           "gemini-embedding-001"
         ]
@@ -1033,7 +1047,12 @@
       "docs": "adapters/vertex",
       "note": "Gemini on Vertex AI. Claude, Grok, and Mistral on Vertex live in their own packages.",
       "activities": {
-        "chat": []
+        "chat": [],
+        "image": [],
+        "video": [],
+        "speech": [],
+        "audio": [],
+        "embedding": []
       },
       "models": {}
     },
@@ -2104,6 +2123,7 @@
           "gpt-4o-transcribe-diarize",
           "whisper-1"
         ],
+        "realtime": [],
         "embedding": [
           "text-embedding-3-large",
           "text-embedding-3-small"
@@ -2781,13 +2801,12 @@
     },
     {
       "id": "openai-compatible",
-      "package": "@tanstack/ai-openai",
+      "package": "@tanstack/ai-openai/compatible",
       "name": "OpenAI-Compatible Adapter",
       "docs": "adapters/openai-compatible",
-      "note": "Any endpoint that speaks the OpenAI chat and embeddings shape.",
+      "note": "Any endpoint that speaks the OpenAI chat completions shape.",
       "activities": {
-        "chat": [],
-        "embedding": []
+        "chat": []
       },
       "models": {}
     },
@@ -3281,7 +3300,8 @@
           "runway/gen-4.5",
           "x-ai/grok-imagine-video",
           "x-ai/grok-imagine-video-1.5"
-        ]
+        ],
+        "rerank": []
       },
       "models": {
         "AionLabs: Aion-2.0": {

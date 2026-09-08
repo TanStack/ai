@@ -1,8 +1,13 @@
 /**
  * Generates adapter-coverage.json: which activities and models each adapter
- * package supports, read from the packages' model-meta.ts files so the file
- * cannot drift from the code. tanstack.com fetches it at request time for the
- * AI coverage page.
+ * package supports, read from the packages themselves so the file cannot
+ * drift from the code. tanstack.com fetches it at request time for the AI
+ * coverage page.
+ *
+ * Activities come from the adapter factories a package exports (`openaiText`,
+ * `falSpeech`, `perplexitySearchTool`). Model lists come from the string
+ * arrays its model-meta.ts exports. An activity with no model list is
+ * open-ended: the adapter accepts whatever the provider serves.
  *
  * Usage:
  *   pnpm generate:coverage
@@ -39,6 +44,7 @@ export interface AdapterCoverage {
   docs: string
   /** Free-form note for adapters whose model list is open-ended. */
   note?: string
+  /** Activity → typed model ids. An empty list means open-ended. */
   activities: Partial<Record<Activity, Array<string>>>
   /** Per-model input and output modalities, where the package declares them. */
   models: Record<string, ModelModalities>
@@ -52,16 +58,31 @@ export interface Coverage {
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-// Coding-agent harness packages expose one `*_MODELS` array that is not chat.
+// Coding-agent harness packages: their `*Text` adapter drives a harness, not a model.
 const HARNESS_PACKAGES = new Set([
+  'acp',
   'claude-code',
   'codex',
   'opencode',
   'grok-build',
 ])
 
-// Export-name suffix → activity. Checked longest-first, so VERTEX_CHAT wins
-// over MODELS and INTERACTIONS_VIDEO over VIDEO.
+// Adapter factory suffix → activity.
+const FACTORY_ACTIVITIES: Array<[RegExp, Activity]> = [
+  [/Text$/, 'chat'],
+  [/Image$/, 'image'],
+  [/Video$/, 'video'],
+  [/Speech$/, 'speech'],
+  [/Transcription$/, 'transcription'],
+  [/Audio$/, 'audio'],
+  [/Realtime(Token)?$/, 'realtime'],
+  [/Embedding$/, 'embedding'],
+  [/Rerank$/, 'rerank'],
+  [/Search(Tool)?$/, 'search'],
+]
+
+// model-meta.ts export-name suffix → activity. Checked in order, so
+// VERTEX_CHAT wins over MODELS and INTERACTIONS_VIDEO over VIDEO.
 const SUFFIX_ACTIVITIES: Array<[RegExp, Activity]> = [
   [/_(VERTEX_CHAT|CHAT|TEXT|CONVERSE|RESPONSES)_MODELS$/, 'chat'],
   [/_(INTERACTIONS_)?VIDEO_MODELS$/, 'video'],
@@ -83,42 +104,67 @@ const IGNORED_EXPORTS = new Set([
   'VERCEL_GATEWAY_PROVIDERS',
 ])
 
-// Adapters with no model-meta.ts, or whose model list is open-ended.
-const MANUAL_ADAPTERS: Array<
-  Pick<AdapterCoverage, 'id' | 'activities' | 'note'>
-> = [
-  {
-    id: 'fal',
-    activities: { image: [], video: [] },
-    note: 'Any fal.ai endpoint. 600+ model ids are typed from the fal SDK.',
-  },
-  {
-    id: 'cloudflare',
-    activities: {
-      chat: [],
-      embedding: [],
-      image: [],
-      speech: [],
-      transcription: [],
-    },
-    note: 'Workers AI models, plus AI Gateway routing to other providers.',
-  },
-  {
-    id: 'perplexity',
-    activities: { search: [] },
-    note: 'Web search as a provider-executed tool.',
-  },
-  {
-    id: 'vertex',
-    activities: { chat: [] },
-    note: 'Gemini on Vertex AI. Claude, Grok, and Mistral on Vertex live in their own packages.',
-  },
+// Shown next to adapters whose catalog is open-ended.
+const NOTES: Record<string, string> = {
+  fal: 'Any fal.ai endpoint. 600+ model ids are typed from the fal SDK.',
+  cloudflare: 'Workers AI models, plus AI Gateway routing to other providers.',
+  perplexity: 'Web search as a provider-executed tool.',
+  vertex:
+    'Gemini on Vertex AI. Claude, Grok, and Mistral on Vertex live in their own packages.',
+  'openai-compatible':
+    'Any endpoint that speaks the OpenAI chat completions shape.',
+}
+
+// Packages that are not provider adapters. Anything else that exports an
+// adapter factory must have a docs/adapters page, or generation fails.
+const NON_ADAPTER_PACKAGES =
+  /^ai-(react|vue|solid|svelte|preact|angular|octane|remix|client|devtools|utils|persistence|durable-stream|memory|compaction|mcp|code-mode.*|isolate-.*|sandbox.*|skills|event-client|.*-ui|typescript|.*-devtools)$/
+
+// Adapters whose docs page is not docs/adapters/<id>.md.
+const DOC_SLUGS: Record<string, string> = { acp: 'acp-compatible' }
+
+// Adapters that are a sub-entry of another package.
+const EXTRA_ADAPTERS = [
   {
     id: 'openai-compatible',
-    activities: { chat: [], embedding: [] },
-    note: 'Any endpoint that speaks the OpenAI chat and embeddings shape.',
+    package: '@tanstack/ai-openai/compatible',
+    entry: 'ai-openai/src/compatible/index.ts',
   },
 ]
+
+/** Activities an index.ts exposes, read from the adapter factory names it exports. */
+export function extractActivities(
+  packageId: string,
+  source: string,
+): Array<Activity> {
+  const exported = new Set<string>()
+  for (const block of source.matchAll(/^\s*export \{([^}]*)\}/gm)) {
+    for (const name of block[1]!.split(',')) {
+      const bare = name
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+      if (bare) exported.add(bare)
+    }
+  }
+  for (const fn of source.matchAll(/^\s*export (?:async )?function (\w+)/gm)) {
+    exported.add(fn[1]!)
+  }
+
+  const activities = new Set<Activity>()
+  for (const name of exported) {
+    if (!/^[a-z][A-Za-z]*$/.test(name)) continue
+    for (const [pattern, activity] of FACTORY_ACTIVITIES) {
+      if (!pattern.test(name)) continue
+      activities.add(
+        activity === 'chat' && HARNESS_PACKAGES.has(packageId)
+          ? 'harness'
+          : activity,
+      )
+    }
+  }
+  return [...activities]
+}
 
 export function classifyExport(
   packageId: string,
@@ -165,66 +211,81 @@ export function extractModalities(
 }
 
 async function docTitle(id: string): Promise<{ name: string; docs: string }> {
-  const docs = `adapters/${id}`
+  const docs = `adapters/${DOC_SLUGS[id] ?? id}`
   const source = await readFile(join(ROOT, 'docs', `${docs}.md`), 'utf8')
   const title = /^title:\s*(.+)$/m.exec(source)?.[1]?.trim()
   if (!title) throw new Error(`docs/${docs}.md has no title`)
   return { name: title, docs }
 }
 
+async function readOptional(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
 export async function generateCoverage(): Promise<Coverage> {
   const packagesDir = join(ROOT, 'packages')
-  const adapters: Array<AdapterCoverage> = []
+  const targets = [...EXTRA_ADAPTERS]
 
   for (const dir of (await readdir(packagesDir)).sort()) {
-    const metaPath = join(packagesDir, dir, 'src', 'model-meta.ts')
-    let source: string
-    try {
-      source = await readFile(metaPath, 'utf8')
-    } catch {
-      continue
-    }
+    if (!dir.startsWith('ai-') || NON_ADAPTER_PACKAGES.test(dir)) continue
+    const entry = join(dir, 'src', 'index.ts')
+    const source = await readOptional(join(packagesDir, entry))
     const id = dir.replace(/^ai-/, '')
-    if (MANUAL_ADAPTERS.some((manual) => manual.id === id)) continue
-
-    const mod: Record<string, unknown> = await import(metaPath)
-    const activities: AdapterCoverage['activities'] = {}
-
-    for (const [exportName, value] of Object.entries(mod)) {
-      if (
-        !Array.isArray(value) ||
-        !value.every((item) => typeof item === 'string')
-      ) {
-        continue
-      }
-      const activity = classifyExport(id, exportName)
-      if (activity === 'ignored') continue
-      if (activity === null) {
-        throw new Error(
-          `${dir}/src/model-meta.ts exports ${exportName}, which generate-coverage cannot classify. Add it to SUFFIX_ACTIVITIES or IGNORED_EXPORTS.`,
-        )
-      }
-      const models = new Set([...(activities[activity] ?? []), ...value])
-      activities[activity] = [...models]
-    }
-
-    adapters.push({
-      id,
-      package: `@tanstack/ai-${id}`,
-      ...(await docTitle(id)),
-      activities: sortActivities(activities),
-      models: sortKeys(extractModalities(source)),
-    })
+    // Only packages that export at least one adapter factory are adapters.
+    if (!source || extractActivities(id, source).length === 0) continue
+    targets.push({ id, package: `@tanstack/ai-${id}`, entry })
   }
 
-  for (const manual of MANUAL_ADAPTERS) {
+  const adapters: Array<AdapterCoverage> = []
+
+  for (const target of targets) {
+    const indexSource = await readFile(join(packagesDir, target.entry), 'utf8')
+    const activities: AdapterCoverage['activities'] = {}
+    for (const activity of extractActivities(target.id, indexSource)) {
+      activities[activity] = []
+    }
+
+    const metaPath = join(
+      packagesDir,
+      `ai-${target.id}`,
+      'src',
+      'model-meta.ts',
+    )
+    const metaSource = await readOptional(metaPath)
+
+    if (metaSource) {
+      const mod: Record<string, unknown> = await import(metaPath)
+      for (const [exportName, value] of Object.entries(mod)) {
+        if (
+          !Array.isArray(value) ||
+          !value.every((item) => typeof item === 'string')
+        ) {
+          continue
+        }
+        const activity = classifyExport(target.id, exportName)
+        if (activity === 'ignored') continue
+        if (activity === null) {
+          throw new Error(
+            `ai-${target.id}/src/model-meta.ts exports ${exportName}, which generate-coverage cannot classify. Add it to SUFFIX_ACTIVITIES or IGNORED_EXPORTS.`,
+          )
+        }
+        const models = new Set([...(activities[activity] ?? []), ...value])
+        activities[activity] = [...models]
+      }
+    }
+
+    const note = NOTES[target.id]
     adapters.push({
-      id: manual.id,
-      package: `@tanstack/ai-${manual.id === 'openai-compatible' ? 'openai' : manual.id}`,
-      ...(await docTitle(manual.id)),
-      note: manual.note,
-      activities: manual.activities,
-      models: {},
+      id: target.id,
+      package: target.package,
+      ...(await docTitle(target.id)),
+      ...(note ? { note } : {}),
+      activities: sortActivities(activities),
+      models: sortKeys(metaSource ? extractModalities(metaSource) : {}),
     })
   }
 
