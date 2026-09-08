@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 }
 ```
 
-The same pattern applies to all generation types -- swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, or `generateVideo`. See the individual media guides for server-side details.
+The same pattern applies to image, speech, transcription, summarize, and video. Live and world generation mint a session token. Connect in the browser. See [Live Generation](./live-generation) and [World Generation](./world-generation).
 
 ## useGenerateImage
 

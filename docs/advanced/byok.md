@@ -36,6 +36,10 @@ export const byok = defineByok({
 
 If the browser supports passkeys, `defaultByokStorage()` uses a passkey. If not, keys stay in memory for this tab only.
 
+Passkey storage runs a WebAuthn prompt to save and to unlock a key. Some browsers (Safari, Dia) only show that prompt right after a click. So call `byok.update()`, `byok.unlock()`, or `byok.prepare()` straight from the click handler, before you `await` other work. If you run the unlock deep in a send flow, the prompt may never appear and the call throws with a "needs a fresh user action" message instead. Unlock on the click, then send.
+
+This activation check applies to existing keyrings. First-time registration can require a second PRF prompt, which the browser handles even if registration consumes activation.
+
 ## 2. Save a key
 
 Call `byok.update("openai", value)` from your own UI. The library does not ship a dialog.

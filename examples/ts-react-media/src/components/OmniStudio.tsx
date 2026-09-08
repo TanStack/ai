@@ -15,6 +15,7 @@ import type { OmniTaskMode } from '@/lib/models'
 import type { MediaPromptPart } from '@tanstack/ai/client'
 
 import { generateVideoFn } from '@/lib/server-functions'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { readMediaFile, toImagePart, toVideoPart } from '@/lib/media'
 
 const OMNI_MODEL = 'gemini-omni-1.1-flash'
@@ -104,22 +105,27 @@ export default function OmniStudio() {
   // clips is this component's own state rather than something the hook models.
   const { generate, isLoading } = useGenerateVideo({
     threadId: 'omni-studio',
+    byok,
+    byokProvider: () => toByokProvider('gemini'),
     // `options.signal` is the hook's abort signal; cancelling the response is
     // what ends the server's polling loop instead of leaving it running.
     fetcher: (input, options) => {
       const submission = submissionRef.current
       if (!submission) throw new Error('No Omni turn in flight')
-      return generateVideoFn({
-        data: {
-          prompt: input.prompt,
-          model: OMNI_MODEL,
-          ...(submission.previousInteractionId
-            ? { previousInteractionId: submission.previousInteractionId }
-            : {}),
-          omniOptions: submission.omniOptions,
-        },
-        signal: options?.signal,
-      })
+      return callWithByok(
+        generateVideoFn({
+          data: {
+            prompt: input.prompt,
+            model: OMNI_MODEL,
+            ...(submission.previousInteractionId
+              ? { previousInteractionId: submission.previousInteractionId }
+              : {}),
+            omniOptions: submission.omniOptions,
+          },
+          signal: options?.signal,
+          headers: options?.headers,
+        }),
+      )
     },
     onJobCreated: (jobId) => {
       const submission = submissionRef.current

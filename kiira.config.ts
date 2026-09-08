@@ -58,6 +58,7 @@ export default defineConfig({
     '@mynthio/tanstack-ai-adapter': '^0.0.14',
     '@cencori/ai-sdk': '^0.4.0',
     '@soniox/tanstack-ai-adapter': '^0.1.2',
+    '@fal-ai/client': '1.11.0-alpha.2',
     // Octane is a peer of @tanstack/ai-octane, not a root workspace dep.
     octane: '^0.1.17',
     // Remix 3 is a peer of @tanstack/ai-remix, not a root workspace dep.
