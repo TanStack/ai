@@ -105,8 +105,8 @@ describe('buildCatalogs', () => {
       { dir: 'ai', manifest: { name: '@tanstack/ai', description: 'a | b' } },
     ])
 
-    expect(buildCatalogs(root)['skills/tanstack-ai/packages.md']).toContain(
-      '| `@tanstack/ai` | — | a \\| b |',
+    expect(buildCatalogs(root)['skills/tanstack-ai/packages.md']).toMatch(
+      /\| `@tanstack\/ai` +\| — +\| a \\\| b +\|/,
     )
   })
 
@@ -126,7 +126,7 @@ describe('buildCatalogs', () => {
     )
 
     for (const pkg of collectPackages('packages')) {
-      const row = `| \`${pkg.name}\` |`
+      const row = `| \`${pkg.name}\` `
       expect(full, pkg.name).toContain(row)
 
       const hits = perSkill.filter(([, content]) => content.includes(row))
