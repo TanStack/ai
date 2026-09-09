@@ -77,11 +77,7 @@ export default defineConfig({
     // hook that returns a decision or continues), which is valid and shouldn't
     // force an explicit return type or trailing `return`.
     {
-      include: [
-        'docs/**/*.md',
-        'skills/**/*.md',
-        'packages/*/skills/**/*.md',
-      ],
+      include: ['docs/**/*.md', 'skills/**/*.md', 'packages/*/skills/**/*.md'],
       jsx: 'react-jsx',
       jsxImportSource: 'react',
       noImplicitReturns: false,
