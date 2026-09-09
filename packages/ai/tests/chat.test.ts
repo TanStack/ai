@@ -4788,9 +4788,7 @@ describe('chat()', () => {
   describe('AG-UI activity sidecar', () => {
     it('peels inbound activity before adapter messages', async () => {
       const { adapter, calls } = createMockAdapter({
-        iterations: [
-          [ev.runStarted(), ev.textContent('ok'), ev.runFinished()],
-        ],
+        iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished()]],
       })
 
       await collectChunks(
