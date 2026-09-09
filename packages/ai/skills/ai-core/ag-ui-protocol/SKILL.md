@@ -29,7 +29,7 @@ import { openaiText } from '@tanstack/ai-openai'
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const stream = chat({
-    adapter: openaiText('gpt-5.2'),
+    adapter: openaiText('gpt-5.6'),
     messages,
   })
   return toServerSentEventsResponse(stream)
@@ -49,7 +49,7 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 import { serverTools } from './tools'
 
 export async function POST(req: Request) {
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   }
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.6'),
     messages: params.messages,
     tools: mergeAgentTools(serverTools, params.tools),
   })
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
 
 **Wire format:** Each event is `data: <JSON>\n\n`. Stream ends with `data: [DONE]\n\n`.
 
-```typescript group=skill
+```typescript group=sse-response
 import {
   chat,
   toServerSentEventsStream,
@@ -95,10 +95,12 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 // Option A: Get a ReadableStream (manual Response construction)
 const abortController = new AbortController()
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.6'),
   messages,
   abortController,
 })
@@ -127,7 +129,7 @@ const response2 = toServerSentEventsResponse(stream, { abortController })
 
 Custom headers merge on top (user headers override defaults):
 
-```typescript group=skill
+```typescript group=sse-response
 toServerSentEventsResponse(stream, {
   headers: {
     'X-Accel-Buffering': 'no', // Disable nginx buffering
@@ -149,10 +151,12 @@ aborted, the error event is suppressed and the stream closes silently.
 import { chat, toHttpStream, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 // Option A: Get a ReadableStream
 const abortController = new AbortController()
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.6'),
   messages,
   abortController,
 })
@@ -199,7 +203,7 @@ All events extend `BaseAGUIEvent` which carries `type`, `timestamp`, optional
 | `STATE_DELTA`          | Incremental state update. Carries `delta: Record<string, unknown>`.                                                         |
 | `CUSTOM`               | Extension point. Carries `name` (string) and optional `value` (unknown).                                                    |
 | `RUN_FINISHED`         | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
-| `RUN_ERROR`            | Error during stream. Carries optional `runId` and `error: { message, code? }`.                                              |
+| `RUN_ERROR`            | Error during stream. Carries `message`, optional `code` and `runId`; a nested `error: { message, code? }` copy is kept too. |
 
 **Typical event sequence for a text-only response:**
 
@@ -235,8 +239,10 @@ no helper, no cast:
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const stream = chat({
-  adapter: openaiText('gpt-5.2'),
+  adapter: openaiText('gpt-5.6'),
   messages,
 })
 
@@ -284,7 +290,7 @@ causing events to arrive in batches instead of streaming token-by-token.
 
 Fix: Set proxy-bypass headers on the response.
 
-```typescript group=skill
+```typescript group=sse-response
 toServerSentEventsResponse(stream, {
   headers: {
     'X-Accel-Buffering': 'no', // nginx
