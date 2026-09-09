@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  EventType,
   chat,
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
@@ -63,7 +64,7 @@ const adapter: AnyTextAdapter = {
       return
     }
     yield {
-      type: 'RUN_STARTED',
+      type: EventType.RUN_STARTED,
       threadId,
       runId,
       timestamp: Date.now(),
@@ -109,31 +110,31 @@ async function* textRun(
 ): AsyncGenerator<AdapterYieldChunk> {
   if (includeStart) {
     yield {
-      type: 'RUN_STARTED',
+      type: EventType.RUN_STARTED,
       threadId,
       runId,
       timestamp: Date.now(),
     }
   }
   yield {
-    type: 'TEXT_MESSAGE_START',
+    type: EventType.TEXT_MESSAGE_START,
     messageId,
     role: 'assistant',
     timestamp: Date.now(),
   }
   yield {
-    type: 'TEXT_MESSAGE_CONTENT',
+    type: EventType.TEXT_MESSAGE_CONTENT,
     messageId,
     delta: text,
     timestamp: Date.now(),
   }
   yield {
-    type: 'TEXT_MESSAGE_END',
+    type: EventType.TEXT_MESSAGE_END,
     messageId,
     timestamp: Date.now(),
   }
   yield {
-    type: 'RUN_FINISHED',
+    type: EventType.RUN_FINISHED,
     threadId,
     runId,
     timestamp: Date.now(),
@@ -146,13 +147,13 @@ function snapshotRun(
 ): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
-      type: 'RUN_STARTED',
+      type: EventType.RUN_STARTED,
       threadId,
       runId,
       timestamp: Date.now(),
     } satisfies StreamChunk
     yield {
-      type: 'MESSAGES_SNAPSHOT',
+      type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
       messages: [
         { id: 'u1', role: 'user', content: 'search' },
@@ -166,7 +167,7 @@ function snapshotRun(
       ],
     } satisfies StreamChunk
     yield {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       threadId,
       runId,
       timestamp: Date.now(),
