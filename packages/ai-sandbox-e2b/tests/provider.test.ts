@@ -142,6 +142,41 @@ describe('e2bSandbox create', () => {
     expect(stub.kill).toHaveBeenCalledOnce()
   })
 
+  // The SDK cannot cancel a pending create, so the caller is released at once
+  // and the sandbox is killed when the create eventually settles.
+  it('rejects promptly while create is pending and kills the late sandbox', async () => {
+    const stub = sandboxStub()
+    let settle!: (s: typeof stub) => void
+    createMock.mockReturnValue(new Promise((r) => (settle = r)))
+    const controller = new AbortController()
+    const pending = e2bSandbox().create({ signal: controller.signal })
+    controller.abort(new Error('caller gave up'))
+    await expect(pending).rejects.toThrow('caller gave up')
+    expect(stub.kill).not.toHaveBeenCalled()
+    settle(stub)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(stub.kill).toHaveBeenCalledOnce()
+  })
+
+  it('applies the same abort handling to restoreSnapshot', async () => {
+    createMock.mockReturnValue(new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = e2bSandbox().restoreSnapshot!({
+      snapshotId: 'snap',
+      signal: controller.signal,
+    })
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+  })
+
+  it('rejects a plain-http apiUrl at construction, but allows loopback', () => {
+    expect(() => e2bSandbox({ apiUrl: 'http://api.example.com' })).toThrow(
+      /apiUrl must use https/,
+    )
+    expect(() => e2bSandbox({ apiUrl: 'http://localhost:3000' })).not.toThrow()
+    expect(() => e2bSandbox({ apiUrl: 'https://api.e2b.app' })).not.toThrow()
+  })
+
   it('rejects before creating when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()

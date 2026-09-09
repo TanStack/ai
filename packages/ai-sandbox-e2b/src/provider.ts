@@ -60,10 +60,54 @@ export const INSTANCE_KEY_METADATA = 'tanstack-ai-key'
 
 const DEFAULT_TIMEOUT_MS = 30 * 60_000
 
+/**
+ * The SDK sends the API key as a header to `apiUrl`, so a plain-http URL would
+ * leak it. Loopback is allowed for the SDK's own debug server.
+ */
+function assertHttps(apiUrl: string): void {
+  const url = new URL(apiUrl)
+  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  if (url.protocol !== 'https:' && !loopback) {
+    throw new Error(
+      `e2b: apiUrl must use https (got ${url.protocol}//${url.host}); the API key travels in a request header.`,
+    )
+  }
+}
+
+/**
+ * `Sandbox.create` that rejects promptly on abort. The SDK's `signal` only
+ * cancels the HTTP request, so an accepted create would leave a billed sandbox
+ * nobody holds the id for. On abort the caller is released at once, and the
+ * sandbox is killed whenever the create eventually settles.
+ */
+async function createSandbox(
+  opts: SandboxOpts,
+  signal: AbortSignal | undefined,
+): Promise<Sandbox> {
+  signal?.throwIfAborted()
+  const creation = Sandbox.create(opts)
+  if (!signal) return creation
+  const aborted = new Promise<never>((_, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), {
+      once: true,
+    })
+  })
+  try {
+    return await Promise.race([creation, aborted])
+  } catch (error) {
+    if (signal.aborted) {
+      void creation.then((sandbox) => sandbox.kill()).catch(() => undefined)
+    }
+    throw error
+  }
+}
+
 class E2BProvider implements SandboxProvider {
   readonly name = 'e2b'
 
-  constructor(private readonly config: E2BSandboxConfig) {}
+  constructor(private readonly config: E2BSandboxConfig) {
+    if (config.apiUrl !== undefined) assertHttps(config.apiUrl)
+  }
 
   capabilities(): SandboxCapabilities {
     return E2B_CAPS
@@ -120,12 +164,8 @@ class E2BProvider implements SandboxProvider {
 
   /**
    * A fresh sandbox has no workdir yet, and every handle command runs in it.
-   * `makeDir` is a native call (no cwd of its own), so it is safe here.
-   *
-   * The SDK's `signal` only cancels the HTTP request, so a create that was
-   * accepted server-side would leave a billed sandbox nobody holds the id for.
-   * Let the create settle, then reconcile: kill what was just made on any
-   * failure or abort, and honour the abort.
+   * `makeDir` is a native call (no cwd of its own), so it is safe here. Any
+   * failure, or an abort that landed meanwhile, kills the sandbox.
    */
   private async prepare(
     sandbox: Sandbox,
@@ -149,27 +189,27 @@ class E2BProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    input.signal?.throwIfAborted()
-    const sandbox = await Sandbox.create(
+    const sandbox = await createSandbox(
       this.createOpts({
         ...(input.id !== undefined ? { id: input.id } : {}),
         ...(input.env !== undefined ? { env: input.env } : {}),
         ...(input.policy !== undefined ? { policy: input.policy } : {}),
       }),
+      input.signal,
     )
     return this.prepare(sandbox, input.signal)
   }
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
-    input.signal?.throwIfAborted()
     // `SandboxRestoreInput` carries a policy too. Dropping it would restore a
     // snapshot taken under `network: 'deny'` into a sandbox with open egress.
-    const sandbox = await Sandbox.create(
+    const sandbox = await createSandbox(
       this.createOpts({
         template: input.snapshotId,
         ...(input.env !== undefined ? { env: input.env } : {}),
         ...(input.policy !== undefined ? { policy: input.policy } : {}),
       }),
+      input.signal,
     )
     // The snapshot already contains the workdir; `makeDir` is idempotent.
     return this.prepare(sandbox, input.signal)
