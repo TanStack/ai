@@ -107,18 +107,26 @@ guessing at the API. Packages without one are documented at
 https://tanstack.com/ai/latest/docs and in their own \`src\` directory, which
 ships in the published package.`
 
+/** Pads columns the way oxfmt does, so the formatter leaves the output alone. */
 function table(entries: Array<Entry>): string {
-  const rows = entries.map((entry) => {
-    const skills = entry.skills.length
+  const rows = entries.map((entry) => [
+    `\`${entry.name}\``,
+    entry.skills.length
       ? entry.skills.map((skill) => `\`${skill}\``).join(', ')
-      : '—'
-    return `| \`${entry.name}\` | ${skills} | ${entry.description.replaceAll('|', '\\|')} |`
-  })
+      : '—',
+    entry.description.replaceAll('|', '\\|'),
+  ])
+  const header = ['Package', 'Skills', 'What it does']
+  const widths = header.map((cell, i) =>
+    Math.max(cell.length, ...rows.map((row) => row[i]!.length)),
+  )
+  const line = (cells: Array<string>) =>
+    `| ${cells.map((cell, i) => cell.padEnd(widths[i]!)).join(' | ')} |`
 
   return [
-    '| Package | Skills | What it does |',
-    '| --- | --- | --- |',
-    ...rows,
+    line(header),
+    line(widths.map((width) => '-'.repeat(width))),
+    ...rows.map(line),
   ].join('\n')
 }
 
