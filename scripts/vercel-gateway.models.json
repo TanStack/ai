@@ -9410,7 +9410,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9431,47 +9431,12 @@
       "output": "0.0000012",
       "input_cache_read": "0.00000006",
       "input_cache_write": "0.000000375",
-      "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
         "output": "0.0000024",
         "input_cache_read": "0.00000006",
         "input_cache_write": "0.000000375"
       }
-    }
-  },
-  {
-    "id": "minimax/minimax-m2.7-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773792000,
-    "owned_by": "minimax",
-    "name": "MiniMax M2.7 (Free)",
-    "description": "M2.7 delivers outstanding performance in real-world software engineering, including end-to-end full project delivery, log analysis and bug troubleshooting, code security, machine learning, and more.",
-    "context_window": 196608,
-    "max_tokens": 196608,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0",
-      "output": "0"
     }
   },
   {
@@ -9528,7 +9493,6 @@
       "tool-use",
       "vision",
       "implicit-caching",
-      "free",
       "file-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -9556,78 +9520,6 @@
       "output": "0.0000012",
       "input_cache_read": "0.00000006",
       "varies_by_provider": true
-    }
-  },
-  {
-    "id": "minimax/minimax-m3-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780185600,
-    "owned_by": "minimax",
-    "name": "MiniMax M3 (Free)",
-    "description": "MiniMax-M3 is a frontier-class foundation model that unites the three capabilities defining today's frontier: a 1M-token context window, frontier coding and agentic performance, and native multimodality — the first open-weight model to deliver all three in a single system.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["implicit-caching", "reasoning", "tool-use", "vision", "free"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "input_tiers": [
-        {
-          "cost": "0",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0",
-          "min": 512000
-        }
-      ],
-      "output": "0",
-      "output_tiers": [
-        {
-          "cost": "0",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0",
-          "min": 512000
-        }
-      ],
-      "input_cache_read_tiers": [
-        {
-          "cost": "0",
-          "min": 0,
-          "max": 512000
-        },
-        {
-          "cost": "0",
-          "min": 512000
-        }
-      ]
     }
   },
   {
@@ -14456,7 +14348,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "fast",
@@ -14719,7 +14611,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "fast",

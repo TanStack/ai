@@ -31,7 +31,7 @@ test.describe('byok', () => {
         getClientExtensionResults() {
           return this.registration
             ? { prf: { enabled: true } }
-            : { prf: { results: { first: new Uint8Array(32) } } }
+            : { prf: { results: { first: Array.from(new Uint8Array(32)) } } }
         }
       }
       Object.defineProperty(window, 'PublicKeyCredential', { value: Passkey })
@@ -53,6 +53,12 @@ test.describe('byok', () => {
     await expect(page.getByTestId('byok-last4')).toHaveText('1234')
     await page.reload()
     await expect(page.getByTestId('byok-last4')).toHaveText('1234')
+    await page.getByTestId('byok-unlock-button').click()
+    await page.getByTestId('byok-key-input').fill('sk-e2e-updated-5678')
+    await page.getByTestId('byok-save-button').click()
+    await expect(page.getByTestId('byok-last4')).toHaveText('5678')
+    await page.reload()
+    await expect(page.getByTestId('byok-last4')).toHaveText('5678')
     await page.evaluate(() => {
       Object.defineProperty(navigator.userActivation, 'isActive', {
         value: false,

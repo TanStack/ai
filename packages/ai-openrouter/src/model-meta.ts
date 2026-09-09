@@ -151,15 +151,15 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 393216,
   pricing: {
     text: {
       input: {
-        normal: 0.04998,
-        cached: 0.009996,
+        normal: 0.05,
+        cached: 0.013,
       },
       output: {
-        normal: 0.09996,
+        normal: 0.16,
       },
     },
     image: 0,
@@ -256,11 +256,11 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 2.55,
-        cached: 0.25599999,
+        normal: 2.5,
+        cached: 0.29,
       },
       output: {
-        normal: 12.75,
+        normal: 14,
       },
     },
     image: 0,
@@ -383,15 +383,15 @@ const _Z_AI_GLM_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 943718,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.075,
-        cached: 0.015,
+        normal: 0.07125,
+        cached: 0.01425,
       },
       output: {
-        normal: 0.25,
+        normal: 0.2375,
       },
     },
     image: 0,
@@ -421,15 +421,15 @@ const _Z_AI_GLM_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 235929,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 1.15,
-        cached: 0.1,
+        normal: 1.12,
+        cached: 0.208,
       },
       output: {
-        normal: 3.5,
+        normal: 3.52,
       },
     },
     image: 0,
@@ -2063,11 +2063,11 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
   pricing: {
     text: {
       input: {
-        normal: 0.25,
-        cached: 0,
+        normal: 0.29,
+        cached: 0.11,
       },
       output: {
-        normal: 1,
+        normal: 1.14,
       },
     },
     image: 0,
@@ -2096,15 +2096,15 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 144900,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.55,
-        cached: 0.55,
+        normal: 0.25,
+        cached: 0.13,
       },
       output: {
-        normal: 1.65,
+        normal: 0.95,
       },
     },
     image: 0,
@@ -2350,11 +2350,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.08526,
-        cached: 0.017052,
+        normal: 0.088606,
+        cached: 0.0177212,
       },
       output: {
-        normal: 0.17052,
+        normal: 0.177212,
       },
     },
     image: 0,
@@ -2497,11 +2497,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
   pricing: {
     text: {
       input: {
-        normal: 0.910716,
-        cached: 0.075893,
+        normal: 0.95526,
+        cached: 0.079605,
       },
       output: {
-        normal: 1.821432,
+        normal: 1.91052,
       },
     },
     image: 0,
@@ -2534,11 +2534,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   pricing: {
     text: {
       input: {
-        normal: 1.12068,
-        cached: 0.037356,
+        normal: 1.0494,
+        cached: 0.03498,
       },
       output: {
-        normal: 3.36204,
+        normal: 3.1482,
       },
     },
     image: 0,
@@ -5066,7 +5066,7 @@ const MINIMAX_MINIMAX_M1 = {
   pricing: {
     text: {
       input: {
-        normal: 0.55,
+        normal: 0.4,
         cached: 0,
       },
       output: {
@@ -5243,37 +5243,6 @@ const MINIMAX_MINIMAX_M2_7 = {
     image: 0,
   },
 } as const
-const MINIMAX_MINIMAX_M2_7_FREE = {
-  id: 'minimax/minimax-m2.7:free',
-  name: 'MiniMax: MiniMax M2.7 (free)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'maxCompletionTokens',
-      'reasoning',
-      'responseFormat',
-      'seed',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 196608,
-  max_output_tokens: 176947,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
-} as const
 const MINIMAX_MINIMAX_M3 = {
   id: 'minimax/minimax-m3',
   name: 'MiniMax: MiniMax M3',
@@ -5340,37 +5309,6 @@ const MINIMAX_MINIMAX_M3_BATCH = {
       },
       output: {
         normal: 1.2,
-      },
-    },
-    image: 0,
-  },
-} as const
-const MINIMAX_MINIMAX_M3_FREE = {
-  id: 'minimax/minimax-m3:free',
-  name: 'MiniMax: MiniMax M3 (free)',
-  supports: {
-    input: ['text', 'image', 'video'],
-    output: ['text'],
-    supports: [
-      'maxCompletionTokens',
-      'reasoning',
-      'responseFormat',
-      'seed',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 1048576,
-  max_output_tokens: 943718,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
       },
     },
     image: 0,
@@ -5726,8 +5664,8 @@ const MISTRALAI_MISTRAL_MEDIUM_3_5_BATCH = {
       'topP',
     ],
   },
-  context_window: 32768,
-  max_output_tokens: 26214,
+  context_window: 262144,
+  max_output_tokens: 209715,
   pricing: {
     text: {
       input: {
@@ -6133,12 +6071,12 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 100352,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
         normal: 0.6,
-        cached: 0.15,
+        cached: 0,
       },
       output: {
         normal: 2.5,
@@ -6250,11 +6188,11 @@ const MOONSHOTAI_KIMI_K2_7_CODE = {
   pricing: {
     text: {
       input: {
-        normal: 0.66,
-        cached: 0.18,
+        normal: 0.71,
+        cached: 0.15,
       },
       output: {
-        normal: 3.4,
+        normal: 3.5,
       },
     },
     image: 0,
@@ -6423,7 +6361,6 @@ const NEX_AGI_NEX_N2_PRO = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequencyPenalty',
       'logprobs',
       'maxCompletionTokens',
       'reasoning',
@@ -10295,15 +10232,15 @@ const QWEN_QWEN3_14B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 16384,
+  max_output_tokens: 8192,
   pricing: {
     text: {
       input: {
-        normal: 0.12,
+        normal: 0.2275,
         cached: 0,
       },
       output: {
-        normal: 0.24,
+        normal: 0.91,
       },
     },
     image: 0,
@@ -10895,7 +10832,7 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
@@ -11261,11 +11198,11 @@ const QWEN_QWEN3_5_35B_A3B = {
   pricing: {
     text: {
       input: {
-        normal: 0.08,
-        cached: 0,
+        normal: 0.3125,
+        cached: 0.15625,
       },
       output: {
-        normal: 0.75,
+        normal: 1.25,
       },
     },
     image: 0,
@@ -11294,15 +11231,15 @@ const QWEN_QWEN3_5_397B_A17B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 235929,
+  max_output_tokens: 65536,
   pricing: {
     text: {
       input: {
-        normal: 0.55,
-        cached: 0.225,
+        normal: 0.39,
+        cached: 0,
       },
       output: {
-        normal: 3.5,
+        normal: 2.34,
       },
     },
     image: 0,
@@ -12598,7 +12535,7 @@ const THEDRUMMER_UNSLOPNEMO_12B = {
     ],
   },
   context_window: 1024000,
-  max_output_tokens: 26214,
+  max_output_tokens: 819200,
   pricing: {
     text: {
       input: {
@@ -13466,12 +13403,12 @@ const Z_AI_GLM_4_7_FLASH = {
     ],
   },
   context_window: 202752,
-  max_output_tokens: 16384,
+  max_output_tokens: 117964,
   pricing: {
     text: {
       input: {
-        normal: 0.06,
-        cached: 0.01,
+        normal: 0.0605,
+        cached: 0,
       },
       output: {
         normal: 0.4,
@@ -13622,40 +13559,6 @@ const Z_AI_GLM_5_2 = {
     image: 0,
   },
 } as const
-const Z_AI_GLM_5_2_FREE = {
-  id: 'z-ai/glm-5.2:free',
-  name: 'Z.ai: GLM 5.2 (free)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'reasoning',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 256000,
-  max_output_tokens: 230400,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
-      },
-    },
-    image: 0,
-  },
-} as const
 const Z_AI_GLM_5_3 = {
   id: 'z-ai/glm-5.3',
   name: 'Z.ai: GLM 5.3',
@@ -13680,12 +13583,12 @@ const Z_AI_GLM_5_3 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 262144,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
         normal: 1.4,
-        cached: 0.14,
+        cached: 0.26,
       },
       output: {
         normal: 4.4,
@@ -15770,17 +15673,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
-  [MINIMAX_MINIMAX_M2_7_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
-    >
   [MINIMAX_MINIMAX_M3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15808,17 +15700,6 @@ export type OpenRouterModelOptionsByName = {
       | 'reasoning'
       | 'responseFormat'
       | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
-    >
-  [MINIMAX_MINIMAX_M3_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
       | 'temperature'
       | 'toolChoice'
       | 'topP'
@@ -16245,7 +16126,6 @@ export type OpenRouterModelOptionsByName = {
   [NEX_AGI_NEX_N2_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequencyPenalty'
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'reasoning'
@@ -19014,20 +18894,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
-  [Z_AI_GLM_5_2_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
-    >
   [Z_AI_GLM_5_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -19356,10 +19222,8 @@ export type OpenRouterModelInputModalitiesByName = {
   [MINIMAX_MINIMAX_M2_1.id]: ReadonlyArray<'text'>
   [MINIMAX_MINIMAX_M2_5.id]: ReadonlyArray<'text'>
   [MINIMAX_MINIMAX_M2_7.id]: ReadonlyArray<'text'>
-  [MINIMAX_MINIMAX_M2_7_FREE.id]: ReadonlyArray<'text'>
   [MINIMAX_MINIMAX_M3.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [MINIMAX_MINIMAX_M3_BATCH.id]: ReadonlyArray<'text' | 'image' | 'video'>
-  [MINIMAX_MINIMAX_M3_FREE.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [MISTRALAI_CODESTRAL_2508.id]: ReadonlyArray<'text' | 'document'>
   [MISTRALAI_DEVSTRAL_2512.id]: ReadonlyArray<'text' | 'document'>
   [MISTRALAI_MINISTRAL_14B_2512.id]: ReadonlyArray<'text' | 'image'>
@@ -19639,7 +19503,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [Z_AI_GLM_5_TURBO.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_1.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_2.id]: ReadonlyArray<'text'>
-  [Z_AI_GLM_5_2_FREE.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_3.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_3_FLASH.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [Z_AI_GLM_5_3_FLASH_BATCH.id]: ReadonlyArray<'text' | 'image' | 'video'>
@@ -19811,10 +19674,8 @@ export const OPENROUTER_CHAT_MODELS = [
   MINIMAX_MINIMAX_M2_1.id,
   MINIMAX_MINIMAX_M2_5.id,
   MINIMAX_MINIMAX_M2_7.id,
-  MINIMAX_MINIMAX_M2_7_FREE.id,
   MINIMAX_MINIMAX_M3.id,
   MINIMAX_MINIMAX_M3_BATCH.id,
-  MINIMAX_MINIMAX_M3_FREE.id,
   MISTRALAI_CODESTRAL_2508.id,
   MISTRALAI_DEVSTRAL_2512.id,
   MISTRALAI_MINISTRAL_14B_2512.id,
@@ -20068,7 +19929,6 @@ export const OPENROUTER_CHAT_MODELS = [
   Z_AI_GLM_5_TURBO.id,
   Z_AI_GLM_5_1.id,
   Z_AI_GLM_5_2.id,
-  Z_AI_GLM_5_2_FREE.id,
   Z_AI_GLM_5_3.id,
   Z_AI_GLM_5_3_FLASH.id,
   Z_AI_GLM_5_3_FLASH_BATCH.id,
@@ -20818,6 +20678,7 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     QWEN_QWEN_PLUS_2025_07_28.id,
     QWEN_QWEN3_14B.id,
     QWEN_QWEN3_235B_A22B_2507.id,
+    QWEN_QWEN3_30B_A3B.id,
     QWEN_QWEN3_30B_A3B_INSTRUCT_2507.id,
     QWEN_QWEN3_32B.id,
     QWEN_QWEN3_CODER.id,
@@ -20880,7 +20741,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     Z_AI_GLM_5.id,
     Z_AI_GLM_5_1.id,
     Z_AI_GLM_5_2.id,
-    Z_AI_GLM_5_2_FREE.id,
     Z_AI_GLM_5_3.id,
     Z_AI_GLM_5_3_FLASH.id,
     Z_AI_GLM_5_3_FLASH_BATCH.id,
