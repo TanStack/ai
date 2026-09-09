@@ -1042,7 +1042,8 @@ export class ChatClient<
       let result: ChatHydrationResult
       try {
         result = await hydrate(this.threadId)
-      } catch {
+      } catch (cause) {
+        this.failHydration(cause)
         return
       }
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
@@ -1082,6 +1083,35 @@ export class ChatClient<
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
     })()
+  }
+
+  /**
+   * Surface a mount-hydration failure (`persistence: true`) on the observable
+   * fields, mirroring `GenerationClient.failHydration`, so "this thread failed
+   * to load" is distinguishable from "this thread has no messages" and the app
+   * can show an error / offer a retry. A genuine miss — the server having no
+   * record for a fresh thread — resolves normally and never reaches here; only a
+   * thrown transport / authorize-gate error does.
+   *
+   * Skipped when the view unmounted (`!tailing`) or a `sendMessage` took
+   * ownership while the hydrate GET was in flight, so a live run's state always
+   * wins over a stale mount-time failure — same guard as the success path above.
+   */
+  private failHydration(cause: unknown): void {
+    if (this.disposed || !this.tailing) return
+    if (this.isLoading || this.abortController) return
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    // Mirror the send path: a BYOK key that is missing / locked must still
+    // trigger the key-request flow on thread load, not just be reported.
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.current.onError(error)
   }
 
   mountDevtools(): void {
