@@ -1,14 +1,15 @@
 ---
 name: tanstack-ai-agents
 description: >
-  Give a TanStack AI app agent capabilities: tool calling, MCP servers, Code
-  Mode TypeScript execution, isolated sandboxes, coding-agent harnesses (Claude
-  Code, Codex, OpenCode, Grok Build), long-term memory, and runtime SKILL.md
-  loading. Use when someone asks how the model runs tools, wants an agent loop,
-  connects an MCP server, executes model-written code safely, runs a coding
-  agent as a chat backend, or remembers facts across conversations. Triggers on
-  "tool calling", "MCP", "code mode", "sandbox", "isolate", "agent loop",
-  "Claude Code adapter", "memory", "load_skill".
+  Build agents in TypeScript with TanStack AI: tool calling, agent loops, MCP
+  servers, Code Mode TypeScript execution, isolated sandboxes, coding-agent
+  harnesses (Claude Code, Codex, OpenCode, Grok Build), long-term memory, and
+  runtime SKILL.md loading. Use when someone wants the model to call functions,
+  build an agent or multi-step workflow, connect an MCP server, run
+  model-written code safely, run a coding agent as a chat backend, or remember
+  facts across conversations. Triggers on "build an agent", "tool calling",
+  "function calling", "MCP", "code mode", "sandbox", "agent loop", "Claude Code
+  adapter", "memory", "load_skill".
 ---
 
 # TanStack AI agent capabilities

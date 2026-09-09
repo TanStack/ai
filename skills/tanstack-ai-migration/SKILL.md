@@ -1,12 +1,13 @@
 ---
 name: tanstack-ai-migration
 description: >
-  Port an app to TanStack AI from another SDK, or move it off a deprecated
-  TanStack AI API. Use when code mixes the Vercel AI SDK (streamText,
-  generateText, generateObject, createOpenAI, @ai-sdk/*) with TanStack AI, when
-  an upgrade breaks, or when someone hits a renamed option, a deprecated -ui
-  package, or an old adapter shape. Triggers on "migrate", "port from Vercel AI
-  SDK", "ai-sdk", "streamText", "upgrade TanStack AI", "deprecated",
+  Move an app to TanStack AI from the Vercel AI SDK or raw provider SDKs, or
+  move it off a deprecated TanStack AI API. Use when someone asks
+  whether to switch AI libraries, when code mixes streamText, generateText,
+  generateObject, createOpenAI, or @ai-sdk/* with TanStack AI, when an upgrade
+  breaks, or when someone hits a renamed option, a deprecated -ui package, or an
+  old adapter shape. Triggers on "migrate", "switch from Vercel AI SDK",
+  "ai-sdk", "streamText", "upgrade TanStack AI", "deprecated",
   "breaking change", "codemod".
 ---
 
@@ -26,7 +27,7 @@ The shape of the change:
 - `streamText` and `generateText` become one `chat()` call with a streaming
   option.
 - `createOpenAI(...)` becomes a tree-shakeable adapter, such as `openaiText()`
-  from `@tanstack/ai-openai/adapters`.
+  from `@tanstack/ai-openai`.
 - `onFinish` and friends become middleware hooks.
 - Manual SSE wiring becomes the built-in response helpers.
 - `generateObject` becomes structured outputs on `chat()`.

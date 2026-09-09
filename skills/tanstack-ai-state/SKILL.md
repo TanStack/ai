@@ -1,13 +1,14 @@
 ---
 name: tanstack-ai-state
 description: >
-  Keep TanStack AI conversations alive: server-side chat persistence, resumable
-  streams, human approvals that survive a restart, browser persistence, and
-  context-window compaction. Use when someone asks how to save chat history,
-  survive a reload or a dropped connection, resume a run, store messages in
-  Drizzle, Prisma, D1, or Postgres, or stop a long conversation from
-  overflowing the context window. Triggers on "chat history", "persistence",
-  "resume", "reconnect", "interrupts", "approvals", "compaction", "database".
+  Keep AI conversations alive with TanStack AI: save chat history server-side,
+  resume a stream after a dropped connection, persist human approvals across a
+  restart, survive a browser reload, and compact long conversations to fit the
+  context window. Use when someone asks how to store chat messages in a
+  database (Drizzle, Prisma, D1, Postgres), resume or reconnect a run, add
+  approvals or interrupts, or handle a conversation that outgrows the model's
+  context. Triggers on "chat history", "save messages", "persistence", "resume",
+  "reconnect", "interrupts", "approvals", "compaction", "context window".
 ---
 
 # TanStack AI state and delivery

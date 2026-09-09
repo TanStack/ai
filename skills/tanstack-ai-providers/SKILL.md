@@ -1,15 +1,17 @@
 ---
 name: tanstack-ai-providers
 description: >
-  Choose the TanStack AI provider adapter and model for a task: OpenAI,
-  Anthropic, Gemini, Grok, Groq, Mistral, Cohere, Ollama, Bedrock, Vertex,
-  Cloudflare, fal, ElevenLabs, BytePlus, Perplexity, Reactor, and the gateways
-  (OpenRouter, Vercel AI Gateway, LLM Gateway, Lovable). Use when someone asks
-  which provider to use, which package an API key belongs to, which model id to
-  pass, or which provider supports images, video, speech, transcription,
-  realtime voice, embeddings, or reranking. Triggers on "which provider",
-  "openaiText", "model id", "API key", "gateway", "image generation",
-  "text to speech", "embeddings", "rerank".
+  Choose an LLM provider and model for a TypeScript app, and the TanStack AI
+  adapter that wraps it: OpenAI, Anthropic, Gemini, Grok, Groq, Mistral, Cohere,
+  Ollama, Bedrock, Vertex, Cloudflare, fal, ElevenLabs, BytePlus, Perplexity,
+  Reactor, and the gateways (OpenRouter, Vercel AI Gateway, LLM Gateway,
+  Lovable). Use when someone asks which provider or model to use, how to call
+  OpenAI or Claude or Gemini from TypeScript, which package an API key belongs
+  to, which model id to pass, or which provider does images, video, speech,
+  transcription, realtime voice, embeddings, or reranking. Triggers on "which
+  provider", "which model", "OpenAI vs Anthropic", "gateway", "model id", "API
+  key", "image generation", "text to speech", "embeddings", "rerank",
+  "openaiText".
 ---
 
 # TanStack AI provider adapters
@@ -18,7 +20,7 @@ Adapters are tree-shakeable. Each provider package exports one adapter per
 capability, and you import only the ones you use.
 
 ```ts
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 ```
 
 Adapter names follow the provider: `anthropicText()`, `geminiImage()`,

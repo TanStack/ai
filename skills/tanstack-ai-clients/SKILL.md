@@ -1,13 +1,13 @@
 ---
 name: tanstack-ai-clients
 description: >
-  Build the client half of a TanStack AI app: the useChat hook in React, Vue,
-  Solid, Svelte, Preact, Angular, Octane, and Remix, the vanilla JS client,
-  prebuilt chat UI, and the devtools panels. Use when someone wires a chat UI to
-  a server endpoint, asks which framework package to install, streams into a
-  component, or wants to inspect messages, tool calls, and streams while
-  developing. Triggers on "useChat", "chat UI", "React chat", "Vue chat",
-  "Solid chat", "Svelte chat", "streaming component", "devtools".
+  Build a chat or AI UI in React, Next.js, TanStack Start, Vue, Solid, Svelte,
+  Preact, Angular, Octane, Remix, or vanilla JS with TanStack AI: the useChat
+  hook, streaming into components, prebuilt chat UI, and devtools. Use when
+  someone wants to add a chat interface, stream an LLM response into the page,
+  show tool calls or generated media in the UI, or asks which framework package
+  to install. Triggers on "chat UI", "chatbot component", "useChat", "stream to
+  React", "Vue chat", "Solid chat", "Svelte chat", "AI devtools".
 ---
 
 # TanStack AI client packages

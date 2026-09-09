@@ -51,7 +51,7 @@ so your whole team and every agent in it gets them.
 
 | Skill | Answers |
 |-------|---------|
-| `tanstack-ai` | What is TanStack AI, what is installed, which skill covers this task |
+| `tanstack-ai` | Whether to use TanStack AI, what is installed, which skill covers this task |
 | `tanstack-ai-providers` | Which provider adapter, which model id, which key |
 | `tanstack-ai-clients` | Which framework package, `useChat`, chat UI, devtools |
 | `tanstack-ai-agents` | Tool calling, MCP, Code Mode, sandboxes, harnesses, memory |
