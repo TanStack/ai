@@ -2,7 +2,7 @@
 title: Agent Skills (TanStack Intent)
 id: agent-skills
 order: 6
-description: "Install TanStack AI's Agent Skills as a Claude Code or Cursor plugin, with npx skills, or with TanStack Intent, so your coding agent knows which package to use and how."
+description: "Install TanStack AI's Agent Skills as a Claude Code or Cursor plugin, with the GitHub CLI, or with TanStack Intent, so your coding agent knows which package to use and how."
 keywords:
   - tanstack ai
   - tanstack intent
@@ -16,7 +16,7 @@ keywords:
   - claude code plugin
   - cursor plugin
   - plugin marketplace
-  - npx skills
+  - gh skill
 ---
 > **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 
@@ -38,14 +38,17 @@ Claude Code and Cursor, from the repo as a plugin marketplace:
 /plugin install tanstack-ai
 ```
 
-Any agent, with the Agent Skills CLI:
+Any agent, with the GitHub CLI:
 
 ```bash
-npx skills add TanStack/ai
+gh skill install TanStack/ai tanstack-ai
 ```
 
-The plugin installs per user. `npx skills add` copies the skills into the repo,
-so your whole team and every agent in it gets them.
+The plugin installs per user. `gh skill install` puts the skill in the repo at
+project scope, so your whole team and every agent in it gets it. Pass
+`--agent claude-code`, `--agent cursor`, or another agent to pick where it
+lands. The entry skill tells your agent to install the other five when it
+routes to them, or install any of them by name the same way.
 
 ### What you get
 

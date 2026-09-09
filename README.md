@@ -252,7 +252,7 @@ on.
 - [Agent Skills](https://tanstack.com/ai/latest/docs/getting-started/agent-skills) -
   install TanStack AI skills into Claude Code, Cursor, GitHub Copilot, Codex,
   and other coding agents. Add this repo as a plugin marketplace
-  (`/plugin marketplace add TanStack/ai`), run `npx skills add TanStack/ai`, or
+  (`/plugin marketplace add TanStack/ai`), run `gh skill install TanStack/ai tanstack-ai`, or
   map tasks to your installed packages with TanStack Intent.
 
 ## Get Involved

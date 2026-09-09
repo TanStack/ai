@@ -72,6 +72,12 @@ lockfile shows which package manager to use.
 | Persist chat state, resume streams, compact context                     | `tanstack-ai-state`     |
 | Port an app from another SDK, or upgrade a deprecated API               | `tanstack-ai-migration` |
 
+If a routed skill is not installed, fetch it before you continue:
+
+```bash
+gh skill install TanStack/ai tanstack-ai-providers
+```
+
 Server chat, streaming, tools, structured outputs, and media generation all live
 in `@tanstack/ai` itself. Its `ai-core` skill covers them, and routes to its own
 sub-skills.
@@ -116,9 +122,14 @@ upgrade. Anything newer belongs to a version the app does not have yet.
 ## Give the skills to the whole team
 
 A plugin install is per user. To put these skills in the repo, and to reach
-agents with no plugin marketplace:
+agents with no plugin marketplace, install them at project scope with the
+GitHub CLI, then let TanStack Intent map tasks to the packages the app has:
 
 ```bash
-npx skills add TanStack/ai                  # copies these skills into the repo
-npx @tanstack/intent@latest install         # maps tasks to installed packages' skills
+gh skill install TanStack/ai tanstack-ai        # this skill, into the repo
+npx @tanstack/intent@latest install             # task mappings for installed packages' skills
 ```
+
+`intent install` writes task mappings into `AGENTS.md`, `CLAUDE.md`, and
+`.cursorrules` that point at `node_modules/**/SKILL.md`. It packages skills. It
+is not a prerequisite here: those files are readable without it.
