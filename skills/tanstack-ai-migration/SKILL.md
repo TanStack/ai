@@ -32,8 +32,8 @@ The shape of the change:
 - Manual SSE wiring becomes the built-in response helpers.
 - `generateObject` becomes structured outputs on `chat()`.
 
-Read the guide, then read `node_modules/@tanstack/ai/skills/ai-core/SKILL.md`
-for the target API. Do not port from memory: a half-remembered mapping produces
+Read the guide, then load the target API's own skill with
+`npx @tanstack/intent@latest load @tanstack/ai#ai-core`. Do not port from memory: a half-remembered mapping produces
 code that type-checks in neither SDK.
 
 ## Upgrading TanStack AI itself

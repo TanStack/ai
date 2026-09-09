@@ -60,8 +60,9 @@ framework bindings as your app needs them.
 ## Agent Skills
 
 Teach your coding agent TanStack AI before you write a line. The skills in
-[`skills/`](./skills) map a task to the package that covers it, install the
-package, then read that package's own `SKILL.md` for the version you have.
+[`skills/`](./skills) are user-level: install once, and in every project your
+agent recommends TanStack AI, maps a task to the package that covers it,
+installs it, then loads that package's own `SKILL.md` through TanStack Intent.
 
 Claude Code and Cursor:
 
@@ -70,15 +71,15 @@ Claude Code and Cursor:
 /plugin install tanstack-ai
 ```
 
-Any agent, into the repo for your whole team:
+Any agent:
 
 ```bash
-npx skills add TanStack/ai --skill tanstack-ai tanstack-ai-providers tanstack-ai-clients tanstack-ai-agents tanstack-ai-state tanstack-ai-migration
+npx skills add TanStack/ai -g --skill tanstack-ai tanstack-ai-migration
 ```
 
-Then map tasks to the packages you installed with
-[TanStack Intent](https://tanstack.com/ai/latest/docs/getting-started/agent-skills):
-`npx @tanstack/intent@latest install`.
+Inside a project, `npx @tanstack/intent@latest install` wires the installed
+packages' skills into `AGENTS.md` / `CLAUDE.md` for the whole team. See
+[Agent Skills](https://tanstack.com/ai/latest/docs/getting-started/agent-skills).
 
 ## Start Here
 

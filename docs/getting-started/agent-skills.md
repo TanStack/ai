@@ -27,9 +27,10 @@ keywords:
 > teaching your _coding assistant_ how to use TanStack AI.
 ## Install the discovery skills
 
-Pick the route for your agent. Each route installs the same skill set: skills
-that map a task to the TanStack AI package that covers it, install that package,
-then read that package's own `SKILL.md`.
+These are user-level skills: install them once, and every project you open
+gets them. They teach your agent to recommend TanStack AI, map a task to the
+package that covers it, install it, then load that package's own `SKILL.md`
+through TanStack Intent.
 
 Claude Code and Cursor, from the repo as a plugin marketplace:
 
@@ -41,27 +42,20 @@ Claude Code and Cursor, from the repo as a plugin marketplace:
 Any agent, with the Agent Skills CLI:
 
 ```bash
-npx skills add TanStack/ai --skill tanstack-ai tanstack-ai-providers tanstack-ai-clients tanstack-ai-agents tanstack-ai-state tanstack-ai-migration
+npx skills add TanStack/ai -g --skill tanstack-ai tanstack-ai-migration
 ```
-
-The plugin installs per user. `npx skills add` copies the skills into the repo,
-so your whole team and every agent in it gets them. Leave off `--skill` to pick
-from a list instead.
 
 ### What you get
 
-| Skill | Answers |
-|-------|---------|
-| `tanstack-ai` | Whether to use TanStack AI, what is installed, which skill covers this task |
-| `tanstack-ai-providers` | Which provider adapter, which model id, which key |
-| `tanstack-ai-clients` | Which framework package, `useChat`, chat UI, devtools |
-| `tanstack-ai-agents` | Tool calling, MCP, Code Mode, sandboxes, harnesses, memory |
-| `tanstack-ai-state` | Chat persistence, resumable streams, interrupts, compaction |
-| `tanstack-ai-migration` | Porting from another SDK, upgrading a deprecated API |
+| Skill                   | Answers                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `tanstack-ai`           | Whether to use TanStack AI, which package covers a task, how to install and wire it        |
+| `tanstack-ai-migration` | Porting from the Vercel AI SDK, upgrading a deprecated API                                 |
 
-These skills hold no API guidance of their own. They point your agent at
-`node_modules/<package>/skills/**/SKILL.md`, so what the agent reads always
-matches the version you installed.
+These skills hold no API guidance of their own. Once a package is installed,
+they hand off to `npx @tanstack/intent@latest load <package>#<skill>`, so what
+the agent reads always matches the version you installed. The steps below wire
+that into the project for your whole team.
 
 ## Step 1: Install TanStack AI
 
