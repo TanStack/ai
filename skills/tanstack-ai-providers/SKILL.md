@@ -29,7 +29,8 @@ because not every provider exports every capability.
 
 ## 1. Pick the package
 
-[`packages.md`](./packages.md) lists every adapter package and what it covers.
+The Adapters docs have one page per provider, with the capabilities each one
+supports: https://tanstack.com/ai/latest/docs/adapters/openai.
 
 Use a gateway when the app wants many providers behind one key:
 `@tanstack/ai-openrouter`, `@tanstack/ai-vercel-gateway`,
@@ -78,5 +79,5 @@ variable name. Never invent one, and never put a key in client code.
 Go back to `@tanstack/ai`'s own skill for the call itself:
 
 ```bash
-cat node_modules/@tanstack/ai/skills/ai-core/SKILL.md
+npx @tanstack/intent@latest load @tanstack/ai#ai-core
 ```

@@ -23,10 +23,11 @@ Two different problems get confused here. Sort them before picking a package.
 
 Reload survival in the browser alone needs no package: client persistence ships
 in `@tanstack/ai` and its framework packages. Read
-`node_modules/@tanstack/ai/skills/ai-core/client-persistence/SKILL.md` first,
+`@tanstack/ai#ai-core/client-persistence` first (`npx @tanstack/intent@latest load`),
 and skip the server package when nothing else needs it.
 
-[`packages.md`](./packages.md) lists the packages in this group.
+The Persistence docs cover all three:
+https://tanstack.com/ai/latest/docs/persistence/overview.
 
 ## Server persistence
 
@@ -38,7 +39,8 @@ Its skill routes to per-stack recipes that write a `chat-persistence.ts` against
 the database the app already has:
 
 ```bash
-ls node_modules/@tanstack/ai-persistence/skills/ai-persistence/
+npx @tanstack/intent@latest list
+npx @tanstack/intent@latest load @tanstack/ai-persistence#ai-persistence
 ```
 
 Read the recipe for the app's stack (Drizzle, Prisma, Cloudflare, or the custom

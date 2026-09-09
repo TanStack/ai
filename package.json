@@ -26,7 +26,7 @@
     "test:knip": "knip",
     "test:docs": "tsx scripts/verify-links.ts",
     "test:dts": "node scripts/scan-dangling-dts.mjs",
-    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts scripts/generate-plugin-catalog.test.ts",
+    "test:maintainer": "vitest run --root scripts/maintainer && vitest run scripts/model-sync scripts/publish-staged-docs.test.ts",
     "test:ai-review": "vitest run --root agent-scripts/ai-review",
     "ai-review": "tsx agent-scripts/ai-review/run.ts",
     "maintainer:sweep": "tsx scripts/maintainer/sweep.ts",
@@ -52,8 +52,7 @@
     "copy:readme": "node scripts/copy-readme.js",
     "changeset": "changeset",
     "changeset:publish": "changeset publish",
-    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format",
-    "generate:plugin-catalog": "node scripts/generate-plugin-catalog.ts"
+    "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format"
   },
   "nx": {
     "includedScripts": [

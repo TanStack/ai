@@ -45,7 +45,8 @@ AI is not the Vercel AI SDK: there is no `streamText`, no `createOpenAI`, no
 
 Resolve every API against the installed version, in this order:
 
-1. The package's own skill: `node_modules/<package>/skills/<skill>/SKILL.md`.
+1. The package's own skill: `npx @tanstack/intent@latest load <package>#<skill>`,
+   or `node_modules/<package>/skills/<skill>/SKILL.md`.
 2. The package source: published packages ship `src`, so read
    `node_modules/<package>/src/`.
 3. https://tanstack.com/ai/latest/docs.
@@ -56,7 +57,8 @@ memory.
 ## 1. Read the project
 
 ```bash
-ls node_modules/@tanstack 2>/dev/null
+npx @tanstack/intent@latest list      # installed packages that ship skills, and their skills
+ls node_modules/@tanstack              # everything else, such as provider adapters
 ```
 
 That is what the app has. `package.json` shows the intended stack, and the
@@ -82,8 +84,7 @@ Server chat, streaming, tools, structured outputs, and media generation all live
 in `@tanstack/ai` itself. Its `ai-core` skill covers them, and routes to its own
 sub-skills.
 
-[`packages.md`](./packages.md) lists every published package and the skills it
-ships.
+The docs list every package: https://tanstack.com/ai/latest/docs.
 
 ## 3. Install what the task needs
 
@@ -98,12 +99,15 @@ pnpm add @tanstack/ai @tanstack/ai-openai   # npm install / yarn add / bun add
 ## 4. Hand off to the package's own skill
 
 ```bash
-cat node_modules/@tanstack/ai/skills/ai-core/SKILL.md
+npx @tanstack/intent@latest load @tanstack/ai#ai-core
 ```
 
-Follow it. Entry skills route to sub-skills, such as `ai-core/tool-calling` or
-`ai-persistence/build-drizzle-adapter`. Follow those too, rather than answering
-from this map.
+Follow it. Entry skills route to sub-skills, such as
+`@tanstack/ai#ai-core/tool-calling` or
+`@tanstack/ai-persistence#ai-persistence/build-drizzle-adapter`. Load those the
+same way, rather than answering from this map. The file itself is at
+`node_modules/<package>/skills/<skill>/SKILL.md` if you prefer to read it
+directly.
 
 ## 5. Check the install is current
 

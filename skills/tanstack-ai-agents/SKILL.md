@@ -23,7 +23,7 @@ then attach a `.server()` or `.client()` implementation. Read the tool-calling
 sub-skill before writing one:
 
 ```bash
-cat node_modules/@tanstack/ai/skills/ai-core/tool-calling/SKILL.md
+npx @tanstack/intent@latest load @tanstack/ai#ai-core/tool-calling
 ```
 
 ## 1. Route to the capability
@@ -36,8 +36,9 @@ cat node_modules/@tanstack/ai/skills/ai-core/tool-calling/SKILL.md
 | Remember facts across conversations                    | `@tanstack/ai-memory`                           | `tanstack-ai-memory` |
 | Load SKILL.md files at runtime, inside the app's agent | `@tanstack/ai-skills`                           | `ai-skills`          |
 
-[`packages.md`](./packages.md) lists every package in this group, including the
-drivers and providers below.
+The Code Mode and Sandboxes docs list every driver and provider:
+https://tanstack.com/ai/latest/docs/code-mode/code-mode and
+https://tanstack.com/ai/latest/docs/sandbox/overview.
 
 ## 2. Code Mode needs a driver
 
@@ -62,7 +63,7 @@ share. Install it directly only when writing an ACP integration.
 Every package in the table ships a skill. Read it before writing code:
 
 ```bash
-cat node_modules/@tanstack/ai-code-mode/skills/ai-code-mode/SKILL.md
+npx @tanstack/intent@latest load @tanstack/ai-code-mode#ai-code-mode
 ```
 
 ## Two things named "skills"

@@ -21,7 +21,8 @@ reactivity.
 
 ## 1. Pick the package
 
-[`packages.md`](./packages.md) lists every client package.
+The UI docs have one page per framework:
+https://tanstack.com/ai/latest/docs/ui/react.
 
 | Stack                            | Package                                                |
 | -------------------------------- | ------------------------------------------------------ |
@@ -41,7 +42,7 @@ do not install them.
 `useChat` and the message types live in `@tanstack/ai`'s skill:
 
 ```bash
-cat node_modules/@tanstack/ai/skills/ai-core/SKILL.md
+npx @tanstack/intent@latest load @tanstack/ai#ai-core/chat-experience
 ```
 
 It covers the chat experience end to end, including the server endpoint the
