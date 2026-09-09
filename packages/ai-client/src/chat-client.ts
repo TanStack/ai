@@ -331,6 +331,20 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'MESSAGES_SNAPSHOT',
 ])
 
+function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
+  if (chunk.type === 'REASONING_ENCRYPTED_VALUE') {
+    return (
+      chunk.subtype === 'message' &&
+      typeof chunk.encryptedValue === 'string' &&
+      chunk.encryptedValue.length > 0
+    )
+  }
+  if (chunk.type === 'STEP_FINISHED') {
+    return 'signature' in chunk && Boolean(chunk.signature)
+  }
+  return REJOIN_REBUILD_TRIGGERS.has(chunk.type)
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -1770,7 +1784,7 @@ export class ChatClient<
             attached = true
             clearTimeout(connectTimer)
           }
-          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+          if (!rebuilt && rebuildsAssistantMessage(chunk)) {
             rebuilt = true
             this.dropTrailingInFlightAssistant()
           }
