@@ -75,3 +75,43 @@ test.describe('AG-UI activity', () => {
     )
   })
 })
+
+test.describe('AG-UI activity reconstruct', () => {
+  test('reconstructChat interleaves stored activity from ActivityStore', async ({
+    request,
+  }) => {
+    const threadId = `activity-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const run = await request.post('/api/activity-test?mode=persist', {
+      data: { threadId, runId },
+    })
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/activity-test?threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        parts: Array<Record<string, unknown>>
+      }>
+    }
+    expect(body.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+    expect(body.messages[1]?.parts).toEqual([
+      {
+        type: 'activity',
+        activityType: 'SEARCH',
+        content: {
+          query: 'e2e-activity-needle',
+          status: 'done',
+          hits: 3,
+        },
+      },
+    ])
+  })
+})

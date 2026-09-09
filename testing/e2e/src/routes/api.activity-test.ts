@@ -4,6 +4,11 @@ import {
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import {
+  memoryPersistence,
+  reconstructChat,
+  withPersistence,
+} from '@tanstack/ai-persistence'
 import type {
   AnyTextAdapter,
   AdapterYieldChunk,
@@ -21,6 +26,9 @@ import type {
  * contains an ActivityMessage, so the client must hydrate `role: 'activity'`
  * instead of rewriting it to an empty assistant.
  *
+ * Persist mode (`?mode=persist`) drains `chat()` through `withPersistence`
+ * and GET `/api/activity-test?threadId=` returns `reconstructChat`.
+ *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
 
@@ -29,6 +37,8 @@ const ACTIVITY_NEEDLE = 'e2e-activity-needle'
 const ACTIVITY_FOUND = 'ACTIVITY_FOUND cats'
 const ACTIVITY_CLEAN = 'ACTIVITY_CLEAN'
 const ACTIVITY_LEAK = 'ACTIVITY_LEAK'
+
+const activityPersistence = memoryPersistence()
 
 const adapter: AnyTextAdapter = {
   kind: 'text',
@@ -168,10 +178,39 @@ function leakRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
   return textRun(threadId, runId, 'asst-leak', ACTIVITY_LEAK)
 }
 
+function stringField(body: unknown, key: string): string | undefined {
+  if (typeof body !== 'object' || body === null || !(key in body)) {
+    return undefined
+  }
+  const value: unknown = (body as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+async function persistActivity(threadId: string, runId: string) {
+  const stream = chat({
+    adapter,
+    messages: [{ role: 'user', content: 'search' }],
+    stream: true,
+    threadId,
+    runId,
+    middleware: [withPersistence(activityPersistence)],
+  })
+  for await (const _ of stream) void _
+  return { threadId, runId }
+}
+
 export const Route = createFileRoute('/api/activity-test')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const mode = new URL(request.url).searchParams.get('mode')
+        if (mode === 'persist') {
+          const body: unknown = await request.json()
+          const threadId = stringField(body, 'threadId') ?? crypto.randomUUID()
+          const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+          return Response.json(await persistActivity(threadId, runId))
+        }
+
         let params
         try {
           params = await chatParamsFromRequestBody(await request.json())
@@ -182,9 +221,7 @@ export const Route = createFileRoute('/api/activity-test')({
           )
         }
 
-        const snapshot =
-          new URL(request.url).searchParams.get('mode') === 'snapshot'
-        if (snapshot) {
+        if (mode === 'snapshot') {
           return toServerSentEventsResponse(
             snapshotRun(params.threadId, params.runId),
           )
@@ -206,6 +243,10 @@ export const Route = createFileRoute('/api/activity-test')({
         })
         return toServerSentEventsResponse(stream)
       },
+      GET: ({ request }) =>
+        reconstructChat(activityPersistence, request, {
+          authorize: (threadId) => threadId.length > 0,
+        }),
     },
   },
 })

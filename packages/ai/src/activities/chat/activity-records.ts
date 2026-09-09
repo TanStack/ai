@@ -1,5 +1,6 @@
 import jsonPatch from 'fast-json-patch'
 import { generateMessageId } from './messages'
+import { mergeMetadata } from '../../utilities/merge-metadata'
 import type {
   ActivityPart,
   ActivityRecord,
@@ -11,6 +12,10 @@ function isActivityPart(
   part: UIMessage['parts'][number],
 ): part is ActivityPart {
   return part.type === 'activity'
+}
+
+function isActivityContent(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
 export function activityRecordToUIMessage(record: ActivityRecord): UIMessage {
@@ -83,8 +88,12 @@ export function applyActivitySnapshotToUIMessages(
   const existingIndex = messages.findIndex((m) => m.id === messageId)
   const existing = existingIndex >= 0 ? messages[existingIndex] : undefined
 
-  if (existing && !replace) return messages
+  if (existing && (!replace || existing.role !== 'activity')) return messages
 
+  const metadata = mergeMetadata(
+    existing?.role === 'activity' ? existing.metadata : undefined,
+    chunk.metadata,
+  )
   const next: UIMessage = {
     id: messageId,
     role: 'activity',
@@ -95,9 +104,7 @@ export function applyActivitySnapshotToUIMessages(
         content: structuredClone(content ?? {}),
       },
     ],
-    ...(existing?.role === 'activity' && existing.metadata != null
-      ? { metadata: existing.metadata }
-      : {}),
+    ...(metadata != null ? { metadata } : {}),
     ...(existing?.role === 'activity' && existing.createdAt != null
       ? { createdAt: existing.createdAt }
       : {}),
@@ -127,13 +134,23 @@ export function applyActivityDeltaToUIMessages(
   }
 
   const activityPart = existing.parts.find(isActivityPart)
+  if (activityPart && activityPart.activityType !== activityType) {
+    console.warn(
+      `ACTIVITY_DELTA: activityType '${activityType}' does not match '${activityPart.activityType}' for '${messageId}'`,
+    )
+    return messages
+  }
   const baseContent = structuredClone(activityPart?.content ?? {})
 
   try {
     const result = jsonPatch.applyPatch(baseContent, patch ?? [], true, false)
-    const updatedContent = structuredClone(
-      result.newDocument as Record<string, any>,
-    )
+    if (!isActivityContent(result.newDocument)) {
+      console.warn(
+        `ACTIVITY_DELTA: patched content for '${messageId}' is not an object`,
+      )
+      return messages
+    }
+    const updatedContent = structuredClone(result.newDocument)
     const nextPart: ActivityPart = {
       type: 'activity',
       activityType,
@@ -144,8 +161,11 @@ export function applyActivityDeltaToUIMessages(
           part.type === 'activity' ? nextPart : part,
         )
       : [nextPart]
+    const metadata = mergeMetadata(existing.metadata, chunk.metadata)
     return messages.map((msg, index) =>
-      index === existingIndex ? { ...msg, parts } : msg,
+      index === existingIndex
+        ? { ...msg, parts, ...(metadata != null ? { metadata } : {}) }
+        : msg,
     )
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
