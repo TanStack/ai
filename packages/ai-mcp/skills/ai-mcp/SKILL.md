@@ -127,7 +127,7 @@ Two levels:
   `@modelcontextprotocol/sdk/client/auth.js`; the SDK transport attaches
   tokens, refreshes them, and retries on 401.
 
-```typescript
+```typescript group=skill-1
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 
@@ -157,7 +157,7 @@ config form is sufficient.
 `client.tools()` lists every tool the server exposes. Args are typed `unknown`
 at compile time but the tool's JSON Schema is forwarded to the LLM.
 
-```typescript
+```typescript group=skill-1
 const tools = await client.tools()
 // tools: ServerTool[]  (args unknown)
 
@@ -518,7 +518,7 @@ For a pool, the `serverId` on the `UIResourcePart` is the config key (the
 tool prefix); for a single client it is the client's `prefix` (or the sole
 default when `serverId` is absent and there is exactly one client).
 
-```typescript
+```typescript group=skill-2
 import { createMCPClients } from '@tanstack/ai-mcp'
 import {
   createMcpAppCallHandler,
@@ -556,7 +556,7 @@ const handlerWithStore = createMcpAppCallHandler({
 
 The handler invokes the server (`body: { threadId, serverId?, toolName, args?, messageId? }`):
 
-```typescript
+```typescript group=skill-2
 const result = await handler(body)
 // { ok: true; result: unknown } | { ok: false; error: string }
 ```
@@ -656,7 +656,7 @@ per server plus a combined `interface MCPServers` for pool typing.
 
 **3. Use the generated types:**
 
-```typescript
+```typescript group=skill-2
 // Single server — narrows tools() return to descriptor-keyed tool names.
 import type { GithubServer } from './src/mcp-types.generated'
 import { createMCPClient } from '@tanstack/ai-mcp'

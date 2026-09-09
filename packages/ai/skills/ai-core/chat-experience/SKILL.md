@@ -58,7 +58,7 @@ export const Route = createFileRoute('/api/chat')({
 
 ### Client: React Component
 
-```typescript
+```tsx
 // src/routes/index.tsx
 import { useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -162,7 +162,7 @@ See `docs/resumable-streams/overview.md`.
 
 **Client:**
 
-```typescript
+```typescript group=skill
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage, isLoading, error, stop, status } = useChat({
@@ -186,7 +186,7 @@ The `status` field tracks the chat lifecycle: `'ready'` | `'submitted'` | `'stre
 
 Models with extended thinking (Claude, Gemini) emit `ThinkingPart` in the message parts array.
 
-```typescript
+```tsx
 import type { UIMessage } from '@tanstack/ai-react'
 
 function MessageRenderer({ message }: { message: UIMessage }) {
@@ -226,7 +226,7 @@ function MessageRenderer({ message }: { message: UIMessage }) {
 
 Server-side, enable thinking via `modelOptions` on the adapter:
 
-```typescript
+```typescript group=skill
 import { geminiText } from '@tanstack/ai-gemini'
 
 const stream = chat({
@@ -280,7 +280,7 @@ function sendImageUrl(text: string, imageUrl: string) {
 
 Render image parts in received messages:
 
-```typescript
+```tsx
 if (part.type === 'image') {
   const src =
     part.source.type === 'url'
@@ -470,7 +470,7 @@ generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
 from `messages` — render pending sends distinctly and cancel with
 `cancelQueued(id)`:
 
-```typescript
+```tsx
 {queue.map((q) => (
   <div key={q.id}>
     {typeof q.content === 'string' ? q.content : '[attachment]'}

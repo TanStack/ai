@@ -34,7 +34,7 @@ a complete `node:sqlite` implementation lives in
 
 ## Choose a shape
 
-```ts
+```ts group=skill
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { ChatWithInterruptsPersistence } from '@tanstack/ai-persistence'
 
@@ -119,7 +119,7 @@ missing and not declared in `skipMethods` fails the suite, so an omission is
 always a choice you made on purpose rather than a check that quietly did not
 run. Declare yours and the suite reports them as skipped with a reason:
 
-```ts
+```ts group=skill
 // The shipped sqlite example implements findActiveRun and listReclaimable and
 // declares only the one it omits.
 runPersistenceConformance('sqlite', () => persistence, {

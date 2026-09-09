@@ -37,7 +37,7 @@ restore a pending interrupt, and rejoin an in-flight run.
 Import adapters from the **framework package** (not `@tanstack/ai-client`
 unless vanilla JS):
 
-```tsx
+```tsx group=skill-1
 import {
   useChat,
   fetchServerSentEvents,
@@ -60,7 +60,7 @@ required for normal use.
 
 ## Mode A — cache everything (client-authoritative)
 
-```tsx
+```tsx group=skill-1
 function Chat() {
   const { messages, sendMessage } = useChat({
     threadId: 'support-chat', // stable — required
@@ -134,7 +134,7 @@ The hook return is exactly `generate` / `result` / `isLoading` / `error` /
 
 ### Turning it on (`persistence: true`)
 
-```tsx
+```tsx group=skill-1
 const image = useGenerateImage({
   threadId, // REQUIRED — the scope the last generation is hydrated under
   connection: fetchServerSentEvents('/api/generate/image'),
@@ -146,7 +146,7 @@ const image = useGenerateImage({
 
 The server half — the same route handles the run and the hydration `GET`:
 
-```ts
+```ts group=skill-2
 import {
   generateImage,
   generationParamsFromRequest,
@@ -222,7 +222,7 @@ export function GET(request: Request) {
 (`stores.artifacts` + `stores.blobs`) AND `withGenerationPersistence` is given an
 `artifactUrl` mapper:
 
-```ts
+```ts group=skill-2
 withGenerationPersistence(persistence, {
   artifactUrl: (ref) => `/api/generate/image/artifact?id=${ref.artifactId}`,
 })

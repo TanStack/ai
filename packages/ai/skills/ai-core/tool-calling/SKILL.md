@@ -66,7 +66,7 @@ export const getProducts = getProductsDef.server(async ({ query, limit }) => {
 })
 ```
 
-```typescript
+```typescript group=skill-1
 // api/chat/route.ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 }
 ```
 
-```typescript
+```tsx
 // app/chat.tsx
 import {
   useChat,
@@ -191,7 +191,7 @@ so the engine creates one terminal event and persistence records the batch.
 Define with `toolDefinition()`, implement with `.server()`, pass to `chat({ tools })`.
 The server executes it automatically. The client never runs code for this tool.
 
-```typescript
+```typescript group=skill-1
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -222,7 +222,7 @@ const stream = chat({
 Pass the bare definition (no `.server()`) to `chat({ tools })` so the LLM knows
 about it. Pass the `.client()` implementation to `useChat` via `clientTools()`.
 
-```typescript
+```typescript group=skill-2
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -239,7 +239,7 @@ export const showNotificationDef = toolDefinition({
 
 Server -- pass definition only (no execute function):
 
-```typescript
+```typescript group=skill-2
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages,
@@ -249,7 +249,7 @@ const stream = chat({
 
 Client -- pass `.client()` implementation:
 
-```typescript
+```tsx
 import {
   useChat,
   fetchServerSentEvents,
@@ -323,7 +323,7 @@ export const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
 Server route must forward `resume` / `parentRunId` (via `chatParamsFromRequest`
 or equivalent). Client -- render bound interrupts:
 
-```typescript
+```tsx group=skill-3
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 function ChatPage() {
@@ -385,7 +385,7 @@ above for new code. See `docs/interrupts/`.
 Set `lazy: true` on rarely-needed tools. The LLM sees their names via a synthetic
 `__lazy__tool__discovery__` tool and discovers schemas on demand. Saves tokens.
 
-```typescript
+```typescript group=skill-4
 import {
   toolDefinition,
   chat,
@@ -440,7 +440,7 @@ When all lazy tools are discovered, the discovery tool is removed automatically.
 By default the discovery-tool catalog lists only bare names (`'none'`). Pass
 `lazyToolsConfig` to `chat()` to include more context:
 
-```typescript
+```typescript group=skill-4
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages,
@@ -723,7 +723,7 @@ The adapter automatically:
 
 Import from `@tanstack/ai-openai/tools`:
 
-```typescript
+```typescript group=skill-3
 import { shellTool } from '@tanstack/ai-openai/tools'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -763,21 +763,21 @@ Server tools need `chat({ tools })`. Client tools need their definition in
 
 Wrong -- tool only on server, client cannot execute:
 
-```typescript
+```typescript group=skill-3
 chat({ adapter, messages, tools: [myToolDef] })
 useChat({ connection: fetchServerSentEvents('/api/chat') }) // no tools
 ```
 
 Wrong -- tool only on client, LLM does not know about it:
 
-```typescript
+```typescript group=skill-3
 chat({ adapter, messages }); // no tools
 useChat({ ..., tools: clientTools(myToolDef.client(() => result)) });
 ```
 
 Correct:
 
-```typescript
+```typescript group=skill-3
 chat({ adapter, messages, tools: [myToolDef] });
 useChat({ ..., tools: clientTools(myToolDef.client((input) => ({ success: true }))) });
 ```

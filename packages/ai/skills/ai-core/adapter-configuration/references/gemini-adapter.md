@@ -17,7 +17,7 @@
 
 ## Import
 
-```typescript
+```typescript group=gemini-adapter
 import { geminiText } from '@tanstack/ai-gemini'
 import { geminiImage } from '@tanstack/ai-gemini'
 ```
@@ -37,7 +37,7 @@ Most Gemini text models accept `text`, `image`, `audio`, `video`, and `document`
 
 ## Provider-Specific modelOptions
 
-```typescript
+```typescript group=gemini-adapter
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,

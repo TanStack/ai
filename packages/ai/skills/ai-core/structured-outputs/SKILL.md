@@ -147,7 +147,7 @@ console.log(company.financials?.revenue)
 
 Pass `stream: true` alongside `outputSchema` to get an async iterable of standard streaming chunks plus a completed typed object. Use this when you're a single process end-to-end — Node script, CLI, test, or a server endpoint that responds with one JSON blob. For the in-browser progressive-UI case, jump to Pattern 4 instead.
 
-```typescript
+```typescript group=skill-1
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
@@ -287,7 +287,7 @@ function PersonExtractor() {
 
 Each successfully completed structured-output run adds a typed `StructuredOutputPart` to an assistant message in `messages`. Old responses stay renderable; new completed runs produce new parts; history is preserved without manual state plumbing. This is what makes the recipe-builder shape ("now make it vegan") work.
 
-```tsx
+```tsx group=skill-2
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import type { StructuredOutputPart } from '@tanstack/ai-client'
 import { z } from 'zod'
@@ -356,7 +356,7 @@ Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Nati
 
 A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
 
-```typescript
+```typescript group=skill-3
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { withSandbox } from '@tanstack/ai-sandbox'
@@ -389,7 +389,7 @@ export async function POST(request: Request) {
 }
 ```
 
-```tsx
+```tsx group=skill-4
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { z } from 'zod'
 
@@ -419,7 +419,7 @@ final?.name
 
 Earlier versions of the library routed structured-output JSON deltas through `TextPart`, so renderers had to filter them out:
 
-```tsx
+```tsx group=skill-2
 // OBSOLETE — this guard was needed only because JSON used to land in a TextPart
 const last = messages.at(-1)
 last?.parts.map((part) => {
@@ -430,7 +430,7 @@ last?.parts.map((part) => {
 
 That hack is **gone**. With `outputSchema` set, `TEXT_MESSAGE_CONTENT` deltas now route into a dedicated `StructuredOutputPart` (with `raw`, `partial`, `data`, `status`, optional `errorMessage`). Render the structured part directly; let real `TextPart`s through.
 
-```tsx
+```tsx group=skill-2
 // CORRECT — find the structured-output part directly; let actual TextParts render
 last?.parts.map((part, i) => {
   if (part.type === 'thinking')
@@ -456,7 +456,7 @@ Source: PR #577 — structured-output became a typed UIMessage part.
 
 To render history, walk `messages` directly (see Pattern 5). Use `partial` / `final` for a sticky summary of the **most recent** turn only.
 
-```tsx
+```tsx group=skill-4
 // WRONG — `final` only reflects the latest turn; earlier recipes vanish from this view
 {final && <RecipeCard recipe={final} />}
 
@@ -476,7 +476,7 @@ Source: PR #577 — partial/final derive from the most recent structured-output 
 
 When iterating `chat({ outputSchema, stream: true })` directly (Pattern 3), the `TEXT_MESSAGE_CONTENT` chunks contain _partial_ JSON fragments — they are not valid JSON until the stream completes. Read the completed typed object from the terminal `structured-output.complete` event. Standard Schema validation remains the consumer's responsibility.
 
-```typescript
+```typescript group=skill-1
 // WRONG -- partial JSON, throws SyntaxError mid-stream, no schema validation
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -500,7 +500,7 @@ Source: maintainer interview
 
 The adapter already handles provider differences (OpenAI uses `response_format`, Anthropic uses tool-based extraction, Gemini uses `responseSchema`). Never configure this yourself.
 
-```typescript
+```typescript group=skill-3
 // WRONG -- do not set provider-specific response format
 chat({
   adapter,

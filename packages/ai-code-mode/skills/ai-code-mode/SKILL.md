@@ -153,7 +153,7 @@ const driver = createCloudflareIsolateDriver({
 
 Snippets let the LLM save reusable code snippets. On future requests, relevant snippets are loaded and exposed as callable tools.
 
-```typescript
+```typescript group=skill
 import { chat, maxIterations } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSnippets } from '@tanstack/ai-code-mode-snippets'
@@ -210,7 +210,7 @@ The registry includes: `execute_typescript`, `search_snippets`, `get_snippet`, `
 
 Custom trust strategy example:
 
-```typescript
+```typescript group=skill
 const strategy = createCustomTrustStrategy({
   initialLevel: 'untrusted',
   provisionalThreshold: { executions: 5, successRate: 0.85 },
@@ -244,7 +244,7 @@ Events emitted:
 | `code_mode:external_result`   | After successful external\_\* call   | `function`, `result`, `duration` |
 | `code_mode:external_error`    | When external\_\* call fails         | `function`, `error`, `duration`  |
 
-```typescript
+```tsx
 import { useCallback, useRef, useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 

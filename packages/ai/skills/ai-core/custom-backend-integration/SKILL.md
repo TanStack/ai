@@ -22,7 +22,7 @@ This skill builds on ai-core and ai-core/chat-experience. Read them first.
 
 Connect `useChat` to a custom SSE backend with auth headers:
 
-```typescript
+```tsx
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 function Chat() {

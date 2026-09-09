@@ -16,7 +16,7 @@
 
 ## Import
 
-```typescript
+```typescript group=openrouter-adapter
 import { openRouterText } from '@tanstack/ai-openrouter'
 ```
 
@@ -37,7 +37,7 @@ the format `provider/model-name`:
 
 OpenRouter has unique routing and provider selection options:
 
-```typescript
+```typescript group=openrouter-adapter
 chat({
   adapter: openRouterText('anthropic/claude-sonnet-4'),
   messages,

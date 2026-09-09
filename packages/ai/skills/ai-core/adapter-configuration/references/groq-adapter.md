@@ -16,7 +16,7 @@ Groq currently only has a text adapter (no image, TTS, etc.).
 
 ## Import
 
-```typescript
+```typescript group=groq-adapter
 import { groqText } from '@tanstack/ai-groq'
 ```
 
@@ -37,7 +37,7 @@ Guard models: `meta-llama/llama-guard-4-12b`, `meta-llama/llama-prompt-guard-2-8
 
 ## Provider-Specific modelOptions
 
-```typescript
+```typescript group=groq-adapter
 chat({
   adapter: groqText('llama-3.3-70b-versatile'),
   messages,

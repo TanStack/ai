@@ -150,7 +150,7 @@ repo is cloned. Defaults to `<root>/.tanstack-skills/<repo-basename>`.
 
 `githubRepo` / `gitSource` default to `--depth 1 --single-branch`. Override:
 
-```typescript
+```typescript group=skill-1
 import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
 
 defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) }) // depth 1 (default)
@@ -164,7 +164,7 @@ defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 'full' }) }) //
 serial and parallel groups over a **persistent shell** whose cwd/env carry over
 between serial steps:
 
-```typescript
+```typescript group=skill-1
 defineWorkspace({
   source: githubRepo({ repo: 'owner/app' }),
   setup: ({ serial, parallel }) => {
@@ -320,7 +320,7 @@ it as `withSandbox(sandbox, { instances })`. Pair multi-replica with a
 distributed lock: either `withLocks` from `@tanstack/ai/locks` (ordered
 **before** `withSandbox`) or the `locks` option.
 
-```typescript
+```typescript group=skill-2
 import { chat } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
 import { withSandbox } from '@tanstack/ai-sandbox'
@@ -423,7 +423,7 @@ await watcher.stop()
 Enable the `sandbox` debug category to log watcher start/stop, event dispatch,
 and lifecycle transitions:
 
-```typescript
+```typescript group=skill-2
 chat({ threadId, adapter, messages, debug: { sandbox: true } })
 // or debug: true to enable all categories
 ```

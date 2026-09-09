@@ -87,7 +87,7 @@ export async function POST(req: Request) {
 
 **Wire format:** Each event is `data: <JSON>\n\n`. Stream ends with `data: [DONE]\n\n`.
 
-```typescript
+```typescript group=skill
 import {
   chat,
   toServerSentEventsStream,
@@ -127,7 +127,7 @@ const response2 = toServerSentEventsResponse(stream, { abortController })
 
 Custom headers merge on top (user headers override defaults):
 
-```typescript
+```typescript group=skill
 toServerSentEventsResponse(stream, {
   headers: {
     'X-Accel-Buffering': 'no', // Disable nginx buffering
@@ -284,7 +284,7 @@ causing events to arrive in batches instead of streaming token-by-token.
 
 Fix: Set proxy-bypass headers on the response.
 
-```typescript
+```typescript group=skill
 toServerSentEventsResponse(stream, {
   headers: {
     'X-Accel-Buffering': 'no', // nginx

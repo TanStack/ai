@@ -168,7 +168,7 @@ export function handleChat(providerModel: string, messages: Array<any>) {
 
 Different providers expose reasoning/thinking through their `modelOptions`:
 
-```typescript
+```typescript group=skill
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -262,7 +262,7 @@ Sampling controls (`temperature`, token limits, nucleus sampling) are passed
 inside `modelOptions` using each provider's **native** key. They are not
 top-level fields on `chat()`/`ai()`/`generate()`.
 
-```typescript
+```typescript group=skill
 // OpenAI — native keys
 chat({
   adapter: openaiText('gpt-5.2'),
@@ -369,7 +369,7 @@ NVIDIA NIM, LM Studio, etc.) can be used through the generic
 `openaiCompatible` factory from `@tanstack/ai-openai/compatible` — no
 dedicated package required.
 
-```typescript
+```typescript group=skill
 import { openaiCompatible } from '@tanstack/ai-openai/compatible'
 import { createModel } from '@tanstack/ai'
 
@@ -398,7 +398,7 @@ and `defaultQuery`) for providers that need extra auth headers or query params.
 
 For a single model, use the one-shot helper:
 
-```typescript
+```typescript group=skill
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 
 chat({

@@ -15,7 +15,7 @@
 
 ## Import
 
-```typescript
+```typescript group=anthropic-adapter
 import { anthropicText } from '@tanstack/ai-anthropic'
 ```
 
@@ -41,7 +41,7 @@ first-party Anthropic API.
 
 ## Provider-Specific modelOptions
 
-```typescript
+```typescript group=anthropic-adapter
 chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
@@ -98,7 +98,7 @@ ANTHROPIC_API_KEY
 
 The per-model types restrict `modelOptions` on the newest models:
 
-```typescript
+```typescript group=anthropic-adapter
 chat({
   adapter: anthropicText('claude-sonnet-5'), // or 'claude-fable-5', 'claude-opus-4-8'
   messages,

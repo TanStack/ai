@@ -322,7 +322,7 @@ Distinct from TTS — `generateAudio()` produces non-speech audio content.
 Supported adapters: `geminiAudio` (Lyria 3 Pro / Lyria 3 Clip) and
 `falAudio` (MiniMax Music, DiffRhythm, Stable Audio, ElevenLabs SFX, etc.).
 
-```typescript
+```typescript group=skill-1
 import { generateAudio } from '@tanstack/ai'
 import { falAudio } from '@tanstack/ai-fal'
 
@@ -365,7 +365,7 @@ Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
 > voices that accept emotion tags. Formats: `wav`, `mp3`, `pcm`, `ogg_opus`;
 > `watermark` is also available on `modelOptions`.
 
-```typescript
+```typescript group=skill-2
 import { generateSpeech } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
 
@@ -662,7 +662,7 @@ fills — that is what a client hydrates by) and, when you also pass an `stores.
 at blob key `artifacts/<runId>/<artifactId>` with an `ArtifactRecord` per file.
 `memoryPersistence()` ships all three for dev/tests.
 
-```typescript
+```typescript group=skill-3
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import {
@@ -825,7 +825,7 @@ stream from a server function will not work.
 
 **Wrong:**
 
-```typescript
+```typescript group=skill-3
 export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
   ({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
@@ -904,7 +904,7 @@ Gemini's `GenerateContentConfig` (used by Lyria 3 Pro / Lyria 3 Clip) does
 returns 30-second `audio/mp3`; Lyria 3 Pro returns `audio/mp3`. These fields
 are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
 
-```typescript
+```typescript group=skill-1
 // WRONG — both fields are silently ignored or rejected by the SDK
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
@@ -933,7 +933,7 @@ that model. Lyria 3 Pro accepts duration via natural-language in the
 model's native field like `music_length_ms` or `seconds_total`), but not
 for Lyria.
 
-```typescript
+```typescript group=skill-1
 // For Lyria: put length guidance in the prompt
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
@@ -957,7 +957,7 @@ generateAudio({
 (not at Gemini's API) with a clear error. Don't try to work around it with
 `as any`.
 
-```typescript
+```typescript group=skill-2
 generateSpeech({
   adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
   text: '[Alice] Hi. [Bob] Hello!',
@@ -1034,7 +1034,7 @@ Every media activity — `generateAudio`, `generateSpeech`,
 same `debug?: DebugOption` option that `chat()` does. Reach for `debug`
 instead of wiring up logging middleware.
 
-```typescript
+```typescript group=skill-2
 // When a speech generation sounds wrong or a transcription returns garbage
 generateSpeech({
   adapter: openaiSpeech('tts-1'),

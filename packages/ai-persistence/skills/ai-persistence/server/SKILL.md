@@ -27,7 +27,7 @@ mutate the chunk stream and does not replace delivery durability.
 
 ## Setup
 
-```ts
+```ts group=skill
 import {
   chat,
   chatParamsFromRequest,
@@ -97,7 +97,7 @@ assistant message. Separate finalization and event-sourced harness output can
 preserve plain-text and structured-output assistant messages separately when
 those messages use different ids.
 
-```ts
+```ts group=skill
 withPersistence(persistence, {
   snapshotStreaming: true,
   snapshotIntervalMs: 1000, // default
@@ -157,7 +157,7 @@ retry.
 
 Server-authoritative clients load history by `threadId` (often `GET`):
 
-```ts
+```ts group=skill
 import { reconstructChat } from '@tanstack/ai-persistence'
 
 export async function GET(request: Request) {
