@@ -359,7 +359,7 @@ Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` opt
 
 ### Reference-to-Video
 
-On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image and reference inputs cannot be combined — xAI rejects that mix with 400. Reference inputs are a 1.5-only feature — the adapter rejects them on `grok-imagine-video`:
+On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image can be combined with reference inputs on 1.5: the start frame pins the opening frame while the references steer subjects, style, and voices. Reference inputs are a 1.5-only feature, so the adapter rejects them on `grok-imagine-video`:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -371,6 +371,11 @@ const { jobId } = await generateVideo({
     {
       type: "text",
       content: "<IMAGE_0> walks through a neon-lit alley while <AUDIO_0> narrates",
+    },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/opening-frame.png" },
+      metadata: { role: "start_frame" },
     },
     {
       type: "image",

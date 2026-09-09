@@ -272,7 +272,8 @@ export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
    * `metadata.role: 'reference'` (or `'character'`); set explicitly to
    * replace the part-derived list. Reference images are addressed from the
    * prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not
-   * lock the first frame.
+   * lock the first frame — pair them with a starting-frame image prompt part
+   * when the opening frame has to be pinned.
    */
   reference_images?: Array<{ url: string }>
 
@@ -394,6 +395,8 @@ export type GrokVideoModelSizeByName = {
  * Both models support text-to-video and accept an optional `image` prompt
  * part as the starting frame; image parts with `metadata.role: 'reference'`
  * or `'character'` become `reference_images` (grok-imagine-video-1.5 only).
+ * On grok-imagine-video-1.5 the two combine: the starting frame pins the
+ * first frame while the reference images steer subjects and style.
  * A `video` prompt part carries the source clip for edit / extension mode
  * on grok-imagine-video only (`modelOptions.mode: 'edit' | 'extend'`).
  *
