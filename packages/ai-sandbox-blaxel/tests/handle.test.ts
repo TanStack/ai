@@ -56,7 +56,11 @@ function fakeSandbox(options: FakeOptions = {}): {
     return {}
   })
   const kill = vi.fn(async () => options.onKill?.() ?? {})
-  const wait = vi.fn(async () => options.waitResult ?? { exitCode: 7 })
+  const wait = vi.fn(async (name: string) =>
+    name.startsWith('tanstack-ai-reap-')
+      ? { exitCode: 0 }
+      : (options.waitResult ?? { exitCode: 7 }),
+  )
   const streamLogs = vi.fn(
     (
       identifier: string,
@@ -236,7 +240,7 @@ describe('BlaxelHandle capabilities', () => {
     expect(BLAXEL_CAPS.fork).toBe(false)
     expect(BLAXEL_CAPS.durableFilesystem).toBe(true)
     expect(BLAXEL_CAPS.writableStdin).toBe(false)
-    expect(BLAXEL_CAPS.killableProcesses).toBe(false)
+    expect(BLAXEL_CAPS.killableProcesses).toBe(true)
   })
 
   it('exposes the sandbox name as the reconnectable id', () => {
@@ -318,6 +322,66 @@ describe('BlaxelHandle filesystem', () => {
 
     const absent = makeHandle({ onExec: () => ({ exitCode: 1 }) })
     expect(await absent.handle.fs.exists('/workspace/a')).toBe(false)
+  })
+
+  it('answers lstat from one direct stat call without following symlinks', async () => {
+    const file = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: '81a4:42\n' }),
+    })
+    expect(await file.handle.fs.lstat?.('/workspace/a.txt')).toEqual({
+      type: 'file',
+      mode: 0o100644,
+      size: 42,
+    })
+    expect(file.fake.execCalls[0]?.command).toBe(
+      "LC_ALL=C stat -c '%f:%s' -- '/workspace/a.txt'",
+    )
+    expect(file.fake.execCalls[0]?.name).toMatch(/^tanstack-ai-lstat-/)
+    expect(file.fake.rm).not.toHaveBeenCalled()
+
+    const dir = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: '41ed:4096' }),
+    })
+    expect(await dir.handle.fs.lstat?.('/workspace')).toEqual({
+      type: 'dir',
+      mode: 0o040755,
+    })
+
+    const link = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: 'a1ff:7' }),
+    })
+    expect(await link.handle.fs.lstat?.('/workspace/link')).toEqual({
+      type: 'symlink',
+      mode: 0o120777,
+    })
+  })
+
+  it('resolves lstat to undefined only for a confirmed missing path', async () => {
+    const missing = makeHandle({
+      onExec: () => ({
+        exitCode: 1,
+        stderr:
+          "stat: cannot statx '/workspace/nope': No such file or directory\n",
+      }),
+    })
+    expect(await missing.handle.fs.lstat?.('/workspace/nope')).toBeUndefined()
+
+    const denied = makeHandle({
+      onExec: () => ({
+        exitCode: 1,
+        stderr: "stat: cannot statx '/root/x': Permission denied\n",
+      }),
+    })
+    await expect(denied.handle.fs.lstat?.('/root/x')).rejects.toThrow(
+      /Permission denied/,
+    )
+
+    const garbage = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: 'ok' }),
+    })
+    await expect(garbage.handle.fs.lstat?.('/workspace/a')).rejects.toThrow(
+      /invalid lstat output/,
+    )
   })
 
   it('rejects exists when the probe reports no exit code', async () => {
@@ -662,6 +726,11 @@ describe('BlaxelHandle process', () => {
     )
     expect(reaper?.command).toContain('kill -TERM -- "-$__tanstack_pid"')
     expect(reaper?.command).toContain('kill -KILL -- "-$__tanstack_pid"')
+    expect(reaper?.waitForCompletion).toBe(false)
+    expect(fake.wait).toHaveBeenCalledWith(reaper?.name, {
+      maxWait: 30_000,
+      interval: 250,
+    })
     expect(fake.kill).toHaveBeenCalledWith(started.name)
     expect(fake.rm).toHaveBeenCalledWith(
       expect.stringMatching(/^\/tmp\/tanstack-ai-output-/),
