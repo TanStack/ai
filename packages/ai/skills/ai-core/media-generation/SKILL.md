@@ -110,9 +110,10 @@ parses it as SSE automatically:
 import { createServerFn } from '@tanstack/react-start'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
+import type { OpenAIImageModel } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; model?: string }) => data)
+  .inputValidator((data: { prompt: string; model?: OpenAIImageModel }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
@@ -183,7 +184,7 @@ const openaiResult = await generateImage({
   modelOptions: {
     quality: 'high',
     background: 'transparent',
-    outputFormat: 'png',
+    output_format: 'png',
   },
 })
 
@@ -250,10 +251,10 @@ await generateImage({
   adapter: openaiImage('gpt-image-2'),
   prompt: [
     { type: 'text', content: 'Replace the masked region with a tree' },
-    { type: 'image', source: { type: 'url', value: photoUrl } },
+    { type: 'image', source: { type: 'url', value: 'https://…/photo.png' } },
     {
       type: 'image',
-      source: { type: 'url', value: maskUrl },
+      source: { type: 'url', value: 'https://…/mask.png' },
       metadata: { role: 'mask' },
     },
   ],
@@ -267,11 +268,11 @@ import { falVideo } from '@tanstack/ai-fal'
 await generateVideo({
   adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
   prompt: [
-    { type: 'image', source: { type: 'url', value: firstFrameUrl } },
+    { type: 'image', source: { type: 'url', value: 'https://…/first.png' } },
     { type: 'text', content: 'Slow cinematic push-in' },
     {
       type: 'image',
-      source: { type: 'url', value: lastFrameUrl },
+      source: { type: 'url', value: 'https://…/last.png' },
       metadata: { role: 'end_frame' },
     },
   ],
@@ -322,7 +323,7 @@ Distinct from TTS — `generateAudio()` produces non-speech audio content.
 Supported adapters: `geminiAudio` (Lyria 3 Pro / Lyria 3 Clip) and
 `falAudio` (MiniMax Music, DiffRhythm, Stable Audio, ElevenLabs SFX, etc.).
 
-```typescript group=skill-1
+```typescript
 import { generateAudio } from '@tanstack/ai'
 import { falAudio } from '@tanstack/ai-fal'
 
@@ -365,7 +366,7 @@ Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
 > voices that accept emotion tags. Formats: `wav`, `mp3`, `pcm`, `ogg_opus`;
 > `watermark` is also available on `modelOptions`.
 
-```typescript group=skill-2
+```typescript
 import { generateSpeech } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
 
@@ -404,35 +405,58 @@ gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
 
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
-> ```typescript
-> const { isRecording, start, stop } = useAudioRecorder()
-> const { generate } = useTranscription({
->   connection: fetchServerSentEvents('/api/transcribe'),
-> })
-> // ...
-> const recording = await stop()
-> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
-> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> ```tsx
+> import {
+>   useAudioRecorder,
+>   useTranscription,
+>   fetchServerSentEvents,
+> } from '@tanstack/ai-react'
+>
+> function VoiceNote() {
+>   const { isRecording, start, stop } = useAudioRecorder()
+>   const { generate } = useTranscription({
+>     connection: fetchServerSentEvents('/api/transcribe'),
+>   })
+>
+>   async function finish() {
+>     const recording = await stop()
+>     const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
+>     await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+>   }
+>
+>   return (
+>     <button onClick={isRecording ? finish : start}>
+>       {isRecording ? 'Stop & transcribe' : 'Record'}
+>     </button>
+>   )
+> }
 > ```
 
 ```typescript
-import { generateTranscription } from '@tanstack/ai'
+// routes/api/transcribe.ts
+import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
-const result = await generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
-  audio: audioFile, // File, Blob, base64 string, or data URL
-  language: 'en',
-  responseFormat: 'verbose_json',
-  modelOptions: {
-    timestamp_granularities: ['word', 'segment'],
-  },
-})
+export async function POST(request: Request) {
+  // The client hook below posts { data: { audio: dataUrl, language } }
+  const { audio, language } = (await request.json()).data
 
-// result.text       -- full transcribed text
-// result.language   -- detected/specified language
-// result.duration   -- audio duration in seconds
-// result.segments   -- timestamped segments (word-level timestamps are in result.words)
+  const stream = generateTranscription({
+    adapter: openaiTranscription('whisper-1'),
+    audio, // File, Blob, base64 string, or data URL
+    language,
+    responseFormat: 'verbose_json',
+    modelOptions: {
+      timestamp_granularities: ['word', 'segment'],
+    },
+    stream: true,
+  })
+
+  // On the client, result.text is the transcript, result.language the
+  // detected language, result.duration the seconds, result.segments the
+  // timestamped segments (word-level timestamps are in result.words).
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 For speaker diarization, use `openaiTranscription('gpt-4o-transcribe-diarize')`.
@@ -486,14 +510,17 @@ while (status.status !== 'completed' && status.status !== 'failed') {
 }
 
 // Streaming: server handles polling, client gets real-time updates
-const stream = generateVideo({
-  adapter: openaiVideo('sora-2'),
-  prompt: 'A flying car over a city',
-  stream: true,
-  pollingInterval: 3000,
-  maxDuration: 600_000,
-})
-return toServerSentEventsResponse(stream)
+export async function POST(request: Request) {
+  const { prompt } = await request.json()
+  const stream = generateVideo({
+    adapter: openaiVideo('sora-2'),
+    prompt,
+    stream: true,
+    pollingInterval: 3000,
+    maxDuration: 600_000,
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
@@ -505,6 +532,7 @@ Image prompt parts route by `metadata.role`: first un-roled /
 `'reference'` / `'character'` → `referenceImages`:
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
 const adapter = geminiVideo('veo-3.1-generate-preview')
@@ -538,6 +566,7 @@ media). For conversational editing, pass a prior generation's `jobId` as
 on 2026-09-30.
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
 const omni = geminiVideo('gemini-omni-1.1-flash')
@@ -590,6 +619,7 @@ from OpenRouter's published metadata, with the same `availableDurations()` /
 `snapDuration()` helpers:
 
 ```typescript
+import { generateVideo } from '@tanstack/ai'
 import { openRouterVideo } from '@tanstack/ai-openrouter'
 
 const adapter = openRouterVideo('bytedance/seedance-2.0')
@@ -643,6 +673,7 @@ const result = await generateImage({
 
 // usage.billed.quantity is the priced quantity. Multiply by the endpoint unit
 // price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
+const unitPrice = 0.025 // USD per unit, from the pricing endpoint
 if (result.usage?.billed) {
   const cost = result.usage.billed.quantity * unitPrice
 }
@@ -662,7 +693,7 @@ fills — that is what a client hydrates by) and, when you also pass an `stores.
 at blob key `artifacts/<runId>/<artifactId>` with an `ArtifactRecord` per file.
 `memoryPersistence()` ships all three for dev/tests.
 
-```typescript group=skill-3
+```typescript
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import {
@@ -769,6 +800,8 @@ Provide either `connection` (streaming SSE transport) or `fetcher`
 to transform what is stored:
 
 ```tsx
+import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+
 const { result } = useGenerateSpeech({
   connection: fetchServerSentEvents('/api/generate/speech'),
   onResult: (raw) => ({
@@ -790,7 +823,7 @@ Agents trained on older code may still generate this pattern.
 
 **Wrong:**
 
-```typescript
+```typescript ignore
 import { embedding } from '@tanstack/ai'
 import { openaiEmbed } from '@tanstack/ai-openai'
 
@@ -825,27 +858,34 @@ stream from a server function will not work.
 
 **Wrong:**
 
-```typescript group=skill-3
-export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
-  ({ data }) => {
+```typescript ignore
+import { createServerFn } from '@tanstack/react-start'
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+export const generateImageStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string }) => data)
+  .handler(({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
+    // (also a type error: an AsyncIterable is not a valid server-function return)
     return generateImage({
       adapter: openaiImage('gpt-image-1'),
       prompt: data.prompt,
       stream: true,
     })
-  },
-)
+  })
 ```
 
 **Correct:**
 
 ```typescript
+import { createServerFn } from '@tanstack/react-start'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
-export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
-  ({ data }) => {
+export const generateImageStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string }) => data)
+  .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage('gpt-image-1'),
@@ -853,8 +893,7 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
         stream: true,
       }),
     )
-  },
-)
+  })
 ```
 
 > Source: maintainer interview.
@@ -866,6 +905,9 @@ later, the image will silently break. Always download or display the image
 immediately, or convert to base64 for persistence.
 
 ```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
 const result = await generateImage({
   adapter: openaiImage('dall-e-3'),
   prompt: 'A mountain landscape',
@@ -904,7 +946,7 @@ Gemini's `GenerateContentConfig` (used by Lyria 3 Pro / Lyria 3 Clip) does
 returns 30-second `audio/mp3`; Lyria 3 Pro returns `audio/mp3`. These fields
 are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
 
-```typescript group=skill-1
+```typescript ignore
 // WRONG — both fields are silently ignored or rejected by the SDK
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
@@ -914,6 +956,11 @@ generateAudio({
     negativePrompt: 'vocals', // unsupported
   } as any,
 })
+```
+
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { geminiAudio } from '@tanstack/ai-gemini'
 
 // CORRECT — shape the prompt itself for what you want
 generateAudio({
@@ -933,7 +980,11 @@ that model. Lyria 3 Pro accepts duration via natural-language in the
 model's native field like `music_length_ms` or `seconds_total`), but not
 for Lyria.
 
-```typescript group=skill-1
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { geminiAudio } from '@tanstack/ai-gemini'
+import { falAudio } from '@tanstack/ai-fal'
+
 // For Lyria: put length guidance in the prompt
 generateAudio({
   adapter: geminiAudio('lyria-3-pro-preview'),
@@ -957,7 +1008,10 @@ generateAudio({
 (not at Gemini's API) with a clear error. Don't try to work around it with
 `as any`.
 
-```typescript group=skill-2
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { geminiSpeech } from '@tanstack/ai-gemini'
+
 generateSpeech({
   adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
   text: '[Alice] Hi. [Bob] Hello!',
@@ -988,7 +1042,7 @@ narrowed per model, so passing an image part to a text-only model
 also throw a clear runtime error as a backstop, so users learn at call
 time rather than getting silently wrong output.
 
-```typescript
+```typescript ignore
 // WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
 generateImage({
   adapter: openaiImage('dall-e-3'),
@@ -1006,6 +1060,14 @@ generateImage({
     { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
   ],
 })
+```
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import { geminiImage } from '@tanstack/ai-gemini'
+
+const url = 'https://…/photo.png'
 
 // CORRECT — use a model that supports image-conditioned generation
 generateImage({
@@ -1034,7 +1096,10 @@ Every media activity — `generateAudio`, `generateSpeech`,
 same `debug?: DebugOption` option that `chat()` does. Reach for `debug`
 instead of wiring up logging middleware.
 
-```typescript group=skill-2
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
 // When a speech generation sounds wrong or a transcription returns garbage
 generateSpeech({
   adapter: openaiSpeech('tts-1'),

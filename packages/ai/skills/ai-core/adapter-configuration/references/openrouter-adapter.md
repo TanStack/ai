@@ -16,7 +16,7 @@
 
 ## Import
 
-```typescript group=openrouter-adapter
+```typescript
 import { openRouterText } from '@tanstack/ai-openrouter'
 ```
 
@@ -37,25 +37,30 @@ the format `provider/model-name`:
 
 OpenRouter has unique routing and provider selection options:
 
-```typescript group=openrouter-adapter
+```typescript
+import { chat } from '@tanstack/ai'
+import { openRouterText } from '@tanstack/ai-openrouter'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
+// Options are narrowed per model from OpenRouter's published metadata —
+// e.g. 'anthropic/claude-sonnet-4' only accepts temperature/topP/
+// maxCompletionTokens/stop/toolChoice/reasoning. This model takes the full set.
 chat({
-  adapter: openRouterText('anthropic/claude-sonnet-4'),
+  adapter: openRouterText('deepseek/deepseek-v4-pro'),
   messages,
   modelOptions: {
     // Reasoning
     reasoning: {
-      effort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high'
-      max_tokens: 4096,
-      exclude: false,
+      effort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+      summary: 'auto',
+      // enabled: false — explicit opt-out (normalized to effort: 'none')
     },
     // Sampling
     temperature: 0.7,
     topP: 0.9,
-    topK: 40,
     frequencyPenalty: 0.5,
     presencePenalty: 0.5,
-    repetitionPenalty: 1.1,
-    minP: 0.05,
     seed: 42,
     // Token limits
     maxCompletionTokens: 8192,
@@ -66,12 +71,11 @@ chat({
     parallelToolCalls: true,
     // Response format
     responseFormat: { type: 'json_object' },
-    // Web search
-    webSearchOptions: {
-      search_context_size: 'medium', // 'low' | 'medium' | 'high'
-    },
-    // Verbosity
-    verbosity: 'medium',
+    // Routing (available on every model)
+    variant: 'nitro', // 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
+    models: ['deepseek/deepseek-v4-flash'], // fallbacks, tried in order
+    provider: { order: ['DeepSeek'], allowFallbacks: true },
+    plugins: [{ id: 'web' }], // web search
     // Logprobs
     logprobs: true,
     topLogprobs: 5,
@@ -89,11 +93,20 @@ OPENROUTER_API_KEY
 
 - Model IDs are `provider/model-name` format (e.g., `openai/gpt-5.2`).
 - OpenRouter has unique features not found in direct provider adapters:
-  - `variant` option: `'free'`, `'nitro'`, `'online'`, `'thinking'`, etc.
-  - `provider` routing preferences (order, fallbacks, data collection policies)
-  - `transforms: ['middle-out']` for context compression
-  - `prediction` for latency reduction
-  - `plugins: [{ id: 'web' }]` for web search
-- Uses `camelCase` for option names (e.g., `topP`, `frequencyPenalty`),
-  unlike OpenAI's `snake_case`.
-- `route: 'fallback'` with `models` array tries models in order.
+  - `variant` option: `'free'`, `'nitro'`, `'online'`, `'exacto'`,
+    `'extended'`, `'thinking'`
+  - `provider` routing preferences (`order`, `allowFallbacks`, data
+    collection policies — camelCase keys)
+  - `models` array of fallback ids, tried in order
+  - `plugins: [{ id: 'web' }]` for web search (also `file-parser`,
+    `response-healing`, `moderation`, `auto-router`)
+- Uses `camelCase` for option names (e.g., `topP`, `frequencyPenalty`,
+  `maxCompletionTokens`), unlike OpenAI's `snake_case`.
+- `reasoning` is `{ effort, summary, enabled }` — there is no
+  `max_tokens`/`exclude` inside it; `enabled: false` is normalized to
+  `effort: 'none'`.
+- Per-model options are narrowed from OpenRouter's published metadata, so
+  keys like `frequencyPenalty`, `seed`, `logprobs`, or `responseFormat` are
+  only accepted on models that support them. `topK`, `minP`,
+  `repetitionPenalty`, `webSearchOptions`, `verbosity`, `transforms`, and
+  `route` are not exposed by the adapter.

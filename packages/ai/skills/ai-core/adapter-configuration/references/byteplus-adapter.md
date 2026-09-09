@@ -21,7 +21,7 @@ explicit key instead of reading the environment.
 
 ## Import
 
-```typescript group=byteplus-adapter
+```typescript
 import {
   byteplusText,
   byteplusVideo,
@@ -61,7 +61,12 @@ Media models: `BYTEPLUS_VIDEO_MODELS` (Seedance —
 
 ## Provider-Specific modelOptions
 
-```typescript group=byteplus-adapter
+```typescript
+import { chat } from '@tanstack/ai'
+import { byteplusText } from '@tanstack/ai-byteplus'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: byteplusText('dola-seed-2-1-turbo-260628'),
   messages,

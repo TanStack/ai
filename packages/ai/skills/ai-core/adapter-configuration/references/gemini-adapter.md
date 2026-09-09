@@ -17,7 +17,7 @@
 
 ## Import
 
-```typescript group=gemini-adapter
+```typescript
 import { geminiText } from '@tanstack/ai-gemini'
 import { geminiImage } from '@tanstack/ai-gemini'
 ```
@@ -37,7 +37,16 @@ Most Gemini text models accept `text`, `image`, `audio`, `video`, and `document`
 
 ## Provider-Specific modelOptions
 
-```typescript group=gemini-adapter
+```typescript
+import { chat } from '@tanstack/ai'
+import {
+  geminiText,
+  HarmBlockThreshold,
+  HarmCategory,
+} from '@tanstack/ai-gemini'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
@@ -47,15 +56,14 @@ chat({
       includeThoughts: true,
       thinkingBudget: 4096,
     },
-    // Thinking (level-based, advanced models)
-    thinkingConfig: {
-      thinkingLevel: 'THINKING_LEVEL_HIGH',
-    },
+    // Thinking (level-based, advanced models) — the alternative to the
+    // budget shape above:
+    // thinkingConfig: { thinkingLevel: 'THINKING_LEVEL_HIGH' },
     // Safety settings
     safetySettings: [
       {
-        category: 'HARM_CATEGORY_HATE_SPEECH',
-        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
       },
     ],
     // Tool config
