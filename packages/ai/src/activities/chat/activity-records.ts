@@ -1,8 +1,15 @@
-import { applyPatch } from 'fast-json-patch'
+import jsonPatch from 'fast-json-patch'
 import { generateMessageId } from './messages'
-import type { ActivityPart, ActivityRecord, StreamChunk, UIMessage } from '../../types'
+import type {
+  ActivityPart,
+  ActivityRecord,
+  StreamChunk,
+  UIMessage,
+} from '../../types'
 
-function isActivityPart(part: UIMessage['parts'][number]): part is ActivityPart {
+function isActivityPart(
+  part: UIMessage['parts'][number],
+): part is ActivityPart {
   return part.type === 'activity'
 }
 
@@ -32,7 +39,11 @@ export function interleaveActivityRecords(
   const out = [...modelUI]
   const sorted = [...records].sort((a, b) => a.index - b.index)
   for (const record of sorted) {
-    out.splice(Math.min(record.index, out.length), 0, activityRecordToUIMessage(record))
+    out.splice(
+      Math.min(record.index, out.length),
+      0,
+      activityRecordToUIMessage(record),
+    )
   }
   return out
 }
@@ -42,7 +53,11 @@ export function interleaveActivityRecords(
  * the original inbound list so reconstruct can put them back.
  */
 export function peelInboundActivities(
-  messages: ReadonlyArray<{ role?: string; id?: string; parts?: UIMessage['parts'] }>,
+  messages: ReadonlyArray<{
+    role?: string
+    id?: string
+    parts?: UIMessage['parts']
+  }>,
 ): Array<ActivityRecord> {
   const records: Array<ActivityRecord> = []
   for (const [index, message] of messages.entries()) {
@@ -115,7 +130,7 @@ export function applyActivityDeltaToUIMessages(
   const baseContent = structuredClone(activityPart?.content ?? {})
 
   try {
-    const result = applyPatch(baseContent, patch ?? [], true, false)
+    const result = jsonPatch.applyPatch(baseContent, patch ?? [], true, false)
     const updatedContent = structuredClone(
       result.newDocument as Record<string, any>,
     )
