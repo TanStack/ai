@@ -5259,6 +5259,20 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()[0]?.role).toBe('activity')
     })
 
+    it('does not replace a non-activity message that shares the id', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(ev.textStart('shared'))
+      processor.processChunk(ev.textContent('hello', 'shared'))
+      processor.processChunk(
+        ev.activitySnapshot('shared', 'SEARCH', { query: 'x' }),
+      )
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.role).toBe('assistant')
+      expect(messages[0]?.parts.some((p) => p.type === 'text')).toBe(true)
+    })
+
     it('applies an RFC 6902 patch to activity content', () => {
       const processor = new StreamProcessor()
       processor.processChunk(
@@ -5337,6 +5351,72 @@ describe('StreamProcessor', () => {
       } finally {
         warn.mockRestore()
       }
+    })
+
+    it('rejects a delta whose activityType does not match', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const processor = new StreamProcessor()
+        processor.processChunk(
+          ev.activitySnapshot('act-1', 'SEARCH', { status: 'running' }),
+        )
+        processor.processChunk(
+          ev.activityDelta('act-1', 'PLAN', [
+            { op: 'replace', path: '/status', value: 'done' },
+          ]),
+        )
+        const part = processor.getMessages()[0]?.parts[0]
+        if (part?.type !== 'activity') throw new Error('expected activity part')
+        expect(part.activityType).toBe('SEARCH')
+        expect(part.content).toEqual({ status: 'running' })
+        expect(warn).toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('keeps previous content when a root replace is not an object', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const processor = new StreamProcessor()
+        processor.processChunk(
+          ev.activitySnapshot('act-1', 'SEARCH', { status: 'running' }),
+        )
+        processor.processChunk(
+          ev.activityDelta('act-1', 'SEARCH', [
+            { op: 'replace', path: '', value: [] },
+          ]),
+        )
+        const part = processor.getMessages()[0]?.parts[0]
+        if (part?.type !== 'activity') throw new Error('expected activity part')
+        expect(part.content).toEqual({ status: 'running' })
+        expect(warn).toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('copies snapshot metadata and merges delta metadata', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk({
+        ...ev.activitySnapshot('act-1', 'SEARCH', { status: 'running' }),
+        metadata: { source: 'snap', tanstack: { model: 'test' } },
+      })
+      processor.processChunk({
+        ...ev.activityDelta('act-1', 'SEARCH', [
+          { op: 'replace', path: '/status', value: 'done' },
+        ]),
+        metadata: { extra: true, tanstack: { run: 'r1' } },
+      })
+      const activity = processor.getMessages()[0]
+      expect(activity?.metadata).toEqual({
+        source: 'snap',
+        extra: true,
+        tanstack: { model: 'test', run: 'r1' },
+      })
+      const part = activity?.parts[0]
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.content).toEqual({ status: 'done' })
     })
 
     it('omits activity messages from toModelMessages', () => {
