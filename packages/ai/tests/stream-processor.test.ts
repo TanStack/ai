@@ -113,7 +113,7 @@ const ev = {
     content: Record<string, any>,
     replace?: boolean,
   ) =>
-    chunk(EventType.ACTIVITY_SNAPSHOT, {
+    chunk('ACTIVITY_SNAPSHOT', {
       messageId,
       activityType,
       content,
@@ -124,7 +124,7 @@ const ev = {
     activityType: string,
     patch: Array<Record<string, unknown>>,
   ) =>
-    chunk(EventType.ACTIVITY_DELTA, {
+    chunk('ACTIVITY_DELTA', {
       messageId,
       activityType,
       patch,
