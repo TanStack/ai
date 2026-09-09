@@ -79,6 +79,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4-flash-vision-exp',
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4-pro-0813',
+  'deepseek/deepseek-v4.1-flash-beta',
   'fish-audio/s1',
   'fish-audio/s1-free',
   'fish-audio/s2-pro',
@@ -109,6 +110,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemma-4-26b-a4b-it',
   'google/gemma-4-31b-it',
   'inception/mercury-2',
+  'inception/mercury-2.5',
   'inception/mercury-coder-small',
   'inclusionai/ling-3.0-flash',
   'inclusionai/ling-3.0-flash-fin',
@@ -269,7 +271,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'thinkingmachines/inkling-small',
   'xiaomi/mimo-v2.5',
   'xiaomi/mimo-v2.5-pro',
-  'xiaomi/mimo-v2.5-pro-ultraspeed',
   'zai/glm-4.5',
   'zai/glm-4.5-air',
   'zai/glm-4.5v',
@@ -285,7 +286,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'zai/glm-5.3',
   'zai/glm-5.3-fast',
   'zai/glm-5.3-flash',
-  'zai/glm-5.3-promo-50',
   'zai/glm-5v-turbo',
 ] as const
 
@@ -403,6 +403,8 @@ export const VERCEL_GATEWAY_IMAGE_MODELS = [
   'openai/gpt-image-1-mini',
   'openai/gpt-image-1.5',
   'openai/gpt-image-2',
+  'openai/gpt-image-2.5-flare',
+  'openai/gpt-image-2.5-sunburst',
   'prodia/flux-fast-schnell',
   'quiverai/arrow-1.1',
   'recraft/recraft-v2',
@@ -987,6 +989,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'deepseek/deepseek-v4.1-flash-beta': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'fish-audio/s1': VercelGatewayCommonOptions
   'fish-audio/s1-free': VercelGatewayCommonOptions
   'fish-audio/s2-pro': VercelGatewayCommonOptions
@@ -1178,6 +1190,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'inception/mercury-2': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'inception/mercury-2.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2461,16 +2483,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'xiaomi/mimo-v2.5-pro-ultraspeed': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'zai/glm-4.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2621,16 +2633,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'zai/glm-5.3-promo-50': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'zai/glm-5v-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2709,6 +2711,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-flash-vision-exp': readonly ['text', 'image']
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
+  'deepseek/deepseek-v4.1-flash-beta': readonly ['text', 'image']
   'fish-audio/s1': readonly ['text']
   'fish-audio/s1-free': readonly ['text']
   'fish-audio/s2-pro': readonly ['text']
@@ -2749,6 +2752,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'google/gemma-4-26b-a4b-it': readonly ['text', 'image', 'document']
   'google/gemma-4-31b-it': readonly ['text', 'image', 'document']
   'inception/mercury-2': readonly ['text']
+  'inception/mercury-2.5': readonly ['text']
   'inception/mercury-coder-small': readonly ['text']
   'inclusionai/ling-3.0-flash': readonly ['text']
   'inclusionai/ling-3.0-flash-fin': readonly ['text']
@@ -2918,7 +2922,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'thinkingmachines/inkling-small': readonly ['text', 'image', 'document']
   'xiaomi/mimo-v2.5': readonly ['text', 'image']
   'xiaomi/mimo-v2.5-pro': readonly ['text']
-  'xiaomi/mimo-v2.5-pro-ultraspeed': readonly ['text']
   'zai/glm-4.5': readonly ['text']
   'zai/glm-4.5-air': readonly ['text']
   'zai/glm-4.5v': readonly ['text', 'image']
@@ -2934,7 +2937,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'zai/glm-5.3': readonly ['text']
   'zai/glm-5.3-fast': readonly ['text']
   'zai/glm-5.3-flash': readonly ['text', 'image']
-  'zai/glm-5.3-promo-50': readonly ['text']
   'zai/glm-5v-turbo': readonly ['text', 'image', 'document']
 }
 

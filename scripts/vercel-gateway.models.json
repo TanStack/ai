@@ -5634,6 +5634,57 @@
     }
   },
   {
+    "id": "deepseek/deepseek-v4.1-flash-beta",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash Beta",
+    "description": "An experimental beta version of DeepSeek V4.1 Flash that expires on September 10th 2026.",
+    "context_window": 1000000,
+    "max_tokens": 384000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "deprecated_at": 1788998400000,
+    "pricing": {
+      "input": "0.00000022",
+      "output": "0.00000066",
+      "input_cache_read": "0.000000007",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 60,
+            "end_minute_utc": 240,
+            "days_of_week": [1, 2, 3, 4, 5]
+          },
+          {
+            "start_minute_utc": 360,
+            "end_minute_utc": 600,
+            "days_of_week": [1, 2, 3, 4, 5]
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "fish-audio/s1",
     "object": "model",
     "created": 1755815280,
@@ -7737,6 +7788,41 @@
       "input": "0.00000025",
       "output": "0.00000075",
       "input_cache_read": "0.000000025"
+    }
+  },
+  {
+    "id": "inception/mercury-2.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "inception",
+    "name": "Mercury 2.5",
+    "description": "Mercury 2.5 is Inception’s diffusion-based reasoning model for chat, agents, and structured workflows, with tool calling, structured outputs, and a 260K context window.",
+    "context_window": 260000,
+    "max_tokens": 65536,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000004",
+      "output": "0.00000015",
+      "input_cache_read": "0.000000004"
     }
   },
   {
@@ -14848,6 +14934,56 @@
     }
   },
   {
+    "id": "openai/gpt-image-2.5-flare",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "openai",
+    "name": "GPT Image 2.5 Flare",
+    "description": "GPT Image 2.5 Flare generates images from text and image inputs, optimized for fast, high-quality everyday image generation.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
+    "id": "openai/gpt-image-2.5-sunburst",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "openai",
+    "name": "GPT Image 2.5 Sunburst",
+    "description": "GPT Image 2.5 Sunburst generates and edits images from text and image inputs, with a focus on precise editing.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
     "id": "openai/gpt-oss-120b",
     "object": "model",
     "created": 1755815280,
@@ -15145,7 +15281,9 @@
       "input": "0.0000006",
       "output": "0.0000024",
       "input_cache_read": "0.00000006",
-      "web_search": "10"
+      "web_search": "10",
+      "audio_input_token_cost": "0.00001",
+      "audio_output_token_cost": "0.00002"
     }
   },
   {
@@ -18221,48 +18359,6 @@
     }
   },
   {
-    "id": "xiaomi/mimo-v2.5-pro-ultraspeed",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780876800,
-    "owned_by": "xiaomi",
-    "name": "MiMo V2.5 Pro UltraSpeed",
-    "description": "MiMo-V2.5-Pro-UltraSpeed is Xiaomi’s ultra-fast, text-based flagship reasoning model, pairing a trillion-parameter model with a 1,048,576-token context window and generation speeds of roughly 500–1,000 tokens per second. It supports deep thinking, tool calling, streaming output, and context caching, making it well suited to latency-sensitive coding agents, quantitative analysis, real-time risk control, and scientific workflows.",
-    "context_window": 1048576,
-    "max_tokens": 131072,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "knowledge": "2024-12",
-    "deprecated_at": 1788883200000,
-    "pricing": {
-      "input": "0.000001305",
-      "output": "0.00000261",
-      "input_cache_read": "0.0000000108"
-    }
-  },
-  {
     "id": "zai/glm-4.5",
     "object": "model",
     "created": 1755815280,
@@ -18829,9 +18925,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000007",
-      "output": "0.0000022",
-      "input_cache_read": "0.00000013",
+      "input": "0.0000014",
+      "output": "0.0000044",
+      "input_cache_read": "0.00000014",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000021",
@@ -18944,41 +19040,6 @@
           "input_cache_read": "0.00000003"
         }
       }
-    }
-  },
-  {
-    "id": "zai/glm-5.3-promo-50",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1787011200,
-    "owned_by": "zai",
-    "name": "GLM 5.3 (50% off)",
-    "description": "GLM 5.3 delivers comprehensive advancements in complex software engineering and agent capabilities. It uses the same base model as GLM-5.2, with all improvements driven by post-training.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.0000007",
-      "output": "0.0000022",
-      "input_cache_read": "0.00000013"
     }
   },
   {
