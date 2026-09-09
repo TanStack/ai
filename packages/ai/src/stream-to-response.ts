@@ -9,6 +9,7 @@ import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { toWireChunk } from './strip-to-spec-middleware'
+import { tanstackMetadata } from './utilities/merge-metadata'
 import { resolveDebugOption } from './logger/resolve'
 import { runErrorEventToError } from './utilities/errors'
 import type { LockStore } from './activities/chat/middleware/locks'
@@ -329,13 +330,25 @@ function resolveBatchSize(batch: number | undefined): number {
  * empty for the whole run, so a mount-time `joinRun` finds nothing and its
  * empty-log deadline fast-fails as "run gone" — even though the run is alive.
  * Flushing it immediately makes the run resumable from the instant it starts.
+ *
+ * A `CUSTOM` chunk is NOT a boundary by default — process output and other
+ * high-volume custom events should keep batching. But an event emitted before
+ * the model produces output (a compaction/summarize pass, a sandbox boot, a
+ * retrieval step) would otherwise sit buffered until the batch fills or a
+ * terminal / tool-call boundary fires, so it ships bunched with later output
+ * instead of at emit time — defeating a live progress indicator. `RUN_STARTED`
+ * can't rescue it: the engine emits `RUN_STARTED` BEFORE the first pre-model
+ * custom event, so no boundary follows it. `emitCustomEvent(name, value,
+ * { flush: true })` opts a single event into flushing on its own; the hint
+ * rides in `metadata.tanstack.flush` (see `createCustomEventChunk`).
  */
 function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
   return (
     chunk.type === 'RUN_STARTED' ||
     chunk.type === 'RUN_FINISHED' ||
     chunk.type === 'RUN_ERROR' ||
-    chunk.type === 'TOOL_CALL_END'
+    chunk.type === 'TOOL_CALL_END' ||
+    (chunk.type === 'CUSTOM' && tanstackMetadata(chunk)?.flush === true)
   )
 }
 

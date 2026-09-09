@@ -99,6 +99,7 @@ import type {
   ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
+  EmitCustomEventOptions,
   InferSchemaType,
   Interrupt,
   JSONSchema,
@@ -998,9 +999,9 @@ class TextEngine<
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
       },
-      emitCustomEvent: (name, value) => {
+      emitCustomEvent: (name, value, options) => {
         this.middlewareCustomQueue.push(
-          this.createCustomEventChunk(name, value),
+          this.createCustomEventChunk(name, value, options),
         )
         const waiters = this.middlewareCustomWaiters
         this.middlewareCustomWaiters = []
@@ -2017,7 +2018,8 @@ class TextEngine<
       this.resolveExecutableTools(executablePendingCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -2197,7 +2199,8 @@ class TextEngine<
       this.resolveExecutableTools(executableToolCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -4560,13 +4563,20 @@ class TextEngine<
   private createCustomEventChunk(
     eventName: string,
     value: Record<string, unknown>,
+    options?: EmitCustomEventOptions,
   ): CustomEvent {
-    return {
+    const chunk: CustomEvent = {
       type: EventType.CUSTOM,
       timestamp: Date.now(),
       name: eventName,
       value,
     }
+    // `flush` is a durability delivery hint, not event data. Carry it in
+    // `metadata.tanstack` — the only chunk field that survives
+    // `normalizeStreamChunk` — so the batching producer can flush this chunk on
+    // its own (see `isDurabilityFlushBoundary` in stream-to-response.ts). The
+    // client ignores the metadata.
+    return options?.flush ? withTanstackMetadata(chunk, { flush: true }) : chunk
   }
 
   private createId(prefix: string): string {

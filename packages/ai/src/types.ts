@@ -564,6 +564,16 @@ export interface TanStackRunMetadata {
   state?: ToolOutputState
   /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
   input?: unknown
+  /**
+   * Durability delivery hint set by `emitCustomEvent(name, value, { flush: true })`.
+   * Tells the batching durability producer to flush this `CUSTOM` chunk on its
+   * own rather than buffering it, so a low-volume progress event surfaces at emit
+   * time. Read only on `CUSTOM` chunks; ignored elsewhere and on replay. Rides in
+   * `metadata.tanstack` because it is the only chunk field that survives
+   * `normalizeStreamChunk`; like other TanStack extras it round-trips on the wire,
+   * where the client simply ignores it.
+   */
+  flush?: boolean
 }
 
 /**
@@ -630,6 +640,26 @@ type RuntimeContextField<TContext> =
       }
 
 /**
+ * Options for a single `emitCustomEvent` call, on both the tool-execution and
+ * middleware contexts.
+ */
+export interface EmitCustomEventOptions {
+  /**
+   * Deliver this event immediately instead of letting it batch in the
+   * durability layer. A `CUSTOM` chunk is normally buffered until the batch
+   * fills or a flush boundary (`RUN_STARTED` / `RUN_FINISHED` / `TOOL_CALL_END`)
+   * fires, so a low-volume progress event emitted before the model produces
+   * output — a compaction/summarize pass, a sandbox boot, a retrieval step —
+   * ships bunched with later chunks instead of at emit time. Marking it `flush`
+   * makes the batching producer flush it on its own, so a live progress
+   * indicator can render. Off by default: high-volume events (e.g.
+   * `process.stdout`) should keep batching, so opt in per event rather than
+   * flushing every `CUSTOM` chunk.
+   */
+  flush?: boolean
+}
+
+/**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
@@ -649,6 +679,8 @@ export type ToolExecutionContext<TContext = unknown> =
      *
      * @param eventName - Name of the custom event
      * @param value - Event payload value
+     * @param options - Per-event options; pass `{ flush: true }` to deliver a
+     *   low-volume progress event immediately instead of batching it
      *
      * @example
      * ```ts
@@ -661,7 +693,11 @@ export type ToolExecutionContext<TContext = unknown> =
      * })
      * ```
      */
-    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+    emitCustomEvent: (
+      eventName: string,
+      value: Record<string, any>,
+      options?: EmitCustomEventOptions,
+    ) => void
   }
 
 export type ToolExecuteFunction<
