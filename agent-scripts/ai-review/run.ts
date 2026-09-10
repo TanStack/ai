@@ -34,11 +34,7 @@ import {
   isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
-import {
-  isAiReviewLabelEvent,
-  isPullRequestLabeledEvent,
-  parseReviewEvent,
-} from './event.ts'
+import { parseReviewEvent } from './event.ts'
 import { createReviewStreamLogger } from './log.ts'
 import { commitAll, headRemoteUrl, pushHead } from './git.ts'
 import type { GitRunner } from './git.ts'
@@ -104,7 +100,15 @@ function parseListedComment(value: unknown) {
   return { body: value.body, userLogin }
 }
 
-async function fetchAlreadyReviewedSha(
+/**
+ * Read the head SHA from this PR's existing bot review comment, if any.
+ *
+ * @param client GitHub REST client
+ * @param repo owner/name, for example `TanStack/ai`
+ * @param issueNumber pull request number
+ * @param machineUserLogin login the bot comments as
+ */
+export async function fetchAlreadyReviewedSha(
   client: GitHubClient,
   repo: string,
   issueNumber: number,
@@ -249,20 +253,6 @@ export async function runReviewJob(opts: {
     }
   }
 
-  if (
-    opts.eventName === 'pull_request' &&
-    isPullRequestLabeledEvent(opts.event) &&
-    !isAiReviewLabelEvent(opts.event)
-  ) {
-    return { skipped: true as const, reason: 'not-label' }
-  }
-
-  if (isAiReviewLabelEvent(opts.event)) {
-    if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
-      return { skipped: true as const, reason: 'not-maintainer' }
-    }
-  }
-
   const pr = await fetchPullRequest(opts.client, opts.repo, parsed.prNumber)
   const skip = shouldSkip({
     mode: parsed.mode,
@@ -388,7 +378,8 @@ function securityNoteFor(input: {
   return `clean. Added label \`secure\`. Approved ${String(input.approvedRuns)} waiting workflow runs.`
 }
 
-function createProcessGitRunner(): GitRunner {
+/** Spawn-backed git runner for production entry points. */
+export function createProcessGitRunner(): GitRunner {
   return (args, cwd) =>
     new Promise((resolveResult, reject) => {
       const child = spawn('git', args, { cwd })
@@ -407,7 +398,8 @@ function createProcessGitRunner(): GitRunner {
     })
 }
 
-async function resolveReviewToken() {
+/** `AI_REVIEW_TOKEN`, else any resolvable GitHub token. */
+export async function resolveReviewToken() {
   const fromEnv = process.env.AI_REVIEW_TOKEN
   if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv
   try {
@@ -417,7 +409,8 @@ async function resolveReviewToken() {
   }
 }
 
-function requireEnv(name: string) {
+/** Read a required env var, or throw naming it. */
+export function requireEnv(name: string) {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
     throw new Error(`missing ${name}`)
