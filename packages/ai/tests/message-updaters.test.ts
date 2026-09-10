@@ -898,6 +898,69 @@ describe('message-updaters', () => {
       })
     })
 
+    // #1344: a hydrated message has no stepId on its thinking part, because the
+    // stored form has nowhere to keep one. Rejoining a run mid-stream replays
+    // the reasoning keyed by stepId, so without a fallback match the replay is
+    // appended and the message ends up as [thinking, text, thinking].
+    it('should adopt a hydrated thinking part that has no stepId', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          { type: 'thinking', content: '', signature: 'encrypted-blob' },
+          { type: 'text', content: 'ASO = App Store Optimization.' },
+        ]),
+      ]
+      const result = updateThinkingPart(messages, 'msg-1', 'openai-step-1', '')
+
+      expect(result[0]?.parts).toHaveLength(2)
+      expect(result[0]?.parts[0]).toEqual({
+        type: 'thinking',
+        content: '',
+        stepId: 'openai-step-1',
+        // the provider's encrypted reasoning must survive the adoption
+        signature: 'encrypted-blob',
+      })
+      expect(result[0]?.parts[1]).toEqual({
+        type: 'text',
+        content: 'ASO = App Store Optimization.',
+      })
+    })
+
+    it('should adopt each stepId-less thinking part only once', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          { type: 'thinking', content: 'first' },
+          { type: 'thinking', content: 'second' },
+        ]),
+      ]
+
+      const afterFirst = updateThinkingPart(messages, 'msg-1', 'step-1', 'one')
+      const afterSecond = updateThinkingPart(
+        afterFirst,
+        'msg-1',
+        'step-2',
+        'two',
+      )
+
+      expect(afterSecond[0]?.parts).toEqual([
+        { type: 'thinking', content: 'one', stepId: 'step-1' },
+        { type: 'thinking', content: 'two', stepId: 'step-2' },
+      ])
+    })
+
+    it('should not adopt a thinking part that already belongs to another step', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          { type: 'thinking', content: 'First', stepId: 'step-1' },
+        ]),
+      ]
+      const result = updateThinkingPart(messages, 'msg-1', 'step-2', 'Second')
+
+      expect(result[0]?.parts).toEqual([
+        { type: 'thinking', content: 'First', stepId: 'step-1' },
+        { type: 'thinking', content: 'Second', stepId: 'step-2' },
+      ])
+    })
+
     it('should not modify other messages', () => {
       const messages = [
         createMessage('msg-1'),
