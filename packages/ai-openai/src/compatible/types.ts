@@ -78,7 +78,7 @@ export interface OpenAICompatibleConfig<
 > extends Omit<ClientOptions, 'apiKey' | 'baseURL'> {
   name?: string
   baseURL: string
-  apiKey: string
+  apiKey: NonNullable<ClientOptions['apiKey']>
   models: TModels
   api?: CompatibleApi
 }
@@ -90,6 +90,6 @@ export interface OpenAICompatibleTextConfig extends Omit<
 > {
   name?: string
   baseURL: string
-  apiKey: string
+  apiKey: NonNullable<ClientOptions['apiKey']>
   api?: CompatibleApi
 }
