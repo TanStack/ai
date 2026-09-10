@@ -79,7 +79,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4-flash-vision-exp',
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4-pro-0813',
-  'deepseek/deepseek-v4.1-flash-beta',
+  'deepseek/deepseek-v4.1-flash',
   'fish-audio/s1',
   'fish-audio/s1-free',
   'fish-audio/s2-pro',
@@ -989,7 +989,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'deepseek/deepseek-v4.1-flash-beta': VercelGatewayCommonOptions &
+  'deepseek/deepseek-v4.1-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2711,7 +2711,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-flash-vision-exp': readonly ['text', 'image']
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
-  'deepseek/deepseek-v4.1-flash-beta': readonly ['text', 'image']
+  'deepseek/deepseek-v4.1-flash': readonly ['text', 'image']
   'fish-audio/s1': readonly ['text']
   'fish-audio/s1-free': readonly ['text']
   'fish-audio/s2-pro': readonly ['text']
