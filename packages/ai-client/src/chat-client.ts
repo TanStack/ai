@@ -330,6 +330,14 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'MESSAGES_SNAPSHOT',
 ])
 
+/**
+ * Bound on how many `parentRunId` hops `markLineageAnswered` walks when
+ * propagating "this run finished" up a resume chain. Only guards against a
+ * malformed or cyclic parent chain in replayed history; a real interrupt
+ * chain is a handful of hops at most.
+ */
+const MAX_RUN_LINEAGE_DEPTH = 64
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -352,6 +360,19 @@ export class ChatClient<
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
+  // Run lineage, built from `RUN_STARTED.parentRunId` as events are observed.
+  // A replay of a thread's saved history delivers every run's terminal event
+  // again, including a stale `RUN_FINISHED` (interrupt) for a run whose pause
+  // was already answered by a later continuation run. `parentRunId` is the
+  // only signal that proves that: it is not visible on the terminal event
+  // itself, only on the continuation's own `RUN_STARTED`.
+  private readonly runParents = new Map<string, string>()
+  // Every run id that is provably answered: either it finished with a
+  // non-interrupt terminal itself, or one of its lineage descendants did.
+  // Checked both to clear a currently-tracked interrupt whose continuation
+  // just finished, and to suppress hydrating a stale interrupt that replay
+  // re-delivers for a run already known to be answered (idempotent replay).
+  private readonly supersededInterruptRunIds = new Set<string>()
   // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
   // run is rejoined at most once even when both the sync read and the async
   // hydrate surface the same resume pointer.
@@ -1134,6 +1155,13 @@ export class ChatClient<
   ): void {
     if (chunk.type === 'RUN_STARTED') {
       const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      const parentRunId =
+        'parentRunId' in chunk && typeof chunk.parentRunId === 'string'
+          ? chunk.parentRunId
+          : undefined
+      if (parentRunId) {
+        this.runParents.set(chunkRunId, parentRunId)
+      }
       this.activeResumeThreadId =
         'threadId' in chunk && typeof chunk.threadId === 'string'
           ? chunk.threadId
@@ -1199,11 +1227,39 @@ export class ChatClient<
         ? chunk.threadId
         : this.activeResumeThreadId
 
+    // A non-interrupt terminal proves this run (and, transitively, whatever
+    // ancestor run it is `parentRunId`-linked to) is answered. Record that
+    // BEFORE the interrupt-outcome branch below, so a stale interrupt replay
+    // re-delivers for an already-answered ancestor is recognized rather than
+    // hydrated again, so this stays idempotent across a repeated or
+    // reconnecting replay.
+    // An intermediate tool_calls `RUN_FINISHED` does not count: it is a
+    // mid-turn provider handoff inside the SAME still-loading turn, not a
+    // pause being answered, and the client and provider often correlate it
+    // to the same request run id as a later real interrupt in that turn.
+    if (
+      runId &&
+      !isIntermediateToolTurn(chunk) &&
+      (chunk.type === 'RUN_ERROR' ||
+        (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'))
+    ) {
+      this.markLineageAnswered(runId)
+    }
+
     if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
       // Track the REQUEST run id (what the client sent) so a resume targets the
       // same run even when provider events carry their own run id.
       const interruptedRunId =
         this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      // This run's pause was already answered by a later continuation run
+      // (`parentRunId` links the continuation back to it), so a replay is
+      // re-emitting the stale pause. Do not resurrect it as pending.
+      if (
+        interruptedRunId &&
+        this.supersededInterruptRunIds.has(interruptedRunId)
+      ) {
+        return
+      }
       this.lastResume = {
         threadId: threadId ?? this.threadId,
         runId: interruptedRunId,
@@ -1248,13 +1304,25 @@ export class ChatClient<
       chunk.type === 'RUN_FINISHED' &&
       chunk.outcome?.type !== 'interrupt',
     )
+    // The run this client is currently tracking as interrupted has a
+    // finished lineage descendant (a run whose `parentRunId` chain leads
+    // back to it), so its pause was answered by that continuation, even
+    // though the provider/request run id on THIS terminal event does not
+    // correlate directly. Fixes #1368: on replay, the continuation's
+    // `RUN_FINISHED` arrives well after the tracked run id stops matching
+    // any of the checks above.
+    const isLineageDescendantTerminal = Boolean(
+      this.lastResume &&
+      this.supersededInterruptRunIds.has(this.lastResume.runId),
+    )
     if (
       isRunlessSessionError ||
       isTrackedRunTerminal ||
       isCurrentRunTerminal ||
       isActiveStreamRunTerminal ||
       isCurrentStreamTerminal ||
-      isActiveInterruptSubmissionTerminal
+      isActiveInterruptSubmissionTerminal ||
+      isLineageDescendantTerminal
     ) {
       this.lastResume = null
       // Run settled without an interrupt: drop the durable resume snapshot so a
@@ -1264,6 +1332,27 @@ export class ChatClient<
       return
     }
     this.notifyResumeStateChange('live')
+  }
+
+  /**
+   * Mark `runId`, and every ancestor reachable by walking `runParents`
+   * (populated from `RUN_STARTED.parentRunId`), as answered. Called when
+   * `runId` itself finishes with a non-interrupt terminal, which proves not
+   * just that run but its whole pause lineage is resolved: a continuation
+   * only exists because an earlier pause in the chain was answered.
+   *
+   * Bounded so a malformed or cyclic parent chain in replayed history cannot
+   * loop forever.
+   */
+  private markLineageAnswered(runId: string): void {
+    let current: string | undefined = runId
+    let hops = 0
+    while (current !== undefined && hops < MAX_RUN_LINEAGE_DEPTH) {
+      if (this.supersededInterruptRunIds.has(current)) return
+      this.supersededInterruptRunIds.add(current)
+      current = this.runParents.get(current)
+      hops++
+    }
   }
 
   /**
