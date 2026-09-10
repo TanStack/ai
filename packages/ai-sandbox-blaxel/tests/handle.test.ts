@@ -2,7 +2,13 @@
 import { SandboxInstance } from '@blaxel/core'
 import { UnsupportedCapabilityError, toLines } from '@tanstack/ai-sandbox'
 import { spawn as spawnChild, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { BLAXEL_CAPS, BlaxelHandle, previewName } from '../src/handle'
 import type {
@@ -61,8 +67,7 @@ function fakeSandbox(options: FakeOptions = {}): {
     (
       identifier: string,
       streamOptions?: {
-        onStdout?: (chunk: string) => void
-        onStderr?: (chunk: string) => void
+        onLog?: (chunk: string) => void
         onError?: (error: Error) => void
       },
     ) => ({
@@ -75,18 +80,31 @@ function fakeSandbox(options: FakeOptions = {}): {
         const command = execCalls.find(
           (request) => request.name === identifier,
         )?.command
+        // Mirror the supervisor's wire format: a ready marker to open the
+        // gate, then labeled records for both streams on stdout.
         const recordPrefix = command?.match(
           /__TANSTACK_AI_OUTPUT_CHUNK_[0-9a-f-]+__:/,
         )?.[0]
-        if ((options.streamLines?.length ?? 0) > 0 && !recordPrefix) {
-          throw new Error('test fake could not find the output record prefix')
+        const recordSuffix = command?.match(
+          /__TANSTACK_AI_EOL_[0-9a-f]+__/,
+        )?.[0]
+        const readyMarker = command?.match(
+          /__TANSTACK_AI_READY_[0-9a-f-]+__/,
+        )?.[0]
+        if (!recordPrefix || !recordSuffix || !readyMarker) {
+          throw new Error('test fake could not find the output framing markers')
         }
+        streamOptions?.onLog?.(readyMarker + recordSuffix)
         for (const entry of options.streamLines ?? []) {
           const bytes = Buffer.from(entry.line)
+          const label = entry.stream === 'stdout' ? '1:' : '2:'
           for (let offset = 0; offset < bytes.length; offset += 65_536) {
-            const record = `${recordPrefix}${bytes.subarray(offset, offset + 65_536).toString('base64')}`
-            if (entry.stream === 'stdout') streamOptions?.onStdout?.(record)
-            else streamOptions?.onStderr?.(record)
+            const encoded = bytes
+              .subarray(offset, offset + 65_536)
+              .toString('base64')
+            streamOptions?.onLog?.(
+              `${recordPrefix}${label}${encoded}${recordSuffix}`,
+            )
           }
         }
         if (options.waitGate) {
@@ -811,6 +829,9 @@ describe('BlaxelHandle process', () => {
         /mkdir -p -- '(\/tmp\/tanstack-ai-output-[^']+)'/,
       )?.[1]
       expect(outputDir).toBeDefined()
+      // Open the gate up front; this test exercises the reaper, not the host.
+      mkdirSync(outputDir!, { recursive: true })
+      writeFileSync(`${outputDir!}/go`, '')
       const child = spawnChild('/bin/sh', ['-c', script], {
         stdio: 'ignore',
       })
@@ -1001,6 +1022,79 @@ describe('BlaxelHandle process', () => {
     resolveWait({ exitCode: 0, stdout: 'different', stderr: '' })
     await expect(spawned.wait()).rejects.toThrow(/diverged/)
     await expect(iterator.next()).rejects.toThrow(/diverged/)
+  })
+
+  it('reassembles labeled records from one wire stream', async () => {
+    // Blaxel's log stream: a cut fragment before attach, `[keepalive]` inside
+    // a line (which ends it early; the rest arrives untagged, so only via
+    // onLog), both process streams on stdout.
+    const sandbox = new SandboxInstance({
+      metadata: { name: 'assembler' },
+    } as ConstructorParameters<typeof SandboxInstance>[0])
+    let command = ''
+    vi.spyOn(sandbox.process, 'exec').mockImplementation(async (request) => {
+      command = (request as { command: string }).command
+      return { pid: '17' } as never
+    })
+    const gate = vi.spyOn(sandbox.fs, 'write').mockResolvedValue({} as never)
+    vi.spyOn(sandbox.process, 'streamLogs').mockImplementation(
+      (_identifier, options) => ({
+        close: vi.fn(),
+        wait: async () => {
+          const prefix = command.match(
+            /__TANSTACK_AI_OUTPUT_CHUNK_[0-9a-f-]+__:/,
+          )![0]
+          const suffix = command.match(/__TANSTACK_AI_EOL_[0-9a-f]+__/)![0]
+          const ready = command.match(/__TANSTACK_AI_READY_[0-9a-f-]+__/)![0]
+          const record = (label: string, text: string): string =>
+            `${prefix}${label}${Buffer.from(text).toString('base64')}${suffix}`
+          const out = record('1:', 'out-1')
+          const lines = [
+            ready.slice(20) + suffix, // attach landed mid-marker
+            ready + suffix,
+            out.slice(0, 30) + '[keepalive]',
+            out.slice(30),
+            record('2:', 'err-1'),
+            ready + suffix, // one trailing marker after the gate opened
+            record('1:', 'out-2'),
+          ]
+          for (const line of lines) options?.onLog?.(line)
+        },
+      }),
+    )
+    vi.spyOn(sandbox.fs, 'read').mockImplementation(async (path) => {
+      if (path.endsWith('/status')) return '0'
+      if (path.endsWith('/stdout')) return 'out-1out-2'
+      if (path.endsWith('/stderr')) return 'err-1'
+      return ''
+    })
+    vi.spyOn(sandbox.fs, 'rm').mockResolvedValue({} as never)
+    const handle = new BlaxelHandle({
+      sandbox: sandbox as unknown as BlaxelSandboxLike,
+      name: 'assembler',
+      workdir: '/workspace',
+      publicPreviews: false,
+      previewTtl: '1h',
+    })
+
+    const spawned = await handle.process.spawn('noisy')
+    const collect = async (stream: AsyncIterable<string>): Promise<string> => {
+      let text = ''
+      for await (const chunk of stream) text += chunk
+      return text
+    }
+    const [out, err, exit] = await Promise.all([
+      collect(spawned.stdout),
+      collect(spawned.stderr),
+      spawned.wait(),
+    ])
+    expect(exit).toBe(0)
+    expect(out).toBe('out-1out-2')
+    expect(err).toBe('err-1')
+    expect(gate).toHaveBeenCalledOnce()
+    expect(gate.mock.calls[0]?.[0]).toMatch(
+      /\/tmp\/tanstack-ai-output-[^/]+\/go$/,
+    )
   })
 
   it('hard-bounds unread live output for a stalled consumer', async () => {

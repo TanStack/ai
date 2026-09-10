@@ -394,7 +394,8 @@ const blaxel = blaxelSandbox({
 - **Files:** `fs.watch()` is native, so file-event and diff hooks work without
   polling.
 - **Process output:** stdout and stderr remain live-streamed through bounded
-  remote capture pipelines. Each stream has an 8 MiB total limit; exceeding it
+  remote capture pipelines. Concurrent stdout and stderr use labeled records on
+  one transport stream, including across keepalive boundaries. Each stream has an 8 MiB total limit; exceeding it
   fails and remotely reaps the process instead of accumulating unbounded logs in
   the provider host. Cancellation uses the same process-group supervisor because
   the pinned SDK does not prove named-process kill reaches child processes.
