@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, or Blaxel) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, Blaxel, or E2B) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -32,6 +32,7 @@ completed workspace data in your application persistence for reconstruction.
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 | Upstash Box | `@tanstack/ai-sandbox-upstash-box` | cloud sandbox | Managed [Upstash Box](https://github.com/upstash/box) sandboxes; interactive processes over a WebSocket session (real pid, stdin, signals), native snapshots, preview URLs, resume-by-id. Needs `UPSTASH_BOX_API_KEY`. |
 | Blaxel | `@tanstack/ai-sandbox-blaxel` | cloud sandbox | Managed [Blaxel](https://blaxel.ai) sandboxes; durable filesystem, per-port preview URLs, native file watch, resume-by-id. Snapshot/fork remain disabled while the source-scoped private-preview semantics are unproven. Needs `BL_API_KEY` + `BL_WORKSPACE`. |
+| E2B | `@tanstack/ai-sandbox-e2b` | microVM | Managed [E2B](https://e2b.dev) Firecracker sandboxes. Native snapshots and fork, preview URLs, writable stdin, process-group kill, resume-by-id (also wakes a paused sandbox). Needs `E2B_API_KEY`. |
 
 Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
 come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
@@ -44,6 +45,7 @@ import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
@@ -52,9 +54,10 @@ const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // manag
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
 const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY }) // managed Upstash Box
 const blaxel = blaxelSandbox() // managed Blaxel sandbox; reads BL_API_KEY + BL_WORKSPACE
+const e2b = e2bSandbox() // managed E2B microVM; reads E2B_API_KEY
 ```
 
-> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, and Blaxel)
+> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, Blaxel, and E2B)
 > run remotely. When you drive them from your laptop, [tools](./tools) bridged
 > from `chat()` can't dial your machine's
 > `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
@@ -409,6 +412,54 @@ const blaxel = blaxelSandbox({
 - **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
   local dev (see [tools](./tools)).
 
+## E2B
+
+```ts
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+const e2b = e2bSandbox({ apiKey: process.env.E2B_API_KEY })
+```
+
+- **Isolation:** a managed [E2B](https://e2b.dev) sandbox, a Firecracker microVM
+  you do not run yourself. Pick the image with `template` (default: the E2B
+  `base` template).
+- **Auth / env:** needs `E2B_API_KEY` (or `apiKey`). Set `domain` (or
+  `E2B_DOMAIN`) for a self-hosted or BYOC deployment. Harness credentials are
+  injected as [workspace secrets](./provisioning). At create and snapshot
+  restore they are sent as sandbox `envs`. Per-command `env` goes through the
+  SDK's native `envs` argument. No value is written into a command string.
+- **Lifetime:** a sandbox lives for `timeoutMs` (default 30 minutes) and is
+  killed when that time elapses, so an abandoned run cannot keep billing.
+  Resume extends the lifetime by the same amount. Set `onTimeout: 'pause'` to
+  keep a timed-out sandbox resumable instead. E2B caps the lifetime at 1 hour
+  on the Hobby plan and 24 hours on Pro.
+- **Snapshot / resume:** `snapshot()` calls `createSnapshot()`. The sandbox is
+  paused briefly, then resumed. `restoreSnapshot()` creates a new sandbox from
+  that snapshot, so a snapshot survives deletion of its source. Resume-by-id
+  uses `Sandbox.connect`, which also wakes a paused sandbox. A killed or
+  expired sandbox resumes as `null`.
+- **Fork:** `fork()` is native. The parent is checkpointed in place and the copy
+  boots from that checkpoint.
+- **Processes:** every command runs as the leader of its own process group
+  (`setsid`), so `kill()` reaches backgrounded children. `kill()` always sends
+  `SIGKILL`. `spawn()` has a real sandbox pid, a writable stdin, and separate
+  stdout and stderr. A custom template must include `setsid` (util-linux); the
+  default template has it.
+- **Ports:** `ports.connect(port)` returns
+  `https://<port>-<sandbox-id>.<domain>`. With `allowPublicTraffic: false` the
+  URL is gated by the `e2b-traffic-access-token` header, and the channel carries
+  that header in `headers`. Browsers cannot send it, so leave public traffic on
+  for preview links a person clicks.
+- **Network:** `policy.capabilities.network: 'deny'` maps to
+  `allowInternetAccess: false`, which blocks all outbound traffic. E2B's
+  per-host allow and deny lists are not reachable through the contract's coarse
+  gate.
+- **Paths:** the portable root `/workspace` maps to `/home/user/workspace` by
+  default. Override with `workdir`. The sandbox user is `user` (not root) with
+  passwordless `sudo`, and `/workspace` itself is not writable.
+- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
+  the tunnel in local dev (see [tools](./tools)).
+
 ## Capabilities
 
 Providers declare what they support via `capabilities()`. The flags are:
@@ -420,7 +471,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, and Upstash Box. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, Upstash Box, and E2B. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -471,6 +522,7 @@ merely slower while a wrong `follow` is a leak.
 | Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
 | Upstash Box | `true` | **Measured.** `kill()` sends an allowlisted signal (`TERM`/`KILL`/`INT`/`HUP`) that the box agent delivers to the process TREE server-side, so a forked child is signalled too. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `UPSTASH_BOX_API_KEY`. |
 | Blaxel | `false` | The SDK issues a server-side process kill, but whether it terminates the shell's child process group is unmeasured. The shared live conformance suite is credential-gated on `BL_API_KEY` and `BL_WORKSPACE`. |
+| E2B | `true` | **Measured.** The SDK's own kill is a SIGKILL to the shell pid, and a backgrounded `( … ) & wait` child survived it. Every command therefore runs as a `setsid` group leader and `kill()` runs `kill -KILL -- -<pid>` inside the sandbox. The shared journal conformance kill case passes against a real sandbox. Needs `E2B_API_KEY`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 
 Each of the remote providers registers the shared journal conformance suite, so
