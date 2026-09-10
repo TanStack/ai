@@ -11,6 +11,7 @@ import {
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import type { MemoryAdapter } from '@tanstack/ai-memory'
+import { clientContextToolDefinition } from '@/lib/middleware-test-tools'
 import {
   getMemoryCapture,
   recordMemoryConfig,
@@ -645,20 +646,23 @@ export const Route = createFileRoute('/api/middleware-test')({
               ? genericTools(testId, genericScenario)
               : scenario === 'with-tool'
                 ? [weatherTool]
-                : []
+                : scenario === 'structured-client-tool-wait'
+                  ? [clientContextToolDefinition]
+                  : []
 
-          // The two `structured-output*` scenarios both bind the same
-          // guitar schema; they differ only in what the spec asserts (phases
-          // observed vs RUN_STARTED/RUN_FINISHED uniqueness). A single
-          // outputSchema branch keeps the route narrow.
+          // Structured scenarios bind the same guitar schema. The client-tool
+          // variant also passes an isomorphic tool definition so the first
+          // server invocation can stop at the browser-execution boundary.
           const isStructured =
             scenario === 'structured-output' ||
-            scenario === 'structured-output-stream'
+            scenario === 'structured-output-stream' ||
+            scenario === 'structured-client-tool-wait'
 
           const rawStream = isStructured
             ? chat({
                 ...adapterOptions,
                 messages: params.messages,
+                tools,
                 middleware,
                 threadId: params.threadId,
                 runId: params.runId,

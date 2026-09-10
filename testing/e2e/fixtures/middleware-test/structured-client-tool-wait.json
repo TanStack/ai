@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[structured-client-tool-wait] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "get_client_context",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[structured-client-tool-wait] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "{\"name\":\"Client Context Guitar\",\"price\":999,\"reason\":\"Recommended using client-result\",\"rating\":5}"
+      }
+    }
+  ]
+}
