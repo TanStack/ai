@@ -3,8 +3,6 @@ id: RunDetachedCapability
 title: RunDetachedCapability
 ---
 
-# Variable: RunDetachedCapability
-
 ```ts
 const RunDetachedCapability: Capability<true, "run-detached">;
 ```

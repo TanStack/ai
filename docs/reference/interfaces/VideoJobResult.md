@@ -3,8 +3,6 @@ id: VideoJobResult
 title: VideoJobResult
 ---
 
-# Interface: VideoJobResult
-
 Defined in: [packages/ai/src/types.ts:2170](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2170)
 
 **`Experimental`**

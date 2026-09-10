@@ -3,8 +3,6 @@ id: uiMessageToModelMessages
 title: uiMessageToModelMessages
 ---
 
-# Function: uiMessageToModelMessages()
-
 ```ts
 function uiMessageToModelMessages(uiMessage): ModelMessage<
   | string

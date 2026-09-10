@@ -3,8 +3,6 @@ id: Embedding
 title: Embedding
 ---
 
-# Interface: Embedding
-
 Defined in: [packages/ai/src/types.ts:2468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2468)
 
 A single embedding vector.

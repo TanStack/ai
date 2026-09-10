@@ -3,8 +3,6 @@ id: RealtimeToken
 title: RealtimeToken
 ---
 
-# Interface: RealtimeToken
-
 Defined in: [packages/ai/src/realtime/types.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L63)
 
 Token returned by the server for client authentication

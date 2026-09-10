@@ -3,8 +3,6 @@ id: RUN_CANCEL_REASON
 title: RUN_CANCEL_REASON
 ---
 
-# Variable: RUN\_CANCEL\_REASON
-
 ```ts
 const RUN_CANCEL_REASON: "tanstack-ai:cancel-requested" = 'tanstack-ai:cancel-requested';
 ```

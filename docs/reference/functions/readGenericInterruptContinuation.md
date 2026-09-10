@@ -3,8 +3,6 @@ id: readGenericInterruptContinuation
 title: readGenericInterruptContinuation
 ---
 
-# Function: readGenericInterruptContinuation()
-
 ```ts
 function readGenericInterruptContinuation(metadata): GenericInterruptContinuationReadResult;
 ```

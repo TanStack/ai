@@ -3,8 +3,6 @@ id: AdapterYieldChunk
 title: AdapterYieldChunk
 ---
 
-# Type Alias: AdapterYieldChunk
-
 ```ts
 type AdapterYieldChunk = StreamChunk & object;
 ```

@@ -3,8 +3,6 @@ id: PersistedArtifactActivity
 title: PersistedArtifactActivity
 ---
 
-# Type Alias: PersistedArtifactActivity
-
 ```ts
 type PersistedArtifactActivity = "image" | "audio" | "tts" | "video" | "transcription";
 ```

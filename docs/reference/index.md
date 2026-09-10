@@ -3,8 +3,6 @@ id: "@tanstack/ai"
 title: "@tanstack/ai"
 ---
 
-# @tanstack/ai
-
 ## Classes
 
 - [BaseRerankAdapter](classes/BaseRerankAdapter.md)

@@ -3,8 +3,6 @@ id: EmbeddingOptions
 title: EmbeddingOptions
 ---
 
-# Interface: EmbeddingOptions\<TProviderOptions\>
-
 Defined in: [packages/ai/src/types.ts:2445](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2445)
 
 Options for embedding generation, as received by adapters. The `embed()`

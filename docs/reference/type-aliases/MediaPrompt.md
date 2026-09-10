@@ -3,8 +3,6 @@ id: MediaPrompt
 title: MediaPrompt
 ---
 
-# Type Alias: MediaPrompt
-
 ```ts
 type MediaPrompt = string | MediaPromptPart[];
 ```

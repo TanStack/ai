@@ -3,8 +3,6 @@ id: EmbeddingInputItemFor
 title: EmbeddingInputItemFor
 ---
 
-# Type Alias: EmbeddingInputItemFor\<TModalities\>
-
 ```ts
 type EmbeddingInputItemFor<TModalities> = 
   | string

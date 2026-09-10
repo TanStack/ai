@@ -3,8 +3,6 @@ id: OutputSchemaOf
 title: OutputSchemaOf
 ---
 
-# Type Alias: OutputSchemaOf\<TTool\>
-
 ```ts
 type OutputSchemaOf<TTool> = TTool extends object ? TOutput extends undefined ? NoSchema : TOutput : NoSchema;
 ```

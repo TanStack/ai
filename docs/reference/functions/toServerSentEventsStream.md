@@ -3,8 +3,6 @@ id: toServerSentEventsStream
 title: toServerSentEventsStream
 ---
 
-# Function: toServerSentEventsStream()
-
 ```ts
 function toServerSentEventsStream(
    stream, 

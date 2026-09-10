@@ -11,8 +11,6 @@ keywords:
   - sandbox billing
 ---
 
-# Durable Runs Explained
-
 Turn it on with the snippet below. The rest of the page is the mental model, in plain
 language, and it is worth reading before [The Run Journal](./journal),
 [Takeover & Detached Runs](./takeover) and [Reaping & Retention](./reaping), which go

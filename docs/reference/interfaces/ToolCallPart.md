@@ -3,8 +3,6 @@ id: ToolCallPart
 title: ToolCallPart
 ---
 
-# Interface: ToolCallPart\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L410)
 
 ## Type Parameters

@@ -3,8 +3,6 @@ id: TranscriptionOptions
 title: TranscriptionOptions
 ---
 
-# Interface: TranscriptionOptions\<TProviderOptions\>
-
 Defined in: [packages/ai/src/types.ts:2293](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2293)
 
 ## Type Parameters

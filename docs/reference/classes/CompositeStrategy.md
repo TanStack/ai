@@ -3,8 +3,6 @@ id: CompositeStrategy
 title: CompositeStrategy
 ---
 
-# Class: CompositeStrategy
-
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L68)
 
 Composite Strategy - combine multiple strategies (OR logic)

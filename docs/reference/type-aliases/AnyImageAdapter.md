@@ -3,8 +3,6 @@ id: AnyImageAdapter
 title: AnyImageAdapter
 ---
 
-# Type Alias: AnyImageAdapter
-
 ```ts
 type AnyImageAdapter = ImageAdapter<any, any, any, any, any>;
 ```

@@ -3,8 +3,6 @@ id: TTSAdapter
 title: TTSAdapter
 ---
 
-# Interface: TTSAdapter\<TModel, TProviderOptions\>
-
 Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L24)
 
 TTS adapter interface with pre-resolved generics.

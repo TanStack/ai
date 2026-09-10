@@ -3,8 +3,6 @@ id: RealtimeMessagePart
 title: RealtimeMessagePart
 ---
 
-# Type Alias: RealtimeMessagePart
-
 ```ts
 type RealtimeMessagePart = 
   | RealtimeTextPart

@@ -3,8 +3,6 @@ id: WellKnownCustomEventName
 title: WellKnownCustomEventName
 ---
 
-# Type Alias: WellKnownCustomEventName
-
 ```ts
 type WellKnownCustomEventName = typeof CUSTOM_EVENT[keyof typeof CUSTOM_EVENT];
 ```

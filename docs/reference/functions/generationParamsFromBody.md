@@ -3,8 +3,6 @@ id: generationParamsFromBody
 title: generationParamsFromBody
 ---
 
-# Function: generationParamsFromBody()
-
 ```ts
 function generationParamsFromBody<TKind>(kind, body): GenerationParams<TKind>;
 ```

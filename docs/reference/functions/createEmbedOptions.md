@@ -3,8 +3,6 @@ id: createEmbedOptions
 title: createEmbedOptions
 ---
 
-# Function: createEmbedOptions()
-
 ```ts
 function createEmbedOptions<TAdapter>(options): EmbedOptions<TAdapter>;
 ```

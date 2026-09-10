@@ -3,8 +3,6 @@ id: AgentLoopStrategy
 title: AgentLoopStrategy
 ---
 
-# Type Alias: AgentLoopStrategy
-
 ```ts
 type AgentLoopStrategy = (state) => boolean;
 ```

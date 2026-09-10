@@ -3,8 +3,6 @@ id: ApprovalRequestedPayload
 title: ApprovalRequestedPayload
 ---
 
-# Interface: ApprovalRequestedPayload
-
 Defined in: [packages/ai/src/custom-events.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L57)
 
 ## Indexable

@@ -3,8 +3,6 @@ id: RealtimeAudioPart
 title: RealtimeAudioPart
 ---
 
-# Interface: RealtimeAudioPart
-
 Defined in: [packages/ai/src/realtime/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L107)
 
 Audio content part in a realtime message

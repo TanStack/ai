@@ -12,8 +12,6 @@ keywords:
   - dynamic adapter
 ---
 
-# Runtime Adapter Switching with Type Safety
-
 Learn how to build interfaces where users can switch between LLM providers at runtime while maintaining full TypeScript type safety.
 
 ## The Simple Approach

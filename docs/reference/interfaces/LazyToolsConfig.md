@@ -3,8 +3,6 @@ id: LazyToolsConfig
 title: LazyToolsConfig
 ---
 
-# Interface: LazyToolsConfig
-
 Defined in: [packages/ai/src/types.ts:817](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L817)
 
 Configuration for the lazy-tool discovery catalog, shared by chat() and

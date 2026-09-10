@@ -3,8 +3,6 @@ id: parsePartialJSON
 title: parsePartialJSON
 ---
 
-# Function: parsePartialJSON()
-
 ```ts
 function parsePartialJSON(jsonString): any;
 ```

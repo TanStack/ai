@@ -2,8 +2,6 @@
 title: Migrating to AG-UI Client-to-Server Compliance
 ---
 
-# Migrating to AG-UI Client-to-Server Compliance
-
 > **TL;DR:** Upgrade `@tanstack/ai` and `@tanstack/ai-client` together. `useChat` messages, thinking, tools, and approvals keep working. The HTTP wire is a breaking 0.x change: extras live in `metadata.tanstack`, and messages have no `parts`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
 
 ## What changed

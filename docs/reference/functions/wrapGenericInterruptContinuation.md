@@ -3,8 +3,6 @@ id: wrapGenericInterruptContinuation
 title: wrapGenericInterruptContinuation
 ---
 
-# Function: wrapGenericInterruptContinuation()
-
 ```ts
 function wrapGenericInterruptContinuation(continuation): Record<string, unknown>;
 ```

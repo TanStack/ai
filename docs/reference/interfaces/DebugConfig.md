@@ -3,8 +3,6 @@ id: DebugConfig
 title: DebugConfig
 ---
 
-# Interface: DebugConfig
-
 Defined in: [packages/ai/src/logger/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L73)
 
 Granular debug configuration combining per-category toggles with an optional custom logger. Any unspecified category flag defaults to `true`.

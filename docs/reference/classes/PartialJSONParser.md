@@ -3,8 +3,6 @@ id: PartialJSONParser
 title: PartialJSONParser
 ---
 
-# Class: PartialJSONParser
-
 Defined in: [packages/ai/src/activities/chat/stream/json-parser.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/json-parser.ts#L25)
 
 Partial JSON Parser implementation using the partial-json library

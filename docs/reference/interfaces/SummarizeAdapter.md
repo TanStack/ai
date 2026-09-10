@@ -3,8 +3,6 @@ id: SummarizeAdapter
 title: SummarizeAdapter
 ---
 
-# Interface: SummarizeAdapter\<TModel, TProviderOptions\>
-
 Defined in: [packages/ai/src/activities/summarize/adapter.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/adapter.ts#L28)
 
 Summarize adapter interface with pre-resolved generics.

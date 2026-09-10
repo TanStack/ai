@@ -3,8 +3,6 @@ id: DefinedChatMiddleware
 title: DefinedChatMiddleware
 ---
 
-# Interface: DefinedChatMiddleware\<TContext, TRequires, TProvides, TInterruptDefinitions\>
-
 Defined in: [packages/ai/src/activities/chat/middleware/define.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L11)
 
 A middleware whose `requires`/`provides` tuple types are captured precisely

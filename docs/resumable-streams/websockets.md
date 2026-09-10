@@ -14,8 +14,6 @@ keywords:
   - websocket heartbeat
 ---
 
-# WebSockets
-
 SSE and NDJSON open one connection per turn. A WebSocket is different: one
 socket stays open for the whole conversation, carries every turn, and lets the
 server push chunks without waiting on a request. Reach for it when you want a

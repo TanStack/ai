@@ -3,8 +3,6 @@ id: SystemPrompt
 title: SystemPrompt
 ---
 
-# Type Alias: SystemPrompt\<TMetadata\>
-
 ```ts
 type SystemPrompt<TMetadata> = 
   | string

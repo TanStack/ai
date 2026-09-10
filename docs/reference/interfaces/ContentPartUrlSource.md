@@ -3,8 +3,6 @@ id: ContentPartUrlSource
 title: ContentPartUrlSource
 ---
 
-# Interface: ContentPartUrlSource
-
 Defined in: [packages/ai/src/types.ts:237](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L237)
 
 Source specification for URL-based content.

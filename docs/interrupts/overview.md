@@ -11,8 +11,6 @@ keywords:
   - resolveInterrupt
 ---
 
-# Interrupts
-
 Most agent runs are fire and forget. The model calls tools, they run, you get an
 answer back. But some steps must not happen on their own: moving money,
 deleting a project, sending an email. And sometimes the agent needs an answer

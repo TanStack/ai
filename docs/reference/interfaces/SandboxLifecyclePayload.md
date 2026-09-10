@@ -3,8 +3,6 @@ id: SandboxLifecyclePayload
 title: SandboxLifecyclePayload
 ---
 
-# Interface: SandboxLifecyclePayload
-
 Defined in: [packages/ai/src/custom-events.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L76)
 
 ## Properties

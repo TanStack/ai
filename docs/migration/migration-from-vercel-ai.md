@@ -17,8 +17,6 @@ keywords:
   - agent loop
 ---
 
-# Migration from Vercel AI SDK
-
 This guide helps you migrate from the Vercel AI SDK (`ai` + `@ai-sdk/*`) to TanStack AI. Both libraries cover the same problem space — LLM calls, streaming, tool use, structured output, framework hooks — but TanStack AI uses a different architecture with enhanced type safety, tree-shakeable adapters, an isomorphic tool system, and a first-class middleware pipeline.
 
 The "Before" examples target **AI SDK v5 and v6**. Older v4 naming is called out inline where it differs.

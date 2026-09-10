@@ -11,8 +11,6 @@ keywords:
   - delivery durability
 ---
 
-# Custom Durability Adapter
-
 You have a store you want streams to survive on: Redis, Postgres, a queue,
 Electric, an object store. By the end of this page you have a `StreamDurability`
 adapter that plugs into `toServerSentEventsResponse` / `toHttpResponse`, so a

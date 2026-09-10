@@ -3,8 +3,6 @@ id: Logger
 title: Logger
 ---
 
-# Interface: Logger
-
 Defined in: [packages/ai/src/logger/types.ts:4](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L4)
 
 Pluggable logger interface consumed by every `@tanstack/ai` activity when `debug` is enabled. Supply a custom implementation via `debug: { logger }` on `chat()`, `summarize()`, `generateImage()`, etc. The four methods correspond to log levels: use `debug` for chunk-level diagnostic output, `info`/`warn` for notable events, `error` for caught exceptions.

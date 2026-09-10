@@ -3,8 +3,6 @@ id: generateImage
 title: generateImage
 ---
 
-# Function: generateImage()
-
 ```ts
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```

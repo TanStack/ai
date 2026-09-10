@@ -3,8 +3,6 @@ id: digestInterruptJson
 title: digestInterruptJson
 ---
 
-# Function: digestInterruptJson()
-
 ```ts
 function digestInterruptJson(canonicalJson, hash?): string;
 ```

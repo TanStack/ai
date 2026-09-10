@@ -3,8 +3,6 @@ id: getChunkRunId
 title: getChunkRunId
 ---
 
-# Function: getChunkRunId()
-
 ```ts
 function getChunkRunId(chunk): string | undefined;
 ```

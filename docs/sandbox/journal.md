@@ -14,8 +14,6 @@ keywords:
   - journal-stalled
 ---
 
-# The Run Journal
-
 A sandboxed coding agent can work for ten minutes. If the host process holding
 the agent's stdout pipe goes away in minute three, that pipe breaks, the agent
 gets a `SIGPIPE`, and the work is gone. Nothing is left to read, because the

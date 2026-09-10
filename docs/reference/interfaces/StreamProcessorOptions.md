@@ -3,8 +3,6 @@ id: StreamProcessorOptions
 title: StreamProcessorOptions
 ---
 
-# Interface: StreamProcessorOptions
-
 Defined in: [packages/ai/src/activities/chat/stream/processor.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L136)
 
 Options for StreamProcessor

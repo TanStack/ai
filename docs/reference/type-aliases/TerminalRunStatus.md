@@ -3,8 +3,6 @@ id: TerminalRunStatus
 title: TerminalRunStatus
 ---
 
-# Type Alias: TerminalRunStatus
-
 ```ts
 type TerminalRunStatus = "completed" | "failed" | "aborted";
 ```

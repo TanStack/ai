@@ -3,8 +3,6 @@ id: AIAdapter
 title: AIAdapter
 ---
 
-# Type Alias: AIAdapter
-
 ```ts
 type AIAdapter = 
   | AnyTextAdapter

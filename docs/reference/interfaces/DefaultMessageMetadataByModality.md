@@ -3,8 +3,6 @@ id: DefaultMessageMetadataByModality
 title: DefaultMessageMetadataByModality
 ---
 
-# Interface: DefaultMessageMetadataByModality
-
 Defined in: [packages/ai/src/types.ts:2493](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2493)
 
 Default metadata type for adapters that don't define custom metadata.

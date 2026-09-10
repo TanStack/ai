@@ -3,8 +3,6 @@ id: InputModalitiesTypes
 title: InputModalitiesTypes
 ---
 
-# Type Alias: InputModalitiesTypes
-
 ```ts
 type InputModalitiesTypes = object;
 ```

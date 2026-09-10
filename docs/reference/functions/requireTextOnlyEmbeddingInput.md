@@ -3,8 +3,6 @@ id: requireTextOnlyEmbeddingInput
 title: requireTextOnlyEmbeddingInput
 ---
 
-# Function: requireTextOnlyEmbeddingInput()
-
 ```ts
 function requireTextOnlyEmbeddingInput(
    input, 

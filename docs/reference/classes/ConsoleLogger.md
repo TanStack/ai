@@ -3,8 +3,6 @@ id: ConsoleLogger
 title: ConsoleLogger
 ---
 
-# Class: ConsoleLogger
-
 Defined in: [packages/ai/src/logger/console-logger.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/console-logger.ts#L101)
 
 Default `Logger` implementation that routes each level to the matching

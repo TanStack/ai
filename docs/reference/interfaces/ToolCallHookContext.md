@@ -3,8 +3,6 @@ id: ToolCallHookContext
 title: ToolCallHookContext
 ---
 
-# Interface: ToolCallHookContext
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L377)
 
 Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).

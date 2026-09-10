@@ -3,8 +3,6 @@ id: RealtimeErrorCode
 title: RealtimeErrorCode
 ---
 
-# Type Alias: RealtimeErrorCode
-
 ```ts
 type RealtimeErrorCode = 
   | "TOKEN_EXPIRED"

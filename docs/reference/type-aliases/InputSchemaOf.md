@@ -3,8 +3,6 @@ id: InputSchemaOf
 title: InputSchemaOf
 ---
 
-# Type Alias: InputSchemaOf\<TTool\>
-
 ```ts
 type InputSchemaOf<TTool> = TTool extends object ? TInput extends undefined ? NoSchema : TInput : NoSchema;
 ```

@@ -3,8 +3,6 @@ id: generateMessageId
 title: generateMessageId
 ---
 
-# Function: generateMessageId()
-
 ```ts
 function generateMessageId(): string;
 ```

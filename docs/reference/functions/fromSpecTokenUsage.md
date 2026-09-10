@@ -3,8 +3,6 @@ id: fromSpecTokenUsage
 title: fromSpecTokenUsage
 ---
 
-# Function: fromSpecTokenUsage()
-
 ```ts
 function fromSpecTokenUsage(usage, leftover?): TokenUsage<ProviderUsageDetails> | undefined;
 ```

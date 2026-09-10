@@ -20,8 +20,6 @@ keywords:
   - vercel ai gateway
 ---
 
-# Embeddings
-
 TanStack AI provides embedding generation through dedicated embedding adapters that follow the same tree-shakeable, per-model-typed architecture as every other activity. The `embed()` function turns text — and, for multimodal models, images — into vectors for semantic search, RAG, clustering, and classification.
 
 ## Overview

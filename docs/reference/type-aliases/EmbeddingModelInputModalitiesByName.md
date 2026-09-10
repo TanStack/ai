@@ -3,8 +3,6 @@ id: EmbeddingModelInputModalitiesByName
 title: EmbeddingModelInputModalitiesByName
 ---
 
-# Type Alias: EmbeddingModelInputModalitiesByName
-
 ```ts
 type EmbeddingModelInputModalitiesByName = Record<string, ReadonlyArray<EmbeddingModality>>;
 ```

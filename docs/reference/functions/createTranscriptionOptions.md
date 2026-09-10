@@ -3,8 +3,6 @@ id: createTranscriptionOptions
 title: createTranscriptionOptions
 ---
 
-# Function: createTranscriptionOptions()
-
 ```ts
 function createTranscriptionOptions<TAdapter, TStream>(options): TranscriptionActivityOptions<TAdapter, TStream>;
 ```

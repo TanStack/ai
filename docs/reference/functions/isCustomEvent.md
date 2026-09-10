@@ -3,8 +3,6 @@ id: isCustomEvent
 title: isCustomEvent
 ---
 
-# Function: isCustomEvent()
-
 ```ts
 function isCustomEvent<TName>(chunk, name): chunk is WellKnownCustomEvent<TName>;
 ```

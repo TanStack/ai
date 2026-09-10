@@ -3,8 +3,6 @@ id: AnyGenerationMiddleware
 title: AnyGenerationMiddleware
 ---
 
-# Type Alias: AnyGenerationMiddleware
-
 ```ts
 type AnyGenerationMiddleware = GenerationMiddleware<any>;
 ```

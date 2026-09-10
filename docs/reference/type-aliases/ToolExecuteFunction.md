@@ -3,8 +3,6 @@ id: ToolExecuteFunction
 title: ToolExecuteFunction
 ---
 
-# Type Alias: ToolExecuteFunction\<TInput, TOutput, TContext\>
-
 ```ts
 type ToolExecuteFunction<TInput, TOutput, TContext> = undefined extends TContext ? (args, context?) => 
   | Promise<InferSchemaType<TOutput>>

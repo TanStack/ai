@@ -3,8 +3,6 @@ id: RealtimeStatus
 title: RealtimeStatus
 ---
 
-# Type Alias: RealtimeStatus
-
 ```ts
 type RealtimeStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 ```

@@ -3,8 +3,6 @@ id: memoryStream
 title: memoryStream
 ---
 
-# Function: memoryStream()
-
 ```ts
 function memoryStream(source, options?): UpsertableStreamDurability;
 ```

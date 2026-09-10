@@ -3,8 +3,6 @@ id: ModalitiesArrayToUnion
 title: ModalitiesArrayToUnion
 ---
 
-# Type Alias: ModalitiesArrayToUnion\<T\>
-
 ```ts
 type ModalitiesArrayToUnion<T> = T[number];
 ```

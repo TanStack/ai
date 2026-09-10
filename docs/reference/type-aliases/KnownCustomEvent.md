@@ -3,8 +3,6 @@ id: KnownCustomEvent
 title: KnownCustomEvent
 ---
 
-# Type Alias: KnownCustomEvent
-
 ```ts
 type KnownCustomEvent = 
   | SandboxFileCustomEvent

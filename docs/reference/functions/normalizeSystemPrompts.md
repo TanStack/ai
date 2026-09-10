@@ -3,8 +3,6 @@ id: normalizeSystemPrompts
 title: normalizeSystemPrompts
 ---
 
-# Function: normalizeSystemPrompts()
-
 ```ts
 function normalizeSystemPrompts<TMetadata>(prompts): NormalizedSystemPrompt<TMetadata>[];
 ```

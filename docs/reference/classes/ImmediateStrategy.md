@@ -3,8 +3,6 @@ id: ImmediateStrategy
 title: ImmediateStrategy
 ---
 
-# Class: ImmediateStrategy
-
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L12)
 
 Immediate Strategy - emit on every chunk (default behavior)

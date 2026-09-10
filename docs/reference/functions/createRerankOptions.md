@@ -3,8 +3,6 @@ id: createRerankOptions
 title: createRerankOptions
 ---
 
-# Function: createRerankOptions()
-
 ```ts
 function createRerankOptions<TAdapter, TDocument>(options): RerankActivityOptions<TAdapter, TDocument>;
 ```

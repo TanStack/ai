@@ -3,8 +3,6 @@ id: ItemInterruptErrorCode
 title: ItemInterruptErrorCode
 ---
 
-# Type Alias: ItemInterruptErrorCode
-
 ```ts
 type ItemInterruptErrorCode = 
   | "invalid-payload"

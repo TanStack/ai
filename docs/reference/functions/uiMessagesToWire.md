@@ -3,8 +3,6 @@ id: uiMessagesToWire
 title: uiMessagesToWire
 ---
 
-# Function: uiMessagesToWire()
-
 ```ts
 function uiMessagesToWire(messages, options?): WireMessage[];
 ```

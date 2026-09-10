@@ -3,8 +3,6 @@ id: createReplayStream
 title: createReplayStream
 ---
 
-# Function: createReplayStream()
-
 ```ts
 function createReplayStream(recording): AsyncIterable<AGUIEvent>;
 ```

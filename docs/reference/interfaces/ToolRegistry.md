@@ -3,8 +3,6 @@ id: ToolRegistry
 title: ToolRegistry
 ---
 
-# Interface: ToolRegistry\<TTool\>
-
 Defined in: [packages/ai/src/tool-registry.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L9)
 
 A registry that holds tools and allows dynamic tool management.

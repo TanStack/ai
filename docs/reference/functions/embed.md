@@ -3,8 +3,6 @@ id: embed
 title: embed
 ---
 
-# Function: embed()
-
 ```ts
 function embed<TAdapter>(options): Promise<EmbeddingResult>;
 ```

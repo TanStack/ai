@@ -3,8 +3,6 @@ id: isContentPart
 title: isContentPart
 ---
 
-# Function: isContentPart()
-
 ```ts
 function isContentPart(value): value is ContentPart;
 ```

@@ -3,8 +3,6 @@ id: AnyChatMiddleware
 title: AnyChatMiddleware
 ---
 
-# Type Alias: AnyChatMiddleware
-
 ```ts
 type AnyChatMiddleware = ChatMiddleware<any, any>;
 ```

@@ -3,8 +3,6 @@ id: isStandardSchema
 title: isStandardSchema
 ---
 
-# Function: isStandardSchema()
-
 ```ts
 function isStandardSchema(schema): schema is StandardSchemaV1<unknown, unknown>;
 ```

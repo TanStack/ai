@@ -14,8 +14,6 @@ keywords:
   - useGenerateImage threadId
 ---
 
-# Id Map
-
 There are only two ids to know, and mixing them up is what makes persistence look
 broken.
 

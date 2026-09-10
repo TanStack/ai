@@ -3,8 +3,6 @@ id: GeneratedMediaSource
 title: GeneratedMediaSource
 ---
 
-# Type Alias: GeneratedMediaSource
-
 ```ts
 type GeneratedMediaSource = 
   | {

@@ -3,8 +3,6 @@ id: RealtimeToolResultPart
 title: RealtimeToolResultPart
 ---
 
-# Interface: RealtimeToolResultPart
-
 Defined in: [packages/ai/src/realtime/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L132)
 
 Tool result part in a realtime message

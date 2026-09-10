@@ -3,8 +3,6 @@ id: StructuredOutputMiddlewareConfig
 title: StructuredOutputMiddlewareConfig
 ---
 
-# Interface: StructuredOutputMiddlewareConfig
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:362](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L362)
 
 Config passed to onStructuredOutputConfig.

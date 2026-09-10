@@ -3,8 +3,6 @@ id: JSONParser
 title: JSONParser
 ---
 
-# Interface: JSONParser
-
 Defined in: [packages/ai/src/activities/chat/stream/json-parser.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/json-parser.ts#L12)
 
 JSON Parser interface - allows for custom parser implementations

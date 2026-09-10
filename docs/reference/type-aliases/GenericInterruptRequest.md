@@ -3,8 +3,6 @@ id: GenericInterruptRequest
 title: GenericInterruptRequest
 ---
 
-# Type Alias: GenericInterruptRequest\<TDefinition\>
-
 ```ts
 type GenericInterruptRequest<TDefinition> = [TDefinition] extends [never] ? never : TDefinition extends InterruptDefinition<any, infer TPayloadSchema, any, infer TPayload> ? GenericInterruptRequestFor<TDefinition, TPayloadSchema, TPayload> : GenericInterruptRequestBase<TDefinition>;
 ```

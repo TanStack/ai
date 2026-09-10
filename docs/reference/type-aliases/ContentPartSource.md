@@ -3,8 +3,6 @@ id: ContentPartSource
 title: ContentPartSource
 ---
 
-# Type Alias: ContentPartSource
-
 ```ts
 type ContentPartSource = 
   | ContentPartDataSource

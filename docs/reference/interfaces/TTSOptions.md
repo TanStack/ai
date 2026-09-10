@@ -3,8 +3,6 @@ id: TTSOptions
 title: TTSOptions
 ---
 
-# Interface: TTSOptions\<TProviderOptions\>
-
 Defined in: [packages/ai/src/types.ts:2229](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2229)
 
 Options for text-to-speech generation.

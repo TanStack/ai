@@ -3,8 +3,6 @@ id: createModel
 title: createModel
 ---
 
-# Function: createModel()
-
 ## Call Signature
 
 ```ts

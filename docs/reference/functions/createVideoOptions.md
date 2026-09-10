@@ -3,8 +3,6 @@ id: createVideoOptions
 title: createVideoOptions
 ---
 
-# Function: createVideoOptions()
-
 ```ts
 function createVideoOptions<TAdapter, TStream>(options): VideoCreateOptions<TAdapter, TStream>;
 ```

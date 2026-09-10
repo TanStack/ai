@@ -3,8 +3,6 @@ id: RerankOptions
 title: RerankOptions
 ---
 
-# Interface: RerankOptions\<TProviderOptions\>
-
 Defined in: [packages/ai/src/types.ts:1779](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1779)
 
 Options passed to a [RerankAdapter](RerankAdapter.md). Documents reach the adapter

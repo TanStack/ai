@@ -3,8 +3,6 @@ id: createToolRegistry
 title: createToolRegistry
 ---
 
-# Function: createToolRegistry()
-
 ```ts
 function createToolRegistry<TTool>(initialTools?): ToolRegistry<TTool>;
 ```

@@ -3,8 +3,6 @@ id: ToolResultState
 title: ToolResultState
 ---
 
-# Type Alias: ToolResultState
-
 ```ts
 type ToolResultState = "streaming" | "complete" | "error";
 ```

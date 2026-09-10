@@ -3,8 +3,6 @@ id: getVideoJobStatus
 title: getVideoJobStatus
 ---
 
-# Function: getVideoJobStatus()
-
 ```ts
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```

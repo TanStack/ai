@@ -3,8 +3,6 @@ id: BatchInterruptErrorCode
 title: BatchInterruptErrorCode
 ---
 
-# Type Alias: BatchInterruptErrorCode
-
 ```ts
 type BatchInterruptErrorCode = 
   | "incomplete-batch"

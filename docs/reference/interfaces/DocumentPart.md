@@ -3,8 +3,6 @@ id: DocumentPart
 title: DocumentPart
 ---
 
-# Interface: DocumentPart\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:300](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L300)
 
 Document content part for multimodal messages (e.g., PDFs).

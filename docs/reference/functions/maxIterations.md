@@ -3,8 +3,6 @@ id: maxIterations
 title: maxIterations
 ---
 
-# Function: maxIterations()
-
 ```ts
 function maxIterations(max): AgentLoopStrategy;
 ```

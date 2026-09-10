@@ -3,8 +3,6 @@ id: EmbeddingInputItem
 title: EmbeddingInputItem
 ---
 
-# Type Alias: EmbeddingInputItem
-
 ```ts
 type EmbeddingInputItem = 
   | string

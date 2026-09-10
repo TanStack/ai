@@ -3,8 +3,6 @@ id: ChatMiddlewarePhase
 title: ChatMiddlewarePhase
 ---
 
-# Type Alias: ChatMiddlewarePhase
-
 ```ts
 type ChatMiddlewarePhase = 
   | "init"

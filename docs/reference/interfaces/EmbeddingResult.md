@@ -3,8 +3,6 @@ id: EmbeddingResult
 title: EmbeddingResult
 ---
 
-# Interface: EmbeddingResult
-
 Defined in: [packages/ai/src/types.ts:2478](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2478)
 
 Result of embedding generation.

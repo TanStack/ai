@@ -3,8 +3,6 @@ id: toHttpResponse
 title: toHttpResponse
 ---
 
-# Function: toHttpResponse()
-
 ```ts
 function toHttpResponse<TOffset>(stream, init?): Response;
 ```

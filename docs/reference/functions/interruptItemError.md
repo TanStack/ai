@@ -3,8 +3,6 @@ id: interruptItemError
 title: interruptItemError
 ---
 
-# Function: interruptItemError()
-
 ```ts
 function interruptItemError(
    input, 

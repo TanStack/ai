@@ -3,8 +3,6 @@ id: TranscriptionSegment
 title: TranscriptionSegment
 ---
 
-# Interface: TranscriptionSegment
-
 Defined in: [packages/ai/src/types.ts:2325](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2325)
 
 A single segment of transcribed audio with timing information.

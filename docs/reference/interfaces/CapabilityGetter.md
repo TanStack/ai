@@ -3,8 +3,6 @@ id: CapabilityGetter
 title: CapabilityGetter
 ---
 
-# Interface: CapabilityGetter()\<TValue\>
-
 Defined in: [packages/ai/src/activities/chat/middleware/capabilities.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/capabilities.ts#L17)
 
 Reads a capability value off a context. Overloaded so the flag narrows the return.

@@ -3,8 +3,6 @@ id: extendAdapter
 title: extendAdapter
 ---
 
-# Function: extendAdapter()
-
 ```ts
 function extendAdapter<TFactory, TDefs>(factory, _customModels): ExtendedFactory<TFactory, TDefs>;
 ```

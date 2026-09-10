@@ -3,8 +3,6 @@ title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
-# Build a Chat Adapter
-
 You want the transcript, the run lifecycle, and durable approvals in your own
 database, and you would rather write four small stores than add a service. This
 page builds all of them against SQLite (Node's built-in `node:sqlite`), start to

@@ -3,8 +3,6 @@ id: ModelCapabilities
 title: ModelCapabilities
 ---
 
-# Interface: ModelCapabilities\<TInput, TFeatures, TTools, TOptions\>
-
 Defined in: [packages/ai/src/extend-adapter.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L41)
 
 Capability bag accepted by the object form of `createModel`.

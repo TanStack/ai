@@ -3,8 +3,6 @@ id: InboundFrame
 title: InboundFrame
 ---
 
-# Type Alias: InboundFrame
-
 ```ts
 type InboundFrame = 
   | {

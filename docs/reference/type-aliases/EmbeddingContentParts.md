@@ -3,8 +3,6 @@ id: EmbeddingContentParts
 title: EmbeddingContentParts
 ---
 
-# Type Alias: EmbeddingContentParts
-
 ```ts
 type EmbeddingContentParts = (
   | TextPart

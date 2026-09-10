@@ -3,8 +3,6 @@ id: SummarizationOptions
 title: SummarizationOptions
 ---
 
-# Interface: SummarizationOptions\<TProviderOptions\>
-
 Defined in: [packages/ai/src/types.ts:1729](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1729)
 
 ## Type Parameters

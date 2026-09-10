@@ -3,8 +3,6 @@ id: DeepPartial
 title: DeepPartial
 ---
 
-# Type Alias: DeepPartial\<T\>
-
 ```ts
 type DeepPartial<T> = T extends ReadonlyArray<infer U> ? DeepPartial<U>[] : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 ```

@@ -3,8 +3,6 @@ id: resolveEmbeddingInput
 title: resolveEmbeddingInput
 ---
 
-# Function: resolveEmbeddingInput()
-
 ```ts
 function resolveEmbeddingInput(input): ResolvedEmbeddingItem[];
 ```

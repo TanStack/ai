@@ -3,8 +3,6 @@ id: generateAudio
 title: generateAudio
 ---
 
-# Function: generateAudio()
-
 ```ts
 function generateAudio<TAdapter, TStream>(options): AudioActivityResult<TStream>;
 ```

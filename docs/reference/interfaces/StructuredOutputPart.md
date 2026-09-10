@@ -3,8 +3,6 @@ id: StructuredOutputPart
 title: StructuredOutputPart
 ---
 
-# Interface: StructuredOutputPart\<TData\>
-
 Defined in: [packages/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L480)
 
 StructuredOutputPart — a typed structured response attached to the assistant

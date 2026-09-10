@@ -3,8 +3,6 @@ id: ChatStream
 title: ChatStream
 ---
 
-# Type Alias: ChatStream
-
 ```ts
 type ChatStream = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>

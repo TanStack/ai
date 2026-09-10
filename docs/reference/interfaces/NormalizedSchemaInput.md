@@ -3,8 +3,6 @@ id: NormalizedSchemaInput
 title: NormalizedSchemaInput
 ---
 
-# Interface: NormalizedSchemaInput
-
 Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L10)
 
 ## Properties

@@ -13,8 +13,6 @@ keywords:
   - video generation
 ---
 
-# Generations
-
 You want an image, some speech, a transcript, a video, or a live stream, not a conversation. Every one
 of those is a **generation**: one request, one result. They all share the same shape, so
 learning one teaches you the rest.

@@ -3,8 +3,6 @@ title: Build a Generation Adapter (Advanced)
 id: build-your-own-generation-adapter
 ---
 
-# Build a Generation Adapter
-
 Image, audio, and video runs need their own persistence: a run record so a reload
 can find the last generation for a slot, and byte storage so the media itself
 comes back. This page builds those three stores against SQLite (Node's built-in

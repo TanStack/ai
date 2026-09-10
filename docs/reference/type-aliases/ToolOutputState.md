@@ -3,8 +3,6 @@ id: ToolOutputState
 title: ToolOutputState
 ---
 
-# Type Alias: ToolOutputState
-
 ```ts
 type ToolOutputState = "output-available" | "output-error";
 ```
