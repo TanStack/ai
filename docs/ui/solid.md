@@ -180,3 +180,21 @@ The full map is on the [React page](./react).
 Manual list: `<UI.Messages>{(messages) => <span>{messages().length}</span>}</UI.Messages>`.
 
 Pass `props.chat`, `props.part`, and `props.Parts` without destructure.
+
+## Render markdown
+
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-solid/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed, so the output is safe while it streams.
+
+```tsx
+import { TextPart } from '@tanstack/ai-solid/ui'
+import { highlightMarkdownCode } from './markdown-highlighter'
+
+export function Reply(props: { content: string }) {
+  return <TextPart content={props.content} highlighter={highlightMarkdownCode} />
+}
+```
+
+- `highlighter`: a synchronous `CodeHighlighter`. Without it, code blocks render as plain text. Build one with `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`. See the [syntax highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
+- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
+
+The `remarkPlugins`, `rehypePlugins`, `disableDefaultPlugins`, and `components` props from earlier releases are gone. Use `extensions` and `highlighter` instead.

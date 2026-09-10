@@ -57,11 +57,8 @@
     "media-generation"
   ],
   "dependencies": {
-    "@crazydos/vue-markdown": "^1.1.4",
     "@tanstack/ai-client": "workspace:^",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "remark-gfm": "^4.0.1"
+    "@tanstack/markdown": "^0.0.13"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
