@@ -76,9 +76,7 @@ That holds in two cases and breaks in a third.
 
 ### Local process / Docker container
 
-The orchestrator is the same machine as the sandbox, reached on `localhost`
-(local-process) or `host.docker.internal` (Docker container). Bridged tools
-work with no extra configuration.
+The orchestrator is the same machine as the sandbox, reached on `localhost` (local-process) or `host.docker.internal` (Docker container). Bridged tools work with no extra configuration. If the HTTP listener cannot start, bridge startup rejects with the original Node.js error.
 
 ### Docker Sandboxes (`sbxSandbox`)
 

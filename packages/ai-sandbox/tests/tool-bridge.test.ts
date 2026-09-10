@@ -27,6 +27,15 @@ function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
 }
 
 describe('startHostToolBridge', () => {
+  it('rejects when the listener cannot start', async () => {
+    await expect(
+      startHostToolBridge([], {
+        hostForSandbox: '127.0.0.1',
+        bindAddress: 'not a valid host',
+      }),
+    ).rejects.toMatchObject({ code: 'ENOTFOUND' })
+  })
+
   it('serves chat() tools over MCP and proxies calls to the host', async () => {
     let calledWith: unknown
     bridge = await startHostToolBridge(
