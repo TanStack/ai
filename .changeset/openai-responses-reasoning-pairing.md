@@ -1,0 +1,5 @@
+---
+'@tanstack/openai-base': patch
+---
+
+Responses API: stop replaying a turn that reasoned more than once as an unsendable request. A `ModelMessage` keeps reasoning and tool calls in two flat arrays, so `convertMessagesToInput` regrouped them as reasoning A, reasoning B, call A, call B; the Responses API needs a persisted `function_call` to sit directly after the reasoning item that produced it and rejected the whole request with `Item 'fc_...' of type 'function_call' was provided without its required 'reasoning' item: 'rs_...'`. Since the stored transcript keeps the regrouped order, every later turn on that thread failed the same way. Calls that can no longer be adjacent to their reasoning are now sent without their item id, so the API treats them as fresh items and stops requiring the pairing; `call_id` is untouched, so tool outputs still correlate. Calls with a single reasoning item (or none) keep their ids. A reasoning item id is also replayed at most once now, avoiding `Duplicate item found with id rs_...` when a provider mints the same id twice.

@@ -1923,6 +1923,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     messages: Array<ModelMessage>,
   ): ResponseInput {
     const result: ResponseInput = []
+    // A reasoning item id may only appear once in `input`; replaying the same
+    // id twice fails with "Duplicate item found with id rs_...". Providers have
+    // been observed minting one id for two separate reasoning items, and a
+    // stored transcript can end up carrying it on two assistant messages.
+    const seenReasoningIds = new Set<string>()
 
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
@@ -1944,11 +1949,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        // Every reasoning item this message could contribute, and how many of
+        // them actually made it into `input` after de-duplication. Both counts
+        // are needed below to decide whether the function calls can still be
+        // paired with their reasoning.
+        let reasoningCandidates = 0
+        let emittedReasoning = 0
         if (message.thinking) {
           for (const thinking of message.thinking) {
             if (!thinking.signature) continue
             const packed = unpackResponsesReasoningSignature(thinking.signature)
             if (!packed?.id) continue
+            reasoningCandidates++
+            if (seenReasoningIds.has(packed.id)) continue
+            seenReasoningIds.add(packed.id)
+            emittedReasoning++
             result.push({
               type: 'reasoning',
               id: packed.id,
@@ -1961,6 +1976,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             })
           }
         }
+
+        // The Responses API requires a persisted `function_call` item to sit
+        // directly after the reasoning item that produced it. A ModelMessage
+        // stores reasoning and tool calls as two flat arrays, so their original
+        // interleaving is gone: a message holding two or more reasoning items
+        // replays as reasoning A, reasoning B, call A, call B, and the request
+        // is rejected with "Item 'fc_...' of type 'function_call' was provided
+        // without its required 'reasoning' item: 'rs_...'". The same happens
+        // when this message's reasoning was dropped above as a duplicate.
+        //
+        // Sending the calls without their item id makes them fresh items that
+        // the API does not try to pair, which replays correctly. `call_id` is
+        // untouched, so the matching `function_call_output` still resolves.
+        // One reasoning item (or none at all) always lands adjacent to its
+        // calls, so those keep their ids and their prompt-cache hits.
+        const canPairReasoning =
+          reasoningCandidates === 0 || emittedReasoning === 1
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
@@ -1978,7 +2010,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             result.push({
               type: 'function_call',
               call_id: toolCall.id,
-              ...(itemId && { id: itemId }),
+              ...(itemId && canPairReasoning && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
             })
