@@ -3,9 +3,10 @@
 nx.json @TanStack/tanstack-core
 .changeset/config.json @TanStack/tanstack-core
 scripts/ @TanStack/tanstack-core
-# Generated model catalogs — written by .github/workflows/sync-models.yml,
-# reviewable by AI maintainers. Keep in sync with that workflow's `git add`.
-scripts/*.models.json @TanStack/ai-maintainers
-scripts/openrouter.video-models.json @TanStack/ai-maintainers
-scripts/.sync-models-last-run @TanStack/ai-maintainers
+# Generated model catalogs — written by .github/workflows/sync-models.yml.
+# No owner: any write-access maintainer can merge. Keep in sync with that
+# workflow's `git add`.
+scripts/*.models.json
+scripts/openrouter.video-models.json
+scripts/.sync-models-last-run
 .npmrc @TanStack/tanstack-core
