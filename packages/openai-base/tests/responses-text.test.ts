@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
 import { EventType, chat } from '@tanstack/ai'
-import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
@@ -2451,6 +2451,183 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           }),
         ]),
       )
+    })
+
+    /**
+     * Regression tests for #1345.
+     *
+     * The Responses API requires a persisted `function_call` item to follow the
+     * reasoning item that produced it. A ModelMessage keeps reasoning and tool
+     * calls in two flat arrays, so a turn where the model reasoned more than
+     * once replays as reasoning A, reasoning B, call A, call B and the request
+     * is rejected with "Item 'fc_...' of type 'function_call' was provided
+     * without its required 'reasoning' item: 'rs_...'" — permanently, because
+     * the regrouped order is what gets stored.
+     */
+    const reasoningSignature = (id: string) =>
+      JSON.stringify({ id, encrypted_content: `enc-${id}` })
+
+    const completedOnly = (responseId: string) => [
+      {
+        type: 'response.created',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        },
+      },
+    ]
+
+    const inputForMessages = async (messages: Array<ModelMessage>) => {
+      setupMockResponsesClient(completedOnly('resp-1'))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      for await (const _chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages,
+      })) {
+        // drain
+      }
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      return payload.input as Array<Record<string, unknown>>
+    }
+
+    it('keeps the function_call item id when a single reasoning item pairs with it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      // rs_A sits directly before fc_A, so the pairing holds and the item id
+      // (which buys a prompt-cache hit) is kept.
+      expect(input[2]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+    })
+
+    it('drops the function_call item ids when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // Both reasoning items are still replayed, in order.
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+        { id: 'rs_B' },
+      ])
+
+      // Neither call can be adjacent to its own reasoning item any more, so
+      // both are sent as fresh items. call_id is untouched so the outputs
+      // still correlate.
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls).toHaveLength(2)
+      for (const call of calls) {
+        expect(call).not.toHaveProperty('id')
+      }
+      expect(calls.map((call) => call.call_id)).toEqual(['call_A', 'call_B'])
+      expect(
+        input
+          .filter((item) => item.type === 'function_call_output')
+          .map((item) => item.call_id),
+      ).toEqual(['call_A', 'call_B'])
+    })
+
+    it('replays a reasoning id only once and unpairs the calls that lost it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        {
+          // Same reasoning id on a second assistant message. Sending it twice
+          // fails with "Duplicate item found with id rs_A".
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+      ])
+
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls[0]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+      // The second message's reasoning was deduplicated away, so its call has
+      // no reasoning item to pair with and must not claim its old item id.
+      expect(calls[1]).not.toHaveProperty('id')
+      expect(calls[1]).toMatchObject({ call_id: 'call_B' })
     })
 
     /**
