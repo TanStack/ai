@@ -6,6 +6,7 @@
  */
 
 import { parsePartialJSON } from './json-parser'
+import { isContentPartArray } from '../../../utilities/tool-result'
 import type {
   ContentPart,
   StructuredOutputPart,
@@ -118,6 +119,18 @@ export function updateToolResultPart(
   state: ToolResultState,
   error?: string,
 ): Array<UIMessage> {
+  let resolvedContent = content
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content)
+      if (isContentPartArray(parsed)) {
+        resolvedContent = parsed
+      }
+    } catch {
+      // Keep non-JSON tool output as the original string.
+    }
+  }
+
   return messages.map((msg) => {
     if (msg.id !== messageId) {
       return msg
@@ -132,7 +145,7 @@ export function updateToolResultPart(
     const toolResultPart: ToolResultPart = {
       type: 'tool-result',
       toolCallId,
-      content,
+      content: resolvedContent,
       state,
       ...(error && { error }),
     }
