@@ -5295,12 +5295,12 @@
     "released": 1764547200,
     "owned_by": "deepseek",
     "name": "DeepSeek V3.2",
-    "description": "DeepSeek-V3.2: Official successor to V3.2-Exp.",
+    "description": "DeepSeek‑V3.2 from DeepSeek harmonizes high computational efficiency with superior reasoning and agent performance. It builds on three main techniques: DeepSeek Sparse Attention for long‑context efficiency, a scalable reinforcement learning framework, and a large‑scale agentic task synthesis pipeline. This model excels at long-context reasoning and agentic tasks, efficiently handling extended inputs while maintaining strong accuracy. Its sparse attention design enables it to process complex, multi-step workflows without excessive compute costs. Overall, DeepSeek‑V3.2 targets long‑context reasoning, tool‑using agents, and efficient deployment in production environments.",
     "context_window": 128000,
     "max_tokens": 8000,
     "type": "language",
     "zdr": "some",
-    "no_training": "some",
+    "no_training": "all",
     "tags": ["tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5317,9 +5317,8 @@
     "temperature": true,
     "knowledge": "2024-07",
     "pricing": {
-      "input": "0.00000028",
-      "output": "0.00000042",
-      "input_cache_read": "0.000000028",
+      "input": "0.00000062",
+      "output": "0.00000185",
       "varies_by_provider": true
     }
   },
@@ -5630,6 +5629,56 @@
           "output": "0.00000396",
           "input_cache_read": "0.000000132"
         }
+      }
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash",
+    "description": "DeepSeek V4.1 Flash is an AI model from DeepSeek designed for fast, efficient multimodal interactions. It combines native multimodal capabilities with a new architecture focused on stronger performance, faster responses, and lower computational cost.",
+    "context_window": 1000000,
+    "max_tokens": 384000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000015",
+      "output": "0.0000006",
+      "input_cache_read": "0.000000003",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 60,
+            "end_minute_utc": 240,
+            "days_of_week": [1, 2, 3, 4, 5]
+          },
+          {
+            "start_minute_utc": 360,
+            "end_minute_utc": 600,
+            "days_of_week": [1, 2, 3, 4, 5]
+          }
+        ]
       }
     }
   },
@@ -7737,6 +7786,41 @@
       "input": "0.00000025",
       "output": "0.00000075",
       "input_cache_read": "0.000000025"
+    }
+  },
+  {
+    "id": "inception/mercury-2.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "inception",
+    "name": "Mercury 2.5",
+    "description": "Mercury 2.5 is Inception’s diffusion-based reasoning model for chat, agents, and structured workflows, with tool calling, structured outputs, and a 260K context window.",
+    "context_window": 260000,
+    "max_tokens": 65536,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000004",
+      "output": "0.00000015",
+      "input_cache_read": "0.000000004"
     }
   },
   {
@@ -10278,6 +10362,12 @@
       "include_reasoning"
     ],
     "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.000003",
       "output": "0.000015",
@@ -14848,6 +14938,56 @@
     }
   },
   {
+    "id": "openai/gpt-image-2.5-flare",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "openai",
+    "name": "GPT Image 2.5 Flare",
+    "description": "GPT Image 2.5 Flare generates images from text and image inputs, optimized for fast, high-quality everyday image generation.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
+    "id": "openai/gpt-image-2.5-sunburst",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "openai",
+    "name": "GPT Image 2.5 Sunburst",
+    "description": "GPT Image 2.5 Sunburst generates and edits images from text and image inputs, with a focus on precise editing.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
     "id": "openai/gpt-oss-120b",
     "object": "model",
     "created": 1755815280,
@@ -15145,7 +15285,9 @@
       "input": "0.0000006",
       "output": "0.0000024",
       "input_cache_read": "0.00000006",
-      "web_search": "10"
+      "web_search": "10",
+      "audio_input_token_cost": "0.00001",
+      "audio_output_token_cost": "0.00002"
     }
   },
   {
@@ -16354,7 +16496,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -16443,7 +16585,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -16519,7 +16661,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "tool-use",
@@ -16606,7 +16748,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "tool-use",
@@ -16674,7 +16816,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -16764,7 +16906,7 @@
     "context_window": 2000000,
     "max_tokens": 2000000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -16840,7 +16982,7 @@
     "context_window": 1000000,
     "max_tokens": 1000000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -16929,7 +17071,7 @@
     "context_window": 500000,
     "max_tokens": 500000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -17018,7 +17160,7 @@
     "context_window": 500000,
     "max_tokens": 500000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17100,7 +17242,7 @@
     "context_window": 256000,
     "max_tokens": 256000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -17188,7 +17330,7 @@
     "context_window": 0,
     "max_tokens": 0,
     "type": "image",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["image-generation"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17211,7 +17353,7 @@
     "context_window": 0,
     "max_tokens": 0,
     "type": "image",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["image-generation"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17373,65 +17515,6 @@
     }
   },
   {
-    "id": "spacexai/grok-imagine-video-1.5-preview",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780099200,
-    "owned_by": "spacexai",
-    "name": "Grok Imagine Video 1.5 Preview",
-    "description": "",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": ["image-to-video"],
-      "supported_resolutions": ["480p", "720p", "1080p"],
-      "supported_aspect_ratios": [
-        "1:1",
-        "16:9",
-        "9:16",
-        "4:3",
-        "3:4",
-        "3:2",
-        "2:3"
-      ],
-      "supported_durations_seconds": [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-      ],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "input_limits": {
-        "image": {
-          "max_count": 1,
-          "supported_sources": ["url", "base64"]
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "480p",
-          "cost_per_second": "0.08"
-        },
-        {
-          "resolution": "720p",
-          "cost_per_second": "0.14"
-        },
-        {
-          "resolution": "1080p",
-          "cost_per_second": "0.25"
-        }
-      ]
-    }
-  },
-  {
     "id": "spacexai/grok-stt",
     "object": "model",
     "created": 1755815280,
@@ -17440,7 +17523,7 @@
     "name": "Grok STT",
     "description": "Transcribe audio to text in 25 languages with batch and streaming modes.",
     "type": "transcription",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["websocket-transcription"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17462,7 +17545,7 @@
     "name": "Grok TTS",
     "description": "Generate speech with 5 expressive voices, speech tags, and telephony codecs.",
     "type": "speech",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17485,7 +17568,7 @@
     "context_window": 0,
     "max_tokens": 0,
     "type": "realtime",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17510,7 +17593,7 @@
     "context_window": 0,
     "max_tokens": 0,
     "type": "realtime",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -18221,48 +18304,6 @@
     }
   },
   {
-    "id": "xiaomi/mimo-v2.5-pro-ultraspeed",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780876800,
-    "owned_by": "xiaomi",
-    "name": "MiMo V2.5 Pro UltraSpeed",
-    "description": "MiMo-V2.5-Pro-UltraSpeed is Xiaomi’s ultra-fast, text-based flagship reasoning model, pairing a trillion-parameter model with a 1,048,576-token context window and generation speeds of roughly 500–1,000 tokens per second. It supports deep thinking, tool calling, streaming output, and context caching, making it well suited to latency-sensitive coding agents, quantitative analysis, real-time risk control, and scientific workflows.",
-    "context_window": 1048576,
-    "max_tokens": 131072,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "knowledge": "2024-12",
-    "deprecated_at": 1788883200000,
-    "pricing": {
-      "input": "0.000001305",
-      "output": "0.00000261",
-      "input_cache_read": "0.0000000108"
-    }
-  },
-  {
     "id": "zai/glm-4.5",
     "object": "model",
     "created": 1755815280,
@@ -18829,9 +18870,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000007",
-      "output": "0.0000022",
-      "input_cache_read": "0.00000013",
+      "input": "0.0000014",
+      "output": "0.0000044",
+      "input_cache_read": "0.00000014",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000021",
@@ -18944,41 +18985,6 @@
           "input_cache_read": "0.00000003"
         }
       }
-    }
-  },
-  {
-    "id": "zai/glm-5.3-promo-50",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1787011200,
-    "owned_by": "zai",
-    "name": "GLM 5.3 (50% off)",
-    "description": "GLM 5.3 delivers comprehensive advancements in complex software engineering and agent capabilities. It uses the same base model as GLM-5.2, with all improvements driven by post-training.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.0000007",
-      "output": "0.0000022",
-      "input_cache_read": "0.00000013"
     }
   },
   {

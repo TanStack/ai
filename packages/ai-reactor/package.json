@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-reactor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reactor adapter for TanStack AI live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3).",
   "author": "Tanner Linsley",
   "license": "MIT",
