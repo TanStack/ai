@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.13.4",
+  "version": "0.14.0",
   "description": "fal.ai adapter for TanStack AI image, video, live, audio, speech, and transcription generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
