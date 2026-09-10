@@ -67,6 +67,8 @@ pointer. On the next load `useChat` reads it and:
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
+Replay rebuilds reasoning, tool activity, and text from the durable log, including runs that emit reasoning before their first tool or text event. The completed activity remains in the transcript sent with the next message.
+
 ### Handle restored client tools
 
 A live client tool runs automatically when its call arrives from the stream.
