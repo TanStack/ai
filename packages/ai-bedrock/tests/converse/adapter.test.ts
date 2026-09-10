@@ -8,7 +8,7 @@ import type {
   ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
-import type { AdapterYieldChunk, TextOptions } from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 
 /**
  * Subclass that overrides the protected SDK seams so no real AWS call happens.
@@ -78,6 +78,34 @@ describe('BedrockConverseTextAdapter', () => {
     }
     expect(types).toContain(EventType.TEXT_MESSAGE_CONTENT)
     expect(types).toContain(EventType.RUN_FINISHED)
+  })
+
+  it('writes system and tool cachePoints into the Converse request', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [{ messageStop: { stopReason: 'end_turn' } }]
+    const tool: Tool = {
+      name: 'lookup',
+      description: 'd',
+      inputSchema: { type: 'object', properties: {} },
+      metadata: { cachePoint: { type: 'default' } },
+    }
+    for await (const _c of a.chatStream(
+      textOptions({
+        systemPrompts: [
+          { content: 'stable', metadata: { cachePoint: { type: 'default' } } },
+        ],
+        tools: [tool],
+      }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.system).toEqual([
+      { text: 'stable' },
+      { cachePoint: { type: 'default' } },
+    ])
+    expect(a.capturedStreamInput?.toolConfig?.tools?.[1]).toEqual({
+      cachePoint: { type: 'default' },
+    })
   })
 
   it('maps modelOptions sampling + stop into Converse inferenceConfig', async () => {
