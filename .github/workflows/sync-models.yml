@@ -29,6 +29,8 @@ jobs:
 
       - name: Fetch and sync model metadata
         run: pnpm generate:models
+        env:
+          MODELSCHEMAS_API_KEY: ${{ secrets.MODELSCHEMAS_API_KEY }}
 
       - name: Check for package changes
         id: changes
@@ -64,13 +66,13 @@ jobs:
 
           if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
             BODY=$(cat <<'PRBODY'
-          Automated daily sync of model metadata from OpenRouter and Vercel AI Gateway.
+          Automated daily sync of model metadata from modelschemas, OpenRouter, and Vercel AI Gateway.
 
           - Fetches the latest model list from OpenRouter (chat + `GET /api/v1/videos/models`)
           - Fetches the latest model list from Vercel AI Gateway
           - Fetches the latest model list from Lovable AI Gateway
           - Converts to the internal adapter format
-          - Syncs provider-specific model metadata for affected packages
+          - Inserts new native-provider models from modelschemas (`@modelschemas/client`)
           - Creates a patch changeset for all changed packages
           PRBODY
           )

@@ -70,6 +70,7 @@
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
+    "@modelschemas/client": "0.1.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",
