@@ -1583,6 +1583,37 @@ describe('OpenRouter structured output', () => {
     expect(rawParams.chatRequest.stream).toBe(true)
   })
 
+  it('respects includeUsage false for structured output streams', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c1',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: '{"ok":true}' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Respond with ok' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+    })
+
+    const structuredCall = mockSend.mock.calls.find(
+      ([args]: Array<any>) => args.chatRequest.responseFormat,
+    )
+    expect(structuredCall).toBeDefined()
+    expect(structuredCall[0].chatRequest).not.toHaveProperty('streamOptions')
+    expect(
+      ChatRequest$outboundSchema.parse(structuredCall[0].chatRequest),
+    ).not.toHaveProperty('stream_options')
+  })
+
   it('parses JSON response content correctly', async () => {
     const nonStreamResponse = {
       choices: [
@@ -2451,6 +2482,32 @@ describe('OpenRouter stream_options conversion', () => {
 
     const serialized = ChatRequest$outboundSchema.parse(params)
     expect((serialized as any).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('respects an explicit includeUsage false override', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'anthropic/claude-sonnet-4.5',
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest).not.toHaveProperty('streamOptions')
+    expect(
+      ChatRequest$outboundSchema.parse(rawParams.chatRequest),
+    ).not.toHaveProperty('stream_options')
   })
 
   it('propagates the abort signal to the SDK call', async () => {

@@ -85,6 +85,24 @@ function normalizeReasoningOptions(
     : undefined
 }
 
+function withUsageEnabled(
+  request: Omit<ChatRequest, 'stream'>,
+): Omit<ChatRequest, 'stream'> {
+  const { streamOptions, ...requestWithoutStreamOptions } = request
+  if (streamOptions?.includeUsage === false) {
+    const { includeUsage: _includeUsage, ...callerStreamOptions } =
+      streamOptions
+    return Object.keys(callerStreamOptions).length > 0
+      ? { ...requestWithoutStreamOptions, streamOptions: callerStreamOptions }
+      : requestWithoutStreamOptions
+  }
+
+  return {
+    ...request,
+    streamOptions: { ...streamOptions, includeUsage: true },
+  }
+}
+
 /**
  * OpenRouter Text (Chat) Adapter — standalone implementation that talks to
  * OpenRouter's `/v1/chat/completions` endpoint via the `@openrouter/sdk` SDK.
@@ -152,6 +170,7 @@ export class OpenRouterTextAdapter<
       // other failure mode here — callers iterating chatStream then only need
       // one error-handling path.
       const chatRequest = this.mapOptionsToRequest(options)
+      const chatRequestWithUsage = withUsageEnabled(chatRequest)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
@@ -160,12 +179,8 @@ export class OpenRouterTextAdapter<
       const stream = await this.orClient.chat.send(
         {
           chatRequest: {
-            ...chatRequest,
+            ...chatRequestWithUsage,
             stream: true,
-            streamOptions: {
-              ...(chatRequest.streamOptions ?? {}),
-              includeUsage: true,
-            },
           },
         },
         {
@@ -391,20 +406,21 @@ export class OpenRouterTextAdapter<
     }.bind(this)
 
     try {
-      // Strip streamOptions/tools/responseFormat from the base request before
-      // adding the resolved structured-output format. Structured output
-      // doesn't carry tools — keeping them can confuse strict-mode validation
-      // upstream. (`stream` is already absent — `mapOptionsToRequest` returns
-      // `Omit<ChatRequest, 'stream'>`; we set it explicitly below.)
+      // Strip tools/responseFormat from the base request before adding the
+      // resolved structured-output format. Structured output doesn't carry
+      // tools — keeping them can confuse strict-mode validation upstream.
+      // `withUsageEnabled` preserves caller stream options while omitting the
+      // whole option when usage is explicitly disabled. (`stream` is already
+      // absent — `mapOptionsToRequest` returns `Omit<ChatRequest, 'stream'>`;
+      // we set it explicitly below.)
       const {
-        streamOptions: _so,
         tools: _t,
         responseFormat: _responseFormat,
         ...cleanParams
       } = chatRequest
-      void _so
       void _t
       void _responseFormat
+      const cleanParamsWithUsage = withUsageEnabled(cleanParams)
 
       chatOptions.logger.request(
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
@@ -415,9 +431,8 @@ export class OpenRouterTextAdapter<
       const stream = await this.orClient.chat.send(
         {
           chatRequest: {
-            ...cleanParams,
+            ...cleanParamsWithUsage,
             stream: true,
-            streamOptions: { includeUsage: true },
             responseFormat,
           },
         },
