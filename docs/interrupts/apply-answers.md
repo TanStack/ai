@@ -12,8 +12,6 @@ keywords:
   - createCapability
 ---
 
-# Apply Answers
-
 The user approved a plan or typed a note. You need that value on the server
 before the next model call. `onInterruptResolution` is where you read it. It
 does not change config. `onConfig` is where you apply it.

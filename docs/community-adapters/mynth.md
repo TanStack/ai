@@ -13,8 +13,6 @@ keywords:
   - community adapter
 ---
 
-# Mynth
-
 The Mynth adapter gives you access to Mynth image generation models through TanStack AI. It is a community adapter for `generateImage()` with typed model IDs, normalized image results, image-to-image support, and Mynth-specific request options through `modelOptions`.
 
 Mynth is image-only in this package. Reach for it when you want TanStack AI's image generation workflow with Mynth models such as Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine.

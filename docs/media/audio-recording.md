@@ -12,8 +12,6 @@ keywords:
   - MediaRecorder
 ---
 
-# Audio Recording
-
 You have a chat or generation UI and you want users to talk instead of type. By
 the end of this guide you'll capture microphone audio in the browser with
 `useAudioRecorder`, read the latest recording reactively, and send it straight

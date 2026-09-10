@@ -3,8 +3,6 @@ title: Persistence Controls
 id: controls
 ---
 
-# Persistence Controls
-
 Persistence has no feature flags. What you persist is decided by which **state**
 stores the backend provides, and you compose backends per store. Supply only the
 stores your workflow needs.

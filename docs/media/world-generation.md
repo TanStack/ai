@@ -14,8 +14,6 @@ keywords:
   - experimental
 ---
 
-# World Generation (Experimental)
-
 You want a world that generates while the viewer watches or changes the prompt. A finite video job stops. `generateWorld()` opens a live session instead.
 
 Call `generateWorld()` on the server. It returns a short-lived token, a model slug, and the prompt. The browser connects, sets the prompt, and starts the stream. LingBot also needs a seed image after connect.

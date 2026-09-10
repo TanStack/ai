@@ -4,8 +4,6 @@ id: audio-generation
 order: 15
 ---
 
-# Audio Generation
-
 TanStack AI's `generateAudio()` activity produces audio content — music, soundscapes, or sound effects — from a text prompt. It's distinct from [Text-to-Speech](./text-to-speech), which is optimized for spoken-word synthesis.
 
 ## Overview

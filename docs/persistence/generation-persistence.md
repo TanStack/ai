@@ -3,8 +3,6 @@ title: Generation Persistence
 id: generation-persistence
 ---
 
-# Generation Persistence
-
 Media generation takes time, and video can take minutes. If the user reloads the
 page or their connection drops mid-run, that run is easy to lose. Generation
 persistence keeps a small record of each run and restores it into the hook's

@@ -13,8 +13,6 @@ keywords:
   - toServerSentEventsStream
 ---
 
-# Migration Guide
-
 This guide helps you migrate from the previous version of TanStack AI to the latest version. The major changes focus on improved tree-shaking, clearer API naming, and simplified configuration.
 
 ## Overview of Changes

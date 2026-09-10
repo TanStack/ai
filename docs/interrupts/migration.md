@@ -11,8 +11,6 @@ keywords:
   - resumeInterrupts
 ---
 
-# Migration
-
 TanStack AI now models approvals, generic pauses, and client-tool execution as
 AG-UI interrupt descriptors. Native runs end with
 `RUN_FINISHED.outcome.type === 'interrupt'`, and the continuation is a new run

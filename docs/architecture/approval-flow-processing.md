@@ -10,8 +10,6 @@ keywords:
   - persistence
 ---
 
-# Approval Flow Processing Architecture
-
 Tool approval is an interrupt-and-resume protocol. A run that needs user input
 ends with one canonical event:
 

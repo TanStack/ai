@@ -14,8 +14,6 @@ keywords:
   - driverEpoch
 ---
 
-# Takeover & Detached Runs
-
 A sandboxed coding agent can work for ten minutes. A browser tab does not last
 ten minutes. Users refresh, close the laptop, lose wifi, and hit a load balancer
 that lands the next request on a different replica.
