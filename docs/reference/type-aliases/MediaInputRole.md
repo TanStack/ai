@@ -3,6 +3,8 @@ id: MediaInputRole
 title: MediaInputRole
 ---
 
+# Type Alias: MediaInputRole
+
 ```ts
 type MediaInputRole = 
   | "reference"

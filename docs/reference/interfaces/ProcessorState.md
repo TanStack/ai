@@ -3,6 +3,8 @@ id: ProcessorState
 title: ProcessorState
 ---
 
+# Interface: ProcessorState
+
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L88)
 
 Current state of the processor

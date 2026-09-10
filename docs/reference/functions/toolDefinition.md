@@ -3,6 +3,8 @@ id: toolDefinition
 title: toolDefinition
 ---
 
+# Function: toolDefinition()
+
 ```ts
 function toolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>(config): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>;
 ```

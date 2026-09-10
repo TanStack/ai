@@ -3,6 +3,8 @@ id: ResponseFormat
 title: ResponseFormat
 ---
 
+# Interface: ResponseFormat\<TData\>
+
 Defined in: [packages/ai/src/types.ts:845](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L845)
 
 Structured output format specification.

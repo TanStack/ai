@@ -3,6 +3,8 @@ id: RunStore
 title: RunStore
 ---
 
+# Interface: RunStore
+
 Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:179](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L179)
 
 Durable store for run lifecycle records.

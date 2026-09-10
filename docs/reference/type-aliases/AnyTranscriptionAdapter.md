@@ -3,6 +3,8 @@ id: AnyTranscriptionAdapter
 title: AnyTranscriptionAdapter
 ---
 
+# Type Alias: AnyTranscriptionAdapter
+
 ```ts
 type AnyTranscriptionAdapter = TranscriptionAdapter<any, any>;
 ```

@@ -3,6 +3,8 @@ id: UnopenedInterruptBinding
 title: UnopenedInterruptBinding
 ---
 
+# Type Alias: UnopenedInterruptBinding
+
 ```ts
 type UnopenedInterruptBinding = InterruptBinding extends infer TBinding ? TBinding extends InterruptBinding ? Omit<TBinding, "interruptedRunId" | "generation"> : never : never;
 ```

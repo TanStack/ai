@@ -3,6 +3,8 @@ id: resumeServerSentEventsResponse
 title: resumeServerSentEventsResponse
 ---
 
+# Function: resumeServerSentEventsResponse()
+
 ```ts
 function resumeServerSentEventsResponse<TOffset>(options): Response;
 ```

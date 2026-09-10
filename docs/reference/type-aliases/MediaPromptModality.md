@@ -3,6 +3,8 @@ id: MediaPromptModality
 title: MediaPromptModality
 ---
 
+# Type Alias: MediaPromptModality
+
 ```ts
 type MediaPromptModality = "image" | "video" | "audio";
 ```

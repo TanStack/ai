@@ -3,6 +3,8 @@ id: normalizeToUIMessage
 title: normalizeToUIMessage
 ---
 
+# Function: normalizeToUIMessage()
+
 ```ts
 function normalizeToUIMessage(message, generateId): UIMessage;
 ```

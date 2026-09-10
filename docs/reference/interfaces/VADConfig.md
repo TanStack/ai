@@ -3,6 +3,8 @@ id: VADConfig
 title: VADConfig
 ---
 
+# Interface: VADConfig
+
 Defined in: [packages/ai/src/realtime/types.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L12)
 
 Voice activity detection configuration

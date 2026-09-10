@@ -3,6 +3,8 @@ id: realtimeToken
 title: realtimeToken
 ---
 
+# Function: realtimeToken()
+
 ```ts
 function realtimeToken(options): Promise<RealtimeToken>;
 ```

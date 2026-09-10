@@ -3,6 +3,8 @@ id: AnyTool
 title: AnyTool
 ---
 
+# Type Alias: AnyTool
+
 ```ts
 type AnyTool = Omit<Tool<any, any, any, any>, "execute"> & object;
 ```

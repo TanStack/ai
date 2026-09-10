@@ -3,6 +3,8 @@ id: RealtimeTokenOptions
 title: RealtimeTokenOptions
 ---
 
+# Interface: RealtimeTokenOptions
+
 Defined in: [packages/ai/src/realtime/types.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L87)
 
 Options for the realtimeToken function

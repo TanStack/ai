@@ -3,6 +3,8 @@ id: FinishInfo
 title: FinishInfo
 ---
 
+# Interface: FinishInfo
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:494](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L494)
 
 Information passed to onFinish.

@@ -3,6 +3,8 @@ id: ChatSandboxHooks
 title: ChatSandboxHooks
 ---
 
+# Interface: ChatSandboxHooks\<TContext\>
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L52)
 
 Sandbox file-event hooks a chat middleware can declare. Fire server-side for

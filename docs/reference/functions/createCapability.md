@@ -3,6 +3,8 @@ id: createCapability
 title: createCapability
 ---
 
+# Function: createCapability()
+
 ```ts
 function createCapability<TValue>(): <TName>(name) => Capability<TValue, TName>;
 ```

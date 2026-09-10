@@ -3,6 +3,8 @@ id: withTanstackMetadata
 title: withTanstackMetadata
 ---
 
+# Function: withTanstackMetadata()
+
 ```ts
 function withTanstackMetadata<T>(value, tanstack): Omit<T, "metadata"> & object;
 ```

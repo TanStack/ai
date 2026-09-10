@@ -3,6 +3,8 @@ id: AgentLoopState
 title: AgentLoopState
 ---
 
+# Interface: AgentLoopState
+
 Defined in: [packages/ai/src/types.ts:929](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L929)
 
 State passed to agent loop strategy for determining whether to continue

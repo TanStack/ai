@@ -3,6 +3,8 @@ id: replayRunStream
 title: replayRunStream
 ---
 
+# Function: replayRunStream()
+
 ```ts
 function replayRunStream<TOffset>(
    durability, 

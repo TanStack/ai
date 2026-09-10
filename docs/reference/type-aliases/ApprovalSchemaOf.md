@@ -3,6 +3,8 @@ id: ApprovalSchemaOf
 title: ApprovalSchemaOf
 ---
 
+# Type Alias: ApprovalSchemaOf\<TTool\>
+
 ```ts
 type ApprovalSchemaOf<TTool> = TTool extends ToolApprovalCapabilityMarker<boolean, infer TSchema> ? TSchema : undefined;
 ```

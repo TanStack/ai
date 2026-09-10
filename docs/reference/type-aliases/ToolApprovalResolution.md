@@ -3,6 +3,8 @@ id: ToolApprovalResolution
 title: ToolApprovalResolution
 ---
 
+# Type Alias: ToolApprovalResolution
+
 ```ts
 type ToolApprovalResolution = 
   | boolean

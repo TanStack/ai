@@ -3,6 +3,8 @@ id: defineInterrupt
 title: defineInterrupt
 ---
 
+# Function: defineInterrupt()
+
 ## Call Signature
 
 ```ts

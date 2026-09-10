@@ -3,6 +3,8 @@ id: hashSchemaInput
 title: hashSchemaInput
 ---
 
+# Function: hashSchemaInput()
+
 ```ts
 function hashSchemaInput(schema): string;
 ```

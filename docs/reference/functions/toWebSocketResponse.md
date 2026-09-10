@@ -3,6 +3,8 @@ id: toWebSocketResponse
 title: toWebSocketResponse
 ---
 
+# Function: toWebSocketResponse()
+
 ```ts
 function toWebSocketResponse<TOffset>(request, init): Response;
 ```

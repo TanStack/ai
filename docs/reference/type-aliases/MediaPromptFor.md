@@ -3,6 +3,8 @@ id: MediaPromptFor
 title: MediaPromptFor
 ---
 
+# Type Alias: MediaPromptFor\<TModalities\>
+
 ```ts
 type MediaPromptFor<TModalities> = 
   | string

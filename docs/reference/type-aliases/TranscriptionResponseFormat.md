@@ -3,6 +3,8 @@ id: TranscriptionResponseFormat
 title: TranscriptionResponseFormat
 ---
 
+# Type Alias: TranscriptionResponseFormat
+
 ```ts
 type TranscriptionResponseFormat = "json" | "text" | "srt" | "verbose_json" | "vtt";
 ```

@@ -3,6 +3,8 @@ id: ToolInputAvailableEvent
 title: ToolInputAvailableEvent
 ---
 
+# ~~Interface: ToolInputAvailableEvent~~
+
 Defined in: [packages/ai/src/types.ts:1440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1440)
 
 ## Deprecated

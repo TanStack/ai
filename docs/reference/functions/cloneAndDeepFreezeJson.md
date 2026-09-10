@@ -3,6 +3,8 @@ id: cloneAndDeepFreezeJson
 title: cloneAndDeepFreezeJson
 ---
 
+# Function: cloneAndDeepFreezeJson()
+
 ```ts
 function cloneAndDeepFreezeJson<T>(value): T;
 ```

@@ -3,6 +3,8 @@ id: GenerationErrorInfo
 title: GenerationErrorInfo
 ---
 
+# Interface: GenerationErrorInfo
+
 Defined in: [packages/ai/src/activities/middleware/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L151)
 
 Information passed to [GenerationMiddleware.onError](GenerationMiddleware.md#onerror).

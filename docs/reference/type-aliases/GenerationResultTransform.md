@@ -3,6 +3,8 @@ id: GenerationResultTransform
 title: GenerationResultTransform
 ---
 
+# Type Alias: GenerationResultTransform\<TResult, TContext\>
+
 ```ts
 type GenerationResultTransform<TResult, TContext> = (result, ctx) => TResult | undefined | Promise<TResult | undefined>;
 ```

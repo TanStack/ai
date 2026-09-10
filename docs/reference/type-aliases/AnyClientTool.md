@@ -3,6 +3,8 @@ id: AnyClientTool
 title: AnyClientTool
 ---
 
+# Type Alias: AnyClientTool
+
 ```ts
 type AnyClientTool = 
   | Omit<ClientTool<any, any, string, any, boolean, any>, "execute"> & object

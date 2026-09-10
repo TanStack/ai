@@ -3,6 +3,8 @@ id: InferSchemaType
 title: InferSchemaType
 ---
 
+# Type Alias: InferSchemaType\<T\>
+
 ```ts
 type InferSchemaType<T> = T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : T extends StandardSchemaV1<infer TInput, unknown> ? TInput : unknown;
 ```

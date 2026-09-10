@@ -3,6 +3,8 @@ id: generationParamsFromRequest
 title: generationParamsFromRequest
 ---
 
+# Function: generationParamsFromRequest()
+
 ```ts
 function generationParamsFromRequest<TKind>(kind, request): Promise<GenerationParams<TKind>>;
 ```

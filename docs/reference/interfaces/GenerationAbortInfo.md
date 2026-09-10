@@ -3,6 +3,8 @@ id: GenerationAbortInfo
 title: GenerationAbortInfo
 ---
 
+# Interface: GenerationAbortInfo
+
 Defined in: [packages/ai/src/activities/middleware/types.ts:143](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L143)
 
 Information passed to [GenerationMiddleware.onAbort](GenerationMiddleware.md#onabort).

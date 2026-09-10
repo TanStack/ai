@@ -3,6 +3,8 @@ id: ProcessOutputPayload
 title: ProcessOutputPayload
 ---
 
+# Interface: ProcessOutputPayload
+
 Defined in: [packages/ai/src/custom-events.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L44)
 
 ## Properties

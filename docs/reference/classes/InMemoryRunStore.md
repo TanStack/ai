@@ -3,6 +3,8 @@ id: InMemoryRunStore
 title: InMemoryRunStore
 ---
 
+# Class: InMemoryRunStore
+
 Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:338](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L338)
 
 In-memory [RunStore](../interfaces/RunStore.md). Single process only.

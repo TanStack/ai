@@ -3,6 +3,8 @@ id: decodeWsFrame
 title: decodeWsFrame
 ---
 
+# Function: decodeWsFrame()
+
 ```ts
 function decodeWsFrame(data): InboundFrame;
 ```

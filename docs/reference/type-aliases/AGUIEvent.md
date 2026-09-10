@@ -3,6 +3,8 @@ id: AGUIEvent
 title: AGUIEvent
 ---
 
+# Type Alias: AGUIEvent
+
 ```ts
 type AGUIEvent = 
   | RunStartedEvent

@@ -3,6 +3,8 @@ id: ApprovalSchemaConfig
 title: ApprovalSchemaConfig
 ---
 
+# Type Alias: ApprovalSchemaConfig
+
 ```ts
 type ApprovalSchemaConfig = 
   | SchemaInput

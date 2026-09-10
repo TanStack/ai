@@ -3,6 +3,8 @@ id: StreamProcessorEvents
 title: StreamProcessorEvents
 ---
 
+# Interface: StreamProcessorEvents
+
 Defined in: [packages/ai/src/activities/chat/stream/processor.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L78)
 
 Events emitted by the StreamProcessor

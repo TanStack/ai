@@ -3,6 +3,8 @@ id: ModelMessage
 title: ModelMessage
 ---
 
+# Interface: ModelMessage\<TContent\>
+
 Defined in: [packages/ai/src/types.ts:363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L363)
 
 ## Type Parameters

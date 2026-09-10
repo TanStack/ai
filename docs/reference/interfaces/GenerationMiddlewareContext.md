@@ -3,6 +3,8 @@ id: GenerationMiddlewareContext
 title: GenerationMiddlewareContext
 ---
 
+# Interface: GenerationMiddlewareContext\<TContext\>
+
 Defined in: [packages/ai/src/activities/middleware/types.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L57)
 
 Stable context passed to every [GenerationMiddleware](GenerationMiddleware.md) hook. Created

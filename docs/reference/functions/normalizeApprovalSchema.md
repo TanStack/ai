@@ -3,6 +3,8 @@ id: normalizeApprovalSchema
 title: normalizeApprovalSchema
 ---
 
+# Function: normalizeApprovalSchema()
+
 ```ts
 function normalizeApprovalSchema(approvalSchema, inputSchema?): NormalizedApprovalSchema;
 ```

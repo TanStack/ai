@@ -3,6 +3,8 @@ id: GenerationMiddleware
 title: GenerationMiddleware
 ---
 
+# Interface: GenerationMiddleware\<TContext\>
+
 Defined in: [packages/ai/src/activities/middleware/types.ts:191](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L191)
 
 Activity-agnostic, observe-only middleware.

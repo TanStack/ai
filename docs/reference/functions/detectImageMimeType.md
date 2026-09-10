@@ -3,6 +3,8 @@ id: detectImageMimeType
 title: detectImageMimeType
 ---
 
+# Function: detectImageMimeType()
+
 ```ts
 function detectImageMimeType(base64Data): "image/jpeg" | "image/png" | "image/gif" | "image/webp" | undefined;
 ```

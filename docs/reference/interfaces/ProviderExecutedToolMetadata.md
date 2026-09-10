@@ -3,6 +3,8 @@ id: ProviderExecutedToolMetadata
 title: ProviderExecutedToolMetadata
 ---
 
+# Interface: ProviderExecutedToolMetadata
+
 Defined in: [packages/ai/src/types.ts:194](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L194)
 
 Convention for tool-call `metadata` that marks a call as **provider-executed**

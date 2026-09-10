@@ -3,6 +3,8 @@ id: AudioVisualization
 title: AudioVisualization
 ---
 
+# Interface: AudioVisualization
+
 Defined in: [packages/ai/src/realtime/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L205)
 
 Interface for accessing audio visualization data

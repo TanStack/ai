@@ -3,6 +3,8 @@ id: canonicalInterruptJson
 title: canonicalInterruptJson
 ---
 
+# Function: canonicalInterruptJson()
+
 ```ts
 function canonicalInterruptJson(value): string;
 ```

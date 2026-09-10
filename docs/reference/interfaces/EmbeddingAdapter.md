@@ -3,6 +3,8 @@ id: EmbeddingAdapter
 title: EmbeddingAdapter
 ---
 
+# Interface: EmbeddingAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelInputModalitiesByName\>
+
 Defined in: [packages/ai/src/activities/embed/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L31)
 
 Embedding adapter interface with pre-resolved generics.

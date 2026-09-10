@@ -3,6 +3,8 @@ id: provideRunDetached
 title: provideRunDetached
 ---
 
+# Variable: provideRunDetached
+
 ```ts
 provideRunDetached: CapabilityProvider<true>;
 ```

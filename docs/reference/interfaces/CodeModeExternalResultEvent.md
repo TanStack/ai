@@ -3,6 +3,8 @@ id: CodeModeExternalResultEvent
 title: CodeModeExternalResultEvent
 ---
 
+# Interface: CodeModeExternalResultEvent
+
 Defined in: [packages/ai/src/types.ts:1503](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1503)
 
 Custom event for extensibility.

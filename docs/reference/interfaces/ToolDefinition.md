@@ -3,6 +3,8 @@ id: ToolDefinition
 title: ToolDefinition
 ---
 
+# Interface: ToolDefinition\<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema\>
+
 Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:229](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L229)
 
 Tool definition builder that allows creating server or client tools from a shared definition

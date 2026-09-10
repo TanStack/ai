@@ -3,6 +3,8 @@ id: RealtimeToolCallPart
 title: RealtimeToolCallPart
 ---
 
+# Interface: RealtimeToolCallPart
+
 Defined in: [packages/ai/src/realtime/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L120)
 
 Tool call part in a realtime message

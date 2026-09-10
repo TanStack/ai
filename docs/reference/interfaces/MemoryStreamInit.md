@@ -3,6 +3,8 @@ id: MemoryStreamInit
 title: MemoryStreamInit
 ---
 
+# Interface: MemoryStreamInit
+
 Defined in: [packages/ai/src/stream-durability.ts:308](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L308)
 
 Explicit construction for [memoryStream](../functions/memoryStream.md), for callers that don't have

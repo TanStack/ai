@@ -3,6 +3,8 @@ id: ValidateInterruptResumeBatchInput
 title: ValidateInterruptResumeBatchInput
 ---
 
+# Interface: ValidateInterruptResumeBatchInput
+
 Defined in: [packages/ai/src/interrupt-resume.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L59)
 
 ## Properties

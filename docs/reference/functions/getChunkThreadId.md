@@ -3,6 +3,8 @@ id: getChunkThreadId
 title: getChunkThreadId
 ---
 
+# Function: getChunkThreadId()
+
 ```ts
 function getChunkThreadId(chunk): string | undefined;
 ```

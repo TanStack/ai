@@ -3,6 +3,8 @@ id: Interrupt
 title: Interrupt
 ---
 
+# Type Alias: Interrupt
+
 ```ts
 type Interrupt = AGUIInterrupt;
 ```

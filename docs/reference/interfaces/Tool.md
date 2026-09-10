@@ -3,6 +3,8 @@ id: Tool
 title: Tool
 ---
 
+# Interface: Tool\<TInput, TOutput, TName, TContext\>
+
 Defined in: [packages/ai/src/types.ts:694](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L694)
 
 Tool/Function definition for function calling.

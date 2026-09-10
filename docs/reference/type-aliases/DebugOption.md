@@ -3,6 +3,8 @@ id: DebugOption
 title: DebugOption
 ---
 
+# Type Alias: DebugOption
+
 ```ts
 type DebugOption = boolean | DebugConfig;
 ```

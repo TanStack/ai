@@ -3,6 +3,8 @@ id: AnyServerTool
 title: AnyServerTool
 ---
 
+# Type Alias: AnyServerTool
+
 ```ts
 type AnyServerTool = Omit<ServerTool<any, any, string, any, boolean, any>, "execute"> & object;
 ```

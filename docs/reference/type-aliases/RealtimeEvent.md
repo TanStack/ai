@@ -3,6 +3,8 @@ id: RealtimeEvent
 title: RealtimeEvent
 ---
 
+# Type Alias: RealtimeEvent
+
 ```ts
 type RealtimeEvent = 
   | "status_change"

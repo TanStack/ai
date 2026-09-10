@@ -3,6 +3,8 @@ id: GenerationActivity
 title: GenerationActivity
 ---
 
+# Type Alias: GenerationActivity
+
 ```ts
 type GenerationActivity = 
   | "chat"

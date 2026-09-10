@@ -3,6 +3,8 @@ id: resolveMediaPrompt
 title: resolveMediaPrompt
 ---
 
+# Function: resolveMediaPrompt()
+
 ```ts
 function resolveMediaPrompt(prompt): ResolvedMediaPrompt;
 ```

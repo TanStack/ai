@@ -3,6 +3,8 @@ id: StructuredOutputCompleteEvent
 title: StructuredOutputCompleteEvent
 ---
 
+# Interface: StructuredOutputCompleteEvent\<T\>
+
 Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
 
 Final event of a streaming structured-output run. Carries the validated

@@ -3,6 +3,8 @@ id: ToolResultPart
 title: ToolResultPart
 ---
 
+# Interface: ToolResultPart
+
 Defined in: [packages/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L440)
 
 ## Properties

@@ -3,6 +3,8 @@ id: Modality
 title: Modality
 ---
 
+# Type Alias: Modality
+
 ```ts
 type Modality = "text" | "image" | "audio" | "video" | "document";
 ```

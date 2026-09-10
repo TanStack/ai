@@ -3,6 +3,8 @@ id: TranscriptionWord
 title: TranscriptionWord
 ---
 
+# Interface: TranscriptionWord
+
 Defined in: [packages/ai/src/types.ts:2343](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2343)
 
 A single word with timing information.

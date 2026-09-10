@@ -3,6 +3,8 @@ id: GeneratedAudio
 title: GeneratedAudio
 ---
 
+# Type Alias: GeneratedAudio
+
 ```ts
 type GeneratedAudio = GeneratedMediaSource & object;
 ```

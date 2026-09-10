@@ -3,6 +3,8 @@ id: UpsertableStreamDurability
 title: UpsertableStreamDurability
 ---
 
+# Interface: UpsertableStreamDurability\<TOffset\>
+
 Defined in: [packages/ai/src/stream-durability.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L83)
 
 A [StreamDurability](StreamDurability.md) that can re-persist an already-stored range

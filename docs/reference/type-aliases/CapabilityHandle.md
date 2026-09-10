@@ -3,6 +3,8 @@ id: CapabilityHandle
 title: CapabilityHandle
 ---
 
+# Type Alias: CapabilityHandle
+
 ```ts
 type CapabilityHandle = Capability<any, string>;
 ```

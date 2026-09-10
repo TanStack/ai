@@ -3,6 +3,8 @@ id: createChatOptions
 title: createChatOptions
 ---
 
+# Function: createChatOptions()
+
 ```ts
 function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "middleware" | "tools" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```

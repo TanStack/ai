@@ -3,6 +3,8 @@ id: CodeModeSnippetErrorEvent
 title: CodeModeSnippetErrorEvent
 ---
 
+# Interface: CodeModeSnippetErrorEvent
+
 Defined in: [packages/ai/src/types.ts:1524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1524)
 
 Custom event for extensibility.

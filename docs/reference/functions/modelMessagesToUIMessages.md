@@ -3,6 +3,8 @@ id: modelMessagesToUIMessages
 title: modelMessagesToUIMessages
 ---
 
+# Function: modelMessagesToUIMessages()
+
 ```ts
 function modelMessagesToUIMessages(modelMessages): UIMessage<unknown>[];
 ```

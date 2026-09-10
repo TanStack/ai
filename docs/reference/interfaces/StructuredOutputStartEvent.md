@@ -3,6 +3,8 @@ id: StructuredOutputStartEvent
 title: StructuredOutputStartEvent
 ---
 
+# Interface: StructuredOutputStartEvent
+
 Defined in: [packages/ai/src/types.ts:1404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1404)
 
 Emitted at the start of a streaming structured-output run, before the JSON

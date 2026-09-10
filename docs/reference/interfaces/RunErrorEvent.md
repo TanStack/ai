@@ -3,6 +3,8 @@ id: RunErrorEvent
 title: RunErrorEvent
 ---
 
+# Interface: RunErrorEvent
+
 Defined in: [packages/ai/src/types.ts:1225](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1225)
 
 Emitted when an error occurs during a run.

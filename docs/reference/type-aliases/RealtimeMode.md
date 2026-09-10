@@ -3,6 +3,8 @@ id: RealtimeMode
 title: RealtimeMode
 ---
 
+# Type Alias: RealtimeMode
+
 ```ts
 type RealtimeMode = "idle" | "listening" | "thinking" | "speaking";
 ```

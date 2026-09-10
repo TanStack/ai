@@ -3,6 +3,8 @@ id: TranscriptionResult
 title: TranscriptionResult
 ---
 
+# Interface: TranscriptionResult
+
 Defined in: [packages/ai/src/types.ts:2355](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2355)
 
 Result of audio transcription.

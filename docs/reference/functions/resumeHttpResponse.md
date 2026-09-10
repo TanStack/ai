@@ -3,6 +3,8 @@ id: resumeHttpResponse
 title: resumeHttpResponse
 ---
 
+# Function: resumeHttpResponse()
+
 ```ts
 function resumeHttpResponse<TOffset>(options): Response;
 ```

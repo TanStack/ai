@@ -3,6 +3,8 @@ id: INTERRUPT_BINDING_METADATA_KEY
 title: INTERRUPT_BINDING_METADATA_KEY
 ---
 
+# Variable: INTERRUPT\_BINDING\_METADATA\_KEY
+
 ```ts
 const INTERRUPT_BINDING_METADATA_KEY: "tanstack:interruptBinding" = 'tanstack:interruptBinding';
 ```

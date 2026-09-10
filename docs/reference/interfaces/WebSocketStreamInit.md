@@ -3,6 +3,8 @@ id: WebSocketStreamInit
 title: WebSocketStreamInit
 ---
 
+# Interface: WebSocketStreamInit\<TOffset\>
+
 Defined in: [packages/ai/src/stream-to-websocket.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L90)
 
 ## Type Parameters

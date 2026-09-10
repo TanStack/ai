@@ -3,6 +3,8 @@ id: RerankResult
 title: RerankResult
 ---
 
+# Interface: RerankResult\<TDocument\>
+
 Defined in: [packages/ai/src/types.ts:1818](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1818)
 
 Public result of the `rerank()` activity, generic over the caller's document

@@ -3,6 +3,8 @@ id: AnyVideoAdapter
 title: AnyVideoAdapter
 ---
 
+# Type Alias: AnyVideoAdapter
+
 ```ts
 type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any>;
 ```

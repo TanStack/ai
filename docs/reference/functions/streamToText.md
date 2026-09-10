@@ -3,6 +3,8 @@ id: streamToText
 title: streamToText
 ---
 
+# Function: streamToText()
+
 ```ts
 function streamToText(stream): Promise<string>;
 ```

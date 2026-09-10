@@ -3,6 +3,8 @@ id: PortOpenedPayload
 title: PortOpenedPayload
 ---
 
+# Interface: PortOpenedPayload
+
 Defined in: [packages/ai/src/custom-events.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L51)
 
 ## Properties

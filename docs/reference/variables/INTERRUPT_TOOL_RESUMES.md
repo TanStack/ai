@@ -3,6 +3,8 @@ id: INTERRUPT_TOOL_RESUMES
 title: INTERRUPT_TOOL_RESUMES
 ---
 
+# Variable: INTERRUPT\_TOOL\_RESUMES
+
 ```ts
 const INTERRUPT_TOOL_RESUMES: readonly ["continue", "cancel", "stop"];
 ```

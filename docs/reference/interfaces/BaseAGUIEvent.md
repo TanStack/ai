@@ -3,6 +3,8 @@ id: BaseAGUIEvent
 title: BaseAGUIEvent
 ---
 
+# Interface: BaseAGUIEvent
+
 Defined in: [packages/ai/src/types.ts:1154](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1154)
 
 Base structure for AG-UI events.

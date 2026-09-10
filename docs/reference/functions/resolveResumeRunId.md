@@ -3,6 +3,8 @@ id: resolveResumeRunId
 title: resolveResumeRunId
 ---
 
+# Function: resolveResumeRunId()
+
 ```ts
 function resolveResumeRunId(request): string | null;
 ```

@@ -3,6 +3,8 @@ id: GenericInterruptResolution
 title: GenericInterruptResolution
 ---
 
+# Type Alias: GenericInterruptResolution\<TDefinition\>
+
 ```ts
 type GenericInterruptResolution<TDefinition> = TDefinition extends AnyInterruptDefinition ? 
   | {

@@ -3,6 +3,8 @@ id: encodeWsFrame
 title: encodeWsFrame
 ---
 
+# Function: encodeWsFrame()
+
 ```ts
 function encodeWsFrame(chunk, id): string;
 ```

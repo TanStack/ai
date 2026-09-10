@@ -3,6 +3,8 @@ id: RunAgentResumeItem
 title: RunAgentResumeItem
 ---
 
+# Type Alias: RunAgentResumeItem
+
 ```ts
 type RunAgentResumeItem = AGUIResumeEntry & object;
 ```

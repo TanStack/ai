@@ -3,6 +3,8 @@ id: toHttpStream
 title: toHttpStream
 ---
 
+# Function: toHttpStream()
+
 ```ts
 function toHttpStream(
    stream, 

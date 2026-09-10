@@ -3,6 +3,8 @@ id: UsageInfo
 title: UsageInfo
 ---
 
+# Interface: UsageInfo
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:485](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L485)
 
 Token usage statistics passed to the onUsage hook.

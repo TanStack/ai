@@ -3,6 +3,8 @@ id: StreamProcessor
 title: StreamProcessor
 ---
 
+# Class: StreamProcessor
+
 Defined in: [packages/ai/src/activities/chat/stream/processor.ts:183](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L183)
 
 StreamProcessor - State machine for processing AI response streams

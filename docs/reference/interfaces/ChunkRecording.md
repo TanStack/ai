@@ -3,6 +3,8 @@ id: ChunkRecording
 title: ChunkRecording
 ---
 
+# Interface: ChunkRecording
+
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L100)
 
 Recording format for replay testing

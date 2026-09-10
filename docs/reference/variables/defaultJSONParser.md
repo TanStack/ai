@@ -3,6 +3,8 @@ id: defaultJSONParser
 title: defaultJSONParser
 ---
 
+# Variable: defaultJSONParser
+
 ```ts
 const defaultJSONParser: PartialJSONParser;
 ```

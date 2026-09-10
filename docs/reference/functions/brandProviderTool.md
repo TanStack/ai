@@ -3,6 +3,8 @@ id: brandProviderTool
 title: brandProviderTool
 ---
 
+# Function: brandProviderTool()
+
 ```ts
 function brandProviderTool<T>(tool): T;
 ```

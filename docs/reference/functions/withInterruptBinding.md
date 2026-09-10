@@ -3,6 +3,8 @@ id: withInterruptBinding
 title: withInterruptBinding
 ---
 
+# Function: withInterruptBinding()
+
 ```ts
 function withInterruptBinding(descriptor, binding): Interrupt;
 ```

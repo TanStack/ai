@@ -3,6 +3,8 @@ id: ToolExecutionContext
 title: ToolExecutionContext
 ---
 
+# Type Alias: ToolExecutionContext\<TContext\>
+
 ```ts
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```

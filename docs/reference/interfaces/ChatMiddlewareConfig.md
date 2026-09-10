@@ -3,6 +3,8 @@ id: ChatMiddlewareConfig
 title: ChatMiddlewareConfig
 ---
 
+# Interface: ChatMiddlewareConfig
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:313](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L313)
 
 Chat configuration that middleware can observe or transform.

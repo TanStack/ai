@@ -3,6 +3,8 @@ id: AnyRerankAdapter
 title: AnyRerankAdapter
 ---
 
+# Type Alias: AnyRerankAdapter
+
 ```ts
 type AnyRerankAdapter = RerankAdapter<any, any>;
 ```

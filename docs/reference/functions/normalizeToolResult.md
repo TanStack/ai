@@ -3,6 +3,8 @@ id: normalizeToolResult
 title: normalizeToolResult
 ---
 
+# Function: normalizeToolResult()
+
 ```ts
 function normalizeToolResult(result): string | ContentPart[];
 ```

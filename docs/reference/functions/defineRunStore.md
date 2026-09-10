@@ -3,6 +3,8 @@ id: defineRunStore
 title: defineRunStore
 ---
 
+# Function: defineRunStore()
+
 ```ts
 function defineRunStore<T>(store): T;
 ```

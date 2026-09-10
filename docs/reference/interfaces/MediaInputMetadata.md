@@ -3,6 +3,8 @@ id: MediaInputMetadata
 title: MediaInputMetadata
 ---
 
+# Interface: MediaInputMetadata
+
 Defined in: [packages/ai/src/types.ts:1859](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1859)
 
 Metadata convention for image / video / audio inputs to media generation.

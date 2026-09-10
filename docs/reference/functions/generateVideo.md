@@ -3,6 +3,8 @@ id: generateVideo
 title: generateVideo
 ---
 
+# Function: generateVideo()
+
 ```ts
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```

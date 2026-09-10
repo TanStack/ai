@@ -3,6 +3,8 @@ id: StreamChunk
 title: StreamChunk
 ---
 
+# Type Alias: StreamChunk
+
 ```ts
 type StreamChunk = AGUIEvent;
 ```

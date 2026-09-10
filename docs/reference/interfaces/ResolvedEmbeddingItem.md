@@ -3,6 +3,8 @@ id: ResolvedEmbeddingItem
 title: ResolvedEmbeddingItem
 ---
 
+# Interface: ResolvedEmbeddingItem
+
 Defined in: [packages/ai/src/utilities/embedding-input.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/embedding-input.ts#L8)
 
 One embedding input item resolved into its text and image constituents.

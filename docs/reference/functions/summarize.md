@@ -3,6 +3,8 @@ id: summarize
 title: summarize
 ---
 
+# Function: summarize()
+
 ```ts
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```

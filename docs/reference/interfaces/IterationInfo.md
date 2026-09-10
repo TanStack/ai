@@ -3,6 +3,8 @@ id: IterationInfo
 title: IterationInfo
 ---
 
+# Interface: IterationInfo
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:433](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L433)
 
 Information passed to onIteration at the start of each agent loop iteration.

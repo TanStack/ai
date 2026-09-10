@@ -3,6 +3,8 @@ id: ProcessorResult
 title: ProcessorResult
 ---
 
+# Interface: ProcessorResult
+
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L78)
 
 Result from processing a stream

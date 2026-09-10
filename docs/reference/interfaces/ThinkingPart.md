@@ -3,6 +3,8 @@ id: ThinkingPart
 title: ThinkingPart
 ---
 
+# Interface: ThinkingPart
+
 Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
 
 ## Properties

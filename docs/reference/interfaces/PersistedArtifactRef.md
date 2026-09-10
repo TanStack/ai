@@ -3,6 +3,8 @@ id: PersistedArtifactRef
 title: PersistedArtifactRef
 ---
 
+# Interface: PersistedArtifactRef
+
 Defined in: [packages/ai/src/types.ts:1998](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1998)
 
 ## Properties

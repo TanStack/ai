@@ -3,6 +3,8 @@ id: RunFinishedOutcome
 title: RunFinishedOutcome
 ---
 
+# Type Alias: RunFinishedOutcome
+
 ```ts
 type RunFinishedOutcome = AGUIRunFinishedOutcome;
 ```

@@ -3,6 +3,8 @@ id: CodeModeConsoleEvent
 title: CodeModeConsoleEvent
 ---
 
+# Interface: CodeModeConsoleEvent
+
 Defined in: [packages/ai/src/types.ts:1491](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1491)
 
 Custom event for extensibility.

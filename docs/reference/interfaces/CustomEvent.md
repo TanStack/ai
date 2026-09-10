@@ -3,6 +3,8 @@ id: CustomEvent
 title: CustomEvent
 ---
 
+# Interface: CustomEvent
+
 Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
 
 Custom event for extensibility.

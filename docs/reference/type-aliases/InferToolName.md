@@ -3,6 +3,8 @@ id: InferToolName
 title: InferToolName
 ---
 
+# Type Alias: InferToolName\<T\>
+
 ```ts
 type InferToolName<T> = T extends object ? N : never;
 ```

@@ -3,6 +3,8 @@ id: ContentPartForInputModalitiesTypes
 title: ContentPartForInputModalitiesTypes
 ---
 
+# Type Alias: ContentPartForInputModalitiesTypes\<TInputModalitiesTypes\>
+
 ```ts
 type ContentPartForInputModalitiesTypes<TInputModalitiesTypes> = Extract<ContentPart<TInputModalitiesTypes["messageMetadataByModality"]["text"], TInputModalitiesTypes["messageMetadataByModality"]["image"], TInputModalitiesTypes["messageMetadataByModality"]["audio"], TInputModalitiesTypes["messageMetadataByModality"]["video"], TInputModalitiesTypes["messageMetadataByModality"]["document"]>, {
   type: TInputModalitiesTypes["inputModalities"][number];

@@ -3,6 +3,8 @@ id: InterruptDefinitionOptions
 title: InterruptDefinitionOptions
 ---
 
+# Interface: InterruptDefinitionOptions\<TId, TPayloadSchema, TResponseSchema\>
+
 Defined in: [packages/ai/src/interrupt-definition.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L44)
 
 ## Type Parameters

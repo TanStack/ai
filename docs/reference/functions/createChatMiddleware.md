@@ -3,6 +3,8 @@ id: createChatMiddleware
 title: createChatMiddleware
 ---
 
+# Function: createChatMiddleware()
+
 ```ts
 function createChatMiddleware(): ChatMiddlewareBuilder<readonly [], never>;
 ```

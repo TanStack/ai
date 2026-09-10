@@ -3,6 +3,8 @@ id: ClientToolDeclaration
 title: ClientToolDeclaration
 ---
 
+# Type Alias: ClientToolDeclaration
+
 ```ts
 type ClientToolDeclaration = object;
 ```

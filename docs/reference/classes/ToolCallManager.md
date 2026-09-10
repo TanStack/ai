@@ -3,6 +3,8 @@ id: ToolCallManager
 title: ToolCallManager
 ---
 
+# Class: ToolCallManager\<TToolsOrContext, TContext\>
+
 Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:213](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L213)
 
 Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.

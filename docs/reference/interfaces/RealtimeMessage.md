@@ -3,6 +3,8 @@ id: RealtimeMessage
 title: RealtimeMessage
 ---
 
+# Interface: RealtimeMessage
+
 Defined in: [packages/ai/src/realtime/types.ts:162](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L162)
 
 A message in a realtime conversation

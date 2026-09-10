@@ -3,6 +3,8 @@ id: RealtimeError
 title: RealtimeError
 ---
 
+# Interface: RealtimeError
+
 Defined in: [packages/ai/src/realtime/types.ts:299](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L299)
 
 Extended error with realtime-specific information

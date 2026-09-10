@@ -3,6 +3,8 @@ id: UIResourcePart
 title: UIResourcePart
 ---
 
+# Interface: UIResourcePart
+
 Defined in: [packages/ai/src/types.ts:495](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L495)
 
 ## Properties

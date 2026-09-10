@@ -3,6 +3,8 @@ id: ItemInterruptError
 title: ItemInterruptError
 ---
 
+# Interface: ItemInterruptError
+
 Defined in: [packages/ai/src/interrupts.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L43)
 
 ## Extends

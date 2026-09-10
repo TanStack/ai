@@ -3,6 +3,8 @@ id: RunDriverOptions
 title: RunDriverOptions
 ---
 
+# Interface: RunDriverOptions
+
 Defined in: [packages/ai/src/stream-to-response.ts:803](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L803)
 
 Everything the resume helpers need to take a run over as a side effect of

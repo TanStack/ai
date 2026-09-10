@@ -3,6 +3,8 @@ id: CodeModeSnippetResultEvent
 title: CodeModeSnippetResultEvent
 ---
 
+# Interface: CodeModeSnippetResultEvent
+
 Defined in: [packages/ai/src/types.ts:1515](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1515)
 
 Custom event for extensibility.

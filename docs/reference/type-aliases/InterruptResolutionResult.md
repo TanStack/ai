@@ -3,6 +3,8 @@ id: InterruptResolutionResult
 title: InterruptResolutionResult
 ---
 
+# Type Alias: InterruptResolutionResult
+
 ```ts
 type InterruptResolutionResult = 
   | void

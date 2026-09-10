@@ -3,6 +3,8 @@ id: SnippetRegisteredEvent
 title: SnippetRegisteredEvent
 ---
 
+# Interface: SnippetRegisteredEvent
+
 Defined in: [packages/ai/src/types.ts:1528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1528)
 
 Custom event for extensibility.

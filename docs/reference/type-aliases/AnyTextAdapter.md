@@ -3,6 +3,8 @@ id: AnyTextAdapter
 title: AnyTextAdapter
 ---
 
+# Type Alias: AnyTextAdapter
+
 ```ts
 type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any>;
 ```

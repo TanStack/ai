@@ -3,6 +3,8 @@ id: AbortInfo
 title: AbortInfo
 ---
 
+# Interface: AbortInfo
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:508](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L508)
 
 Information passed to onAbort.

@@ -3,6 +3,8 @@ id: isContentPartArray
 title: isContentPartArray
 ---
 
+# Function: isContentPartArray()
+
 ```ts
 function isContentPartArray(value): value is ContentPart[];
 ```

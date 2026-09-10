@@ -3,6 +3,8 @@ id: readUnopenedInterruptBinding
 title: readUnopenedInterruptBinding
 ---
 
+# Function: readUnopenedInterruptBinding()
+
 ```ts
 function readUnopenedInterruptBinding(descriptor): 
   | Omit<ResponseSchemaInterruptBindingBase & object, "interruptedRunId" | "generation">

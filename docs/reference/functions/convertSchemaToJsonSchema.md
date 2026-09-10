@@ -3,6 +3,8 @@ id: convertSchemaToJsonSchema
 title: convertSchemaToJsonSchema
 ---
 
+# Function: convertSchemaToJsonSchema()
+
 ```ts
 function convertSchemaToJsonSchema(schema, options?): JSONSchema | undefined;
 ```

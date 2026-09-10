@@ -3,6 +3,8 @@ id: EmbeddingModality
 title: EmbeddingModality
 ---
 
+# Type Alias: EmbeddingModality
+
 ```ts
 type EmbeddingModality = "text" | "image";
 ```

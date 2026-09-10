@@ -3,6 +3,8 @@ id: createAudioOptions
 title: createAudioOptions
 ---
 
+# Function: createAudioOptions()
+
 ```ts
 function createAudioOptions<TAdapter, TStream>(options): AudioActivityOptions<TAdapter, TStream>;
 ```

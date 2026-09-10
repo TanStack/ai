@@ -3,6 +3,8 @@ id: Capability
 title: Capability
 ---
 
+# Type Alias: Capability\<TValue, TName\>
+
 ```ts
 type Capability<TValue, TName> = readonly [CapabilityGetter<TValue>, CapabilityProvider<TValue>] & object;
 ```

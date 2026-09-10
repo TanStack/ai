@@ -3,6 +3,8 @@ id: ImageGenerationResult
 title: ImageGenerationResult
 ---
 
+# Interface: ImageGenerationResult
+
 Defined in: [packages/ai/src/types.ts:2044](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2044)
 
 Result of image generation

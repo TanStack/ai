@@ -3,6 +3,8 @@ id: INTERRUPT_BOUNDARY_PHASES
 title: INTERRUPT_BOUNDARY_PHASES
 ---
 
+# Variable: INTERRUPT\_BOUNDARY\_PHASES
+
 ```ts
 const INTERRUPT_BOUNDARY_PHASES: readonly ["beforeModel", "afterModel", "beforeTools", "afterTools"];
 ```

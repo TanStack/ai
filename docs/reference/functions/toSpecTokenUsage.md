@@ -3,6 +3,8 @@ id: toSpecTokenUsage
 title: toSpecTokenUsage
 ---
 
+# Function: toSpecTokenUsage()
+
 ```ts
 function toSpecTokenUsage(usage, options?): object;
 ```

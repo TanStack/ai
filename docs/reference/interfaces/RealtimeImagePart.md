@@ -3,6 +3,8 @@ id: RealtimeImagePart
 title: RealtimeImagePart
 ---
 
+# Interface: RealtimeImagePart
+
 Defined in: [packages/ai/src/realtime/types.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L141)
 
 Image content part in a realtime message

@@ -3,6 +3,8 @@ id: ToolDefinitionConfig
 title: ToolDefinitionConfig
 ---
 
+# Type Alias: ToolDefinitionConfig\<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema\>
+
 ```ts
 type ToolDefinitionConfig<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema> = object & ApprovalConfig<TNeedsApproval, TApprovalSchema>;
 ```

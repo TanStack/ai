@@ -3,6 +3,8 @@ id: TanStackRunMetadata
 title: TanStackRunMetadata
 ---
 
+# Interface: TanStackRunMetadata
+
 Defined in: [packages/ai/src/types.ts:554](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L554)
 
 Shape of `metadata.tanstack` on run events.

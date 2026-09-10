@@ -3,6 +3,8 @@ id: StreamDurability
 title: StreamDurability
 ---
 
+# Interface: StreamDurability\<TOffset\>
+
 Defined in: [packages/ai/src/stream-durability.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L10)
 
 A pluggable delivery-durability backend.

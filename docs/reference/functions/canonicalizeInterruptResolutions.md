@@ -3,6 +3,8 @@ id: canonicalizeInterruptResolutions
 title: canonicalizeInterruptResolutions
 ---
 
+# Function: canonicalizeInterruptResolutions()
+
 ```ts
 function canonicalizeInterruptResolutions(resolutions): object;
 ```

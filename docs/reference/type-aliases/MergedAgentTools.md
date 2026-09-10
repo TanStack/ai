@@ -3,6 +3,8 @@ id: MergedAgentTools
 title: MergedAgentTools
 ---
 
+# Type Alias: MergedAgentTools\<TServerTools\>
+
 ```ts
 type MergedAgentTools<TServerTools> = ReadonlyArray<
   | TServerTools[number]

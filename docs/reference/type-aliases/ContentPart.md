@@ -3,6 +3,8 @@ id: ContentPart
 title: ContentPart
 ---
 
+# Type Alias: ContentPart\<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
+
 ```ts
 type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = 
   | TextPart<TTextMeta>

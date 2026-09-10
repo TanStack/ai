@@ -3,6 +3,8 @@ id: getDetachableRun
 title: getDetachableRun
 ---
 
+# Variable: getDetachableRun
+
 ```ts
 getDetachableRun: CapabilityGetter<true>;
 ```

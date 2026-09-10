@@ -3,6 +3,8 @@ id: WireMessage
 title: WireMessage
 ---
 
+# Type Alias: WireMessage
+
 ```ts
 type WireMessage = 
   | WireSystemMessage

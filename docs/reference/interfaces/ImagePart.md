@@ -3,6 +3,8 @@ id: ImagePart
 title: ImagePart
 ---
 
+# Interface: ImagePart\<TMetadata\>
+
 Defined in: [packages/ai/src/types.ts:264](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L264)
 
 Image content part for multimodal messages.

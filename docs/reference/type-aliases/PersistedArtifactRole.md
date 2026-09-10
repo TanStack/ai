@@ -3,6 +3,8 @@ id: PersistedArtifactRole
 title: PersistedArtifactRole
 ---
 
+# Type Alias: PersistedArtifactRole
+
 ```ts
 type PersistedArtifactRole = "input" | "output";
 ```

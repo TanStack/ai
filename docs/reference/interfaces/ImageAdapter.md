@@ -3,6 +3,8 @@ id: ImageAdapter
 title: ImageAdapter
 ---
 
+# Interface: ImageAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName, TModelInputModalitiesByName\>
+
 Defined in: [packages/ai/src/activities/generateImage/adapter.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/adapter.ts#L39)
 
 Image adapter interface with pre-resolved generics.

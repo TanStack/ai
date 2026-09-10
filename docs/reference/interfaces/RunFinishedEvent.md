@@ -3,6 +3,8 @@ id: RunFinishedEvent
 title: RunFinishedEvent
 ---
 
+# Interface: RunFinishedEvent
+
 Defined in: [packages/ai/src/types.ts:1205](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1205)
 
 Emitted when a run completes successfully.

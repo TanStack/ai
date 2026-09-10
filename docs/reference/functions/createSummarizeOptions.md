@@ -3,6 +3,8 @@ id: createSummarizeOptions
 title: createSummarizeOptions
 ---
 
+# Function: createSummarizeOptions()
+
 ```ts
 function createSummarizeOptions<TAdapter, TStream>(options): SummarizeActivityOptions<TAdapter, TStream>;
 ```

@@ -3,6 +3,8 @@ id: isProviderExecutedToolCall
 title: isProviderExecutedToolCall
 ---
 
+# Function: isProviderExecutedToolCall()
+
 ```ts
 function isProviderExecutedToolCall(toolCall): boolean;
 ```

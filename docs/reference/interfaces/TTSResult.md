@@ -3,6 +3,8 @@ id: TTSResult
 title: TTSResult
 ---
 
+# Interface: TTSResult
+
 Defined in: [packages/ai/src/types.ts:2259](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2259)
 
 Result of text-to-speech generation.

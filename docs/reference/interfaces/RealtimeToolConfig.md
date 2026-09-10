@@ -3,6 +3,8 @@ id: RealtimeToolConfig
 title: RealtimeToolConfig
 ---
 
+# Interface: RealtimeToolConfig
+
 Defined in: [packages/ai/src/realtime/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L25)
 
 Serializable tool descriptor for realtime session configuration.

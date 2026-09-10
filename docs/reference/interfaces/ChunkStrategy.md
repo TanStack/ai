@@ -3,6 +3,8 @@ id: ChunkStrategy
 title: ChunkStrategy
 ---
 
+# Interface: ChunkStrategy
+
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L38)
 
 Strategy for determining when to emit text updates

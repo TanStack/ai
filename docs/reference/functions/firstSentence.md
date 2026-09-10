@@ -3,6 +3,8 @@ id: firstSentence
 title: firstSentence
 ---
 
+# Function: firstSentence()
+
 ```ts
 function firstSentence(text): string;
 ```

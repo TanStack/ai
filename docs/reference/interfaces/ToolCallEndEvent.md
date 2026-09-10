@@ -3,6 +3,8 @@ id: ToolCallEndEvent
 title: ToolCallEndEvent
 ---
 
+# Interface: ToolCallEndEvent
+
 Defined in: [packages/ai/src/types.ts:1297](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1297)
 
 Emitted when a tool call completes.

@@ -3,6 +3,8 @@ id: WebSocketLike
 title: WebSocketLike
 ---
 
+# Interface: WebSocketLike
+
 Defined in: [packages/ai/src/stream-to-websocket.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L15)
 
 The minimal WHATWG WebSocket surface the core needs. Cloudflare

@@ -3,6 +3,8 @@ id: ChatMiddleware
 title: ChatMiddleware
 ---
 
+# Interface: ChatMiddleware\<TContext, TInterruptDefinitions\>
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:574](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L574)
 
 Chat middleware interface.

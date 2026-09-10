@@ -3,6 +3,8 @@ id: InterruptCorrelation
 title: InterruptCorrelation
 ---
 
+# Interface: InterruptCorrelation
+
 Defined in: [packages/ai/src/interrupts.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L8)
 
 ## Extended by

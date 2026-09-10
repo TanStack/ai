@@ -3,6 +3,8 @@ id: AudioGenerationOptions
 title: AudioGenerationOptions
 ---
 
+# Interface: AudioGenerationOptions\<TProviderOptions\>
+
 Defined in: [packages/ai/src/types.ts:2065](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2065)
 
 Options for audio generation (music, sound effects, etc.).

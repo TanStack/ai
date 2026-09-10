@@ -3,6 +3,8 @@ id: AnyAudioAdapter
 title: AnyAudioAdapter
 ---
 
+# Type Alias: AnyAudioAdapter
+
 ```ts
 type AnyAudioAdapter = AudioAdapter<any, any>;
 ```

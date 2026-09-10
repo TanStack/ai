@@ -3,6 +3,8 @@ id: ChatResumeToolState
 title: ChatResumeToolState
 ---
 
+# Interface: ChatResumeToolState
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L331)
 
 Tool decisions reconstructed by server-side middleware from validated resume

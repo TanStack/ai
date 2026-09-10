@@ -3,6 +3,8 @@ id: chat
 title: chat
 ---
 
+# Function: chat()
+
 ```ts
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```

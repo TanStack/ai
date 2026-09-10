@@ -3,6 +3,8 @@ id: ExtendedModelDef
 title: ExtendedModelDef
 ---
 
+# Interface: ExtendedModelDef\<TName, TInput, TOptions, TFeatures, TTools\>
+
 Defined in: [packages/ai/src/extend-adapter.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L21)
 
 Definition for a custom model to add to an adapter.

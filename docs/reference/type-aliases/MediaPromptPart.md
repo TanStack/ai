@@ -3,6 +3,8 @@ id: MediaPromptPart
 title: MediaPromptPart
 ---
 
+# Type Alias: MediaPromptPart
+
 ```ts
 type MediaPromptPart = 
   | TextPart

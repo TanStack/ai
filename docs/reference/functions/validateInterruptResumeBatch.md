@@ -3,6 +3,8 @@ id: validateInterruptResumeBatch
 title: validateInterruptResumeBatch
 ---
 
+# Function: validateInterruptResumeBatch()
+
 ```ts
 function validateInterruptResumeBatch(input): Promise<ValidatedInterruptResumeBatch>;
 ```

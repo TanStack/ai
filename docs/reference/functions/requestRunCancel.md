@@ -3,6 +3,8 @@ id: requestRunCancel
 title: requestRunCancel
 ---
 
+# Function: requestRunCancel()
+
 ```ts
 function requestRunCancel(runs, runId): Promise<void>;
 ```

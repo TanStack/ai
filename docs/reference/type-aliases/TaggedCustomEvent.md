@@ -3,6 +3,8 @@ id: TaggedCustomEvent
 title: TaggedCustomEvent
 ---
 
+# Type Alias: TaggedCustomEvent\<T\>
+
 ```ts
 type TaggedCustomEvent<T> = 
   | StructuredOutputStartEvent

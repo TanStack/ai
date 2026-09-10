@@ -3,6 +3,8 @@ id: TanStackMessageMetadata
 title: TanStackMessageMetadata
 ---
 
+# Interface: TanStackMessageMetadata
+
 Defined in: [packages/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L528)
 
 Shape of `metadata.tanstack` on a message.

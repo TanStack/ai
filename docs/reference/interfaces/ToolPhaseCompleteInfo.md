@@ -3,6 +3,8 @@ id: ToolPhaseCompleteInfo
 title: ToolPhaseCompleteInfo
 ---
 
+# Interface: ToolPhaseCompleteInfo
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:448](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L448)
 
 Aggregate information passed to onToolPhaseComplete after all tool calls

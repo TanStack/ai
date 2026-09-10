@@ -3,6 +3,8 @@ id: InternalToolCallState
 title: InternalToolCallState
 ---
 
+# Interface: InternalToolCallState
+
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L21)
 
 Internal state for a tool call being tracked

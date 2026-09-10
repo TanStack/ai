@@ -3,6 +3,8 @@ id: SkillLimitErrorInit
 title: SkillLimitErrorInit
 ---
 
+# Interface: SkillLimitErrorInit
+
 Defined in: [packages/ai/src/utilities/errors.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L13)
 
 Thrown when a skills request exceeds a provider limit. Lives in core (rather

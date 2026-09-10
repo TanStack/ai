@@ -3,6 +3,8 @@ id: isCancelRequestedReason
 title: isCancelRequestedReason
 ---
 
+# Function: isCancelRequestedReason()
+
 ```ts
 function isCancelRequestedReason(reason): boolean;
 ```

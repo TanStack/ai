@@ -3,6 +3,8 @@ id: NormalizedApprovalSchema
 title: NormalizedApprovalSchema
 ---
 
+# Interface: NormalizedApprovalSchema
+
 Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L16)
 
 ## Properties

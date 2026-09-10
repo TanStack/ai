@@ -3,6 +3,8 @@ id: ConstrainedModelMessage
 title: ConstrainedModelMessage
 ---
 
+# Type Alias: ConstrainedModelMessage\<TInputModalitiesTypes\>
+
 ```ts
 type ConstrainedModelMessage<TInputModalitiesTypes> = Omit<ModelMessage, "content"> & object;
 ```

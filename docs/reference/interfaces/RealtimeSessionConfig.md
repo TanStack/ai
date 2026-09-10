@@ -3,6 +3,8 @@ id: RealtimeSessionConfig
 title: RealtimeSessionConfig
 ---
 
+# Interface: RealtimeSessionConfig
+
 Defined in: [packages/ai/src/realtime/types.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L35)
 
 Configuration for a realtime session

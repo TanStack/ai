@@ -3,6 +3,8 @@ id: isTerminalRunStatus
 title: isTerminalRunStatus
 ---
 
+# Function: isTerminalRunStatus()
+
 ```ts
 function isTerminalRunStatus(status): status is TerminalRunStatus;
 ```

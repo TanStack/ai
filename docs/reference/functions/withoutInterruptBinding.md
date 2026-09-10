@@ -3,6 +3,8 @@ id: withoutInterruptBinding
 title: withoutInterruptBinding
 ---
 
+# Function: withoutInterruptBinding()
+
 ```ts
 function withoutInterruptBinding(descriptor): Interrupt;
 ```

@@ -3,6 +3,8 @@ id: SandboxFileCustomEvent
 title: SandboxFileCustomEvent
 ---
 
+# Interface: SandboxFileCustomEvent
+
 Defined in: [packages/ai/src/types.ts:1463](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1463)
 
 Custom event for extensibility.

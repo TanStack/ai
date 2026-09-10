@@ -3,6 +3,8 @@ id: GenericInterruptContinuation
 title: GenericInterruptContinuation
 ---
 
+# Interface: GenericInterruptContinuation
+
 Defined in: [packages/ai/src/generic-interrupt-continuation.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/generic-interrupt-continuation.ts#L16)
 
 ## Properties

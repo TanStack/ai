@@ -3,6 +3,8 @@ id: RerankAdapter
 title: RerankAdapter
 ---
 
+# Interface: RerankAdapter\<TModel, TProviderOptions\>
+
 Defined in: [packages/ai/src/activities/rerank/adapter.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/adapter.ts#L23)
 
 Rerank adapter interface with pre-resolved generics.

@@ -3,6 +3,8 @@ id: createInterruptBinding
 title: createInterruptBinding
 ---
 
+# Function: createInterruptBinding()
+
 ```ts
 function createInterruptBinding(request, fields?): InterruptPreEmissionData;
 ```

@@ -3,6 +3,8 @@ id: RunError
 title: RunError
 ---
 
+# Interface: RunError
+
 Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L99)
 
 Why a run failed.

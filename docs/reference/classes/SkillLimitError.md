@@ -3,6 +3,8 @@ id: SkillLimitError
 title: SkillLimitError
 ---
 
+# Class: SkillLimitError
+
 Defined in: [packages/ai/src/utilities/errors.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L22)
 
 ## Extends

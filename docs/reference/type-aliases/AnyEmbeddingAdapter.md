@@ -3,6 +3,8 @@ id: AnyEmbeddingAdapter
 title: AnyEmbeddingAdapter
 ---
 
+# Type Alias: AnyEmbeddingAdapter
+
 ```ts
 type AnyEmbeddingAdapter = EmbeddingAdapter<any, any, any, any>;
 ```

@@ -3,6 +3,8 @@ id: TextAdapter
 title: TextAdapter
 ---
 
+# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata, TSystemPromptMetadata\>
+
 Defined in: [packages/ai/src/activities/chat/adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L67)
 
 Text adapter interface with pre-resolved generics.

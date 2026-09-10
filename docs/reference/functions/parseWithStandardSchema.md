@@ -3,6 +3,8 @@ id: parseWithStandardSchema
 title: parseWithStandardSchema
 ---
 
+# Function: parseWithStandardSchema()
+
 ```ts
 function parseWithStandardSchema<T>(schema, data): T;
 ```

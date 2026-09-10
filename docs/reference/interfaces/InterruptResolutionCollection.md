@@ -3,6 +3,8 @@ id: InterruptResolutionCollection
 title: InterruptResolutionCollection
 ---
 
+# Interface: InterruptResolutionCollection\<TDefinitions\>
+
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
 
 ## Type Parameters

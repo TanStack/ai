@@ -3,6 +3,8 @@ id: ChatMCPOptions
 title: ChatMCPOptions
 ---
 
+# Interface: ChatMCPOptions
+
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L55)
 
 Options controlling MCP tool discovery and lifecycle for a `chat()` call.

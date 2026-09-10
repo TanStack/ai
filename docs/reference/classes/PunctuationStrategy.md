@@ -3,6 +3,8 @@ id: PunctuationStrategy
 title: PunctuationStrategy
 ---
 
+# Class: PunctuationStrategy
+
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L22)
 
 Punctuation Strategy - emit when chunk contains punctuation

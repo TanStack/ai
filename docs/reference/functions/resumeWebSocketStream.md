@@ -3,6 +3,8 @@ id: resumeWebSocketStream
 title: resumeWebSocketStream
 ---
 
+# Function: resumeWebSocketStream()
+
 ```ts
 function resumeWebSocketStream<TOffset>(socket, options): void;
 ```

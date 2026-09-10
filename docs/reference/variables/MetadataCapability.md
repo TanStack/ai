@@ -3,6 +3,8 @@ id: MetadataCapability
 title: MetadataCapability
 ---
 
+# Variable: MetadataCapability
+
 ```ts
 const MetadataCapability: Capability<MetadataStore, "metadata">;
 ```

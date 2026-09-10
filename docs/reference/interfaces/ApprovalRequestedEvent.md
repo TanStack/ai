@@ -3,6 +3,8 @@ id: ApprovalRequestedEvent
 title: ApprovalRequestedEvent
 ---
 
+# ~~Interface: ApprovalRequestedEvent~~
+
 Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
 
 ## Deprecated

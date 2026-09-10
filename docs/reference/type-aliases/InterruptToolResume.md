@@ -3,6 +3,8 @@ id: InterruptToolResume
 title: InterruptToolResume
 ---
 
+# Type Alias: InterruptToolResume
+
 ```ts
 type InterruptToolResume = typeof INTERRUPT_TOOL_RESUMES[number];
 ```

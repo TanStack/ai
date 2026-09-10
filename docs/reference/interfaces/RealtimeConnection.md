@@ -3,6 +3,8 @@ id: RealtimeConnection
 title: RealtimeConnection
 ---
 
+# Interface: RealtimeConnection
+
 Defined in: [packages/ai/src/realtime/types.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L339)
 
 Connection interface representing an active realtime session.

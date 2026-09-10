@@ -3,6 +3,8 @@ id: combineStrategies
 title: combineStrategies
 ---
 
+# Function: combineStrategies()
+
 ```ts
 function combineStrategies(strategies): AgentLoopStrategy;
 ```

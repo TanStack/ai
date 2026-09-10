@@ -3,6 +3,8 @@ id: AudioAdapter
 title: AudioAdapter
 ---
 
+# Interface: AudioAdapter\<TModel, TProviderOptions\>
+
 Defined in: [packages/ai/src/activities/generateAudio/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateAudio/adapter.ts#L24)
 
 Audio generation adapter interface with pre-resolved generics.

@@ -3,6 +3,8 @@ id: RunStatus
 title: RunStatus
 ---
 
+# Type Alias: RunStatus
+
 ```ts
 type RunStatus = "running" | "interrupted" | TerminalRunStatus;
 ```

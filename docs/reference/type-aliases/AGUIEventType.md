@@ -3,6 +3,8 @@ id: AGUIEventType
 title: AGUIEventType
 ---
 
+# ~~Type Alias: AGUIEventType~~
+
 ```ts
 type AGUIEventType = `${EventType}`;
 ```

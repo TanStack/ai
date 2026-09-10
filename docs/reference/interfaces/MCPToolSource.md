@@ -3,6 +3,8 @@ id: MCPToolSource
 title: MCPToolSource
 ---
 
+# Interface: MCPToolSource
+
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L25)
 
 Minimal structural shape that `chat({ mcp })` needs from an MCP client.
