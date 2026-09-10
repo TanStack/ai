@@ -54,6 +54,8 @@ import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-r
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiOpenrouterCombinedRouteImport } from './routes/api.openrouter-combined'
+import { Route as ApiMcpTasksServerRouteImport } from './routes/api.mcp-tasks-server'
+import { Route as ApiMcpTasksChatRouteImport } from './routes/api.mcp-tasks-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -309,6 +311,16 @@ const ApiOpenrouterCombinedRoute = ApiOpenrouterCombinedRouteImport.update({
   path: '/api/openrouter-combined',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpTasksServerRoute = ApiMcpTasksServerRouteImport.update({
+  id: '/api/mcp-tasks-server',
+  path: '/api/mcp-tasks-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpTasksChatRoute = ApiMcpTasksChatRouteImport.update({
+  id: '/api/mcp-tasks-chat',
+  path: '/api/mcp-tasks-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
   id: '/api/mcp-status',
   path: '/api/mcp-status',
@@ -472,6 +484,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
@@ -543,6 +557,8 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
@@ -615,6 +631,8 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/mcp-tasks-chat': typeof ApiMcpTasksChatRoute
+  '/api/mcp-tasks-server': typeof ApiMcpTasksServerRoute
   '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
@@ -688,6 +706,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
@@ -759,6 +779,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
@@ -830,6 +852,8 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/mcp-tasks-chat'
+    | '/api/mcp-tasks-server'
     | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
@@ -902,6 +926,8 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiMcpTasksChatRoute: typeof ApiMcpTasksChatRoute
+  ApiMcpTasksServerRoute: typeof ApiMcpTasksServerRoute
   ApiOpenrouterCombinedRoute: typeof ApiOpenrouterCombinedRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
@@ -1249,6 +1275,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterCombinedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-tasks-server': {
+      id: '/api/mcp-tasks-server'
+      path: '/api/mcp-tasks-server'
+      fullPath: '/api/mcp-tasks-server'
+      preLoaderRoute: typeof ApiMcpTasksServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-tasks-chat': {
+      id: '/api/mcp-tasks-chat'
+      path: '/api/mcp-tasks-chat'
+      fullPath: '/api/mcp-tasks-chat'
+      preLoaderRoute: typeof ApiMcpTasksChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-status': {
       id: '/api/mcp-status'
       path: '/api/mcp-status'
@@ -1472,6 +1512,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiMcpTasksChatRoute: ApiMcpTasksChatRoute,
+  ApiMcpTasksServerRoute: ApiMcpTasksServerRoute,
   ApiOpenrouterCombinedRoute: ApiOpenrouterCombinedRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
