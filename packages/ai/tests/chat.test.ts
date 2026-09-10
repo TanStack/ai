@@ -4784,4 +4784,88 @@ describe('chat()', () => {
       ).toThrow('Duplicate interrupt definition id: duplicate-chat-id')
     })
   })
+
+  describe('AG-UI activity sidecar', () => {
+    it('peels inbound activity before adapter messages', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished()]],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            { role: 'user', content: 'hi' },
+            {
+              id: 'act-1',
+              role: 'activity',
+              parts: [
+                {
+                  type: 'activity',
+                  activityType: 'SEARCH',
+                  content: { q: 'x' },
+                },
+              ],
+            },
+            { role: 'assistant', content: 'prior' },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      expect(adapterMessages.map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+      ])
+    })
+
+    it('emits patched activity on interrupt MESSAGES_SNAPSHOT', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.activitySnapshot('act-1', 'SEARCH', { q: 'x' }),
+            ev.activityDelta('act-1', 'SEARCH', [
+              { op: 'add', path: '/done', value: true },
+            ]),
+            ev.textStart('stream-assistant'),
+            {
+              ...ev.toolStart('call_1', 'clientSearch'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (value) => value.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: [
+          { id: 'user-1', role: 'user', content: 'Search' },
+          {
+            id: 'act-1',
+            role: 'activity',
+            activityType: 'SEARCH',
+            content: { q: 'x', done: true },
+          },
+          { id: 'stream-assistant', role: 'assistant' },
+        ],
+      })
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      expect(
+        adapterMessages.every((message) => message.role !== 'activity'),
+      ).toBe(true)
+    })
+  })
 })

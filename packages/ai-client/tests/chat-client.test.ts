@@ -4373,4 +4373,254 @@ describe('ChatClient', () => {
       client.unsubscribe()
     })
   })
+
+  describe('activity messages', () => {
+    it('surfaces ACTIVITY_SNAPSHOT and ACTIVITY_DELTA through getMessages', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'tanstack' },
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.ACTIVITY_DELTA,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            patch: [{ op: 'add', path: '/hits', value: 3 }],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const onMessagesChange = vi.fn()
+      const client = new ChatClient({
+        connection: adapter,
+        onMessagesChange,
+      })
+      await client.sendMessage('search')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack', hits: 3 })
+      expect(client.getMessages().some((m) => m.role === 'assistant')).toBe(
+        true,
+      )
+      expect(
+        onMessagesChange.mock.calls.some((call) =>
+          call[0]?.some((m: UIMessage) => m.role === 'activity'),
+        ),
+      ).toBe(true)
+    })
+
+    it('does not send activity messages as model input on the next turn', async () => {
+      const sent: Array<Array<UIMessage | ModelMessage>> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'x' },
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('ok', 'asst-1'),
+        ],
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      })
+      const client = new ChatClient({ connection: adapter })
+      await client.sendMessage('one')
+      await client.sendMessage('two')
+
+      expect(client.getMessages().some((m) => m.role === 'activity')).toBe(true)
+      expect(sent.length).toBeGreaterThanOrEqual(2)
+      const second = sent[1] ?? []
+      expect(second.some((m) => 'role' in m && m.role === 'activity')).toBe(
+        false,
+      )
+    })
+
+    it('keeps an appended activity message without starting a run', async () => {
+      const onConnect = vi.fn()
+      const adapter = createMockConnectionAdapter({ onConnect })
+      const client = new ChatClient({ connection: adapter })
+      await client.append({
+        id: 'act-1',
+        role: 'activity',
+        parts: [
+          { type: 'activity', activityType: 'PLAN', content: { steps: [] } },
+        ],
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+      const activity = client.getMessages()[0]
+      expect(activity?.role).toBe('activity')
+      expect(activity?.parts[0]).toEqual({
+        type: 'activity',
+        activityType: 'PLAN',
+        content: { steps: [] },
+      })
+    })
+
+    it('exposes initial activity messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages: [
+          {
+            id: 'act-1',
+            role: 'activity',
+            parts: [
+              {
+                type: 'activity',
+                activityType: 'STATUS',
+                content: { ok: true },
+              },
+            ],
+          },
+        ],
+      })
+      expect(client.getMessages()[0]?.role).toBe('activity')
+    })
+
+    it('hydrates a mixed transcript from persistence and omits activity on send', async () => {
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+      const sent: Array<Array<UIMessage | ModelMessage>> = []
+      const adapter = createMockConnectionAdapter({
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      })
+      const persistence = createPersistence(mixed)
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence,
+      })
+
+      expect(client.getMessages().map((m) => m.role)).toEqual([
+        'user',
+        'activity',
+        'assistant',
+      ])
+      const activity = client.getMessages()[1]
+      expect(activity?.id).toBe('act-1')
+      expect(activity?.parts[0]).toEqual({
+        type: 'activity',
+        activityType: 'SEARCH',
+        content: { query: 'tanstack' },
+      })
+
+      await client.sendMessage('next')
+      expect(sent).toHaveLength(1)
+      expect(sent[0]?.some((m) => 'role' in m && m.role === 'activity')).toBe(
+        false,
+      )
+    })
+
+    it('keeps persisted activity when a later MESSAGES_SNAPSHOT omits it', async () => {
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'keep-me' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              { id: 'u1', role: 'user', content: 'hi' },
+              { id: 'a1', role: 'assistant', content: 'ok' },
+            ],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: createPersistence(mixed),
+      })
+      await client.sendMessage('next')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.content).toEqual({ query: 'keep-me' })
+    })
+
+    it('hydrates activity from an inbound MESSAGES_SNAPSHOT ActivityMessage', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              { id: 'u1', role: 'user', content: 'hi' },
+              {
+                id: 'act-1',
+                role: 'activity',
+                activityType: 'SEARCH',
+                content: { query: 'tanstack' },
+              },
+              { id: 'a1', role: 'assistant', content: 'done' },
+            ],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const client = new ChatClient({ connection: adapter })
+      await client.sendMessage('hi')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack' })
+    })
+  })
 })

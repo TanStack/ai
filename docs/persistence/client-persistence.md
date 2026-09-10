@@ -67,6 +67,19 @@ pointer. On the next load `useChat` reads it and:
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
+### Activity messages
+
+After a reload, look at `messages` for `role: 'activity'` rows.
+
+A client adapter stores each of those rows as a `UIMessage` with the same `id`
+and content. The next `sendMessage` does not send them as model input.
+
+`persistence: true` stores activity in client JSON. The server `MessageStore`
+does not store activity. An optional `activities` store does.
+
+A reload that hydrates from the server restores those rows only when that
+store is present.
+
 ### Handle restored client tools
 
 A live client tool runs automatically when its call arrives from the stream.

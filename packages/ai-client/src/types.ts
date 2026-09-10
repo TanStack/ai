@@ -1,4 +1,5 @@
 import type {
+  ActivityPart,
   AnyClientTool,
   ApprovalCapabilityOf,
   ApprovalSchemaOf,
@@ -30,7 +31,7 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart }
+export type { ActivityPart, StructuredOutputPart }
 
 export interface ChatResumeState {
   threadId: string
@@ -622,6 +623,7 @@ export type MessagePart<
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
 
@@ -642,7 +644,7 @@ export interface UIMessage<
   TData = unknown,
 > {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   name?: string
   parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date

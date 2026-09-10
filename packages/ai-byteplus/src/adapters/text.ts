@@ -181,7 +181,9 @@ export class BytePlusTextAdapter<
         yield {
           ...event,
           signature: captured.encryptedContent,
-          delta: event.delta ?? event.content ?? '',
+          delta:
+            event.delta ??
+            (typeof event.content === 'string' ? event.content : ''),
         }
         continue
       }

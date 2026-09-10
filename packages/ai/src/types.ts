@@ -45,6 +45,8 @@ import type {
   ToolCallEndEvent as AGUIToolCallEndEvent,
   ToolCallResultEvent as AGUIToolCallResultEvent,
   ToolCallStartEvent as AGUIToolCallStartEvent,
+  ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
+  ActivityDeltaEvent as AGUIActivityDeltaEvent,
   EventType,
 } from '@ag-ui/core'
 import type {
@@ -457,6 +459,28 @@ export interface ThinkingPart {
 }
 
 /**
+ * Frontend-only AG-UI activity. Never converted into ModelMessage input.
+ * Mirrors {@link https://docs.ag-ui.com/concepts/messages | ActivityMessage}:
+ * `activityType` selects a renderer; `content` is the structured payload.
+ */
+export interface ActivityPart {
+  type: 'activity'
+  activityType: string
+  content: Record<string, any>
+}
+
+/**
+ * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
+ * `index` is the insert position in the reconstructed UI transcript.
+ */
+export interface ActivityRecord {
+  id: string
+  activityType: string
+  content: Record<string, unknown>
+  index: number
+}
+
+/**
  * Recursive `Partial` — every nested field becomes optional. Used as the
  * `partial` type on a streaming structured-output part since the progressive
  * JSON parse hands back objects whose fields are only filled in as bytes
@@ -518,6 +542,7 @@ export type MessagePart<TData = unknown> =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
 
@@ -575,7 +600,7 @@ export interface TanStackRunMetadata {
  */
 export interface UIMessage<TData = unknown> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
@@ -1649,6 +1674,38 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
+/**
+ * Full activity state for an `ActivityMessage`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace`
+ *
+ * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ * `replace` is optional on the wire and defaults to `true`.
+ */
+export interface ActivitySnapshotEvent extends Pick<
+  AGUIActivitySnapshotEvent,
+  'messageId' | 'activityType' | 'content' | 'timestamp' | 'rawEvent'
+> {
+  type: 'ACTIVITY_SNAPSHOT'
+  replace?: boolean
+  metadata?: Record<string, any>
+}
+
+/**
+ * RFC 6902 JSON Patch against an existing activity's `content`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `patch`
+ *
+ * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ */
+export interface ActivityDeltaEvent extends Pick<
+  AGUIActivityDeltaEvent,
+  'messageId' | 'activityType' | 'patch' | 'timestamp' | 'rawEvent'
+> {
+  type: 'ACTIVITY_DELTA'
+  metadata?: Record<string, any>
+}
+
 // ============================================================================
 // AG-UI Event Union
 // ============================================================================
@@ -1679,6 +1736,8 @@ export type AGUIEvent =
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
   | ReasoningEncryptedValueEvent
+  | ActivitySnapshotEvent
+  | ActivityDeltaEvent
 
 /**
  * Chunk returned by the SDK during streaming chat completions.

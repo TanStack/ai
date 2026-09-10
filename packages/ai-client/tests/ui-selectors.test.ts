@@ -45,6 +45,36 @@ describe('selectChatUI', () => {
     expect(partTypeToKey('tool-result')).toBe('toolResult')
     expect(partTypeToKey('structured-output')).toBe('structuredOutput')
     expect(partTypeToKey('ui-resource')).toBe('uiResource')
+    expect(partTypeToKey('activity')).toBe('activity')
+  })
+
+  it('exposes activity parts on activity messages', () => {
+    const selected = selectChatUI({
+      messages: [
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+      ],
+    })
+    expect(selected.messages[0]?.message.role).toBe('activity')
+    expect(selected.messages[0]?.parts).toEqual([
+      {
+        key: 'activity',
+        part: {
+          type: 'activity',
+          activityType: 'SEARCH',
+          content: { query: 'tanstack' },
+        },
+      },
+    ])
   })
 
   it('keeps unmatched tool-result parts', () => {

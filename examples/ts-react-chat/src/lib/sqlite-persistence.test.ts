@@ -30,7 +30,7 @@ import { sqlitePersistence, sqliteSandboxSnapshots } from './sqlite-persistence'
 runPersistenceConformance(
   'ts-react-chat example (node:sqlite)',
   () => sqlitePersistence({ url: ':memory:', migrate: true }),
-  { skipMethods: ['runs.listByThread'] },
+  { skip: ['activities'], skipMethods: ['runs.listByThread'] },
 )
 
 runSandboxCheckpointStoreConformance(

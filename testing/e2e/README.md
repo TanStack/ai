@@ -87,6 +87,7 @@ Notes:
 | `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip              |
 | `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
 | `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
+| `tests/activity.spec.ts`       | AG-UI activity snapshot, send filter, reconstruct hydrate |
 
 ### Durable / detachable run tests
 
