@@ -52,7 +52,11 @@ export class BedrockTextAdapter<
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
-    super(model, 'bedrock', new OpenAI(withBedrockDefaults(config)))
+    super(
+      model,
+      'bedrock',
+      new OpenAI(withBedrockDefaults(config, undefined, model)),
+    )
   }
 
   /**

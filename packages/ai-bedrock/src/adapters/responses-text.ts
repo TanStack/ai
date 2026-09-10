@@ -56,7 +56,7 @@ export class BedrockResponsesTextAdapter<
     super(
       model,
       'bedrock-responses',
-      new OpenAI(withBedrockDefaults(config, 'mantle')),
+      new OpenAI(withBedrockDefaults(config, 'mantle', model)),
     )
   }
 }
