@@ -371,12 +371,24 @@ export class RunReaper {
 }
 ```
 
-One thing this is **not** interchangeable with: the coordinator from
-`@tanstack/ai-sandbox-cloudflare` ships a *stall watchdog* — an alarm that
-fails run records whose log has gone quiet for too long. That is log hygiene,
-not reaping: it never probes a journal for the exit sentinel and never
-reclaims a sandbox. On Cloudflare you still schedule `sweepDetachedRuns`, and
-a DO alarm like the one above is the natural place for it.
+### Cloudflare's stall watchdog is not a reaper
+
+`createCloudflareSandboxAgent({ stallTimeoutMs })` sets an app-wide policy for
+both `do-drives` and `colocated` modes. Omit it for the `300000` ms default, pass
+a positive safe-integer millisecond value to customize it, or pass `false` to
+disable it. Its alarm checks about every 30 seconds.
+
+Persisted events and authenticated `/_bridge` or `/tool-exec` callback arrival
+and completion refresh the run record's `updatedAt`; unknown-run and
+unauthorized requests do not. Silent native operations therefore need a timeout
+longer than their longest expected quiet period. In-flight authenticated
+callbacks are protected. A callback that never completes can leave an orphaned
+`running` record. Disabling the watchdog with `false` can do the same.
+
+The watchdog atomically marks a stale log `failed`, but may not kill the
+underlying process and never probes a journal or reclaims a sandbox. You must
+still schedule `sweepDetachedRuns`; see the
+[Cloudflare stall-watchdog details](./cloudflare#stall-watchdog).
 
 ## `pruneJournals`: bounding the journal directory
 
