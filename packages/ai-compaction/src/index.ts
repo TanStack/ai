@@ -75,25 +75,32 @@ export interface CompactionEndedEventValue {
   strategyKey?: string
 }
 
+// Compaction runs in `onConfig`, BEFORE the model produces output: `started`
+// fires, then the summarize call awaits for seconds, then `ended`. These
+// low-volume, once-per-compaction lifecycle events must reach the client at emit
+// time — otherwise the durability layer batches them and `started` ships bunched
+// with `ended` (and the first model output), so a "Condensing…" indicator can't
+// render while the compaction is actually running. `{ flush: true }` opts each
+// out of batching without affecting the rest of the stream.
 function emitCompactionStarted(
   ctx: ChatMiddlewareContext,
   value: CompactionStartedEventValue,
 ) {
-  ctx.emitCustomEvent(COMPACTION_STARTED_EVENT, value)
+  ctx.emitCustomEvent(COMPACTION_STARTED_EVENT, value, { flush: true })
 }
 
 function emitCompactionState(
   ctx: ChatMiddlewareContext,
   value: CompactionStateEventValue,
 ) {
-  ctx.emitCustomEvent(COMPACTION_STATE_EVENT, value)
+  ctx.emitCustomEvent(COMPACTION_STATE_EVENT, value, { flush: true })
 }
 
 function emitCompactionEnded(
   ctx: ChatMiddlewareContext,
   value: CompactionEndedEventValue,
 ) {
-  ctx.emitCustomEvent(COMPACTION_ENDED_EVENT, value)
+  ctx.emitCustomEvent(COMPACTION_ENDED_EVENT, value, { flush: true })
 }
 
 const strategyKeys = new WeakMap<CompactionStrategy, string>()
