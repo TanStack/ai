@@ -17,6 +17,7 @@ import {
 const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
+  'client-tool-error',
   'client-server-context',
   'client-tool-stop',
   'client-tool-input-error',
@@ -50,51 +51,62 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
             state: undefined,
             toolName: 'check_status',
           }
-        : scenario === 'client-tool-input-error' ||
-            scenario === 'invalid-client-tool-retry'
+        : scenario === 'client-tool-error'
           ? {
-              arguments: '{"message":42,"type":"info"}',
-              initialText: 'Showing a notification.',
-              input: { message: 42, type: 'info' },
-              name:
-                scenario === 'invalid-client-tool-retry'
-                  ? 'invalid-client-tool-retry-test'
-                  : 'client-tool-input-error-test',
-              responseText:
-                scenario === 'invalid-client-tool-retry'
-                  ? 'Recovered after client tool input retry.'
-                  : 'Unexpected client continuation.',
+              arguments: '{}',
+              initialText: 'Running the client tool.',
+              input: {},
+              name: 'client-tool-error-test',
+              responseText: 'Recovered from client tool failure.',
               result: undefined,
               state: undefined,
-              toolName: 'show_notification',
+              toolName: 'fail_client_tool',
             }
-          : {
-              arguments: stopsPendingTool
-                ? JSON.stringify({
-                    message: STOP_CLIENT_TOOL_MESSAGE,
-                    type: 'info',
-                  })
-                : '{}',
-              initialText: stopsPendingTool
-                ? 'Showing a notification.'
-                : 'Reading runtime context.',
-              input: stopsPendingTool
-                ? { message: STOP_CLIENT_TOOL_MESSAGE, type: 'info' }
-                : {},
-              name: stopsPendingTool
-                ? 'client-tool-stop-test'
-                : 'runtime-context-test',
-              responseText: stopsPendingTool
-                ? 'The notification was shown.'
-                : 'Runtime context was read.',
-              result: undefined,
-              state: undefined,
-              toolName: stopsPendingTool
-                ? 'show_notification'
-                : scenario === 'client-context'
-                  ? 'read_client_context'
-                  : 'read_server_context',
-            }
+          : scenario === 'client-tool-input-error' ||
+              scenario === 'invalid-client-tool-retry'
+            ? {
+                arguments: '{"message":42,"type":"info"}',
+                initialText: 'Showing a notification.',
+                input: { message: 42, type: 'info' },
+                name:
+                  scenario === 'invalid-client-tool-retry'
+                    ? 'invalid-client-tool-retry-test'
+                    : 'client-tool-input-error-test',
+                responseText:
+                  scenario === 'invalid-client-tool-retry'
+                    ? 'Recovered after client tool input retry.'
+                    : 'Unexpected client continuation.',
+                result: undefined,
+                state: undefined,
+                toolName: 'show_notification',
+              }
+            : {
+                arguments: stopsPendingTool
+                  ? JSON.stringify({
+                      message: STOP_CLIENT_TOOL_MESSAGE,
+                      type: 'info',
+                    })
+                  : '{}',
+                initialText: stopsPendingTool
+                  ? 'Showing a notification.'
+                  : 'Reading runtime context.',
+                input: stopsPendingTool
+                  ? { message: STOP_CLIENT_TOOL_MESSAGE, type: 'info' }
+                  : {},
+                name: stopsPendingTool
+                  ? 'client-tool-stop-test'
+                  : 'runtime-context-test',
+                responseText: stopsPendingTool
+                  ? 'The notification was shown.'
+                  : 'Runtime context was read.',
+                result: undefined,
+                state: undefined,
+                toolName: stopsPendingTool
+                  ? 'show_notification'
+                  : scenario === 'client-context'
+                    ? 'read_client_context'
+                    : 'read_server_context',
+              }
   return {
     kind: 'text',
     name: config.name,

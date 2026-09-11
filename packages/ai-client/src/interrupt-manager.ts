@@ -11,6 +11,7 @@ import {
   isStandardSchema,
   normalizeApprovalSchema,
   readInterruptBinding,
+  withTanstackMetadata,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai/client'
 import type {
@@ -124,11 +125,13 @@ function resolutionWithContinuation(
   const continuation = genericInterruptContinuationFromDescriptor(
     item.descriptor,
   )
-  if (!continuation) return resolution
-  return {
-    ...resolution,
-    metadata: wrapGenericInterruptContinuation(continuation),
+  if (continuation) {
+    return {
+      ...resolution,
+      metadata: wrapGenericInterruptContinuation(continuation),
+    }
   }
+  return resolution
 }
 
 function isRootResolvableInterrupt<
@@ -684,6 +687,25 @@ export class InterruptManager<
   }
 
   resolveClientToolOutput(toolCallId: string, output: unknown): boolean {
+    return this.resolveClientToolResult(toolCallId, {
+      state: 'output-available',
+      output,
+    })
+  }
+
+  resolveClientToolError(toolCallId: string, errorText: string): boolean {
+    return this.resolveClientToolResult(toolCallId, {
+      state: 'output-error',
+      errorText,
+    })
+  }
+
+  private resolveClientToolResult(
+    toolCallId: string,
+    result:
+      | { state: 'output-available'; output: unknown }
+      | { state: 'output-error'; errorText: string },
+  ): boolean {
     const item = this.items.find(
       (candidate) =>
         (candidate.kind === 'client-tool-execution' &&
@@ -695,8 +717,54 @@ export class InterruptManager<
           isLegacyClientToolMetadata(candidate.descriptor.metadata)),
     )
     if (!item) return false
-    this.resolveItem(item.descriptor.id, output)
+    if (item.kind !== 'client-tool-execution') {
+      this.resolveItem(
+        item.descriptor.id,
+        result.state === 'output-error'
+          ? { error: result.errorText }
+          : result.output,
+      )
+      return true
+    }
+    if (result.state === 'output-available') {
+      this.resolveItem(item.descriptor.id, result.output)
+      return true
+    }
+    this.stageClientToolError(item, result.errorText)
     return true
+  }
+
+  private stageClientToolError(
+    item: RuntimeInterrupt,
+    errorText: string,
+  ): void {
+    this.assertItemMutable()
+    this.invalidateRetry()
+    if (!item.canResolve) {
+      item.status = 'error'
+      item.error = this.itemError(
+        item.descriptor.id,
+        'invalid-response-schema',
+        'The interrupt response schema is invalid and cannot be resolved.',
+      )
+      this.publish()
+      return
+    }
+    item.validationGeneration++
+    item.resolution = cloneAndDeepFreezeJson(
+      withTanstackMetadata(
+        resolutionWithContinuation(item, {
+          interruptId: item.descriptor.id,
+          status: 'resolved',
+          payload: { error: errorText },
+        }),
+        { state: 'output-error' },
+      ),
+    )
+    item.status = 'staged'
+    item.error = undefined
+    this.publish()
+    this.maybeSubmit()
   }
 
   resolveToolApprovalDecision(interruptId: string, approved: boolean): boolean {
@@ -721,7 +789,9 @@ export class InterruptManager<
     const interrupt = cloneAndDeepFreezeJson(descriptor)
     const candidate = getDescriptorBinding(interrupt)
     const legacyResumable =
-      candidate === undefined && isLegacyInterruptMetadata(interrupt)
+      candidate === undefined &&
+      !hasReservedFirstPartyBindingMarker(interrupt) &&
+      isLegacyInterruptMetadata(interrupt)
 
     // No binding we understand, and nothing else identifying the descriptor as
     // ours, means this interrupt was not produced by this package's resume
@@ -865,6 +935,20 @@ export class InterruptManager<
           tool,
           validationGeneration: 0,
         }
+      }
+      return {
+        descriptor: interrupt,
+        binding: genericBinding(interrupt, hydration, candidate),
+        kind: 'generic',
+        status: 'error',
+        canResolve: false,
+        resumable: false,
+        error: this.itemError(
+          interrupt.id,
+          'stale',
+          'The client tool interrupt no longer matches the registered tool.',
+        ),
+        validationGeneration: 0,
       }
     }
 
@@ -1279,11 +1363,28 @@ export class InterruptManager<
         : preserveInput(validation)
     }
     if (item.kind === 'client-tool-execution') {
-      return validateWithSchema(
+      const validation = validateWithSchema(
         item.tool?.outputSchema,
         payload,
         'invalid-tool-output',
       )
+      const canonicalize = (result: ValidationResult): ValidationResult => {
+        if (!('valid' in result)) return result
+        try {
+          return {
+            valid: true,
+            payload: cloneAndDeepFreezeJson(result.payload),
+          }
+        } catch (error) {
+          return {
+            code: 'invalid-tool-output',
+            message: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }
+      return isPromiseLike(validation)
+        ? Promise.resolve(validation).then(canonicalize)
+        : canonicalize(validation)
     }
     return this.validateApprovalCandidate(item, payload)
   }

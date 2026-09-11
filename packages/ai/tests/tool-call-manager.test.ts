@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import {
   ToolCallManager,
   executeToolCalls,
@@ -732,6 +733,33 @@ describe('executeToolCalls', () => {
       })
     })
 
+    it('supports async output schemas for client tool results', async () => {
+      const outputSchema: StandardSchemaV1<unknown, { count: number }> = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: async () => ({ value: { count: 2 } }),
+        },
+      }
+      const tool: Tool = {
+        name: 'get_count',
+        description: 'Get a count',
+        inputSchema: z.object({}),
+        outputSchema,
+      }
+      const toolCalls = [makeToolCall('call_1', 'get_count')]
+      const clientResults = new Map([['call_1', { count: '2' }]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        clientResults,
+      )
+
+      expect(result.results[0]?.result).toEqual({ count: 2 })
+    })
+
     it('validates null client tool results against outputSchema', async () => {
       const tool: Tool = {
         name: 'get_count',
@@ -799,6 +827,36 @@ describe('executeToolCalls', () => {
 
       expect(result.results).toHaveLength(1)
       expect(result.results[0]?.result).toBe(false)
+    })
+
+    it('preserves failed client tool results', async () => {
+      const tool: Tool = {
+        name: 'get_count',
+        description: 'Get a count',
+        inputSchema: z.object({}),
+        outputSchema: z.object({ count: z.number() }),
+      }
+      const toolCalls = [makeToolCall('call_1', 'get_count')]
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          clientToolErrors: new Map([['call_1', 'Client execution failed']]),
+        },
+      )
+
+      expect(result.results).toEqual([
+        expect.objectContaining({
+          result: { error: 'Client execution failed' },
+          state: 'output-error',
+        }),
+      ])
     })
   })
 

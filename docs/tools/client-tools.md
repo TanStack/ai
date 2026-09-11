@@ -58,7 +58,8 @@ sequenceDiagram
 4. **Client Execution**: The browser finds the registered `.client()`
    implementation by tool name and runs it with the parsed input
 5. **Result Return**: Client auto-submits the result via the resume batch
-6. **Server Update**: Result is validated and added to the conversation
+6. **Server Update**: Successful output is validated. Execution and output
+   validation failures are added as failed tool results.
 7. **LLM Continuation**: LLM receives the result and continues the conversation
 
 Native client-tool execution shares the atomic interrupt **batch** lifecycle

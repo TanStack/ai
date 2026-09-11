@@ -587,6 +587,47 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
   })
 
+  it('preserves failed client-tool resumes from persisted state', async () => {
+    const persistence = memoryPersistence()
+    await persistClientToolTurn(persistence, [clientTool('clientSearch')])
+
+    const continuation = mockAdapter([
+      [runStarted(), text('recovered'), runFinished('r1')],
+    ])
+    const chunks = await collect(
+      chat({
+        adapter: continuation.adapter,
+        messages: [],
+        tools: [clientTool('clientSearch')],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'resolved',
+            payload: { error: 'Client tool failed' },
+            metadata: { tanstack: { state: 'output-error' } },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(continuation.calls).toHaveLength(1)
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'tool-call-1',
+        content: JSON.stringify({ error: 'Client tool failed' }),
+        metadata: { tanstack: { state: 'output-error' } },
+      }),
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ delta: 'recovered' }),
+    )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+  })
+
   // Issue #1088: cancelling a hydrated client-tool interrupt under
   // withPersistence must complete the turn. Persistence clears `config.resume`
   // and must therefore put the cancelled toolCallId on `cancelledToolCallIds`.
@@ -1131,6 +1172,48 @@ describe('interrupt persistence', () => {
     expect((await persistence.stores.interrupts!.get('client-1'))?.status).toBe(
       'cancelled',
     )
+  })
+
+  it('translates raw legacy client-tool resume payloads', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'client-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'client_tool' } },
+    })
+
+    const resumeStates: Array<ChatResumeToolState | undefined> = []
+    await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+          .adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client-1',
+            status: 'resolved',
+            payload: { answer: 42 },
+          },
+        ],
+        middleware: [
+          withPersistence(persistence),
+          defineChatMiddleware({
+            name: 'observe-resume-state',
+            onConfig(_ctx, config) {
+              resumeStates.push(config.resumeToolState)
+            },
+          }),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(resumeStates[0]?.clientToolResults?.get('tc1')).toEqual({
+      answer: 42,
+    })
   })
 
   it('tolerates malformed persisted interrupt payloads without crashing', async () => {
