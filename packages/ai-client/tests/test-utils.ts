@@ -158,11 +158,8 @@ export function createMockConnectionAdapter(
 /**
  * Subscribe/send adapter that tests can push chunks into at any time.
  *
- * `ChatClient.processIncomingChunk` yields a `setTimeout(0)` after each chunk
- * so React can paint. A test that pushes the next batch during that gap would
- * lose the wake on a naive mock (the generator is not parked, so `wake()` is
- * a no-op, then the generator parks on a new waiter and the chunk sits
- * forever). This helper:
+ * A push between reading the queue and parking the waiter would lose the wake
+ * on a naive mock. This helper:
  * - rechecks the queue after every yielded batch
  * - rechecks again after parking the waiter, so a push in that window still
  *   wakes

@@ -84,6 +84,20 @@ interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
 }
 
+const STREAM_PROCESSING_BUDGET_MS = 8
+
+type SchedulerWithYield = {
+  yield?: () => Promise<void>
+}
+
+function yieldToHost(): Promise<void> {
+  const { scheduler } = globalThis as typeof globalThis & {
+    scheduler?: SchedulerWithYield
+  }
+  if (scheduler?.yield) return scheduler.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 function assertUniqueInterruptDefinitions(
   interrupts:
     | ReadonlyArray<InterruptDefinition<any, any, any, any>>
@@ -430,6 +444,8 @@ export class ChatClient<
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
   private processingResolve: (() => void) | null = null
+  private chunkProcessingTime = 0
+  private chunkProcessingYield: Promise<void> | null = null
   /**
    * `connect()` adapters push the full HTTP body into the subscribe queue, then
    * wait until that queue is idle. After `send()` returns, every chunk from this
@@ -1702,14 +1718,42 @@ export class ChatClient<
       })
   }
 
-  /**
-   * Consume chunks from the connection subscription.
-   */
   private async consumeSubscription(signal: AbortSignal): Promise<void> {
-    const stream = this.connection.subscribe(signal)
+    await this.consumeChunks(this.connection.subscribe(signal), signal)
+  }
+
+  /** Consume chunks in order against the client-wide processing budget. */
+  private async consumeChunks(
+    stream: AsyncIterable<StreamChunk>,
+    signal: AbortSignal,
+    beforeProcess?: (chunk: StreamChunk) => void,
+  ): Promise<void> {
     for await (const chunk of stream) {
       if (signal.aborted) break
-      await this.processIncomingChunk(chunk)
+      const pendingYield = this.chunkProcessingYield
+      if (pendingYield) {
+        await pendingYield
+        if (signal.aborted) break
+      }
+      const startedAt = performance.now()
+      beforeProcess?.(chunk)
+      this.processIncomingChunk(chunk)
+      this.chunkProcessingTime += performance.now() - startedAt
+      if (
+        this.chunkProcessingTime >= STREAM_PROCESSING_BUDGET_MS &&
+        (typeof document === 'undefined' || !document.hidden)
+      ) {
+        this.chunkProcessingTime = 0
+        const processingYield = yieldToHost()
+        this.chunkProcessingYield = processingYield
+        try {
+          await processingYield
+        } finally {
+          if (this.chunkProcessingYield === processingYield) {
+            this.chunkProcessingYield = null
+          }
+        }
+      }
     }
   }
 
@@ -1732,9 +1776,6 @@ export class ChatClient<
    * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
    * clear the dead pointer so it does not retry on the next load.
    *
-   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
-   * so the buffered prefix snaps in and only the genuinely-live tail streams at
-   * network speed — a reload looks like the run continued, not like it re-typed.
    */
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
@@ -1763,18 +1804,20 @@ export class ChatClient<
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
       try {
-        for await (const chunk of joinRun(runId, controller.signal)) {
-          if (controller.signal.aborted) break
-          if (!attached) {
-            attached = true
-            clearTimeout(connectTimer)
-          }
-          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
-            rebuilt = true
-            this.dropTrailingInFlightAssistant()
-          }
-          await this.processIncomingChunk(chunk, { defer: false })
-        }
+        await this.consumeChunks(
+          joinRun(runId, controller.signal),
+          controller.signal,
+          (chunk) => {
+            if (!attached) {
+              attached = true
+              clearTimeout(connectTimer)
+            }
+            if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+              rebuilt = true
+              this.dropTrailingInFlightAssistant()
+            }
+          },
+        )
         // Same contract as `streamResponse`: client tools may finish (and
         // queue a resume) while `isLoading` is still true. Wait for them
         // before teardown so `drainPostStreamActions` below sees the queue.
@@ -1842,10 +1885,7 @@ export class ChatClient<
     }
   }
 
-  private async processIncomingChunk(
-    chunk: StreamChunk,
-    options?: { defer?: boolean },
-  ): Promise<void> {
+  private processIncomingChunk(chunk: StreamChunk): void {
     chunk = restoreInboundChunk(chunk)
     if (
       chunk.type === 'RUN_ERROR' &&
@@ -1877,15 +1917,6 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    // Live path: yield a macrotask so the UI can paint. Skip when the page is
-    // hidden. Browsers clamp setTimeout there, and that wait paces stream pull.
-    // Replay passes defer: false so a backlog applies in one batch.
-    if (
-      options?.defer !== false &&
-      (typeof document === 'undefined' || !document.hidden)
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
     this.resolveJoinedRun(chunk)
   }
 

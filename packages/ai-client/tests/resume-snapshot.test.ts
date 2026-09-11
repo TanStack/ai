@@ -247,6 +247,48 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
+  it('yields after a full replay processing slice', async () => {
+    const schedulerYield = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('scheduler', { yield: schedulerYield })
+    let time = 0
+    const now = vi
+      .spyOn(performance, 'now')
+      .mockImplementation(() => (time += 9))
+    const joinRun = vi.fn(async function* () {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    try {
+      await vi.waitFor(() => {
+        const assistant = latest.find((message) => message.role === 'assistant')
+        const text = assistant?.parts.find((part) => part.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('world')
+      })
+      expect(schedulerYield).toHaveBeenCalled()
+    } finally {
+      client.dispose()
+      now.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('persistence:true hydrates history AND tails a live run from the server on mount', async () => {
     // Server-authoritative: the client caches no transcript and no run pointer.
     // On mount it calls connection.hydrate(threadId), which returns the stored
