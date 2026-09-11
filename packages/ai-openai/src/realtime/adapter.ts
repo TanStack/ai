@@ -49,7 +49,7 @@ export function openaiRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      const model = token.config.model ?? 'gpt-realtime'
+      const model = token.config.model ?? 'gpt-realtime-2.1'
       logger.request(`activity=realtime provider=openai model=${model}`, {
         provider: 'openai',
         model,
