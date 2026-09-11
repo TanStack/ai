@@ -176,6 +176,16 @@ these TanStack-specific rules when editing docs under `docs/`:
   formatting, and factual fixes must not touch `addedAt` or `updatedAt`.
 - Run `pnpm test:docs` (link verification) before pushing.
 
+## Package README banner (mandatory)
+
+When you add or replace a `README.md` under `packages/`, the file MUST start
+with the TanStack AI `<picture>` banner from `packages/ai/README.md`
+(`https://tanstack.com/api/readme/ai.png`, plus the `?theme=dark` source).
+Do not use `media/header_ai.png`. Framework packages can add
+`?framework=<name>` (copy `packages/ai-angular/README.md`,
+`packages/ai-solid/README.md`, or `packages/ai-svelte/README.md`). Skip this
+only for non-package READMEs (examples, testing, live-tests).
+
 ## Everything Else
 
 For package manager (`pnpm@10.17.0`), monorepo layout, adapter architecture,

@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-sandbox
 
 Provider-agnostic sandbox layer for [TanStack AI](https://tanstack.com/ai). Run coding-agent harness adapters (Grok Build, Claude Code, Codex, OpenCode, Gemini CLI) **inside** an isolated environment with a real filesystem, shell, and cloned repo — and stream their work back through `chat()`.
@@ -54,6 +74,13 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-daytona`       | Daytona cloud sandboxes, snapshots     |
 | `@tanstack/ai-sandbox-upstash-box`   | Upstash Box cloud sandboxes, snapshots |
 | `@tanstack/ai-sandbox-sprites`       | Sprites stateful sandboxes             |
+| `@tanstack/ai-sandbox-blaxel`        | Blaxel cloud sandboxes and previews    |
+
+Install the provider you select separately. For Blaxel:
+
+```bash
+npm install @tanstack/ai-sandbox-blaxel
+```
 
 **Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
 

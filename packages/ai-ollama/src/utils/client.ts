@@ -2,7 +2,20 @@ import { Ollama } from 'ollama'
 import { generateId as _generateId } from '@tanstack/ai-utils'
 
 export interface OllamaClientConfig {
+  /**
+   * Base URL for every request. Same option name as the other adapters, so a
+   * gateway config can be spread into any of them. Wins over `host` when both
+   * are set.
+   */
+  baseURL?: string
+  /** Alias of `baseURL`. */
   host?: string
+  /**
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
+   */
+  defaultHeaders?: Record<string, string>
+  /** Alias of `defaultHeaders`. */
   headers?: Record<string, string> | undefined
 }
 
@@ -11,8 +24,8 @@ export interface OllamaClientConfig {
  */
 export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
   return new Ollama({
-    host: config.host || 'http://localhost:11434',
-    headers: config.headers,
+    host: config.baseURL || config.host || 'http://localhost:11434',
+    headers: config.defaultHeaders ?? config.headers,
   })
 }
 

@@ -73,6 +73,30 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     expect(result[0]?.role).toBe('user')
   })
 
+  it('keeps reasoning encryptedValue when content is empty', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: '',
+        encryptedValue: 'sig-empty',
+      } as unknown as ModelMessage,
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+        ],
+      },
+    ])
+    expect(result[0]?.thinking).toEqual([
+      { content: '', signature: 'sig-empty' },
+    ])
+  })
+
   it('attaches reasoning encryptedValue as thinking signature on the next assistant', () => {
     const result = convertMessagesToModelMessages([
       {

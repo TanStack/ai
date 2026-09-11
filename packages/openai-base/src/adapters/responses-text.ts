@@ -37,6 +37,58 @@ import type {
 // these bytes, so inline document data must begin with this prefix.
 const PDF_BASE64_MAGIC = 'JVBERi'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function packResponsesReasoningSignature(
+  id: string | undefined,
+  encryptedContent: string | undefined,
+): string | undefined {
+  if (!id && !encryptedContent) return undefined
+  return JSON.stringify({
+    ...(id ? { id } : {}),
+    ...(encryptedContent ? { encrypted_content: encryptedContent } : {}),
+  })
+}
+
+function unpackResponsesReasoningSignature(
+  signature: string,
+): { id?: string; encrypted_content?: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (!isRecord(parsed)) return undefined
+    const id = typeof parsed.id === 'string' ? parsed.id : undefined
+    const encrypted_content =
+      typeof parsed.encrypted_content === 'string'
+        ? parsed.encrypted_content
+        : undefined
+    if (!id && !encrypted_content) return undefined
+    return {
+      ...(id ? { id } : {}),
+      ...(encrypted_content ? { encrypted_content } : {}),
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function readReasoningItem(
+  item: unknown,
+): { id?: string; encrypted_content?: string } | undefined {
+  if (!isRecord(item) || item.type !== 'reasoning') return undefined
+  const id = typeof item.id === 'string' ? item.id : undefined
+  const encrypted_content =
+    typeof item.encrypted_content === 'string'
+      ? item.encrypted_content
+      : undefined
+  if (!id && !encrypted_content) return undefined
+  return {
+    ...(id ? { id } : {}),
+    ...(encrypted_content ? { encrypted_content } : {}),
+  }
+}
+
 /**
  * Provider-specific metadata that preserves the Responses API output item ID.
  *
@@ -836,6 +888,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let reasoningMessageId: string | undefined
+    let reasoningItemId: string | undefined
+    let reasoningEncryptedContent: string | undefined
+    let closedReasoningStepId: string | undefined
     let hasClosedReasoning = false
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
@@ -874,11 +929,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     }
 
+    const captureReasoningItem = (item: unknown) => {
+      const parsed = readReasoningItem(item)
+      if (!parsed) return
+      if (parsed.id) reasoningItemId = parsed.id
+      if (parsed.encrypted_content) {
+        reasoningEncryptedContent = parsed.encrypted_content
+      }
+    }
+
     const closeReasoning = function* (): Generator<AdapterYieldChunk> {
       if (!reasoningMessageId || hasClosedReasoning) return
       hasClosedReasoning = true
       const timestamp = Date.now()
       const currentModel = emitModel()
+      const signature = packResponsesReasoningSignature(
+        reasoningItemId,
+        reasoningEncryptedContent,
+      )
       yield {
         type: EventType.REASONING_MESSAGE_END,
         messageId: reasoningMessageId,
@@ -892,6 +960,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
       }
       if (stepId) {
+        closedReasoningStepId = stepId
         yield {
           type: EventType.STEP_FINISHED,
           stepName: stepId,
@@ -899,9 +968,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model: currentModel,
           timestamp,
           content: accumulatedReasoning,
+          ...(signature ? { signature } : {}),
         }
       }
       reasoningMessageId = undefined
+      reasoningItemId = undefined
+      reasoningEncryptedContent = undefined
       stepId = null
       hasClosedReasoning = false
       accumulatedReasoning = ''
@@ -1224,6 +1296,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
+          if (item.type === 'reasoning') {
+            captureReasoningItem(item)
+            yield* openReasoning()
+          }
           if (item.type === 'function_call' && item.id) {
             // Track the item as soon as we see it so subsequent arg deltas
             // aren't logged as orphans, but only emit TOOL_CALL_START when
@@ -1388,6 +1464,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // whose START + END therefore never fired).
         if (chunk.type === 'response.output_item.done') {
           const item = chunk.item
+          if (item.type === 'reasoning') {
+            captureReasoningItem(item)
+            yield* openReasoning()
+          }
           if (item.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
@@ -1499,6 +1579,38 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: completedText,
               content: accumulatedContent,
+            }
+          }
+
+          if (Array.isArray(chunk.response.output)) {
+            for (const item of chunk.response.output) {
+              captureReasoningItem(item)
+            }
+          }
+          // output_text already closed the streamed reasoning item. A second
+          // openReasoning() would emit an empty thinking part. Attach the
+          // completed item's id/blob to that step instead. Open only when
+          // this turn never started reasoning (encrypted-only output).
+          if (
+            !reasoningMessageId &&
+            (reasoningItemId || reasoningEncryptedContent)
+          ) {
+            const signature = packResponsesReasoningSignature(
+              reasoningItemId,
+              reasoningEncryptedContent,
+            )
+            if (closedReasoningStepId && signature) {
+              yield {
+                type: EventType.STEP_FINISHED,
+                stepName: closedReasoningStepId,
+                stepId: closedReasoningStepId,
+                model: emitModel(),
+                timestamp: Date.now(),
+                content: '',
+                signature,
+              }
+            } else if (!closedReasoningStepId) {
+              yield* openReasoning()
             }
           }
 
@@ -1832,6 +1944,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Handle assistant messages
       if (message.role === 'assistant') {
+        if (message.thinking) {
+          for (const thinking of message.thinking) {
+            if (!thinking.signature) continue
+            const packed = unpackResponsesReasoningSignature(thinking.signature)
+            if (!packed?.id) continue
+            result.push({
+              type: 'reasoning',
+              id: packed.id,
+              ...(packed.encrypted_content
+                ? { encrypted_content: packed.encrypted_content }
+                : {}),
+              summary: thinking.content
+                ? [{ type: 'summary_text', text: thinking.content }]
+                : [],
+            })
+          }
+        }
+
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
         if (message.toolCalls && message.toolCalls.length > 0) {

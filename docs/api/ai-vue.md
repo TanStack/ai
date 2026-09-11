@@ -25,6 +25,35 @@ vue: @tanstack/ai-vue
 
 <!-- ::end:tabs -->
 
+## `useWebMCPTools(tools, options?)`
+
+Register executable client tools for the current Vue scope. Vue removes them when the scope is disposed.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```vue
+<script setup lang="ts">
+import {
+  useWebMCPTools,
+  type UseWebMCPToolsOptions,
+} from "@tanstack/ai-vue";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+useWebMCPTools(tools, options);
+</script>
+```
+
+`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The composable owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context.
+
 ## `createChatHook(options)`
 
 Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.

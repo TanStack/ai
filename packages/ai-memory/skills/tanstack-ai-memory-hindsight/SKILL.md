@@ -16,9 +16,15 @@ model can retain/recall/reflect directly.
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
-const memory = hindsight({ user: currentUserId }) // baseUrl defaults to HINDSIGHT_URL
+// Build per request from the server-validated session — never from req.body.
+function memoryFor(session: { userId: string; threadId: string }) {
+  const memory = hindsight({ user: session.userId }) // baseUrl defaults to HINDSIGHT_URL
 
-memoryMiddleware({ adapter: memory, scope })
+  return memoryMiddleware({
+    adapter: memory,
+    scope: { threadId: session.threadId, userId: session.userId },
+  })
+}
 ```
 
 `@vectorize-io/hindsight-client` is an **optional peer dependency**, loaded lazily on

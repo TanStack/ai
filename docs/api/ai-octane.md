@@ -24,6 +24,36 @@ octane: @tanstack/ai-octane octane
 
 `octane` is a required peer. This package publishes uncompiled source, like Svelte packages that ship `.svelte`.
 
+## `useWebMCPTools(tools, options?)`
+
+Register executable client tools after the Octane component mounts. Octane removes them on cleanup and replaces them when `tools` or `options` change.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useWebMCPTools,
+  type UseWebMCPToolsOptions,
+} from '@tanstack/ai-octane'
+import { searchProducts } from './tools'
+
+const tools = [searchProducts]
+const options: UseWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error)
+  },
+}
+
+function ProductsPage() {
+  useWebMCPTools(tools, options)
+  return null
+}
+```
+
+`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
 ## `useChat(options)`
 
 Manages chat state in an Octane component.

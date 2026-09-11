@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-opencode
 
 OpenCode harness adapter for [TanStack AI](https://tanstack.com/ai) — run [OpenCode](https://opencode.ai) (via `@opencode-ai/sdk`) as a chat backend with local tool execution, token-level streaming, stateful sessions, and TanStack tool bridging.

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
+import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
@@ -33,6 +34,8 @@ import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-clien
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
+import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
@@ -104,6 +107,11 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
   id: '/websocket-adapter',
   path: '/websocket-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebMcpToolsRoute = WebMcpToolsRouteImport.update({
+  id: '/web-mcp-tools',
+  path: '/web-mcp-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
@@ -221,6 +229,16 @@ const IndexRoute = IndexRouteImport.update({
 const ProviderIndexRoute = ProviderIndexRouteImport.update({
   id: '/$provider/',
   path: '/$provider/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorldRoute = ApiWorldRouteImport.update({
+  id: '/api/world',
+  path: '/api/world',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVideoLiveRoute = ApiVideoLiveRouteImport.update({
+  id: '/api/video-live',
+  path: '/api/video-live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
@@ -599,6 +617,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -662,6 +681,8 @@ export interface FileRoutesByFullPath {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -692,6 +713,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -755,6 +777,8 @@ export interface FileRoutesByTo {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/world': typeof ApiWorldRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -786,6 +810,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
@@ -849,6 +874,8 @@ export interface FileRoutesById {
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
+  '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
@@ -881,6 +908,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -944,6 +972,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-live'
+    | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -974,6 +1004,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1037,6 +1068,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-live'
+    | '/api/world'
     | '/$provider'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1067,6 +1100,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
@@ -1130,6 +1164,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-live'
+    | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/image/stream'
@@ -1161,6 +1197,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
@@ -1224,6 +1261,8 @@ export interface RootRouteChildren {
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
+  ApiVideoLiveRoute: typeof ApiVideoLiveRoute
+  ApiWorldRoute: typeof ApiWorldRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -1234,6 +1273,13 @@ declare module '@tanstack/react-router' {
       path: '/websocket-adapter'
       fullPath: '/websocket-adapter'
       preLoaderRoute: typeof WebsocketAdapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web-mcp-tools': {
+      id: '/web-mcp-tools'
+      path: '/web-mcp-tools'
+      fullPath: '/web-mcp-tools'
+      preLoaderRoute: typeof WebMcpToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools-test': {
@@ -1395,6 +1441,20 @@ declare module '@tanstack/react-router' {
       path: '/$provider'
       fullPath: '/$provider/'
       preLoaderRoute: typeof ProviderIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/world': {
+      id: '/api/world'
+      path: '/api/world'
+      fullPath: '/api/world'
+      preLoaderRoute: typeof ApiWorldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/video-live': {
+      id: '/api/video-live'
+      path: '/api/video-live'
+      fullPath: '/api/video-live'
+      preLoaderRoute: typeof ApiVideoLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video': {
@@ -1950,6 +2010,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
@@ -2013,6 +2074,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,
+  ApiVideoLiveRoute: ApiVideoLiveRoute,
+  ApiWorldRoute: ApiWorldRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport

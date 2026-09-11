@@ -2449,7 +2449,67 @@ const GPT_5_6_TERRA_PRO = {
     OpenAIMetadataOptions
 >
 
+const GPT_6_ASTRA = {
+  name: 'gpt-6-astra',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_6_ASTRA_PRO = {
+  name: 'gpt-6-astra-pro',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 export const OPENAI_CHAT_MODELS = [
+  GPT_6_ASTRA.name,
+  GPT_6_ASTRA_PRO.name,
   GPT_5_6_LUNA_PRO.name,
   GPT_5_6_SOL_PRO.name,
   GPT_5_6_TERRA_PRO.name,
@@ -2888,6 +2948,18 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+  [GPT_6_ASTRA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_6_ASTRA_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
 }
 
 /**
@@ -2944,6 +3016,8 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_5_5.name]: typeof GPT_5_5.supports.tools
   [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.supports.tools
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
+  [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.tools
+  [GPT_6_ASTRA_PRO.name]: typeof GPT_6_ASTRA_PRO.supports.tools
 }
 
 /**
@@ -3012,4 +3086,6 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_6_LUNA_PRO.name]: typeof GPT_5_6_LUNA_PRO.supports.input
   [GPT_5_6_SOL_PRO.name]: typeof GPT_5_6_SOL_PRO.supports.input
   [GPT_5_6_TERRA_PRO.name]: typeof GPT_5_6_TERRA_PRO.supports.input
+  [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.input
+  [GPT_6_ASTRA_PRO.name]: typeof GPT_6_ASTRA_PRO.supports.input
 }

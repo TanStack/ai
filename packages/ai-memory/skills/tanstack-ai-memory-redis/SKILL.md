@@ -20,10 +20,16 @@ import Redis from 'ioredis'
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import { redis } from '@tanstack/ai-memory/redis'
 
-const client = new Redis(process.env.REDIS_URL)
+const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379')
 const memory = redis({ redis: client, prefix: 'myapp:memory' })
 
-memoryMiddleware({ adapter: memory, scope })
+// Resolve scope per request from the server-validated session — never from req.body.
+function memoryFor(session: { userId: string; threadId: string }) {
+  return memoryMiddleware({
+    adapter: memory,
+    scope: { threadId: session.threadId, userId: session.userId },
+  })
+}
 ```
 
 ### Option B: `redis` (node-redis v4+)
@@ -41,7 +47,12 @@ const memory = redis({
   prefix: 'myapp:memory',
 })
 
-memoryMiddleware({ adapter: memory, scope })
+function memoryFor(session: { userId: string; threadId: string }) {
+  return memoryMiddleware({
+    adapter: memory,
+    scope: { threadId: session.threadId, userId: session.userId },
+  })
+}
 ```
 
 node-redis exposes a camelCase API (`sAdd`, `mGet`); `fromNodeRedis` translates it

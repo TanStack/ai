@@ -1246,7 +1246,7 @@ class TextEngine<
                 ...this.deferredModelRunFinishedChunks,
               )
               this.deferredModelRunFinishedChunks = []
-            } else {
+            } else if (!this.finalStructuredOutput?.nativeCombined) {
               yield* this.flushDeferredModelRunFinishedChunks()
             }
           } else {
@@ -1280,6 +1280,9 @@ class TextEngine<
       ) {
         if (this.finalStructuredOutput.nativeCombined === true) {
           yield* this.harvestCombinedStructuredOutput()
+          if (!this.finalizationError && !this.isCancelled()) {
+            yield* this.flushDeferredModelRunFinishedChunks()
+          }
         } else {
           yield* this.runStructuredFinalization()
         }
@@ -1871,7 +1874,7 @@ class TextEngine<
   }
 
   private finalizeCurrentThinkingStep(): void {
-    if (this.currentThinkingContent) {
+    if (this.currentThinkingContent || this.currentThinkingSignature) {
       this.accumulatedThinking.push({
         content: this.currentThinkingContent,
         ...(this.currentThinkingSignature && {
@@ -3930,12 +3933,8 @@ class TextEngine<
     }
 
     // On success, emit the synthetic `structured-output.complete` carrying
-    // the parsed object + raw text. Pin the messageId so the client-side
-    // handler can target the right UIMessage even when the agent loop's
-    // terminal RUN_FINISHED has already cleared `activeMessageIds` (the
-    // complete event yields AFTER the loop ends, by which point
-    // `getActiveAssistantMessageId()` returns null and would otherwise drop
-    // the event silently).
+    // the parsed object + raw text before the deferred RUN_FINISHED. Pin
+    // the messageId so the client targets the schema-constrained turn.
     if (
       this.structuredOutputResult &&
       !this.finalizationError &&

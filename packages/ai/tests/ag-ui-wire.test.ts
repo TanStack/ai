@@ -596,6 +596,39 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('round-trips empty thinking content when signature is present', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'thinking',
+            content: '',
+            signature: '{"id":"rs_1","encrypted_content":"enc"}',
+          },
+          {
+            type: 'tool-call',
+            id: 'call_1',
+            name: 'lookup_weather',
+            arguments: '{"location":"Berlin"}',
+            state: 'input-complete',
+          },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const model = convertMessagesToModelMessages(
+      wire as Array<UIMessage | ModelMessage>,
+    )
+    expect(model[0]?.thinking).toEqual([
+      {
+        content: '',
+        signature: '{"id":"rs_1","encrypted_content":"enc"}',
+      },
+    ])
+  })
+
   it('round-trips ThinkingPart.signature on spec encryptedValue', () => {
     const messages: Array<UIMessage> = [
       {

@@ -24,15 +24,20 @@ import { ollamaText } from '@tanstack/ai-ollama'
 Ollama runs models locally. The adapter supports a large catalog of models.
 Key families include:
 
-| Model Family | Example Names                    | Notes                   |
-| ------------ | -------------------------------- | ----------------------- |
-| Llama 4      | `llama4`, `llama4:scout`         | Latest Meta models      |
-| Llama 3.3    | `llama3.3`, `llama3.3:70b`       | Strong general purpose  |
-| Qwen 3       | `qwen3`, `qwen3:32b`             | Reasoning capable       |
-| DeepSeek R1  | `deepseek-r1`, `deepseek-r1:70b` | Reasoning focused       |
-| Gemma 3      | `gemma3`, `gemma3:27b`           | Google's open model     |
-| Phi 4        | `phi4`, `phi4:14b`               | Microsoft's small model |
-| Mistral      | `mistral`, `mistral-large`       | Mistral AI models       |
+| Model Family | Example Names                            | Notes                   |
+| ------------ | ---------------------------------------- | ----------------------- |
+| Llama 4      | `llama4:latest`, `llama4:16x17b`         | Latest Meta models      |
+| Llama 3.3    | `llama3.3:latest`, `llama3.3:70b`        | Strong general purpose  |
+| Qwen 3       | `qwen3:latest`, `qwen3:32b`              | Reasoning capable       |
+| DeepSeek R1  | `deepseek-r1:latest`, `deepseek-r1:70b`  | Reasoning focused       |
+| Gemma 3      | `gemma3:latest`, `gemma3:27b`            | Google's open model     |
+| Phi 4        | `phi4:latest`, `phi4:14b`                | Microsoft's small model |
+| Mistral      | `mistral:latest`, `mistral-large:latest` | Mistral AI models       |
+
+Typed ids are always `family:tag` (`OLLAMA_TEXT_MODELS`). `ollamaText()`
+accepts any string, but a bare `llama3.3` falls outside the typed catalog and
+`modelOptions` degrades to the raw Ollama `ChatRequest` (which then demands a
+`model` field). Use `llama3.3:latest`.
 
 Models must be pulled first: `ollama pull llama3.3`
 
@@ -48,8 +53,10 @@ Ollama's own request shape) — `temperature`, `top_p`, and `num_predict`
 import { chat } from '@tanstack/ai'
 import { ollamaText } from '@tanstack/ai-ollama'
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 const stream = chat({
-  adapter: ollamaText('llama3.3'),
+  adapter: ollamaText('llama3.3:latest'),
   messages,
   modelOptions: {
     options: {
@@ -64,9 +71,15 @@ const stream = chat({
 
 ## Configuration
 
+`ollamaText(model)` takes no config — it reads `OLLAMA_HOST`. To point at
+another server (or pass headers / `baseURL` for a gateway), use
+`createOllamaChat(model, hostOrConfig)`:
+
 ```typescript
-// With explicit host
-const adapter = ollamaText('llama3.3', {
+import { createOllamaChat } from '@tanstack/ai-ollama'
+
+// With explicit host (ollamaText() reads OLLAMA_HOST instead)
+const adapter = createOllamaChat('llama3.3:latest', {
   host: 'http://my-server:11434',
 })
 ```

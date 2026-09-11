@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-isolate-quickjs-bun
 
 Native QuickJS driver for TanStack AI Code Mode on the [Bun](https://bun.sh) runtime. Runs the same QuickJS engine as `@tanstack/ai-isolate-quickjs`, but natively through [`bun:ffi`](https://bun.sh/docs/api/ffi) instead of WebAssembly — substantially faster context creation and execution, with the same sandboxing guarantees.

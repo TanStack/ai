@@ -25,6 +25,37 @@ angular: @tanstack/ai-angular
 
 <!-- ::end:tabs -->
 
+## `injectWebMCPTools(tools, options?)`
+
+Register executable client tools for the current Angular injection owner. Angular removes them when it destroys that owner.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```typescript
+import { Component } from "@angular/core";
+import {
+  injectWebMCPTools,
+  type InjectWebMCPToolsOptions,
+} from "@tanstack/ai-angular";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: InjectWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+@Component({ selector: "app-products", standalone: true, template: "" })
+export class ProductsComponent {
+  registration = injectWebMCPTools(tools, options);
+}
+```
+
+`InjectWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The injectable owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Call this function only in an Angular injection context.
+
 ## `injectChat(options?)`
 
 Main injectable for managing chat state in Angular with full type safety.
