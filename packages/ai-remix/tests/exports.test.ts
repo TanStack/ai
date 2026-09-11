@@ -12,6 +12,7 @@ import {
   createRealtimeChat,
   createSummarize,
   createTranscription,
+  createWebMCPTools,
 } from '../src/index'
 
 describe('package exports', () => {
@@ -28,5 +29,6 @@ describe('package exports', () => {
     expect(createTranscription).toBeTypeOf('function')
     expect(createSummarize).toBeTypeOf('function')
     expect(createAudioRecorder).toBeTypeOf('function')
+    expect(createWebMCPTools).toBeTypeOf('function')
   })
 })

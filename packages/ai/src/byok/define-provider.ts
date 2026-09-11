@@ -12,6 +12,11 @@ export interface ByokProvider<TId extends string = string> {
    * values here. This object is imported on the client.
    */
   readonly env?: ReadonlyArray<string>
+  /**
+   * Other descriptors this credential needs. A send for this provider also
+   * carries their headers and prompts for each one that is missing.
+   */
+  readonly with?: ReadonlyArray<ByokProvider>
 }
 
 /**
@@ -22,6 +27,7 @@ export type ByokProviderInit<TId extends string> = {
   readonly id: undefined extends TId ? never : TId
   readonly label: string
   readonly env?: string | ReadonlyArray<string>
+  readonly with?: ReadonlyArray<ByokProvider>
 }
 
 function normalizeEnv(
@@ -42,5 +48,6 @@ export function defineByokProvider<const TId extends string>(
     id: provider.id,
     label: provider.label,
     ...(env ? { env } : {}),
+    ...(provider.with ? { with: provider.with } : {}),
   }
 }

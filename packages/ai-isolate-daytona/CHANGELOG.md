@@ -1,5 +1,14 @@
 # @tanstack/ai-isolate-daytona
 
+## 0.1.2
+
+### Patch Changes
+
+- [#1324](https://github.com/TanStack/ai/pull/1324) [`0a7b3c4`](https://github.com/TanStack/ai/commit/0a7b3c4393e9d3337637841aa73000d3fdabc58b) - fix: mount workspace secrets as Daytona organization Secrets so values never land in the sandbox record or command strings
+
+- Updated dependencies [[`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198)]:
+  - @tanstack/ai-code-mode@0.4.9
+
 ## 0.1.1
 
 ### Patch Changes

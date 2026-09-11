@@ -1,7 +1,9 @@
 /**
  * Video Activity (Experimental)
  *
- * Generates videos from text prompts using a jobs/polling architecture.
+ * Generates videos from text prompts. Adapters use a jobs/polling
+ * architecture: create a job, poll for status, then fetch a download URL.
+ * For a live, prompt-steerable stream, use generateLiveVideo().
  * This is a self-contained module with implementation, types, and JSDoc.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -537,9 +539,6 @@ async function runCreateVideoJob<
 
   const mwCtx = contextFor(videoRunIdForJob(adapter.name, jobResult.jobId))
   await runGenerationStart(middleware, mwCtx)
-  // Transforms see the submission result (no url yet, so nothing to copy into a
-  // blob store) purely so the run record captures the jobId and any prompt
-  // inputs. No finish hook: the run is still running.
   return await applyGenerationResultTransforms(mwCtx, jobResult)
 }
 

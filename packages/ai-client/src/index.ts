@@ -14,6 +14,13 @@ export type {
 } from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
+export { registerWebMCPTools } from './web-mcp-tools'
+export type {
+  RegisterWebMCPToolsOptions,
+  WebMCPToolAnnotations,
+  WebMCPToolOptions,
+  WebMCPToolOptionsByName,
+} from './web-mcp-tools'
 export { RealtimeClient } from './realtime-client'
 export { GenerationClient } from './generation-client'
 export { VideoGenerationClient } from './video-generation-client'

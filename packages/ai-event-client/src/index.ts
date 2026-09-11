@@ -990,6 +990,106 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
+// ===========================
+// World Events
+// ===========================
+
+/** Emitted when a world generation request starts. */
+export interface WorldRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request completes. */
+export interface WorldRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request fails. */
+export interface WorldRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when world usage metrics are available. */
+export interface WorldUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
+// ===========================
+// Live Events
+// ===========================
+
+/** Emitted when a live generation request starts. */
+export interface LiveVideoRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request completes. */
+export interface LiveVideoRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request fails. */
+export interface LiveVideoRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when live usage metrics are available. */
+export interface LiveVideoUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
 // ---------------------------------------------------------------------------
 // Compaction events
 // ---------------------------------------------------------------------------
@@ -1385,6 +1485,18 @@ export interface AIDevtoolsEventMap {
   'video:request:started': VideoRequestStartedEvent
   'video:request:completed': VideoRequestCompletedEvent
   'video:usage': VideoUsageEvent
+
+  // World events
+  'world:request:started': WorldRequestStartedEvent
+  'world:request:completed': WorldRequestCompletedEvent
+  'world:request:error': WorldRequestErrorEvent
+  'world:usage': WorldUsageEvent
+
+  // Live events
+  'liveVideo:request:started': LiveVideoRequestStartedEvent
+  'liveVideo:request:completed': LiveVideoRequestCompletedEvent
+  'liveVideo:request:error': LiveVideoRequestErrorEvent
+  'liveVideo:usage': LiveVideoUsageEvent
 
   // Client events
   'client:created': ClientCreatedEvent

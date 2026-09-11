@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() API."
 keywords:
   - tanstack ai
   - video generation
@@ -39,11 +39,13 @@ keywords:
 
 ## Overview
 
-TanStack AI provides experimental support for video generation through dedicated video adapters. Unlike image generation, video generation is an **asynchronous operation** that uses a jobs/polling pattern:
+TanStack AI provides experimental support for video generation through dedicated video adapters. Most providers are **asynchronous** and use a jobs/polling pattern:
 
 1. **Create a job** - Submit a prompt and receive a job ID
 2. **Poll for status** - Check the job status until it's complete
 3. **Retrieve the video** - Get the URL to download/view the generated video
+
+For a prompt-steerable live stream (no download URL), use [Live Generation](./live-generation) or [World Generation](./world-generation).
 
 Currently supported:
 
@@ -79,6 +81,8 @@ const { jobId, model } = await generateVideo({
 
 console.log("Job started:", jobId);
 ```
+
+For a stream that plays while it generates, and that you can steer with a new prompt, use [Live Generation](./live-generation). `generateVideo()` is the job path: create, poll, then fetch a file URL.
 
 ### Polling for Status
 
@@ -925,9 +929,12 @@ await generateVideo({
 #### VideoJobResult (from create)
 
 ```typescript
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
+
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation
+  artifacts?: Array<PersistedArtifactRef>
 }
 ```
 

@@ -3,6 +3,8 @@ export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
 export { useMcpAppBridge } from './use-mcp-app-bridge'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
+export { useWebMCPTools } from './use-web-mcp-tools'
+export type { UseWebMCPToolsOptions } from './use-web-mcp-tools'
 export type {
   UseChatOptions,
   UseChatReturn,

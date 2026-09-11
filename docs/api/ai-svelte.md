@@ -25,6 +25,35 @@ svelte: @tanstack/ai-svelte
 
 <!-- ::end:tabs -->
 
+## `createWebMCPTools(tools, options?)`
+
+Register executable client tools during Svelte component initialization. Svelte removes them when the component is destroyed.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```svelte
+<script lang="ts">
+  import {
+    createWebMCPTools,
+    type CreateWebMCPToolsOptions,
+  } from "@tanstack/ai-svelte";
+  import { searchProducts } from "./tools";
+
+  const tools = [searchProducts];
+  const options: CreateWebMCPToolsOptions<typeof tools> = {
+    onError(error) {
+      console.error(error);
+    },
+  };
+
+  createWebMCPTools(tools, options);
+</script>
+```
+
+`CreateWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The factory owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context.
+
 ## `createChatHook(options)`
 
 Bind `chatOptions` once at module scope. Call `createChat()` to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.

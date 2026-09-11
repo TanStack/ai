@@ -4,6 +4,7 @@ import { useGenerateImage } from '@tanstack/ai-react'
 import type { MediaPrompt } from '@tanstack/ai/client'
 
 import { generateImageFn } from '@/lib/server-functions'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { getRandomImagePrompt } from '@/lib/prompts'
 import { IMAGE_MODELS } from '@/lib/models'
 import type { ImageModel } from '@/lib/models'
@@ -292,11 +293,16 @@ function ImageModelCard({
     // switch is picked here rather than being sent as a request field.
     // `options.signal` is the hook's abort signal — forwarding it lets an
     // unmount or a `stop()` cancel the request rather than orphan it.
+    byok,
+    byokProvider: () => toByokProvider(model.provider),
     fetcher: (input, options) =>
-      generateImageFn({
-        data: { prompt: input.prompt, model: model.id },
-        signal: options?.signal,
-      }),
+      callWithByok(
+        generateImageFn({
+          data: { prompt: input.prompt, model: model.id },
+          signal: options?.signal,
+          headers: options?.headers,
+        }),
+      ),
     onResult: (generated) => {
       const image = generated.images[0]
       if (image) onImageGenerated?.(getImageSrc(image))

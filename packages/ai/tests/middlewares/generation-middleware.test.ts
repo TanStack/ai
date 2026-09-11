@@ -4,7 +4,9 @@ import {
   generateImage,
   generateSpeech,
   generateTranscription,
+  generateLiveVideo,
   generateVideo,
+  generateWorld,
   getVideoJobStatus,
   summarize,
 } from '../../src/index'
@@ -99,6 +101,96 @@ describe('generation middleware — wiring', () => {
     expect(events.error).toHaveLength(0)
     // start/finish share the correlation id (same context object).
     expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
+  })
+
+  it('generateWorld fires start then finish', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'world' as const,
+      name: 'reactor',
+      model: 'visko-orbis-stable',
+      createWorld: vi.fn(async () => ({
+        id: 'world-1',
+        model: 'reactor/visko-orbis-stable',
+        token: 'jwt',
+        expiresAt: Date.now() + 60_000,
+        prompt: 'a world',
+        status: 'ready' as const,
+      })),
+    }
+
+    const result = await generateWorld({
+      adapter: adapter as any,
+      prompt: 'a world',
+      middleware: [middleware],
+      debug: false,
+    })
+
+    expect(result.token).toBe('jwt')
+    expect(events.start).toHaveLength(1)
+    expect(events.start[0]!.activity).toBe('world')
+    expect(events.start[0]!.provider).toBe('reactor')
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+    expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
+  })
+
+  it('generateLiveVideo fires start then finish', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'liveVideo' as const,
+      name: 'reactor',
+      model: 'helios',
+      createLiveVideo: vi.fn(async () => ({
+        id: 'live-1',
+        model: 'reactor/helios',
+        token: 'jwt',
+        expiresAt: Date.now() + 60_000,
+        prompt: 'a shot',
+        status: 'ready' as const,
+      })),
+    }
+
+    const result = await generateLiveVideo({
+      adapter: adapter as any,
+      prompt: 'a shot',
+      middleware: [middleware],
+      debug: false,
+    })
+
+    expect(result.token).toBe('jwt')
+    expect(events.start).toHaveLength(1)
+    expect(events.start[0]!.activity).toBe('liveVideo')
+    expect(events.start[0]!.provider).toBe('reactor')
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+    expect(events.finish[0]!.ctx.requestId).toBe(events.start[0]!.requestId)
+  })
+
+  it('generateWorld fires error and rethrows', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'world' as const,
+      name: 'reactor',
+      model: 'visko-orbis-stable',
+      createWorld: vi.fn(async () => {
+        throw new Error('world boom')
+      }),
+    }
+
+    await expect(
+      generateWorld({
+        adapter: adapter as any,
+        prompt: 'x',
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('world boom')
+
+    expect(events.start).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+    expect(events.error).toHaveLength(1)
+    expect((events.error[0]!.info.error as Error).message).toBe('world boom')
   })
 
   it('generateImage fires error and rethrows', async () => {

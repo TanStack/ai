@@ -27,6 +27,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -47,6 +48,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // BytePlus and LLM Gateway both stream their reasoning trace as
   // `delta.reasoning_content`, which is exactly the field aimock's
@@ -65,6 +67,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
     'openai-compatible-legacy',
   ]),
   'multi-turn': new Set([
@@ -86,6 +89,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -109,6 +113,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -128,6 +133,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   // Vertex uses the same Gemini stream, so it is excluded for the same reason.
@@ -148,6 +154,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -168,6 +175,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'structured-output': new Set([
     'openai',
@@ -188,6 +196,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -206,6 +215,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -241,6 +251,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -261,6 +272,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -295,6 +307,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -311,6 +324,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -333,6 +347,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'lovable',
     'mistral',
     'llmgateway',
+    'cloudflare',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -351,6 +366,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'lovable',
     'mistral',
     'llmgateway',
+    'cloudflare',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in

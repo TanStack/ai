@@ -185,36 +185,39 @@ export async function getTranscriptionResult(page: Page): Promise<string> {
   return page.getByTestId('transcription-result').innerText()
 }
 
-export async function fillPrompt(page: Page, text: string) {
-  const input = page.getByTestId('prompt-input')
-  await input.click()
-  await input.fill(text)
-  await input.dispatchEvent('input', { bubbles: true })
-  // If fill() didn't trigger React onChange, fall back to pressSequentially
+async function fillControlledGenerateInput(
+  page: Page,
+  testId: 'prompt-input' | 'text-input',
+  text: string,
+) {
+  // Hydrate first. Waiting for networkidle after fill used to remount the
+  // controlled input empty, so generate-button stayed disabled for 30s.
+  await page.waitForLoadState('networkidle')
+  const input = page.getByTestId(testId)
   const btn = page.getByTestId('generate-button')
-  if (await btn.isDisabled()) {
-    await input.clear()
-    await input.pressSequentially(text, { delay: 30 })
-  }
+  await expect(async () => {
+    await input.click()
+    await input.fill(text)
+    await input.dispatchEvent('input', { bubbles: true })
+    if (await btn.isDisabled()) {
+      await input.clear()
+      await input.pressSequentially(text, { delay: 20 })
+    }
+    await expect(btn).toBeEnabled({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
+}
+
+export async function fillPrompt(page: Page, text: string) {
+  await fillControlledGenerateInput(page, 'prompt-input', text)
 }
 
 export async function fillTextInput(page: Page, text: string) {
-  const input = page.getByTestId('text-input')
-  await input.click()
-  await input.fill(text)
-  await input.dispatchEvent('input', { bubbles: true })
-  // If fill() didn't trigger React onChange, fall back to pressSequentially
-  const btn = page.getByTestId('generate-button')
-  if (await btn.isDisabled()) {
-    await input.clear()
-    await input.pressSequentially(text, { delay: 30 })
-  }
+  await fillControlledGenerateInput(page, 'text-input', text)
 }
 
 export async function clickGenerate(page: Page) {
-  // Wait for full page load (including hydration scripts)
-  await page.waitForLoadState('networkidle')
   const btn = page.getByTestId('generate-button')
+  await expect(btn).toBeEnabled()
   await btn.click()
   // Verify the click actually triggered React — status should leave 'idle'
   // If still idle after a short wait, the click missed hydration; retry
@@ -223,7 +226,6 @@ export async function clickGenerate(page: Page) {
       timeout: 3_000,
     })
   } catch {
-    // Retry click — hydration likely wasn't complete on first attempt
     await btn.click()
   }
 }

@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()`, `generateVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()` but does not support `chat()` or tools.
+The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, live, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused**. It supports `generateImage()`, `generateVideo()`, `generateLiveVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()`. It does not support `chat()` or tools.
 
 For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
@@ -396,6 +396,12 @@ const sfx = await generateAudio({
 | `fal-ai/ltx-2/text-to-video/fast` | Text-to-Video | Fast text-to-video |
 | `fal-ai/ltx-2/image-to-video/fast` | Image-to-Video | Fast image-to-video animation |
 
+### Live Models
+
+| Model | Mode | Description |
+|-------|------|-------------|
+| `minimax/h3-max/director` | Live | Steerable live stream. Use `falLiveVideo()` with `generateLiveVideo()`. |
+
 ### Text-to-Speech Models
 
 | Model | Description |
@@ -472,6 +478,19 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 - `config.proxyUrl?` - Proxy URL for client-side usage
 
 **Returns:** A `FalVideoAdapter` instance for use with `generateVideo()` and `getVideoJobStatus()`.
+
+### `falLiveVideo(model, config?)`
+
+Creates a fal.ai live-video adapter for H3 Max Director. `generateLiveVideo()` returns the WMA app id on `result.model` (`fal-ai/minimax-h3-max-director`). Open that id with `wma(live.model)` through a server proxy that attaches `FAL_KEY`. Do not send `live.token` as `Key` credentials. Call `allowedFalLiveVideoProxyTarget()` in the proxy so it forwards only WMA `/ice`, `/session`, `/session/heartbeat`, and Director `/ice`.
+
+**Parameters:**
+
+- `model` - `"minimax/h3-max/director"`
+- `config.apiKey?` - Your fal.ai API key (falls back to `FAL_KEY` env var)
+
+**Returns:** A `FalLiveVideoAdapter` instance for use with `generateLiveVideo()`.
+
+See [Live Generation](../media/live-generation) for the browser connect step.
 
 ### `falSpeech(model, config?)`
 

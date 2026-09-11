@@ -1562,6 +1562,131 @@
     }
   },
   {
+    "id": "google/gemini-3.7-flash",
+    "object": "model",
+    "created": 1786752000,
+    "released": 1786752000,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "google",
+    "name": "Gemini 3.7 Flash",
+    "description": "Latest-generation Gemini Flash model for fast coding, reasoning, and agentic workflows.",
+    "context_window": 1000000,
+    "max_tokens": 64000,
+    "knowledge": "2026-03",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000075",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000375",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000135",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000675",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
     "id": "google/gemini-embedding-001",
     "object": "model",
     "created": 1779667200,
@@ -1759,15 +1884,70 @@
     }
   },
   {
+    "id": "openai/chat-latest",
+    "object": "model",
+    "created": 1787270400,
+    "released": 1754524800,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "ChatGPT Latest",
+    "description": "The ChatGPT model: points to the latest Instant model currently used in ChatGPT, tuned for natural conversational chat.",
+    "context_window": 128000,
+    "max_tokens": 16384,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000005",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000005",
+                "min": 0
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00003",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
     "id": "openai/gpt-4o-mini-transcribe",
     "object": "model",
     "created": 1781568000,
     "released": 1742428800,
-    "expiration_date": 1803600000,
-    "deprecated": true,
+    "expiration_date": null,
+    "deprecated": false,
     "owned_by": "openai",
     "name": "GPT-4o mini Transcribe",
-    "description": "Default speech-to-text model for fast, cost-efficient audio transcription.",
+    "description": "Fast, cost-efficient OpenAI speech-to-text model for dictation, voice input, and high-volume transcription.",
     "context_window": 16000,
     "max_tokens": 2000,
     "modalities": {
@@ -1819,7 +1999,7 @@
     "deprecated": false,
     "owned_by": "openai",
     "name": "GPT-4o mini TTS",
-    "description": "Text-to-speech model that turns text into natural-sounding audio.",
+    "description": "OpenAI text-to-speech model with instructions-steerable delivery (tone, accent, pacing) for natural-sounding audio.",
     "context_window": 2000,
     "max_tokens": 0,
     "modalities": {
@@ -1858,11 +2038,11 @@
     "object": "model",
     "created": 1781654400,
     "released": 1742428800,
-    "expiration_date": 1803600000,
-    "deprecated": true,
+    "expiration_date": null,
+    "deprecated": false,
     "owned_by": "openai",
     "name": "GPT-4o Transcribe",
-    "description": "Higher-accuracy speech-to-text model for demanding transcription tasks.",
+    "description": "Higher-accuracy OpenAI speech-to-text model for noisy audio, accents, and specialist vocabulary.",
     "context_window": 16000,
     "max_tokens": 2000,
     "modalities": {

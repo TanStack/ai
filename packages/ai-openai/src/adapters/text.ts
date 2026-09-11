@@ -148,6 +148,17 @@ export class OpenAITextAdapter<
       delete request.top_p
     }
 
+    // Reasoning models pair each function_call with a reasoning item. Request
+    // the encrypted blob so convertMessagesToInput can replay it. Pre-5 chat
+    // models do not emit those items, so leave include unset for them.
+    // Callers can still set include in modelOptions.
+    if (
+      request.include === undefined &&
+      openAIModelRejectsSamplingParams(options.model)
+    ) {
+      request.include = ['reasoning.encrypted_content']
+    }
+
     return request
   }
 }

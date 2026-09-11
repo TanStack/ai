@@ -22,6 +22,36 @@ preact: @tanstack/ai-preact
 
 <!-- ::end:tabs -->
 
+## `useWebMCPTools(tools, options?)`
+
+Register executable client tools after the Preact component mounts. Preact removes them on cleanup and replaces them when `tools` or `options` change.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useWebMCPTools,
+  type UseWebMCPToolsOptions,
+} from "@tanstack/ai-preact";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+function ProductsPage() {
+  useWebMCPTools(tools, options);
+  return null;
+}
+```
+
+`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
 ## `useChat(options?)`
 
 Main hook for managing chat state in Preact with full type safety.

@@ -278,6 +278,16 @@ Client tools are **automatically executed** when the model calls them. The flow 
 4. Result is sent back to server
 5. Conversation continues with the result
 
+## Expose Client Tools Through WebMCP
+
+The normal client-tool path belongs to a TanStack chat run. It returns the browser result to the server and continues the conversation.
+
+WebMCP provides a separate execution path for browser agents. It calls the client handler and returns the result directly to WebMCP.
+
+WebMCP execution does not call `addToolResult`. It does not continue a TanStack chat run.
+
+Register the same executable client tools with a framework lifecycle wrapper or `registerWebMCPTools`. See [WebMCP Tools](./webmcp) for setup and security rules.
+
 ## Client Runtime Context
 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.

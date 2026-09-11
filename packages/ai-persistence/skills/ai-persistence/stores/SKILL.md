@@ -37,6 +37,7 @@ a complete `node:sqlite` implementation lives in
 ```ts
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { ChatWithInterruptsPersistence } from '@tanstack/ai-persistence'
+import { messages, runs, interrupts } from './stores'
 
 // Sparse is fine — only implement what you need.
 export const persistence: ChatWithInterruptsPersistence = defineAIPersistence({
@@ -73,9 +74,11 @@ mistake when writing an adapter.
 ### `MessageStore`
 
 ```ts
+import type { ModelMessage } from '@tanstack/ai'
+
 interface MessageStore {
-  loadThread(threadId: string): Promise<Array<ModelMessage>>
-  saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void>
+  loadThread: (threadId: string) => Promise<Array<ModelMessage>>
+  saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 ```
 
@@ -120,6 +123,9 @@ always a choice you made on purpose rather than a check that quietly did not
 run. Declare yours and the suite reports them as skipped with a reason:
 
 ```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { persistence } from './persistence'
+
 // The shipped sqlite example implements findActiveRun and listReclaimable and
 // declares only the one it omits.
 runPersistenceConformance('sqlite', () => persistence, {
@@ -128,14 +134,16 @@ runPersistenceConformance('sqlite', () => persistence, {
 ```
 
 ```ts
+import type { RunRecord, RunStatus } from '@tanstack/ai-persistence'
+
 interface RunStore {
   // Required
-  createOrResume(
+  createOrResume: (
     input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
       status?: RunStatus
     },
-  ): Promise<RunRecord>
-  update(
+  ) => Promise<RunRecord>
+  update: (
     runId: string,
     patch: Partial<
       Pick<
@@ -150,16 +158,16 @@ interface RunStore {
         | 'driverEpoch'
       >
     >,
-  ): Promise<void>
-  get(runId: string): Promise<RunRecord | null>
-  findActiveRun(threadId: string): Promise<RunRecord | null>
+  ) => Promise<void>
+  get: (runId: string) => Promise<RunRecord | null>
+  findActiveRun: (threadId: string) => Promise<RunRecord | null>
 
   // Optional
-  listByThread?(threadId: string): Promise<Array<RunRecord>>
-  listReclaimable?(opts: {
+  listByThread?: (threadId: string) => Promise<Array<RunRecord>>
+  listReclaimable?: (opts: {
     now: number
     ttlMs: number
-  }): Promise<Array<RunRecord>>
+  }) => Promise<Array<RunRecord>>
 }
 ```
 
@@ -293,15 +301,25 @@ and each must be declared via `skipMethods` when absent.
 ### `InterruptStore`
 
 ```ts
+import type {
+  InterruptCommitEntry,
+  InterruptRecord,
+} from '@tanstack/ai-persistence'
+
 interface InterruptStore {
-  create(record: Omit<InterruptRecord, 'status' | 'resolvedAt'>): Promise<void>
-  resolve(interruptId: string, response?: unknown): Promise<void>
-  cancel(interruptId: string): Promise<void>
-  get(interruptId: string): Promise<InterruptRecord | null>
-  list(threadId: string): Promise<Array<InterruptRecord>>
-  listPending(threadId: string): Promise<Array<InterruptRecord>>
-  listByRun(runId: string): Promise<Array<InterruptRecord>>
-  listPendingByRun(runId: string): Promise<Array<InterruptRecord>>
+  create: (
+    record: Omit<InterruptRecord, 'status' | 'resolvedAt'>,
+  ) => Promise<void>
+  resolve: (interruptId: string, response?: unknown) => Promise<void>
+  cancel: (interruptId: string) => Promise<void>
+  // Optional: apply a validated resume batch all-or-nothing instead of
+  // per-entry resolve/cancel.
+  commitBatch?: (entries: ReadonlyArray<InterruptCommitEntry>) => Promise<void>
+  get: (interruptId: string) => Promise<InterruptRecord | null>
+  list: (threadId: string) => Promise<Array<InterruptRecord>>
+  listPending: (threadId: string) => Promise<Array<InterruptRecord>>
+  listByRun: (runId: string) => Promise<Array<InterruptRecord>>
+  listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
 }
 ```
 
@@ -314,9 +332,9 @@ interface InterruptStore {
 
 ```ts
 interface MetadataStore {
-  get(namespace: string, key: string): Promise<unknown | null>
-  set(namespace: string, key: string, value: unknown): Promise<void>
-  delete(namespace: string, key: string): Promise<void>
+  get: (namespace: string, key: string) => Promise<unknown | null>
+  set: (namespace: string, key: string, value: unknown) => Promise<void>
+  delete: (namespace: string, key: string) => Promise<void>
 }
 ```
 

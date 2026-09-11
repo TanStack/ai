@@ -98,6 +98,9 @@ preserve plain-text and structured-output assistant messages separately when
 those messages use different ids.
 
 ```ts
+import { withPersistence } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
 withPersistence(persistence, {
   snapshotStreaming: true,
   snapshotIntervalMs: 1000, // default
@@ -159,6 +162,8 @@ Server-authoritative clients load history by `threadId` (often `GET`):
 
 ```ts
 import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+import { sessionUserId, userOwnsThread } from './auth'
 
 export async function GET(request: Request) {
   return reconstructChat(persistence, request, {

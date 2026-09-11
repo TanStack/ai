@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../../src/adapters/converse-text'
+import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
   ConverseCommandOutput,
   ConverseStreamCommandInput,
@@ -473,6 +474,37 @@ describe('BedrockConverseTextAdapter', () => {
     // ignored — this is the contract that keeps API-key auth working.
     expect(cfg.authSchemePreference).toEqual(['httpBearerAuth'])
     expect(cfg.token).toEqual({ token: 'ABSK-test-token' })
+  })
+
+  it('registers a build middleware that applies defaultHeaders', async () => {
+    type Middleware = (
+      next: (args: unknown) => unknown,
+    ) => (args: unknown) => unknown
+    const added: Array<Middleware> = []
+    class FakeClient {
+      middlewareStack = { add: (mw: Middleware) => added.push(mw) }
+    }
+    class Probe extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
+      protected override importBedrockRuntime() {
+        return Promise.resolve({
+          BedrockRuntimeClient: FakeClient,
+        } as unknown as typeof BedrockRuntime)
+      }
+      client() {
+        return this.getClient()
+      }
+    }
+    const a = new Probe(
+      { apiKey: 'k', defaultHeaders: { 'X-Gateway': 'yes' } },
+      'us.amazon.nova-pro-v1:0',
+    )
+    expect(await a.client()).toBeInstanceOf(FakeClient)
+    expect(added).toHaveLength(1)
+
+    const request = { headers: { host: 'bedrock' } }
+    const next = (args: unknown) => args
+    added[0]!(next)({ request })
+    expect(request.headers).toEqual({ host: 'bedrock', 'X-Gateway': 'yes' })
   })
 
   it('declares it does not support combined tools and schema', () => {

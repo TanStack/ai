@@ -17,6 +17,59 @@ function byokUrl(
 }
 
 test.describe('byok', () => {
+  test('saves through a second PRF ceremony and rejects a later unlock without activation', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.addInitScript(() => {
+      const activation = { isActive: true }
+      Object.defineProperty(navigator, 'userActivation', { value: activation })
+      class Passkey {
+        rawId = new Uint8Array([1, 2, 3]).buffer
+        constructor(private registration: boolean) {}
+        getClientExtensionResults() {
+          return this.registration
+            ? { prf: { enabled: true } }
+            : { prf: { results: { first: Array.from(new Uint8Array(32)) } } }
+        }
+      }
+      Object.defineProperty(window, 'PublicKeyCredential', { value: Passkey })
+      Object.defineProperty(navigator, 'credentials', {
+        value: {
+          async create() {
+            activation.isActive = false
+            return new Passkey(true)
+          },
+          async get() {
+            return new Passkey(false)
+          },
+        },
+      })
+    })
+    await page.goto(`${byokUrl(testId, aimockPort)}&passkey=1`)
+    await page.getByTestId('byok-key-input').fill(RAW_KEY)
+    await page.getByTestId('byok-save-button').click()
+    await expect(page.getByTestId('byok-last4')).toHaveText('1234')
+    await page.reload()
+    await expect(page.getByTestId('byok-last4')).toHaveText('1234')
+    await page.getByTestId('byok-unlock-button').click()
+    await page.getByTestId('byok-key-input').fill('sk-e2e-updated-5678')
+    await page.getByTestId('byok-save-button').click()
+    await expect(page.getByTestId('byok-last4')).toHaveText('5678')
+    await page.reload()
+    await expect(page.getByTestId('byok-last4')).toHaveText('5678')
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.userActivation, 'isActive', {
+        value: false,
+      })
+    })
+    await page.getByTestId('byok-unlock-button').click()
+    await expect(page.getByTestId('byok-error')).toContainText(
+      'fresh user action',
+    )
+  })
+
   test('saves a key and sends it in the x-byok-openai header, not the body', async ({
     page,
     testId,

@@ -156,7 +156,7 @@ The `structured-output` part fields:
 
 ## What the stream contains
 
-`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream is the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`. It is not folded into `RUN_FINISHED`.
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream includes a `CUSTOM` event named `structured-output.complete` before `RUN_FINISHED`. The completion event carries the parsed object. A parsing failure emits `RUN_ERROR` instead of a successful `RUN_FINISHED`.
 
 ```typescript ignore
 {
@@ -187,6 +187,7 @@ Streaming structured output works with **every adapter**, but only some support 
 | `@tanstack/ai-bedrock` | Native stream through Converse or an OpenAI-compatible API |
 | `@tanstack/ai-byteplus` | Native single-request stream on supported models; unsupported models emit `RUN_ERROR` |
 | `@tanstack/ai-llmgateway` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| `@tanstack/ai-cloudflare` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-lovable` | Native single-request stream (Responses or Chat Completions) |
 | Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
 
