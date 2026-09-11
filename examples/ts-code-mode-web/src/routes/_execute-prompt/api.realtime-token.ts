@@ -11,7 +11,7 @@ export const Route = createFileRoute(
         try {
           const token = await realtimeToken({
             adapter: openaiRealtimeToken({
-              model: 'gpt-realtime',
+              model: 'gpt-realtime-2.1',
             }),
           })
           return new Response(JSON.stringify(token), {

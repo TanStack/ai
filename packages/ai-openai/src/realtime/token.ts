@@ -72,7 +72,7 @@ export function parseClientSecretResponse(
  * import { openaiRealtimeToken } from '@tanstack/ai-openai'
  *
  * const token = await realtimeToken({
- *   adapter: openaiRealtimeToken({ model: 'gpt-realtime' }),
+ *   adapter: openaiRealtimeToken({ model: 'gpt-realtime-2.1' }),
  * })
  * ```
  */
@@ -85,7 +85,7 @@ export function openaiRealtimeToken(
     provider: 'openai',
 
     async generateToken(): Promise<RealtimeToken> {
-      const model: OpenAIRealtimeModel = options.model ?? 'gpt-realtime'
+      const model: OpenAIRealtimeModel = options.model ?? 'gpt-realtime-2.1'
 
       // Only the model is sent server-side; all other session config
       // (instructions, voice, tools, VAD) is applied client-side via
