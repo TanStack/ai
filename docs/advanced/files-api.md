@@ -144,23 +144,56 @@ chat({
 
 ### Client: reuse a handle across requests
 
-Upload happens server-side (it needs the provider key), so the client works with the returned handle. Persist `{ id, provider, uri, mimeType }` and rebuild the source on each turn. `fileSourceFromHandle` and `FileHandle` are exported from the browser-safe `@tanstack/ai/client` entry, so this doesn't pull the server bundle into the client:
+Upload needs the provider key, so it happens on the server. The browser holds the handle it gets back and sends that handle with each turn.
 
-```typescript
-import { fileSourceFromHandle } from '@tanstack/ai/client'
+Send the handle in your own request body, not in the message content. The chat wire format carries `data` and `url` sources only, so a `{ type: 'file' }` source cannot cross it. Build the source on the server instead.
+
+1. Store the handle the upload endpoint returned. Keep `{ id, provider, uri, mimeType }`.
+2. Put that handle in the request body, next to the messages.
+3. On the server, call `fileSourceFromHandle` and add the part to the message.
+
+In the browser, pass the handle through the `body` option:
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 import type { FileHandle } from '@tanstack/ai/client'
 
-// `handle` was returned by your server's upload endpoint and stored client-side.
-function imageMessage(handle: FileHandle, prompt: string) {
-  return {
-    role: 'user' as const,
-    content: [
-      { type: 'text' as const, content: prompt },
-      { type: 'image' as const, source: fileSourceFromHandle(handle) },
-    ],
-  }
+// `handle` came from your upload endpoint and is stored client-side.
+function AskAboutFile({ handle }: { handle: FileHandle }) {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <button
+      onClick={() => sendMessage('Describe this', { body: { handle } })}
+      type="button"
+    >
+      Ask
+    </button>
+  )
 }
 ```
+
+On the server, attach the file part before the run starts:
+
+```typescript
+import { chat, fileSourceFromHandle } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import type { FileHandle, ModelMessage } from '@tanstack/ai'
+
+export function runTurn(messages: Array<ModelMessage>, handle: FileHandle) {
+  const last = messages[messages.length - 1]
+  if (last?.role === 'user' && Array.isArray(last.content)) {
+    last.content.push({ type: 'image', source: fileSourceFromHandle(handle) })
+  }
+
+  return chat({ adapter: openaiText('gpt-5.5'), messages })
+}
+```
+
+> A `file` source sent through the chat wire throws with a clear error. It is never dropped and never sent as a URL. Support for handles in the wire format is tracked in [ag-ui#2639](https://github.com/ag-ui-protocol/ag-ui/issues/2639).
 
 ## Provider support
 

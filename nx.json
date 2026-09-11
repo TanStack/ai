@@ -65,6 +65,8 @@
       "inputs": [
         "{workspaceRoot}/docs/**/*",
         "{workspaceRoot}/packages/*/src/**/*",
+        "{workspaceRoot}/packages/*/skills/**/*",
+        "{workspaceRoot}/skills/**/*",
         "{workspaceRoot}/kiira.config.ts"
       ]
     },

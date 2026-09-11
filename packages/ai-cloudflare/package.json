@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-cloudflare",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cloudflare adapter for TanStack AI — Workers AI chat, embeddings, images, speech, transcription, and summarization over the AI binding or REST, with AI Gateway routing for any provider.",
   "author": "Tanner Linsley",
   "license": "MIT",

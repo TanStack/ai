@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { defineByok, memoryStorage } from '@tanstack/ai-client/byok'
+import {
+  defineByok,
+  memoryStorage,
+  passkeyStorage,
+} from '@tanstack/ai-client/byok'
 import { fetchServerSentEvents, useByok, useChat } from '@tanstack/ai-react'
 import { ChatUI } from '@/components/ChatUI'
 
@@ -14,6 +18,10 @@ export const Route = createFileRoute('/byok')({
           ? parseInt(search.aimockPort, 10)
           : undefined
     return {
+      passkey:
+        search.passkey === true ||
+        search.passkey === '1' ||
+        search.passkey === 1,
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !Number.isNaN(port) ? port : undefined,
       serverCoverage:
@@ -25,14 +33,17 @@ export const Route = createFileRoute('/byok')({
 })
 
 function ByokPage() {
-  const { testId, aimockPort, serverCoverage } = Route.useSearch()
+  const { testId, aimockPort, serverCoverage, passkey } = Route.useSearch()
   const [byok] = useState(() => {
-    const client = defineByok({ storage: memoryStorage() })
+    const client = defineByok({
+      storage: passkey ? passkeyStorage() : memoryStorage(),
+    })
     if (serverCoverage) client.setServerCoverage(true)
     return client
   })
   const snapshot = useByok(byok)
   const [hydrated, setHydrated] = useState(false)
+  const [error, setError] = useState('')
   const openaiStatus = snapshot.status.openai
   const last4 =
     openaiStatus && 'masked' in openaiStatus ? openaiStatus.masked : ''
@@ -69,6 +80,19 @@ function ByokPage() {
       <div className="border-b border-gray-700 p-3 space-y-2">
         <div data-testid="byok-prompt">{snapshot.prompt?.provider ?? ''}</div>
         <div data-testid="byok-last4">{last4}</div>
+        <div data-testid="byok-error">{error}</div>
+        {passkey && (
+          <button
+            data-testid="byok-unlock-button"
+            onClick={() => {
+              void byok.unlock().catch((cause: unknown) => {
+                setError(cause instanceof Error ? cause.message : String(cause))
+              })
+            }}
+          >
+            Unlock
+          </button>
+        )}
         <form className="flex gap-2" onSubmit={handleSave}>
           <input
             name="key"

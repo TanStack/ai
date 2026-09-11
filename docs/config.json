@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Quick Start",
@@ -41,7 +41,7 @@
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
           "addedAt": "2026-04-17",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-09-09"
         }
       ],
       "tab": "get-started"
@@ -223,7 +223,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-08"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Compaction",
@@ -567,7 +567,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Realtime Voice Chat",
@@ -609,13 +609,25 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-31"
+          "updatedAt": "2026-09-04"
+        },
+        {
+          "label": "Live Generation",
+          "to": "media/live-generation",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
+        },
+        {
+          "label": "World Generation",
+          "to": "media/world-generation",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         }
       ],
       "tab": "guides"
@@ -698,7 +710,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Harnesses",
@@ -885,7 +897,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Debug Logging",
@@ -901,7 +913,7 @@
         {
           "label": "Files API",
           "to": "advanced/files-api",
-          "addedAt": "2026-08-07"
+          "addedAt": "2026-09-11"
         },
         {
           "label": "Per-Model Type Safety",
@@ -917,7 +929,8 @@
         {
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Extend Adapter",
@@ -927,7 +940,8 @@
         {
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
-          "addedAt": "2026-05-25"
+          "addedAt": "2026-05-25",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "Approval Flow Processing",
@@ -1005,7 +1019,13 @@
           "label": "fal.ai",
           "to": "adapters/fal",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-09-04"
+        },
+        {
+          "label": "Reactor",
+          "to": "adapters/reactor",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-09-04"
         },
         {
           "label": "OpenRouter Adapter",
@@ -1089,11 +1109,11 @@
           "updatedAt": "2026-08-21"
         }
       ],
-      "tab": "guides"
+      "tab": "adapters"
     },
     {
       "label": "Community Adapters",
-      "tab": "guides",
+      "tab": "adapters",
       "children": [
         {
           "label": "Community Adapters Guide",

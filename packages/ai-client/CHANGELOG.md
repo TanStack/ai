@@ -1,5 +1,21 @@
 # @tanstack/ai-client
 
+## 0.31.1
+
+### Patch Changes
+
+- [#1332](https://github.com/TanStack/ai/pull/1332) [`8de8242`](https://github.com/TanStack/ai/commit/8de8242beb973cc6b1d1d781c81d922bd296736e) - Fix passkey BYOK silently hanging on unlock. Browsers that gate WebAuthn on transient user activation (Dia, Safari) suppress `navigator.credentials.get()` with no prompt when it runs outside a user gesture — so an unlock buried in an async send pipeline never resolves. `passkeyStorage` now fails fast with a clear, catchable error instead of hanging. Trigger unlock (`byok.prepare()` / `byok.unlock()`) directly from the user's click handler.
+
+- [#1351](https://github.com/TanStack/ai/pull/1351) [`8689cb5`](https://github.com/TanStack/ai/commit/8689cb5ed7fadfb6ca7208e989422bde9e8c6145) - Accept validated 32-byte arrays from passkey providers such as 1Password before deriving the BYOK encryption key. Preserve the key bytes and reject malformed arrays before saving.
+
+- [#1340](https://github.com/TanStack/ai/pull/1340) [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce) - Emit the native structured result before RUN_FINISHED so clients receive the final object before the run closes. Emit only RUN_ERROR if parsing fails.
+
+  Wait for the active subscriber to process all events before resolving send, including streams that take more than 32 timer ticks to process.
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+  - @tanstack/ai-event-client@0.11.3
+
 ## 0.31.0
 
 ### Minor Changes

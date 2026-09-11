@@ -24,6 +24,8 @@ import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
 import type { AnyFilesAdapter } from './files/adapter'
+import type { AnyWorldAdapter } from './generateWorld/adapter'
+import type { AnyLiveVideoAdapter } from './generateLiveVideo/adapter'
 
 // ===========================
 // Chat Activity
@@ -233,6 +235,44 @@ export {
 } from './files/adapter'
 
 // ===========================
+// World Activity (Experimental)
+// ===========================
+
+export {
+  kind as worldKind,
+  generateWorld,
+  type WorldActivityOptions,
+  type WorldActivityResult,
+  type WorldProviderOptions,
+} from './generateWorld/index'
+
+export {
+  BaseWorldAdapter,
+  type WorldAdapter,
+  type WorldAdapterConfig,
+  type AnyWorldAdapter,
+} from './generateWorld/adapter'
+
+// ===========================
+// Live Activity (Experimental)
+// ===========================
+
+export {
+  kind as liveVideoKind,
+  generateLiveVideo,
+  type LiveVideoActivityOptions,
+  type LiveVideoActivityResult,
+  type LiveVideoProviderOptions,
+} from './generateLiveVideo/index'
+
+export {
+  BaseLiveVideoAdapter,
+  type LiveVideoAdapter,
+  type LiveVideoAdapterConfig,
+  type AnyLiveVideoAdapter,
+} from './generateLiveVideo/adapter'
+
+// ===========================
 // Adapter Union Types
 // ===========================
 
@@ -248,6 +288,8 @@ export type AIAdapter =
   | AnyEmbeddingAdapter
   | AnyRerankAdapter
   | AnyFilesAdapter
+  | AnyWorldAdapter
+  | AnyLiveVideoAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -261,3 +303,5 @@ export type AdapterKind =
   | 'embedding'
   | 'rerank'
   | 'files'
+  | 'world'
+  | 'liveVideo'

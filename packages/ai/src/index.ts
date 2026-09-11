@@ -14,6 +14,8 @@ export {
   getFile,
   deleteFile,
   fileSourceFromHandle,
+  generateWorld,
+  generateLiveVideo,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -26,6 +28,8 @@ export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
+export { createWorldOptions } from './activities/generateWorld/index'
+export { createLiveVideoOptions } from './activities/generateLiveVideo/index'
 
 // Re-export types
 export type {
@@ -52,6 +56,10 @@ export type {
   AnyFilesAdapter,
   FileHandle,
   FileUploadInput,
+  AnyWorldAdapter,
+  WorldAdapter,
+  AnyLiveVideoAdapter,
+  LiveVideoAdapter,
 } from './activities/index'
 
 // Rerank adapter base + types

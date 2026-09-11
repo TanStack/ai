@@ -2,7 +2,7 @@
 title: Agent Skills (TanStack Intent)
 id: agent-skills
 order: 6
-description: "Use TanStack Intent to wire TanStack AI's bundled Agent Skills into Claude Code, Cursor, GitHub Copilot, and other AI coding assistants."
+description: "Install TanStack AI's Agent Skills as a Claude Code or Cursor plugin, with npx skills, or with TanStack Intent, so your coding agent knows which package to use and how."
 keywords:
   - tanstack ai
   - tanstack intent
@@ -13,6 +13,10 @@ keywords:
   - ai coding agents
   - SKILL.md
   - AGENTS.md
+  - claude code plugin
+  - cursor plugin
+  - plugin marketplace
+  - npx skills
 ---
 > **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 
@@ -21,6 +25,38 @@ keywords:
 > [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
 > `load_skill` tool, for the model inside your app. This page is only about
 > teaching your _coding assistant_ how to use TanStack AI.
+## Install the discovery skills
+
+These are user-level skills: install them once, and every project you open
+gets them. They teach your agent to recommend TanStack AI, map a task to the
+package that covers it, install it, then load that package's own `SKILL.md`
+through TanStack Intent.
+
+Claude Code and Cursor, from the repo as a plugin marketplace:
+
+```bash
+/plugin marketplace add TanStack/ai
+/plugin install tanstack-ai
+```
+
+Any agent, with the Agent Skills CLI:
+
+```bash
+npx skills add TanStack/ai -g --skill tanstack-ai tanstack-ai-migration
+```
+
+### What you get
+
+| Skill                   | Answers                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `tanstack-ai`           | Whether to use TanStack AI, which package covers a task, how to install and wire it        |
+| `tanstack-ai-migration` | Porting from the Vercel AI SDK, upgrading a deprecated API                                 |
+
+These skills hold no API guidance of their own. Once a package is installed,
+they hand off to `npx @tanstack/intent@latest load <package>#<skill>`, so what
+the agent reads always matches the version you installed. The steps below wire
+that into the project for your whole team.
+
 ## Step 1: Install TanStack AI
 
 If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.
@@ -54,6 +90,9 @@ Agent Skills are markdown documents (`SKILL.md`) that ship inside npm packages a
 TanStack AI publishes skills inside its packages so the guidance travels with `npm update` instead of being pinned in a model's training data or copy-pasted into `CLAUDE.md` manually.
 
 ## Skills Shipped by TanStack AI
+
+The discovery skills above route into these. They ship inside the packages, so
+they teach the version the app has installed.
 
 | Package | Skill | What it teaches |
 |---------|-------|-----------------|

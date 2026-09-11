@@ -1,0 +1,178 @@
+---
+title: Reactor
+id: reactor-adapter
+description: "Generate live worlds and video with Reactor models in TanStack AI via the @tanstack/ai-reactor adapter."
+keywords:
+  - tanstack ai
+  - reactor
+  - world generation
+  - live generation
+  - orbis
+  - helios
+  - generateWorld
+  - generateLiveVideo
+  - adapter
+---
+
+Reactor hosts live world and video models. You describe a scene. Then you open a session and stream video. You can steer the stream with a new prompt.
+
+Use `reactorWorld()` with `generateWorld()` for navigable worlds. Use `reactorVideo()` with `generateLiveVideo()` for live video models. Both mint a session token. Neither supports `chat()`.
+
+## Installation
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-reactor
+vue: @tanstack/ai-reactor
+solid: @tanstack/ai-reactor
+svelte: @tanstack/ai-reactor
+preact: @tanstack/ai-reactor
+angular: @tanstack/ai-reactor
+vanilla: @tanstack/ai-reactor
+octane: @tanstack/ai-reactor
+
+<!-- ::end:tabs -->
+
+Peer dependency: `@tanstack/ai`. The browser also needs `@reactor-team/js-sdk` to connect and play the stream. See [World Generation](../media/world-generation) and [Live Generation](../media/live-generation).
+
+A full working app is in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World or Live tab.
+
+## API key
+
+Create a key in the [Reactor dashboard](https://www.reactor.inc/dashboard). Keys start with `rk_`.
+
+The example app uses [Bring Your Own Key](../advanced/byok). The browser pastes the key. The relay reads `x-byok-reactor`, then `REACTOR_API_KEY`.
+
+```ts
+import { generateWorld } from '@tanstack/ai'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { reactorWorld } from '@tanstack/ai-reactor'
+import { reactorByok } from '@tanstack/ai-reactor/byok'
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, reactorByok)
+  if (!apiKey) return byokMissing(reactorByok)
+
+  const world = await generateWorld({
+    adapter: reactorWorld('visko-orbis-stable', { apiKey }),
+    prompt: 'A neon cyberpunk city at night, slow aerial drift',
+  })
+
+  return Response.json({
+    token: world.token,
+    model: world.model,
+    prompt: world.prompt,
+    expiresAt: world.expiresAt,
+  })
+}
+```
+
+The adapter mints a **session-scoped** token for that model only. Hand `world.token`, `world.model`, and `world.prompt` to the browser. Do not put the API key in the JSON body.
+
+## Models
+
+Pass a string literal so TypeScript can narrow options.
+
+```ts
+import { reactorWorld } from '@tanstack/ai-reactor'
+
+const adapter = reactorWorld('visko-orbis-stable')
+```
+
+| Id | Connect slug |
+| --- | --- |
+| `visko-orbis-stable` | `reactor/visko-orbis-stable` |
+| `visko-orbis-dynamic` | `reactor/visko-orbis-dynamic` |
+| `happy-oyster-adventure` | `reactor/happy-oyster-adventure` |
+| `happy-oyster-director` | `reactor/happy-oyster-director` |
+| `lingbot-world-2` | `reactor/lingbot-world-2` |
+| `lingbot` | `reactor/lingbot` |
+| `helios` | `reactor/helios` |
+
+`world.model` is the connect slug. Pass it to `new Reactor({ modelName })`.
+
+## Live video
+
+Reactor video is a live stream, not a finished file. `generateLiveVideo()` returns a token. The browser connects, sets the prompt, and plays the track.
+
+```ts
+import { generateLiveVideo } from '@tanstack/ai'
+import { reactorVideo } from '@tanstack/ai-reactor'
+
+const apiKey = process.env.REACTOR_API_KEY ?? ''
+const live = await generateLiveVideo({
+  adapter: reactorVideo('helios', { apiKey }),
+  prompt: 'A neon cyberpunk city at night, slow aerial drift',
+})
+```
+
+Hand `live.token`, `live.model`, and `live.prompt` to the browser. Connect as shown in [Live Generation](../media/live-generation).
+
+| Id | Connect slug |
+| --- | --- |
+| `helios` | `reactor/helios` |
+| `fast-h3` | `reactor/fast-h3` |
+| `longlive-v2` | `reactor/longlive-v2` |
+| `ltx2` | `reactor/ltx2` |
+
+`helios` also works with `reactorWorld()`. Pick `generateLiveVideo()` when you want a video session. Pick `generateWorld()` when you want a navigable world.
+
+Pass a text prompt to `generateWorld()` / `generateLiveVideo()`. Those calls mint a token. They do not send resolution or a seed image.
+
+After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
+
+```ts
+import { Reactor } from '@reactor-team/js-sdk'
+
+const reactor = new Reactor({ modelName: 'reactor/lingbot' })
+const picker = document.querySelector('input[type="file"]')
+if (!(picker instanceof HTMLInputElement)) {
+  throw new Error('Pick a seed image')
+}
+const file = picker.files?.[0]
+if (file === undefined) {
+  throw new Error('Pick a seed image')
+}
+const image = await reactor.uploadFile(file)
+await reactor.sendCommand('set_image', { image })
+await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('start', {})
+```
+
+Helios can take the same `File` with `set_conditioning` so prompt and image land together.
+
+## Browser session options
+
+Orbis reads these on the next `start`. Keep them in client state. Send them with `sendCommand` after `connect`. They are not token-mint fields.
+
+```ts
+import { Reactor } from '@reactor-team/js-sdk'
+
+const reactor = new Reactor({ modelName: 'reactor/visko-orbis-stable' })
+await reactor.sendCommand('set_resolution', { resolution: '2k' })
+await reactor.sendCommand('set_seed', { seed: 42 })
+await reactor.sendCommand('set_audio_enabled', { enabled: true })
+```
+
+| Option | Command | Meaning |
+| --- | --- | --- |
+| `resolution` | `set_resolution` | `1080p`, `2k`, or `4k` delivery tier |
+| `seed` | `set_seed` | RNG seed for the next run |
+| `audioEnabled` | `set_audio_enabled` | When `false`, skip audio compute |
+| `audioPrompt` | `set_audio_prompt` | Sound description, or `""` for picture-driven audio |
+
+## Custom endpoint
+
+```ts
+import { reactorWorld } from '@tanstack/ai-reactor'
+
+const apiKey = process.env.REACTOR_API_KEY ?? ''
+const adapter = reactorWorld('visko-orbis-stable', {
+  apiKey,
+  baseUrl: 'https://api.reactor.inc',
+})
+```
+
+## What you have now
+
+A server call that mints a scoped Reactor token for one world or video model. Next: connect in the browser as shown in [World Generation](../media/world-generation) or [Live Generation](../media/live-generation).

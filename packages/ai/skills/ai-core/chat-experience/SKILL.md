@@ -28,7 +28,7 @@ This skill builds on ai-core. Read it first for critical rules.
 
 ### Server: API Route (TanStack Start)
 
-```typescript
+```typescript ignore
 // src/routes/api.chat.ts
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -58,7 +58,7 @@ export const Route = createFileRoute('/api/chat')({
 
 ### Client: React Component
 
-```typescript
+```tsx
 // src/routes/index.tsx
 import { useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -136,18 +136,23 @@ Server returns a streaming SSE Response; client parses it automatically.
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
-const stream = chat({
-  adapter: anthropicText('claude-sonnet-4-5'),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    max_tokens: 2000, // Anthropic-native key
-  },
-  systemPrompts: ['You are a helpful assistant.'],
-  abortController,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
 
-return toServerSentEventsResponse(stream, { abortController })
+  const stream = chat({
+    adapter: anthropicText('claude-opus-5'),
+    messages,
+    modelOptions: {
+      temperature: 0.7,
+      max_tokens: 2000, // Anthropic-native key
+    },
+    systemPrompts: ['You are a helpful assistant.'],
+    abortController,
+  })
+
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
 
 To make the SSE response resumable (reconnect after a drop/refresh without
@@ -167,7 +172,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage, isLoading, error, stop, status } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+  body: { provider: 'anthropic', model: 'claude-opus-5' },
   onFinish: (message) => {
     console.log('Response complete:', message.id)
   },
@@ -186,7 +191,7 @@ The `status` field tracks the chat lifecycle: `'ready'` | `'submitted'` | `'stre
 
 Models with extended thinking (Claude, Gemini) emit `ThinkingPart` in the message parts array.
 
-```typescript
+```tsx
 import type { UIMessage } from '@tanstack/ai-react'
 
 function MessageRenderer({ message }: { message: UIMessage }) {
@@ -199,7 +204,9 @@ function MessageRenderer({ message }: { message: UIMessage }) {
             .some((p) => p.type === 'text')
           return (
             <details key={i} open={!isComplete}>
-              <summary>{isComplete ? 'Thought process' : 'Thinking...'}</summary>
+              <summary>
+                {isComplete ? 'Thought process' : 'Thinking...'}
+              </summary>
               <pre>{part.content}</pre>
             </details>
           )
@@ -227,18 +234,25 @@ function MessageRenderer({ message }: { message: UIMessage }) {
 Server-side, enable thinking via `modelOptions` on the adapter:
 
 ```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { geminiText } from '@tanstack/ai-gemini'
 
-const stream = chat({
-  adapter: geminiText('gemini-2.5-flash'),
-  messages,
-  modelOptions: {
-    thinkingConfig: {
-      includeThoughts: true,
-      thinkingBudget: 100,
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: geminiText('gemini-3.8-flash'),
+    messages,
+    modelOptions: {
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingLevel: 'HIGH', // Gemini 3.x; Gemini 2.x uses thinkingBudget
+      },
     },
-  },
-})
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### 3. Sending Multimodal Content (Images)
@@ -280,13 +294,18 @@ function sendImageUrl(text: string, imageUrl: string) {
 
 Render image parts in received messages:
 
-```typescript
-if (part.type === 'image') {
+```tsx
+import type { UIMessage } from '@tanstack/ai-react'
+
+function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
+  if (part.type !== 'image') return null
+  // A provider file handle is an opaque id, so the browser cannot load it.
+  if (part.source.type === 'file') return null
   const src =
     part.source.type === 'url'
       ? part.source.value
       : `data:${part.source.mimeType};base64,${part.source.value}`
-  return <img key={i} src={src} alt="Attached image" />
+  return <img src={src} alt="Attached image" />
 }
 ```
 
@@ -297,8 +316,10 @@ of re-sending base64 each request. The source carries a per-provider reference
 record, so handles from several providers merge into one source that routes to
 any of them; providers without an entry (or without Files API support at all)
 reject it with a clear error before any request is sent.
-`fileSourceFromHandle` is exported from the browser-safe
-`@tanstack/ai/client`; the upload itself is server-side. See
+Build the source on the server. The chat wire format carries `data` and `url`
+sources only, so a `{ type: 'file' }` source cannot cross it (it throws rather
+than being dropped). Send the handle in your own request body and call
+`fileSourceFromHandle` server-side. See
 `ai-core/adapter-configuration/SKILL.md` §7 and `docs/advanced/files-api.md`.
 
 ### 4. Sending Audio Messages (Browser Recording)
@@ -339,13 +360,18 @@ Use `toHttpResponse` + `fetchHttpStream` for newline-delimited JSON instead of S
 import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  abortController,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
 
-return toHttpResponse(stream, { abortController })
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+
+  return toHttpResponse(stream, { abortController })
+}
 ```
 
 **Client:**
@@ -407,36 +433,29 @@ clients across calls.
 **Server-side example:**
 
 ```typescript
-import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const { messages } = await request.json()
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-        const mcpClient = await createMCPClient({
-          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-        })
+  const mcpClient = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
 
-        const stream = chat({
-          adapter: openaiText('gpt-5.5'),
-          messages,
-          mcp: {
-            clients: [mcpClient],
-            connection: 'keep-alive', // chat() won't close it — reuse across requests
-          },
-        })
-
-        return toServerSentEventsResponse(stream)
-        // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
-      },
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    mcp: {
+      clients: [mcpClient],
+      connection: 'keep-alive', // chat() won't close it — reuse across requests
     },
-  },
-})
+  })
+
+  return toServerSentEventsResponse(stream)
+  // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
+}
 ```
 
 ### 7. Queueing Messages Sent While Streaming
@@ -481,19 +500,37 @@ generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
 from `messages` — render pending sends distinctly and cancel with
 `cancelQueued(id)`:
 
-```typescript
-{queue.map((q) => (
-  <div key={q.id}>
-    {typeof q.content === 'string' ? q.content : '[attachment]'}
-    <button onClick={() => cancelQueued(q.id)}>Cancel</button>
-  </div>
-))}
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function QueuedMessages() {
+  const { queue, cancelQueued } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <div>
+      {queue.map((q) => (
+        <div key={q.id}>
+          {typeof q.content === 'string' ? q.content : '[attachment]'}
+          <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+        </div>
+      ))}
+    </div>
+  )
+}
 ```
 
 Override the configured policy for a single send with the second argument
 to `sendMessage`:
 
 ```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
 sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
 ```
 
@@ -572,63 +609,100 @@ option, so it works identically in `@tanstack/ai-react`, `-solid`, `-vue`,
 // WRONG
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-const result = streamText({ model: openai('gpt-5.5'), messages })
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const result = streamText({ model: openai('gpt-5.6'), messages })
+```
+
+```typescript
 // CORRECT
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-const stream = chat({ adapter: openaiText('gpt-5.5'), messages })
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
 
 ```typescript
 // WRONG
+import { streamText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-const openai = createOpenAI({ apiKey })
-streamText({ model: openai('gpt-5.5'), messages })
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+streamText({ model: openai('gpt-5.6'), messages })
+```
+
+```typescript
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
-chat({ adapter: openaiText('gpt-5.5'), messages })
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — `openai()` is no longer exported from @tanstack/ai-openai
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.5', messages })
-
-// CORRECT
-import { openaiText } from '@tanstack/ai-openai'
-chat({ adapter: openaiText('gpt-5.5'), messages })
+chat({ adapter: openai(), model: 'gpt-5.6', messages })
 ```
 
-The monolithic `openai()` adapter is deprecated. Use tree-shakeable adapters:
+```typescript
+// CORRECT
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
+```
+
+The monolithic `openai()` adapter no longer exists. Use tree-shakeable adapters:
 `openaiText()`, `openaiImage()`, `openaiSpeech()`, etc.
 
 ### d. HIGH: Using toResponseStream instead of toServerSentEventsResponse
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — toResponseStream does not exist
 import { toResponseStream } from '@tanstack/ai'
 return toResponseStream(stream, { abortController })
+```
 
+```typescript
 // CORRECT
-import { toServerSentEventsResponse } from '@tanstack/ai'
-return toServerSentEventsResponse(stream, { abortController })
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
 
 ### e. HIGH: Passing model as separate parameter to chat()
 
-```typescript
+```typescript ignore
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.5', messages })
+chat({ adapter: openaiText(), model: 'gpt-5.6', messages })
+```
 
+```typescript
 // CORRECT
-chat({ adapter: openaiText('gpt-5.5'), messages })
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.
@@ -639,22 +713,30 @@ Sampling options (`temperature`, token limits, `top_p`/`topP`) are **not**
 top-level fields on `chat()`. They live inside `modelOptions` using the
 provider's native key.
 
-```typescript
+```typescript ignore
 // WRONG — temperature/maxTokens are not root options
 chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
 
 // WRONG — there is no `options` field either
 chat({ adapter, messages, options: { temperature: 0.7, maxTokens: 1000 } })
+```
 
+```typescript
 // CORRECT — inside modelOptions, provider-native keys (OpenAI shown)
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
-  adapter,
+  adapter: openaiText('gpt-5.6'),
   messages,
   modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
 })
 ```
 
-`temperature` is universal across providers; token limits use provider-native
+`temperature` works on most models (Claude 5 models reject sampling
+parameters; see ai-core/adapter-configuration/SKILL.md). Token limits use provider-native
 keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
 `maxOutputTokens` for Gemini, `max_completion_tokens` for Groq,
 `maxCompletionTokens` for OpenRouter, and `num_predict` nested under
@@ -662,19 +744,26 @@ keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
 
 ### g. HIGH: Using providerOptions instead of modelOptions
 
-```typescript
+```typescript ignore
 // WRONG
 chat({
   adapter,
   messages,
-  providerOptions: { responseFormat: { type: 'json_object' } },
+  providerOptions: { text: { format: { type: 'json_object' } } },
 })
+```
 
-// CORRECT
+```typescript
+// CORRECT — provider-native option under modelOptions (OpenAI Responses shown)
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
-  adapter,
+  adapter: openaiText('gpt-5.6'),
   messages,
-  modelOptions: { responseFormat: { type: 'json_object' } },
+  modelOptions: { text: { format: { type: 'json_object' } } },
 })
 ```
 
@@ -682,23 +771,44 @@ chat({
 
 ```typescript
 // WRONG
-const readable = new ReadableStream({
-  async start(controller) {
-    const encoder = new TextEncoder()
-    for await (const chunk of stream) {
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
-    }
-    controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-    controller.close()
-  },
-})
-return new Response(readable, {
-  headers: { 'Content-Type': 'text/event-stream' },
-})
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder()
+      for await (const chunk of stream) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+      }
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+      controller.close()
+    },
+  })
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
+}
+```
+
+```typescript
 // CORRECT
-import { toServerSentEventsResponse } from '@tanstack/ai'
-return toServerSentEventsResponse(stream, { abortController })
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
 
 `toServerSentEventsResponse` handles SSE formatting, abort signals,
@@ -706,8 +816,8 @@ error events (RUN_ERROR), and correct headers automatically.
 
 ### i. HIGH: Implementing custom onEnd/onFinish callbacks instead of middleware
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — chat() has no onEnd/onFinish option
 chat({
   adapter,
   messages,
@@ -715,9 +825,14 @@ chat({
     trackAnalytics(result)
   },
 })
+```
 
+```typescript
 // CORRECT
+import { chat } from '@tanstack/ai'
 import type { ChatMiddleware } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { trackAnalytics, trackTokens } from './analytics'
 
 const analytics: ChatMiddleware = {
   name: 'analytics',
@@ -729,7 +844,8 @@ const analytics: ChatMiddleware = {
   },
 }
 
-chat({ adapter, messages, middleware: [analytics] })
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages, middleware: [analytics] })
 ```
 
 `chat()` has no `onEnd`/`onFinish` option. Use `middleware` for lifecycle events.
@@ -741,7 +857,9 @@ See also: ai-core/middleware/SKILL.md.
 // WRONG
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
+```
 
+```typescript
 // CORRECT
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 ```
@@ -757,9 +875,15 @@ exceptions. The `useChat` hook surfaces these via the `error` state and
 check for `RUN_ERROR` chunks:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+
 for await (const chunk of stream) {
   if (chunk.type === 'RUN_ERROR') {
-    console.error('Stream error:', chunk.error.message)
+    console.error('Stream error:', chunk.message)
     break
   }
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
