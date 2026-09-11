@@ -21,7 +21,7 @@ export type OpenAIRealtimeVoice =
  * The `gpt-4o-(mini-)realtime-preview` models were shut down by OpenAI on
  * 2026-05-07 and are no longer listed here.
  */
-export type OpenAIRealtimeModel = 'gpt-realtime' | 'gpt-realtime-mini'
+export type OpenAIRealtimeModel = 'gpt-realtime' | 'gpt-realtime-mini' | 'gpt-realtime-1.5' | 'gpt-realtime-2' | 'gpt-realtime-2.1' | 'gpt-realtime-2.1-mini'
 
 /**
  * OpenAI semantic VAD configuration
@@ -51,7 +51,7 @@ export type OpenAITurnDetection =
  * Options for the OpenAI realtime token adapter
  */
 export interface OpenAIRealtimeTokenOptions {
-  /** Model to use (default: 'gpt-realtime') */
+  /** Model to use (default: 'gpt-realtime-2.1') */
   model?: OpenAIRealtimeModel
 }
 

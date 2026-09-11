@@ -39,6 +39,6 @@ import { openaiRealtimeToken } from '@tanstack/ai-openai'
 // On the server (e.g. inside a server route or framework server
 // function), mint an ephemeral token for the client:
 const token = await realtimeToken({
-  adapter: openaiRealtimeToken({ model: 'gpt-realtime' }),
+  adapter: openaiRealtimeToken({ model: 'gpt-realtime-2.1' }),
 })
 ```
