@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, or Blaxel) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Upstash Box, Blaxel, or boxd) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -32,6 +32,7 @@ completed workspace data in your application persistence for reconstruction.
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 | Upstash Box | `@tanstack/ai-sandbox-upstash-box` | cloud sandbox | Managed [Upstash Box](https://github.com/upstash/box) sandboxes; interactive processes over a WebSocket session (real pid, stdin, signals), native snapshots, preview URLs, resume-by-id. Needs `UPSTASH_BOX_API_KEY`. |
 | Blaxel | `@tanstack/ai-sandbox-blaxel` | cloud sandbox | Managed [Blaxel](https://blaxel.ai) sandboxes; durable filesystem, per-port preview URLs, native file watch, resume-by-id. Snapshot/fork remain disabled while the source-scoped private-preview semantics are unproven. Needs `BL_API_KEY` + `BL_WORKSPACE`. |
+| boxd | `@tanstack/ai-sandbox-boxd` | microVM | Managed [boxd](https://boxd.sh) KVM microVMs; live fork (memory and processes), snapshots that restore into a new machine, persistent disk, resume-by-id across stop, suspend and hibernate, one public HTTPS URL per machine. Needs `BOXD_API_KEY` + `BOXD_ORG`. |
 
 Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
 come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
@@ -44,6 +45,7 @@ import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
 import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
+import { boxdSandbox } from '@tanstack/ai-sandbox-boxd'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
@@ -52,9 +54,10 @@ const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // manag
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
 const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY }) // managed Upstash Box
 const blaxel = blaxelSandbox() // managed Blaxel sandbox; reads BL_API_KEY + BL_WORKSPACE
+const boxd = boxdSandbox({ org: 'acme' }) // managed boxd microVM; reads BOXD_API_KEY
 ```
 
-> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, and Blaxel)
+> Cloud providers (including Daytona, Vercel, Sprites, Upstash Box, Blaxel, and boxd)
 > run remotely. When you drive them from your laptop, [tools](./tools) bridged
 > from `chat()` can't dial your machine's
 > `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
@@ -409,6 +412,61 @@ const blaxel = blaxelSandbox({
 - **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
   local dev (see [tools](./tools)).
 
+## boxd
+
+```ts
+import { boxdSandbox } from '@tanstack/ai-sandbox-boxd'
+
+const boxd = boxdSandbox({
+  apiKey: process.env.BOXD_API_KEY,
+  org: 'acme',
+  vcpu: 2,
+})
+```
+
+- **Isolation:** a managed [boxd](https://boxd.sh) KVM microVM, a remote VM
+  you do not run yourself. Every machine is created `isolated`: no in-VM
+  `boxd` CLI, no metadata endpoint, no org integrations, and no peers on the
+  org network. The image is Ubuntu 24.04 with Node 24, Python 3, git, Docker,
+  and the Claude Code and Codex CLIs preinstalled.
+- **Auth / env:** needs `BOXD_API_KEY` (or `apiKey`) and the org the key
+  belongs to (`org` or `BOXD_ORG`). Override the endpoint with `baseUrl` /
+  `BOXD_BASE_URL`. Harness credentials are injected as workspace secrets and
+  travel as per-command env. The API key never enters the machine.
+- **Size:** pick `vcpu` (`1`, `2`, or `4`). boxd resolves memory from it:
+  4, 8, or 16 GiB. The default is the org's default size. Every machine has a
+  100 GB disk.
+- **Working directory:** the portable root `/workspace` maps to
+  `/home/boxd/workspace`. Override with `workdir`.
+- **Processes:** `spawn()` opens a streaming exec with separate stdout and
+  stderr and a writable stdin. `kill()` signals the process group inside the
+  machine and verifies that it is gone, so `killableProcesses` is measured,
+  not assumed.
+- **Snapshot / resume:** `snapshot()` captures memory and disk into a boxd
+  snapshot named `<machine>-<label>` and waits until it is restorable (about
+  25 s for an 8 GiB machine). `restoreSnapshot()` boots a new machine from it
+  in about 1 s, with the captured processes still running. Resume-by-id
+  reconnects to the same machine across stop (2 to 3 s to start), suspend
+  (about 140 ms) and hibernate.
+- **Fork:** `fork()` is a live boxd fork: disk, memory and running processes,
+  ready in under a second.
+- **Lifetime:** a machine is persistent until `destroy()`. It suspends after
+  `autoSuspendTimeout` idle seconds and hibernates after 4 hours idle by
+  default, at no compute cost, and wakes on the next command. Idle means no
+  inbound connection. Set `autoDestroyTimeout` as a safety net for abandoned
+  sandboxes. `stop` is a power-off: a file written seconds before it can still
+  sit in the page cache and be lost, so run `sync` before you stop a machine
+  yourself. Suspend, hibernate, snapshot and fork keep memory, so they do not
+  lose it.
+- **Ports:** every machine has one public HTTPS URL, `https://<name>.boxd.sh`.
+  `ports.connect(port)` pins that URL to `port` and returns it. The URL is
+  public: anyone who has it can reach the port.
+- **Golden image:** pass `fromSnapshot` to boot every new sandbox from a
+  snapshot you baked after `setup`, instead of the default image. The size is
+  then fixed by the snapshot.
+- **Bridge:** like the other cloud providers, it is a remote VM, so bridged
+  tools need the tunnel in local dev (see [tools](./tools)).
+
 ## Capabilities
 
 Providers declare what they support via `capabilities()`. The flags are:
@@ -420,7 +478,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, and Upstash Box. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, Upstash Box, and boxd. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -472,6 +530,7 @@ merely slower while a wrong `follow` is a leak.
 | Upstash Box | `true` | **Measured.** `kill()` sends an allowlisted signal (`TERM`/`KILL`/`INT`/`HUP`) that the box agent delivers to the process TREE server-side, so a forked child is signalled too. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `UPSTASH_BOX_API_KEY`. |
 | Blaxel | `false` | The SDK issues a server-side process kill, but whether it terminates the shell's child process group is unmeasured. The shared live conformance suite is credential-gated on `BL_API_KEY` and `BL_WORKSPACE`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
+| boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the pid it records leads its own process group. `kill()` runs a shell inside the machine that signals that group, escalates to `KILL`, and checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `BOXD_API_KEY`. |
 
 Each of the remote providers registers the shared journal conformance suite, so
 the claim is falsifiable rather than asserted: with credentials present the suite
