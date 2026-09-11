@@ -2680,6 +2680,19 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)
 
+  packages/ai-sandbox-boxd:
+    dependencies:
+      '@boxd-sh/sdk':
+        specifier: ^0.2.9
+        version: 0.2.9
+    devDependencies:
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
+
   packages/ai-sandbox-cloudflare:
     dependencies:
       '@cloudflare/sandbox':
@@ -4351,8 +4364,15 @@ packages:
     resolution: {integrity: sha512-vkFMd3jVbC4zz8BQ5LuVw4BcK1KVVIgQTeHTG/1cGu9CAeaHined1WP68XRoxksXC+zGmCnMv619IuMGjQhkDw==}
     engines: {node: '>=18'}
 
+  '@boxd-sh/sdk@0.2.9':
+    resolution: {integrity: sha512-ENojrs+xXKFBJIK1FtPKMIOGcqt8oFKOCqCsET/sNQP4xvyfRGumFKCYXjTaNYLkCVuuLbfSh2tmVDTKXt8JSw==}
+    engines: {node: '>=20'}
+
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
+
+  '@bufbuild/protobuf@2.14.1':
+    resolution: {integrity: sha512-agRJn3+EJDUe8AvxTx/LnHA/GErvLE62pSaSk7+MwFOtOv8eWBu/qCq2qoZjBjVZ3C2aiFJCveuSs17KMkYGOw==}
 
   '@changesets/apply-release-plan@7.1.0':
     resolution: {integrity: sha512-yq8ML3YS7koKQ/9bk1PqO0HMzApIFNwjlwCnwFEXMzNe8NpzeeYYKCmnhWJGkN8g7E51MnWaSbqRcTcdIxUgnQ==}
@@ -12530,6 +12550,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -19434,7 +19455,14 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@boxd-sh/sdk@0.2.9':
+    dependencies:
+      '@bufbuild/protobuf': 2.14.1
+      '@grpc/grpc-js': 1.14.4
+
   '@bufbuild/protobuf@1.10.1': {}
+
+  '@bufbuild/protobuf@2.14.1': {}
 
   '@changesets/apply-release-plan@7.1.0':
     dependencies:
@@ -20165,7 +20193,7 @@ snapshots:
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.1.1
+      js-yaml: 4.2.0
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
