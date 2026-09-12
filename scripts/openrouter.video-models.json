@@ -241,6 +241,27 @@
     "allowed_passthrough_parameters": ["safety_tolerance", "version"]
   },
   {
+    "id": "black-forest-labs/flux-video-edit",
+    "canonical_slug": "black-forest-labs/flux-video-edit-20260910",
+    "hugging_face_id": null,
+    "name": "Black Forest Labs: FLUX Video Edit",
+    "created": 1789073532,
+    "description": "FLUX Video Edit [fast] takes a source video and an edit prompt and returns a precisely edited video. Add, remove, or replace objects and characters, rebuild the setting, edit on-screen...",
+    "supported_resolutions": null,
+    "supported_aspect_ratios": null,
+    "supported_sizes": null,
+    "supported_durations": null,
+    "supported_frame_images": null,
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": false,
+    "pricing_skus": {
+      "cents_per_second_output": "3"
+    },
+    "allowed_passthrough_parameters": ["safety_tolerance"]
+  },
+  {
     "id": "black-forest-labs/flux-video-upscale",
     "canonical_slug": "black-forest-labs/flux-video-upscale-20260819",
     "hugging_face_id": null,

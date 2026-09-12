@@ -552,8 +552,8 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "some",
-    "no_training": "some",
+    "zdr": "all",
+    "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -596,8 +596,8 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "some",
-    "no_training": "some",
+    "zdr": "all",
+    "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -1711,47 +1711,6 @@
       "output": "0.00000047",
       "input_cache_read": "0.000000016",
       "input_cache_write": "0.0000002"
-    }
-  },
-  {
-    "id": "alibaba/qwen3.8-flash-next",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1787702400,
-    "owned_by": "alibaba",
-    "name": "Qwen 3.8 Flash Next",
-    "description": "Qwen3.8-Flash-Next is Qwen’s experimental open-weight multimodal language model, pairing 125B parameters with just 6B activated for efficient reasoning and generation. With native 262K-token context extensible to 1M, vision support, and an architecture optimized for lower long-context latency, it is built for demanding agentic coding, tool use, visual reasoning, and multimodal automation.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "xhigh"]
-      }
-    ],
-    "pricing": {
-      "input": "0.00000012",
-      "output": "0.0000004",
-      "input_cache_read": "0.00000001"
     }
   },
   {
@@ -5468,7 +5427,7 @@
     "max_tokens": 1048576,
     "type": "language",
     "zdr": "some",
-    "no_training": "some",
+    "no_training": "all",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5494,6 +5453,7 @@
         "values": ["high", "xhigh"]
       }
     ],
+    "deprecated_at": 1790294400000,
     "pricing": {
       "input": "0.00000022",
       "output": "0.00000066",
@@ -5640,12 +5600,13 @@
     "owned_by": "deepseek",
     "name": "DeepSeek V4.1 Flash",
     "description": "DeepSeek V4.1 Flash is an AI model from DeepSeek designed for fast, efficient multimodal interactions. It combines native multimodal capabilities with a new architecture focused on stronger performance, faster responses, and lower computational cost.",
-    "context_window": 1000000,
-    "max_tokens": 384000,
+    "context_window": 1048576,
+    "max_tokens": 32768,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -5662,23 +5623,16 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000015",
-      "output": "0.0000006",
-      "input_cache_read": "0.000000003",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 60,
-            "end_minute_utc": 240,
-            "days_of_week": [1, 2, 3, 4, 5]
-          },
-          {
-            "start_minute_utc": 360,
-            "end_minute_utc": 600,
-            "days_of_week": [1, 2, 3, 4, 5]
-          }
-        ]
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.00000003",
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.0000003",
+          "output": "0.0000012",
+          "input_cache_read": "0.00000003"
+        }
       }
     }
   },
@@ -7335,7 +7289,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["file-input", "reasoning", "tool-use", "vision"],
+    "tags": ["tool-use", "vision", "file-input", "reasoning"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -8020,6 +7974,74 @@
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-vl",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash VL",
+    "description": "Ling 3.0 Flash VL builds on Ling 3.0 Flash with stronger language capabilities, native visual perception, and visual agent capabilities. It supports text, image, and video inputs with text output, reasoning, and function calling.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.0-flash-vl-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788825600,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.0 Flash VL (Free)",
+    "description": "Ling 3.0 Flash VL builds on Ling 3.0 Flash with stronger language capabilities, native visual perception, and visual agent capabilities. It supports text, image, and video inputs with text output, reasoning, and function calling.",
+    "context_window": 256000,
+    "max_tokens": 32000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "video"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -8913,6 +8935,7 @@
       }
     ],
     "knowledge": "2026-01-04",
+    "deprecated_at": 1790294400000,
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
@@ -16299,6 +16322,49 @@
     }
   },
   {
+    "id": "sakana/fugu-max",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788998400,
+    "owned_by": "sakana",
+    "name": "Fugu Max",
+    "description": "Fugu Max orchestrates our largest pool of models to push the cost–performance Pareto frontier. It dynamically finds efficient combinations of expert agents, aiming to improve model performance and cost efficiency together.",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "implicit-caching",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.000006",
+      "input_cache_read": "0.00000025"
+    }
+  },
+  {
     "id": "sakana/fugu-ultra",
     "object": "model",
     "created": 1755815280,
@@ -16325,6 +16391,82 @@
       "tool_choice",
       "reasoning",
       "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000005",
+      "input_tiers": [
+        {
+          "cost": "0.000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00001",
+          "min": 272001
+        }
+      ],
+      "output": "0.00003",
+      "output_tiers": [
+        {
+          "cost": "0.00003",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000045",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000005",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000001",
+          "min": 272001
+        }
+      ]
+    }
+  },
+  {
+    "id": "sakana/fugu-ultra-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788998400,
+    "owned_by": "sakana",
+    "name": "Fugu Ultra v2",
+    "description": "Fugu Ultra coordinates a deeper pool of expert agents to maximize answer quality on hard, high-stakes problems. Fugu Ultra focuses on maximizing performance, for a higher cost.",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "implicit-caching",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "pricing": {
@@ -18819,6 +18961,7 @@
         "values": ["high", "xhigh"]
       }
     ],
+    "deprecated_at": 1790294400000,
     "pricing": {
       "input": "0.0000021",
       "output": "0.0000066",
