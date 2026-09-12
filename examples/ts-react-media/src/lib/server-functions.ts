@@ -1,12 +1,17 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import {
+  falFiles,
   falImage,
   falLiveVideo,
   falVideo,
   isFalLiveVideoModel,
 } from '@tanstack/ai-fal'
-import { createGeminiImage, createGeminiVideo } from '@tanstack/ai-gemini'
+import {
+  createGeminiFiles,
+  createGeminiImage,
+  createGeminiVideo,
+} from '@tanstack/ai-gemini'
 import { createGrokImage, createGrokVideo } from '@tanstack/ai-grok'
 import { createOpenRouterVideo } from '@tanstack/ai-openrouter'
 import {
@@ -19,11 +24,13 @@ import {
   supportsReferenceMedia,
 } from '@tanstack/ai-byteplus'
 import {
+  fileSourceFromHandle,
   generateImage,
   generateLiveVideo,
   generateVideo,
   generateWorld,
   toServerSentEventsResponse,
+  uploadFile,
 } from '@tanstack/ai'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import {
@@ -52,7 +59,7 @@ import {
   WORLD_RESOLUTIONS,
 } from './models'
 
-import type { StreamChunk } from '@tanstack/ai'
+import type { FilesAdapter, StreamChunk } from '@tanstack/ai'
 import type {
   BytePlusVideoModel,
   BytePlusVideoModelOrString,
@@ -146,6 +153,32 @@ function asImageToVideoPrompt(
 }
 
 /**
+ * Upload each inline (base64 `data`) image input to the provider's Files API and
+ * swap in a `{ type: 'file' }` handle. A reference image / start frame is then
+ * uploaded once via the tree-shakeable files adapter (`geminiF()` /
+ * `falF()`, the BYOK-keyed wrappers below) instead of being re-sent inline
+ * as base64 on the generation
+ * request — the memory-safe path for large inputs. URL and already-uploaded
+ * sources pass through untouched.
+ */
+async function uploadInlineImageInputs(
+  prompt: string | Array<TextPart | ImagePart<MediaInputMetadata>>,
+  files: FilesAdapter,
+): Promise<string | Array<TextPart | ImagePart<MediaInputMetadata>>> {
+  if (typeof prompt === 'string') return prompt
+  return Promise.all(
+    prompt.map(async (part) => {
+      if (part.type !== 'image' || part.source.type !== 'data') return part
+      const handle = await uploadFile({
+        adapter: files,
+        input: { data: part.source.value, mimeType: part.source.mimeType },
+      })
+      return { ...part, source: fileSourceFromHandle(handle) }
+    }),
+  )
+}
+
+/**
  * Poll cadence for the streamed video lifecycle. The server holds the request
  * open and polls the provider itself, so this is the rate at which
  * `video:status` events reach the browser's `useGenerateVideo`.
@@ -172,6 +205,10 @@ function falL(model: Parameters<typeof falLiveVideo>[0]) {
   return falLiveVideo(model, { apiKey: requireByok(falByok) })
 }
 
+function falF() {
+  return falFiles({ apiKey: requireByok(falByok) })
+}
+
 function grokI(model: Parameters<typeof createGrokImage>[0]) {
   return createGrokImage(model, requireByok(grokByok))
 }
@@ -186,6 +223,10 @@ function geminiI(model: Parameters<typeof createGeminiImage>[0]) {
 
 function geminiV(model: Parameters<typeof createGeminiVideo>[0]) {
   return createGeminiVideo(model, requireByok(geminiByok))
+}
+
+function geminiF() {
+  return createGeminiFiles(requireByok(geminiByok))
 }
 
 function byteplusI(model: Parameters<typeof createBytePlusImage>[0]) {
@@ -302,9 +343,14 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         })
       }
       case 'gemini-3.1-flash-image': {
+        // Reference images are uploaded once via the Gemini Files API and
+        // referenced by handle (fileData.fileUri) rather than inlined as base64.
         return generateImage({
           adapter: geminiI('gemini-3.1-flash-image'),
-          prompt: asImagePrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImagePrompt(data.prompt),
+            geminiF(),
+          ),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -312,7 +358,10 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       case 'gemini-3-pro-image': {
         return generateImage({
           adapter: geminiI('gemini-3-pro-image'),
-          prompt: asImagePrompt(data.prompt),
+          prompt: await uploadInlineImageInputs(
+            asImagePrompt(data.prompt),
+            geminiF(),
+          ),
           numberOfImages: 1,
           size: '16:9_4K',
         })
@@ -386,7 +435,9 @@ interface VideoRequest {
  * browser's `useGenerateVideo` reads job id, status and result off these
  * chunks instead of running its own timer.
  */
-function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
+async function videoStreamForModel(
+  data: VideoRequest,
+): Promise<AsyncIterable<StreamChunk>> {
   // Image-to-video models receive the start frame as a prompt part
   // (role: 'start_frame') — the fal adapter routes it to the endpoint's
   // start-image field. Text-to-video models take the text prompt only.
@@ -479,14 +530,19 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         duration: adapter.snapDuration(6),
       })
     }
-    // Image-to-video models
+    // Image-to-video models. The start frame is uploaded once to fal storage
+    // via the Files API (`falF()`) and referenced by its storage-URL
+    // handle, instead of being inlined as a base64 data: URI on the request.
     case 'fal-ai/kling-video/v3/pro/image-to-video': {
       const adapter = falV('fal-ai/kling-video/v3/pro/image-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
-        prompt: asImageToVideoPrompt(data.prompt),
+        prompt: await uploadInlineImageInputs(
+          asImageToVideoPrompt(data.prompt),
+          falF(),
+        ),
         duration: adapter.snapDuration(5),
         modelOptions: {
           generate_audio: true,
@@ -499,7 +555,10 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
-        prompt: asImageToVideoPrompt(data.prompt),
+        prompt: await uploadInlineImageInputs(
+          asImageToVideoPrompt(data.prompt),
+          falF(),
+        ),
         size: '16:9_1080p',
         duration: adapter.snapDuration(4),
       })
@@ -509,7 +568,10 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: falV('xai/grok-imagine-video/image-to-video'),
-        prompt: asImageToVideoPrompt(data.prompt),
+        prompt: await uploadInlineImageInputs(
+          asImageToVideoPrompt(data.prompt),
+          falF(),
+        ),
         size: '16:9_720p',
         duration: 5,
       })
@@ -533,7 +595,10 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
-        prompt: asImageToVideoPrompt(data.prompt),
+        prompt: await uploadInlineImageInputs(
+          asImageToVideoPrompt(data.prompt),
+          falF(),
+        ),
         size: '16:9_2160p',
         duration: adapter.snapDuration(6),
       })
@@ -627,7 +692,9 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   // before any stream exists, which surfaces as a plain server-function error
   // (the hook reports it through `error`) rather than a stream that opens only
   // to fail.
-  .handler(({ data }) => toServerSentEventsResponse(videoStreamForModel(data)))
+  .handler(async ({ data }) =>
+    toServerSentEventsResponse(await videoStreamForModel(data)),
+  )
 
 // ============================================================================
 // Seedance Studio — BytePlus ModelArk direct (ARK_API_KEY, server-side only)

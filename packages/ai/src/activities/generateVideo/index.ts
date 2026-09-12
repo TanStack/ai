@@ -12,6 +12,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
+import { assertPromptFileSourceSupport } from '../../utilities/content-source'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -452,6 +453,9 @@ async function runCreateVideoJob<
     timeout,
     abortSignal: callerAbortSignal,
   } = options
+  // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+  // declared support (see assertPromptFileSourceSupport).
+  assertPromptFileSourceSupport(adapter, prompt)
   const model = adapter.model
   const requestId = createId('video')
   const startTime = Date.now()
@@ -580,6 +584,9 @@ async function* runStreamingVideoGeneration<
     timeout,
     abortSignal: callerAbortSignal,
   } = options
+  // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+  // declared support (see assertPromptFileSourceSupport).
+  assertPromptFileSourceSupport(adapter, prompt)
   const model = adapter.model
   const runId = options.runId ?? createId('run')
   const requestId = createId('video')

@@ -447,7 +447,21 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document'
     ) {
-      out.push(p)
+      // The AG-UI wire schema's `InputContentSource` has only `data` and `url`
+      // arms — there is no way to carry a `{ type: 'file' }` provider handle
+      // across it. Throw rather than drop the part silently; build the file
+      // source server-side (after the handle crosses in your own payload)
+      // until @ag-ui/core gains a file arm.
+      const source = p.source
+      if (source.type === 'file') {
+        throw new Error(
+          `The AG-UI wire format cannot carry a { type: 'file' } provider ` +
+            `file-handle source on a ${p.type} part. Send the handle in your ` +
+            `own request payload and build the source with ` +
+            `fileSourceFromHandle() on the server.`,
+        )
+      }
+      out.push({ ...p, source })
     }
   }
   return out

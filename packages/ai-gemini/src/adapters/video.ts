@@ -2,7 +2,12 @@ import {
   GenerateVideosOperation,
   VideoGenerationReferenceType,
 } from '@google/genai'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  fileReferenceFor,
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
@@ -93,6 +98,14 @@ async function imagePartToVeoImage(
       mimeType: part.source.mimeType || 'image/png',
     }
   }
+  if (isFileSource(part.source)) {
+    // Veo's predict API accepts only inline bytes or a gs:// reference — there's
+    // no way to reference a Files API handle here.
+    throw unsupportedFileSourceError(
+      'gemini',
+      'for Veo video generation, which needs inline image bytes or a gs:// reference — pass a data: URI or gs:// URL',
+    )
+  }
   const url = part.source.value
   if (url.startsWith('gs://')) {
     return {
@@ -143,15 +156,21 @@ async function imagePartToVeoImage(
 function mediaPartToInteractionsContent(
   part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
 ): InteractionContent {
+  // A Gemini Files API reference maps to the `uri` field, same as a public
+  // URL (mirrors the Interactions text adapter). `fileReferenceFor` throws
+  // when the file was never uploaded to Gemini.
+  const sourceValue = isFileSource(part.source)
+    ? fileReferenceFor(part.source, 'gemini')
+    : part.source.value
   const mimeType = part.source.mimeType
   if (part.type === 'image') {
     return part.source.type === 'data'
-      ? { type: 'image', data: part.source.value, mime_type: mimeType }
-      : { type: 'image', uri: part.source.value, mime_type: mimeType }
+      ? { type: 'image', data: sourceValue, mime_type: mimeType }
+      : { type: 'image', uri: sourceValue, mime_type: mimeType }
   }
   return part.source.type === 'data'
-    ? { type: 'video', data: part.source.value, mime_type: mimeType }
-    : { type: 'video', uri: part.source.value, mime_type: mimeType }
+    ? { type: 'video', data: sourceValue, mime_type: mimeType }
+    : { type: 'video', uri: sourceValue, mime_type: mimeType }
 }
 
 /**
@@ -255,6 +274,9 @@ export class GeminiVideoAdapter<
   GeminiVideoModelDurationByName
 > {
   readonly name = 'gemini' as const
+  // The Interactions path consumes Gemini Files API references as content
+  // `uri`s; the Veo path still rejects them (raw bytes / gs:// only).
+  override readonly supportsFileSources = true
 
   protected client: GoogleGenAI
   private readonly allowUrlFetch: boolean

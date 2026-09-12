@@ -34,10 +34,11 @@ describe('resolveMediaPrompt', () => {
     const resolved = resolveMediaPrompt(parts)
     expect(resolved.text).toBe('animate this')
     expect(resolved.parts).toBe(parts)
-    expect(resolved.images.map((p) => p.source.value)).toEqual([
-      'https://a.png',
-      'https://b.png',
-    ])
+    expect(
+      resolved.images.map((p) =>
+        'value' in p.source ? p.source.value : undefined,
+      ),
+    ).toEqual(['https://a.png', 'https://b.png'])
     expect(resolved.images[1]?.metadata?.role).toBe('end_frame')
     expect(resolved.videos).toHaveLength(1)
     expect(resolved.audios).toHaveLength(1)

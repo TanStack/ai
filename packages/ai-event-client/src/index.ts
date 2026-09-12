@@ -33,7 +33,17 @@ export interface ContentPartUrlSource {
   mimeType?: string
 }
 
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export interface ContentPartFileSource {
+  type: 'file'
+  /** Provider name → that provider's file reference (id or URI). */
+  reference: Record<string, string>
+  mimeType?: string
+}
+
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 export interface TextPart {
   type: 'text'

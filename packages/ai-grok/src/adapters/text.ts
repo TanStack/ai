@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import { convertToolsToProviderFormat } from '../tools'
@@ -9,10 +10,13 @@ import type {
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type { ContentPart, Modality, TextOptions } from '@tanstack/ai'
 import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils/client'
-import type { ResponseCreateParams } from 'openai/resources/responses/responses'
+import type {
+  ResponseCreateParams,
+  ResponseInputContent,
+} from 'openai/resources/responses/responses'
 
 /**
  * Resolve tool capabilities for a specific Grok model.
@@ -62,9 +66,42 @@ export class GrokTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'grok' as const
+  // Consumes handles issued by grokFiles(), whose wire reference is an xAI
+  // public URL. See convertContentPartToInput below for why it is a URL and
+  // not a file_id.
+  override readonly supportsFileSources = true
 
   constructor(config: GrokTextConfig, model: TModel) {
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+  }
+
+  /**
+   * Route a `{ type: 'file' }` source to xAI's URL-shaped fields rather than
+   * the `file_id` the OpenAI Responses base emits.
+   *
+   * xAI accepts `file_id` only on `input_file`, and only on agentic-capable
+   * models; its image path takes `image_url`. A `grokFiles()` handle carries
+   * an xAI public URL, which both fields accept, so one handle works for
+   * every modality on every chat model.
+   */
+  protected override convertContentPartToInput(
+    part: ContentPart,
+  ): ResponseInputContent {
+    if ('source' in part && isFileSource(part.source)) {
+      const url = fileReferenceFor(part.source, this.name)
+      if (part.type === 'image') {
+        const imageMetadata = part.metadata as
+          | { detail?: 'auto' | 'low' | 'high' }
+          | undefined
+        return {
+          type: 'input_image',
+          image_url: url,
+          detail: imageMetadata?.detail || 'auto',
+        }
+      }
+      return { type: 'input_file', file_url: url }
+    }
+    return super.convertContentPartToInput(part)
   }
 
   protected override mapOptionsToRequest(

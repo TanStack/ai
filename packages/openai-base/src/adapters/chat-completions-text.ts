@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -1390,6 +1395,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const imageMetadata = part.metadata as
         | { detail?: 'auto' | 'low' | 'high' }
         | undefined
+
+      if (isFileSource(part.source)) {
+        // The Chat Completions API references images only by URL/data URI,
+        // not by an uploaded file_id. Only mention the Responses alternative
+        // for OpenAI itself — compatible providers built on this base have no
+        // file_id-consuming endpoint at all.
+        throw unsupportedFileSourceError(
+          this.name,
+          // Only OpenAI's own chat-completions adapter (name 'openai-chat')
+          // has a Responses sibling to point at; other subclasses (Groq,
+          // Bedrock, BytePlus, compatible providers) have no file_id surface.
+          this.name === 'openai-chat'
+            ? 'on the Chat Completions API — use the Responses adapter (openaiText) to reference an uploaded file by file_id'
+            : 'on the Chat Completions API',
+        )
+      }
 
       // For base64 data, construct a data URI using the mimeType from source.
       // Default to a generic octet-stream MIME if the source didn't provide

@@ -84,6 +84,7 @@ import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -496,6 +497,11 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
+  id: '/api/file-source-wire',
+  path: '/api/file-source-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
@@ -633,6 +639,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -729,6 +736,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -826,6 +834,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -924,6 +933,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1020,6 +1030,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1116,6 +1127,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1213,6 +1225,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
@@ -1793,6 +1806,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/file-source-wire': {
+      id: '/api/file-source-wire'
+      path: '/api/file-source-wire'
+      fullPath: '/api/file-source-wire'
+      preLoaderRoute: typeof ApiFileSourceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/embedding': {
       id: '/api/embedding'
       path: '/api/embedding'
@@ -2026,6 +2046,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
