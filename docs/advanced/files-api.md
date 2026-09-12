@@ -1,13 +1,14 @@
 ---
 title: Files API
 id: files-api
-description: "Upload media once and reference it by a provider-issued handle with TanStack AI's tree-shakeable files adapters (OpenAI, Anthropic, Gemini, fal)."
+description: "Upload media once and reference it by a provider-issued handle with TanStack AI's tree-shakeable files adapters (OpenAI, Anthropic, Gemini, Grok, fal)."
 keywords:
   - tanstack ai
   - files api
   - file upload
   - file_id
   - fileData
+  - public url
   - multimodal
 ---
 
@@ -17,13 +18,14 @@ TanStack AI exposes this as a tree-shakeable **`files` adapter** per provider, p
 
 ## Files adapters
 
-Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, and `falFiles()`. They read the same API-key env var as the provider's other adapters; to pass a key explicitly, use the `create*Files(apiKey)` variants (`createOpenaiFiles`, `createAnthropicFiles`, `createGeminiFiles`) — `falFiles(config)` takes its key in the config object.
+Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. They read the same API-key env var as the provider's other adapters. To pass a key explicitly, use the `create*Files(apiKey)` variants (`createOpenaiFiles`, `createAnthropicFiles`, `createGeminiFiles`, `createGrokFiles`). `falFiles(config)` takes its key in the config object.
 
 ```typescript
 import { createOpenaiFiles, openaiFiles } from '@tanstack/ai-openai'
 import { geminiFiles } from '@tanstack/ai-gemini'
 import { anthropicFiles } from '@tanstack/ai-anthropic'
 import { falFiles } from '@tanstack/ai-fal'
+import { grokFiles } from '@tanstack/ai-grok'
 
 const files = openaiFiles() // reads OPENAI_API_KEY
 const filesWithKey = createOpenaiFiles('sk-your-key') // explicit key
@@ -46,7 +48,7 @@ const handle = await uploadFile({
 ```
 
 - `id` — the provider handle used for `get` / `delete` (OpenAI/Anthropic `file_id`, Gemini file resource name, fal storage URL).
-- `uri` — the handle's URL form when the provider exposes one (Gemini file URI, fal storage URL); `undefined` for OpenAI/Anthropic, whose handles are opaque ids.
+- `uri`: the handle's URL form when the provider exposes one (Gemini file URI, fal storage URL, Grok public URL). It is `undefined` for OpenAI and Anthropic, whose handles are opaque ids.
 - `expiresAt` — epoch milliseconds, when the provider schedules the handle to expire.
 
 > **Runtime note (Gemini upload).** `geminiFiles().upload()` uses `@google/genai`'s
@@ -79,9 +81,38 @@ await deleteFile({ adapter: files, id: handle })
 
 > fal storage is **upload-only** — `falFiles()` defines no `get` / `delete`, and calling `getFile()` / `deleteFile()` with it throws a clear error.
 
+### Grok (xAI): handles are public URLs
+
+`grokFiles()` uploads to the xAI Files API, then mints a [public URL](https://docs.x.ai/developers/files/public-urls) for the stored object and uses that URL as the handle's reference.
+
+xAI takes a `file_id` only on `input_file` (documents), and only on agentic-capable models. Its image path takes a URL. A public URL works for both, so one handle covers every modality on every chat model.
+
+```typescript
+import { uploadFile } from '@tanstack/ai'
+import { grokFiles } from '@tanstack/ai-grok'
+import { pngBase64 } from './image-data'
+
+const handle = await uploadFile({
+  // Omit `expiresAfter` for a URL that does not expire.
+  adapter: grokFiles({ expiresAfter: 86_400 }),
+  input: { data: pngBase64, mimeType: 'image/png' },
+})
+// handle.id  -> 'file_abc123'            (lifecycle)
+// handle.uri -> 'https://files-cdn.x.ai/…' (wire reference)
+```
+
+xAI limits to know:
+
+- 50 MiB per file, and PNG, JPEG, MP4, or PDF only.
+- `expiresAfter` runs from 3600 seconds (one hour) to 2592000 (thirty days).
+- Up to 1000 active public URLs per team.
+- Minting is idempotent, so re-uploading the same file returns the same URL.
+
+To stop a URL resolving without deleting the file, call `revokePublicUrl(handle.id)` on the adapter. `deleteFile()` removes the file itself.
+
 ## Referencing a handle in a message
 
-Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source. The source carries a **record of per-provider references** — `{ reference: { openai: 'file-abc' } }` — and each adapter reads only its own entry, mapping it to its native wire field (OpenAI/Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL). Sending the source to a provider with no entry in the record throws a clear error, and adapters that can't consume file references at all are rejected before any mapping starts.
+Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source. The source carries a **record of per-provider references** (`{ reference: { openai: 'file-abc' } }`). Each adapter reads only its own entry and maps it to its native wire field: OpenAI and Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL, Grok public URL. Sending the source to a provider with no entry in the record throws a clear error, and adapters that can't consume file references at all are rejected before any mapping starts.
 
 ### Server: upload + reference
 
@@ -203,11 +234,12 @@ export function runTurn(messages: Array<ModelMessage>, handle: FileHandle) {
 | Anthropic | `anthropicFiles()` | `file_id` message source (sends the `files-api-2025-04-14` beta) | `get`, `delete` |
 | Gemini | `geminiFiles()` | `fileData.fileUri` (the handle URI) | `get`, `delete` |
 | fal | `falFiles()` | storage URL (used like any URL) | upload-only |
+| Grok (xAI) | `grokFiles()` | public URL (used like any URL) | `get`, `delete` |
 
 Gemini and fal handles are URLs, so they also round-trip through a plain `{ type: 'url' }` source; OpenAI and Anthropic handles are opaque ids that require the `{ type: 'file' }` source.
 
 ### Providers and endpoints that can't consume references
 
-Adapters that can consume file references declare a `supportsFileSources` capability; for everyone else — Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and any adapter written before this feature existed — `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources **before any request is built**, so a reference can never be silently mis-mapped onto a URL or data field.
+Adapters that can consume file references declare a `supportsFileSources` capability; for everyone else (Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and any adapter written before this feature existed) `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources **before any request is built**, so a reference can never be silently mis-mapped onto a URL or data field.
 
 Some endpoints on supporting providers also have no "reference an uploaded handle" option — OpenAI's `images/edits` and Sora `input_reference`, and Gemini's Veo, need the actual bytes (or, for Veo, a `gs://` URI). The OpenAI **Chat Completions** image path also references images only by URL/data URI, not `file_id` — use the Responses adapter (`openaiText`) for `file_id` images. These throw a clear endpoint-specific error.

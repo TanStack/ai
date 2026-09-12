@@ -497,8 +497,7 @@ Rules agents must respect:
   bytes to several providers and pass all the handles —
   `fileSourceFromHandle(openaiHandle, geminiHandle)` — to build one source
   that routes to any of them.
-- **Adapters declare `supportsFileSources`.** For adapters that don't (Grok,
-  Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
+- **Adapters declare `supportsFileSources`.** For adapters that don't (Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
   written before this feature), `chat()` / `generateImage()` /
   `generateVideo()` / `embed()` reject file sources in preflight, before any
   request is built — pass `data`/`url` sources there instead.
