@@ -42,7 +42,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'alibaba/qwen3.8-2.4t-a95b',
   'alibaba/qwen3.8-27b',
   'alibaba/qwen3.8-flash',
-  'alibaba/qwen3.8-flash-next',
   'alibaba/qwen3.8-max',
   'alibaba/qwen3.8-max-0902',
   'amazon/nova-2-lite',
@@ -68,6 +67,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'arcee-ai/trinity-large-thinking',
   'bytedance/seed-1.6',
   'bytedance/seed-1.8',
+  'bytedance/seed-2.1-turbo',
   'cohere/command-a',
   'deepseek/deepseek-r1',
   'deepseek/deepseek-v3.1',
@@ -117,6 +117,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inclusionai/ling-3.0-flash-fin-free',
   'inclusionai/ling-3.0-flash-sante',
   'inclusionai/ling-3.0-flash-sante-free',
+  'inclusionai/ling-3.0-flash-vl',
+  'inclusionai/ling-3.0-flash-vl-free',
   'interfaze/interfaze-beta',
   'kwaipilot/kat-coder-air-v2.5',
   'kwaipilot/kat-coder-pro-v1',
@@ -242,7 +244,9 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'perplexity/sonar-reasoning-pro',
   'poolside/laguna-s-2.1',
   'poolside/laguna-s-2.1-free',
+  'sakana/fugu-max',
   'sakana/fugu-ultra',
+  'sakana/fugu-ultra-v2',
   'sakana/namazu',
   'spacexai/grok-4.1-fast-non-reasoning',
   'spacexai/grok-4.1-fast-reasoning',
@@ -658,16 +662,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'alibaba/qwen3.8-flash-next': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'alibaba/qwen3.8-max': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -893,6 +887,18 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
+    >
+  'bytedance/seed-2.1-turbo': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+      | 'response_format'
+      | 'structured_outputs'
     >
   'cohere/command-a': VercelGatewayCommonOptions &
     Pick<
@@ -1255,6 +1261,26 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'inclusionai/ling-3.0-flash-sante-free': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'inclusionai/ling-3.0-flash-vl': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
+  'inclusionai/ling-3.0-flash-vl-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2249,6 +2275,18 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'sakana/fugu-max': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+      | 'response_format'
+      | 'structured_outputs'
+    >
   'sakana/fugu-ultra': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2258,6 +2296,18 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
+    >
+  'sakana/fugu-ultra-v2': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+      | 'response_format'
+      | 'structured_outputs'
     >
   'sakana/namazu': VercelGatewayCommonOptions &
     Pick<
@@ -2674,7 +2724,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'alibaba/qwen3.8-2.4t-a95b': readonly ['text', 'image']
   'alibaba/qwen3.8-27b': readonly ['text', 'image', 'document', 'video']
   'alibaba/qwen3.8-flash': readonly ['text', 'image', 'document']
-  'alibaba/qwen3.8-flash-next': readonly ['text', 'image']
   'alibaba/qwen3.8-max': readonly ['text', 'image']
   'alibaba/qwen3.8-max-0902': readonly ['text', 'image', 'document']
   'amazon/nova-2-lite': readonly ['text', 'image', 'document']
@@ -2700,6 +2749,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'arcee-ai/trinity-large-thinking': readonly ['text']
   'bytedance/seed-1.6': readonly ['text', 'image']
   'bytedance/seed-1.8': readonly ['text', 'image']
+  'bytedance/seed-2.1-turbo': readonly ['text', 'image', 'video']
   'cohere/command-a': readonly ['text']
   'deepseek/deepseek-r1': readonly ['text']
   'deepseek/deepseek-v3.1': readonly ['text']
@@ -2759,6 +2809,8 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inclusionai/ling-3.0-flash-fin-free': readonly ['text']
   'inclusionai/ling-3.0-flash-sante': readonly ['text']
   'inclusionai/ling-3.0-flash-sante-free': readonly ['text']
+  'inclusionai/ling-3.0-flash-vl': readonly ['text', 'image', 'video']
+  'inclusionai/ling-3.0-flash-vl-free': readonly ['text', 'image', 'video']
   'interfaze/interfaze-beta': readonly ['text', 'image', 'document']
   'kwaipilot/kat-coder-air-v2.5': readonly ['text', 'image']
   'kwaipilot/kat-coder-pro-v1': readonly ['text']
@@ -2889,7 +2941,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'perplexity/sonar-reasoning-pro': readonly ['text', 'image']
   'poolside/laguna-s-2.1': readonly ['text']
   'poolside/laguna-s-2.1-free': readonly ['text']
+  'sakana/fugu-max': readonly ['text', 'image']
   'sakana/fugu-ultra': readonly ['text', 'image']
+  'sakana/fugu-ultra-v2': readonly ['text', 'image']
   'sakana/namazu': readonly ['text', 'image', 'document']
   'spacexai/grok-4.1-fast-non-reasoning': readonly ['text', 'image', 'document']
   'spacexai/grok-4.1-fast-reasoning': readonly ['text', 'image', 'document']
