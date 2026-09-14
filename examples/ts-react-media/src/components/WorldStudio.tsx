@@ -17,7 +17,6 @@ import {
   isReactorWorldModel,
 } from '@/lib/models'
 import {
-  LINGBOT_START_PROMPT,
   setReactorImage,
   watchReactorFailure,
   worldNeedsSeedImage,
@@ -77,7 +76,7 @@ async function startReactorWorld(
   if (worldNeedsSeedImage(model)) {
     if (!seedFile) throw new Error('LingBot needs a seed image before start')
     await setReactorImage(reactor, seedFile)
-    await reactor.sendCommand('set_prompt', { prompt: LINGBOT_START_PROMPT })
+    await reactor.sendCommand('set_prompt', { prompt })
     await reactor.sendCommand('start', {})
     return
   }
@@ -151,11 +150,10 @@ export default function WorldStudio() {
         throw new Error('LingBot needs a seed image before start')
       }
       await byok.prepare(reactorByok.id)
-      const mintPrompt = needsSeed ? LINGBOT_START_PROMPT : prompt
       const world = readWorldPayload(
         await callWithByok(
           generateWorldFn({
-            data: { prompt: mintPrompt, model, resolution },
+            data: { prompt, model, resolution },
             headers: byok.headers(reactorByok.id),
           }),
         ),
@@ -226,7 +224,7 @@ export default function WorldStudio() {
   const isLive = status === 'live'
   const isBusy = status === 'connecting'
   const canStart =
-    !isBusy && (needsSeed ? seedFile !== null : prompt.trim().length > 0)
+    !isBusy && prompt.trim().length > 0 && (!needsSeed || seedFile !== null)
 
   return (
     <div className="space-y-3">
@@ -235,7 +233,7 @@ export default function WorldStudio() {
         <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
         server.
         {needsSeed
-          ? ' Attach a seed image, start, then type to steer.'
+          ? ' Attach a seed image, describe what it shows, then start.'
           : ' Then start a session and type under the view to steer.'}
       </p>
 
@@ -276,13 +274,13 @@ export default function WorldStudio() {
         <label className="block">
           <span className="sr-only">{isLive ? 'Steer prompt' : 'Prompt'}</span>
           <textarea
-            value={isLive ? steerPrompt : needsSeed ? '' : prompt}
+            value={isLive ? steerPrompt : prompt}
             onChange={(event) => {
               const next = event.target.value
               if (isLive) setSteerPrompt(next)
               else setPrompt(next)
             }}
-            disabled={isBusy || (needsSeed && !isLive)}
+            disabled={isBusy}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey) return
               event.preventDefault()
@@ -293,7 +291,7 @@ export default function WorldStudio() {
               isLive
                 ? 'Steer the scene. The picture morphs at the next chunk.'
                 : needsSeed
-                  ? 'Prompt is for steering after start.'
+                  ? 'Describe what the seed image shows…'
                   : 'Describe the world to generate…'
             }
             className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none disabled:opacity-50"

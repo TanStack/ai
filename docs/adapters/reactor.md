@@ -119,7 +119,7 @@ Hand `live.token`, `live.model`, and `live.prompt` to the browser. Connect as sh
 
 Pass a text prompt to `generateWorld()` / `generateLiveVideo()`. Those calls mint a token. They do not send resolution or a seed image.
 
-After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
+After `connect`, send browser commands. LingBot starts from a seed image. Pass a `File` from `<input type="file">`. The SDK uploads it and returns a `FileRef`. Do not send base64. `start` also needs `set_prompt`. Write the prompt to describe what the image shows.
 
 ```ts
 import { Reactor } from '@reactor-team/js-sdk'
@@ -135,7 +135,9 @@ if (file === undefined) {
 }
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_image', { image })
-await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('set_prompt', {
+  prompt: 'A narrow stone alley at night, wet cobbles, one lit shop window.',
+})
 await reactor.sendCommand('start', {})
 ```
 

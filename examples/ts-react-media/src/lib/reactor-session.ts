@@ -5,9 +5,6 @@ export function worldNeedsSeedImage(model: ReactorWorldModel): boolean {
   return model === 'lingbot' || model === 'lingbot-world-2'
 }
 
-/** LingBot start requires set_prompt. The UI treats the still as the start. */
-export const LINGBOT_START_PROMPT = 'Follow the seed image.'
-
 export function liveAcceptsSeedImage(model: string): boolean {
   return model === 'helios'
 }

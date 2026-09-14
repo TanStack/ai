@@ -128,7 +128,7 @@ await reactor.sendCommand('start', {})
 
 The video element now plays a live world. A new `set_prompt` during the run morphs the scene at the next chunk.
 
-LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
+LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` also needs `set_prompt`. Write the prompt to describe what the image shows. When the prompt and the image disagree, the image wins and the world drifts.
 
 ```ts group=world-browser
 const picker = document.querySelector('input[type="file"]')
@@ -141,7 +141,7 @@ if (file === undefined) {
 }
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_image', { image })
-await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('set_prompt', { prompt })
 await reactor.sendCommand('start', {})
 ```
 
