@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react'
+import { setLingbotAxis } from '@/lib/reactor-session'
 import type { ReactNode } from 'react'
-import type { CameraAxis } from '@/lib/reactor-session'
+import type { Reactor } from '@reactor-team/js-sdk'
+import type { ReactorWorldModel } from '@tanstack/ai-reactor'
+import type { LingbotAxis } from '@/lib/reactor-session'
 
 interface Control {
-  axis: CameraAxis
+  axis: LingbotAxis
   value: string
   key: string
   label: string
@@ -91,36 +94,29 @@ function controlForKey(event: KeyboardEvent): Control | undefined {
 }
 
 /**
- * Hold-to-move pads laid over the video. Buttons, WASD, and arrow keys drive
- * the same held axes. A button lights while its axis runs. `onChange` gets
- * the changed axis (`idle` on release) and every axis still held.
- * With `latch`, a tap turns a control on and a second tap turns it off.
+ * Hold-to-move pads for LingBot, laid over the video. Buttons, WASD, and
+ * arrow keys drive the same held axes. A button lights while its axis runs.
  */
-export function WorldControls(props: {
-  latch?: boolean
-  onChange: (
-    axis: CameraAxis,
-    value: string,
-    held: ReadonlyMap<CameraAxis, string>,
-  ) => void
+export function LingbotControls(props: {
+  reactor: Reactor
+  model: ReactorWorldModel
+  onError: (message: string) => void
 }) {
-  const { latch = false, onChange } = props
-  const held = useRef(new Map<CameraAxis, string>())
-  const [active, setActive] = useState<ReadonlyMap<CameraAxis, string>>(
+  const { reactor, model, onError } = props
+  const held = useRef(new Map<LingbotAxis, string>())
+  const [active, setActive] = useState<ReadonlyMap<LingbotAxis, string>>(
     () => new Map(),
   )
 
-  function send(axis: CameraAxis, value: string) {
-    const snapshot = new Map(held.current)
-    setActive(snapshot)
-    onChange(axis, value, snapshot)
+  function send(axis: LingbotAxis, value: string) {
+    setActive(new Map(held.current))
+    setLingbotAxis(reactor, model, axis, value).catch((error: unknown) =>
+      onError(String(error)),
+    )
   }
 
   function press(control: Control) {
-    if (held.current.get(control.axis) === control.value) {
-      if (latch) release(control)
-      return
-    }
+    if (held.current.get(control.axis) === control.value) return
     held.current.set(control.axis, control.value)
     send(control.axis, control.value)
   }
@@ -142,16 +138,14 @@ export function WorldControls(props: {
       const control = controlForKey(event)
       if (!control) return
       event.preventDefault()
-      if (event.repeat) return
       pressRef.current(control)
     }
     const onUp = (event: KeyboardEvent) => {
       const control = controlForKey(event)
-      if (control && !latch) releaseRef.current(control)
+      if (control) releaseRef.current(control)
     }
     // A key released outside the window never fires keyup. Stop everything.
     const releaseAll = () => {
-      if (latch) return
       for (const control of ALL) releaseRef.current(control)
     }
     window.addEventListener('keydown', onDown)
@@ -162,7 +156,7 @@ export function WorldControls(props: {
       window.removeEventListener('keyup', onUp)
       window.removeEventListener('blur', releaseAll)
     }
-  }, [latch])
+  }, [])
 
   function pad(title: string, controls: Array<Control>, corner: string) {
     const areas = ['up', 'left', 'down', 'right']
@@ -186,12 +180,8 @@ export function WorldControls(props: {
                 event.currentTarget.setPointerCapture(event.pointerId)
                 press(control)
               }}
-              onPointerUp={() => {
-                if (!latch) release(control)
-              }}
-              onPointerCancel={() => {
-                if (!latch) release(control)
-              }}
+              onPointerUp={() => release(control)}
+              onPointerCancel={() => release(control)}
               className="flex h-10 w-10 touch-none select-none items-center justify-center rounded-lg border border-white/20 bg-black/50 font-mono text-sm font-semibold text-white backdrop-blur-sm hover:bg-black/70 aria-pressed:border-purple-400 aria-pressed:bg-purple-600"
             >
               {control.cap}

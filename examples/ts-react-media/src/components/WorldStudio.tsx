@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
-import { WorldControls } from '@/components/WorldControls'
+import { LingbotControls } from '@/components/LingbotControls'
 import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
@@ -19,17 +19,13 @@ import {
 } from '@/lib/models'
 import {
   LINGBOT_ROTATION_SPEED_DEG,
-  isOrbisModel,
   lingbotPrompt,
-  orbisPrompt,
-  setLingbotAxis,
   setReactorImage,
   watchReactorFailure,
   worldNeedsSeedImage,
 } from '@/lib/reactor-session'
 import type { Reactor } from '@reactor-team/js-sdk'
 import type { ReactorWorldModel, WorldResolution } from '@/lib/models'
-import type { CameraAxis } from '@/lib/reactor-session'
 
 type SessionStatus = 'idle' | 'connecting' | 'live' | 'error'
 
@@ -113,14 +109,12 @@ export default function WorldStudio() {
   const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
-  const orbisMovesRef = useRef<Array<string>>([])
   const detachStreamRef = useRef<(() => void) | null>(null)
   const unwatchRef = useRef<(() => void) | null>(null)
   const statusRef = useRef<SessionStatus>('idle')
   statusRef.current = status
 
   const needsSeed = worldNeedsSeedImage(model)
-  const showControls = needsSeed || isOrbisModel(model)
 
   async function teardown() {
     unwatchRef.current?.()
@@ -155,7 +149,6 @@ export default function WorldStudio() {
   }, [])
 
   async function start() {
-    orbisMovesRef.current = []
     setError(null)
     setPlaying(false)
     setStatus('connecting')
@@ -234,33 +227,13 @@ export default function WorldStudio() {
           prompt: lingbotPrompt(prompt, next),
         })
       } else {
-        // Keep an active Orbis camera move running through the new scene.
-        const moves = orbisMovesRef.current
-        await reactor.sendCommand('set_prompt', {
-          prompt: moves.length > 0 ? orbisPrompt(next, moves) : next,
-        })
+        await reactor.sendCommand('set_prompt', { prompt: next })
         setPrompt(next)
       }
       setSteerPrompt('')
     } catch (caught) {
       setError(errorMessage(caught))
     }
-  }
-
-  function moveCamera(
-    axis: CameraAxis,
-    value: string,
-    held: ReadonlyMap<CameraAxis, string>,
-  ) {
-    const reactor = reactorRef.current
-    if (!reactor) return
-    if (!needsSeed) orbisMovesRef.current = [...held.values()]
-    const sent = needsSeed
-      ? setLingbotAxis(reactor, model, axis, value)
-      : reactor.sendCommand('set_prompt', {
-          prompt: orbisPrompt(prompt, orbisMovesRef.current),
-        })
-    sent.catch((caught: unknown) => setError(errorMessage(caught)))
   }
 
   const isLive = status === 'live'
@@ -275,13 +248,8 @@ export default function WorldStudio() {
         <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
         server.
         {needsSeed
-          ? ' Attach a seed image, describe what it shows, then start.'
+          ? ' Attach a seed image, describe what it shows, then start. Move with the pads on the video, WASD, or the arrow keys.'
           : ' Add an optional 16:9 seed image, start, then type under the view to steer.'}
-        {showControls
-          ? needsSeed
-            ? ' Hold the pads on the video, WASD, or the arrow keys to move.'
-            : ' Tap a pad on the video, WASD, or an arrow key to start a camera move. Tap it again to stop.'
-          : null}
       </p>
 
       <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
@@ -294,8 +262,12 @@ export default function WorldStudio() {
             muted
             onPlaying={() => setPlaying(true)}
           />
-          {isLive && showControls ? (
-            <WorldControls latch={!needsSeed} onChange={moveCamera} />
+          {isLive && needsSeed && reactorRef.current ? (
+            <LingbotControls
+              reactor={reactorRef.current}
+              model={model}
+              onError={setError}
+            />
           ) : null}
         </div>
         {status === 'idle' || status === 'error' ? (

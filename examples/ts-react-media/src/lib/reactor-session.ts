@@ -22,39 +22,6 @@ export function lingbotPrompt(base: string, detail = ''): string {
 /** Default is 5 deg per latent frame, which spins past the target on a tap. */
 export const LINGBOT_ROTATION_SPEED_DEG = 1.5
 
-/**
- * Orbis has no camera commands. The Reactor Orbis guide steers the camera in
- * prose, so each active control adds one camera sentence to the scene prompt.
- * A prompt lands at the next ~1.8 s chunk and morphs in, so controls latch.
- */
-const ORBIS_CAMERA: Record<string, string> = {
-  forward: 'The camera glides steadily forward into the scene.',
-  back: 'The camera pulls steadily back away from the scene.',
-  strafe_left: 'The camera tracks steadily sideways to the left.',
-  strafe_right: 'The camera tracks steadily sideways to the right.',
-  left: 'The camera pans steadily to the left.',
-  right: 'The camera pans steadily to the right.',
-  up: 'The camera tilts steadily upward.',
-  down: 'The camera tilts steadily downward.',
-}
-
-/** Scene prompt plus the active camera moves, or a still camera when none. */
-export function orbisPrompt(
-  base: string,
-  moves: ReadonlyArray<string>,
-): string {
-  const camera = moves.map((value) => ORBIS_CAMERA[value] ?? '').join(' ')
-  const tail =
-    camera.length > 0
-      ? `${camera} Continuous camera motion, no cuts.`
-      : 'The camera holds steady, no cuts.'
-  return `${base.trim()} ${tail}`
-}
-
-export function isOrbisModel(model: ReactorWorldModel): boolean {
-  return model === 'visko-orbis-stable' || model === 'visko-orbis-dynamic'
-}
-
 export function liveAcceptsSeedImage(model: string): boolean {
   return model === 'helios'
 }
@@ -100,7 +67,7 @@ export function watchReactorFailure(
   }
 }
 
-export type CameraAxis =
+export type LingbotAxis =
   | 'move_longitudinal'
   | 'move_lateral'
   | 'look_horizontal'
@@ -113,7 +80,7 @@ export type CameraAxis =
 export async function setLingbotAxis(
   reactor: Reactor,
   model: ReactorWorldModel,
-  axis: CameraAxis,
+  axis: LingbotAxis,
   value: string,
 ): Promise<void> {
   if (model === 'lingbot' && axis.startsWith('move_')) {
