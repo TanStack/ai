@@ -21,7 +21,13 @@ export type OpenAIRealtimeVoice =
  * The `gpt-4o-(mini-)realtime-preview` models were shut down by OpenAI on
  * 2026-05-07 and are no longer listed here.
  */
-export type OpenAIRealtimeModel = 'gpt-realtime' | 'gpt-realtime-mini' | 'gpt-realtime-1.5' | 'gpt-realtime-2' | 'gpt-realtime-2.1' | 'gpt-realtime-2.1-mini'
+export type OpenAIRealtimeModel =
+  | 'gpt-realtime'
+  | 'gpt-realtime-mini'
+  | 'gpt-realtime-1.5'
+  | 'gpt-realtime-2'
+  | 'gpt-realtime-2.1'
+  | 'gpt-realtime-2.1-mini'
 
 /**
  * OpenAI semantic VAD configuration
