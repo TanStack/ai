@@ -113,6 +113,7 @@ export default function WorldStudio() {
   const [playing, setPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
+  const orbisMovesRef = useRef<Array<string>>([])
   const detachStreamRef = useRef<(() => void) | null>(null)
   const unwatchRef = useRef<(() => void) | null>(null)
   const statusRef = useRef<SessionStatus>('idle')
@@ -154,6 +155,7 @@ export default function WorldStudio() {
   }, [])
 
   async function start() {
+    orbisMovesRef.current = []
     setError(null)
     setPlaying(false)
     setStatus('connecting')
@@ -232,7 +234,11 @@ export default function WorldStudio() {
           prompt: lingbotPrompt(prompt, next),
         })
       } else {
-        await reactor.sendCommand('set_prompt', { prompt: next })
+        // Keep an active Orbis camera move running through the new scene.
+        const moves = orbisMovesRef.current
+        await reactor.sendCommand('set_prompt', {
+          prompt: moves.length > 0 ? orbisPrompt(next, moves) : next,
+        })
         setPrompt(next)
       }
       setSteerPrompt('')
@@ -248,10 +254,11 @@ export default function WorldStudio() {
   ) {
     const reactor = reactorRef.current
     if (!reactor) return
+    if (!needsSeed) orbisMovesRef.current = [...held.values()]
     const sent = needsSeed
       ? setLingbotAxis(reactor, model, axis, value)
       : reactor.sendCommand('set_prompt', {
-          prompt: orbisPrompt(prompt, held.values()),
+          prompt: orbisPrompt(prompt, orbisMovesRef.current),
         })
     sent.catch((caught: unknown) => setError(errorMessage(caught)))
   }
@@ -271,7 +278,9 @@ export default function WorldStudio() {
           ? ' Attach a seed image, describe what it shows, then start.'
           : ' Add an optional 16:9 seed image, start, then type under the view to steer.'}
         {showControls
-          ? ' Move with the pads on the video, WASD, or the arrow keys.'
+          ? needsSeed
+            ? ' Hold the pads on the video, WASD, or the arrow keys to move.'
+            : ' Tap a pad on the video, WASD, or an arrow key to start a camera move. Tap it again to stop.'
           : null}
       </p>
 
@@ -286,7 +295,7 @@ export default function WorldStudio() {
             onPlaying={() => setPlaying(true)}
           />
           {isLive && showControls ? (
-            <WorldControls onChange={moveCamera} />
+            <WorldControls latch={!needsSeed} onChange={moveCamera} />
           ) : null}
         </div>
         {status === 'idle' || status === 'error' ? (

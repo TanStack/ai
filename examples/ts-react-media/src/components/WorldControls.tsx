@@ -94,15 +94,17 @@ function controlForKey(event: KeyboardEvent): Control | undefined {
  * Hold-to-move pads laid over the video. Buttons, WASD, and arrow keys drive
  * the same held axes. A button lights while its axis runs. `onChange` gets
  * the changed axis (`idle` on release) and every axis still held.
+ * With `latch`, a tap turns a control on and a second tap turns it off.
  */
 export function WorldControls(props: {
+  latch?: boolean
   onChange: (
     axis: CameraAxis,
     value: string,
     held: ReadonlyMap<CameraAxis, string>,
   ) => void
 }) {
-  const { onChange } = props
+  const { latch = false, onChange } = props
   const held = useRef(new Map<CameraAxis, string>())
   const [active, setActive] = useState<ReadonlyMap<CameraAxis, string>>(
     () => new Map(),
@@ -115,7 +117,10 @@ export function WorldControls(props: {
   }
 
   function press(control: Control) {
-    if (held.current.get(control.axis) === control.value) return
+    if (held.current.get(control.axis) === control.value) {
+      if (latch) release(control)
+      return
+    }
     held.current.set(control.axis, control.value)
     send(control.axis, control.value)
   }
@@ -137,14 +142,16 @@ export function WorldControls(props: {
       const control = controlForKey(event)
       if (!control) return
       event.preventDefault()
+      if (event.repeat) return
       pressRef.current(control)
     }
     const onUp = (event: KeyboardEvent) => {
       const control = controlForKey(event)
-      if (control) releaseRef.current(control)
+      if (control && !latch) releaseRef.current(control)
     }
     // A key released outside the window never fires keyup. Stop everything.
     const releaseAll = () => {
+      if (latch) return
       for (const control of ALL) releaseRef.current(control)
     }
     window.addEventListener('keydown', onDown)
@@ -155,7 +162,7 @@ export function WorldControls(props: {
       window.removeEventListener('keyup', onUp)
       window.removeEventListener('blur', releaseAll)
     }
-  }, [])
+  }, [latch])
 
   function pad(title: string, controls: Array<Control>, corner: string) {
     const areas = ['up', 'left', 'down', 'right']
@@ -179,8 +186,12 @@ export function WorldControls(props: {
                 event.currentTarget.setPointerCapture(event.pointerId)
                 press(control)
               }}
-              onPointerUp={() => release(control)}
-              onPointerCancel={() => release(control)}
+              onPointerUp={() => {
+                if (!latch) release(control)
+              }}
+              onPointerCancel={() => {
+                if (!latch) release(control)
+              }}
               className="flex h-10 w-10 touch-none select-none items-center justify-center rounded-lg border border-white/20 bg-black/50 font-mono text-sm font-semibold text-white backdrop-blur-sm hover:bg-black/70 aria-pressed:border-purple-400 aria-pressed:bg-purple-600"
             >
               {control.cap}

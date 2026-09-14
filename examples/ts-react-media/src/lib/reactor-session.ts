@@ -24,23 +24,31 @@ export const LINGBOT_ROTATION_SPEED_DEG = 1.5
 
 /**
  * Orbis has no camera commands. The Reactor Orbis guide steers the camera in
- * prose, so each held control adds one sentence to the scene prompt.
+ * prose, so each active control adds one camera sentence to the scene prompt.
+ * A prompt lands at the next ~1.8 s chunk and morphs in, so controls latch.
  */
 const ORBIS_CAMERA: Record<string, string> = {
-  forward: 'The camera moves slowly forward.',
-  back: 'The camera pulls slowly back.',
-  strafe_left: 'The camera tracks slowly to the left.',
-  strafe_right: 'The camera tracks slowly to the right.',
-  left: 'The camera pans slowly to the left.',
-  right: 'The camera pans slowly to the right.',
-  up: 'The camera tilts slowly up.',
-  down: 'The camera tilts slowly down.',
+  forward: 'The camera glides steadily forward into the scene.',
+  back: 'The camera pulls steadily back away from the scene.',
+  strafe_left: 'The camera tracks steadily sideways to the left.',
+  strafe_right: 'The camera tracks steadily sideways to the right.',
+  left: 'The camera pans steadily to the left.',
+  right: 'The camera pans steadily to the right.',
+  up: 'The camera tilts steadily upward.',
+  down: 'The camera tilts steadily downward.',
 }
 
-/** Scene prompt plus one camera sentence per held control. */
-export function orbisPrompt(base: string, held: Iterable<string>): string {
-  const camera = [...held].map((value) => ORBIS_CAMERA[value] ?? '')
-  return [base.trim(), ...camera].filter((part) => part.length > 0).join(' ')
+/** Scene prompt plus the active camera moves, or a still camera when none. */
+export function orbisPrompt(
+  base: string,
+  moves: ReadonlyArray<string>,
+): string {
+  const camera = moves.map((value) => ORBIS_CAMERA[value] ?? '').join(' ')
+  const tail =
+    camera.length > 0
+      ? `${camera} Continuous camera motion, no cuts.`
+      : 'The camera holds steady, no cuts.'
+  return `${base.trim()} ${tail}`
 }
 
 export function isOrbisModel(model: ReactorWorldModel): boolean {
