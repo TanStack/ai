@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
+import { LingbotControls } from '@/components/LingbotControls'
 import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
@@ -17,6 +18,8 @@ import {
   isReactorWorldModel,
 } from '@/lib/models'
 import {
+  LINGBOT_ROTATION_SPEED_DEG,
+  lingbotPrompt,
   setReactorImage,
   watchReactorFailure,
   worldNeedsSeedImage,
@@ -76,7 +79,10 @@ async function startReactorWorld(
   if (worldNeedsSeedImage(model)) {
     if (!seedFile) throw new Error('LingBot needs a seed image before start')
     await setReactorImage(reactor, seedFile)
-    await reactor.sendCommand('set_prompt', { prompt })
+    await reactor.sendCommand('set_rotation_speed_deg', {
+      rotation_speed_deg: LINGBOT_ROTATION_SPEED_DEG,
+    })
+    await reactor.sendCommand('set_prompt', { prompt: lingbotPrompt(prompt) })
     await reactor.sendCommand('start', {})
     return
   }
@@ -213,8 +219,16 @@ export default function WorldStudio() {
     if (!reactor || next.length === 0) return
     setError(null)
     try {
-      await reactor.sendCommand('set_prompt', { prompt: next })
-      setPrompt(next)
+      if (needsSeed) {
+        // LingBot follows the image over the text. Keep the scene base and
+        // add the steer as a detail so the prompt still matches the image.
+        await reactor.sendCommand('set_prompt', {
+          prompt: lingbotPrompt(prompt, next),
+        })
+      } else {
+        await reactor.sendCommand('set_prompt', { prompt: next })
+        setPrompt(next)
+      }
       setSteerPrompt('')
     } catch (caught) {
       setError(errorMessage(caught))
@@ -233,19 +247,28 @@ export default function WorldStudio() {
         <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
         server.
         {needsSeed
-          ? ' Attach a seed image, describe what it shows, then start.'
+          ? ' Attach a seed image, describe what it shows, then start. Move with the pads on the video, WASD, or the arrow keys.'
           : ' Then start a session and type under the view to steer.'}
       </p>
 
       <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
-        <video
-          ref={videoRef}
-          className="aspect-video w-full bg-black"
-          autoPlay
-          playsInline
-          muted
-          onPlaying={() => setPlaying(true)}
-        />
+        <div className="relative">
+          <video
+            ref={videoRef}
+            className="aspect-video w-full bg-black"
+            autoPlay
+            playsInline
+            muted
+            onPlaying={() => setPlaying(true)}
+          />
+          {isLive && needsSeed && reactorRef.current ? (
+            <LingbotControls
+              reactor={reactorRef.current}
+              model={model}
+              onError={setError}
+            />
+          ) : null}
+        </div>
         {status === 'idle' || status === 'error' ? (
           <p className="px-4 py-3 text-sm text-gray-400">
             The live stream appears here after you start a session.
@@ -289,7 +312,9 @@ export default function WorldStudio() {
             rows={2}
             placeholder={
               isLive
-                ? 'Steer the scene. The picture morphs at the next chunk.'
+                ? needsSeed
+                  ? 'Add a detail, e.g. It is night and the street lamps glow.'
+                  : 'Steer the scene. The picture morphs at the next chunk.'
                 : needsSeed
                   ? 'Describe what the seed image shows…'
                   : 'Describe the world to generate…'
