@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
+import { readMediaFile } from '@/lib/media'
 import { LingbotControls } from '@/components/LingbotControls'
 import { SeedImageField } from '@/components/SeedImageField'
 import {
@@ -81,6 +82,18 @@ function readReactorPayload(value: unknown): {
   return { token, model, prompt }
 }
 
+const WORLDLABS_MAX_SEED_IMAGES = 4
+
+function imageExtension(file: File): string | undefined {
+  if (file.type === 'image/jpeg') return 'jpg'
+  if (file.type === 'image/png') return 'png'
+  if (file.type === 'image/webp') return 'webp'
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (ext === 'jpeg') return 'jpg'
+  if (ext === 'jpg' || ext === 'png' || ext === 'webp') return ext
+  return undefined
+}
+
 function readMarblePayload(value: unknown): MarbleResult {
   if (typeof value !== 'object' || value === null) {
     throw new Error('World payload is incomplete')
@@ -141,7 +154,7 @@ export default function WorldStudio() {
   const [steerPrompt, setSteerPrompt] = useState('')
   const [model, setModel] = useState<WorldModelId>('visko-orbis-stable')
   const [resolution, setResolution] = useState<WorldResolution>('1080p')
-  const [seedFile, setSeedFile] = useState<File | null>(null)
+  const [seedFiles, setSeedFiles] = useState<Array<File>>([])
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -154,6 +167,7 @@ export default function WorldStudio() {
   statusRef.current = status
 
   const isMarble = isWorldLabsWorldModel(model)
+  const seedFile = seedFiles[0] ?? null
   const needsSeed = isReactorWorldModel(model) && worldNeedsSeedImage(model)
 
   async function teardown() {
@@ -195,10 +209,25 @@ export default function WorldStudio() {
     setStatus('generating')
     try {
       await byok.prepare(worldlabsByok.id)
+      const seedImages = await Promise.all(
+        seedFiles.slice(0, WORLDLABS_MAX_SEED_IMAGES).map(async (file) => {
+          const media = await readMediaFile(file)
+          const extension = imageExtension(file)
+          return {
+            dataBase64: media.base64,
+            ...(extension ? { extension } : {}),
+          }
+        }),
+      )
       const world = readMarblePayload(
         await callWithByok(
           generateWorldFn({
-            data: { prompt, model, resolution },
+            data: {
+              prompt,
+              model,
+              resolution,
+              ...(seedImages.length > 0 ? { seedImages } : {}),
+            },
             headers: byok.headers(worldlabsByok.id),
           }),
         ),
@@ -330,7 +359,8 @@ export default function WorldStudio() {
             World Labs Marble generates a finished 3D world (about 5 minutes).
             Paste a key in the header dialog, or set{' '}
             <code className="font-mono text-gray-300">WORLDLABS_API_KEY</code>{' '}
-            on the server. Then open the Marble viewer URL.
+            on the server. Add optional seed photos (up to four of the same
+            scene), then open the Marble viewer URL.
           </>
         ) : (
           <>
@@ -555,6 +585,9 @@ export default function WorldStudio() {
                   const next = event.target.value
                   if (!isWorldModelId(next)) return
                   if (isLive || status === 'ready') void stop()
+                  if (!isWorldLabsWorldModel(next) && seedFiles.length > 1) {
+                    setSeedFiles(seedFiles.slice(0, 1))
+                  }
                   setModel(next)
                 }}
                 disabled={isBusy}
@@ -589,14 +622,13 @@ export default function WorldStudio() {
               </label>
             )}
 
-            {isMarble ? null : (
-              <SeedImageField
-                file={seedFile}
-                onChange={setSeedFile}
-                required={needsSeed}
-                disabled={isBusy}
-              />
-            )}
+            <SeedImageField
+              files={seedFiles}
+              onChange={setSeedFiles}
+              maxFiles={isMarble ? WORLDLABS_MAX_SEED_IMAGES : 1}
+              required={needsSeed}
+              disabled={isBusy}
+            />
           </div>
         </form>
       )}

@@ -854,10 +854,34 @@ export const generateLiveVideoFn = createServerFn({ method: 'POST' })
     }
   })
 
+interface WorldSeedImage {
+  dataBase64: string
+  extension?: string
+}
+
 interface WorldRequest {
   prompt: string
   model: WorldModelId
   resolution: WorldResolution
+  seedImages?: Array<WorldSeedImage>
+}
+
+const WORLDLABS_MAX_SEED_IMAGES = 4
+
+function isWorldSeedImage(value: unknown): value is WorldSeedImage {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('dataBase64' in value) || typeof value.dataBase64 !== 'string') {
+    return false
+  }
+  if (value.dataBase64.length === 0) return false
+  if (
+    'extension' in value &&
+    value.extension !== undefined &&
+    typeof value.extension !== 'string'
+  ) {
+    return false
+  }
+  return true
 }
 
 const WORLDLABS_TIMEOUT_MS = 12 * 60 * 1000
@@ -872,6 +896,17 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
       throw new Error('Prompt is required')
     }
     if (isWorldLabsWorldModel(data.model)) {
+      if (data.seedImages !== undefined) {
+        if (
+          !Array.isArray(data.seedImages) ||
+          data.seedImages.length > WORLDLABS_MAX_SEED_IMAGES ||
+          !data.seedImages.every(isWorldSeedImage)
+        ) {
+          throw new Error(
+            `World Labs accepts at most ${WORLDLABS_MAX_SEED_IMAGES} seed images`,
+          )
+        }
+      }
       return data
     }
     if (!isReactorWorldModel(data.model)) {
@@ -884,11 +919,23 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
   })
   .handler(async ({ data }) => {
     if (isWorldLabsWorldModel(data.model)) {
+      const seedImages = data.seedImages ?? []
+      const [firstSeed, ...restSeeds] = seedImages
       const world = await generateWorld({
         adapter: worldlabsW(data.model),
         prompt: data.prompt.trim(),
         timeout: WORLDLABS_TIMEOUT_MS,
         debug: false,
+        ...(firstSeed && restSeeds.length === 0
+          ? {
+              modelOptions: {
+                image: firstSeed,
+                isPano: 'auto' as const,
+              },
+            }
+          : seedImages.length > 1
+            ? { modelOptions: { images: seedImages } }
+            : {}),
       })
       if (typeof world.url !== 'string' || world.url.length === 0) {
         throw new Error('World Labs did not return a viewer URL')
