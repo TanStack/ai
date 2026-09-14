@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
 import { EventType, chat } from '@tanstack/ai'
-import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
@@ -30,6 +30,10 @@ function makeStubClient(): OpenAI {
 class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
   constructor(_config: unknown, model: string, name = 'openai-base-responses') {
     super(model, name, makeStubClient())
+  }
+
+  convertInput(messages: Array<ModelMessage>) {
+    return this.convertMessagesToInput(messages)
   }
 }
 
@@ -941,6 +945,118 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       if (runFinishedChunk?.type === 'RUN_FINISHED') {
         expect(runFinishedChunk.finishReason).toBe('tool_calls')
       }
+    })
+
+    it('emits provider-executed web search metadata with joined sources', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_123',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg-web-search',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg-web-search',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(starts[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        toolCallName: 'web_search',
+        metadata: {
+          providerExecuted: true,
+          sources: [
+            {
+              url: 'https://example.com/release',
+              title: 'Example release notes',
+            },
+          ],
+          openai: {
+            webSearchCall,
+            urlCitations: [citation],
+          },
+        },
+      })
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        input: webSearchCall.action,
+      })
     })
 
     it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -2451,6 +2567,63 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           }),
         ]),
       )
+    })
+
+    it('replays provider-executed web search output items without a fake function call', () => {
+      const webSearchCall = {
+        type: 'web_search_call' as const,
+        id: 'ws_roundtrip',
+        status: 'completed' as const,
+        action: {
+          type: 'search' as const,
+          queries: ['latest release'],
+          sources: [
+            { type: 'url' as const, url: 'https://example.com/release' },
+          ],
+        },
+      }
+      const assistantMessage = {
+        id: 'msg_roundtrip',
+        type: 'message' as const,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        content: [
+          {
+            type: 'output_text' as const,
+            text: 'Grounded',
+            annotations: [],
+          },
+        ],
+      }
+
+      const input = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).convertInput([
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          toolCalls: [
+            {
+              id: 'ws_roundtrip',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_roundtrip',
+                providerExecuted: true,
+                sources: [{ url: 'https://example.com/release' }],
+                openai: {
+                  webSearchCall,
+                  urlCitations: [],
+                  assistantMessage,
+                },
+              },
+            },
+          ],
+        },
+      ])
+
+      expect(input).toEqual([webSearchCall, assistantMessage])
     })
 
     /**

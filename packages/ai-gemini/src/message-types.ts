@@ -1,3 +1,6 @@
+import type { ProviderExecutedToolMetadata } from '@tanstack/ai'
+import type { GroundingMetadata } from '@google/genai'
+
 /**
  * Gemini-specific metadata types for multimodal content parts.
  * These types extend the base ContentPart metadata with Gemini-specific options.
@@ -178,6 +181,9 @@ export interface GeminiMessageMetadataByModality {
  *
  * @see https://ai.google.dev/gemini-api/docs/thinking
  */
-export interface GeminiToolCallMetadata {
+export interface GeminiToolCallMetadata extends ProviderExecutedToolMetadata {
   thoughtSignature?: string
+  gemini?: {
+    groundingMetadata: GroundingMetadata
+  }
 }
