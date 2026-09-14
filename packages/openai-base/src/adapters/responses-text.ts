@@ -1236,6 +1236,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
         ) {
+          if (chunk.type === 'response.incomplete') {
+            for (const [index, item] of (
+              chunk.response.output ?? []
+            ).entries()) {
+              recordProviderWebSearchCall(item, index)
+            }
+            yield* emitProviderWebSearchCalls(undefined, true)
+          }
           yield* closeReasoning()
           if (hasEmittedTextMessageStart) {
             yield {

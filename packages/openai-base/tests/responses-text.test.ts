@@ -1862,6 +1862,81 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('error handling', () => {
+    it('flushes completed web searches before RUN_ERROR on incomplete response', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws-incomplete',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: { reason: 'max_output_tokens' },
+            output: [webSearchCall],
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolStartIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_START,
+      )
+      const toolEndIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_END,
+      )
+      const runErrorIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.RUN_ERROR,
+      )
+      expect(toolStartIndex).toBeGreaterThanOrEqual(0)
+      expect(toolEndIndex).toBeGreaterThan(toolStartIndex)
+      expect(runErrorIndex).toBeGreaterThan(toolEndIndex)
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.RUN_ERROR),
+      ).toHaveLength(1)
+      expect(chunks[toolStartIndex]).toMatchObject({
+        toolCallId: 'ws-incomplete',
+        metadata: {
+          providerExecuted: true,
+          sources: [{ url: 'https://example.com/release' }],
+          openai: { webSearchCall },
+        },
+      })
+    })
+
     it('emits RUN_ERROR on stream error', async () => {
       const streamChunks = [
         {

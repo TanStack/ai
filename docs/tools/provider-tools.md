@@ -99,7 +99,10 @@ provider still owns search execution, so do not execute the tool call in your
 application.
 
 ```typescript
-const sources = toolCall.metadata?.sources ?? []
+import { getProviderExecutedMetadata } from '@tanstack/ai'
+
+const metadata = getProviderExecutedMetadata(toolCall)
+const sources = metadata?.sources ?? []
 
 for (const source of sources) {
   console.log(source.title ?? source.url, source.url)
