@@ -159,7 +159,7 @@ await reactor.sendCommand('start', {})
 
 Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect. See the [Reactor adapter](../adapters/reactor) for every id. Helios also works with `generateLiveVideo()` and `reactorVideo()`. See [Live Generation](./live-generation).
 
-A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab.
+A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world.
 
 ## Finished 3D worlds (World Labs)
 

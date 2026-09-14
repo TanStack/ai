@@ -9,6 +9,7 @@ import {
   callWithByok,
   reactorByok,
   requestByokFromError,
+  worldlabsByok,
 } from '@/lib/byok'
 import {
   WORLD_MODEL_LABELS,
@@ -16,6 +17,8 @@ import {
   WORLD_PROMPTS,
   WORLD_RESOLUTIONS,
   isReactorWorldModel,
+  isWorldLabsWorldModel,
+  isWorldModelId,
 } from '@/lib/models'
 import {
   LINGBOT_ROTATION_SPEED_DEG,
@@ -25,9 +28,25 @@ import {
   worldNeedsSeedImage,
 } from '@/lib/reactor-session'
 import type { Reactor } from '@reactor-team/js-sdk'
-import type { ReactorWorldModel, WorldResolution } from '@/lib/models'
+import type {
+  ReactorWorldModel,
+  WorldModelId,
+  WorldResolution,
+} from '@/lib/models'
 
-type SessionStatus = 'idle' | 'connecting' | 'live' | 'error'
+type SessionStatus =
+  | 'idle'
+  | 'connecting'
+  | 'live'
+  | 'generating'
+  | 'ready'
+  | 'error'
+
+type MarbleResult = {
+  url: string
+  thumbnailUrl?: string
+  caption?: string
+}
 
 function isWorldResolution(value: string): value is WorldResolution {
   return (WORLD_RESOLUTIONS as ReadonlyArray<string>).includes(value)
@@ -42,7 +61,7 @@ function errorMessage(error: unknown): string {
   return error.message
 }
 
-function readWorldPayload(value: unknown): {
+function readReactorPayload(value: unknown): {
   token: string
   model: string
   prompt: string
@@ -60,6 +79,25 @@ function readWorldPayload(value: unknown): {
     throw new Error('World payload is incomplete')
   }
   return { token, model, prompt }
+}
+
+function readMarblePayload(value: unknown): MarbleResult {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('World payload is incomplete')
+  }
+  const url = 'url' in value && typeof value.url === 'string' ? value.url : ''
+  if (url.length === 0) {
+    throw new Error('World payload is incomplete')
+  }
+  const thumbnailUrl =
+    'thumbnailUrl' in value && typeof value.thumbnailUrl === 'string'
+      ? value.thumbnailUrl
+      : undefined
+  const caption =
+    'caption' in value && typeof value.caption === 'string'
+      ? value.caption
+      : undefined
+  return { url, thumbnailUrl, caption }
 }
 
 async function startReactorWorld(
@@ -101,12 +139,13 @@ async function startReactorWorld(
 export default function WorldStudio() {
   const [prompt, setPrompt] = useState<string>(WORLD_PROMPTS[0] ?? '')
   const [steerPrompt, setSteerPrompt] = useState('')
-  const [model, setModel] = useState<ReactorWorldModel>('visko-orbis-stable')
+  const [model, setModel] = useState<WorldModelId>('visko-orbis-stable')
   const [resolution, setResolution] = useState<WorldResolution>('1080p')
   const [seedFile, setSeedFile] = useState<File | null>(null)
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [marble, setMarble] = useState<MarbleResult | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
   const detachStreamRef = useRef<(() => void) | null>(null)
@@ -114,7 +153,8 @@ export default function WorldStudio() {
   const statusRef = useRef<SessionStatus>('idle')
   statusRef.current = status
 
-  const needsSeed = worldNeedsSeedImage(model)
+  const isMarble = isWorldLabsWorldModel(model)
+  const needsSeed = isReactorWorldModel(model) && worldNeedsSeedImage(model)
 
   async function teardown() {
     unwatchRef.current?.()
@@ -139,6 +179,7 @@ export default function WorldStudio() {
   async function stop() {
     await teardown()
     setPlaying(false)
+    setMarble(null)
     setStatus('idle')
   }
 
@@ -148,16 +189,44 @@ export default function WorldStudio() {
     }
   }, [])
 
-  async function start() {
+  async function startMarble() {
+    setError(null)
+    setMarble(null)
+    setStatus('generating')
+    try {
+      await byok.prepare(worldlabsByok.id)
+      const world = readMarblePayload(
+        await callWithByok(
+          generateWorldFn({
+            data: { prompt, model, resolution },
+            headers: byok.headers(worldlabsByok.id),
+          }),
+        ),
+      )
+      setMarble(world)
+      setStatus('ready')
+    } catch (caught) {
+      setMarble(null)
+      requestByokFromError(caught)
+      setError(errorMessage(caught))
+      setStatus('error')
+    }
+  }
+
+  async function startReactor() {
+    if (!isReactorWorldModel(model)) {
+      throw new Error(`Unknown world model: ${model}`)
+    }
     setError(null)
     setPlaying(false)
+    setMarble(null)
     setStatus('connecting')
     try {
       if (needsSeed && !seedFile) {
         throw new Error('LingBot needs a seed image before start')
       }
       await byok.prepare(reactorByok.id)
-      const world = readWorldPayload(
+      const world = readReactorPayload(
         await callWithByok(
           generateWorldFn({
             data: { prompt, model, resolution },
@@ -214,6 +283,14 @@ export default function WorldStudio() {
     }
   }
 
+  async function start() {
+    if (isMarble) {
+      await startMarble()
+      return
+    }
+    await startReactor()
+  }
+
   async function steer() {
     const reactor = reactorRef.current
     const next = steerPrompt.trim()
@@ -241,119 +318,168 @@ export default function WorldStudio() {
   }
 
   const isLive = status === 'live'
-  const isBusy = status === 'connecting'
+  const isBusy = status === 'connecting' || status === 'generating'
   const canStart =
     !isBusy && prompt.trim().length > 0 && (!needsSeed || seedFile !== null)
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-400">
-        Live Reactor world. Paste a key in the header dialog, or set{' '}
-        <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
-        server.
-        {needsSeed
-          ? ' Attach a seed image, describe what it shows, then start. The world opens full screen. Move with the pads, WASD, or the arrow keys.'
-          : ' Add an optional 16:9 seed image and start. The world opens full screen. Type in the bar at the bottom to steer.'}
+        {isMarble ? (
+          <>
+            World Labs Marble generates a finished 3D world (about 5 minutes).
+            Paste a key in the header dialog, or set{' '}
+            <code className="font-mono text-gray-300">WORLDLABS_API_KEY</code>{' '}
+            on the server. Then open the Marble viewer URL.
+          </>
+        ) : (
+          <>
+            Live Reactor world. Paste a key in the header dialog, or set{' '}
+            <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on
+            the server.
+            {needsSeed
+              ? ' Attach a seed image, describe what it shows, then start. The world opens full screen. Move with the pads, WASD, or the arrow keys.'
+              : ' Add an optional 16:9 seed image and start. The world opens full screen. Type in the bar at the bottom to steer.'}
+          </>
+        )}
       </p>
 
-      {/* One video element for both layouts, so the stream survives the switch. */}
-      <div
-        className={
-          isLive
-            ? 'fixed inset-0 z-50 bg-black'
-            : 'overflow-hidden rounded-xl border border-gray-700 bg-black'
-        }
-      >
-        <video
-          ref={videoRef}
+      {isMarble ? (
+        <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
+          {marble?.thumbnailUrl ? (
+            <img
+              src={marble.thumbnailUrl}
+              alt={marble.caption ?? 'Generated world'}
+              className="aspect-video w-full object-cover"
+            />
+          ) : null}
+          {status === 'generating' ? (
+            <p className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generating the world. This usually takes a few minutes.
+            </p>
+          ) : marble ? (
+            <div className="space-y-2 px-4 py-3">
+              {marble.caption ? (
+                <p className="text-sm text-gray-300">{marble.caption}</p>
+              ) : null}
+              <a
+                href={marble.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-sm font-medium text-purple-300 hover:text-purple-200"
+              >
+                Open in Marble
+              </a>
+            </div>
+          ) : (
+            <p className="px-4 py-3 text-sm text-gray-400">
+              The Marble viewer link appears here after generation finishes.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div
           className={
             isLive
-              ? 'h-full w-full object-cover'
-              : 'aspect-video w-full bg-black'
+              ? 'fixed inset-0 z-50 bg-black'
+              : 'overflow-hidden rounded-xl border border-gray-700 bg-black'
           }
-          autoPlay
-          playsInline
-          muted
-          onPlaying={() => setPlaying(true)}
-        />
-        {status === 'idle' || status === 'error' ? (
-          <p className="px-4 py-3 text-sm text-gray-400">
-            The live stream appears here after you start a session.
-          </p>
-        ) : null}
-        {status === 'connecting' ? (
-          <p className="px-4 py-3 text-sm text-gray-400">
-            Connecting to the world model…
-          </p>
-        ) : null}
-        {isLive && !playing ? (
-          <p className="absolute inset-0 flex items-center justify-center text-sm text-gray-300">
-            Waiting for the first frame…
-          </p>
-        ) : null}
-        {isLive && needsSeed && reactorRef.current ? (
-          // Pads sit above the input bar.
-          <div className="absolute inset-x-0 top-0 bottom-24">
-            <LingbotControls
-              reactor={reactorRef.current}
-              model={model}
-              onError={setError}
-            />
-          </div>
-        ) : null}
-        {isLive ? (
-          <form
-            className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void steer()
-            }}
-          >
-            {error ? (
-              <p className="flex items-start gap-2 text-sm text-red-300">
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                {error}
-              </p>
-            ) : null}
-            <div className="mx-auto flex max-w-3xl items-end gap-2">
-              <label className="flex-1">
-                <span className="sr-only">Steer prompt</span>
-                <textarea
-                  value={steerPrompt}
-                  onChange={(event) => setSteerPrompt(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter' || event.shiftKey) return
-                    event.preventDefault()
-                    event.currentTarget.form?.requestSubmit()
-                  }}
-                  rows={1}
-                  placeholder={
-                    needsSeed
-                      ? 'Add a detail, e.g. It is night and the street lamps glow.'
-                      : 'Steer the scene. The picture morphs at the next chunk.'
-                  }
-                  className="block w-full resize-none rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder-gray-300 backdrop-blur-md focus:border-purple-400 focus:outline-none"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={steerPrompt.trim().length === 0}
-                className="rounded-xl bg-purple-600/90 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Send
-              </button>
-              <button
-                type="button"
-                onClick={() => void stop()}
-                className="inline-flex items-center gap-2 rounded-xl bg-red-600/90 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-red-500"
-              >
-                <Square className="h-4 w-4" />
-                Stop
-              </button>
+        >
+          <video
+            ref={videoRef}
+            className={
+              isLive
+                ? 'h-full w-full object-cover'
+                : 'aspect-video w-full bg-black'
+            }
+            autoPlay
+            playsInline
+            muted
+            onPlaying={() => setPlaying(true)}
+          />
+          {status === 'idle' || status === 'error' ? (
+            <p className="px-4 py-3 text-sm text-gray-400">
+              The live stream appears here after you start a session.
+            </p>
+          ) : null}
+          {status === 'connecting' ? (
+            <p className="px-4 py-3 text-sm text-gray-400">
+              Connecting to the world model…
+            </p>
+          ) : null}
+          {isLive && !playing ? (
+            <p className="absolute inset-0 flex items-center justify-center text-sm text-gray-300">
+              Waiting for the first frame…
+            </p>
+          ) : null}
+          {isLive &&
+          needsSeed &&
+          isReactorWorldModel(model) &&
+          reactorRef.current ? (
+            // Pads sit above the input bar.
+            <div className="absolute inset-x-0 top-0 bottom-24">
+              <LingbotControls
+                reactor={reactorRef.current}
+                model={model}
+                onError={setError}
+              />
             </div>
-          </form>
-        ) : null}
-      </div>
+          ) : null}
+          {isLive ? (
+            <form
+              className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-10 pb-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void steer()
+              }}
+            >
+              {error ? (
+                <p className="flex items-start gap-2 text-sm text-red-300">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  {error}
+                </p>
+              ) : null}
+              <div className="mx-auto flex max-w-3xl items-end gap-2">
+                <label className="flex-1">
+                  <span className="sr-only">Steer prompt</span>
+                  <textarea
+                    value={steerPrompt}
+                    onChange={(event) => setSteerPrompt(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' || event.shiftKey) return
+                      event.preventDefault()
+                      event.currentTarget.form?.requestSubmit()
+                    }}
+                    rows={1}
+                    placeholder={
+                      needsSeed
+                        ? 'Add a detail, e.g. It is night and the street lamps glow.'
+                        : 'Steer the scene. The picture morphs at the next chunk.'
+                    }
+                    className="block w-full resize-none rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder-gray-300 backdrop-blur-md focus:border-purple-400 focus:outline-none"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={steerPrompt.trim().length === 0}
+                  className="rounded-xl bg-purple-600/90 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Send
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void stop()}
+                  className="inline-flex items-center gap-2 rounded-xl bg-red-600/90 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-red-500"
+                >
+                  <Square className="h-4 w-4" />
+                  Stop
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </div>
+      )}
 
       {isLive ? null : (
         <form
@@ -412,7 +538,13 @@ export default function WorldStudio() {
               className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isBusy ? 'Starting…' : 'Start world'}
+              {isBusy
+                ? isMarble
+                  ? 'Generating…'
+                  : 'Starting…'
+                : isMarble
+                  ? 'Generate world'
+                  : 'Start world'}
             </button>
 
             <label className="flex items-center gap-2 text-sm text-gray-400">
@@ -421,7 +553,9 @@ export default function WorldStudio() {
                 value={model}
                 onChange={(event) => {
                   const next = event.target.value
-                  if (isReactorWorldModel(next)) setModel(next)
+                  if (!isWorldModelId(next)) return
+                  if (isLive || status === 'ready') void stop()
+                  setModel(next)
                 }}
                 disabled={isBusy}
                 className="rounded-lg border border-gray-700 bg-gray-900 px-2 py-2 text-sm text-white focus:border-purple-500 focus:outline-none disabled:opacity-50"
@@ -434,7 +568,7 @@ export default function WorldStudio() {
               </select>
             </label>
 
-            {needsSeed ? null : (
+            {needsSeed || isMarble ? null : (
               <label className="flex items-center gap-2 text-sm text-gray-400">
                 <span className="sr-only">Resolution</span>
                 <select
@@ -455,12 +589,14 @@ export default function WorldStudio() {
               </label>
             )}
 
-            <SeedImageField
-              file={seedFile}
-              onChange={setSeedFile}
-              required={needsSeed}
-              disabled={isBusy}
-            />
+            {isMarble ? null : (
+              <SeedImageField
+                file={seedFile}
+                onChange={setSeedFile}
+                required={needsSeed}
+                disabled={isBusy}
+              />
+            )}
           </div>
         </form>
       )}

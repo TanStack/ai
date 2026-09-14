@@ -32,18 +32,23 @@ import {
   isReactorWorldModel,
 } from '@tanstack/ai-reactor'
 import {
+  createWorldLabsWorld,
+  isWorldLabsWorldModel,
+} from '@tanstack/ai-worldlabs'
+import {
   byteplusByok,
   falByok,
   geminiByok,
   grokByok,
   openrouterByok,
   reactorByok,
+  worldlabsByok,
 } from '@/lib/byok'
 import type { ByokProvider } from '@tanstack/ai/byok'
 import type {
   LiveVideoModelId,
   LiveVideoResolution,
-  ReactorWorldModel,
+  WorldModelId,
   WorldResolution,
 } from './models'
 import {
@@ -206,6 +211,10 @@ function reactorV(model: Parameters<typeof createReactorVideo>[0]) {
 
 function reactorW(model: Parameters<typeof createReactorWorld>[0]) {
   return createReactorWorld(model, requireByok(reactorByok))
+}
+
+function worldlabsW(model: Parameters<typeof createWorldLabsWorld>[0]) {
+  return createWorldLabsWorld(model, requireByok(worldlabsByok))
 }
 
 function isWorldResolution(value: string): value is WorldResolution {
@@ -847,18 +856,23 @@ export const generateLiveVideoFn = createServerFn({ method: 'POST' })
 
 interface WorldRequest {
   prompt: string
-  model: ReactorWorldModel
+  model: WorldModelId
   resolution: WorldResolution
 }
 
+const WORLDLABS_TIMEOUT_MS = 12 * 60 * 1000
+
 /**
- * Mints a Reactor world session. The browser then connects with
- * `@reactor-team/js-sdk`. There is no job URL to poll.
+ * Reactor mints a session token for a live stream. World Labs starts a job
+ * and waits until the Marble world is ready (about 5 minutes).
  */
 export const generateWorldFn = createServerFn({ method: 'POST' })
   .inputValidator((data: WorldRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
+    }
+    if (isWorldLabsWorldModel(data.model)) {
+      return data
     }
     if (!isReactorWorldModel(data.model)) {
       throw new Error(`Unknown world model: ${data.model}`)
@@ -869,13 +883,39 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
     return data
   })
   .handler(async ({ data }) => {
+    if (isWorldLabsWorldModel(data.model)) {
+      const world = await generateWorld({
+        adapter: worldlabsW(data.model),
+        prompt: data.prompt.trim(),
+        timeout: WORLDLABS_TIMEOUT_MS,
+        debug: false,
+      })
+      if (typeof world.url !== 'string' || world.url.length === 0) {
+        throw new Error('World Labs did not return a viewer URL')
+      }
+      return {
+        kind: 'worldlabs' as const,
+        url: world.url,
+        worldId: world.worldId,
+        model: world.model,
+        prompt: world.prompt,
+        status: world.status,
+        thumbnailUrl: world.assets?.thumbnailUrl,
+        caption: world.assets?.caption,
+      }
+    }
+
     const world = await generateWorld({
       adapter: reactorW(data.model),
       prompt: data.prompt.trim(),
       modelOptions: { resolution: data.resolution },
       debug: false,
     })
+    if (typeof world.token !== 'string' || world.token.length === 0) {
+      throw new Error('Reactor did not return a session token')
+    }
     return {
+      kind: 'reactor' as const,
       token: world.token,
       model: world.model,
       prompt: world.prompt,

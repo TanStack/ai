@@ -31,7 +31,7 @@ octane: @tanstack/ai-worldlabs
 
 <!-- ::end:tabs -->
 
-Peer dependency: `@tanstack/ai`.
+Peer dependency: `@tanstack/ai`. A full working app is in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab and pick a Marble model.
 
 ## API key
 

@@ -1140,6 +1140,9 @@ importers:
       '@tanstack/ai-reactor':
         specifier: workspace:*
         version: link:../../packages/ai-reactor
+      '@tanstack/ai-worldlabs':
+        specifier: workspace:*
+        version: link:../../packages/ai-worldlabs
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
