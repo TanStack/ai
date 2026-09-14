@@ -685,7 +685,7 @@
           "label": "World Generation",
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Generation Hooks",
@@ -1002,7 +1002,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Extend Adapter",
@@ -1013,7 +1013,7 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Approval Flow Processing",
@@ -1103,6 +1103,11 @@
           "to": "adapters/reactor",
           "addedAt": "2026-09-04",
           "updatedAt": "2026-09-04"
+        },
+        {
+          "label": "World Labs",
+          "to": "adapters/worldlabs",
+          "addedAt": "2026-09-14"
         },
         {
           "label": "OpenRouter Adapter",
