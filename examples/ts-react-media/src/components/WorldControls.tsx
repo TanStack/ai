@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react'
-import { setLingbotAxis } from '@/lib/reactor-session'
 import type { ReactNode } from 'react'
-import type { Reactor } from '@reactor-team/js-sdk'
-import type { ReactorWorldModel } from '@tanstack/ai-reactor'
-import type { LingbotAxis } from '@/lib/reactor-session'
+import type { CameraAxis } from '@/lib/reactor-session'
 
 interface Control {
-  axis: LingbotAxis
+  axis: CameraAxis
   value: string
   key: string
   label: string
@@ -94,25 +91,27 @@ function controlForKey(event: KeyboardEvent): Control | undefined {
 }
 
 /**
- * Hold-to-move pads for LingBot, laid over the video. Buttons, WASD, and
- * arrow keys drive the same held axes. A button lights while its axis runs.
+ * Hold-to-move pads laid over the video. Buttons, WASD, and arrow keys drive
+ * the same held axes. A button lights while its axis runs. `onChange` gets
+ * the changed axis (`idle` on release) and every axis still held.
  */
-export function LingbotControls(props: {
-  reactor: Reactor
-  model: ReactorWorldModel
-  onError: (message: string) => void
+export function WorldControls(props: {
+  onChange: (
+    axis: CameraAxis,
+    value: string,
+    held: ReadonlyMap<CameraAxis, string>,
+  ) => void
 }) {
-  const { reactor, model, onError } = props
-  const held = useRef(new Map<LingbotAxis, string>())
-  const [active, setActive] = useState<ReadonlyMap<LingbotAxis, string>>(
+  const { onChange } = props
+  const held = useRef(new Map<CameraAxis, string>())
+  const [active, setActive] = useState<ReadonlyMap<CameraAxis, string>>(
     () => new Map(),
   )
 
-  function send(axis: LingbotAxis, value: string) {
-    setActive(new Map(held.current))
-    setLingbotAxis(reactor, model, axis, value).catch((error: unknown) =>
-      onError(String(error)),
-    )
+  function send(axis: CameraAxis, value: string) {
+    const snapshot = new Map(held.current)
+    setActive(snapshot)
+    onChange(axis, value, snapshot)
   }
 
   function press(control: Control) {

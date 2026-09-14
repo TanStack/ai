@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
-import { LingbotControls } from '@/components/LingbotControls'
+import { WorldControls } from '@/components/WorldControls'
 import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
@@ -19,13 +19,17 @@ import {
 } from '@/lib/models'
 import {
   LINGBOT_ROTATION_SPEED_DEG,
+  isOrbisModel,
   lingbotPrompt,
+  orbisPrompt,
+  setLingbotAxis,
   setReactorImage,
   watchReactorFailure,
   worldNeedsSeedImage,
 } from '@/lib/reactor-session'
 import type { Reactor } from '@reactor-team/js-sdk'
 import type { ReactorWorldModel, WorldResolution } from '@/lib/models'
+import type { CameraAxis } from '@/lib/reactor-session'
 
 type SessionStatus = 'idle' | 'connecting' | 'live' | 'error'
 
@@ -86,12 +90,14 @@ async function startReactorWorld(
     await reactor.sendCommand('start', {})
     return
   }
-  if (seedFile) {
+  if (seedFile && model === 'helios') {
     const image = await reactor.uploadFile(seedFile)
     await reactor.sendCommand('set_conditioning', { prompt, image })
     await reactor.sendCommand('start', {})
     return
   }
+  // Orbis: the image is optional and only read before start.
+  if (seedFile) await setReactorImage(reactor, seedFile)
   await reactor.sendCommand('set_prompt', { prompt })
   await reactor.sendCommand('start', {})
 }
@@ -113,7 +119,7 @@ export default function WorldStudio() {
   statusRef.current = status
 
   const needsSeed = worldNeedsSeedImage(model)
-  const showSeedField = needsSeed || model === 'helios'
+  const showControls = needsSeed || isOrbisModel(model)
 
   async function teardown() {
     unwatchRef.current?.()
@@ -235,6 +241,21 @@ export default function WorldStudio() {
     }
   }
 
+  function moveCamera(
+    axis: CameraAxis,
+    value: string,
+    held: ReadonlyMap<CameraAxis, string>,
+  ) {
+    const reactor = reactorRef.current
+    if (!reactor) return
+    const sent = needsSeed
+      ? setLingbotAxis(reactor, model, axis, value)
+      : reactor.sendCommand('set_prompt', {
+          prompt: orbisPrompt(prompt, held.values()),
+        })
+    sent.catch((caught: unknown) => setError(errorMessage(caught)))
+  }
+
   const isLive = status === 'live'
   const isBusy = status === 'connecting'
   const canStart =
@@ -247,8 +268,11 @@ export default function WorldStudio() {
         <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on the
         server.
         {needsSeed
-          ? ' Attach a seed image, describe what it shows, then start. Move with the pads on the video, WASD, or the arrow keys.'
-          : ' Then start a session and type under the view to steer.'}
+          ? ' Attach a seed image, describe what it shows, then start.'
+          : ' Add an optional 16:9 seed image, start, then type under the view to steer.'}
+        {showControls
+          ? ' Move with the pads on the video, WASD, or the arrow keys.'
+          : null}
       </p>
 
       <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
@@ -261,12 +285,8 @@ export default function WorldStudio() {
             muted
             onPlaying={() => setPlaying(true)}
           />
-          {isLive && needsSeed && reactorRef.current ? (
-            <LingbotControls
-              reactor={reactorRef.current}
-              model={model}
-              onError={setError}
-            />
+          {isLive && showControls ? (
+            <WorldControls onChange={moveCamera} />
           ) : null}
         </div>
         {status === 'idle' || status === 'error' ? (
@@ -414,7 +434,7 @@ export default function WorldStudio() {
             </label>
           )}
 
-          {isLive || !showSeedField ? null : (
+          {isLive ? null : (
             <SeedImageField
               file={seedFile}
               onChange={setSeedFile}

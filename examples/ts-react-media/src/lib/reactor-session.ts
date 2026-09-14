@@ -22,6 +22,31 @@ export function lingbotPrompt(base: string, detail = ''): string {
 /** Default is 5 deg per latent frame, which spins past the target on a tap. */
 export const LINGBOT_ROTATION_SPEED_DEG = 1.5
 
+/**
+ * Orbis has no camera commands. The Reactor Orbis guide steers the camera in
+ * prose, so each held control adds one sentence to the scene prompt.
+ */
+const ORBIS_CAMERA: Record<string, string> = {
+  forward: 'The camera moves slowly forward.',
+  back: 'The camera pulls slowly back.',
+  strafe_left: 'The camera tracks slowly to the left.',
+  strafe_right: 'The camera tracks slowly to the right.',
+  left: 'The camera pans slowly to the left.',
+  right: 'The camera pans slowly to the right.',
+  up: 'The camera tilts slowly up.',
+  down: 'The camera tilts slowly down.',
+}
+
+/** Scene prompt plus one camera sentence per held control. */
+export function orbisPrompt(base: string, held: Iterable<string>): string {
+  const camera = [...held].map((value) => ORBIS_CAMERA[value] ?? '')
+  return [base.trim(), ...camera].filter((part) => part.length > 0).join(' ')
+}
+
+export function isOrbisModel(model: ReactorWorldModel): boolean {
+  return model === 'visko-orbis-stable' || model === 'visko-orbis-dynamic'
+}
+
 export function liveAcceptsSeedImage(model: string): boolean {
   return model === 'helios'
 }
@@ -67,7 +92,7 @@ export function watchReactorFailure(
   }
 }
 
-export type LingbotAxis =
+export type CameraAxis =
   | 'move_longitudinal'
   | 'move_lateral'
   | 'look_horizontal'
@@ -80,7 +105,7 @@ export type LingbotAxis =
 export async function setLingbotAxis(
   reactor: Reactor,
   model: ReactorWorldModel,
-  axis: LingbotAxis,
+  axis: CameraAxis,
   value: string,
 ): Promise<void> {
   if (model === 'lingbot' && axis.startsWith('move_')) {

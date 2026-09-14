@@ -143,6 +143,8 @@ await reactor.sendCommand('start', {})
 
 Helios can take the same `File` with `set_conditioning` so prompt and image land together.
 
+Orbis takes an optional seed image. Send `set_image` before `set_prompt` and `start`. Use a 16:9 image, because Orbis resizes other shapes without a crop. A new image during a run has no effect until `reset`.
+
 ## Browser session options
 
 Orbis reads these on the next `start`. Keep them in client state. Send them with `sendCommand` after `connect`. They are not token-mint fields.
@@ -153,7 +155,7 @@ import { Reactor } from '@reactor-team/js-sdk'
 const reactor = new Reactor({ modelName: 'reactor/visko-orbis-stable' })
 await reactor.sendCommand('set_resolution', { resolution: '2k' })
 await reactor.sendCommand('set_seed', { seed: 42 })
-await reactor.sendCommand('set_audio_enabled', { enabled: true })
+await reactor.sendCommand('set_audio_enabled', { audio_enabled: true })
 ```
 
 | Option | Command | Meaning |
