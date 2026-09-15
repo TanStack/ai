@@ -1104,11 +1104,11 @@
           "updatedAt": "2026-08-21"
         }
       ],
-      "tab": "guides"
+      "tab": "adapters"
     },
     {
       "label": "Community Adapters",
-      "tab": "guides",
+      "tab": "adapters",
       "children": [
         {
           "label": "Community Adapters Guide",

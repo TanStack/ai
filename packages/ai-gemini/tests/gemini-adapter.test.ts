@@ -168,6 +168,59 @@ describe('GeminiAdapter through AI', () => {
     expect(payload.config.maxOutputTokens).toBe(512)
   })
 
+  it("forwards the caller's abort signal as config.abortSignal (#1374)", async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const abortController = new AbortController()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      abortController,
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.abortSignal).toBe(abortController.signal)
+  })
+
+  it('omits config.abortSignal when no abort controller is supplied', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      /* consume stream */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.abortSignal).toBeUndefined()
+  })
+
   it('joins object-form systemPrompts into systemInstruction and drops foreign metadata', async () => {
     const streamChunks = [
       {

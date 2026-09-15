@@ -1109,6 +1109,11 @@ export class GeminiTextAdapter<
         ...(systemInstruction !== undefined && { systemInstruction }),
         tools: convertToolsToProviderFormat(options.tools),
         ...(combinedSchemaConfig ?? {}),
+        // Forward the caller's abort signal so cancellation reaches the SDK
+        // request, matching the OpenAI-compatible adapters (issue #1374).
+        ...(options.request?.signal != null && {
+          abortSignal: options.request.signal,
+        }),
       },
     }
 

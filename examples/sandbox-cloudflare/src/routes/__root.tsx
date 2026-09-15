@@ -14,7 +14,21 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'TanStack AI — Cloudflare Sandbox Agent' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: 'https://tanstack.com/favicon-light.svg',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: 'https://tanstack.com/favicon-dark.svg',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
   }),
   notFoundComponent: NotFound,
   shellComponent: RootDocument,
