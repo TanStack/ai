@@ -24,7 +24,8 @@ import type { ImageAdapter } from '../src/activities/generateImage/adapter'
 
 const fileSource: ContentPartSource = {
   type: 'file',
-  reference: { openai: 'file-abc' },
+  value: 'file-abc',
+  provider: 'openai',
 }
 
 describe('file content source helpers', () => {
@@ -36,17 +37,21 @@ describe('file content source helpers', () => {
     ).toBe(false)
   })
 
-  it('fileReferenceFor resolves the own-provider entry and throws on a miss', () => {
-    const merged: ContentPartSource = {
-      type: 'file',
-      reference: { openai: 'file-abc', gemini: 'https://g/files/xyz' },
-    }
-    if (!isFileSource(merged)) throw new Error('expected file source')
-    expect(fileReferenceFor(merged, 'openai')).toBe('file-abc')
-    expect(fileReferenceFor(merged, 'gemini')).toBe('https://g/files/xyz')
-    expect(() => fileReferenceFor(merged, 'anthropic')).toThrow(
-      /anthropic.*found: openai, gemini/s,
+  it('fileReferenceFor returns the handle for its issuer and throws for another', () => {
+    if (!isFileSource(fileSource)) throw new Error('expected file source')
+    expect(fileReferenceFor(fileSource, 'openai')).toBe('file-abc')
+    expect(() => fileReferenceFor(fileSource, 'anthropic')).toThrow(
+      /anthropic.*issued by openai/s,
     )
+  })
+
+  it('fileReferenceFor takes a source that names no provider as-is', () => {
+    // An adapter already knows which provider it talks to, so an unnamed
+    // handle is passed through and the provider itself resolves it.
+    const unnamed: ContentPartSource = { type: 'file', value: 'file-abc' }
+    if (!isFileSource(unnamed)) throw new Error('expected file source')
+    expect(fileReferenceFor(unnamed, 'openai')).toBe('file-abc')
+    expect(fileReferenceFor(unnamed, 'anthropic')).toBe('file-abc')
   })
 
   it('unsupportedFileSourceError includes provider and detail', () => {
@@ -55,11 +60,12 @@ describe('file content source helpers', () => {
     expect(err.message).toContain('on this endpoint')
   })
 
-  it('fileSourceFromHandle uses uri (Gemini/fal) else id (OpenAI/Anthropic) and merges handles', () => {
+  it('fileSourceFromHandle uses uri (Gemini/fal/Grok) else id (OpenAI/Anthropic) and names the issuer', () => {
     const opaque: FileHandle = { id: 'file-abc', provider: 'openai' }
     expect(fileSourceFromHandle(opaque)).toEqual({
       type: 'file',
-      reference: { openai: 'file-abc' },
+      value: 'file-abc',
+      provider: 'openai',
     })
 
     const withUri: FileHandle = {
@@ -70,48 +76,30 @@ describe('file content source helpers', () => {
     }
     expect(fileSourceFromHandle(withUri)).toEqual({
       type: 'file',
-      reference: {
-        gemini: 'https://generativelanguage.googleapis.com/v1/files/xyz',
-      },
-      mimeType: 'image/png',
-    })
-
-    // Multiple handles (same bytes uploaded to two providers) merge into one
-    // source that routes to either provider.
-    expect(fileSourceFromHandle(opaque, withUri)).toEqual({
-      type: 'file',
-      reference: {
-        openai: 'file-abc',
-        gemini: 'https://generativelanguage.googleapis.com/v1/files/xyz',
-      },
+      value: 'https://generativelanguage.googleapis.com/v1/files/xyz',
+      provider: 'gemini',
       mimeType: 'image/png',
     })
   })
 
-  it('isContentPart accepts a valid file source and rejects an empty reference record', () => {
+  it('isContentPart accepts a valid file source and rejects malformed ones', () => {
     expect(isContentPart({ type: 'image', source: fileSource })).toBe(true)
     expect(
-      isContentPart({
-        type: 'image',
-        source: { type: 'file', reference: {} },
-      }),
+      isContentPart({ type: 'image', source: { type: 'file', value: 'h' } }),
+    ).toBe(true)
+    // No handle.
+    expect(isContentPart({ type: 'image', source: { type: 'file' } })).toBe(
+      false,
+    )
+    // Empty handle.
+    expect(
+      isContentPart({ type: 'image', source: { type: 'file', value: '' } }),
     ).toBe(false)
+    // Non-string provider.
     expect(
       isContentPart({
         type: 'image',
-        source: { type: 'file' },
-      }),
-    ).toBe(false)
-    expect(
-      isContentPart({
-        type: 'image',
-        source: { type: 'file', reference: ['file-abc'] },
-      }),
-    ).toBe(false)
-    expect(
-      isContentPart({
-        type: 'image',
-        source: { type: 'file', reference: { openai: '' } },
+        source: { type: 'file', value: 'h', provider: 42 },
       }),
     ).toBe(false)
   })

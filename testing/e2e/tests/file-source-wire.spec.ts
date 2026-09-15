@@ -54,7 +54,7 @@ test.describe('file content source — wire format', () => {
     const { ok, error } = (await res.json()) as { ok: boolean; error?: string }
     expect(ok).toBe(false)
     expect(error).toMatch(/openai/)
-    expect(error).toMatch(/found: gemini/)
+    expect(error).toMatch(/issued by gemini/)
   })
 
   test('anthropic: an own-provider handle completes the round-trip (file_id block covered by unit test)', async ({
@@ -93,6 +93,6 @@ test.describe('file content source — wire format', () => {
     const { ok, error } = (await res.json()) as { ok: boolean; error?: string }
     expect(ok).toBe(false)
     expect(error).toMatch(/gemini/)
-    expect(error).toMatch(/found: openai/)
+    expect(error).toMatch(/issued by openai/)
   })
 })

@@ -54,7 +54,8 @@ describe('anthropic file content source', () => {
                 type: 'image',
                 source: {
                   type: 'file',
-                  reference: { anthropic: 'file_anthropic_123' },
+                  value: 'file_anthropic_123',
+                  provider: 'anthropic',
                 },
               },
             ],
@@ -88,7 +89,8 @@ describe('anthropic file content source', () => {
               type: 'image',
               source: {
                 type: 'file',
-                reference: { openai: 'file-openai-1' },
+                value: 'file-openai-1',
+                provider: 'openai',
               },
             },
           ],

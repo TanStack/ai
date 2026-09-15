@@ -82,37 +82,30 @@ export async function deleteFile<TName extends string>(options: {
 }
 
 /**
- * Build a `{ type: 'file' }` content source from one or more uploaded
- * {@link FileHandle}s, for use in a chat message (image/audio/document part
+ * Build a `{ type: 'file' }` content source from an uploaded
+ * {@link FileHandle}, for use in a chat message (image/audio/document part
  * `source`).
  *
- * Each handle contributes a `reference` entry under its provider name, using
- * the right wire form: the handle URL when the provider exposes one
- * (Gemini/fal), otherwise the opaque id (OpenAI/Anthropic). Pass handles from
- * several providers (the same bytes uploaded to each) to build a source that
- * routes correctly to any of them.
+ * The source's `value` is the handle's wire form: the handle URL when the
+ * provider exposes one (Gemini, fal, Grok), otherwise the opaque id (OpenAI,
+ * Anthropic). `provider` records the issuer, so an adapter for a different
+ * provider rejects the source rather than sending a handle it cannot resolve.
  *
  * @example
  * ```ts
- * const openaiHandle = await uploadFile({ adapter: openaiFiles(), input })
- * const geminiHandle = await uploadFile({ adapter: geminiFiles(), input })
+ * const handle = await uploadFile({ adapter: openaiFiles(), input })
  * messages.push({ role: 'user', content: [
- *   { type: 'image', source: fileSourceFromHandle(openaiHandle, geminiHandle) },
+ *   { type: 'image', source: fileSourceFromHandle(handle) },
  * ] })
  * ```
  */
 export function fileSourceFromHandle<TProvider extends string>(
-  ...handles: [FileHandle<TProvider>, ...Array<FileHandle<TProvider>>]
+  handle: FileHandle<TProvider>,
 ): ContentPartFileSource<TProvider> {
-  const reference = {} as Record<TProvider, string>
-  let mimeType: string | undefined
-  for (const handle of handles) {
-    reference[handle.provider] = handle.uri ?? handle.id
-    mimeType ??= handle.mimeType
-  }
   return {
     type: 'file',
-    reference,
-    ...(mimeType ? { mimeType } : {}),
+    value: handle.uri ?? handle.id,
+    provider: handle.provider,
+    ...(handle.mimeType ? { mimeType: handle.mimeType } : {}),
   }
 }

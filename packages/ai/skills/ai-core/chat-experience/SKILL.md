@@ -308,14 +308,16 @@ function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
 ```
 
 For media reused across turns, upload once via a provider Files adapter
-(`openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and send a
-`{ type: 'file' }` source built with `fileSourceFromHandle(...handles)` instead
-of re-sending base64 each request. The source carries a per-provider reference
-record, so handles from several providers merge into one source that routes to
-any of them; providers without an entry (or without Files API support at all)
-reject it with a clear error before any request is sent.
-`fileSourceFromHandle` is exported from the browser-safe
-`@tanstack/ai/client`; the upload itself is server-side. See
+(`openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`,
+`falFiles()`) and send a `{ type: 'file' }` source built with
+`fileSourceFromHandle(handle)` instead of re-sending base64 each request. The
+source is `{ type: 'file', value, provider }`: an opaque handle and the adapter
+that issued it. A different provider (or one without Files API support at all)
+rejects it with a clear error before any request is sent.
+Build the source on the server. The chat wire format carries `data` and `url`
+sources only, so a `{ type: 'file' }` source cannot cross it (it throws rather
+than being dropped). Send the handle in your own request body and call
+`fileSourceFromHandle` server-side. See
 `ai-core/adapter-configuration/SKILL.md` §7 and `docs/advanced/files-api.md`.
 
 ### 4. Sending Audio Messages (Browser Recording)

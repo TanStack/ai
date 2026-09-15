@@ -514,12 +514,12 @@ chat({
 
 Rules agents must respect:
 
-- **The source is a per-provider reference record.** `fileSourceFromHandle`
-  builds `{ type: 'file', reference: { openai: 'file-…' } }`; each adapter
-  reads only its own entry and throws when none is present. Upload the same
-  bytes to several providers and pass all the handles —
-  `fileSourceFromHandle(openaiHandle, geminiHandle)` — to build one source
-  that routes to any of them.
+- **The source is one opaque handle plus its issuer.** `fileSourceFromHandle`
+  builds `{ type: 'file', value: 'file-…', provider: 'openai' }`, matching the
+  AG-UI `FileSource` arm. A handle only resolves at the provider that issued
+  it: an adapter throws when `provider` names a different adapter, and takes a
+  source with no `provider` as-is. To use the same bytes with two providers,
+  upload to each and send the matching handle.
 - **Adapters declare `supportsFileSources`.** For adapters that don't (Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
   written before this feature), `chat()` / `generateImage()` /
   `generateVideo()` / `embed()` reject file sources in preflight, before any

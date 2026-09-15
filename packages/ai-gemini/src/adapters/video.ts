@@ -158,7 +158,7 @@ function mediaPartToInteractionsContent(
 ): InteractionContent {
   // A Gemini Files API reference maps to the `uri` field, same as a public
   // URL (mirrors the Interactions text adapter). `fileReferenceFor` throws
-  // when the file was never uploaded to Gemini.
+  // when another provider issued the handle.
   const sourceValue = isFileSource(part.source)
     ? fileReferenceFor(part.source, 'gemini')
     : part.source.value

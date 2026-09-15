@@ -112,7 +112,24 @@ To stop a URL resolving without deleting the file, call `revokePublicUrl(handle.
 
 ## Referencing a handle in a message
 
-Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source. The source carries a **record of per-provider references** (`{ reference: { openai: 'file-abc' } }`). Each adapter reads only its own entry and maps it to its native wire field: OpenAI and Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL, Grok public URL. Sending the source to a provider with no entry in the record throws a clear error, and adapters that can't consume file references at all are rejected before any mapping starts.
+Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source:
+
+```typescript
+import type { ContentPartFileSource } from '@tanstack/ai'
+
+const source: ContentPartFileSource = {
+  type: 'file',
+  value: 'file-abc',
+  provider: 'openai',
+}
+```
+
+- `value` is the handle exactly as the provider issued it. Treat it as opaque.
+- `provider` names the adapter that issued it.
+
+Each adapter maps `value` to its native wire field: OpenAI and Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL, Grok public URL.
+
+A handle only works with the provider that issued it. If `provider` names a different adapter, that adapter throws a clear error. Adapters that cannot consume file handles at all are rejected before any mapping starts.
 
 ### Server: upload + reference
 
@@ -140,37 +157,6 @@ export async function askAboutPdf(pdfBase64: string, request: string) {
     ],
   })
 }
-```
-
-### One source, several providers
-
-Because `reference` is a record, the same bytes uploaded to two providers merge into **one** source that routes correctly to either — useful when a conversation may be replayed against different models:
-
-```typescript
-import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
-import { openaiFiles, openaiText } from '@tanstack/ai-openai'
-import { geminiFiles } from '@tanstack/ai-gemini'
-import { pdfBase64 } from './pdf-data'
-
-const input = { data: pdfBase64, mimeType: 'application/pdf' }
-const openaiHandle = await uploadFile({ adapter: openaiFiles(), input })
-const geminiHandle = await uploadFile({ adapter: geminiFiles(), input })
-
-// reference: { openai: 'file-…', gemini: 'https://…/files/…' }
-const source = fileSourceFromHandle(openaiHandle, geminiHandle)
-
-chat({
-  adapter: openaiText('gpt-5.5'), // or a gemini adapter — same message works
-  messages: [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', content: 'Summarize this document' },
-        { type: 'document', source },
-      ],
-    },
-  ],
-})
 ```
 
 ### Client: reuse a handle across requests

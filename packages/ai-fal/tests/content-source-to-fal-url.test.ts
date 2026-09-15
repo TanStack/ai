@@ -6,7 +6,8 @@ describe('contentSourceToFalUrl', () => {
     expect(
       contentSourceToFalUrl({
         type: 'file',
-        reference: { fal: 'https://fal.media/files/abc.png' },
+        value: 'https://fal.media/files/abc.png',
+        provider: 'fal',
       }),
     ).toBe('https://fal.media/files/abc.png')
   })
@@ -15,7 +16,8 @@ describe('contentSourceToFalUrl', () => {
     expect(() =>
       contentSourceToFalUrl({
         type: 'file',
-        reference: { openai: 'file-openai-123' },
+        value: 'file-openai-123',
+        provider: 'openai',
       }),
     ).toThrow(/fal/)
   })

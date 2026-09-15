@@ -112,8 +112,11 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
     source.type === 'data'
       ? source.mimeType
       : (source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type])
-  const base =
-    source.type === 'data'
+  // A Gemini Files API handle maps to the `uri` field, same as a public URL;
+  // `fileReferenceFor` throws when another provider issued it.
+  const base = isFileSource(source)
+    ? { uri: fileReferenceFor(source, 'gemini'), mime_type: mimeType }
+    : source.type === 'data'
       ? { data: source.value, mime_type: mimeType }
       : { uri: source.value, mime_type: mimeType }
 

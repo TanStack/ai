@@ -19,8 +19,7 @@ import type { FalModel, FalModelInput } from '../model-meta'
  */
 export function contentSourceToFalUrl(source: ContentPartSource): string {
   if (isFileSource(source)) {
-    // The 'fal' entry of the reference record is a storage URL; throws when
-    // the file was never uploaded to fal storage.
+    // A fal handle is a storage URL; throws when another provider issued it.
     return fileReferenceFor(source, 'fal')
   }
   if (source.type === 'url') return source.value

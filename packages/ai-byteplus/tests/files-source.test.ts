@@ -51,7 +51,8 @@ describe('byteplus file content source', () => {
                   type: 'image',
                   source: {
                     type: 'file',
-                    reference: { openai: 'file-openai-abc' },
+                    value: 'file-openai-abc',
+                    provider: 'openai',
                   },
                 },
               ],
@@ -75,7 +76,8 @@ describe('byteplus file content source', () => {
                   type: 'video',
                   source: {
                     type: 'file',
-                    reference: { byteplus: 'https://example.com/some-handle' },
+                    value: 'https://example.com/some-handle',
+                    provider: 'byteplus',
                   },
                 },
               ],

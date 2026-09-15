@@ -9,10 +9,10 @@ import type { chatOptions } from '@/chat/options'
  */
 function sourceHref(source: {
   type: string
-  value?: string
+  value: string
   mimeType?: string
 }): string | undefined {
-  if (source.value === undefined) return undefined
+  if (source.type === 'file') return undefined
   if (source.type === 'data') {
     return `data:${source.mimeType ?? 'application/octet-stream'};base64,${source.value}`
   }

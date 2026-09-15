@@ -913,10 +913,10 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   if (part.type === 'text') {
     return { type: 'text', text: part.content }
   }
-  // A Gemini Files API reference maps to the `uri` field (isData stays
-  // false), same as a public URL. `fileReferenceFor` throws when the file was
-  // never uploaded to Gemini (the reference key is the files-issuer name,
-  // shared with the standard gemini adapters).
+  // A Gemini Files API handle maps to the `uri` field (isData stays false),
+  // same as a public URL. `fileReferenceFor` checks the issuer against
+  // 'gemini', the name geminiFiles() stamps on its handles, not this
+  // adapter's own name.
   const sourceValue = isFileSource(part.source)
     ? fileReferenceFor(part.source, 'gemini')
     : part.source.value

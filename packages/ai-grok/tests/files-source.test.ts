@@ -69,7 +69,8 @@ function fileSourceMessage(provider: string, type: 'image' | 'document') {
           type,
           source: {
             type: 'file' as const,
-            reference: { [provider]: PUBLIC_URL },
+            value: PUBLIC_URL,
+            provider: provider,
           },
         },
       ],
@@ -120,7 +121,7 @@ describe('grok file content source', () => {
     expect(fileContent.file_id).toBeUndefined()
   })
 
-  it('rejects an openai file reference — no grok entry in the record', async () => {
+  it('rejects a handle another provider issued', async () => {
     const create = vi.fn()
     // The adapter declares support, so the lookup fails while the request is
     // being built and surfaces as a RUN_ERROR chunk rather than a preflight
@@ -135,7 +136,7 @@ describe('grok file content source', () => {
     const runError = chunks.find((chunk) => chunk.type === 'RUN_ERROR')
     expect(runError).toBeDefined()
     expect((runError as { message?: string }).message).toMatch(
-      /grok.*found: openai/s,
+      /grok.*issued by openai/s,
     )
     expect(create).not.toHaveBeenCalled()
   })

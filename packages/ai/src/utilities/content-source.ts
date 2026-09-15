@@ -15,32 +15,28 @@ export function isFileSource(
 }
 
 /**
- * Resolve the wire reference `providerName` should send for a file source.
+ * Resolve the handle `providerName` should send for a file source.
  *
- * A file source carries a record of per-provider references (`{ openai:
- * 'file-abc', gemini: 'https://…' }`) — upload the same bytes to several
- * providers and merge their handles to make one source usable across all of
- * them. An adapter only ever reads its own entry.
+ * A file source carries one opaque handle (`value`) and, optionally, the
+ * provider that issued it. An adapter always knows which provider it talks
+ * to, so a source that names no provider is taken as-is.
  *
- * @throws when the record has no entry for `providerName` — the file was
- * never uploaded to this provider.
+ * @throws when the source names a different issuing provider. A handle only
+ * resolves at the provider that minted it.
  */
 export function fileReferenceFor(
   source: ContentPartFileSource,
   providerName: string,
 ): string {
-  const reference = source.reference[providerName]
-  if (reference === undefined) {
-    const available = Object.keys(source.reference)
+  if (source.provider !== undefined && source.provider !== providerName) {
     throw new Error(
-      `${providerName}: file source has no reference for this provider ` +
-        `(found: ${available.length > 0 ? available.join(', ') : 'none'}). ` +
-        `A provider file reference only works with the provider that issued ` +
-        `it — upload the file with ${providerName}Files() and merge that ` +
-        `handle into the source, or pass a data/url source instead.`,
+      `${providerName}: file source was issued by ${source.provider}. ` +
+        `A provider file handle only works with the provider that issued ` +
+        `it. Upload the file with ${providerName}Files(), or pass a data or ` +
+        `url source instead.`,
     )
   }
-  return reference
+  return source.value
 }
 
 /**

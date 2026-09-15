@@ -447,7 +447,21 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document'
     ) {
-      out.push(p)
+      // The pinned @ag-ui/core `InputContentSource` has only `data` and `url`
+      // arms, so a `{ type: 'file' }` provider handle cannot cross it. Throw
+      // rather than drop the part silently. AG-UI 1.0 adds a matching `file`
+      // arm ({ type, value, provider?, mimeType? }, ag-ui-protocol/ag-ui#2639);
+      // on upgrade, pass the part through here instead.
+      const source = p.source
+      if (source.type === 'file') {
+        throw new Error(
+          `The AG-UI wire format cannot carry a { type: 'file' } provider ` +
+            `file-handle source on a ${p.type} part. Send the handle in your ` +
+            `own request payload and build the source with ` +
+            `fileSourceFromHandle() on the server.`,
+        )
+      }
+      out.push({ ...p, source })
     }
   }
   return out

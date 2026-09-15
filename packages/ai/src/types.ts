@@ -250,31 +250,38 @@ export interface ContentPartUrlSource {
 }
 
 /**
- * Source specification for provider-issued file references (Files API).
+ * Source specification for a provider-issued file handle (Files API).
  *
  * The media is uploaded once via a `files` adapter (`openaiFiles()`,
- * `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and referenced here by the
- * returned handle instead of re-sending base64 or a public URL each request.
+ * `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, `falFiles()`) and
+ * referenced here by the returned handle instead of re-sending base64 or a
+ * public URL on each request.
  *
- * `reference` maps provider names to that provider's wire reference — an
- * OpenAI/Anthropic `file_id`, a Gemini file URI, a fal storage URL. Upload the
- * same bytes to several providers and merge their handles
- * (`fileSourceFromHandle(openaiHandle, geminiHandle)`) to make one source that
- * works across all of them; each adapter reads only its own entry and throws
- * when none is present. Adapters that can't consume file references at all are
- * rejected by the activity-layer preflight before mapping starts.
+ * Matches the AG-UI `FileSource` arm: `value` is the handle exactly as the
+ * provider issued it (an OpenAI/Anthropic `file_id`, a Gemini file URI, a fal
+ * storage URL, a Grok public URL) and is opaque, so never fetch or parse it.
+ * Only the provider that minted a handle can resolve it.
+ *
+ * Adapters that cannot consume file handles at all are rejected by the
+ * activity-layer preflight before mapping starts.
  */
 export interface ContentPartFileSource<TProvider extends string = string> {
   /**
-   * Indicates this references provider-issued file handles.
+   * Indicates this references a provider-issued file handle.
    */
   type: 'file'
   /**
-   * Provider name → wire reference issued by that provider's Files API. Use
-   * `fileSourceFromHandle(...handles)` to build (and merge) entries without
-   * worrying about the id-vs-uri distinction.
+   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
+   * parse it, or read a scheme out of it.
    */
-  reference: Record<TProvider, string>
+  value: string
+  /**
+   * The adapter name of the provider that issued the handle (`'openai'`,
+   * `'gemini'`, ...), the same id TanStack reports as the usage provider.
+   * Optional, because an adapter already knows which provider it talks to.
+   * When present, an adapter rejects a handle another provider issued.
+   */
+  provider?: TProvider
   /**
    * Optional MIME type hint for cases where the provider can't infer it.
    */
@@ -287,7 +294,7 @@ export interface ContentPartFileSource<TProvider extends string = string> {
  * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
- * - For 'file' sources: a provider-issued handle plus its issuing `provider`
+ * - For 'file' sources: an opaque provider handle, optionally naming its issuer
  */
 export type ContentPartSource =
   | ContentPartDataSource

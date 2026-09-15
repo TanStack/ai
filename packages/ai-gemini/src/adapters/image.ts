@@ -276,8 +276,8 @@ export class GeminiImageAdapter<
     // `fileData` and Gemini fetches them server-side — same as the chat
     // adapter. Fetching locally and inlining as base64 double-buffers the
     // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers). A file source resolves to this adapter's own reference entry
-    // (throws when the file was never uploaded to Gemini).
+    // Workers). A file source's handle is the file URI (throws when another
+    // provider issued it).
     const fileUri = isFileSource(part.source)
       ? fileReferenceFor(part.source, this.name)
       : part.source.value

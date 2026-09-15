@@ -116,7 +116,7 @@ function Messages({
     return message.parts.some((part) => {
       if (part.type === 'thinking') return true
       // File-handle images have no local bytes or URL to show.
-      if (part.type === 'image' && 'value' in part.source) return true
+      if (part.type === 'image' && part.source.type !== 'file') return true
       if (part.type === 'text' && part.content.trim()) return true
       if (
         part.type === 'tool-call' &&
@@ -375,7 +375,7 @@ function Messages({
 
                   // Render image parts (file references have no local bytes
                   // or URL to render, so only url/data sources get an <img>)
-                  if (part.type === 'image' && 'value' in part.source) {
+                  if (part.type === 'image' && part.source.type !== 'file') {
                     const imageUrl =
                       part.source.type === 'url'
                         ? part.source.value

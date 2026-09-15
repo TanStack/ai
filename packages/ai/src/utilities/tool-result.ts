@@ -10,8 +10,9 @@ const CONTENT_PART_TYPES = new Set([
 
 /**
  * Structural check for a single `ContentPart`. A text part must carry a string
- * `content`. url/data sources carry a string `value`. A file source carries a
- * non-array provider→reference record of non-empty strings, not a `value`.
+ * `content`. Every other part carries a source with a string `value`; a file
+ * source's `value` is a non-empty opaque handle, and its optional `provider`
+ * is a string.
  */
 export function isContentPart(value: unknown): value is ContentPart {
   if (typeof value !== 'object' || value === null) return false
@@ -25,24 +26,15 @@ export function isContentPart(value: unknown): value is ContentPart {
   const source = part.source
   if (typeof source !== 'object' || source === null) return false
   const src = source as Record<string, unknown>
-  // `file` sources carry a non-empty provider→reference record instead of a
-  // `value` string.
+  if (typeof src.value !== 'string') return false
+  // `file` sources carry an opaque handle in `value`; `provider`, when set,
+  // names the issuer.
   if (src.type === 'file') {
-    const reference = src.reference
-    if (
-      typeof reference !== 'object' ||
-      reference === null ||
-      Array.isArray(reference)
-    ) {
-      return false
-    }
-    const entries = Object.values(reference)
     return (
-      entries.length > 0 &&
-      entries.every((v) => typeof v === 'string' && v.length > 0)
+      src.value.length > 0 &&
+      (src.provider === undefined || typeof src.provider === 'string')
     )
   }
-  if (typeof src.value !== 'string') return false
   // `data` sources require a mimeType (matches ContentPartDataSource); `url`
   // sources don't. Requiring it here keeps the runtime guard consistent with
   // the type and avoids emitting `data:undefined;base64,...` downstream.

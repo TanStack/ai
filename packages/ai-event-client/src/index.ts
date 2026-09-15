@@ -35,8 +35,10 @@ export interface ContentPartUrlSource {
 
 export interface ContentPartFileSource {
   type: 'file'
-  /** Provider name → that provider's file reference (id or URI). */
-  reference: Record<string, string>
+  /** The opaque handle the provider issued (a file id or provider URI). */
+  value: string
+  /** Adapter name of the provider that issued the handle, when known. */
+  provider?: string
   mimeType?: string
 }
 
