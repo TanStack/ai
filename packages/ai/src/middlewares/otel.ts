@@ -91,6 +91,8 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   embedding: 'embeddings',
   rerank: 'rerank',
   summarize: 'summarize',
+  world: 'world_generation',
+  liveVideo: 'live_video_generation',
 }
 
 export interface OtelMiddlewareOptions {

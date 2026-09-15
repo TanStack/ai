@@ -1042,6 +1042,7 @@ export function normalizeConnectionAdapter(
   // Legacy connect() wrapper
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
+  let activeSubscriber: typeof activeWaiters | undefined
 
   function push(chunk: StreamChunk, runId?: string): void {
     if (runId) {
@@ -1062,18 +1063,16 @@ export function normalizeConnectionAdapter(
     // previous chunk has left processIncomingChunk. Empty waiters with an
     // empty buffer is in-flight delivery, not idle.
     const idle = () =>
-      activeBuffer.length === 0 &&
-      (activeWaiters.length > 0 || abortSignal?.aborted)
+      activeSubscriber !== activeWaiters ||
+      (activeBuffer.length === 0 &&
+        (activeWaiters.length > 0 || abortSignal?.aborted))
     for (let i = 0; i < 16 && !abortSignal?.aborted; i++) {
       if (idle()) return
       await Promise.resolve()
     }
-    let macrotaskWaits = 0
     while (!abortSignal?.aborted) {
       if (idle()) return
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
-      macrotaskWaits++
-      if (activeWaiters.length === 0 && macrotaskWaits >= 32) return
     }
   }
 
@@ -1087,22 +1086,27 @@ export function normalizeConnectionAdapter(
       activeWaiters = myWaiters
 
       return (async function* () {
-        while (!abortSignal?.aborted) {
-          let chunk: StreamChunk | null
-          const buffered = myBuffer.shift()
-          if (buffered !== undefined) {
-            chunk = buffered
-          } else {
-            chunk = await new Promise<StreamChunk | null>((resolve) => {
-              const onAbort = () => resolve(null)
-              myWaiters.push((c) => {
-                abortSignal?.removeEventListener('abort', onAbort)
-                resolve(c)
+        activeSubscriber = myWaiters
+        try {
+          while (!abortSignal?.aborted) {
+            let chunk: StreamChunk | null
+            const buffered = myBuffer.shift()
+            if (buffered !== undefined) {
+              chunk = buffered
+            } else {
+              chunk = await new Promise<StreamChunk | null>((resolve) => {
+                const onAbort = () => resolve(null)
+                myWaiters.push((c) => {
+                  abortSignal?.removeEventListener('abort', onAbort)
+                  resolve(c)
+                })
+                abortSignal?.addEventListener('abort', onAbort, { once: true })
               })
-              abortSignal?.addEventListener('abort', onAbort, { once: true })
-            })
+            }
+            if (chunk !== null) yield chunk
           }
-          if (chunk !== null) yield chunk
+        } finally {
+          if (activeSubscriber === myWaiters) activeSubscriber = undefined
         }
       })()
     },

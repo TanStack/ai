@@ -24,26 +24,31 @@ sources:
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { trackAnalytics, reportError } from './analytics'
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  middleware: [
-    {
-      onStart: (ctx) => {
-        console.log('Chat started:', ctx.model)
-      },
-      onFinish: (ctx, info) => {
-        trackAnalytics({ model: ctx.model, tokens: info.usage?.totalTokens })
-      },
-      onError: (ctx, info) => {
-        reportError(info.error)
-      },
-    },
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    middleware: [
+      {
+        onStart: (ctx) => {
+          console.log('Chat started:', ctx.model)
+        },
+        onFinish: (ctx, info) => {
+          trackAnalytics({ model: ctx.model, tokens: info.usage?.totalTokens })
+        },
+        onError: (ctx, info) => {
+          reportError(info.error)
+        },
+      },
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Hooks Reference
@@ -119,19 +124,30 @@ specific config changes that should not affect the agent-loop adapter calls.
 **Signature:**
 
 ```ts
-onStructuredOutputConfig?: (
-  ctx: ChatMiddlewareContext,
-  config: StructuredOutputMiddlewareConfig,
-) =>
-  | void
-  | null
-  | Partial<StructuredOutputMiddlewareConfig>
-  | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
+import type {
+  ChatMiddlewareContext,
+  StructuredOutputMiddlewareConfig,
+} from '@tanstack/ai'
+
+// Excerpt of the `ChatMiddleware` interface exported by '@tanstack/ai'
+interface ChatMiddleware {
+  onStructuredOutputConfig?: (
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<StructuredOutputMiddlewareConfig>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
+}
 ```
 
 **`StructuredOutputMiddlewareConfig` shape:**
 
 ```ts
+import type { ChatMiddlewareConfig, JSONSchema } from '@tanstack/ai'
+
+// As exported by '@tanstack/ai'
 interface StructuredOutputMiddlewareConfig extends Omit<
   ChatMiddlewareConfig,
   'tools'
@@ -203,13 +219,17 @@ const analytics: ChatMiddleware = {
   },
 }
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  middleware: [analytics],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    middleware: [analytics],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Pattern 2: Tool Interception Middleware
@@ -278,11 +298,14 @@ native-combined schema.
 
 ```typescript
 import type { ChatMiddleware } from '@tanstack/ai'
+import { trace } from '@opentelemetry/api'
 
 const tracing: ChatMiddleware = {
   name: 'tracing',
   onChunk(ctx, chunk) {
-    span.addEvent('chunk', { phase: ctx.phase, type: chunk.type })
+    trace
+      .getActiveSpan()
+      ?.addEvent('chunk', { phase: ctx.phase, type: chunk.type })
   },
 }
 ```
@@ -296,6 +319,7 @@ the native-combined path, it observes the structured stream with
 
 ```typescript
 import type { ChatMiddleware } from '@tanstack/ai'
+import { sharedDefs } from './defs'
 
 const injectDefs: ChatMiddleware = {
   name: 'inject-defs',
@@ -317,9 +341,27 @@ Middleware executes in array order (left-to-right). Ordering matters for hooks t
 pipe or short-circuit:
 
 ```typescript
-import { chat, type ChatMiddleware } from '@tanstack/ai'
+import {
+  chat,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
+
+const stockTool = toolDefinition({
+  name: 'getStock',
+  description: 'Get the latest price for a ticker symbol',
+  inputSchema: z.object({ symbol: z.string() }),
+}).server(async ({ symbol }) => ({ symbol, price: 123.45 }))
 
 const logging: ChatMiddleware = {
   name: 'logging',
@@ -347,16 +389,22 @@ const configTransform: ChatMiddleware = {
   },
 }
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  tools: [weatherTool, stockTool],
-  middleware: [
-    logging, // Runs first
-    configTransform, // Transforms config second
-    toolCacheMiddleware({ ttl: 60_000 }), // Caches tool results third
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool, stockTool],
+    middleware: [
+      logging, // Runs first
+      configTransform, // Transforms config second
+      toolCacheMiddleware({ ttl: 60_000 }), // Caches tool results third
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 **Composition rules by hook:**
@@ -378,7 +426,21 @@ Not a built-in. Cap fan-out with `onBeforeToolCall` skip + `onShouldContinue`.
 See `docs/chat/agentic-cycle.md` ("Tool-call budgets").
 
 ```typescript
-import { chat, maxIterations, type ChatMiddleware } from '@tanstack/ai'
+import {
+  chat,
+  maxIterations,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
 
 function toolCallBudget(opts: {
   max?: number
@@ -409,13 +471,19 @@ function toolCallBudget(opts: {
   }
 }
 
-chat({
-  adapter,
-  messages,
-  tools: [weatherTool],
-  agentLoopStrategy: maxIterations(20),
-  middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool],
+    agentLoopStrategy: maxIterations(20),
+    middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Built-in: toolCacheMiddleware
@@ -423,21 +491,35 @@ chat({
 Caches tool call results by name + arguments. Import from `@tanstack/ai/middlewares`:
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toolDefinition, toServerSentEventsResponse } from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
-const stream = chat({
-  adapter,
-  messages,
-  tools: [weatherTool],
-  middleware: [
-    toolCacheMiddleware({
-      ttl: 60_000, // Cache entries expire after 60 seconds
-      maxSize: 50, // Max 50 entries (LRU eviction)
-      toolNames: ['getWeather'], // Only cache specific tools
-    }),
-  ],
-})
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool],
+    middleware: [
+      toolCacheMiddleware({
+        ttl: 60_000, // Cache entries expire after 60 seconds
+        maxSize: 50, // Max 50 entries (LRU eviction)
+        toolNames: ['getWeather'], // Only cache specific tools
+      }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default all),
@@ -550,7 +632,12 @@ implement, and what `@tanstack/ai-sandbox`'s run driver resolves per run — its
 `snapshot()` method alongside `append`, `read`, and `close`:
 
 ```ts
-snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+import type { StreamChunk } from '@tanstack/ai'
+
+// Excerpt of the `StreamDurability` interface exported by '@tanstack/ai'
+interface StreamDurability<TOffset extends string = string> {
+  snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+}
 ```
 
 It returns everything stored for a run right now, in append order, then
@@ -695,11 +782,15 @@ Source: docs/sandbox/observability.md
 ### a. MEDIUM: Trying to modify StreamChunks in middleware
 
 ```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+
 // WRONG -- mutating the chunk object directly
 const broken: ChatMiddleware = {
   name: 'broken',
   onChunk: (ctx, chunk) => {
-    chunk.delta = 'modified' // Mutation does nothing; chunk is not modified in-place
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      chunk.delta = 'modified' // Mutation does nothing; chunk is not modified in-place
+    }
   },
 }
 
@@ -736,6 +827,9 @@ middleware had decided to reject. A throw from either fails the whole stream. Th
 is where an unhandled error actually costs you a response:
 
 ```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+import { logChunk, requireEnv } from './logging'
+
 // WRONG -- an unhandled error in onChunk kills the entire streaming response
 const fragile: ChatMiddleware = {
   name: 'fragile-chunk-logger',
@@ -745,7 +839,12 @@ const fragile: ChatMiddleware = {
   },
   onConfig: (ctx, config) => {
     // Same for a config transform that reads an env var that is not set
-    return { model: requireEnv('MODEL_OVERRIDE') }
+    return {
+      modelOptions: {
+        ...config.modelOptions,
+        temperature: Number(requireEnv('TEMPERATURE')),
+      },
+    }
   },
 }
 
@@ -761,9 +860,15 @@ const resilient: ChatMiddleware = {
     // Return void to pass through
   },
   onConfig: (ctx, config) => {
-    const override = process.env.MODEL_OVERRIDE
+    const temperature = process.env.TEMPERATURE
     // Decide, do not throw: no override means no transform.
-    return override === undefined ? undefined : { model: override }
+    if (temperature === undefined) return undefined
+    return {
+      modelOptions: {
+        ...config.modelOptions,
+        temperature: Number(temperature),
+      },
+    }
   },
   onFinish: (ctx, info) => {
     // Already guarded by core — but prefer ctx.defer() anyway, so a slow

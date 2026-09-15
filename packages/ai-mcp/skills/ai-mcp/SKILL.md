@@ -68,6 +68,8 @@ const client = await createMCPClient({
 #### Streamable HTTP (default for internet-facing servers)
 
 ```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
 const client = await createMCPClient({
   transport: {
     type: 'http',
@@ -80,6 +82,8 @@ const client = await createMCPClient({
 #### SSE
 
 ```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
 const client = await createMCPClient({
   transport: {
     type: 'sse',
@@ -109,8 +113,9 @@ const client = await createMCPClient({
 Pass any SDK `Transport` instance directly:
 
 ```typescript
-import { createMCPClient } from '@tanstack/ai-mcp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+// InMemoryTransport (from @modelcontextprotocol/sdk) is re-exported for
+// in-process testing; any SDK Transport instance works the same way.
+import { createMCPClient, InMemoryTransport } from '@tanstack/ai-mcp'
 
 const [clientTransport] = InMemoryTransport.createLinkedPair()
 const client = await createMCPClient({ transport: clientTransport })
@@ -129,9 +134,9 @@ Two levels:
 
 ```typescript
 import { createMCPClient } from '@tanstack/ai-mcp'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
-
-declare const myOAuthProvider: OAuthClientProvider // backed by stored tokens
+// An OAuthClientProvider (from @modelcontextprotocol/sdk/client/auth.js)
+// backed by tokens you persist server-side.
+import { myOAuthProvider } from './oauth-provider'
 
 const client = await createMCPClient({
   transport: {
@@ -158,12 +163,20 @@ config form is sufficient.
 at compile time but the tool's JSON Schema is forwarded to the LLM.
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
 const tools = await client.tools()
-// tools: ServerTool[]  (args unknown)
+// tools: McpServerTool[]  (args unknown)
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
-  messages,
+  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
   tools,
 })
 ```
@@ -171,6 +184,12 @@ const stream = chat({
 Use `{ lazy: true }` to defer schema sending via the existing `LazyToolManager`:
 
 ```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
 const tools = await client.tools({ lazy: true })
 ```
 
@@ -222,48 +241,67 @@ body streams; use a middleware terminal hook there instead (see Common
 Mistakes below).
 
 ```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
 // Option 1: middleware terminal hooks (streaming route handlers)
-const client = await createMCPClient({
-  transport: { type: 'http', url: '...' },
-})
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  tools: await client.tools(),
-  middleware: [
-    {
-      name: 'mcp-close',
-      onFinish: () => client.close(),
-      onAbort: () => client.close(),
-      onError: () => client.close(),
-    },
-  ],
-})
-return toServerSentEventsResponse(stream)
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const client = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: await client.tools(),
+    middleware: [
+      {
+        name: 'mcp-close',
+        onFinish: () => client.close(),
+        onAbort: () => client.close(),
+        onError: () => client.close(),
+      },
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 
 // Option 2: explicit close after in-scope consumption
-const client = await createMCPClient({
-  transport: { type: 'http', url: '...' },
-})
-try {
+export async function runToCompletion(messages: Array<ModelMessage>) {
+  const client = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+  try {
+    const stream = chat({
+      adapter: openaiText('gpt-5.5'),
+      messages,
+      tools: await client.tools(),
+    })
+    for await (const chunk of stream) {
+      // stream fully consumed inside this block
+    }
+  } finally {
+    await client.close()
+  }
+}
+
+// Option 3: await using (TypeScript 5.2+ with Symbol.asyncDispose) —
+// same rule: consume the stream before the scope exits.
+export async function runWithUsing(messages: Array<ModelMessage>) {
+  await using client = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages,
     tools: await client.tools(),
   })
   for await (const chunk of stream) {
-    // stream fully consumed inside this block
+    // ... consume the stream in this scope; close() runs at scope exit
   }
-} finally {
-  await client.close()
 }
-
-// Option 3: await using (TypeScript 5.2+ with Symbol.asyncDispose) —
-// same rule: consume the stream before the scope exits.
-await using client = await createMCPClient({
-  transport: { type: 'http', url: '...' },
-})
-// ... consume the stream in this scope; close() runs at scope exit
 ```
 
 ## `chat({ mcp })` — discovery + lifecycle in one prop
@@ -304,55 +342,62 @@ Rather than calling `client.tools()` and `client.close()` yourself, pass the
 **Server-side example:**
 
 ```typescript
-import { createFileRoute } from '@tanstack/react-router'
+// Any framework route handler that receives a Request works (TanStack Start,
+// Next.js, Hono, ...).
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const { messages } = await request.json()
+// Created once at module scope; connection: 'keep-alive' below keeps it warm
+// across requests.
+const mcpClient = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
 
-        const mcpClient = await createMCPClient({
-          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-        })
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-        const stream = chat({
-          adapter: openaiText('gpt-5.5'),
-          messages,
-          mcp: {
-            clients: [mcpClient],
-            connection: 'keep-alive', // chat() won't close it — reuse across requests
-            onDiscoveryError: (err, source) => {
-              console.warn('MCP discovery failed for source, skipping:', err)
-              // returning skips this source; throw to fail the whole call fast
-            },
-          },
-        })
-
-        return toServerSentEventsResponse(stream)
-        // connection: 'keep-alive' — chat() never closes mcpClient; it stays warm for the next request.
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    mcp: {
+      clients: [mcpClient],
+      connection: 'keep-alive', // chat() won't close it — reuse across requests
+      onDiscoveryError: (err, source) => {
+        console.warn('MCP discovery failed for source, skipping:', err)
+        // returning skips this source; throw to fail the whole call fast
       },
     },
-  },
-})
+  })
+
+  return toServerSentEventsResponse(stream)
+  // connection: 'keep-alive' — chat() never closes mcpClient; it stays warm for the next request.
+}
 ```
 
 You can also pass an `MCPClients` pool directly:
 
 ```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClients } from '@tanstack/ai-mcp'
+
 const pool = await createMCPClients({
   github: { transport: { type: 'http', url: 'https://mcp.github.com/mcp' } },
   linear: { transport: { type: 'http', url: 'https://mcp.linear.app/mcp' } },
 })
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  mcp: { clients: [pool], connection: 'keep-alive' },
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    mcp: { clients: [pool], connection: 'keep-alive' },
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## `createMCPClients` — multiple servers
@@ -374,8 +419,9 @@ const tools = await pool.tools()
 // Forward lazy flag to every server:
 const lazyTools = await pool.tools({ lazy: true })
 
-// Per-server typed access:
-const githubTools = await pool.clients.github.tools()
+// Per-server typed access (keys are typed as string here; generated
+// MCPServers types make them literal — see Codegen CLI below):
+const githubTools = await pool.clients.github!.tools()
 ```
 
 `createMCPClients` connects in parallel, closes already-connected clients if
@@ -385,9 +431,19 @@ failed server(s).
 Override or disable prefixing:
 
 ```typescript
+import { createMCPClients } from '@tanstack/ai-mcp'
+
 await using pool = await createMCPClients({
-  github: { transport: { ... }, prefix: 'gh' },    // 'gh_search_repos'
-  linear: { transport: { ... }, prefix: '' },        // 'create_issue' (no prefix)
+  // 'gh_search_repos'
+  github: {
+    transport: { type: 'http', url: 'https://mcp.github.com/mcp' },
+    prefix: 'gh',
+  },
+  // 'create_issue' (no prefix)
+  linear: {
+    transport: { type: 'http', url: 'https://mcp.linear.app/mcp' },
+    prefix: '',
+  },
 })
 ```
 
@@ -400,9 +456,18 @@ through `ToolExecutionContext` into every `callTool` call with no extra code.
 You can also read it in a hand-written server tool that wraps an MCP call:
 
 ```typescript
-const myTool = myDef.server(async (args, ctx) => {
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const fetchData = toolDefinition({
+  name: 'fetch_data',
+  description: 'Fetch a record from a slow upstream API',
+  inputSchema: z.object({ id: z.string() }),
+})
+
+const myTool = fetchData.server(async (args, ctx) => {
   // Forward to any async work that accepts an AbortSignal.
-  const result = await fetch('https://slow.api/data', {
+  const result = await fetch(`https://slow.api/data/${args.id}`, {
     signal: ctx?.abortSignal,
   })
   return result.json()
@@ -412,16 +477,20 @@ const myTool = myDef.server(async (args, ctx) => {
 ## Resources
 
 ```typescript
+import { createMCPClient, mcpResourceToContentPart } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
 // List all resources the server exposes.
 const resources = await client.resources()
 
 // Read a specific resource by URI.
-const resource = await client.readResource(resources[0].uri)
+const resource = await client.readResource(resources[0]!.uri)
 
 // Convert one content block to a TanStack ContentPart.
-import { mcpResourceToContentPart } from '@tanstack/ai-mcp'
-
-const part = mcpResourceToContentPart(resource.contents[0])
+const part = mcpResourceToContentPart(resource.contents[0]!)
 // part: ContentPart  (type: 'text' always for v1)
 ```
 
@@ -429,10 +498,11 @@ Inject resources into a chat turn:
 
 ```typescript
 import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient, mcpResourceToContentPart } from '@tanstack/ai-mcp'
 
 const client = await createMCPClient({
-  transport: { type: 'http', url: '...' },
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
 })
 const resource = await client.readResource('file:///project/README.md')
 const parts = resource.contents.map(mcpResourceToContentPart)
@@ -454,6 +524,14 @@ const stream = chat({
 ## Prompts
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient, mcpPromptToMessages } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
 // List prompts the server exposes.
 const prompts = await client.prompts()
 
@@ -461,14 +539,12 @@ const prompts = await client.prompts()
 const prompt = await client.getPrompt('review_code', { language: 'TypeScript' })
 
 // Convert to TanStack ModelMessage[] for use in chat().
-import { mcpPromptToMessages } from '@tanstack/ai-mcp'
-
 const messages = mcpPromptToMessages(prompt)
 // messages: ModelMessage[]  (role: 'user' | 'assistant')
 
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
-  messages: [...messages, ...userMessages],
+  messages: [...messages, { role: 'user', content: 'Review src/index.ts.' }],
 })
 ```
 
@@ -518,7 +594,7 @@ For a pool, the `serverId` on the `UIResourcePart` is the config key (the
 tool prefix); for a single client it is the client's `prefix` (or the sole
 default when `serverId` is absent and there is exactly one client).
 
-```typescript
+```typescript group=mcp-app-handler
 import { createMCPClients } from '@tanstack/ai-mcp'
 import {
   createMcpAppCallHandler,
@@ -556,9 +632,13 @@ const handlerWithStore = createMcpAppCallHandler({
 
 The handler invokes the server (`body: { threadId, serverId?, toolName, args?, messageId? }`):
 
-```typescript
-const result = await handler(body)
-// { ok: true; result: unknown } | { ok: false; error: string }
+```typescript group=mcp-app-handler
+export async function POST(request: Request) {
+  const body = await request.json()
+  const result = await handler(body)
+  // { ok: true; result: unknown } | { ok: false; error: string }
+  return Response.json(result)
+}
 ```
 
 ### Client side — `useMcpAppBridge` + `MCPAppResource`
@@ -659,7 +739,7 @@ per server plus a combined `interface MCPServers` for pool typing.
 ```typescript
 // Single server — narrows tools() return to descriptor-keyed tool names.
 import type { GithubServer } from './src/mcp-types.generated'
-import { createMCPClient } from '@tanstack/ai-mcp'
+import { createMCPClient, createMCPClients } from '@tanstack/ai-mcp'
 
 const client = await createMCPClient<GithubServer>({
   transport: { type: 'http', url: 'https://mcp.github.com/mcp' },
@@ -711,54 +791,48 @@ import { MCPDuplicateToolNameError } from '@tanstack/ai'
 ## Complete server-route example
 
 ```typescript
-// src/routes/api.chat.ts
-import { createFileRoute } from '@tanstack/react-router'
+// src/routes/api.chat.ts — mount POST in your framework's route handler
+// (TanStack Start server route, Next.js route handler, Hono, ...).
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClients } from '@tanstack/ai-mcp'
 
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const { messages } = await request.json()
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-        const pool = await createMCPClients({
-          github: {
-            transport: { type: 'http', url: 'https://mcp.github.com/mcp' },
-          },
-          linear: {
-            transport: {
-              type: 'http',
-              url: 'https://mcp.linear.app/mcp',
-              headers: {
-                Authorization: `Bearer ${process.env.LINEAR_KEY ?? ''}`,
-              },
-            },
-          },
-        })
-
-        const stream = chat({
-          adapter: openaiText('gpt-5.5'),
-          messages,
-          tools: await pool.tools(),
-          // Close after the run ends — tools execute while the response streams,
-          // so `await using` / try-finally would close the pool too early here.
-          middleware: [
-            {
-              name: 'mcp-close',
-              onFinish: () => pool.close(),
-              onAbort: () => pool.close(),
-              onError: () => pool.close(),
-            },
-          ],
-        })
-
-        return toServerSentEventsResponse(stream)
+  const pool = await createMCPClients({
+    github: {
+      transport: { type: 'http', url: 'https://mcp.github.com/mcp' },
+    },
+    linear: {
+      transport: {
+        type: 'http',
+        url: 'https://mcp.linear.app/mcp',
+        headers: {
+          Authorization: `Bearer ${process.env.LINEAR_KEY ?? ''}`,
+        },
       },
     },
-  },
-})
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: await pool.tools(),
+    // Close after the run ends — tools execute while the response streams,
+    // so `await using` / try-finally would close the pool too early here.
+    middleware: [
+      {
+        name: 'mcp-close',
+        onFinish: () => pool.close(),
+        onAbort: () => pool.close(),
+        onError: () => pool.close(),
+      },
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Common Mistakes
@@ -772,10 +846,20 @@ in-flight tool calls will fail.
 Wrong:
 
 ```typescript
-const tools = await client.tools()
-const stream = chat({ adapter, messages, tools })
-await client.close() // closes before the stream runs tools
-return toServerSentEventsResponse(stream)
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const client = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+  const tools = await client.tools()
+  const stream = chat({ adapter: openaiText('gpt-5.5'), messages, tools })
+  await client.close() // closes before the stream runs tools
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 This includes `try/finally` around the `return`, and `await using` at function
@@ -787,26 +871,30 @@ before closing:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-const client = await createMCPClient({
-  transport: { type: 'http', url: '...' },
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const client = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  tools: await client.tools(),
-  middleware: [
-    {
-      name: 'mcp-close',
-      onFinish: () => client.close(),
-      onAbort: () => client.close(),
-      onError: () => client.close(),
-    },
-  ],
-})
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: await client.tools(),
+    middleware: [
+      {
+        name: 'mcp-close',
+        onFinish: () => client.close(),
+        onAbort: () => client.close(),
+        onError: () => client.close(),
+      },
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### b. HIGH: importing `stdioTransport` from the main entry point
@@ -817,7 +905,7 @@ bundle Node.js child-process code into edge bundles.
 
 Wrong:
 
-```typescript
+```typescript ignore
 import { stdioTransport } from '@tanstack/ai-mcp' // does not exist here
 ```
 

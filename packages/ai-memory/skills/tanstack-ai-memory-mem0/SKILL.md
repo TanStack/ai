@@ -14,9 +14,15 @@ server-side. Talks to the server over plain HTTP — **no SDK peer dependency**.
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import { mem0 } from '@tanstack/ai-memory/mem0'
 
-const memory = mem0({ user: currentUserId }) // baseUrl defaults to MEM0_URL
+// Build per request from the server-validated session — never from req.body.
+function memoryFor(session: { userId: string; threadId: string }) {
+  const memory = mem0({ user: session.userId }) // baseUrl defaults to MEM0_URL
 
-memoryMiddleware({ adapter: memory, scope })
+  return memoryMiddleware({
+    adapter: memory,
+    scope: { threadId: session.threadId, userId: session.userId },
+  })
+}
 ```
 
 Requires a running mem0 server (self-hosted or hosted). Point it via `baseUrl` (or

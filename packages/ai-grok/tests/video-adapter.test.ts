@@ -628,13 +628,64 @@ describe('Grok Video Adapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('rejects combining a starting frame with reference images', async () => {
+    it('combines a starting frame with reference images on 1.5', async () => {
       const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
       const adapter = adapterWithFetch(fetchMock)
 
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: [
+          { type: 'text', content: '<IMAGE_0> enters from the left' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/start.png' },
+            metadata: { role: 'start_frame' },
+          },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/person.png' },
+            metadata: { role: 'reference' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'grok-imagine-video-1.5',
+        prompt: '<IMAGE_0> enters from the left',
+        image: { url: 'https://example.com/start.png' },
+        reference_images: [{ url: 'https://example.com/person.png' }],
+      })
+    })
+
+    it('combines a starting frame with reference_audios on 1.5', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: i2vPrompt('<AUDIO_0> narrates'),
+        modelOptions: { reference_audios: [{ voice_id: 'eve' }] },
+        logger: testLogger,
+      })
+
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(JSON.parse(String(init?.body))).toEqual({
+        model: 'grok-imagine-video-1.5',
+        prompt: '<AUDIO_0> narrates',
+        image: { url: 'https://example.com/start.png' },
+        reference_audios: [{ voice_id: 'eve' }],
+      })
+    })
+
+    it('still rejects reference inputs on classic grok-imagine-video', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = sourceAdapterWithFetch(fetchMock)
+
       await expect(
         adapter.createVideoJob({
-          model: 'grok-imagine-video-1.5',
+          model: 'grok-imagine-video',
           prompt: [
             { type: 'text', content: '<IMAGE_0> enters from the left' },
             {
@@ -650,22 +701,7 @@ describe('Grok Video Adapter', () => {
           ],
           logger: testLogger,
         }),
-      ).rejects.toThrow(/cannot be combined/)
-      expect(fetchMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects combining a starting frame with reference_audios', async () => {
-      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
-      const adapter = adapterWithFetch(fetchMock)
-
-      await expect(
-        adapter.createVideoJob({
-          model: 'grok-imagine-video-1.5',
-          prompt: i2vPrompt('<AUDIO_0> narrates'),
-          modelOptions: { reference_audios: [{ voice_id: 'eve' }] },
-          logger: testLogger,
-        }),
-      ).rejects.toThrow(/cannot be combined/)
+      ).rejects.toThrow(/does not support reference-to-video/)
       expect(fetchMock).not.toHaveBeenCalled()
     })
 

@@ -39,6 +39,8 @@ import { generateImage } from '@tanstack/ai'      // Image generation
 import { generateSpeech } from '@tanstack/ai'     // Text-to-speech
 import { generateTranscription } from '@tanstack/ai' // Audio transcription
 import { generateVideo } from '@tanstack/ai'       // Video generation
+import { generateLiveVideo } from '@tanstack/ai'        // Live video sessions
+import { generateWorld } from '@tanstack/ai'       // Live world sessions
 ```
 
 ### Example: Chat Only
@@ -274,6 +276,8 @@ Each adapter type implements a specific interface:
 - `TTSAdapter` - Provides `generateSpeech()` method for text-to-speech
 - `TranscriptionAdapter` - Provides `generateTranscription()` method for audio transcription
 - `VideoAdapter` - Provides `generateVideo()` method for video generation
+- `LiveVideoAdapter` - Provides `createLiveVideo()` method for live video sessions
+- `WorldAdapter` - Provides `createWorld()` method for live world sessions
 
 All adapters have a `kind` property that indicates their type:
 

@@ -22,28 +22,33 @@ Memory is for cross-turn / cross-session recall, not within-turn history.
 ## Wire it up
 
 ```ts
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import { inMemory } from '@tanstack/ai-memory/in-memory'
+import { requireSession } from './auth'
 
 const memory = inMemory() // dev/tests only — see the in-memory skill
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages,
-  context: { session }, // attached by your auth middleware
-  middleware: [
-    memoryMiddleware({
-      adapter: memory,
-      // Derive scope server-side from trusted session state.
-      scope: (ctx) => {
-        const session = getSession(ctx)
-        return { threadId: session.threadId, userId: session.userId }
-      },
-    }),
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  // Resolved by your auth layer from cookies/headers — never from the request body.
+  const session = await requireSession(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    context: { session },
+    middleware: [
+      memoryMiddleware({
+        adapter: memory,
+        // Derive scope server-side from trusted session state.
+        scope: () => ({ threadId: session.threadId, userId: session.userId }),
+      }),
+    ],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 `memoryMiddleware` options: `adapter`, `scope` (static or a function of `ctx`),
@@ -53,12 +58,21 @@ callbacks.
 ## The contract
 
 ```ts
+import type {
+  MemoryFact,
+  MemoryScope,
+  MemorySnapshot,
+  MemoryTurn,
+  RecallResult,
+  SaveReceipt,
+} from '@tanstack/ai-memory'
+
 interface MemoryAdapter {
-  id: string
-  recall(scope, query): Promise<RecallResult> // { systemPrompt, fragments?, tools?, toolGuidance? }
-  save(scope, turn): Promise<Array<SaveReceipt>> // turn = { user, assistant }; extraction lives HERE
-  inspect?(scope): Promise<MemorySnapshot> // optional (devtools)
-  listFacts?(scope): Promise<Array<MemoryFact>> // optional (devtools)
+  readonly id: string
+  recall: (scope: MemoryScope, query: string) => Promise<RecallResult> // { systemPrompt, fragments?, tools?, toolGuidance? }
+  save: (scope: MemoryScope, turn: MemoryTurn) => Promise<Array<SaveReceipt>> // turn = { user, assistant }; extraction lives HERE
+  inspect?: (scope: MemoryScope) => Promise<MemorySnapshot> // optional (devtools)
+  listFacts?: (scope: MemoryScope) => Promise<Array<MemoryFact>> // optional (devtools)
 }
 ```
 

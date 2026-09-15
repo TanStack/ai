@@ -259,7 +259,7 @@ inspects your storage.
 You rarely need all four stores at once. Implement what you own and fill the
 rest from another base:
 
-```ts ignore
+```ts
 import { composePersistence, memoryPersistence } from '@tanstack/ai-persistence'
 import { messages, runs } from './my-stores'
 
@@ -307,7 +307,7 @@ This matters more here than anywhere else: there is no reference driver to
 compare against, so the testkit is the only thing standing between a subtle
 idempotency bug and stuck approvals in production.
 
-```ts ignore
+```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 

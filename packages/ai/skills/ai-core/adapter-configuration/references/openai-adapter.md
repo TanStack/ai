@@ -28,20 +28,30 @@ import { openaiSpeech } from '@tanstack/ai-openai'
 
 ## Key Chat Models
 
-| Model                 | Context Window | Max Output | Notes                                  |
-| --------------------- | -------------- | ---------- | -------------------------------------- |
-| `gpt-5.4`             | 400K           | 128K       | Flagship, reasoning, image input       |
-| `gpt-5.4-pro`         | 400K           | 128K       | Higher reasoning, no structured output |
-| `gpt-5.4-chat-latest` | 128K           | 16K        | Chat-optimized variant                 |
-| `gpt-5.1`             | 400K           | 128K       | Previous flagship, image I/O           |
-| `gpt-5`               | 400K           | 128K       | Previous gen flagship                  |
-| `gpt-5-mini`          | 400K           | 128K       | Cost-efficient                         |
+| Model          | Context Window | Max Output | Notes                                          |
+| -------------- | -------------- | ---------- | ---------------------------------------------- |
+| `gpt-6-astra`  | 1M             | 128K       | Newest; reasoning, tools, image input          |
+| `gpt-5.6`      | 1M             | 128K       | Reasoning, tools, image input                  |
+| `gpt-5.5`      | 1M             | 128K       | Flagship used in examples; text/image/document |
+| `gpt-5.5-pro`  | 1M             | 128K       | Higher reasoning tier                          |
+| `gpt-5.4-mini` | 400K           | 128K       | Cost-efficient (no bare `gpt-5.4` chat id)     |
+| `gpt-5.2`      | 400K           | 128K       | Previous flagship; text/image/document         |
+| `gpt-5-mini`   | 400K           | 128K       | Budget                                         |
+
+`OPENAI_CHAT_MODELS` is the full list (also `gpt-6-astra-pro`, the
+`gpt-5.6-luna/sol/terra` family, `gpt-5.4-nano`, `gpt-5.2-pro`,
+`gpt-5.1`, `gpt-5`, the `o3`/`o4-mini` reasoning models, and `gpt-4.1`/`gpt-4o`).
 
 ## Provider-Specific modelOptions
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
-  adapter: openaiText('gpt-5.4'),
+  adapter: openaiText('gpt-5.5'),
   messages,
   modelOptions: {
     // Sampling

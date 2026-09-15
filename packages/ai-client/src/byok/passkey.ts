@@ -83,6 +83,22 @@ export function isPasskeyStorageSupported(): boolean {
 export async function deriveAesKey(
   prfOutput: BufferSource,
 ): Promise<CryptoKey> {
+  // Some passkey providers return a plain byte array instead of BufferSource.
+  if (Array.isArray(prfOutput)) {
+    if (
+      prfOutput.length !== 32 ||
+      !Array.from(prfOutput).every(
+        (byte: unknown) =>
+          typeof byte === 'number' &&
+          Number.isInteger(byte) &&
+          byte >= 0 &&
+          byte <= 255,
+      )
+    ) {
+      throw new Error('Invalid passkey PRF byte array')
+    }
+    prfOutput = new Uint8Array(prfOutput)
+  }
   const base = await crypto.subtle.importKey('raw', prfOutput, 'HKDF', false, [
     'deriveKey',
   ])
@@ -194,6 +210,25 @@ function requirePublicKeyCredential(
     throw new Error(`Unexpected credential type during ${action}`)
   }
   return credential
+}
+
+/**
+ * Some browsers (Dia, Safari) silently suppress `navigator.credentials.get()`
+ * — no prompt, never resolves — when it runs without transient user activation.
+ * The activation from a click expires (~5s) and is lost across enough async
+ * work, so an unlock buried deep in a send pipeline just hangs. Fail fast with
+ * a clear, catchable error so the app can re-run it from a fresh gesture.
+ */
+function requireUserActivation(action: string): void {
+  // ponytail: only enforce where the API exists; absent means "can't tell", so
+  // fall through rather than block a ceremony that would have worked.
+  const activation = globalThis.navigator?.userActivation
+  if (activation && activation.isActive === false) {
+    throw new Error(
+      `Passkey ${action} needs a fresh user action (e.g. a click). Run it ` +
+        'directly from the event handler, before awaiting other work.',
+    )
+  }
 }
 
 async function registerPasskey(
@@ -316,6 +351,7 @@ export function passkeyStorage(
     }
     const existing = await idbGet(dbName)
     if (existing) {
+      requireUserActivation('unlock')
       const prf = await evaluatePrf(existing.credentialId, existing.salt)
       cachedKey = await deriveAesKey(prf)
       cachedMeta = {
@@ -324,6 +360,8 @@ export function passkeyStorage(
       }
     } else {
       const reg = await registerPasskey(rpName, userName, rpId)
+      // Registration can consume activation. Let the browser handle its
+      // follow-up PRF ceremony rather than rejecting a valid new-key save.
       const prf = reg.prf ?? (await evaluatePrf(reg.credentialId, reg.salt))
       cachedKey = await deriveAesKey(prf)
       cachedMeta = { credentialId: reg.credentialId, salt: reg.salt }

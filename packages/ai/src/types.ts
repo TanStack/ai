@@ -2219,6 +2219,134 @@ export interface VideoUrlResult {
 }
 
 // ============================================================================
+// World Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for world generation (live, prompt-steerable sessions).
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for world generation */
+  model: string
+  /** Natural-language description of the world or scene */
+  prompt: string
+  /**
+   * Provider mint options. Reactor resolution/seed/audio are browser
+   * `sendCommand` fields, not token-mint fields.
+   */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateWorld() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of world generation. JSON-serializable so a server route can return
+ * it to a browser. The browser uses `token` + `model` to open the live
+ * session (set the prompt, start streaming, steer mid-run).
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /** Model used for generation (provider connect slug) */
+  model: string
+  /** Short-lived session token for the client connection */
+  token: string
+  /** Token expiry as milliseconds since epoch */
+  expiresAt: number
+  /** Prompt the client should send when it starts the session */
+  prompt: string
+  /** Session status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
+// Live Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for live generation (prompt-steerable video sessions).
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveVideoGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for live generation */
+  model: string
+  /** Natural-language description of the shot or scene */
+  prompt: string
+  /**
+   * Provider mint options. For fal live this is `tokenDuration`. Reactor
+   * resolution/seed/audio are browser `sendCommand` fields.
+   */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateLiveVideo() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of live generation. JSON-serializable so a server route can return
+ * it to a browser.
+ *
+ * Reactor: connect with `token` and `model` (the connect slug).
+ * fal: `model` is the WMA app id. Open `wma(model)` through a server proxy
+ * that attaches `FAL_KEY`. Do not send `token` as Key credentials.
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveVideoGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /**
+   * Connect id for the browser client. Reactor: `reactor/helios`.
+   * fal: WMA app id `fal-ai/minimax-h3-max-director`.
+   */
+  model: string
+  /** Short-lived session token. Reactor uses this to connect. fal does not. */
+  token: string
+  /** Token expiry as milliseconds since epoch */
+  expiresAt: number
+  /** Prompt the client should send when it starts the session */
+  prompt: string
+  /** Session status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
 // Text-to-Speech (TTS) Types
 // ============================================================================
 

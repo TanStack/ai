@@ -645,7 +645,7 @@ export type ConnectionAdapter =
 
 Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` pair via `normalizeConnectionAdapter()`:
 
-- Provide `connect` and it gets wrapped in an async queue.
+- Provide `connect` and it gets wrapped in an async queue. The wrapped `send()` waits until the active subscriber processes all events or exits.
 - Provide `subscribe` + `send` natively and they are used as-is.
 
 ## Authentication
