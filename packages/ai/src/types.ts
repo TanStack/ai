@@ -278,9 +278,11 @@ export interface ContentPartFileSource<TProvider extends string = string> {
   /**
    * The adapter name of the provider that issued the handle (`'openai'`,
    * `'gemini'`, ...), the same id TanStack reports as the usage provider.
-   * An adapter rejects a handle another provider issued.
+   * Optional, matching the AG-UI `FileSource` arm: an adapter already knows
+   * which provider it talks to. When present, an adapter rejects a handle
+   * another provider issued.
    */
-  provider: TProvider
+  provider?: TProvider
   /**
    * Optional MIME type hint for cases where the provider can't infer it.
    */
@@ -293,7 +295,7 @@ export interface ContentPartFileSource<TProvider extends string = string> {
  * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
- * - For 'file' sources: an opaque provider handle and the provider that issued it
+ * - For 'file' sources: an opaque provider handle, optionally naming its issuer
  */
 export type ContentPartSource =
   | ContentPartDataSource
