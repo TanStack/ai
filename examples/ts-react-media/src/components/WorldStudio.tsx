@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Square, TriangleAlert } from 'lucide-react'
+import { Circle, Download, Loader2, Square, TriangleAlert } from 'lucide-react'
 import { generateWorldFn } from '@/lib/server-functions'
 import { attachStream } from '@/lib/attach-stream'
+import {
+  MarblePlanError,
+  downloadMarbleAsset,
+  splatFileName,
+} from '@/lib/marble-splat'
 import { readMediaFile } from '@/lib/media'
 import { LingbotControls } from '@/components/LingbotControls'
+import { MarbleViewer } from '@/components/MarbleViewer'
 import { SeedImageField } from '@/components/SeedImageField'
 import {
   byok,
@@ -24,6 +30,7 @@ import {
 import {
   LINGBOT_ROTATION_SPEED_DEG,
   lingbotPrompt,
+  isRecorderUnavailable,
   setReactorImage,
   watchReactorFailure,
   worldNeedsSeedImage,
@@ -45,8 +52,13 @@ type SessionStatus =
 
 type MarbleResult = {
   url: string
+  splatUrl?: string
+  metricScaleFactor?: number
+  groundPlaneOffset?: number
   thumbnailUrl?: string
   caption?: string
+  panoUrl?: string
+  meshUrl?: string
 }
 
 function isWorldResolution(value: string): value is WorldResolution {
@@ -110,7 +122,64 @@ function readMarblePayload(value: unknown): MarbleResult {
     'caption' in value && typeof value.caption === 'string'
       ? value.caption
       : undefined
-  return { url, thumbnailUrl, caption }
+  const splatUrl =
+    'splatUrl' in value && typeof value.splatUrl === 'string'
+      ? value.splatUrl
+      : undefined
+  const metricScaleFactor =
+    'metricScaleFactor' in value && typeof value.metricScaleFactor === 'number'
+      ? value.metricScaleFactor
+      : undefined
+  const groundPlaneOffset =
+    'groundPlaneOffset' in value && typeof value.groundPlaneOffset === 'number'
+      ? value.groundPlaneOffset
+      : undefined
+  const panoUrl =
+    'panoUrl' in value && typeof value.panoUrl === 'string'
+      ? value.panoUrl
+      : undefined
+  const meshUrl =
+    'meshUrl' in value && typeof value.meshUrl === 'string'
+      ? value.meshUrl
+      : undefined
+  return {
+    url,
+    thumbnailUrl,
+    caption,
+    splatUrl,
+    metricScaleFactor,
+    groundPlaneOffset,
+    panoUrl,
+    meshUrl,
+  }
+}
+
+function marbleAssetLinks(
+  marble: MarbleResult,
+): Array<{ label: string; url: string; filename: string }> {
+  const links: Array<{ label: string; url: string; filename: string }> = []
+  if (marble.splatUrl) {
+    links.push({
+      label: 'Splat',
+      url: marble.splatUrl,
+      filename: splatFileName(marble.splatUrl),
+    })
+  }
+  if (marble.meshUrl) {
+    links.push({
+      label: 'Mesh',
+      url: marble.meshUrl,
+      filename: 'world-collider.glb',
+    })
+  }
+  if (marble.panoUrl) {
+    links.push({
+      label: 'Pano',
+      url: marble.panoUrl,
+      filename: 'world-pano.jpg',
+    })
+  }
+  return links
 }
 
 async function startReactorWorld(
@@ -159,8 +228,12 @@ export default function WorldStudio() {
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
   const [marble, setMarble] = useState<MarbleResult | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [recorderUnavailable, setRecorderUnavailable] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
+  const reactorTokenRef = useRef<string | null>(null)
   const detachStreamRef = useRef<(() => void) | null>(null)
   const unwatchRef = useRef<(() => void) | null>(null)
   const statusRef = useRef<SessionStatus>('idle')
@@ -175,6 +248,7 @@ export default function WorldStudio() {
     unwatchRef.current = null
     const reactor = reactorRef.current
     reactorRef.current = null
+    reactorTokenRef.current = null
     detachStreamRef.current?.()
     detachStreamRef.current = null
     if (reactor) {
@@ -194,6 +268,9 @@ export default function WorldStudio() {
     await teardown()
     setPlaying(false)
     setMarble(null)
+    setRecording(false)
+    setRecorderUnavailable(false)
+    setDownloading(null)
     setStatus('idle')
   }
 
@@ -249,6 +326,7 @@ export default function WorldStudio() {
     setError(null)
     setPlaying(false)
     setMarble(null)
+    setRecorderUnavailable(false)
     setStatus('connecting')
     try {
       if (needsSeed && !seedFile) {
@@ -269,6 +347,7 @@ export default function WorldStudio() {
         modelName: world.model,
       })
       reactorRef.current = reactor
+      reactorTokenRef.current = world.token
 
       let rejectStart: ((error: Error) => void) | undefined
       const startFailed = new Promise<never>((_, reject) => {
@@ -320,6 +399,46 @@ export default function WorldStudio() {
     await startReactor()
   }
 
+  async function recordSession() {
+    const reactor = reactorRef.current
+    const jwt = reactorTokenRef.current
+    if (!reactor || !jwt || recording || recorderUnavailable) return
+    setRecording(true)
+    setError(null)
+    try {
+      const clip = await reactor.requestRecording()
+      await reactor.downloadClipAsFile(clip, 'world-session.mp4', { jwt })
+    } catch (caught) {
+      if (isRecorderUnavailable(caught)) {
+        setRecorderUnavailable(true)
+        setError(
+          'Recording is not enabled for this model or plan. The live session still works.',
+        )
+      } else {
+        setError(errorMessage(caught))
+      }
+    } finally {
+      setRecording(false)
+    }
+  }
+
+  async function downloadMarble(url: string, filename: string) {
+    if (downloading) return
+    setDownloading(filename)
+    setError(null)
+    try {
+      await downloadMarbleAsset(url, filename)
+    } catch (caught) {
+      if (caught instanceof MarblePlanError) {
+        setError(caught.message)
+      } else {
+        setError(errorMessage(caught))
+      }
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   async function steer() {
     const reactor = reactorRef.current
     const next = steerPrompt.trim()
@@ -360,7 +479,8 @@ export default function WorldStudio() {
             Paste a key in the header dialog, or set{' '}
             <code className="font-mono text-gray-300">WORLDLABS_API_KEY</code>{' '}
             on the server. Add optional seed photos (up to four of the same
-            scene), then open the Marble viewer URL.
+            scene). The world opens here. WASD to move, drag to look. Download
+            splat files when this plan returns them.
           </>
         ) : (
           <>
@@ -368,45 +488,74 @@ export default function WorldStudio() {
             <code className="font-mono text-gray-300">REACTOR_API_KEY</code> on
             the server.
             {needsSeed
-              ? ' Attach a seed image, describe what it shows, then start. The world opens full screen. Move with the pads, WASD, or the arrow keys.'
-              : ' Add an optional 16:9 seed image and start. The world opens full screen. Type in the bar at the bottom to steer.'}
+              ? ' Attach a seed image, describe what it shows, then start. The world opens full screen. Move with the pads, WASD, or the arrow keys. Record saves an MP4 when the model allows it.'
+              : ' Add an optional 16:9 seed image and start. The world opens full screen. Type in the bar at the bottom to steer. Record saves an MP4 when the model allows it.'}
           </>
         )}
       </p>
 
       {isMarble ? (
         <div className="overflow-hidden rounded-xl border border-gray-700 bg-black">
-          {marble?.thumbnailUrl ? (
+          {status === 'generating' ? (
+            <p className="flex aspect-video items-center justify-center gap-2 text-sm text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generating the world. This usually takes a few minutes.
+            </p>
+          ) : marble?.splatUrl ? (
+            <MarbleViewer
+              splatUrl={marble.splatUrl}
+              metricScaleFactor={marble.metricScaleFactor}
+              groundPlaneOffset={marble.groundPlaneOffset}
+            />
+          ) : marble?.thumbnailUrl ? (
             <img
               src={marble.thumbnailUrl}
               alt={marble.caption ?? 'Generated world'}
               className="aspect-video w-full object-cover"
             />
           ) : null}
-          {status === 'generating' ? (
-            <p className="flex items-center gap-2 px-4 py-3 text-sm text-gray-400">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating the world. This usually takes a few minutes.
-            </p>
-          ) : marble ? (
-            <div className="space-y-2 px-4 py-3">
-              {marble.caption ? (
-                <p className="text-sm text-gray-300">{marble.caption}</p>
-              ) : null}
+          {marble && status !== 'generating' ? (
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+              {marble.splatUrl ? (
+                <p className="text-gray-400">
+                  Click the world. WASD to move, drag to look.
+                </p>
+              ) : (
+                <p className="text-gray-400">
+                  This plan did not return splat files. Open in Marble still
+                  works.
+                </p>
+              )}
+              {marbleAssetLinks(marble).map((asset) => (
+                <button
+                  key={asset.filename}
+                  type="button"
+                  disabled={downloading !== null}
+                  onClick={() => void downloadMarble(asset.url, asset.filename)}
+                  className="inline-flex items-center gap-1 font-medium text-purple-300 hover:text-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {downloading === asset.filename ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  {asset.label}
+                </button>
+              ))}
               <a
                 href={marble.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex text-sm font-medium text-purple-300 hover:text-purple-200"
+                className="inline-flex font-medium text-purple-300 hover:text-purple-200"
               >
                 Open in Marble
               </a>
             </div>
-          ) : (
+          ) : status === 'idle' || status === 'error' ? (
             <p className="px-4 py-3 text-sm text-gray-400">
-              The Marble viewer link appears here after generation finishes.
+              The 3D world appears here after generation finishes.
             </p>
-          )}
+          ) : null}
         </div>
       ) : (
         <div
@@ -496,6 +645,24 @@ export default function WorldStudio() {
                   className="rounded-xl bg-purple-600/90 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Send
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void recordSession()}
+                  disabled={recording || recorderUnavailable}
+                  title={
+                    recorderUnavailable
+                      ? 'Recording is not enabled for this model or plan'
+                      : 'Save the session as an MP4'
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 font-medium text-white backdrop-blur-md hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {recording ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Circle className="h-4 w-4 fill-red-500 text-red-500" />
+                  )}
+                  {recording ? 'Saving…' : 'Record'}
                 </button>
                 <button
                   type="button"

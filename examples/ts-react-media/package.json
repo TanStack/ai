@@ -12,6 +12,7 @@
   "dependencies": {
     "@fal-ai/client": "1.11.0-alpha.2",
     "@reactor-team/js-sdk": "^3.0.1",
+    "@sparkjsdev/spark": "^2.2.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-byteplus": "workspace:*",
@@ -30,12 +31,14 @@
     "nitro": "3.0.260610-beta",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "three": "0.180.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "0.180.0",
     "@vitejs/plugin-react": "^5.2.0",
     "typescript": "5.9.3",
     "vite": "^8.2.1"

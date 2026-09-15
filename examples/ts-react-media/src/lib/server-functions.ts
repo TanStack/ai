@@ -35,6 +35,7 @@ import {
   createWorldLabsWorld,
   isWorldLabsWorldModel,
 } from '@tanstack/ai-worldlabs'
+import { pickSplatUrl } from '@/lib/marble-splat'
 import {
   byteplusByok,
   falByok,
@@ -949,6 +950,11 @@ export const generateWorldFn = createServerFn({ method: 'POST' })
         status: world.status,
         thumbnailUrl: world.assets?.thumbnailUrl,
         caption: world.assets?.caption,
+        splatUrl: pickSplatUrl(world.assets?.splats?.spzUrls),
+        metricScaleFactor: world.assets?.splats?.metricScaleFactor,
+        groundPlaneOffset: world.assets?.splats?.groundPlaneOffset,
+        panoUrl: world.assets?.imagery?.panoUrl,
+        meshUrl: world.assets?.mesh?.colliderMeshUrl,
       }
     }
 

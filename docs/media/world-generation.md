@@ -159,7 +159,7 @@ await reactor.sendCommand('start', {})
 
 Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect. See the [Reactor adapter](../adapters/reactor) for every id. Helios also works with `generateLiveVideo()` and `reactorVideo()`. See [Live Generation](./live-generation).
 
-A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world.
+A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world. Marble worlds play in the page with Spark.
 
 ## Finished 3D worlds (World Labs)
 
@@ -180,4 +180,4 @@ const world = await generateWorld({
 
 ## What you have now
 
-A server route that mints a live world session, or a server call that returns a finished Marble world. For Reactor, connect in the browser and change the prompt to steer the stream.
+A server route that mints a live world session, or a server call that returns a finished Marble world. For Reactor, connect in the browser and change the prompt to steer the stream. The media example can save a Reactor session as MP4 when the model has recording enabled, and download Marble splat files when the plan returns them.

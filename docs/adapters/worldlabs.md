@@ -116,4 +116,4 @@ const adapter = worldlabsWorld('marble-1.1', {
 
 ## What you have now
 
-A server call that generates a Marble world and returns the viewer URL plus asset links. Open `world.url` to walk the scene, or download splats from `world.assets.splats.spzUrls`.
+A server call that generates a Marble world and returns the viewer URL plus asset links. The media example loads `world.assets.splats.spzUrls` in Spark so you can walk the scene in the page. You can also open `world.url`. Splat export needs a World Labs plan that returns those files.
