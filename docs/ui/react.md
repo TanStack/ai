@@ -628,19 +628,20 @@ See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapter
 
 ## Render markdown
 
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-react/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed, so the output is safe while it streams.
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-react/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed.
 
 ```tsx
 import { TextPart } from '@tanstack/ai-react/ui'
-import { highlightMarkdownCode } from './markdown-highlighter'
 
 export function Reply({ content }: { content: string }) {
-  return <TextPart content={content} highlighter={highlightMarkdownCode} />
+  return <TextPart content={content} />
 }
 ```
 
-- `highlighter`: a synchronous `CodeHighlighter`. Without it, code blocks render as plain text. Build one with `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`. See the [syntax highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
-- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
-- `components`: replace an intrinsic element by tag name, for example `a` or `img`.
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown).
 
-The `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` props from earlier releases are gone. Use `extensions` and `highlighter` instead.
+- `highlighter`: a synchronous `CodeHighlighter`.
+- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
+- `components`: replace an intrinsic element by tag name, for example `a` or `img`. Normal HTML props only. `inline` and `node` are not passed.
+
+If you still pass `remarkPlugins` or `rehypePlugins`, see [TextPart markdown](../migration/text-part-markdown).

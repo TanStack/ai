@@ -182,23 +182,23 @@ The full map is on the [React page](./react).
 
 ## Render markdown
 
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed, so the output is safe while it streams.
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed.
 
 ```ts
 import { defineComponent, h } from 'vue'
 import { TextPart } from '@tanstack/ai-vue/ui'
-import { highlightMarkdownCode } from './markdown-highlighter'
 
 export default defineComponent({
   props: { content: { type: String, required: true } },
   setup(props) {
-    return () =>
-      h(TextPart, { content: props.content, highlighter: highlightMarkdownCode })
+    return () => h(TextPart, { content: props.content })
   },
 })
 ```
 
-- `highlighter`: a synchronous `CodeHighlighter`. Without it, code blocks render as plain text. Build one with `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`. See the [syntax highlighting guide](https://tanstack.com/markdown/latest/docs/guides/syntax-highlighting).
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown).
+
+- `highlighter`: a synchronous `CodeHighlighter`.
 - `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
 
-The `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` props from earlier releases are gone. Use `extensions` and `highlighter` instead.
+If you still pass `remarkPlugins` or `rehypePlugins`, see [TextPart markdown](../migration/text-part-markdown).
