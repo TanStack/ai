@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react-ui",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Deprecated. Import chat UI from @tanstack/ai-react/ui instead.",
   "author": "Tanner Linsley",
   "license": "MIT",
