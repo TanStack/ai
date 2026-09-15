@@ -82,7 +82,9 @@ describe('exposePreviewTool', () => {
     expect(getSandboxMock).toHaveBeenCalledWith(SANDBOX, 'thread-x', {
       transport: 'rpc',
     })
+    expect(tunnelGetMock).toHaveBeenCalledTimes(1)
     expect(tunnelGetMock).toHaveBeenCalledWith(5173)
+    expect(tunnelDestroyMock).not.toHaveBeenCalled()
     expect(result).toEqual({ url: OLD_URL })
   })
 
@@ -109,9 +111,22 @@ describe('exposePreviewTool', () => {
       .mockResolvedValue(http(403))
 
     const promise = makeTool().execute?.({ port: 5173 })
+    const assertion = expect(promise).resolves.toEqual({ url: OLD_URL })
     await vi.runAllTimersAsync()
+    await assertion
 
-    await expect(promise).resolves.toEqual({ url: OLD_URL })
+    expect(tunnelDestroyMock).not.toHaveBeenCalled()
+  })
+
+  it('does not destroy when a propagation 502 is followed by a healthy edge response', async () => {
+    vi.useFakeTimers()
+    edgeFetchMock.mockResolvedValueOnce(http(502)).mockResolvedValue(http(200))
+
+    const promise = makeTool().execute?.({ port: 5173 })
+    const assertion = expect(promise).resolves.toEqual({ url: OLD_URL })
+    await vi.runAllTimersAsync()
+    await assertion
+
     expect(tunnelDestroyMock).not.toHaveBeenCalled()
   })
 
@@ -138,6 +153,20 @@ describe('exposePreviewTool', () => {
     expect(tunnelDestroyMock).not.toHaveBeenCalled()
   })
 
+  it('leaves the tunnel alone when a 502 is followed by fetch exceptions (unverified, not stale)', async () => {
+    vi.useFakeTimers()
+    edgeFetchMock
+      .mockResolvedValueOnce(http(502))
+      .mockRejectedValue(new Error('subrequest failed'))
+
+    const promise = makeTool().execute?.({ port: 5173 })
+    const assertion = expect(promise).rejects.toThrow(/could not be verified/)
+    await vi.runAllTimersAsync()
+    await assertion
+
+    expect(tunnelDestroyMock).not.toHaveBeenCalled()
+  })
+
   it('replaces a stale tunnel (local healthy, edge stuck on 502) and flags the old URL as dead', async () => {
     vi.useFakeTimers()
     tunnelGetMock
@@ -149,13 +178,35 @@ describe('exposePreviewTool', () => {
     )
 
     const promise = makeTool().execute?.({ port: 5173 })
-    await vi.runAllTimersAsync()
-
-    await expect(promise).resolves.toMatchObject({
+    const assertion = expect(promise).resolves.toMatchObject({
       url: NEW_URL,
       note: expect.stringMatching(/dead/),
     })
+    await vi.runAllTimersAsync()
+    await assertion
+
+    expect(tunnelDestroyMock).toHaveBeenCalledTimes(1)
     expect(tunnelDestroyMock).toHaveBeenCalledWith(5173)
+  })
+
+  it('replaces a stale tunnel when the edge is stuck on 530', async () => {
+    vi.useFakeTimers()
+    tunnelGetMock
+      .mockResolvedValueOnce({ url: OLD_URL })
+      .mockResolvedValueOnce({ url: NEW_URL })
+    edgeFetchMock.mockImplementation((url) =>
+      Promise.resolve(http(url === NEW_URL ? 200 : 530)),
+    )
+
+    const promise = makeTool().execute?.({ port: 5173 })
+    const assertion = expect(promise).resolves.toMatchObject({
+      url: NEW_URL,
+      note: expect.stringMatching(/dead/),
+    })
+    await vi.runAllTimersAsync()
+    await assertion
+
+    expect(tunnelDestroyMock).toHaveBeenCalledTimes(1)
   })
 
   it('errors instead of returning a URL when the replacement tunnel never becomes reachable', async () => {
@@ -165,11 +216,41 @@ describe('exposePreviewTool', () => {
     const promise = makeTool().execute?.({ port: 5173 })
     // Attach the rejection handler BEFORE running the timers, or the rejection
     // fires unhandled while the fake clock advances.
-    const assertion = expect(promise).rejects.toThrow(
-      /Port 5173 is serving inside the sandbox/,
-    )
+    const assertion = expect(promise).rejects.toThrow(/never became reachable/)
     await vi.runAllTimersAsync()
     await assertion
+
+    expect(tunnelDestroyMock).toHaveBeenCalledTimes(2)
+    expect(tunnelGetMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not claim the replacement is unreachable when its probe only threw', async () => {
+    vi.useFakeTimers()
+    tunnelGetMock
+      .mockResolvedValueOnce({ url: OLD_URL })
+      .mockResolvedValueOnce({ url: NEW_URL })
+    edgeFetchMock.mockImplementation((url) =>
+      url === NEW_URL
+        ? Promise.reject(new Error('subrequest failed'))
+        : Promise.resolve(http(502)),
+    )
+
+    const promise = makeTool().execute?.({ port: 5173 })
+    const outcome = promise?.then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    )
+    await vi.runAllTimersAsync()
+    const result = await outcome
+
+    expect(result?.ok).toBe(false)
+    expect(String(result && !result.ok ? result.error : '')).toMatch(
+      /replacement preview tunnel could not be verified/,
+    )
+    expect(String(result && !result.ok ? result.error : '')).not.toMatch(
+      /restart the dev server/,
+    )
+    expect(tunnelDestroyMock).toHaveBeenCalledTimes(1)
   })
 })
 

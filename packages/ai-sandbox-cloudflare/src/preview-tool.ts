@@ -114,7 +114,9 @@ async function localProbe(
  * 502/530 never gets its healthy tunnel destroyed. The verdict split exists
  * because only an OBSERVED non-matching 502/530 ('stale') is evidence that
  * justifies destroying the tunnel; fetch exceptions ('unverified') prove
- * nothing about it — the probe path itself may be what failed.
+ * nothing about it — the probe path itself may be what failed. A throw
+ * anywhere in the retry window therefore wins over an earlier 502/530: the
+ * window did not finish as HTTP probes, so we must not destroy.
  */
 async function edgeProbeFailure(
   url: string,
@@ -122,6 +124,7 @@ async function edgeProbeFailure(
 ): Promise<{ verdict: 'stale' | 'unverified'; symptom: string } | null> {
   let lastFailure = 'no response'
   let verdict: 'stale' | 'unverified' = 'unverified'
+  let sawFetchException = false
   for (let attempt = 0; attempt < EDGE_PROBE_ATTEMPTS; attempt += 1) {
     if (attempt > 0) {
       await new Promise((resolve) =>
@@ -143,10 +146,14 @@ async function edgeProbeFailure(
       lastFailure = `HTTP ${res.status}`
       verdict = 'stale'
     } catch (error) {
+      sawFetchException = true
       lastFailure = error instanceof Error ? error.message : String(error)
     }
   }
-  return { verdict, symptom: lastFailure }
+  return {
+    verdict: sawFetchException ? 'unverified' : verdict,
+    symptom: lastFailure,
+  }
 }
 
 /**
@@ -213,6 +220,10 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
         url: fresh.url,
         note: `The tunnel for port ${port} was stale, so it was replaced. Any previously shared preview URL for this port is dead — share this new URL instead.`,
       }
+    }
+    // Don't leave a known-dead record in DO storage (the #992 failure mode).
+    if (freshFailure.verdict === 'stale') {
+      await sandbox.tunnels.destroy(port)
     }
     const [diagnosis, hint] =
       freshFailure.verdict === 'stale'
