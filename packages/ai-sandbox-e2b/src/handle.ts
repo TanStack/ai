@@ -360,13 +360,19 @@ export class E2BHandle implements SandboxHandle {
     await handle.kill().catch(() => undefined)
   }
 
-  /** Resolve the exit code; a non-zero exit is a result here, not an error. */
-  private static async exitCodeOf(handle: CommandHandle): Promise<number> {
+  /**
+   * Resolve the exit code; a non-zero exit is a result here, not an error.
+   * Anything else (the event stream dropped, envd restarted) says nothing
+   * about the process, which may still be running, so it is killed before
+   * the error surfaces rather than left to run until the sandbox expires.
+   */
+  private async exitCodeOf(handle: CommandHandle): Promise<number> {
     try {
       const result = await handle.wait()
       return result.exitCode
     } catch (error) {
       if (error instanceof CommandExitError) return error.exitCode
+      await this.killGroup(handle)
       throw error
     }
   }
@@ -383,7 +389,7 @@ export class E2BHandle implements SandboxHandle {
     // An abort that landed during the start round trip has no listener yet.
     if (opts?.signal?.aborted === true) onAbort()
     try {
-      const exitCode = await E2BHandle.exitCodeOf(handle)
+      const exitCode = await this.exitCodeOf(handle)
       return { stdout: handle.stdout, stderr: handle.stderr, exitCode }
     } finally {
       opts?.signal?.removeEventListener('abort', onAbort)
@@ -414,7 +420,7 @@ export class E2BHandle implements SandboxHandle {
     }
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
 
-    const exit = E2BHandle.exitCodeOf(handle).finally(() => {
+    const exit = this.exitCodeOf(handle).finally(() => {
       opts?.signal?.removeEventListener('abort', onAbort)
       stdoutQ.end()
       stderrQ.end()

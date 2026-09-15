@@ -279,6 +279,32 @@ describe('E2BHandle', () => {
     expect(await proc.wait()).toBe(0)
   })
 
+  // A dropped event stream says nothing about the process; the SDK's wait()
+  // rejects while the process may still run. It must not outlive the error.
+  it('kills the process group when wait() fails with a non-exit error', async () => {
+    let started: FakeCommand | undefined
+    const { handle, kills } = createHandle(
+      fakeSandbox({
+        onRun: (_cmd, fake) => {
+          started = fake
+          fake.handle.wait = async () => {
+            throw new Error('stream dropped')
+          }
+        },
+      }),
+    )
+    const proc = await handle.process.spawn('sleep 60')
+    await expect(proc.wait()).rejects.toThrow('stream dropped')
+    expect(kills).toEqual(['kill -KILL -- -4242'])
+    expect(started?.kill).toHaveBeenCalledOnce()
+    // The same path serves exec.
+    kills.length = 0
+    await expect(handle.process.exec('sleep 60')).rejects.toThrow(
+      'stream dropped',
+    )
+    expect(kills).toEqual(['kill -KILL -- -4242'])
+  })
+
   it('spawn kill() signals the process group, then the pid, and wait() reports a signal exit', async () => {
     let fake!: FakeCommand
     const { handle, kills } = createHandle(
