@@ -46,6 +46,31 @@ describe('buildProviderSupportsBody', () => {
     expect(body).toContain('thinking')
   })
 
+  it('writes Groq features without copying hosted tools', () => {
+    const body = buildProviderSupportsBody({
+      provider: 'groq',
+      inputModalities: ['text'],
+      supportedParameters: ['tools', 'structured_outputs'],
+    })
+    expect(body).toContain("endpoints: ['chat']")
+    expect(body).toContain('tools: [] as const')
+    expect(body).toContain("'json_schema'")
+    expect(body).not.toContain('browser_search')
+  })
+
+  it('writes BytePlus capabilities from catalog flags', () => {
+    const body = buildProviderSupportsBody({
+      provider: 'byteplus',
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      supportedParameters: ['tools', 'reasoning'],
+    })
+    expect(body).toContain('tool_calling')
+    expect(body).toContain('reasoning')
+    expect(body).toContain('tools: [] as const')
+    expect(body).not.toContain('structured_outputs')
+  })
+
   it('does not invent Grok x_search', () => {
     const body = buildProviderSupportsBody({
       provider: 'grok',

@@ -2,16 +2,29 @@
  * Conservative `supports` blocks for newly synced native-provider models.
  *
  * The generator only writes facts it can see: input modalities from
- * OpenRouter, plus features inferred from `supported_parameters`.
+ * the modelschemas catalog (OpenRouter enrich when the native row is
+ * empty), plus features inferred from `supported_parameters`.
  * It does not copy a reference model's tool list (computer_use, x_search,
  * google_search, …) onto every new id.
  */
 
-export type SyncedProvider = 'openai' | 'anthropic' | 'gemini' | 'grok'
+export const SYNCED_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'gemini',
+  'grok',
+  'groq',
+  'mistral',
+  'byteplus',
+  'elevenlabs',
+] as const
+
+export type SyncedProvider = (typeof SYNCED_PROVIDERS)[number]
 
 export interface ProviderSupportsInput {
   provider: SyncedProvider
   inputModalities: Array<string>
+  outputModalities?: Array<string>
   supportedParameters?: Array<string>
 }
 
@@ -142,5 +155,55 @@ export function buildProviderSupportsBody(
       lines.push(`    tools: [],`)
       return lines.join('\n')
     }
+    case 'groq': {
+      const features = ['streaming']
+      if (hasTools) features.push('tools')
+      if (hasStructured) {
+        features.push('json_object', 'json_schema')
+      }
+      if (hasReasoning) features.push('reasoning')
+      if (input.inputModalities.includes('image')) features.push('vision')
+      return [
+        `    input: ${inputList},`,
+        `    output: ['text'],`,
+        `    endpoints: ['chat'],`,
+        `    features: ${quoteList(features)},`,
+        `    tools: [] as const,`,
+      ].join('\n')
+    }
+    case 'mistral': {
+      const features = ['streaming']
+      if (hasTools) features.push('tools')
+      if (hasStructured) {
+        features.push('json_object', 'json_schema')
+      }
+      if (hasReasoning) features.push('reasoning')
+      if (input.inputModalities.includes('image')) features.push('vision')
+      return [
+        `    input: ${inputList},`,
+        `    output: ['text'],`,
+        `    endpoints: ['chat'],`,
+        `    features: ${quoteList(features)},`,
+      ].join('\n')
+    }
+    case 'byteplus': {
+      const capabilities: Array<string> = []
+      if (hasReasoning) capabilities.push('reasoning')
+      if (hasTools) capabilities.push('tool_calling')
+      if (hasStructured) capabilities.push('structured_outputs')
+      const output = quoteList(
+        (input.outputModalities ?? ['text']).length > 0
+          ? (input.outputModalities ?? ['text'])
+          : ['text'],
+      )
+      const lines = [`    input: ${inputList},`, `    output: ${output},`]
+      if (capabilities.length > 0) {
+        lines.push(`    capabilities: ${quoteList(capabilities)},`)
+      }
+      lines.push(`    tools: [] as const,`)
+      return lines.join('\n')
+    }
+    case 'elevenlabs':
+      return `    input: ${inputList},`
   }
 }
