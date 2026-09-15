@@ -11,8 +11,6 @@ keywords:
   - client authoritative
 ---
 
-# Persistence
-
 Your user reloads the page and the conversation is gone, because it only ever lived
 in memory. Or they open the app on their phone and none of it is there. Persistence
 fixes both, and it is two snippets: one middleware on the server, one option on the

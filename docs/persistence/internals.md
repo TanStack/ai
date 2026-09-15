@@ -10,8 +10,6 @@ keywords:
   - middleware lifecycle
 ---
 
-# How Persistence Works
-
 Read this when something surprised you, or before you write a backend. To simply set
 persistence up, [the overview](./overview) is three snippets.
 

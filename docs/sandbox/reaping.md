@@ -14,8 +14,6 @@ keywords:
   - retention
 ---
 
-# Reaping & Retention
-
 [Takeover & Detached Runs](./takeover) makes a disconnect survivable: the agent
 keeps working, the sandbox stays up, and the run record remembers that nobody is
 watching. That is only half a lifecycle. Something has to be the *end* of a run

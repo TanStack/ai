@@ -3,8 +3,6 @@ title: Chat Persistence
 id: chat-persistence
 ---
 
-# Chat Persistence
-
 You want a conversation to outlive a single request: the transcript, whether
 each run finished or is still waiting on an interrupt, all still there after the
 process restarts. `withPersistence` is a chat middleware that writes that

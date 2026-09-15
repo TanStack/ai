@@ -15,8 +15,6 @@ keywords:
   - experimental
 ---
 
-# Live Generation (Experimental)
-
 You want a video that plays while it generates. You also want to change the prompt mid-run. A finite video job stops with a file. `generateLiveVideo()` opens a session instead.
 
 Call `generateLiveVideo()` on the server. It returns a connect payload: a model id, a prompt, and a token. The browser uses that payload to open the stream.

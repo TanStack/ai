@@ -3,8 +3,6 @@ title: Store Reference (Advanced)
 id: store-reference
 ---
 
-# Store Reference
-
 These are the public contracts from `@tanstack/ai-persistence`. Implement only the
 stores you need. Middleware turns behavior on from whichever stores are present, so
 there is no separate enable list.

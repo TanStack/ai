@@ -3,8 +3,6 @@ title: Client Persistence
 id: client-persistence
 ---
 
-# Client Persistence
-
 A `ChatClient` (and every framework `useChat` / `createChat`) keeps messages in
 memory, so a reload or a crashed tab loses the whole conversation and any reply
 that was still streaming. The `persistence` option fixes that from the browser
