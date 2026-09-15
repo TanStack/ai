@@ -51,7 +51,9 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 ```tsx
 import { TextPart } from '@tanstack/ai-react/ui'
 
-<TextPart content={content} />
+export function Reply({ content }: { content: string }) {
+  return <TextPart content={content} />
+}
 ```
 
 ### Syntax highlighting
@@ -68,11 +70,15 @@ To get colors now, pass a TanStack Highlight callback. Full steps: [Highlight ma
 import { TextPart } from '@tanstack/ai-react/ui'
 import { highlightMarkdownCode } from './markdown-highlighter'
 
-<TextPart
-  content={content}
-  highlighter={highlightMarkdownCode}
-  className="markdown-renderer"
-/>
+export function Reply({ content }: { content: string }) {
+  return (
+    <TextPart
+      content={content}
+      highlighter={highlightMarkdownCode}
+      className="markdown-renderer"
+    />
+  )
+}
 ```
 
 ### Extra remark or rehype plugins
@@ -98,16 +104,18 @@ A common override still type-checks, then mis-renders. `inline` is always `undef
 ```
 
 ```tsx
-<TextPart
-  content={content}
-  components={{
-    a: ({ href, children }) => (
-      <a href={href} target="_blank" rel="noreferrer">
-        {children}
-      </a>
-    ),
-  }}
-/>
+import { TextPart } from '@tanstack/ai-react/ui'
+
+export function Reply({ content }: { content: string }) {
+  return (
+    <TextPart
+      content={content}
+      components={{
+        a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+      }}
+    />
+  )
+}
 ```
 
 Branch on `className` (for example `language-ts`) if you need fence vs inline. Do not read `inline` or `node`.
@@ -133,4 +141,4 @@ Tables, lists, strikethrough, and fenced code still render.
 - Import path: still `@tanstack/ai-react/ui` (or Vue / Solid `/ui`).
 - The `TextPart` data type on messages (`{ type: 'text', content }`). That is not this component.
 
-When the type error is gone and you want colored fences, open [Highlight markdown code](../ui/markdown) and run step 1.
+When the type error is gone and you want colored fences, follow [Highlight markdown code](../ui/markdown).

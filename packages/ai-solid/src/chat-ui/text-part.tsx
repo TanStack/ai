@@ -53,9 +53,7 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
-  // ponytail: TanStack Markdown has no Solid adapter, so render its (escaped)
-  // HTML string. Walk the AST with renderBlock/renderInline if per-element
-  // component overrides are ever needed.
+  // TanStack Markdown escapes this HTML string.
   const html = () =>
     renderHtml(props.content, {
       extensions: props.extensions

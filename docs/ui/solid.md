@@ -183,7 +183,7 @@ Pass `props.chat`, `props.part`, and `props.Parts` without destructure.
 
 ## Render markdown
 
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-solid/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed.
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-solid/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
 
 ```tsx
 import { TextPart } from '@tanstack/ai-solid/ui'
@@ -193,9 +193,9 @@ export function Reply(props: { content: string }) {
 }
 ```
 
-Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown).
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
 
 - `highlighter`: a synchronous `CodeHighlighter`.
 - `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
 
-If you still pass `remarkPlugins`, `rehypePlugins`, or `components`, see [TextPart markdown](../migration/text-part-markdown).
+If you still pass `remarkPlugins`, `rehypePlugins`, `disableDefaultPlugins`, or `components`, see [TextPart markdown](../migration/text-part-markdown).

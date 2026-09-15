@@ -182,7 +182,7 @@ The full map is on the [React page](./react).
 
 ## Render markdown
 
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed.
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
 
 ```ts
 import { defineComponent, h } from 'vue'
@@ -196,9 +196,9 @@ export default defineComponent({
 })
 ```
 
-Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown).
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
 
 - `highlighter`: a synchronous `CodeHighlighter`.
 - `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
 
-If you still pass `remarkPlugins` or `rehypePlugins`, see [TextPart markdown](../migration/text-part-markdown).
+If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, see [TextPart markdown](../migration/text-part-markdown).

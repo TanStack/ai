@@ -628,7 +628,7 @@ See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapter
 
 ## Render markdown
 
-Model replies arrive as markdown. `TextPart` from `@tanstack/ai-react/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). Raw HTML is escaped and executable URLs are removed.
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-react/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
 
 ```tsx
 import { TextPart } from '@tanstack/ai-react/ui'
@@ -638,10 +638,25 @@ export function Reply({ content }: { content: string }) {
 }
 ```
 
-Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown).
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
 
 - `highlighter`: a synchronous `CodeHighlighter`.
 - `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
-- `components`: replace an intrinsic element by tag name, for example `a` or `img`. Normal HTML props only. `inline` and `node` are not passed.
+- `components`: a tag-name map with normal HTML props (`href`, `className`). `inline` and `node` are not passed.
 
-If you still pass `remarkPlugins` or `rehypePlugins`, see [TextPart markdown](../migration/text-part-markdown).
+```tsx
+import { TextPart } from '@tanstack/ai-react/ui'
+
+export function Reply({ content }: { content: string }) {
+  return (
+    <TextPart
+      content={content}
+      components={{
+        a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+      }}
+    />
+  )
+}
+```
+
+If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, see [TextPart markdown](../migration/text-part-markdown).
