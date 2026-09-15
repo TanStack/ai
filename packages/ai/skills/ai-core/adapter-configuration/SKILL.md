@@ -517,8 +517,8 @@ Rules agents must respect:
 - **The source is one opaque handle plus its issuer.** `fileSourceFromHandle`
   builds `{ type: 'file', value: 'file-…', provider: 'openai' }`, matching the
   AG-UI `FileSource` arm. A handle only resolves at the provider that issued
-  it: an adapter throws when `provider` names a different adapter, and takes a
-  source with no `provider` as-is. To use the same bytes with two providers,
+  it, so an adapter throws when `provider` names a different adapter. Both
+  `value` and `provider` are required. To use the same bytes with two providers,
   upload to each and send the matching handle.
 - **Adapters declare `supportsFileSources`.** For adapters that don't (Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
   written before this feature), `chat()` / `generateImage()` /

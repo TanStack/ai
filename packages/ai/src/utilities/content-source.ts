@@ -17,18 +17,17 @@ export function isFileSource(
 /**
  * Resolve the handle `providerName` should send for a file source.
  *
- * A file source carries one opaque handle (`value`) and, optionally, the
- * provider that issued it. An adapter always knows which provider it talks
- * to, so a source that names no provider is taken as-is.
+ * A file source carries one opaque handle (`value`) and the provider that
+ * issued it.
  *
- * @throws when the source names a different issuing provider. A handle only
+ * @throws when a different provider issued the handle. A handle only
  * resolves at the provider that minted it.
  */
 export function fileReferenceFor(
   source: ContentPartFileSource,
   providerName: string,
 ): string {
-  if (source.provider !== undefined && source.provider !== providerName) {
+  if (source.provider !== providerName) {
     throw new Error(
       `${providerName}: file source was issued by ${source.provider}. ` +
         `A provider file handle only works with the provider that issued ` +

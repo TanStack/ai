@@ -45,15 +45,6 @@ describe('file content source helpers', () => {
     )
   })
 
-  it('fileReferenceFor takes a source that names no provider as-is', () => {
-    // An adapter already knows which provider it talks to, so an unnamed
-    // handle is passed through and the provider itself resolves it.
-    const unnamed: ContentPartSource = { type: 'file', value: 'file-abc' }
-    if (!isFileSource(unnamed)) throw new Error('expected file source')
-    expect(fileReferenceFor(unnamed, 'openai')).toBe('file-abc')
-    expect(fileReferenceFor(unnamed, 'anthropic')).toBe('file-abc')
-  })
-
   it('unsupportedFileSourceError includes provider and detail', () => {
     const err = unsupportedFileSourceError('mistral', 'on this endpoint')
     expect(err.message).toContain('mistral')
@@ -84,9 +75,10 @@ describe('file content source helpers', () => {
 
   it('isContentPart accepts a valid file source and rejects malformed ones', () => {
     expect(isContentPart({ type: 'image', source: fileSource })).toBe(true)
+    // No issuer.
     expect(
       isContentPart({ type: 'image', source: { type: 'file', value: 'h' } }),
-    ).toBe(true)
+    ).toBe(false)
     // No handle.
     expect(isContentPart({ type: 'image', source: { type: 'file' } })).toBe(
       false,

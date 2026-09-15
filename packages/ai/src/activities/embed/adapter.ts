@@ -91,7 +91,7 @@ export abstract class BaseEmbeddingAdapter<
 > {
   readonly kind = 'embedding' as const
   abstract readonly name: string
-  readonly supportsFileSources?: boolean = undefined
+  readonly supportsFileSources: boolean = false
   readonly model: TModel
 
   // Type-only property - never assigned at runtime

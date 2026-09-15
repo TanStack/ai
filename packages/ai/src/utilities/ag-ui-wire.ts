@@ -451,7 +451,9 @@ function collectUserContent(
       // arms, so a `{ type: 'file' }` provider handle cannot cross it. Throw
       // rather than drop the part silently. AG-UI 1.0 adds a matching `file`
       // arm ({ type, value, provider?, mimeType? }, ag-ui-protocol/ag-ui#2639);
-      // on upgrade, pass the part through here instead.
+      // on upgrade, pass the part through here instead. TanStack requires
+      // `provider`, so a part read back off the wire without one needs the
+      // receiving adapter's name filled in.
       const source = p.source
       if (source.type === 'file') {
         throw new Error(

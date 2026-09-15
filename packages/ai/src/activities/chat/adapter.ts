@@ -218,7 +218,7 @@ export abstract class BaseTextAdapter<
   abstract readonly name: string
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
-  readonly supportsFileSources?: boolean = undefined
+  readonly supportsFileSources: boolean = false
 
   // Type-only property - never assigned at runtime
   declare '~types': {
