@@ -26,8 +26,8 @@ import {
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
-import type { TTSAdapter } from './adapter'
-import type { StreamChunk, TTSResult } from '../../types'
+import type { TTSAdapter, TTSCapabilities } from './adapter'
+import type { StreamChunk, TTSResult, TTSTurn } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -60,16 +60,46 @@ export type TTSProviderOptions<TAdapter> = TAdapter extends {
  * @template TAdapter - The TTS adapter type
  * @template TStream - Whether to stream the output
  */
-export interface TTSActivityOptions<
+export type TTSActivityOptions<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+  TStream extends boolean = false,
+> = TTSActivityOptionsBase<TAdapter, TStream> &
+  (
+    | {
+        /** The text to convert to speech */
+        text: string
+        turns?: undefined
+      }
+    | {
+        text?: undefined
+        /**
+         * Multi-voice dialogue turns, one per line of the script. Mutually
+         * exclusive with `text`.
+         *
+         * Only adapters that declare `capabilities.maxSpeakers` accept these
+         * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
+         * request leaves the process.
+         */
+        turns: Array<TTSTurn>
+      }
+  )
+
+/** Shared half of {@link TTSActivityOptions} — everything except text/turns. */
+interface TTSActivityOptionsBase<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
   /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The text to convert to speech */
-  text: string
   /** The voice to use for generation */
   voice?: string
+  /**
+   * Ask for `alignment` (character/word timings) and `segments` (per-turn
+   * spans) on the result. Only adapters that declare
+   * `capabilities.timestamps` accept it — on ElevenLabs it is a different
+   * endpoint, on BytePlus a different request flag, so it cannot be inferred.
+   */
+  timestamps?: boolean
   /** The output audio format */
   format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
   /** The speed of the generated audio (0.25 to 4.0) */
@@ -128,6 +158,57 @@ export type TTSActivityResult<TStream extends boolean = false> =
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * Validate the text/turns/timestamps trio against what the adapter declares,
+ * and return the `text` every adapter receives.
+ *
+ * For a dialogue request that text is the turn scripts joined by newlines:
+ * dialogue-aware adapters read `turns` and ignore it, but it keeps `text`
+ * non-optional on the adapter contract and gives the devtools event and the
+ * artifact inputs something truthful to show.
+ */
+function resolveSpeechText(
+  adapter: { name: string; capabilities?: TTSCapabilities },
+  input: { text?: string; turns?: Array<TTSTurn>; timestamps?: boolean },
+): string {
+  const { text, turns, timestamps } = input
+
+  if (timestamps && !adapter.capabilities?.timestamps) {
+    throw new Error(
+      `${adapter.name} cannot return timestamps. Drop \`timestamps: true\` — the result would have no alignment to read.`,
+    )
+  }
+
+  if (turns) {
+    if (text !== undefined) {
+      throw new Error(
+        'generateSpeech() takes either `text` or `turns`, not both.',
+      )
+    }
+    if (turns.length === 0) {
+      throw new Error('generateSpeech() `turns` must not be empty.')
+    }
+    const maxSpeakers = adapter.capabilities?.maxSpeakers
+    if (maxSpeakers === undefined) {
+      throw new Error(
+        `${adapter.name} cannot generate dialogue. Pass \`text\` (and \`voice\`) instead of \`turns\`.`,
+      )
+    }
+    const speakers = new Set(turns.map((turn) => turn.voice)).size
+    if (speakers > maxSpeakers) {
+      throw new Error(
+        `${adapter.name} accepts at most ${maxSpeakers} distinct voice${maxSpeakers === 1 ? '' : 's'} per request; received ${speakers}.`,
+      )
+    }
+    return turns.map((turn) => turn.text).join('\n')
+  }
+
+  if (text === undefined) {
+    throw new Error('generateSpeech() requires either `text` or `turns`.')
+  }
+  return text
 }
 
 // ===========================
@@ -200,6 +281,7 @@ async function runGenerateSpeech<
     ...rest
   } = options
   const model = adapter.model
+  const text = resolveSpeechText(adapter, rest)
   const requestId = createId('speech')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
@@ -219,7 +301,7 @@ async function runGenerateSpeech<
     model,
     modelOptions: rest.modelOptions,
     artifactInputs: {
-      text: rest.text,
+      text,
       voice: rest.voice,
       format: rest.format,
       speed: rest.speed,
@@ -235,7 +317,7 @@ async function runGenerateSpeech<
     requestId,
     provider: adapter.name,
     model,
-    text: rest.text,
+    text,
     voice: rest.voice,
     format: rest.format,
     speed: rest.speed,
@@ -252,6 +334,7 @@ async function runGenerateSpeech<
     const rawResult = await raceWithAbort(
       adapter.generateSpeech({
         ...rest,
+        text,
         model,
         logger,
         ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
@@ -346,5 +429,10 @@ export function createSpeechOptions<
 }
 
 // Re-export adapter types
-export type { TTSAdapter, TTSAdapterConfig, AnyTTSAdapter } from './adapter'
+export type {
+  TTSAdapter,
+  TTSAdapterConfig,
+  TTSCapabilities,
+  AnyTTSAdapter,
+} from './adapter'
 export { BaseTTSAdapter } from './adapter'

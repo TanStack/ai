@@ -1,6 +1,23 @@
 import type { TTSOptions, TTSResult } from '../../types'
 
 /**
+ * What a TTS adapter can do beyond a single voice reading a single string.
+ *
+ * Declared statically so `generateSpeech()` can reject an unsupported request
+ * before it reaches the provider, instead of surfacing a provider 422.
+ */
+export interface TTSCapabilities {
+  /**
+   * Maximum number of distinct voices accepted across `turns`
+   * (ElevenLabs 10, Gemini 2). Omit it when the adapter has no dialogue
+   * endpoint — then `turns` is rejected outright.
+   */
+  maxSpeakers?: number
+  /** Set when the adapter can honour `timestamps: true`. */
+  timestamps?: boolean
+}
+
+/**
  * Configuration for TTS adapter instances
  */
 export interface TTSAdapterConfig {
@@ -31,6 +48,11 @@ export interface TTSAdapter<
   readonly name: string
   /** The model this adapter is configured for */
   readonly model: TModel
+  /**
+   * Optional static capability declaration. Absent means "single voice, no
+   * timestamps" — the contract every adapter had before dialogue existed.
+   */
+  readonly capabilities?: TTSCapabilities
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -64,6 +86,7 @@ export abstract class BaseTTSAdapter<
   readonly kind = 'tts' as const
   abstract readonly name: string
   readonly model: TModel
+  declare readonly capabilities?: TTSCapabilities
 
   // Type-only property - never assigned at runtime
   declare '~types': {

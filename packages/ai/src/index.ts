@@ -40,6 +40,7 @@ export type {
   AudioAdapter,
   AnyTTSAdapter,
   TTSAdapter,
+  TTSCapabilities,
   AnyTranscriptionAdapter,
   TranscriptionAdapter,
   AnyVideoAdapter,

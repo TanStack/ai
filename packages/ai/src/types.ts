@@ -2351,14 +2351,80 @@ export interface LiveVideoGenerationResult {
 // ============================================================================
 
 /**
+ * One turn of a multi-voice dialogue request.
+ *
+ * Providers that expose a dedicated dialogue endpoint (ElevenLabs
+ * `textToDialogue`, Gemini multi-speaker) take these natively instead of a
+ * single `text` + `voice` pair.
+ */
+export interface TTSTurn {
+  /** The text this voice speaks. */
+  text: string
+  /** Provider voice id (ElevenLabs) or voice name (Gemini) for this turn. */
+  voice: string
+}
+
+/**
+ * Timings for the generated audio, returned when `timestamps: true` was
+ * requested and the adapter declares `capabilities.timestamps`.
+ *
+ * Granularity differs per provider — ElevenLabs reports characters, BytePlus
+ * reports words — so `unit` says which, and the three arrays are parallel.
+ * All times are **seconds**; adapters convert.
+ */
+export interface TTSAlignment {
+  /** Granularity of each entry. */
+  unit: 'character' | 'word'
+  /** Entry text, in audio order. */
+  texts: Array<string>
+  /** Start of each entry in seconds. Same length as `texts`. */
+  startSeconds: Array<number>
+  /** End of each entry in seconds. Same length as `texts`. */
+  endSeconds: Array<number>
+}
+
+/**
+ * A stretch of audio attributable to one turn (multi-voice) or one utterance
+ * (single voice). This is what tells a consumer which turn is where.
+ */
+export interface TTSSegment {
+  /** Start of the segment in seconds. */
+  startSeconds: number
+  /** End of the segment in seconds. */
+  endSeconds: number
+  /** Index into the request's `turns`, when the provider reports it. */
+  turnIndex?: number
+  /** Voice heard in this segment, when the provider reports it. */
+  voice?: string
+  /** Text spoken in this segment, when the provider reports it. */
+  text?: string
+}
+
+/**
  * Options for text-to-speech generation.
  * These are the common options supported across providers.
  */
 export interface TTSOptions<TProviderOptions extends object = object> {
   /** The model to use for TTS generation */
   model: string
-  /** The text to convert to speech */
+  /**
+   * The text to convert to speech. When the caller passed `turns`, the
+   * activity fills this with the turn texts joined by newlines so adapters
+   * that only read `text` still receive the full script.
+   */
   text: string
+  /**
+   * Multi-voice dialogue turns, when the caller asked for dialogue. Only
+   * adapters that declare `capabilities.maxSpeakers` ever see this — the
+   * activity rejects `turns` for the rest.
+   */
+  turns?: Array<TTSTurn>
+  /**
+   * Ask for `alignment` / `segments` on the result. Rejected by the activity
+   * unless the adapter declares `capabilities.timestamps`, because on some
+   * providers this is a different endpoint rather than free metadata.
+   */
+  timestamps?: boolean
   /** The voice to use for generation */
   voice?: string
   /** The output audio format */
@@ -2393,8 +2459,18 @@ export interface TTSResult {
   audio: string
   /** Audio format of the generated audio */
   format: string
-  /** Duration of the audio in seconds, if available */
+  /** Duration of the audio file in seconds, if available */
   duration?: number
+  /**
+   * Character- or word-level timings, present when `timestamps: true` was
+   * requested. Use this rather than `duration` to find where *speech* ends.
+   */
+  alignment?: TTSAlignment
+  /**
+   * Per-turn (or per-utterance) spans of the audio, present when
+   * `timestamps: true` was requested and the provider reports segmentation.
+   */
+  segments?: Array<TTSSegment>
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
   /** Token usage information (if provided by the adapter) */

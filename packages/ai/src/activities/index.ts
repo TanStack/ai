@@ -171,6 +171,7 @@ export {
   BaseTTSAdapter,
   type TTSAdapter,
   type TTSAdapterConfig,
+  type TTSCapabilities,
   type AnyTTSAdapter,
 } from './generateSpeech/adapter'
 
