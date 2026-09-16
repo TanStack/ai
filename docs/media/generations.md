@@ -87,6 +87,7 @@ streaming is handled for you. All three are written out in
 | Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
+| Voice creation | `generateVoice()` | - | [Voice Creation](./voice-creation) |
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
