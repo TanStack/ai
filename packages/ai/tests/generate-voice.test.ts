@@ -141,7 +141,9 @@ describe('getVoiceStatus', () => {
       generateVoice: async () => ({
         id: 'voice-async',
         model: 'clone-test',
-        voices: [{ voiceId: 'slot-1', status: 'training' as const, saved: true }],
+        voices: [
+          { voiceId: 'slot-1', status: 'training' as const, saved: true },
+        ],
       }),
       getVoiceStatus: async (voiceId) => ({
         voiceId,
