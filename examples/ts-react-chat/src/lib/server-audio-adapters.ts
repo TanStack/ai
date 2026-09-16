@@ -113,7 +113,7 @@ export function buildAudioAdapter(
       return falAudio(model)
     case 'elevenlabs-music':
     case 'elevenlabs-sfx':
-      return elevenlabsAudio(model as 'music_v1')
+      return elevenlabsAudio(model as 'music_v2_5')
   }
 }
 
