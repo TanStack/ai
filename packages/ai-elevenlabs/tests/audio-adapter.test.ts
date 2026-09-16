@@ -31,11 +31,30 @@ function makeStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
   })
 }
 
-describe('elevenlabsAudio adapter — music_v1', () => {
+describe('elevenlabsAudio adapter — music', () => {
   beforeEach(() => {
     composeMock.mockReset()
     sfxConvertMock.mockReset()
   })
+
+  // The music family is matched by prefix, so every version routes to compose
+  // without the dispatcher needing a new branch per release.
+  it.each(['music_v2_5', 'music_v2', 'music_v1'] as const)(
+    'routes %s to the music endpoint',
+    async (model) => {
+      composeMock.mockResolvedValue(makeStream(new Uint8Array()))
+      const adapter = elevenlabsAudio(model, { apiKey: 'k' })
+
+      await adapter.generateAudio({
+        model,
+        prompt: 'jazz trio',
+        logger: makeLogger(),
+      })
+
+      expect(sfxConvertMock).not.toHaveBeenCalled()
+      expect(composeMock.mock.calls[0]![0]).toMatchObject({ modelId: model })
+    },
+  )
 
   it('calls client.music.compose with prompt + duration in ms', async () => {
     composeMock.mockResolvedValue(makeStream(new Uint8Array([1, 2])))
@@ -130,17 +149,18 @@ describe('elevenlabsAudio adapter — sound effects', () => {
     expect(result.audio.duration).toBe(3)
   })
 
-  it('routes eleven_text_to_sound_v1 to the SFX endpoint too', async () => {
+  it('keeps SFX and music on separate endpoints', async () => {
     sfxConvertMock.mockResolvedValue(makeStream(new Uint8Array()))
-    const adapter = elevenlabsAudio('eleven_text_to_sound_v1', {
+    const adapter = elevenlabsAudio('eleven_text_to_sound_v2', {
       apiKey: 'k',
     })
     await adapter.generateAudio({
-      model: 'eleven_text_to_sound_v1',
+      model: 'eleven_text_to_sound_v2',
       prompt: 'rain',
       logger: makeLogger(),
     })
     expect(sfxConvertMock).toHaveBeenCalled()
+    expect(composeMock).not.toHaveBeenCalled()
   })
 })
 
