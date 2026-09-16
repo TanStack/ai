@@ -387,6 +387,66 @@ function appendUiResources(
   return { ...ui, parts: [...ui.parts, ...extra] }
 }
 
+/**
+ * Build a UIResourcePart from the value of a CUSTOM `ui-resource` chunk
+ * emitted via `ctx.emitCustomEvent('ui-resource', ...)` (MCP Apps). The
+ * emission-side value carries `resource`/`serverId`/`toolName` plus the
+ * `toolCallId` stamped by the tool-call context wrapper — the `type`
+ * discriminator is added here. Returns undefined when the value does not
+ * match the ui-resource shape.
+ */
+export function uiResourcePartFromCustomValue(
+  value: unknown,
+): UIResourcePart | undefined {
+  if (!isRecord(value)) return undefined
+  const part: unknown = { type: 'ui-resource', ...value }
+  return isUiResourcePart(part) ? part : undefined
+}
+
+/**
+ * Store an emitted ui-resource part on the assistant ModelMessage that owns
+ * its `toolCallId` (the tool-call anchor), so it survives later
+ * MESSAGES_SNAPSHOT chunks — e.g. the interrupt snapshot emitted when the
+ * run pauses on a client tool (#1397). Mirrors how `toolCallMetadata` is
+ * preserved on the anchor (#867).
+ *
+ * Returns the SAME array reference when no anchor owns the tool call or the
+ * resource is already stored (idempotent).
+ */
+export function appendUiResourceToModelMessages(
+  messages: Array<ModelMessage>,
+  part: UIResourcePart,
+): Array<ModelMessage> {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant') continue
+    const ownsToolCall = message.toolCalls?.some(
+      (toolCall) => toolCall.id === part.toolCallId,
+    )
+    if (!ownsToolCall) continue
+    const previous = tanstackMetadata(message)?.uiResources ?? []
+    if (
+      previous.some((stored) => uiResourceKey(stored) === uiResourceKey(part))
+    ) {
+      return messages
+    }
+    const nextMessage = {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        tanstack: {
+          ...tanstackMetadata(message),
+          uiResources: [...previous, part],
+        },
+      },
+    }
+    const next = messages.slice()
+    next[index] = nextMessage
+    return next
+  }
+  return messages
+}
+
 function assistantMetadata(
   uiMessage: UIMessage,
 ): UIMessage['metadata'] | undefined {
