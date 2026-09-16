@@ -152,6 +152,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'voice-design': {
+    tools: [],
+    modelOptions: {},
+  },
   transcription: {
     tools: [],
     modelOptions: {},
