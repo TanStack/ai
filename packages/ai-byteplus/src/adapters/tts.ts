@@ -158,7 +158,6 @@ export class BytePlusTTSAdapter<
   ): Promise<BytePlusTTSResult> {
     const { logger, model, text, voice, format, speed, modelOptions, turns } =
       options
-    const timestamps = options.timestamps === true
 
     logger.request(`activity=generateSpeech provider=byteplus model=${model}`, {
       provider: 'byteplus',
@@ -173,7 +172,7 @@ export class BytePlusTTSAdapter<
       format,
       speed,
       modelOptions,
-      timestamps,
+      timestamps: options.timestamps,
       logger,
     })
 
@@ -295,8 +294,10 @@ export function buildTTSRequestBody(options: {
     audioConfig.loudness_rate = modelOptions.loudness_rate
   }
   // `modelOptions.enable_subtitle` still wins, so an explicit `false` can
-  // opt out of the flag even when core asked for timestamps.
-  const enableSubtitle = modelOptions?.enable_subtitle ?? options.timestamps
+  // opt out of the flag even when core asked for timestamps. A `timestamps`
+  // the caller never set stays off the body entirely.
+  const enableSubtitle =
+    modelOptions?.enable_subtitle ?? (options.timestamps || undefined)
   if (enableSubtitle !== undefined) {
     audioConfig.enable_subtitle = enableSubtitle
   }
