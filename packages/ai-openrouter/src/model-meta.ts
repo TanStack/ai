@@ -127,6 +127,80 @@ const _ANTHROPIC_CLAUDE_SONNET_LATEST = {
     image: 0,
   },
 } as const
+const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
+  id: '~deepseek/deepseek-flash-latest',
+  name: 'DeepSeek: DeepSeek Flash Latest',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logitBias',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 943718,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.15,
+        cached: 0.015,
+      },
+      output: {
+        normal: 0.6,
+      },
+    },
+    image: 0,
+  },
+} as const
+const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
+  id: '~deepseek/deepseek-pro-latest',
+  name: 'DeepSeek: DeepSeek Pro Latest',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logitBias',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 384000,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.66,
+        cached: 0.022,
+      },
+      output: {
+        normal: 1.98,
+      },
+    },
+    image: 0,
+  },
+} as const
 const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   id: '~deepseek/deepseek-v4-flash-latest',
   name: 'DeepSeek: DeepSeek V4 Flash Latest',
@@ -151,15 +225,15 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 393216,
   pricing: {
     text: {
       input: {
-        normal: 0.0352,
-        cached: 0.00112,
+        normal: 0.04,
+        cached: 0.01,
       },
       output: {
-        normal: 0.1056,
+        normal: 0.1,
       },
     },
     image: 0,
@@ -257,7 +331,7 @@ const _MOONSHOTAI_KIMI_LATEST = {
     text: {
       input: {
         normal: 2.1,
-        cached: 0,
+        cached: 0.23,
       },
       output: {
         normal: 10.95,
@@ -515,11 +589,11 @@ const _Z_AI_GLM_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.936,
-        cached: 0.1872,
+        normal: 0.8775,
+        cached: 0.1755,
       },
       output: {
-        normal: 3.168,
+        normal: 2.97,
       },
     },
     image: 0,
@@ -2440,11 +2514,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.049,
-        cached: 0.0098,
+        normal: 0.088606,
+        cached: 0.0177212,
       },
       output: {
-        normal: 0.098,
+        normal: 0.177212,
       },
     },
     image: 0,
@@ -2478,11 +2552,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   pricing: {
     text: {
       input: {
-        normal: 0.04,
-        cached: 0.008,
+        normal: 0.06,
+        cached: 0.012,
       },
       output: {
-        normal: 0.08,
+        normal: 0.12,
       },
     },
     image: 0,
@@ -2658,15 +2732,15 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 393216,
+  max_output_tokens: 384000,
   pricing: {
     text: {
       input: {
-        normal: 0.57816,
-        cached: 0.018396,
+        normal: 0.9834,
+        cached: 0.03278,
       },
       output: {
-        normal: 1.73448,
+        normal: 2.9502,
       },
     },
     image: 0,
@@ -2984,38 +3058,6 @@ const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
   },
   context_window: 1048576,
   max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0.5,
-      },
-      output: {
-        normal: 10,
-      },
-    },
-    image: 0.00000125,
-  },
-} as const
-const GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06 = {
-  id: 'google/gemini-2.5-pro-preview-05-06',
-  name: 'Google: Gemini 2.5 Pro Preview 05-06',
-  supports: {
-    input: ['text', 'image', 'document', 'audio', 'video'],
-    output: ['text'],
-    supports: [
-      'maxCompletionTokens',
-      'reasoning',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topP',
-    ],
-  },
-  context_window: 1048576,
-  max_output_tokens: 65535,
   pricing: {
     text: {
       input: {
@@ -4359,7 +4401,6 @@ const INCLUSIONAI_LING_3_0_FLASH_FIN = {
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -4546,7 +4587,7 @@ const INFERENCE_NET_SCHEMATRON_V2_SMALL = {
     text: {
       input: {
         normal: 0.05,
-        cached: 0,
+        cached: 0.05,
       },
       output: {
         normal: 0.23,
@@ -4579,7 +4620,7 @@ const INFERENCE_NET_SCHEMATRON_V2_TURBO = {
     text: {
       input: {
         normal: 0.03,
-        cached: 0,
+        cached: 0.03,
       },
       output: {
         normal: 0.15,
@@ -4955,15 +4996,15 @@ const META_LLAMA_LLAMA_4_MAVERICK = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 115200,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.2,
+        normal: 0.1875,
         cached: 0,
       },
       output: {
-        normal: 0.696,
+        normal: 0.6525,
       },
     },
     image: 0,
@@ -5014,7 +5055,6 @@ const META_LLAMA_LLAMA_GUARD_4_12B = {
       'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -6900,7 +6940,6 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B = {
       'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -7043,15 +7082,15 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 16384,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
-        normal: 0.085,
+        normal: 0.08,
         cached: 0,
       },
       output: {
-        normal: 0.4,
+        normal: 0.45,
       },
     },
     image: 0,
@@ -7109,15 +7148,15 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
+  max_output_tokens: 182520,
   pricing: {
     text: {
       input: {
-        normal: 0.625,
-        cached: 0.1875,
+        normal: 0.6,
+        cached: 0.12,
       },
       output: {
-        normal: 3.125,
+        normal: 2.4,
       },
     },
     image: 0,
@@ -7165,7 +7204,6 @@ const NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY = {
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -7505,42 +7543,6 @@ const OPENAI_GPT_4_TURBO = {
   name: 'OpenAI: GPT-4 Turbo',
   supports: {
     input: ['text', 'image'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'logprobs',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topLogprobs',
-      'topP',
-    ],
-  },
-  context_window: 128000,
-  max_output_tokens: 4096,
-  pricing: {
-    text: {
-      input: {
-        normal: 10,
-        cached: 0,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
-} as const
-const OPENAI_GPT_4_TURBO_PREVIEW = {
-  id: 'openai/gpt-4-turbo-preview',
-  name: 'OpenAI: GPT-4 Turbo Preview',
-  supports: {
-    input: ['text'],
     output: ['text'],
     supports: [
       'frequencyPenalty',
@@ -10672,15 +10674,15 @@ const QWEN_QWEN3_14B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 8192,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.2275,
+        normal: 0.12,
         cached: 0,
       },
       output: {
-        normal: 0.91,
+        normal: 0.24,
       },
     },
     image: 0,
@@ -11272,7 +11274,7 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 235929,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
@@ -11634,15 +11636,15 @@ const QWEN_QWEN3_5_35B_A3B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 16384,
+  max_output_tokens: 65536,
   pricing: {
     text: {
       input: {
-        normal: 0.3125,
-        cached: 0.15625,
+        normal: 0.1625,
+        cached: 0,
       },
       output: {
-        normal: 1.25,
+        normal: 1.3,
       },
     },
     image: 0,
@@ -12593,7 +12595,6 @@ const SAO10K_L3_1_EURYALE_70B = {
       'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -13048,7 +13049,6 @@ const THINKINGMACHINES_INKLING = {
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -14031,15 +14031,15 @@ const Z_AI_GLM_5_2 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 182476,
+  max_output_tokens: 128000,
   pricing: {
     text: {
       input: {
-        normal: 0.6,
-        cached: 0.15,
+        normal: 1.4,
+        cached: 0.14,
       },
       output: {
-        normal: 2,
+        normal: 4.4,
       },
     },
     image: 0,
@@ -14105,15 +14105,15 @@ const Z_AI_GLM_5_3 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 943717,
   pricing: {
     text: {
       input: {
-        normal: 1.092,
-        cached: 0.2028,
+        normal: 1.4,
+        cached: 0.26,
       },
       output: {
-        normal: 3.432,
+        normal: 4.4,
       },
     },
     image: 0,
@@ -14301,6 +14301,40 @@ export type OpenRouterModelOptionsByName = {
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
+    >
+  [_DEEPSEEK_DEEPSEEK_FLASH_LATEST.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [_DEEPSEEK_DEEPSEEK_PRO_LATEST.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [_DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.id]: OpenRouterCommonOptions &
     Pick<
@@ -15375,18 +15409,6 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
-  [GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
-    >
   [GOOGLE_GEMINI_2_5_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15885,7 +15907,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16160,7 +16181,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16903,7 +16923,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -17008,7 +17027,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -17144,22 +17162,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [OPENAI_GPT_4_TURBO.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'logprobs'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topLogprobs'
-      | 'topP'
-    >
-  [OPENAI_GPT_4_TURBO_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
@@ -19061,7 +19063,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19233,7 +19234,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19745,6 +19745,8 @@ export type OpenRouterModelInputModalitiesByName = {
   [_ANTHROPIC_CLAUDE_SONNET_LATEST.id]: ReadonlyArray<
     'text' | 'image' | 'document'
   >
+  [_DEEPSEEK_DEEPSEEK_FLASH_LATEST.id]: ReadonlyArray<'text' | 'image'>
+  [_DEEPSEEK_DEEPSEEK_PRO_LATEST.id]: ReadonlyArray<'text'>
   [_DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.id]: ReadonlyArray<'text'>
   [_GOOGLE_GEMINI_FLASH_LATEST.id]: ReadonlyArray<
     'text' | 'image' | 'video' | 'document' | 'audio'
@@ -19878,9 +19880,6 @@ export type OpenRouterModelInputModalitiesByName = {
   >
   [GOOGLE_GEMINI_2_5_PRO_PREVIEW.id]: ReadonlyArray<
     'document' | 'image' | 'text' | 'audio'
-  >
-  [GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06.id]: ReadonlyArray<
-    'text' | 'image' | 'document' | 'audio' | 'video'
   >
   [GOOGLE_GEMINI_2_5_PRO_BATCH.id]: ReadonlyArray<
     'text' | 'image' | 'document' | 'audio' | 'video'
@@ -20084,7 +20083,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [OPENAI_GPT_3_5_TURBO_BATCH.id]: ReadonlyArray<'text'>
   [OPENAI_GPT_4.id]: ReadonlyArray<'text'>
   [OPENAI_GPT_4_TURBO.id]: ReadonlyArray<'text' | 'image'>
-  [OPENAI_GPT_4_TURBO_PREVIEW.id]: ReadonlyArray<'text'>
   [OPENAI_GPT_4_TURBO_BATCH.id]: ReadonlyArray<'text' | 'image'>
   [OPENAI_GPT_4_1.id]: ReadonlyArray<'image' | 'text' | 'document'>
   [OPENAI_GPT_4_1_MINI.id]: ReadonlyArray<'image' | 'text' | 'document'>
@@ -20316,6 +20314,8 @@ export const OPENROUTER_CHAT_MODELS = [
   _ANTHROPIC_CLAUDE_HAIKU_LATEST.id,
   _ANTHROPIC_CLAUDE_OPUS_LATEST.id,
   _ANTHROPIC_CLAUDE_SONNET_LATEST.id,
+  _DEEPSEEK_DEEPSEEK_FLASH_LATEST.id,
+  _DEEPSEEK_DEEPSEEK_PRO_LATEST.id,
   _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.id,
   _GOOGLE_GEMINI_FLASH_LATEST.id,
   _GOOGLE_GEMINI_PRO_LATEST.id,
@@ -20406,7 +20406,6 @@ export const OPENROUTER_CHAT_MODELS = [
   GOOGLE_GEMINI_2_5_FLASH_BATCH.id,
   GOOGLE_GEMINI_2_5_PRO.id,
   GOOGLE_GEMINI_2_5_PRO_PREVIEW.id,
-  GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06.id,
   GOOGLE_GEMINI_2_5_PRO_BATCH.id,
   GOOGLE_GEMINI_3_FLASH_PREVIEW.id,
   GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH.id,
@@ -20541,7 +20540,6 @@ export const OPENROUTER_CHAT_MODELS = [
   OPENAI_GPT_3_5_TURBO_BATCH.id,
   OPENAI_GPT_4.id,
   OPENAI_GPT_4_TURBO.id,
-  OPENAI_GPT_4_TURBO_PREVIEW.id,
   OPENAI_GPT_4_TURBO_BATCH.id,
   OPENAI_GPT_4_1.id,
   OPENAI_GPT_4_1_MINI.id,
@@ -21270,6 +21268,8 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     _ANTHROPIC_CLAUDE_HAIKU_LATEST.id,
     _ANTHROPIC_CLAUDE_OPUS_LATEST.id,
     _ANTHROPIC_CLAUDE_SONNET_LATEST.id,
+    _DEEPSEEK_DEEPSEEK_FLASH_LATEST.id,
+    _DEEPSEEK_DEEPSEEK_PRO_LATEST.id,
     _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST.id,
     _GOOGLE_GEMINI_FLASH_LATEST.id,
     _GOOGLE_GEMINI_PRO_LATEST.id,
@@ -21335,7 +21335,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     GOOGLE_GEMINI_2_5_FLASH_BATCH.id,
     GOOGLE_GEMINI_2_5_PRO.id,
     GOOGLE_GEMINI_2_5_PRO_PREVIEW.id,
-    GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06.id,
     GOOGLE_GEMINI_2_5_PRO_BATCH.id,
     GOOGLE_GEMINI_3_FLASH_PREVIEW.id,
     GOOGLE_GEMINI_3_FLASH_PREVIEW_BATCH.id,
@@ -21429,7 +21428,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     OPENAI_GPT_3_5_TURBO_BATCH.id,
     OPENAI_GPT_4.id,
     OPENAI_GPT_4_TURBO.id,
-    OPENAI_GPT_4_TURBO_PREVIEW.id,
     OPENAI_GPT_4_TURBO_BATCH.id,
     OPENAI_GPT_4_1.id,
     OPENAI_GPT_4_1_MINI.id,
