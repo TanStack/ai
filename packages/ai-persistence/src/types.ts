@@ -60,16 +60,21 @@ export type { MetadataStore, Scope }
  * Middleware omits the hint and always gets a full `Array<ModelMessage>`,
  * never this shape.
  *
- * @property messages - This window, in insertion order.
- * @property truncated - `true` when more messages exist beyond this page.
- * @property cursor - Opaque token to pass back as `before`. Set when
- *   `truncated` is true.
+ * `truncated: true` requires `cursor`. Without a cursor the client cannot
+ * request the next older window, so `reconstructChat` treats that page as
+ * complete.
  */
-export interface MessagePage {
-  messages: Array<ModelMessage>
-  truncated: boolean
-  cursor?: string
-}
+export type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
 
 /**
  * Durable store for a thread's full message transcript.
@@ -102,17 +107,10 @@ export interface MessageStore {
    * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
    * that was never saved. Callers treat `[]` as "no history".
    */
-  loadThread: <
-    TOptions extends { limit?: number; before?: string } | undefined =
-      undefined,
-  >(
+  loadThread: (
     threadId: string,
-    options?: TOptions,
-  ) => Promise<
-    [TOptions] extends [undefined]
-      ? Array<ModelMessage>
-      : Array<ModelMessage> | MessagePage
-  >
+    options?: { limit?: number; before?: string },
+  ) => Promise<Array<ModelMessage> | MessagePage>
   /**
    * Overwrite the stored transcript for `threadId` with `messages`.
    *

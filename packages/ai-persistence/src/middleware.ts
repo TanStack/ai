@@ -67,6 +67,7 @@ import type {
   ChatTranscriptStores,
   InterruptCommitEntry,
   InterruptRecord,
+  MessagePage,
   RunStore,
 } from './types'
 import { artifactBlobKey } from './retrieve'
@@ -1908,9 +1909,16 @@ function detachableRun(ctx: ChatMiddlewareContext): boolean {
 // Chat middleware
 // ---------------------------------------------------------------------------
 
-// Empty incoming keeps stored. Non-empty: stored extras stay in original
-// order, same id is replaced in place by incoming, new ids and messages
-// with no id are appended.
+function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
+
+// Empty incoming keeps stored. Non-empty: the last incoming id that already
+// exists in stored is a cutoff (reload drops the old assistant after that
+// user). Same id is replaced in place. New ids and messages with no id are
+// appended.
 function mergeStoredMessages(
   stored: ReadonlyArray<ModelMessage>,
   incoming: ReadonlyArray<ModelMessage>,
@@ -1918,6 +1926,18 @@ function mergeStoredMessages(
   if (incoming.length === 0) {
     return stored.slice()
   }
+
+  let cutoff = stored.length
+  for (let index = incoming.length - 1; index >= 0; index--) {
+    const id = incoming[index]?.id
+    if (id === undefined) continue
+    const storedIndex = stored.findIndex((message) => message.id === id)
+    if (storedIndex >= 0) {
+      cutoff = storedIndex + 1
+      break
+    }
+  }
+  const prefix = stored.slice(0, cutoff)
 
   const incomingById = new Map<string, ModelMessage>()
   for (const message of incoming) {
@@ -1927,7 +1947,7 @@ function mergeStoredMessages(
 
   const storedIds = new Set<string>()
   const merged: Array<ModelMessage> = []
-  for (const message of stored) {
+  for (const message of prefix) {
     const id = message.id
     if (id) {
       storedIds.add(id)
@@ -2055,7 +2075,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // it behaves exactly as before. See `PendingTurnCapability`.
       providePendingTurn(ctx, {
         snapshot: async () => {
-          const stored = await messageStore.loadThread(ctx.threadId)
+          const stored = threadMessages(
+            await messageStore.loadThread(ctx.threadId),
+          )
           // Same merge as onConfig. saveThread replaces the thread, so a short
           // incoming list must not drop stored extras.
           const list = mergeStoredMessages(stored, ctx.messages)
@@ -2123,7 +2145,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (state && storedUsage) state.usage = storedUsage
       if (!state?.merged) {
         if (state) state.merged = true
-        const stored = await messageStore.loadThread(ctx.threadId)
+        const stored = threadMessages(
+          await messageStore.loadThread(ctx.threadId),
+        )
         patch.messages = mergeStoredMessages(stored, config.messages)
       }
 

@@ -33,7 +33,7 @@ export interface ReconstructedChat {
     runId: string
     pending: Array<Record<string, unknown>>
   } | null
-  page?: Pick<MessagePage, 'truncated' | 'cursor'>
+  page?: { truncated: false } | { truncated: true; cursor: string }
 }
 
 export interface ReconstructChatOptions {
@@ -160,9 +160,7 @@ export async function reconstructChat(
   const isPaging = pageSize !== undefined && threadId !== ''
   const transcript = !isPaging
     ? {
-        messages: modelMessagesToUIMessages(
-          Array.isArray(stored) ? stored : stored.messages,
-        ),
+        messages: modelMessagesToUIMessages(threadMessages(stored)),
       }
     : Array.isArray(stored)
       ? await windowFromArray({
@@ -205,17 +203,36 @@ function parseBefore(raw: string | null) {
   return raw
 }
 
+function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
+
+function completePage() {
+  return { truncated: false as const }
+}
+
+function truncatedPage(cursor: string) {
+  return { truncated: true as const, cursor }
+}
+
+function pageFromCursor(cursor: string | undefined) {
+  if (cursor === undefined || cursor === '') {
+    return completePage()
+  }
+  return truncatedPage(cursor)
+}
+
 function newestUiWindow(messages: Array<UIMessage>, pageSize: number) {
   const truncated = messages.length > pageSize
   if (!truncated) {
-    return { messages, page: { truncated: false } }
+    return { messages, page: completePage() }
   }
   const uiWindow = messages.slice(messages.length - pageSize)
-  const cursor = uiWindow[0]?.id
   return {
     messages: uiWindow,
-    page:
-      cursor === undefined ? { truncated: true } : { truncated: true, cursor },
+    page: pageFromCursor(uiWindow[0]?.id),
   }
 }
 
@@ -227,14 +244,18 @@ function uiBeforeCursor(messages: Array<UIMessage>, cursor: string) {
 
 function windowFromMessagePage(page: MessagePage, pageSize: number) {
   const ui = modelMessagesToUIMessages(page.messages)
-  const needsUiSlice = ui.length > pageSize
-  const messages = needsUiSlice ? ui.slice(ui.length - pageSize) : ui
-  const truncated = page.truncated || needsUiSlice
-  const { cursor } = page
-  return {
-    messages,
-    page: cursor === undefined ? { truncated } : { truncated, cursor },
+  if (ui.length > pageSize) {
+    // Extra slice uses a library-minted cursor. Keeping the adapter cursor
+    // after dropping the oldest row would skip that row on the next GET.
+    return newestUiWindow(ui, pageSize)
   }
+  if (page.truncated) {
+    return {
+      messages: ui,
+      page: pageFromCursor(page.cursor),
+    }
+  }
+  return { messages: ui, page: completePage() }
 }
 
 async function windowFromArray(input: {
@@ -250,10 +271,10 @@ async function windowFromArray(input: {
   }
   // Array adapters own no cursor. Apply `before` to the full transcript so an
   // adapter that ignored the hint cannot return the same newest page forever.
-  const full = await messageStore.loadThread(threadId)
+  const full = threadMessages(await messageStore.loadThread(threadId))
   const older = uiBeforeCursor(modelMessagesToUIMessages(full), before)
   if (older === undefined) {
-    return { messages: [], page: { truncated: false } }
+    return { messages: [], page: completePage() }
   }
   return newestUiWindow(older, pageSize)
 }

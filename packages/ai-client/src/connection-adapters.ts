@@ -545,18 +545,21 @@ function chatHydrationSearchParams(
   return values
 }
 
-function readChatHydrationPage(value: unknown): {
-  truncated: boolean
-  cursor?: string
-} {
+function readChatHydrationPage(
+  value: unknown,
+): { truncated: false } | { truncated: true; cursor: string } {
   if (value === null || typeof value !== 'object') {
     return { truncated: false }
   }
   if (!('truncated' in value) || value.truncated !== true) {
     return { truncated: false }
   }
-  if (!('cursor' in value) || typeof value.cursor !== 'string') {
-    return { truncated: true }
+  if (
+    !('cursor' in value) ||
+    typeof value.cursor !== 'string' ||
+    value.cursor === ''
+  ) {
+    return { truncated: false }
   }
   return { truncated: true, cursor: value.cursor }
 }
@@ -987,10 +990,7 @@ export interface ChatHydrationResult {
    * Whether this window is a slice of a longer thread.
    * `cursor` is set when `truncated` is true and is sent back as `before`.
    */
-  page?: {
-    truncated: boolean
-    cursor?: string
-  }
+  page?: { truncated: false } | { truncated: true; cursor: string }
 }
 
 /**

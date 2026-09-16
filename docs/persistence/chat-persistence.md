@@ -110,14 +110,16 @@ continues from there.
 
 If `messages` is not empty, the middleware merges by id:
 
-- Keep every stored message the client omitted.
-- Append ids the store does not have, and messages with no id.
+- The last incoming id that already exists in stored is a cutoff. Stored
+  messages after it are dropped. That is how reload removes the old assistant.
+- If no incoming id is in stored, every stored message stays (a new turn).
 - Same id in both lists: incoming wins.
+- New ids and messages with no id are appended.
 
 `saveThread` replaces the stored thread with that merged list.
 
-A client with `history: { pageSize }` posts only the new turn. Merge keeps the
-stored extras. See [Client persistence](./client-persistence).
+A client with `history: { pageSize }` posts only the new turn, or the last user
+message on reload. See [Client persistence](./client-persistence).
 
 ## Compaction keeps the transcript complete
 

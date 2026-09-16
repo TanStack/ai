@@ -1572,6 +1572,24 @@ describe('connection-adapters', () => {
       expect(result.page).toEqual({ truncated: true, cursor: 'c1' })
     })
 
+    it('treats truncated true without a cursor as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.page).toEqual({ truncated: false })
+    })
+
     it('treats a missing page as a full list', async () => {
       fetchMock.mockResolvedValue(
         jsonHydrationResponse({

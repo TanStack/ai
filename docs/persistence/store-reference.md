@@ -31,11 +31,17 @@ the same record instead of disagreeing about one run.
 ```ts
 import type { ModelMessage } from '@tanstack/ai'
 
-interface MessagePage {
-  messages: Array<ModelMessage>
-  truncated: boolean
-  cursor?: string
-}
+type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
 
 interface MessageStore {
   loadThread(
@@ -50,8 +56,8 @@ interface MessageStore {
   the full array. Never a `MessagePage`.
 - `limit` and `before` are a paging hint for hydrate. You can ignore them and
   return the full array. `reconstructChat` then slices after UI conversion.
-- To page in the database, return a `MessagePage` with an opaque `before`
-  cursor. `truncated` and `cursor` use the same words as `BlobStore.list`.
+- To page in the database, return a `MessagePage`. `truncated: true` requires a
+  `cursor`. `truncated` and `cursor` use the same words as `BlobStore.list`.
 - If you ignore `before` and return the newest array again, `reconstructChat`
   loads the full thread and slices.
 - `saveThread` receives the full merged list. It is a replace, not an append.

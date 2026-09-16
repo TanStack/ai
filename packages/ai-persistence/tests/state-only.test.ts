@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
+import { threadMessages } from './persistence-fixtures'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
   const calls: Array<unknown> = []
@@ -67,7 +68,8 @@ describe('state-only persistence', () => {
 
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('completed')
     expect(
-      (await persistence.stores.messages!.loadThread('t1')).length,
+      threadMessages(await persistence.stores.messages!.loadThread('t1'))
+        .length,
     ).toBeGreaterThan(0)
   })
 

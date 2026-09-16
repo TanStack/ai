@@ -208,18 +208,25 @@ expectTypeOf(memoryPersistence().stores).not.toHaveProperty('locks')
 // compose into defineAIPersistence with exact presence.
 // ---------------------------------------------------------------------------
 // MessagePage is exported. loadThread accepts an optional paging object.
-expectTypeOf<MessagePage>().toEqualTypeOf<{
-  messages: Array<ModelMessage>
-  truncated: boolean
-  cursor?: string
-}>()
+expectTypeOf<MessagePage>().toMatchTypeOf<
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+>()
 expectTypeOf(messages.loadThread).toBeCallableWith('thread-1')
 expectTypeOf(messages.loadThread).toBeCallableWith('thread-1', {
   limit: 50,
   before: 'cursor-1',
 })
 expectTypeOf(messages.loadThread('thread-1')).toEqualTypeOf<
-  Promise<Array<ModelMessage>>
+  Promise<Array<ModelMessage> | MessagePage>
 >()
 expectTypeOf(
   messages.loadThread('thread-1', { limit: 50, before: 'cursor-1' }),

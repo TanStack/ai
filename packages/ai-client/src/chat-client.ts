@@ -466,6 +466,7 @@ export class ChatClient<
   private olderMessagesCursor: string | undefined
   private readonly knownServerMessageIds = new Set<string>()
   private loadOlderMessagesInFlight = false
+  private historyGeneration = 0
   private devtoolsMounted = false
 
   private readonly callbacksRef: {
@@ -1057,11 +1058,13 @@ export class ChatClient<
       pageSize === undefined ? undefined : { limit: pageSize }
     void (async () => {
       let result: ChatHydrationResult
+      const generation = this.historyGeneration
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch {
         return
       }
+      if (generation !== this.historyGeneration) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
       // flight). Applying anything now is pointless, and one thing is actively
       // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
@@ -2635,6 +2638,7 @@ export class ChatClient<
     // remove the stored conversation outright.
     this.persistor?.beginClear()
     this.processor.clearMessages()
+    this.resetHistoryPaging()
     this.discardPendingSends()
     this.persistor?.remove()
     this.lastResume = null
@@ -2925,9 +2929,11 @@ export class ChatClient<
     }
 
     this.loadOlderMessagesInFlight = true
+    const generation = this.historyGeneration
     try {
       const result = await hydrate(this.threadId, hydrateOptions)
       if (this.disposed) return
+      if (generation !== this.historyGeneration) return
       const olderMessages = normalizeMessagesDates(result.messages)
       this.processor.prependMessages(olderMessages)
       this.rememberServerMessageIds(olderMessages)
@@ -2937,11 +2943,21 @@ export class ChatClient<
     }
   }
 
+  private resetHistoryPaging() {
+    this.hasOlderMessages = false
+    this.olderMessagesCursor = undefined
+    this.knownServerMessageIds.clear()
+    this.historyGeneration++
+  }
+
   private applyHydrationPage(page: ChatHydrationResult['page']) {
-    this.hasOlderMessages = page?.truncated === true
-    const cursor = page?.cursor
-    this.olderMessagesCursor =
-      this.hasOlderMessages && typeof cursor === 'string' ? cursor : undefined
+    if (page?.truncated === true) {
+      this.hasOlderMessages = true
+      this.olderMessagesCursor = page.cursor
+      return
+    }
+    this.hasOlderMessages = false
+    this.olderMessagesCursor = undefined
   }
 
   private rememberServerMessageIds(messages: Array<UIMessage>) {
@@ -2968,7 +2984,13 @@ export class ChatClient<
       }
       unknownMessages.push(message)
     }
-    return unknownMessages
+    if (unknownMessages.length > 0) {
+      return unknownMessages
+    }
+    // Reload (or any resend with no new ids) still needs the last user so
+    // withPersistence can cut the stored tail after that message.
+    const lastUser = messages.findLast((message) => message.role === 'user')
+    return lastUser === undefined ? [] : [lastUser]
   }
 
   /**

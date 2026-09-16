@@ -82,18 +82,21 @@ to the store contracts.
 
 - **Empty `messages`**: continue from the stored transcript. The server loads
   its copy and runs from there.
-- **Non-empty `messages`**: merge by id. Keep stored extras and append new
-  ids. Incoming wins on the same id.
+- **Non-empty `messages`**: merge by id. The last incoming id that already
+  exists in stored is a cutoff. Stored messages after it are dropped. Incoming
+  wins on the same id. New ids are appended.
 
 `saveThread` replaces the stored thread with that merged list.
 
 Two postures:
 
 - **Client-authoritative**, closest to a pure SPA. The client sends its
-  in-memory list. Merge keeps stored extras the client omitted.
+  in-memory list. Merge keeps stored extras the client omitted, unless a
+  shared id cuts the stored tail (reload).
 - **Server-authoritative**: the same thread opens on another device. With
-  `history: { pageSize }`, the client posts only the new turn. Merge keeps
-  stored extras.
+  `history: { pageSize }`, the client posts only the new turn, or the last
+  user message on reload. Merge keeps stored extras that sit before the
+  cutoff.
 
 ## What a reload restores
 

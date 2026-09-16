@@ -287,4 +287,75 @@ describe('ChatClient history paging', () => {
       'm3',
     ])
   })
+
+  it('reload sends the last user so persistence can cut the stored tail', async () => {
+    const painted = [
+      createUIMessage('u1', 'ask', 'user'),
+      createUIMessage('a1', 'old', 'assistant'),
+    ]
+    const sentIds: Array<Array<string>> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: createHistoryConnection({
+        hydrate: () =>
+          Promise.resolve(hydrationResult(painted, { truncated: false })),
+        onSend: (messages) => {
+          sentIds.push(messageIds(messages))
+        },
+        chunks: createTextChunks('new', 'a2'),
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getMessages().map((message) => message.id)).toEqual([
+        'u1',
+        'a1',
+      ])
+    })
+
+    await client.reload()
+
+    expect(sentIds[0]).toEqual(['u1'])
+  })
+
+  it('clear resets older-page state and ignores a late older fetch', async () => {
+    const windowMessages = [
+      createUIMessage('m2', 'two', 'user'),
+      createUIMessage('m3', 'three', 'assistant'),
+    ]
+    const older = createUIMessage('m1', 'one', 'user')
+    const olderPage = createDeferred<ChatHydrationResult>()
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: createHistoryConnection({
+        hydrate: (_threadId, options) => {
+          if (options?.before === 'm2') {
+            return olderPage.promise
+          }
+          return Promise.resolve(
+            hydrationResult(windowMessages, {
+              truncated: true,
+              cursor: 'm2',
+            }),
+          )
+        },
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getHasOlderMessages()).toBe(true)
+    })
+
+    const pending = client.loadOlderMessages()
+    client.clear()
+    olderPage.resolve(hydrationResult([older], { truncated: false }))
+    await pending
+
+    expect(client.getMessages()).toEqual([])
+    expect(client.getHasOlderMessages()).toBe(false)
+  })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ModelMessage } from '@tanstack/ai'
-import { memoryPersistence } from '../src/memory'
+import { defineMessageStore, memoryPersistence } from '../src'
 import { reconstructChat } from '../src/reconstruct'
 import type { ReconstructedChat } from '../src/reconstruct'
 
@@ -312,5 +312,54 @@ describe('reconstructChat paging', () => {
     )
     expect(idsOf(older)).toEqual(['1'])
     expect(older.page).toEqual({ truncated: false })
+  })
+
+  it('mints a library cursor when a MessagePage is longer than pageSize', async () => {
+    const persistence = memoryPersistence()
+    const inner = persistence.stores.messages
+    persistence.stores.messages = defineMessageStore({
+      loadThread(threadId, options) {
+        if (options?.limit === undefined) {
+          return inner.loadThread(threadId)
+        }
+        return Promise.resolve({
+          messages: threeTurnThread,
+          truncated: true as const,
+          cursor: 'before-1',
+        })
+      },
+      saveThread(threadId, messages) {
+        return inner.saveThread(threadId, messages)
+      },
+    })
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
+    expect(idsOf(parsed)).toEqual(['2', '3'])
+    expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
+  })
+
+  it('treats a truncated MessagePage without a usable cursor as complete', async () => {
+    const persistence = memoryPersistence()
+    const inner = persistence.stores.messages
+    persistence.stores.messages = defineMessageStore({
+      loadThread(threadId, options) {
+        if (options?.limit === undefined) {
+          return inner.loadThread(threadId)
+        }
+        return Promise.resolve({
+          messages: [
+            { id: '2', role: 'assistant', content: 'two' },
+            { id: '3', role: 'user', content: 'three' },
+          ],
+          truncated: true as const,
+          cursor: '',
+        })
+      },
+      saveThread(threadId, messages) {
+        return inner.saveThread(threadId, messages)
+      },
+    })
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
+    expect(idsOf(parsed)).toEqual(['2', '3'])
+    expect(parsed.page).toEqual({ truncated: false })
   })
 })

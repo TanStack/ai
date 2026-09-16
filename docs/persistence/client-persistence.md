@@ -164,7 +164,14 @@ function Chat({ threadId }: { threadId: string }) {
   return (
     <div>
       {hasOlderMessages ? (
-        <button type="button" onClick={() => void loadOlderMessages()}>
+        <button
+          type="button"
+          onClick={() => {
+            void loadOlderMessages().catch(() => {
+              // Show a retry. Painted messages stay.
+            })
+          }}
+        >
           Load older
         </button>
       ) : null}
@@ -186,9 +193,10 @@ the scrollbar.
   response.
 - Without `history`, hydrate loads the full thread.
 - `history` is only valid with `persistence: true`.
-- With `history.pageSize`, send posts only the new turn. The server merges by id.
+- With `history.pageSize`, send posts only the new turn. Reload posts the last
+  user message so the server can drop the old assistant after that id.
 - If `loadOlderMessages()` fails, the promise rejects and painted messages
-  stay. `hasOlderMessages` stays true.
+  stay. `hasOlderMessages` stays true. Catch the rejection in your UI.
 
 **Server**: one `GET` endpoint next to your chat `POST`. Replay the durability
 log when the request carries a resume cursor, otherwise return the stored

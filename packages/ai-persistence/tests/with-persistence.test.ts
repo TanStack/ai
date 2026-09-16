@@ -13,6 +13,7 @@ import type {
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
+import { threadMessages } from './persistence-fixtures'
 
 // --- minimal mock text adapter ---------------------------------------------
 
@@ -123,6 +124,10 @@ const snapshotProbe: ChatMiddleware = {
   },
 }
 
+async function loadedThread(persistence: ReturnType<typeof memoryPersistence>) {
+  return threadMessages(await persistence.stores.messages!.loadThread('t1'))
+}
+
 async function runPersistedChat(
   persistence: ReturnType<typeof memoryPersistence>,
   messages: Array<ModelMessage>,
@@ -139,7 +144,7 @@ async function runPersistedChat(
       middleware: [withPersistence(persistence), snapshotProbe],
     }) as AsyncIterable<StreamChunk>,
   )
-  return persistence.stores.messages!.loadThread('t1')
+  return loadedThread(persistence)
 }
 
 describe('withPersistence (state-only)', () => {
@@ -538,7 +543,7 @@ describe('withPersistence (state-only)', () => {
     // The empty-id start on turn 2 still resets the per-turn accumulator: the
     // crash-window snapshot holds only turn-2 text, and it must not inherit
     // turn 1's tool-call id — two persisted messages may never share an id.
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     expect(findAssistantToolCall(thread, 'call_1')?.id).toBe('assistant-turn-1')
     const terminal = thread.at(-1)
     expect(terminal).toMatchObject({
@@ -653,7 +658,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     const toolTurn = findAssistantToolCall(thread, 'call_1')
     expect(toolTurn?.id).toBe('stream-assistant')
     expect(toolTurn?.createdAt).toBeInstanceOf(Date)
@@ -716,7 +721,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const turns = (await persistence.stores.messages!.loadThread('t1')).filter(
+    const turns = (await loadedThread(persistence)).filter(
       (message) =>
         message.role === 'assistant' && message.content === 'checking',
     )
@@ -800,7 +805,7 @@ describe('withPersistence (state-only)', () => {
       )
 
       const toolTurn = findAssistantToolCall(
-        await persistence.stores.messages!.loadThread('t1'),
+        await loadedThread(persistence),
         'call_1',
       )
       expect(toolTurn?.createdAt).toEqual(new Date('2026-01-01T00:00:05.000Z'))
@@ -1214,7 +1219,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     const start = chunks.find(
       (chunk) =>
         chunk.type === EventType.CUSTOM &&
@@ -1492,6 +1497,7 @@ describe('withPersistence (merge by id)', () => {
 
     const thread = await runPersistedChat(persistence, [
       { role: 'user', content: 'incoming wins', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
     ])
 
     expect(thread.find((message) => message.id === 'old-1')).toEqual({
@@ -1504,6 +1510,25 @@ describe('withPersistence (merge by id)', () => {
       content: 'keep me',
       id: 'old-2',
     })
+  })
+
+  it('drops stored messages after the last shared incoming id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'old reply', id: 'a1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+    ])
+
+    expect(messageIds(thread)[0]).toBe('u1')
+    expect(thread.find((message) => message.id === 'a1')).toBeUndefined()
+    expect(thread).toEqual([
+      { role: 'user', content: 'ask', id: 'u1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
   })
 
   it('appends a message that has no id', async () => {
