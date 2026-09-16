@@ -20,6 +20,7 @@ import type { AnyImageAdapter } from './generateImage/adapter'
 import type { AnyAudioAdapter } from './generateAudio/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
+import type { AnyVoiceAdapter } from './generateVoice/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
 import type { AnyRerankAdapter } from './rerank/adapter'
@@ -176,6 +177,26 @@ export {
 } from './generateSpeech/adapter'
 
 // ===========================
+// Voice Activity
+// ===========================
+
+export {
+  kind as voiceKind,
+  generateVoice,
+  createVoiceOptions,
+  type VoiceActivityOptions,
+  type VoiceActivityResult,
+  type VoiceProviderOptions,
+} from './generateVoice/index'
+
+export {
+  BaseVoiceAdapter,
+  type VoiceAdapter,
+  type VoiceAdapterConfig,
+  type AnyVoiceAdapter,
+} from './generateVoice/adapter'
+
+// ===========================
 // Transcription Activity
 // ===========================
 
@@ -263,6 +284,7 @@ export type AIAdapter =
   | AnyAudioAdapter
   | AnyVideoAdapter
   | AnyTTSAdapter
+  | AnyVoiceAdapter
   | AnyTranscriptionAdapter
   | AnyEmbeddingAdapter
   | AnyRerankAdapter
@@ -277,6 +299,7 @@ export type AdapterKind =
   | 'audio'
   | 'video'
   | 'tts'
+  | 'voice'
   | 'transcription'
   | 'embedding'
   | 'rerank'

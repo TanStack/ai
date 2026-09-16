@@ -2480,6 +2480,105 @@ export interface TTSResult {
 }
 
 // ============================================================================
+// Voice Creation Types
+// ============================================================================
+
+/**
+ * Options for creating a voice.
+ *
+ * Providers create voices in one of two ways, and some support both:
+ * - **design** — synthesize a brand new voice from a text {@link prompt}
+ *   (ElevenLabs text-to-voice).
+ * - **clone** — derive a voice from {@link referenceAudio} of a real speaker
+ *   (xAI custom voices, fal-hosted clone endpoints).
+ *
+ * Exactly one of `prompt` / `referenceAudio` is required; which ones an
+ * adapter accepts depends on the model.
+ */
+export interface VoiceGenerationOptions<TProviderOptions extends object = object> {
+  /** The model to use for voice creation */
+  model: string
+  /** Text description of the voice to create, for design-capable models */
+  prompt?: string
+  /**
+   * Reference audio of the speaker to clone - base64 string, data URL, https
+   * URL, File, Blob, or ArrayBuffer. For clone-capable models.
+   */
+  referenceAudio?: string | File | Blob | ArrayBuffer
+  /**
+   * Name to store the voice under in the provider's voice library.
+   * Providers differ on what this implies: ElevenLabs only persists a designed
+   * voice when a name is given, while xAI persists either way and treats the
+   * name as metadata. Read {@link GeneratedVoice.saved} to find out what
+   * actually happened.
+   */
+  name?: string
+  /** Human-readable description stored alongside the voice */
+  description?: string
+  /** Model-specific options for voice creation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVoice() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific - never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * A single voice produced by {@link VoiceGenerationOptions}.
+ */
+export interface GeneratedVoice {
+  /**
+   * The provider's voice identifier. Pass it straight back as the `voice`
+   * option on `generateSpeech()`.
+   */
+  voiceId: string
+  /** Base64-encoded preview audio, when the provider returns one */
+  audio?: string
+  /** Audio format of the preview (e.g. 'mp3') */
+  format?: string
+  /** Content type of the preview (e.g. 'audio/mpeg') */
+  contentType?: string
+  /** Duration of the preview in seconds, if available */
+  duration?: number
+  /** Language of the preview, if reported */
+  language?: string
+  /**
+   * Whether the voice is persisted in the provider's voice library. Unsaved
+   * voices are previews and generally expire.
+   */
+  saved?: boolean
+}
+
+/**
+ * Result of voice creation.
+ *
+ * Design models typically return several candidates to choose between; clone
+ * models return exactly one.
+ */
+export interface VoiceResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The voices produced, best-first when the provider ranks them */
+  voices: Array<GeneratedVoice>
+  /** The line spoken in the previews, when the provider generated one */
+  previewText?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
+}
+
+// ============================================================================
 // Transcription (Speech-to-Text) Types
 // ============================================================================
 
