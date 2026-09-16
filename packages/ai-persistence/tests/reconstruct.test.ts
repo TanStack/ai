@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ModelMessage } from '@tanstack/ai'
 import { defineMessageStore, memoryPersistence } from '../src'
+import type { MessageStore } from '../src'
 import { reconstructChat } from '../src/reconstruct'
 import type { ReconstructedChat } from '../src/reconstruct'
 
@@ -331,7 +332,7 @@ describe('reconstructChat paging', () => {
       saveThread(threadId, messages) {
         return inner.saveThread(threadId, messages)
       },
-    })
+    } as MessageStore)
     const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
     expect(idsOf(parsed)).toEqual(['2', '3'])
     expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
@@ -357,7 +358,7 @@ describe('reconstructChat paging', () => {
       saveThread(threadId, messages) {
         return inner.saveThread(threadId, messages)
       },
-    })
+    } as MessageStore)
     const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
     expect(idsOf(parsed)).toEqual(['2', '3'])
     expect(parsed.page).toEqual({ truncated: false })

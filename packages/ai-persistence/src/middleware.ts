@@ -1957,9 +1957,24 @@ function mergeStoredMessages(
     merged.push(message)
   }
 
-  for (const message of incoming) {
+  for (let index = 0; index < incoming.length; index++) {
+    const message = incoming[index]
+    if (!message) continue
     const id = message.id
     if (id && storedIds.has(id)) continue
+    // Attach/reload can post the stored transcript again with no ids. Keep the
+    // prefix row instead of appending a second copy of the same turn.
+    if (!id) {
+      const existing = merged[index]
+      if (
+        existing &&
+        existing.id === undefined &&
+        existing.role === message.role &&
+        existing.content === message.content
+      ) {
+        continue
+      }
+    }
     merged.push(message)
   }
 

@@ -107,10 +107,13 @@ export interface MessageStore {
    * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
    * that was never saved. Callers treat `[]` as "no history".
    */
-  loadThread: (
-    threadId: string,
-    options?: { limit?: number; before?: string },
-  ) => Promise<Array<ModelMessage> | MessagePage>
+  loadThread: {
+    (threadId: string): Promise<Array<ModelMessage>>
+    (
+      threadId: string,
+      options: { limit?: number; before?: string },
+    ): Promise<Array<ModelMessage> | MessagePage>
+  }
   /**
    * Overwrite the stored transcript for `threadId` with `messages`.
    *

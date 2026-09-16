@@ -226,7 +226,7 @@ expectTypeOf(messages.loadThread).toBeCallableWith('thread-1', {
   before: 'cursor-1',
 })
 expectTypeOf(messages.loadThread('thread-1')).toEqualTypeOf<
-  Promise<Array<ModelMessage> | MessagePage>
+  Promise<Array<ModelMessage>>
 >()
 expectTypeOf(
   messages.loadThread('thread-1', { limit: 50, before: 'cursor-1' }),

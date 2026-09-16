@@ -1546,4 +1546,25 @@ describe('withPersistence (merge by id)', () => {
       { role: 'user', content: 'no id' },
     ])
   })
+
+  it('does not duplicate a stored no-id message that incoming repeats', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'go' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'go' },
+    ])
+
+    expect(
+      thread.filter(
+        (message) => message.role === 'user' && message.content === 'go',
+      ),
+    ).toHaveLength(1)
+    expect(thread).toEqual([
+      { role: 'user', content: 'go' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
 })
