@@ -464,7 +464,10 @@ you pass straight back to `generateSpeech()` as `voice`.
 
 ```typescript
 import { generateSpeech, generateVoice } from '@tanstack/ai'
-import { elevenlabsSpeech, elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
+import {
+  elevenlabsSpeech,
+  elevenlabsVoiceDesign,
+} from '@tanstack/ai-elevenlabs'
 
 const designed = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),

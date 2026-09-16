@@ -28,7 +28,11 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
 import type { VoiceAdapter } from './adapter'
-import type { StreamChunk, VoiceGenerationOptions, VoiceResult } from '../../types'
+import type {
+  StreamChunk,
+  VoiceGenerationOptions,
+  VoiceResult,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -369,5 +373,9 @@ export function createVoiceOptions<
 }
 
 // Re-export adapter types
-export type { VoiceAdapter, VoiceAdapterConfig, AnyVoiceAdapter } from './adapter'
+export type {
+  VoiceAdapter,
+  VoiceAdapterConfig,
+  AnyVoiceAdapter,
+} from './adapter'
 export { BaseVoiceAdapter } from './adapter'

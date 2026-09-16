@@ -12,7 +12,10 @@ import type {
   VoiceResult,
 } from '@tanstack/ai'
 import type { ElevenLabsClientConfig } from '../utils/client'
-import type { ElevenLabsOutputFormat, ElevenLabsVoiceModel } from '../model-meta'
+import type {
+  ElevenLabsOutputFormat,
+  ElevenLabsVoiceModel,
+} from '../model-meta'
 
 /**
  * Provider-specific voice-design options. Fields map 1:1 onto the SDK's

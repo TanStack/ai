@@ -358,9 +358,7 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     id: 'elevenlabs-sfx',
     label: 'ElevenLabs SFX',
     model: 'eleven_text_to_sound_v2',
-    models: [
-      { id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' },
-    ],
+    models: [{ id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' }],
     description:
       'ElevenLabs text-to-sound for short effects, 0.5–30 seconds per clip.',
     placeholder: 'A whoosh followed by a deep bass impact',

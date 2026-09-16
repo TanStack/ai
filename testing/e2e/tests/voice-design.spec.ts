@@ -30,7 +30,9 @@ for (const provider of providersFor('voice-design')) {
         'e2e-preview-1',
       )
       await expect(voices.first()).toHaveAttribute('data-saved', 'false')
-      await expect(page.getByTestId('voice-preview-audio').first()).toBeVisible()
+      await expect(
+        page.getByTestId('voice-preview-audio').first(),
+      ).toBeVisible()
       await expect(page.getByTestId('voice-preview-text')).toContainText(
         'quick brown fox',
       )
