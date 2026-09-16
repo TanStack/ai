@@ -233,8 +233,8 @@ describe('listVoices', () => {
   it('points at the const when the provider has a fixed voice set', async () => {
     // OpenAI and Gemini ship their voices as a type union, so calling this
     // should say where to look rather than throw a TypeError.
-    await expect(
-      listVoices({ adapter: mockSpeechAdapter() }),
-    ).rejects.toThrow(/no per-account voice catalog/i)
+    await expect(listVoices({ adapter: mockSpeechAdapter() })).rejects.toThrow(
+      /no per-account voice catalog/i,
+    )
   })
 })

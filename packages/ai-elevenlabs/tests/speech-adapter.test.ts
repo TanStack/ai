@@ -445,7 +445,11 @@ describe('elevenlabsSpeech listVoices', () => {
           previewUrl: 'https://example.com/rachel.mp3',
           labels: { accent: 'american' },
         },
-        { voiceId: 'designed-1', name: 'Irish Narrator', category: 'generated' },
+        {
+          voiceId: 'designed-1',
+          name: 'Irish Narrator',
+          category: 'generated',
+        },
         { voiceId: 'cloned-1', name: 'Me', category: 'cloned' },
         { voiceId: 'famous-1', name: 'Someone', category: 'famous' },
         { voiceId: 'mystery-1', name: 'Unknown', category: 'not-a-category' },
@@ -467,7 +471,10 @@ describe('elevenlabsSpeech listVoices', () => {
       labels: { accent: 'american' },
     })
     // 'famous' is a curated tier, so it reads as professional.
-    expect(voices[3]).toMatchObject({ voiceId: 'famous-1', origin: 'professional' })
+    expect(voices[3]).toMatchObject({
+      voiceId: 'famous-1',
+      origin: 'professional',
+    })
     // An unrecognized category is dropped rather than guessed, so an origins
     // filter can never match it by accident.
     expect(voices[4]).toEqual({ voiceId: 'mystery-1', name: 'Unknown' })
