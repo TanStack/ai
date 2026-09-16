@@ -250,12 +250,57 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for a provider-issued file handle (Files API).
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, `falFiles()`) and
+ * referenced here by the returned handle instead of re-sending base64 or a
+ * public URL on each request.
+ *
+ * Matches the AG-UI `FileSource` arm: `value` is the handle exactly as the
+ * provider issued it (an OpenAI/Anthropic `file_id`, a Gemini file URI, a fal
+ * storage URL, a Grok public URL) and is opaque, so never fetch or parse it.
+ * Only the provider that minted a handle can resolve it.
+ *
+ * Adapters that cannot consume file handles at all are rejected by the
+ * activity-layer preflight before mapping starts.
+ */
+export interface ContentPartFileSource<TProvider extends string = string> {
+  /**
+   * Indicates this references a provider-issued file handle.
+   */
+  type: 'file'
+  /**
+   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
+   * parse it, or read a scheme out of it.
+   */
+  value: string
+  /**
+   * The adapter name of the provider that issued the handle (`'openai'`,
+   * `'gemini'`, ...), the same id TanStack reports as the usage provider.
+   * Optional, matching the AG-UI `FileSource` arm: an adapter already knows
+   * which provider it talks to. When present, an adapter rejects a handle
+   * another provider issued.
+   */
+  provider?: TProvider
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: an opaque provider handle, optionally naming its issuer
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.
