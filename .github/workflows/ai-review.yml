@@ -1,12 +1,16 @@
 name: AI review
 
-# In-process Grok review bot. Checks out this repo's default branch for the
-# script, then fetches the PR head into a second worktree for read/edit.
-# Never pull_request_target. Never pnpm install in the PR tree.
+# Grok review bot (privileged half). Runs on the base branch with secrets when
+# the unprivileged AI review signal workflow completes, plus manual
+# issue_comment and workflow_dispatch triggers. No pull_request_target: the
+# signal runs on pull_request with no secrets, and this workflow reads only
+# the PR number from its event, never artifacts or PR code. It fetches the PR
+# head only after the security scan and only when it has a validated patch.
 
-on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, labeled]
+on: # zizmor: ignore[dangerous-triggers] This job uses no artifacts or PR code.
+  workflow_run:
+    workflows: ['AI review signal']
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -17,7 +21,7 @@ on:
     types: [created]
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
+  group: ai-review-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}-${{ github.event.issue.number }}-${{ github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 permissions: {}
@@ -26,18 +30,8 @@ jobs:
   review:
     name: Review
     if: >
-      (github.event_name == 'pull_request'
-        && github.event.action != 'labeled'
-        && github.event.pull_request.draft == false
-        && github.event.pull_request.user.login != 'AlemTuzlak'
-        && github.event.pull_request.user.login != 'tombeckenham'
-        && github.event.pull_request.user.login != 'jherr')
-      || (github.event_name == 'pull_request'
-        && github.event.action == 'labeled'
-        && github.event.label.name == 'ai-review'
-        && (github.event.sender.login == 'AlemTuzlak'
-          || github.event.sender.login == 'tombeckenham'
-          || github.event.sender.login == 'jherr'))
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success')
       || github.event_name == 'workflow_dispatch'
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request
@@ -47,6 +41,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Checkout is always the trusted base (workflow_run checks out the
+      # default branch; issue_comment and workflow_dispatch do too).
+      # Never build or run the PR head. The review script fetches the audited SHA
+      # into .pr-head only when it has a validated patch to apply.
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -55,25 +53,29 @@ jobs:
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Build packages
-        run: pnpm exec nx run @tanstack/ai-grok-build:build
-      - name: Add PR head worktree
+        run: pnpm exec nx run-many -t build -p @tanstack/ai-grok-build @tanstack/ai-sandbox-docker
+      - name: Guard review
+        id: guard
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           GH_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER_PULL: ${{ github.event.pull_request.number }}
           PR_NUMBER_ISSUE: ${{ github.event.issue.number }}
           PR_NUMBER_DISPATCH: ${{ github.event.inputs.pr_number }}
         shell: bash
         run: |
+          skip() {
+            echo "AI review skipped: $1"
+            echo "proceed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          }
           if [ -z "${AI_REVIEW_TOKEN}" ] || [ -z "${XAI_API_KEY}" ]; then
-            echo "missing AI_REVIEW_TOKEN or XAI_API_KEY"
-            exit 1
+            skip "missing AI_REVIEW_TOKEN or XAI_API_KEY"
           fi
           case "${EVENT_NAME}" in
-            pull_request)
-              PR_NUMBER="${PR_NUMBER_PULL}"
+            workflow_run)
+              PR_NUMBER="$(jq -r '.workflow_run.pull_requests[0].number // empty' "${GITHUB_EVENT_PATH}")"
               ;;
             issue_comment)
               PR_NUMBER="${PR_NUMBER_ISSUE}"
@@ -82,24 +84,32 @@ jobs:
               PR_NUMBER="${PR_NUMBER_DISPATCH}"
               ;;
             *)
-              echo "unsupported event ${EVENT_NAME}"
-              exit 1
+              skip "unsupported event ${EVENT_NAME}"
               ;;
           esac
           if ! [[ "${PR_NUMBER}" =~ ^[0-9]+$ ]]; then
-            echo "invalid PR number"
-            exit 1
+            skip "no pull request number in event"
           fi
-          git fetch origin "pull/${PR_NUMBER}/head:ai-review-pr-head"
-          git worktree add "${GITHUB_WORKSPACE}/.pr-head" ai-review-pr-head
-          SHA="$(git -C "${GITHUB_WORKSPACE}/.pr-head" rev-parse HEAD)"
+          SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if ! [[ "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            skip "invalid pull request head SHA"
+          fi
           LOGIN="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.author.login // empty' || true)"
           MACHINE="$(gh api user --jq .login)"
-          echo "AI_REVIEW_HEAD_COMMIT_AUTHOR=${LOGIN}" >> "${GITHUB_ENV}"
-          echo "AI_REVIEW_MACHINE_USER=${MACHINE}" >> "${GITHUB_ENV}"
+          LOGIN_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$'
+          if { [ -n "${LOGIN}" ] && ! [[ "${LOGIN}" =~ ${LOGIN_PATTERN} ]]; } ||
+            ! [[ "${MACHINE}" =~ ${LOGIN_PATTERN} ]]; then
+            skip "invalid GitHub login"
+          fi
+          echo "head_commit_author=${LOGIN}" >> "${GITHUB_OUTPUT}"
+          echo "machine_user=${MACHINE}" >> "${GITHUB_OUTPUT}"
+          echo "proceed=true" >> "${GITHUB_OUTPUT}"
       - name: Run review
+        if: steps.guard.outputs.proceed == 'true'
         run: pnpm ai-review
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           AI_REVIEW_WORKTREE: ${{ github.workspace }}/.pr-head
+          AI_REVIEW_HEAD_COMMIT_AUTHOR: ${{ steps.guard.outputs.head_commit_author }}
+          AI_REVIEW_MACHINE_USER: ${{ steps.guard.outputs.machine_user }}

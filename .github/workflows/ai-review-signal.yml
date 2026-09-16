@@ -1,0 +1,29 @@
+name: AI review signal
+
+# Unprivileged tripwire. Runs on every PR event with no secrets and no
+# checkout, then exits. Its completion fires the privileged AI review
+# workflow (workflow_run), which runs on the base branch with secrets.
+# This job must always succeed: the review workflow only starts on success.
+# Never add secrets, checkouts, or install steps here.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review, labeled]
+
+concurrency:
+  group: ai-review-signal-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  signal:
+    name: Signal
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Signal
+        shell: bash
+        run: echo "AI review signal for PR ${{ github.event.pull_request.number }}"

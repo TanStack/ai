@@ -7,7 +7,9 @@ import { runReviewJob } from './run.ts'
 
 const REPO = 'TanStack/ai'
 const NUMBER = 42
-const SHA = 'abc123def456'
+const SHA = 'a'.repeat(40)
+const POLISH_SHA = 'c'.repeat(40)
+const BASE_SHA = 'b'.repeat(40)
 const MACHINE = 'tanstack-ai-bot'
 const TOKEN = 'ghs_test'
 const WORKTREE = '/tmp/review'
@@ -15,6 +17,8 @@ const HEAD_REF = 'fix-chat'
 const HEAD_REPO = 'alice/ai'
 const AUTOMATED =
   'This comment is automated by a Grok agent. It is not a maintainer review.'
+const GENERATED_DIFF =
+  'diff --git a/src/chat.ts b/src/chat.ts\n--- a/src/chat.ts\n+++ b/src/chat.ts\n@@ -1 +1 @@\n-old\n+new\n'
 
 type StoredComment = { id: number; issueNumber: number; body: string }
 type GitResult = { stdout: string; stderr: string; code: number }
@@ -24,6 +28,8 @@ function samplePull(
     draft?: boolean
     maintainer_can_modify?: boolean
     login?: string
+    labels?: Array<string>
+    baseRef?: string
   } = {},
 ) {
   return {
@@ -33,6 +39,7 @@ function samplePull(
     html_url: 'https://github.com/TanStack/ai/pull/42',
     draft: overrides.draft ?? false,
     user: { login: overrides.login ?? 'alice' },
+    base: { sha: BASE_SHA, ref: overrides.baseRef ?? 'main' },
     head: {
       sha: SHA,
       ref: HEAD_REF,
@@ -43,7 +50,7 @@ function samplePull(
       user: { login: 'alice' },
     },
     maintainer_can_modify: overrides.maintainer_can_modify ?? false,
-    labels: [{ name: 'bug' }],
+    labels: (overrides.labels ?? ['bug']).map((name) => ({ name })),
   }
 }
 
@@ -51,6 +58,7 @@ function sampleFiles() {
   return [
     {
       filename: 'src/chat.ts',
+      status: 'modified',
       patch: '@@ -1,2 +1,3 @@\n line',
     },
   ]
@@ -105,13 +113,14 @@ function createFakeGitHub(
     files?: ReturnType<typeof sampleFiles>
     waitingRunIds?: Array<number>
     approveError?: string
+    initialIssueLabels?: Array<string>
   } = {},
 ) {
   const pull = options.pull ?? samplePull()
   const files = options.files ?? sampleFiles()
   const comments: Array<StoredComment> = []
   let nextId = 1
-  const issueLabels = new Set<string>()
+  const issueLabels = new Set(options.initialIssueLabels ?? [])
   const repoLabels = new Set<string>()
   const approvedRuns: Array<number> = []
   const waitingRunIds = options.waitingRunIds ?? []
@@ -129,13 +138,14 @@ function createFakeGitHub(
       if (method === 'GET' && path.startsWith(`/repos/${REPO}/actions/runs?`)) {
         const params = new URL(`https://api.github.com${path}`).searchParams
         const ids =
-          params.get('status') === 'waiting' && params.get('head_sha') === SHA
+          params.get('status') === 'waiting' &&
+          params.get('head_sha') === pull.head.sha
             ? waitingRunIds
             : []
         return {
           workflow_runs: ids.map((id) => ({
             id,
-            head_sha: SHA,
+            head_sha: pull.head.sha,
             status: params.get('status'),
           })),
         }
@@ -157,6 +167,16 @@ function createFakeGitHub(
         const perPage = Number(params.get('per_page') ?? '100')
         const start = (page - 1) * perPage
         return files.slice(start, start + perPage)
+      }
+      if (method === 'GET' && path.includes('/git/trees/')) {
+        return {
+          truncated: false,
+          tree: files.map((file) => ({
+            path: file.filename,
+            mode: '100644',
+            type: 'blob',
+          })),
+        }
       }
 
       const listMatch = /^\/repos\/[^/]+\/[^/]+\/issues\/(\d+)\/comments$/.exec(
@@ -228,13 +248,21 @@ function createFakeGitHub(
 function createFakeRunner(
   impl?: (args: Array<string>, cwd: string) => GitResult,
 ) {
-  const calls: Array<{ args: Array<string>; cwd: string }> = []
-  const runner: GitRunner = async (args, cwd) => {
-    calls.push({ args: [...args], cwd })
+  const calls: Array<{ args: Array<string>; cwd: string; input?: string }> = []
+  const runner: GitRunner = async (args, cwd, input) => {
+    calls.push({
+      args: [...args],
+      cwd,
+      ...(input === undefined ? {} : { input }),
+    })
     if (impl) {
       return impl(args, cwd)
     }
-    return { stdout: '', stderr: '', code: 0 }
+    return {
+      stdout: args[0] === 'rev-parse' ? POLISH_SHA : '',
+      stderr: '',
+      code: 0,
+    }
   }
   return { runner, calls }
 }
@@ -255,8 +283,8 @@ const NIT = {
   suggestion: 'delete the blank line',
 }
 
-async function unusedReview() {
-  throw new Error('review should not run')
+function unusedReview() {
+  return Promise.reject(new Error('review should not run'))
 }
 
 async function readyReview() {
@@ -264,11 +292,24 @@ async function readyReview() {
 }
 
 async function polishReview() {
-  return { verdict: 'polish' as const, issues: [BUG, NIT] }
+  return {
+    verdict: 'polish' as const,
+    issues: [BUG, NIT],
+    generatedDiff: GENERATED_DIFF,
+  }
 }
 
 async function rejectReview() {
   return { verdict: 'reject' as const, issues: [] }
+}
+
+async function unsafePolishReview() {
+  return {
+    verdict: 'polish' as const,
+    issues: [BUG],
+    generatedDiff:
+      'diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\n--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n@@ -1 +1 @@\n-old\n+new\n',
+  }
 }
 
 function pullRequestEvent() {
@@ -279,23 +320,22 @@ async function runJob(options: {
   eventName?: string
   event?: unknown
   pull?: ReturnType<typeof samplePull>
-  review?:
-    | typeof unusedReview
-    | typeof readyReview
-    | typeof polishReview
-    | typeof rejectReview
+  review?: Parameters<typeof runReviewJob>[0]['review']
   alreadyReviewedSha?: string | null
   headCommitAuthorLogin?: string | null
   gitImpl?: (args: Array<string>, cwd: string) => GitResult
   files?: ReturnType<typeof sampleFiles>
   waitingRunIds?: Array<number>
   approveError?: string
+  initialIssueLabels?: Array<string>
 }) {
+  const pull = options.pull ?? samplePull()
   const github = createFakeGitHub({
-    pull: options.pull,
+    pull,
     files: options.files,
     waitingRunIds: options.waitingRunIds,
     approveError: options.approveError,
+    initialIssueLabels: options.initialIssueLabels,
   })
   const git = createFakeRunner(options.gitImpl)
   const result = await runReviewJob({
@@ -307,8 +347,13 @@ async function runJob(options: {
     event: options.event ?? pullRequestEvent(),
     worktreeRoot: WORKTREE,
     machineUserLogin: MACHINE,
-    gitRunner: git.runner,
+    gitRunner: async (args, cwd, input) => {
+      const gitResult = await git.runner(args, cwd, input)
+      if (args[0] === 'push' && gitResult.code === 0) pull.head.sha = POLISH_SHA
+      return gitResult
+    },
     review: options.review ?? unusedReview,
+    prepareWorktree: async () => {},
     alreadyReviewedSha: options.alreadyReviewedSha ?? null,
     headCommitAuthorLogin: options.headCommitAuthorLogin ?? 'alice',
   })
@@ -322,6 +367,95 @@ async function runJob(options: {
 }
 
 describe('runReviewJob', () => {
+  it.each(['input', 'generated', 'verdict'])(
+    'removes stale security labels when the %s audit fails',
+    async (stage) => {
+      const { result, issueLabels, approvedRuns, gitCalls } = await runJob({
+        initialIssueLabels: ['secure', 'ai-ready', 'bug', 'ready-to-merge'],
+        waitingRunIds: [101],
+        files:
+          stage === 'input'
+            ? [
+                {
+                  filename: '.github/workflows/ci.yml',
+                  status: 'modified',
+                  patch: '@@ -1 +1 @@\n-old\n+new\n',
+                },
+              ]
+            : sampleFiles(),
+        review:
+          stage === 'input'
+            ? unusedReview
+            : stage === 'generated'
+              ? unsafePolishReview
+              : async () => ({
+                  ...(await readyReview()),
+                  generatedDiff: GENERATED_DIFF,
+                }),
+      })
+
+      expect(result).toMatchObject({
+        skipped: true,
+        reason: 'security-blocked',
+      })
+      expect([...issueLabels].sort()).toEqual(['bug', 'ready-to-merge'])
+      expect(approvedRuns).toEqual([])
+      expect(gitCalls).toEqual([])
+    },
+  )
+
+  it('does not publish readiness for a head changed during review', async () => {
+    const pull = samplePull()
+    const { result, issueLabels, approvedRuns, comments } = await runJob({
+      pull,
+      initialIssueLabels: ['secure', 'ai-ready', 'bug'],
+      waitingRunIds: [101],
+      review: async () => {
+        pull.head.sha = 'd'.repeat(40)
+        return readyReview()
+      },
+    })
+
+    expect(result).toMatchObject({ skipped: true, reason: 'head-changed' })
+    expect([...issueLabels]).toEqual(['bug'])
+    expect(approvedRuns).toEqual([])
+    expect(comments).toEqual([])
+  })
+
+  it('preserves the verdict when the same SHA is skipped', async () => {
+    const { result, issueLabels } = await runJob({
+      alreadyReviewedSha: SHA,
+      initialIssueLabels: ['secure', 'ai-ready', 'bug'],
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'same-sha' })
+    expect([...issueLabels]).toEqual(['secure', 'ai-ready', 'bug'])
+  })
+
+  it.each([SHA, 'd'.repeat(40)])(
+    'clears draft readiness with reviewed SHA %s',
+    async (alreadyReviewedSha) => {
+      const { result, issueLabels } = await runJob({
+        pull: samplePull({ draft: true }),
+        alreadyReviewedSha,
+        initialIssueLabels: ['secure', 'ai-ready', 'bug'],
+      })
+
+      expect(result).toEqual({ skipped: true, reason: 'draft' })
+      expect([...issueLabels]).toEqual(['bug'])
+    },
+  )
+
+  it('skips a pull request that does not target main', async () => {
+    const { result, comments, gitCalls } = await runJob({
+      pull: samplePull({ baseRef: 'next' }),
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'not-main' })
+    expect(comments).toEqual([])
+    expect(gitCalls).toEqual([])
+  })
+
   it('skips a draft auto run and does not post a comment', async () => {
     const { result, comments, gitCalls } = await runJob({
       pull: samplePull({ draft: true }),
@@ -361,6 +495,83 @@ describe('runReviewJob', () => {
       pushLanded: false,
     })
     expect(comments).toHaveLength(1)
+  })
+
+  it('runs when the ai-review label is added via pull_request_target', async () => {
+    const { result, comments } = await runJob({
+      eventName: 'pull_request_target',
+      pull: samplePull({ login: 'alem' }),
+      event: {
+        action: 'labeled',
+        label: { name: 'ai-review' },
+        sender: { login: 'alem' },
+        pull_request: { number: NUMBER },
+      },
+      review: readyReview,
+    })
+
+    expect(result).toEqual({
+      skipped: false,
+      verdict: { verdict: 'ready', issues: [] },
+      label: 'ai-ready',
+      pushLanded: false,
+    })
+    expect(comments).toHaveLength(1)
+  })
+
+  function workflowRunEvent() {
+    return {
+      action: 'completed',
+      workflow_run: {
+        conclusion: 'success',
+        pull_requests: [{ number: NUMBER }],
+      },
+    }
+  }
+
+  it('runs a workflow_run signal in auto mode', async () => {
+    const { result, comments } = await runJob({
+      eventName: 'workflow_run',
+      event: workflowRunEvent(),
+      review: readyReview,
+    })
+
+    expect(result).toEqual({
+      skipped: false,
+      verdict: { verdict: 'ready', issues: [] },
+      label: 'ai-ready',
+      pushLanded: false,
+    })
+    expect(comments).toHaveLength(1)
+  })
+
+  it('runs a workflow_run as manual when the ai-review label is on the PR', async () => {
+    const { result, comments } = await runJob({
+      eventName: 'workflow_run',
+      pull: samplePull({ login: 'alem', labels: ['ai-review'] }),
+      event: workflowRunEvent(),
+      review: readyReview,
+    })
+
+    expect(result).toEqual({
+      skipped: false,
+      verdict: { verdict: 'ready', issues: [] },
+      label: 'ai-ready',
+      pushLanded: false,
+    })
+    expect(comments).toHaveLength(1)
+  })
+
+  it('skips a workflow_run for a maintainer PR without the ai-review label', async () => {
+    const { result, comments, gitCalls } = await runJob({
+      eventName: 'workflow_run',
+      pull: samplePull({ login: 'alem' }),
+      event: workflowRunEvent(),
+    })
+
+    expect(result).toEqual({ skipped: true, reason: 'maintainer-author' })
+    expect(comments).toEqual([])
+    expect(gitCalls).toEqual([])
   })
 
   it('skips a labeled pull_request that is not the ai-review label', async () => {
@@ -471,10 +682,12 @@ describe('runReviewJob', () => {
   })
 
   it('pushes polish with --force-with-lease when maintainer edits are on', async () => {
-    const { result, comments, issueLabels, gitCalls } = await runJob({
-      pull: samplePull({ maintainer_can_modify: true }),
-      review: polishReview,
-    })
+    const { result, comments, issueLabels, gitCalls, approvedRuns } =
+      await runJob({
+        pull: samplePull({ maintainer_can_modify: true }),
+        review: polishReview,
+        waitingRunIds: [101],
+      })
 
     expect(result).toEqual({
       skipped: false,
@@ -483,6 +696,8 @@ describe('runReviewJob', () => {
       pushLanded: true,
     })
     expect(comments[0]?.body).toContain('**Verdict:** polish')
+    expect(comments[0]?.body).toContain(`**Head SHA:** ${POLISH_SHA}`)
+    expect(approvedRuns).toEqual([101])
     expect(comments[0]?.body).toContain(
       '- [bug] src/chat.ts:40 null crash on empty messages',
     )
@@ -495,6 +710,16 @@ describe('runReviewJob', () => {
     expect(comments[0]?.body).toContain('**Label:** `ai-ready`')
     expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
     expect(gitCalls).toEqual([
+      {
+        args: ['apply', '--check', '--whitespace=error-all', '-'],
+        cwd: WORKTREE,
+        input: GENERATED_DIFF,
+      },
+      {
+        args: ['apply', '--whitespace=error-all', '-'],
+        cwd: WORKTREE,
+        input: GENERATED_DIFF,
+      },
       { args: ['add', '-A'], cwd: WORKTREE },
       {
         args: [
@@ -509,17 +734,42 @@ describe('runReviewJob', () => {
         cwd: WORKTREE,
       },
       {
+        args: ['rev-parse', 'HEAD'],
+        cwd: WORKTREE,
+      },
+      {
         args: [
           'push',
-          '--force-with-lease',
+          `--force-with-lease=refs/heads/${HEAD_REF}:${SHA}`,
           `https://x-access-token:${TOKEN}@github.com/${HEAD_REPO}.git`,
           `HEAD:${HEAD_REF}`,
         ],
         cwd: WORKTREE,
       },
     ])
-    expect(gitCalls[2]?.args).toContain('--force-with-lease')
-    expect(gitCalls[2]?.args).not.toContain('--force')
+    expect(gitCalls[5]?.args).toContain(
+      `--force-with-lease=refs/heads/${HEAD_REF}:${SHA}`,
+    )
+    expect(gitCalls[5]?.args).not.toContain('--force')
+  })
+
+  it('does not apply an unsafe generated diff', async () => {
+    const { result, comments, issueLabels, gitCalls } = await runJob({
+      pull: samplePull({ maintainer_can_modify: true }),
+      review: unsafePolishReview,
+    })
+
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'security-blocked',
+      security: {
+        ok: false,
+        reasons: ['.github/workflows/ci.yml: changes a workflow'],
+      },
+    })
+    expect(comments).toEqual([])
+    expect([...issueLabels]).toEqual([])
+    expect(gitCalls).toEqual([])
   })
 
   it('does not push polish when maintainer edits are off and sets ai-needs-work', async () => {
@@ -572,23 +822,34 @@ describe('runReviewJob', () => {
     expect(comments[0]?.body).toContain('Approved 2 waiting workflow runs.')
   })
 
-  it('does not mark secure or approve workflows when the diff looks like malware', async () => {
-    const { comments, issueLabels, approvedRuns } = await runJob({
+  it('stops before review when the security audit fails', async () => {
+    const { result, comments, issueLabels, approvedRuns } = await runJob({
       review: readyReview,
       waitingRunIds: [101],
       files: [
         {
           filename: '.github/workflows/ci.yml',
+          status: 'modified',
           patch:
             '@@ -1,2 +1,4 @@\n on:\n+  pull_request_target:\n+    types: [opened]\n',
         },
       ],
     })
 
-    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'security-blocked',
+      security: {
+        ok: false,
+        reasons: [
+          '.github/workflows/ci.yml: changes a workflow',
+          '.github/workflows/ci.yml: adds pull_request_target',
+        ],
+      },
+    })
+    expect([...issueLabels]).toEqual([])
     expect(approvedRuns).toEqual([])
-    expect(comments[0]?.body).toContain('blocked. Did not approve workflows.')
-    expect(comments[0]?.body).toContain('adds pull_request_target')
+    expect(comments).toEqual([])
   })
 
   it('skips a labeled ai-review event from a non-maintainer', async () => {

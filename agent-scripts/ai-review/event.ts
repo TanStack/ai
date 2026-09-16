@@ -4,7 +4,12 @@ export type ReviewEvent = {
   prNumber: number
   mode: 'auto' | 'manual'
   commentAuthor: string | null
-  eventName: 'pull_request' | 'workflow_dispatch' | 'issue_comment'
+  eventName:
+    | 'pull_request'
+    | 'pull_request_target'
+    | 'workflow_run'
+    | 'workflow_dispatch'
+    | 'issue_comment'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,7 +58,7 @@ function readEventLabelName(event: unknown) {
   return isRecord(label) && typeof label.name === 'string' ? label.name : null
 }
 
-/** True when this `pull_request` event is someone adding the `ai-review` label. */
+/** True when this `pull_request` or `pull_request_target` event is someone adding the `ai-review` label. */
 export function isAiReviewLabelEvent(event: unknown) {
   return (
     readAction(event) === 'labeled' &&
@@ -61,7 +66,7 @@ export function isAiReviewLabelEvent(event: unknown) {
   )
 }
 
-/** True when this `pull_request` event is any label add. */
+/** True when this `pull_request` or `pull_request_target` event is any label add. */
 export function isPullRequestLabeledEvent(event: unknown) {
   return readAction(event) === 'labeled'
 }
@@ -69,13 +74,17 @@ export function isPullRequestLabeledEvent(event: unknown) {
 /**
  * Parse a GitHub Actions event into the PR number and auto vs manual mode.
  *
- * A `pull_request` `labeled` event with the `ai-review` label is manual.
- * Throws if `eventName` is unknown, `workflow_dispatch` has no valid
- * `inputs.pr_number`, or `issue_comment` is not on a pull request.
+ * A `pull_request` or `pull_request_target` `labeled` event with the `ai-review` label is manual.
+ * A `workflow_run` event starts as auto; the caller upgrades it to manual
+ * when the PR carries the `ai-review` label (only maintainers can label).
+ * Throws if `eventName` is unknown, `workflow_run` has no PR,
+ * `workflow_dispatch` has no valid `inputs.pr_number`, or `issue_comment`
+ * is not on a pull request.
  */
 export function parseReviewEvent(input: { eventName: string; event: unknown }) {
   switch (input.eventName) {
-    case 'pull_request': {
+    case 'pull_request':
+    case 'pull_request_target': {
       const pullRequest = isRecord(input.event)
         ? input.event.pull_request
         : undefined
@@ -85,13 +94,37 @@ export function parseReviewEvent(input: { eventName: string; event: unknown }) {
       if (prNumber === null) {
         throw new Error('pull_request event is missing pull_request.number')
       }
+      const eventName =
+        input.eventName === 'pull_request_target'
+          ? 'pull_request_target'
+          : 'pull_request'
       return {
         prNumber,
         mode: isAiReviewLabelEvent(input.event) ? 'manual' : 'auto',
         commentAuthor: isAiReviewLabelEvent(input.event)
           ? readSenderLogin(input.event)
           : null,
-        eventName: 'pull_request',
+        eventName,
+      } satisfies ReviewEvent
+    }
+    case 'workflow_run': {
+      const run = isRecord(input.event) ? input.event.workflow_run : undefined
+      const pulls =
+        isRecord(run) && Array.isArray(run.pull_requests)
+          ? run.pull_requests
+          : []
+      const first = pulls[0]
+      const prNumber = parsePrNumber(isRecord(first) ? first.number : undefined)
+      if (prNumber === null) {
+        throw new Error(
+          'workflow_run event is missing workflow_run.pull_requests[0].number',
+        )
+      }
+      return {
+        prNumber,
+        mode: 'auto',
+        commentAuthor: null,
+        eventName: 'workflow_run',
       } satisfies ReviewEvent
     }
     case 'workflow_dispatch': {

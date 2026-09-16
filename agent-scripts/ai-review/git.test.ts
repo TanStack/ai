@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { commitAll, headRemoteUrl, pushHead, type GitRunner } from './git'
+import {
+  applyPatch,
+  commitAll,
+  headRemoteUrl,
+  preparePullWorktree,
+  pushHead,
+} from './git'
+import type { GitRunner } from './git'
 
 type GitResult = { stdout: string; stderr: string; code: number }
 
@@ -13,9 +20,13 @@ const REMOTE = `https://x-access-token:tok@github.com/${ORIGIN}.git`
 function createFakeRunner(
   impl?: (args: Array<string>, cwd: string) => GitResult,
 ) {
-  const calls: Array<{ args: Array<string>; cwd: string }> = []
-  const runner: GitRunner = async (args, cwd) => {
-    calls.push({ args: [...args], cwd })
+  const calls: Array<{ args: Array<string>; cwd: string; input?: string }> = []
+  const runner: GitRunner = async (args, cwd, input) => {
+    calls.push({
+      args: [...args],
+      cwd,
+      ...(input === undefined ? {} : { input }),
+    })
     if (impl) {
       return impl(args, cwd)
     }
@@ -23,6 +34,75 @@ function createFakeRunner(
   }
   return { runner, calls }
 }
+
+describe('applyPatch', () => {
+  it('checks a patch before it applies it', async () => {
+    const { runner, calls } = createFakeRunner()
+
+    await applyPatch(CWD, 'diff text', runner)
+
+    expect(calls).toEqual([
+      {
+        args: ['apply', '--check', '--whitespace=error-all', '-'],
+        cwd: CWD,
+        input: 'diff text',
+      },
+      {
+        args: ['apply', '--whitespace=error-all', '-'],
+        cwd: CWD,
+        input: 'diff text',
+      },
+    ])
+  })
+
+  it('does not apply a patch that fails its check', async () => {
+    const { runner, calls } = createFakeRunner((args) => ({
+      stdout: '',
+      stderr: args.includes('--check') ? 'bad patch' : '',
+      code: args.includes('--check') ? 1 : 0,
+    }))
+
+    await expect(applyPatch(CWD, 'bad', runner)).rejects.toThrow(/bad patch/)
+    expect(calls).toHaveLength(1)
+  })
+})
+
+describe('preparePullWorktree', () => {
+  it('creates the worktree after the fetched SHA matches', async () => {
+    const { runner, calls } = createFakeRunner((args) => ({
+      stdout: args[0] === 'rev-parse' ? 'abc123\n' : '',
+      stderr: '',
+      code: 0,
+    }))
+
+    await preparePullWorktree(CWD, '/tmp/pr-head', 42, 'abc123', runner)
+
+    expect(calls).toEqual([
+      {
+        args: ['fetch', '--no-tags', 'origin', 'pull/42/head'],
+        cwd: CWD,
+      },
+      { args: ['rev-parse', 'FETCH_HEAD'], cwd: CWD },
+      {
+        args: ['worktree', 'add', '--detach', '/tmp/pr-head', 'abc123'],
+        cwd: CWD,
+      },
+    ])
+  })
+
+  it('does not check out a head that changed during review', async () => {
+    const { runner, calls } = createFakeRunner((args) => ({
+      stdout: args[0] === 'rev-parse' ? 'new-sha\n' : '',
+      stderr: '',
+      code: 0,
+    }))
+
+    await expect(
+      preparePullWorktree(CWD, '/tmp/pr-head', 42, 'old-sha', runner),
+    ).rejects.toThrow(/PR head changed during review/)
+    expect(calls).toHaveLength(2)
+  })
+})
 
 describe('commitAll', () => {
   it('adds all files then commits with the given identity', async () => {
@@ -96,29 +176,42 @@ describe('pushHead', () => {
   it('pushes HEAD to the dest ref with --force-with-lease and no bare --force', async () => {
     const { runner, calls } = createFakeRunner()
 
-    await pushHead(CWD, runner, { remoteUrl: REMOTE, ref: 'heads/fix-nits' })
+    await pushHead(CWD, runner, {
+      remoteUrl: REMOTE,
+      ref: 'fix-nits',
+      expectedSha: 'abc123',
+    })
 
     const args = calls[0]?.args ?? []
     expect(calls).toEqual([
       {
-        args: ['push', '--force-with-lease', REMOTE, 'HEAD:heads/fix-nits'],
+        args: [
+          'push',
+          '--force-with-lease=refs/heads/fix-nits:abc123',
+          REMOTE,
+          'HEAD:fix-nits',
+        ],
         cwd: CWD,
       },
     ])
-    expect(args).toContain('--force-with-lease')
+    expect(args).toContain('--force-with-lease=refs/heads/fix-nits:abc123')
     expect(args).not.toContain('--force')
   })
 
   it('throws when push exits non-zero', async () => {
     const { runner } = createFakeRunner(() => ({
       stdout: '',
-      stderr: 'stale info',
+      stderr: `stale info for ${REMOTE}`,
       code: 1,
     }))
 
     await expect(
-      pushHead(CWD, runner, { remoteUrl: REMOTE, ref: 'main' }),
-    ).rejects.toThrow(/stale info/)
+      pushHead(CWD, runner, {
+        remoteUrl: REMOTE,
+        ref: 'main',
+        expectedSha: 'abc123',
+      }),
+    ).rejects.toThrow('stale info for <redacted remote>')
   })
 })
 

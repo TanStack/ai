@@ -3,9 +3,8 @@
  */
 
 import { spawn } from 'node:child_process'
-import { homedir } from 'node:os'
 import { readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { chat } from '@tanstack/ai'
@@ -17,10 +16,10 @@ import {
   createSecrets,
   defineSandbox,
   defineWorkspace,
-  localSource,
+  githubRepo,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import {
   loadConfig,
   isRosterMaintainer,
@@ -35,19 +34,25 @@ import {
   upsertReviewComment,
 } from './comments.ts'
 import {
+  AI_REVIEW_TRIGGER_LABEL,
   isAiReviewLabelEvent,
   isPullRequestLabeledEvent,
   parseReviewEvent,
 } from './event.ts'
 import { createReviewStreamLogger } from './log.ts'
-import { commitAll, headRemoteUrl, pushHead } from './git.ts'
+import {
+  applyPatch,
+  commitAll,
+  headRemoteUrl,
+  preparePullWorktree,
+  pushHead,
+} from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
-import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
+import { fetchPullRequest, formatPullRequestDiff } from './pr.ts'
 import { approveWaitingWorkflows, setSecureLabel } from './secure.ts'
-import { scanPullSecurity } from './security.ts'
+import { auditPullSecurity, scanGeneratedDiff } from './security.ts'
 import { shouldSkip } from './skip.ts'
-import { createReviewTools } from './tools.ts'
 import { parseVerdict, reviewLabelFor, reviewVerdictSchema } from './verdict.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,6 +62,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readIssueCommentBody(event: unknown) {
   if (!isRecord(event) || !isRecord(event.comment)) return ''
   return typeof event.comment.body === 'string' ? event.comment.body : ''
+}
+
+function readGeneratedDiff(chunk: unknown) {
+  if (
+    !isRecord(chunk) ||
+    chunk.type !== 'CUSTOM' ||
+    chunk.name !== 'file.changed' ||
+    !isRecord(chunk.value) ||
+    typeof chunk.value.diff !== 'string'
+  ) {
+    return null
+  }
+  return chunk.value.diff
 }
 
 function firstToken(body: string) {
@@ -130,9 +148,10 @@ async function fetchAlreadyReviewedSha(
 type ReviewInput = {
   pr: Awaited<ReturnType<typeof fetchPullRequest>>
   diff: string
-  worktreeRoot: string
-  client: GitHubClient
-  repo: string
+}
+
+type ReviewOutput = ReturnType<typeof parseVerdict> & {
+  generatedDiff?: string
 }
 
 /**
@@ -146,28 +165,38 @@ export function createGrokReview() {
     const xaiKey = process.env.XAI_API_KEY
     const sandbox = defineSandbox({
       id: 'ai-review',
-      provider: localProcessSandbox({
-        dir: input.worktreeRoot,
-        removeOnDestroy: false,
+      provider: dockerSandbox({
+        image:
+          'node:24-bookworm@sha256:be23f54a88d34e8824c741b19b91064094f92c1c97b194144bfc8b50d67258e2',
+        hostGateway: false,
       }),
       workspace: defineWorkspace({
-        source: localSource(input.worktreeRoot),
-        setup: ({ serial }) => serial(GROK_CLI_INSTALL_COMMAND),
+        source: githubRepo({
+          repo: input.pr.headRepo,
+          ref: input.pr.headRef,
+          depth: 1,
+        }),
+        setup: ({ serial }) => {
+          serial(`test "$(git rev-parse HEAD)" = '${input.pr.headSha}'`)
+          serial(GROK_CLI_INSTALL_COMMAND)
+        },
         ...(xaiKey !== undefined && xaiKey.length > 0
           ? { secrets: createSecrets({ XAI_API_KEY: xaiKey }) }
           : {}),
       }),
-      lifecycle: { reuse: 'none', destroyOnComplete: false },
+      lifecycle: {
+        reuse: 'none',
+        snapshot: 'none',
+        destroyOnComplete: true,
+      },
     })
     const stream = chat({
       adapter: grokBuildText('grok-4.6', {
         authMode: 'api-key',
         protocol: 'streaming-json',
-        cwd: input.worktreeRoot,
-        grokExecutable: join(homedir(), '.grok', 'bin', 'grok'),
+        cwd: '/workspace',
       }),
       stream: true,
-      tools: createReviewTools({ worktreeRoot: input.worktreeRoot }),
       outputSchema: reviewVerdictSchema,
       middleware: [withSandbox(sandbox)],
       threadId: `ai-review-${input.pr.number}`,
@@ -178,7 +207,7 @@ export function createGrokReview() {
             'Review this pull request.',
             'Read the changed source files before you choose a verdict.',
             'If it is a bug fix and does not fix the claimed root cause, verdict is reject.',
-            'If it is useful and needs listed bug or suggestion edits, apply those with edit_file, then verdict polish.',
+            'If it is useful and needs listed bug or suggestion edits, edit the source files, then verdict polish.',
             'If it is useful and clean, verdict is ready.',
             'Nits stay in issues. Do not edit files for nits.',
             'Never edit .github/workflows.',
@@ -194,6 +223,7 @@ export function createGrokReview() {
       ],
     })
     let object: unknown
+    let generatedDiff = ''
     const log = createReviewStreamLogger()
     for await (const chunk of stream) {
       log.chunk(chunk)
@@ -205,6 +235,8 @@ export function createGrokReview() {
       ) {
         object = chunk.value.object
       }
+      const changed = readGeneratedDiff(chunk)
+      if (changed !== null) generatedDiff = changed
     }
     log.flush()
     if (object === undefined) {
@@ -212,7 +244,7 @@ export function createGrokReview() {
     }
     const verdict = parseVerdict(object)
     console.log('ai-review verdict', JSON.stringify(verdict, null, 2))
-    return verdict
+    return { ...verdict, generatedDiff }
   }
 }
 
@@ -231,7 +263,12 @@ export async function runReviewJob(opts: {
   worktreeRoot: string
   machineUserLogin: string
   gitRunner: GitRunner
-  review: (input: ReviewInput) => Promise<ReturnType<typeof parseVerdict>>
+  review: (input: ReviewInput) => Promise<ReviewOutput>
+  prepareWorktree: (input: {
+    number: number
+    headSha: string
+    worktreeRoot: string
+  }) => Promise<void>
   alreadyReviewedSha: string | null
   headCommitAuthorLogin: string | null
 }) {
@@ -250,7 +287,8 @@ export async function runReviewJob(opts: {
   }
 
   if (
-    opts.eventName === 'pull_request' &&
+    (opts.eventName === 'pull_request' ||
+      opts.eventName === 'pull_request_target') &&
     isPullRequestLabeledEvent(opts.event) &&
     !isAiReviewLabelEvent(opts.event)
   ) {
@@ -264,8 +302,16 @@ export async function runReviewJob(opts: {
   }
 
   const pr = await fetchPullRequest(opts.client, opts.repo, parsed.prNumber)
+  // A workflow_run cannot say why the signal fired, so the ai-review label
+  // on the PR means manual: only maintainers can label, and it opts the PR
+  // into a review on every push until it is removed.
+  const mode =
+    opts.eventName === 'workflow_run' &&
+    pr.labels.includes(AI_REVIEW_TRIGGER_LABEL)
+      ? 'manual'
+      : parsed.mode
   const skip = shouldSkip({
-    mode: parsed.mode,
+    mode,
     isDraft: pr.isDraft,
     authorLogin: pr.authorLogin,
     headCommitAuthorLogin: opts.headCommitAuthorLogin,
@@ -274,26 +320,83 @@ export async function runReviewJob(opts: {
     machineUserLogin: opts.machineUserLogin,
     config: opts.config,
   })
+  const alreadyReviewed =
+    skip.skip &&
+    !pr.isDraft &&
+    pr.headSha === opts.alreadyReviewedSha &&
+    pr.baseRef === 'main'
+  if (alreadyReviewed) {
+    return { skipped: true as const, reason: skip.reason }
+  }
+  const staleLabels = ['secure', 'ai-ready']
+  for (const label of staleLabels) {
+    try {
+      await opts.client.rest(
+        'DELETE',
+        `/repos/${opts.repo}/issues/${pr.number}/labels/${label}`,
+      )
+    } catch (error) {
+      const missingLabel =
+        error instanceof Error && error.message.includes('HTTP 404')
+      if (!missingLabel) throw error
+    }
+  }
+  if (pr.baseRef !== 'main') {
+    return { skipped: true as const, reason: 'not-main' }
+  }
+  const security = await auditPullSecurity(opts.client, opts.repo, pr)
+  if (!security.ok) {
+    return {
+      skipped: true as const,
+      reason: 'security-blocked',
+      security,
+    }
+  }
   if (skip.skip) {
     return { skipped: true as const, reason: skip.reason }
   }
 
-  const diff = await fetchPullRequestDiff(
-    opts.client,
-    opts.repo,
-    parsed.prNumber,
-  )
-  const verdict = await opts.review({
+  const diff = formatPullRequestDiff(pr.files)
+  const review = await opts.review({
     pr,
     diff,
-    worktreeRoot: opts.worktreeRoot,
-    client: opts.client,
-    repo: opts.repo,
   })
+  const verdict = parseVerdict(review)
+  const generatedDiff = review.generatedDiff ?? ''
+  const generatedSecurity = scanGeneratedDiff(generatedDiff, [
+    process.env.XAI_API_KEY ?? '',
+  ])
+  if (!generatedSecurity.ok) {
+    return {
+      skipped: true as const,
+      reason: 'security-blocked',
+      security: generatedSecurity,
+    }
+  }
+  if (generatedDiff.length > 0 && verdict.verdict !== 'polish') {
+    return {
+      skipped: true as const,
+      reason: 'security-blocked',
+      security: {
+        ok: false as const,
+        reasons: ['generated diff requires a polish verdict'],
+      },
+    }
+  }
 
   let pushLanded = false
-  const canPushPolish = verdict.verdict === 'polish' && pr.maintainerCanModify
+  let reviewedSha = pr.headSha
+  const canPushPolish =
+    verdict.verdict === 'polish' &&
+    pr.maintainerCanModify &&
+    generatedDiff.length > 0
   if (canPushPolish) {
+    await opts.prepareWorktree({
+      number: pr.number,
+      headSha: pr.headSha,
+      worktreeRoot: opts.worktreeRoot,
+    })
+    await applyPatch(opts.worktreeRoot, generatedDiff, opts.gitRunner)
     const commit = await commitAll(
       opts.worktreeRoot,
       `ai-review: apply review polish for #${pr.number}`,
@@ -304,6 +407,14 @@ export async function runReviewJob(opts: {
       },
     )
     if (commit.committed) {
+      const head = await opts.gitRunner(
+        ['rev-parse', 'HEAD'],
+        opts.worktreeRoot,
+      )
+      reviewedSha = head.stdout.trim()
+      if (head.code !== 0 || !/^[0-9a-f]{40}$/i.test(reviewedSha)) {
+        throw new Error('could not read the polish commit SHA')
+      }
       await pushHead(opts.worktreeRoot, opts.gitRunner, {
         remoteUrl: headRemoteUrl({
           isFork: pr.headRepo !== opts.repo,
@@ -312,13 +423,17 @@ export async function runReviewJob(opts: {
           token: opts.token,
         }),
         ref: pr.headRef,
+        expectedSha: pr.headSha,
       })
     }
     pushLanded = commit.committed
   }
 
+  const currentPr = await fetchPullRequest(opts.client, opts.repo, pr.number)
+  if (currentPr.headSha !== reviewedSha || currentPr.baseRef !== 'main') {
+    return { skipped: true as const, reason: 'head-changed' }
+  }
   const label = reviewLabelFor(verdict.verdict, pushLanded)
-  const security = scanPullSecurity(pr.files)
   let approvedRuns = 0
   let approveError: string | null = null
   if (label === 'ai-ready' && security.ok) {
@@ -326,7 +441,7 @@ export async function runReviewJob(opts: {
       approvedRuns = await approveWaitingWorkflows(
         opts.client,
         opts.repo,
-        pr.headSha,
+        reviewedSha,
       )
     } catch (error) {
       approveError = error instanceof Error ? error.message : String(error)
@@ -342,7 +457,7 @@ export async function runReviewJob(opts: {
   }
   const body = buildReviewComment({
     verdict: verdict.verdict,
-    headSha: pr.headSha,
+    headSha: reviewedSha,
     findings,
     pushNote: pushNoteFor({
       pushLanded,
@@ -389,9 +504,12 @@ function securityNoteFor(input: {
 }
 
 function createProcessGitRunner(): GitRunner {
-  return (args, cwd) =>
+  return (args, cwd, input) =>
     new Promise((resolveResult, reject) => {
-      const child = spawn('git', args, { cwd })
+      const env = { ...process.env }
+      delete env.AI_REVIEW_TOKEN
+      delete env.XAI_API_KEY
+      const child = spawn('git', args, { cwd, env })
       let stdout = ''
       let stderr = ''
       child.stdout.on('data', (chunk: Buffer | string) => {
@@ -401,6 +519,7 @@ function createProcessGitRunner(): GitRunner {
         stderr += String(chunk)
       })
       child.on('error', reject)
+      child.stdin.end(input)
       child.on('close', (code) => {
         resolveResult({ stdout, stderr, code: code ?? 1 })
       })
@@ -461,6 +580,7 @@ export async function main() {
     process.env.AI_REVIEW_WORKTREE ??
     process.env.GITHUB_WORKSPACE ??
     process.cwd()
+  const repoRoot = process.env.GITHUB_WORKSPACE ?? process.cwd()
   const machineUserLogin =
     process.env.AI_REVIEW_MACHINE_USER ?? 'tanstack-ai-bot'
   const headCommitAuthor = process.env.AI_REVIEW_HEAD_COMMIT_AUTHOR
@@ -483,6 +603,14 @@ export async function main() {
     machineUserLogin,
     gitRunner: createProcessGitRunner(),
     review: createGrokReview(),
+    prepareWorktree: ({ number, headSha, worktreeRoot: pullWorktree }) =>
+      preparePullWorktree(
+        repoRoot,
+        pullWorktree,
+        number,
+        headSha,
+        createProcessGitRunner(),
+      ),
     alreadyReviewedSha,
     headCommitAuthorLogin:
       headCommitAuthor === undefined || headCommitAuthor.length === 0
@@ -491,6 +619,11 @@ export async function main() {
   })
   if (result.skipped) {
     console.log(`ai-review skipped: ${result.reason}`)
+    if ('security' in result && result.security !== undefined) {
+      for (const reason of result.security.reasons) {
+        console.log(`ai-review security: ${reason}`)
+      }
+    }
     return
   }
   console.log(

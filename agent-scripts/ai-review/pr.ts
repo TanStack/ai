@@ -34,7 +34,9 @@ function parseLabelNames(labels: unknown, path: string) {
 
 function parseHead(head: unknown, path: string) {
   if (!isRecord(head)) fail(path, 'is missing head')
-  if (typeof head.sha !== 'string') fail(path, 'is missing head.sha')
+  if (typeof head.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(head.sha)) {
+    fail(path, 'is missing a valid head.sha')
+  }
   if (typeof head.ref !== 'string') fail(path, 'is missing head.ref')
   if (!isRecord(head.repo)) fail(path, 'is missing head.repo')
   if (typeof head.repo.full_name !== 'string') {
@@ -45,6 +47,15 @@ function parseHead(head: unknown, path: string) {
     ref: head.ref,
     repo: head.repo.full_name,
   }
+}
+
+function parseBase(base: unknown, path: string) {
+  if (!isRecord(base)) fail(path, 'is missing base')
+  if (typeof base.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(base.sha)) {
+    fail(path, 'is missing a valid base.sha')
+  }
+  if (typeof base.ref !== 'string') fail(path, 'is missing base.ref')
+  return { sha: base.sha, ref: base.ref }
 }
 
 function parsePull(raw: unknown, path: string) {
@@ -60,6 +71,7 @@ function parsePull(raw: unknown, path: string) {
     fail(path, 'is missing maintainer_can_modify')
   }
   const head = parseHead(raw.head, path)
+  const base = parseBase(raw.base, path)
   return {
     number: raw.number,
     title: raw.title,
@@ -67,6 +79,8 @@ function parsePull(raw: unknown, path: string) {
     htmlUrl: raw.html_url,
     isDraft: raw.draft,
     authorLogin: parseAuthorLogin(raw.user, path),
+    baseSha: base.sha,
+    baseRef: base.ref,
     headSha: head.sha,
     headRef: head.ref,
     headRepo: head.repo,
@@ -82,8 +96,19 @@ function parseFiles(raw: unknown, path: string) {
     if (!isRecord(item) || typeof item.filename !== 'string') {
       fail(path, 'has a file without filename')
     }
+    if (typeof item.status !== 'string') {
+      fail(path, `has a file without status: ${item.filename}`)
+    }
     const patch = typeof item.patch === 'string' ? item.patch : null
-    files.push({ path: item.filename, patch })
+    files.push({
+      path: item.filename,
+      status: item.status,
+      previousPath:
+        typeof item.previous_filename === 'string'
+          ? item.previous_filename
+          : null,
+      patch,
+    })
   }
   return files
 }
@@ -127,8 +152,14 @@ export async function fetchPullRequestDiff(
   repo: string,
   number: number,
 ) {
-  // ponytail: GitHubClient always Accepts JSON, so the diff is files[].patch joined
   const files = await fetchPullRequestFiles(client, repo, number)
+  return formatPullRequestDiff(files)
+}
+
+/** Format the patches already returned by GitHub as one review diff. */
+export function formatPullRequestDiff(
+  files: Array<{ path: string; patch: string | null }>,
+) {
   const parts = []
   for (const file of files) {
     if (file.patch === null) continue

@@ -6,15 +6,69 @@
 export type GitRunner = (
   args: Array<string>,
   cwd: string,
+  input?: string,
 ) => Promise<{ stdout: string; stderr: string; code: number }>
 
 function gitFailed(
   args: Array<string>,
   result: { stdout: string; stderr: string; code: number },
-) {
+): never {
   const detail = result.stderr.trim() || result.stdout.trim()
   const suffix = detail.length > 0 ? `: ${detail}` : ''
   throw new Error(`git ${args.join(' ')} exited ${result.code}${suffix}`)
+}
+
+/** Check and apply a unified patch through stdin. */
+export async function applyPatch(
+  cwd: string,
+  patch: string,
+  runner: GitRunner,
+) {
+  const checkArgs = ['apply', '--check', '--whitespace=error-all', '-']
+  const check = await runner(checkArgs, cwd, patch)
+  if (check.code !== 0) gitFailed(checkArgs, check)
+
+  const applyArgs = ['apply', '--whitespace=error-all', '-']
+  const apply = await runner(applyArgs, cwd, patch)
+  if (apply.code !== 0) gitFailed(applyArgs, apply)
+}
+
+/** Fetch a PR head and create a detached worktree only when its SHA matches. */
+export async function preparePullWorktree(
+  repoRoot: string,
+  worktreeRoot: string,
+  pullNumber: number,
+  expectedSha: string,
+  runner: GitRunner,
+) {
+  const fetchArgs = [
+    'fetch',
+    '--no-tags',
+    'origin',
+    `pull/${String(pullNumber)}/head`,
+  ]
+  const fetch = await runner(fetchArgs, repoRoot)
+  if (fetch.code !== 0) gitFailed(fetchArgs, fetch)
+
+  const revParseArgs = ['rev-parse', 'FETCH_HEAD']
+  const revParse = await runner(revParseArgs, repoRoot)
+  if (revParse.code !== 0) gitFailed(revParseArgs, revParse)
+  const actualSha = revParse.stdout.trim()
+  if (actualSha !== expectedSha) {
+    throw new Error(
+      `PR head changed during review: expected ${expectedSha}, got ${actualSha}`,
+    )
+  }
+
+  const worktreeArgs = [
+    'worktree',
+    'add',
+    '--detach',
+    worktreeRoot,
+    expectedSha,
+  ]
+  const worktree = await runner(worktreeArgs, repoRoot)
+  if (worktree.code !== 0) gitFailed(worktreeArgs, worktree)
 }
 
 /**
@@ -34,7 +88,7 @@ export async function commitAll(
   message: string,
   runner: GitRunner,
   identity: { name: string; email: string },
-) {
+): Promise<{ committed: boolean }> {
   const addArgs = ['add', '-A']
   const add = await runner(addArgs, cwd)
   if (add.code !== 0) {
@@ -77,17 +131,22 @@ export async function commitAll(
 export async function pushHead(
   cwd: string,
   runner: GitRunner,
-  dest: { remoteUrl: string; ref: string },
+  dest: { remoteUrl: string; ref: string; expectedSha: string },
 ) {
   const args = [
     'push',
-    '--force-with-lease',
+    `--force-with-lease=refs/heads/${dest.ref}:${dest.expectedSha}`,
     dest.remoteUrl,
     `HEAD:${dest.ref}`,
   ]
   const result = await runner(args, cwd)
   if (result.code !== 0) {
-    gitFailed(args, result)
+    const detail = (result.stderr.trim() || result.stdout.trim()).replaceAll(
+      dest.remoteUrl,
+      '<redacted remote>',
+    )
+    const suffix = detail.length > 0 ? `: ${detail}` : ''
+    throw new Error(`git push exited ${result.code}${suffix}`)
   }
 }
 

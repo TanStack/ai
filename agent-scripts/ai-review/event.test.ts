@@ -35,6 +35,38 @@ describe('parseReviewEvent', () => {
     })
   })
 
+  it('parses a pull_request_target labeled ai-review as manual', () => {
+    expect(
+      parseReviewEvent({
+        eventName: 'pull_request_target',
+        event: {
+          action: 'labeled',
+          label: { name: 'ai-review' },
+          sender: { login: 'alem' },
+          pull_request: { number: 42 },
+        },
+      }),
+    ).toEqual({
+      prNumber: 42,
+      mode: 'manual',
+      commentAuthor: 'alem',
+      eventName: 'pull_request_target',
+    })
+  })
+
+  it('parses a plain pull_request_target as auto', () => {
+    expect(
+      parseReviewEvent({
+        eventName: 'pull_request_target',
+        event: { pull_request: { number: 42 } },
+      }),
+    ).toEqual({
+      prNumber: 42,
+      mode: 'auto',
+      commentAuthor: null,
+      eventName: 'pull_request_target',
+    })
+  })
   it('parses a pull_request labeled with another name as auto', () => {
     expect(
       parseReviewEvent({
@@ -53,6 +85,39 @@ describe('parseReviewEvent', () => {
     })
   })
 
+  it('parses a workflow_run with a PR as auto', () => {
+    expect(
+      parseReviewEvent({
+        eventName: 'workflow_run',
+        event: {
+          action: 'completed',
+          workflow_run: {
+            conclusion: 'success',
+            pull_requests: [{ number: 42 }],
+          },
+        },
+      }),
+    ).toEqual({
+      prNumber: 42,
+      mode: 'auto',
+      commentAuthor: null,
+      eventName: 'workflow_run',
+    })
+  })
+
+  it('throws when workflow_run has no pull request', () => {
+    expect(() =>
+      parseReviewEvent({
+        eventName: 'workflow_run',
+        event: {
+          action: 'completed',
+          workflow_run: { conclusion: 'success', pull_requests: [] },
+        },
+      }),
+    ).toThrow(
+      'workflow_run event is missing workflow_run.pull_requests[0].number',
+    )
+  })
   it('parses workflow_dispatch string pr_number as manual', () => {
     expect(
       parseReviewEvent({

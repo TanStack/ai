@@ -4,7 +4,8 @@ import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
 
 const REPO = 'TanStack/ai'
 const NUMBER = 42
-const SHA = 'abc123def456'
+const SHA = 'a'.repeat(40)
+const BASE_SHA = 'b'.repeat(40)
 
 function samplePull() {
   return {
@@ -14,6 +15,7 @@ function samplePull() {
     html_url: 'https://github.com/TanStack/ai/pull/42',
     draft: false,
     user: { login: 'alice' },
+    base: { sha: BASE_SHA, ref: 'main' },
     head: {
       sha: SHA,
       ref: 'fix-chat',
@@ -32,10 +34,12 @@ function sampleFiles() {
   return [
     {
       filename: 'src/chat.ts',
+      status: 'modified',
       patch: '@@ -1,2 +1,3 @@\n line',
     },
     {
       filename: 'src/index.ts',
+      status: 'modified',
       patch: '@@ -4,1 +4,2 @@\n other',
     },
   ]
@@ -86,14 +90,26 @@ describe('fetchPullRequest', () => {
       htmlUrl: 'https://github.com/TanStack/ai/pull/42',
       isDraft: false,
       authorLogin: 'alice',
+      baseSha: BASE_SHA,
+      baseRef: 'main',
       headSha: SHA,
       headRef: 'fix-chat',
       headRepo: 'alice/ai',
       maintainerCanModify: false,
       labels: ['bug'],
       files: [
-        { path: 'src/chat.ts', patch: '@@ -1,2 +1,3 @@\n line' },
-        { path: 'src/index.ts', patch: '@@ -4,1 +4,2 @@\n other' },
+        {
+          path: 'src/chat.ts',
+          status: 'modified',
+          previousPath: null,
+          patch: '@@ -1,2 +1,3 @@\n line',
+        },
+        {
+          path: 'src/index.ts',
+          status: 'modified',
+          previousPath: null,
+          patch: '@@ -4,1 +4,2 @@\n other',
+        },
       ],
     })
   })
@@ -108,9 +124,16 @@ describe('fetchPullRequest', () => {
 
   it('stores a null patch when GitHub omits it', async () => {
     const result = await loadPull({
-      files: [{ filename: 'src/chat.ts' }],
+      files: [{ filename: 'src/chat.ts', status: 'modified' }],
     })
-    expect(result.files).toEqual([{ path: 'src/chat.ts', patch: null }])
+    expect(result.files).toEqual([
+      {
+        path: 'src/chat.ts',
+        status: 'modified',
+        previousPath: null,
+        patch: null,
+      },
+    ])
   })
 
   it('throws when the pull payload is missing title', async () => {
@@ -128,7 +151,11 @@ describe('fetchPullRequest', () => {
   it('aggregates every page when the PR has more than 100 files', async () => {
     const files = []
     for (let i = 1; i <= 101; i++) {
-      files.push({ filename: `src/f${i}.ts`, patch: `@@ +${i} @@` })
+      files.push({
+        filename: `src/f${i}.ts`,
+        status: 'modified',
+        patch: `@@ +${i} @@`,
+      })
     }
     const result = await loadPull({ files })
     expect(result.files).toHaveLength(101)
