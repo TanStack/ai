@@ -4,8 +4,13 @@ import {
   isReactorWorldModel,
 } from '@tanstack/ai-reactor'
 import { FAL_LIVE_VIDEO_APP, isFalLiveVideoModel } from '@tanstack/ai-fal'
+import {
+  WORLDLABS_WORLD_MODELS,
+  isWorldLabsWorldModel,
+} from '@tanstack/ai-worldlabs'
 import type { ReactorVideoModel, ReactorWorldModel } from '@tanstack/ai-reactor'
 import type { FalLiveVideoModel } from '@tanstack/ai-fal'
+import type { WorldLabsWorldModel } from '@tanstack/ai-worldlabs'
 
 export const IMAGE_MODELS = [
   {
@@ -298,8 +303,17 @@ export {
   isReactorVideoModel,
   isFalLiveVideoModel,
   isReactorWorldModel,
+  isWorldLabsWorldModel,
 }
-export type { ReactorVideoModel, FalLiveVideoModel, ReactorWorldModel }
+export type {
+  ReactorVideoModel,
+  FalLiveVideoModel,
+  ReactorWorldModel,
+  WorldLabsWorldModel,
+}
+
+export type WorldProvider = 'reactor' | 'worldlabs'
+export type WorldModelId = ReactorWorldModel | WorldLabsWorldModel
 
 export const WORLD_MODELS = [
   'visko-orbis-stable',
@@ -307,9 +321,10 @@ export const WORLD_MODELS = [
   'lingbot-world-2',
   'lingbot',
   'helios',
-] as const satisfies ReadonlyArray<ReactorWorldModel>
+  ...WORLDLABS_WORLD_MODELS,
+] as const satisfies ReadonlyArray<WorldModelId>
 
-export const WORLD_MODEL_LABELS: Record<ReactorWorldModel, string> = {
+export const WORLD_MODEL_LABELS: Record<WorldModelId, string> = {
   'visko-orbis-stable': 'Orbis Stable',
   'visko-orbis-dynamic': 'Orbis Dynamic',
   'happy-oyster-adventure': 'Happy Oyster (adventure)',
@@ -317,6 +332,18 @@ export const WORLD_MODEL_LABELS: Record<ReactorWorldModel, string> = {
   'lingbot-world-2': 'LingBot World 2',
   lingbot: 'LingBot',
   helios: 'Helios',
+  'marble-1.1-plus': 'Marble 1.1 Plus (World Labs)',
+  'marble-1.1': 'Marble 1.1 (World Labs)',
+  'marble-1.0': 'Marble 1.0 (World Labs)',
+  'marble-1.0-draft': 'Marble 1.0 Draft (World Labs)',
+}
+
+export function worldProvider(model: WorldModelId): WorldProvider {
+  return isWorldLabsWorldModel(model) ? 'worldlabs' : 'reactor'
+}
+
+export function isWorldModelId(value: string): value is WorldModelId {
+  return isReactorWorldModel(value) || isWorldLabsWorldModel(value)
 }
 
 export const WORLD_PROMPTS = [

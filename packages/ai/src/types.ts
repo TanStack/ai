@@ -2254,27 +2254,65 @@ export interface WorldGenerationOptions<
 }
 
 /**
+ * Downloadable assets from a finished world job (splat files, meshes, pano).
+ * Live session adapters omit this.
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationAssets {
+  caption?: string
+  thumbnailUrl?: string
+  splats?: {
+    spzUrls?: Record<string, string>
+    metricScaleFactor?: number
+    groundPlaneOffset?: number
+  }
+  mesh?: {
+    colliderMeshUrl?: string
+    hqMeshUrl?: string
+    fullResMeshUrl?: string
+  }
+  imagery?: {
+    panoUrl?: string
+  }
+}
+
+/**
  * Result of world generation. JSON-serializable so a server route can return
- * it to a browser. The browser uses `token` + `model` to open the live
- * session (set the prompt, start streaming, steer mid-run).
+ * it to a browser.
+ *
+ * Live session adapters set `token` and `expiresAt`. The browser uses
+ * `token` + `model` to open the session (set the prompt, start streaming,
+ * steer mid-run).
+ *
+ * Job adapters set `url` and `worldId` when generation finishes. They can
+ * omit `token`.
  *
  * @experimental World generation is an experimental feature and may change.
  */
 export interface WorldGenerationResult {
   /** Unique identifier for this generation */
   id: string
-  /** Model used for generation (provider connect slug) */
+  /** Model used for generation (provider connect slug or model id) */
   model: string
-  /** Short-lived session token for the client connection */
-  token: string
+  /** Short-lived session token for a live client connection */
+  token?: string
   /** Token expiry as milliseconds since epoch */
-  expiresAt: number
-  /** Prompt the client should send when it starts the session */
+  expiresAt?: number
+  /** Prompt used to generate the world, or the prompt the client should send */
   prompt: string
-  /** Session status after the server half finishes */
+  /** Status after the server half finishes */
   status: 'ready' | 'waiting'
   /** Provider session id, when the adapter created one */
   sessionId?: string
+  /** Viewer or download URL for a finished world job */
+  url?: string
+  /** Provider world id for a finished or in-progress job */
+  worldId?: string
+  /** Provider operation id for a long-running world job */
+  operationId?: string
+  /** Downloadable assets when a world job has finished */
+  assets?: WorldGenerationAssets
   /** Token usage / billing, when the adapter can report it */
   usage?: TokenUsage
 }
