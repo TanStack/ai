@@ -445,9 +445,21 @@ const speech = await generateSpeech({
 There is no React hook for this activity. Call it from a server route or
 server function and return the result as JSON.
 
-Other providers have a voice-creation API but no adapter yet: xAI
-(`POST /v1/custom-voices`) and fal-hosted clone endpoints. OpenAI, Gemini,
-and Cloudflare have fixed voice catalogs and will not get one.
+Other providers have a voice-creation API but no adapter yet:
+
+- **xAI** — `POST /v1/custom-voices`, one shot, returns the `voice_id`.
+- **BytePlus** — Seed Speech Voice Replication: `POST /api/v3/tts/voice_clone`
+  trains, `POST /api/v3/tts/get_voice` polls (1 training, 2 success, 3 failure,
+  4 activated). Do **not** confuse this with the `references` array on
+  `/api/v3/tts/create`, which attaches a reference clip to a single synthesis
+  call and persists nothing. The `speaker_id` is bought in the console, so it
+  is an input to training rather than a result — an adapter takes it from
+  `modelOptions` and echoes it back as `voiceId`. Training is async, so the
+  adapter polls internally, bounded by the activity's `timeout` /
+  `abortSignal`.
+- **fal** — hosted clone endpoints such as `minimax/voice-clone`.
+
+OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
 
 ### 5. Audio Transcription
 
