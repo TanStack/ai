@@ -39,6 +39,7 @@ import type {
 } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type {
+  ChatHydrateOptions,
   ChatHydrationResult,
   ConnectionAdapter,
   SubscribeConnectionAdapter,
@@ -456,6 +457,15 @@ export class ChatClient<
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
+  /**
+   * Newest-window size from `history.pageSize`. Only set when
+   * `persistence === true`.
+   */
+  private readonly historyPageSize: number | undefined
+  private hasOlderMessages = false
+  private olderMessagesCursor: string | undefined
+  private readonly knownServerMessageIds = new Set<string>()
+  private loadOlderMessagesInFlight = false
   private devtoolsMounted = false
 
   private readonly callbacksRef: {
@@ -511,6 +521,7 @@ export class ChatClient<
         )
       }
       cachesMessages = false
+      this.historyPageSize = options.history?.pageSize
     } else if (options.persistence) {
       // A storage adapter: keep the combined record (transcript + resume pointer)
       // in the browser. Persistence keys on `threadId` (the conversation
@@ -526,6 +537,9 @@ export class ChatClient<
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyPersistedResume(snapshot),
       )
+      this.historyPageSize = undefined
+    } else {
+      this.historyPageSize = undefined
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
@@ -1038,10 +1052,13 @@ export class ChatClient<
     if (!hydrate) return
     if (this.isLoading || this.abortController) return
     if (this.disposed) return
+    const pageSize = this.historyPageSize
+    const hydrateOptions: ChatHydrateOptions | undefined =
+      pageSize === undefined ? undefined : { limit: pageSize }
     void (async () => {
       let result: ChatHydrationResult
       try {
-        result = await hydrate(this.threadId)
+        result = await hydrate(this.threadId, hydrateOptions)
       } catch {
         return
       }
@@ -1057,8 +1074,11 @@ export class ChatClient<
       if (this.disposed || !this.tailing) return
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
+      this.applyHydrationPage(result.page)
       if (result.messages.length > 0) {
-        this.processor.setMessages(normalizeMessagesDates(result.messages))
+        const windowMessages = normalizeMessagesDates(result.messages)
+        this.processor.setMessages(windowMessages)
+        this.rememberServerMessageIds(windowMessages)
       }
       if (result.interrupts && result.interrupts.pending.length > 0) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
@@ -2262,7 +2282,7 @@ export class ChatClient<
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = this.processor.getMessages()
+      const messages = this.messagesForSend(this.processor.getMessages())
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -2484,6 +2504,7 @@ export class ChatClient<
         await this.drainPostStreamActions()
 
         if (streamCompletedSuccessfully) {
+          this.rememberProcessorMessageIds()
           if (this.status !== 'ready') {
             // Terminal run, but onStreamEnd never fired: the processor had
             // no assistant message to emit it for (e.g. a bare
@@ -2873,6 +2894,81 @@ export class ChatClient<
    */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  getHasOlderMessages() {
+    return this.hasOlderMessages
+  }
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   *
+   * No-op when there is no older page, no cursor, or a page load is already
+   * running. A network failure rejects and leaves the painted messages as they
+   * are; {@link getHasOlderMessages} stays true.
+   */
+  async loadOlderMessages() {
+    const hydrate = this.connection.hydrate
+    if (hydrate === undefined) return
+    if (this.disposed) return
+    if (!this.hasOlderMessages) return
+    const cursor = this.olderMessagesCursor
+    if (cursor === undefined) return
+    if (this.loadOlderMessagesInFlight) return
+
+    const hydrateOptions: ChatHydrateOptions = { before: cursor }
+    if (this.historyPageSize !== undefined) {
+      hydrateOptions.limit = this.historyPageSize
+    }
+
+    this.loadOlderMessagesInFlight = true
+    try {
+      const result = await hydrate(this.threadId, hydrateOptions)
+      if (this.disposed) return
+      const olderMessages = normalizeMessagesDates(result.messages)
+      this.processor.prependMessages(olderMessages)
+      this.rememberServerMessageIds(olderMessages)
+      this.applyHydrationPage(result.page)
+    } finally {
+      this.loadOlderMessagesInFlight = false
+    }
+  }
+
+  private applyHydrationPage(page: ChatHydrationResult['page']) {
+    this.hasOlderMessages = page?.truncated === true
+    const cursor = page?.cursor
+    this.olderMessagesCursor =
+      this.hasOlderMessages && typeof cursor === 'string' ? cursor : undefined
+  }
+
+  private rememberServerMessageIds(messages: Array<UIMessage>) {
+    const ids = messages.map((message) => message.id)
+    for (const id of ids) {
+      this.knownServerMessageIds.add(id)
+    }
+  }
+
+  private rememberProcessorMessageIds() {
+    if (this.historyPageSize === undefined) return
+    this.rememberServerMessageIds(this.processor.getMessages())
+  }
+
+  private messagesForSend(messages: Array<UIMessage>) {
+    if (this.historyPageSize === undefined) {
+      return messages
+    }
+    const unknownMessages: Array<UIMessage> = []
+    for (const message of messages) {
+      const isKnown = this.knownServerMessageIds.has(message.id)
+      if (isKnown) {
+        continue
+      }
+      unknownMessages.push(message)
+    }
+    return unknownMessages
   }
 
   /**

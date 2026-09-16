@@ -243,6 +243,37 @@ export class StreamProcessor {
   }
 
   /**
+   * Put older UI messages at the front of the conversation.
+   *
+   * Skip a message if its id is already in the list. Keep the existing message.
+   * Then emit the same messages-change event as `setMessages`.
+   *
+   * Use this for older history pages. The first hydrate window uses `setMessages`.
+   *
+   * @param messages Older UI messages in insertion order. The first item is the oldest.
+   *
+   * @example
+   * ```ts
+   * processor.setMessages([newest])
+   * processor.prependMessages([oldest])
+   * ```
+   */
+  prependMessages(messages: Array<UIMessage>) {
+    const existingIds = new Set(this.messages.map((message) => message.id))
+    const olderMessages: Array<UIMessage> = []
+    for (const message of messages) {
+      const isDuplicate = existingIds.has(message.id)
+      if (isDuplicate) {
+        continue
+      }
+      existingIds.add(message.id)
+      olderMessages.push(message)
+    }
+    this.messages = [...olderMessages, ...this.messages]
+    this.emitMessagesChange()
+  }
+
+  /**
    * Add a user message to the conversation.
    * Supports both simple string content and multimodal content arrays.
    *

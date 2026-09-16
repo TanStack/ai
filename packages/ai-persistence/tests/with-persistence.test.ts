@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
+import { getPendingTurn } from '@tanstack/ai/adapter-internals'
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
@@ -109,6 +110,36 @@ function findAssistantToolCall(
       message.role === 'assistant' &&
       message.toolCalls?.some((call) => call.id === toolCallId),
   )
+}
+
+function messageIds(messages: ReadonlyArray<ModelMessage>) {
+  return messages.map((message) => message.id)
+}
+
+const snapshotProbe: ChatMiddleware = {
+  name: 'snapshot-probe',
+  async setup(ctx) {
+    await getPendingTurn(ctx, { optional: true })?.snapshot()
+  },
+}
+
+async function runPersistedChat(
+  persistence: ReturnType<typeof memoryPersistence>,
+  messages: Array<ModelMessage>,
+) {
+  const { adapter } = mockAdapter([
+    [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+  ])
+  await collect(
+    chat({
+      adapter,
+      messages,
+      runId: 'r1',
+      threadId: 't1',
+      middleware: [withPersistence(persistence), snapshotProbe],
+    }) as AsyncIterable<StreamChunk>,
+  )
+  return persistence.stores.messages!.loadThread('t1')
 }
 
 describe('withPersistence (state-only)', () => {
@@ -1411,5 +1442,83 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
+  })
+})
+
+describe('withPersistence (merge by id)', () => {
+  it('does not drop stored extras when the incoming list is short', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'next', id: 'new-1' },
+    ])
+
+    expect(messageIds(thread).slice(0, 3)).toEqual(['old-1', 'old-2', 'new-1'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      { role: 'user', content: 'next', id: 'new-1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('continues from the stored thread when incoming messages are empty', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [])
+
+    expect(messageIds(thread).slice(0, 2)).toEqual(['old-1', 'old-2'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('lets incoming content win when the same id is in both lists', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'stored text', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'incoming wins', id: 'old-1' },
+    ])
+
+    expect(thread.find((message) => message.id === 'old-1')).toEqual({
+      role: 'user',
+      content: 'incoming wins',
+      id: 'old-1',
+    })
+    expect(thread.find((message) => message.id === 'old-2')).toEqual({
+      role: 'assistant',
+      content: 'keep me',
+      id: 'old-2',
+    })
+  })
+
+  it('appends a message that has no id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'keep', id: 'old-1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'no id' },
+    ])
+
+    expect(thread.slice(0, 2)).toEqual([
+      { role: 'user', content: 'keep', id: 'old-1' },
+      { role: 'user', content: 'no id' },
+    ])
   })
 })

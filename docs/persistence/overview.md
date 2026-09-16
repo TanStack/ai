@@ -116,6 +116,9 @@ function Chat() {
 With `persistence: true` the client needs one `GET` to read from, which is step 3.
 With a storage adapter you are done: reload and the conversation is there.
 
+A long thread can page on hydrate. See [Client persistence](./client-persistence)
+for `history: { pageSize }`.
+
 ## 3. Survive a reload mid-answer
 
 Add a `GET` to the same route. It does two jobs, and the `if` picks one per request:

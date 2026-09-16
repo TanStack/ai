@@ -41,7 +41,10 @@ const compareUtf8Bytes = (left: string, right: string): number => {
 
 class MemoryMessageStore implements MessageStore {
   private readonly threads = new Map<string, Array<ModelMessage>>()
-  loadThread(threadId: string): Promise<Array<ModelMessage>> {
+  loadThread(
+    threadId: string,
+    _options?: { limit?: number; before?: string },
+  ): Promise<Array<ModelMessage>> {
     return Promise.resolve(this.threads.get(threadId)?.slice() ?? [])
   }
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void> {

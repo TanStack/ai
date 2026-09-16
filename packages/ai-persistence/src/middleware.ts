@@ -47,6 +47,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
   Interrupt,
+  ModelMessage,
   PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
@@ -1907,26 +1908,44 @@ function detachableRun(ctx: ChatMiddlewareContext): boolean {
 // Chat middleware
 // ---------------------------------------------------------------------------
 
-/**
- * Chat-only **state** persistence middleware. Provides durable transcript,
- * run records, and interrupts for `chat()`. Does **not** provide locks —
- * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
- *
- * This middleware never mutates the chunk stream; delivery durability
- * (replaying a disconnected/reloaded stream) is a separate transport-layer
- * concern (see the resumable-streams docs).
- *
- * Requires `stores.messages`. When `stores.interrupts` is present,
- * `stores.runs` is also required.
- *
- * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
- * `messages` array it is treated as the FULL conversation history and, on
- * finish, **overwrites** the entire stored thread. Post only the complete
- * transcript, never a delta — sending just the newest message(s) will replace
- * (and thereby destroy) the stored thread. To continue a stored thread without
- * resending history, pass an empty `messages` array and the stored transcript
- * is loaded and used.
- */
+// Empty incoming keeps stored. Non-empty: stored extras stay in original
+// order, same id is replaced in place by incoming, new ids and messages
+// with no id are appended.
+function mergeStoredMessages(
+  stored: ReadonlyArray<ModelMessage>,
+  incoming: ReadonlyArray<ModelMessage>,
+) {
+  if (incoming.length === 0) {
+    return stored.slice()
+  }
+
+  const incomingById = new Map<string, ModelMessage>()
+  for (const message of incoming) {
+    const id = message.id
+    if (id) incomingById.set(id, message)
+  }
+
+  const storedIds = new Set<string>()
+  const merged: Array<ModelMessage> = []
+  for (const message of stored) {
+    const id = message.id
+    if (id) {
+      storedIds.add(id)
+      merged.push(incomingById.get(id) ?? message)
+      continue
+    }
+    merged.push(message)
+  }
+
+  for (const message of incoming) {
+    const id = message.id
+    if (id && storedIds.has(id)) continue
+    merged.push(message)
+  }
+
+  return merged
+}
+
 export interface WithPersistenceOptions {
   /**
    * Also persist a throttled snapshot of the in-progress assistant reply while
@@ -1945,6 +1964,23 @@ export interface WithPersistenceOptions {
 }
 
 /**
+ * Chat-only **state** persistence middleware. Provides durable transcript,
+ * run records, and interrupts for `chat()`. Does **not** provide locks —
+ * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
+ *
+ * This middleware never mutates the chunk stream; delivery durability
+ * (replaying a disconnected/reloaded stream) is a separate transport-layer
+ * concern (see the resumable-streams docs).
+ *
+ * Requires `stores.messages`. When `stores.interrupts` is present,
+ * `stores.runs` is also required.
+ *
+ * Incoming `messages` merge into the stored thread by id. An empty list loads
+ * the stored thread. A non-empty list keeps stored messages the client omitted
+ * (original order), replaces the same id in place with the incoming version,
+ * and appends ids the store does not have (and messages with no id).
+ * `saveThread` still replaces the thread with that merged list.
+ *
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at
  *   compile time; fully dynamic bags are checked at runtime.
@@ -2020,10 +2056,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       providePendingTurn(ctx, {
         snapshot: async () => {
           const stored = await messageStore.loadThread(ctx.threadId)
-          // The SAME rule `onConfig` applies when it merges. Kept here, in the
-          // owner, because `saveThread` REPLACES the thread: a caller that stored
-          // only the newly-sent list would delete the history.
-          const list = ctx.messages.length > 0 ? [...ctx.messages] : stored
+          // Same merge as onConfig. saveThread replaces the thread, so a short
+          // incoming list must not drop stored extras.
+          const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
         },
       })
@@ -2089,7 +2124,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (!state?.merged) {
         if (state) state.merged = true
         const stored = await messageStore.loadThread(ctx.threadId)
-        patch.messages = config.messages.length > 0 ? config.messages : stored
+        patch.messages = mergeStoredMessages(stored, config.messages)
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ModelMessage } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { reconstructChat } from '../src/reconstruct'
 import type { ReconstructedChat } from '../src/reconstruct'
@@ -12,6 +13,34 @@ function textOf(message: ReconstructedChat['messages'][number]): string {
   return part && 'content' in part ? (part.content ?? '') : ''
 }
 
+function idsOf(parsed: ReconstructedChat) {
+  return parsed.messages.map((message) => message.id)
+}
+
+function chatUrl(query = 'threadId=t1') {
+  if (query === '') return 'http://example.test/api/chat'
+  return `http://example.test/api/chat?${query}`
+}
+
+async function hydrate(
+  persistence: Parameters<typeof reconstructChat>[0],
+  url: string,
+) {
+  return body(await reconstructChat(persistence, new Request(url)))
+}
+
+async function saveThread(messages: Array<ModelMessage>, threadId = 't1') {
+  const persistence = memoryPersistence()
+  await persistence.stores.messages.saveThread(threadId, messages)
+  return persistence
+}
+
+const threeTurnThread: Array<ModelMessage> = [
+  { id: '1', role: 'user', content: 'one' },
+  { id: '2', role: 'assistant', content: 'two' },
+  { id: '3', role: 'user', content: 'three' },
+]
+
 describe('reconstructChat', () => {
   it('returns the stored transcript (as UI messages) for a known threadId', async () => {
     const persistence = memoryPersistence()
@@ -22,7 +51,7 @@ describe('reconstructChat', () => {
 
     const response = await reconstructChat(
       persistence,
-      new Request('http://example.test/api/chat?threadId=t1'),
+      new Request(chatUrl()),
     )
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
@@ -52,11 +81,9 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=t1'),
-      ),
+    const parsed = await hydrate(
+      persistence,
+      chatUrl(),
     )
     expect(parsed.messages[0]).toMatchObject({
       id: 'assistant-1',
@@ -87,11 +114,9 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=t1'),
-      ),
+    const parsed = await hydrate(
+      persistence,
+      chatUrl(),
     )
 
     expect(parsed.messages[0]).toMatchObject({
@@ -113,11 +138,9 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=t1'),
-      ),
+    const parsed = await hydrate(
+      persistence,
+      chatUrl(),
     )
 
     expect(parsed.messages[0]).toMatchObject({
@@ -138,40 +161,27 @@ describe('reconstructChat', () => {
       startedAt: 1000,
     })
 
-    const response = await reconstructChat(
+    const parsed = await hydrate(
       persistence,
-      new Request('http://example.test/api/chat?threadId=t1'),
+      chatUrl(),
     )
-    const parsed = await body(response)
     expect(parsed.activeRun).toEqual({ runId: 'run-live' })
 
     // Once the run finishes, no active run is reported.
     await persistence.stores.runs!.update('run-live', { status: 'completed' })
-    const after = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=t1'),
-      ),
+    const after = await hydrate(
+      persistence,
+      chatUrl(),
     )
     expect(after.activeRun).toBeNull()
   })
 
   it('returns an empty transcript and no active run when threadId is missing or unknown', async () => {
     const persistence = memoryPersistence()
-    const missing = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat'),
-      ),
-    )
+    const missing = await hydrate(persistence, chatUrl(''))
     expect(missing).toEqual({ messages: [], activeRun: null, interrupts: null })
 
-    const unknown = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=nope'),
-      ),
-    )
+    const unknown = await hydrate(persistence, chatUrl('threadId=nope'))
     expect(unknown).toEqual({ messages: [], activeRun: null, interrupts: null })
   })
 
@@ -194,11 +204,9 @@ describe('reconstructChat', () => {
       payload,
     })
 
-    const parsed = await body(
-      await reconstructChat(
-        persistence,
-        new Request('http://example.test/api/chat?threadId=t1'),
-      ),
+    const parsed = await hydrate(
+      persistence,
+      chatUrl(),
     )
     expect(parsed.interrupts).toEqual({
       runId: 'run-paused',
@@ -214,7 +222,7 @@ describe('reconstructChat', () => {
 
     const response = await reconstructChat(
       persistence,
-      new Request('http://example.test/api/chat?threadId=t1'),
+      new Request(chatUrl()),
       { authorize: () => false },
     )
     expect(response.status).toBe(403)
@@ -225,7 +233,7 @@ describe('reconstructChat', () => {
     const persistence = memoryPersistence()
     const response = await reconstructChat(
       persistence,
-      new Request('http://example.test/api/chat?threadId=t1'),
+      new Request(chatUrl()),
       {
         authorize: () =>
           new Response(JSON.stringify({ error: 'login' }), { status: 401 }),
@@ -241,10 +249,98 @@ describe('reconstructChat', () => {
     ])
     const response = await reconstructChat(
       persistence,
-      new Request('http://example.test/api/chat?id=custom-id'),
+      new Request(chatUrl('id=custom-id')),
       { param: 'id' },
     )
     const parsed = await body(response)
     expect(textOf(parsed.messages[0]!)).toBe('via-param')
+  })
+})
+
+describe('reconstructChat paging', () => {
+  it('with limit returns the newest UI window and page.truncated', async () => {
+    const persistence = await saveThread(threeTurnThread)
+    const parsed = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=2'),
+    )
+    expect(idsOf(parsed)).toEqual(['2', '3'])
+    expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
+  })
+
+  it('limit=0 returns the full thread', async () => {
+    const persistence = await saveThread(threeTurnThread)
+    const parsed = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=0'),
+    )
+    expect(idsOf(parsed)).toEqual(['1', '2', '3'])
+    expect(parsed.page).toBeUndefined()
+  })
+
+  it('unknown before returns empty messages and truncated false', async () => {
+    const persistence = await saveThread(threeTurnThread)
+    await persistence.stores.runs.createOrResume({
+      runId: 'run-live',
+      threadId: 't1',
+      startedAt: 1000,
+    })
+    const parsed = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=2&before=no-such-cursor'),
+    )
+    expect(parsed.messages).toEqual([])
+    expect(parsed.page).toEqual({ truncated: false })
+    expect(parsed.activeRun).toEqual({ runId: 'run-live' })
+  })
+
+  it('does not split an assistant from its tool result across a page', async () => {
+    const persistence = await saveThread([
+      { id: 'user-1', role: 'user', content: 'ask' },
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+        ],
+      },
+      {
+        id: 'tool-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: 'found it',
+      },
+      { id: 'user-2', role: 'user', content: 'thanks' },
+    ])
+    const parsed = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=2'),
+    )
+    expect(idsOf(parsed)).toEqual(['assistant-1', 'user-2'])
+    expect(parsed.messages[0]?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'tool-call', id: 'call-1' }),
+        expect.objectContaining({
+          type: 'tool-result',
+          toolCallId: 'call-1',
+          content: 'found it',
+        }),
+      ]),
+    )
+  })
+
+  it('loads an older window from the minted cursor without overlapping ids', async () => {
+    const persistence = await saveThread(threeTurnThread)
+    const older = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=2&before=2'),
+    )
+    expect(idsOf(older)).toEqual(['1'])
+    expect(older.page).toEqual({ truncated: false })
   })
 })

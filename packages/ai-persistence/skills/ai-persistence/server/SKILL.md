@@ -73,12 +73,15 @@ Named shapes: `ChatTranscriptPersistence` (floor), `ChatPersistence` (all four).
 the unparameterized type is the all-optional bag, and `withPersistence` rejects
 it because `stores.messages` is possibly `undefined`.
 
-## Authoritative-history contract
+## Merge incoming messages by id
 
-- **Non-empty `messages`** seed the authoritative history. On finish,
-  persistence **overwrites** the stored thread with the engine's completed
-  canonical transcript. Post the complete history, never a delta.
-- **Empty `messages`** → middleware **loads** the stored thread and continues.
+`withPersistence` merges incoming `messages` into the stored thread by id.
+
+- **Empty `messages`**: load the stored thread and continue.
+- **Non-empty `messages`**: merge by id. Keep every stored message the client
+  omitted. Append new ids, and messages with no id. Same id: incoming wins.
+- `saveThread` replaces the thread with that merged list. Merge is middleware,
+  not the store.
 
 ## When state is written
 
@@ -176,11 +179,16 @@ export async function GET(request: Request) {
 }
 ```
 
-Returns `{ messages, activeRun, interrupts }`:
+Returns `{ messages, activeRun, interrupts, page? }`:
 
-- `messages` — UI messages for paint
-- `activeRun` — `{ runId }` if a run is still generating (`runs.findActiveRun`)
-- `interrupts` — pending human-in-the-loop state for re-prompt
+- `messages`: UI messages for this window
+- `activeRun`: `{ runId }` if a run is still generating (`runs.findActiveRun`)
+- `interrupts`: pending human-in-the-loop state for re-prompt
+- `page`: `{ truncated, cursor }` when the GET has a valid `limit`
+
+Paging is opt-in. No `limit` returns the full transcript and can omit `page`.
+`reconstructChat` reads `limit` and `before` from the query. `activeRun` and
+`interrupts` are not paged.
 
 **Without `authorize`, anyone who guesses `?threadId=` gets the transcript.**
 
@@ -192,9 +200,10 @@ activities (image, audio, TTS, video, transcription). Do not fake
 
 ## Common mistakes
 
-### CRITICAL: Posting a message delta as `messages`
+### CRITICAL: Merge inside `saveThread`
 
-Wipes the stored thread down to that delta. Always send full history or `[]`.
+Merge by id is `withPersistence`. `saveThread` must replace the merged list it
+receives.
 
 ### HIGH: Omitting `threadId` / `runId`
 

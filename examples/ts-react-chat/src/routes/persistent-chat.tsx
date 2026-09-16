@@ -156,10 +156,13 @@ function ChatPane({
     connectionStatus,
     interrupts,
     resuming,
-  } = useChat<typeof chatTools>({
+    hasOlderMessages,
+    loadOlderMessages,
+  } = useChat({
     threadId,
     connection,
     persistence,
+    history: { pageSize: 2 },
     // Share the tool definition so the client can bind the approval interrupt
     // (verify its schema hashes) and resolve it.
     tools: chatTools,
@@ -206,6 +209,15 @@ function ChatPane({
       </p>
 
       <div className="pc-thread" ref={threadRef}>
+        {hasOlderMessages ? (
+          <button
+            type="button"
+            className="pc-chip"
+            onClick={() => void loadOlderMessages()}
+          >
+            Load older
+          </button>
+        ) : null}
         {messages.length === 0 ? (
           <p className="pc-empty">
             No messages yet — try a suggestion below, then reload or switch

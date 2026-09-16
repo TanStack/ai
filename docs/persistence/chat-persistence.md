@@ -101,16 +101,23 @@ a run id it may no longer know. The store resolves the thread's live run with
 [Id map](./id-map) covers how to choose a thread id and what both ids mean on the
 generation hooks. [How persistence works](./internals) has the rest.
 
-## Send the full transcript, or none of it
+## Keep every stored message
 
-`withPersistence` follows one rule, the authoritative-history contract:
+`withPersistence` merges incoming `messages` into the stored thread by id.
 
-- A request with a **non-empty** `messages` array is the full conversation. On
-  finish it **overwrites** the stored thread. Post the complete transcript, not
-  a delta, or you replace the stored thread with just the newest message.
-- A request with an **empty** `messages` array continues a stored thread. The
-  middleware loads the stored transcript and the run picks up from there, so the
-  client does not have to re-send history.
+If `messages` is empty, the middleware loads the stored transcript and the run
+continues from there.
+
+If `messages` is not empty, the middleware merges by id:
+
+- Keep every stored message the client omitted.
+- Append ids the store does not have, and messages with no id.
+- Same id in both lists: incoming wins.
+
+`saveThread` replaces the stored thread with that merged list.
+
+A client with `history: { pageSize }` posts only the new turn. Merge keeps the
+stored extras. See [Client persistence](./client-persistence).
 
 ## Compaction keeps the transcript complete
 

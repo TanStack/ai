@@ -69,6 +69,7 @@ export function injectChat<
     options.initialMessages || [],
   )
   const isLoading = signal(false)
+  const hasOlderMessages = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<ChatClientState>('ready')
   const isSubscribed = signal(false)
@@ -105,14 +106,24 @@ export function injectChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence
+    ...(typeof options.threadId === 'string' && options.persistence === true
       ? {
-          persistence: options.persistence,
+          persistence: true,
           threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
         }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
@@ -151,7 +162,10 @@ export function injectChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (m: Array<UIMessage<TTools>>) => messages.set(m),
+    onMessagesChange: (m: Array<UIMessage<TTools>>) => {
+      messages.set(m)
+      hasOlderMessages.set(client.getHasOlderMessages())
+    },
     onLoadingChange: (v: boolean) => isLoading.set(v),
     onStatusChange: (v: ChatClientState) => status.set(v),
     onErrorChange: (v: Error | undefined) => error.set(v),
@@ -164,6 +178,7 @@ export function injectChat<
 
   messages.set(client.getMessages())
   interruptState.set(client.getInterruptState())
+  hasOlderMessages.set(client.getHasOlderMessages())
 
   // START TAILING HERE, not in the constructor. A client is idle until something
   // attaches it, so a client that gets built and thrown away never opens a
@@ -276,6 +291,10 @@ export function injectChat<
   const reload = async () => {
     await client.reload()
   }
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+    hasOlderMessages.set(client.getHasOlderMessages())
+  }
   const stop = () => client.stop()
   const clear = () => client.clear()
   const setMessages = (m: Array<UIMessage<TTools>>) =>
@@ -329,6 +348,8 @@ export function injectChat<
     reload,
     stop,
     isLoading: isLoading.asReadonly(),
+    hasOlderMessages: hasOlderMessages.asReadonly(),
+    loadOlderMessages,
     error: error.asReadonly(),
     status: status.asReadonly(),
     isSubscribed: isSubscribed.asReadonly(),
