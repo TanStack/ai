@@ -1,5 +1,6 @@
 import { resolveBedrockAuth } from './auth'
 import { createSigV4Fetch } from './openai-sigv4-fetch'
+import { mantlePathForModel } from '../api-compatibility'
 import type { ClientOptions } from 'openai'
 import type { BedrockEndpoint } from './auth'
 
@@ -27,9 +28,13 @@ const DEFAULT_REGION = 'us-east-1'
 /** OpenAI SDK requires a non-empty apiKey even when a signed fetch overrides Authorization. */
 const SIGV4_PLACEHOLDER_KEY = 'bedrock-sigv4'
 
-function buildBaseURL(region: string, endpoint: BedrockEndpoint): string {
+function buildBaseURL(
+  region: string,
+  endpoint: BedrockEndpoint,
+  model?: string,
+): string {
   return endpoint === 'mantle'
-    ? `https://bedrock-mantle.${region}.api.aws/v1`
+    ? `https://bedrock-mantle.${region}.api.aws${mantlePathForModel(model)}`
     : `https://bedrock-runtime.${region}.amazonaws.com/openai/v1`
 }
 
@@ -37,6 +42,7 @@ function buildBaseURL(region: string, endpoint: BedrockEndpoint): string {
 export function withBedrockDefaults(
   config: BedrockClientConfig,
   forced?: BedrockEndpoint,
+  model?: string,
 ): ClientOptions {
   const { region, endpoint, auth, apiKey, baseURL, fetch, ...rest } = config
   const resolvedRegion = region ?? DEFAULT_REGION
@@ -45,17 +51,19 @@ export function withBedrockDefaults(
     { apiKey, region: resolvedRegion, auth },
     resolvedEndpoint,
   )
+  const resolvedBaseURL =
+    baseURL ?? buildBaseURL(resolvedRegion, resolvedEndpoint, model)
   if (resolved.kind === 'bearer') {
     return {
       ...rest,
-      baseURL: baseURL ?? buildBaseURL(resolvedRegion, resolvedEndpoint),
+      baseURL: resolvedBaseURL,
       apiKey: resolved.token,
       ...(fetch ? { fetch } : {}),
     }
   }
   return {
     ...rest,
-    baseURL: baseURL ?? buildBaseURL(resolvedRegion, resolvedEndpoint),
+    baseURL: resolvedBaseURL,
     apiKey: SIGV4_PLACEHOLDER_KEY,
     fetch: fetch ?? createSigV4Fetch(resolved),
   }
