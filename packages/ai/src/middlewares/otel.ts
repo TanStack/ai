@@ -87,6 +87,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   video: 'video_generation',
   audio: 'audio_generation',
   tts: 'text_to_speech',
+  voice: 'voice_generation',
   transcription: 'transcription',
   embedding: 'embeddings',
   rerank: 'rerank',
