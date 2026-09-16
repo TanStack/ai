@@ -17,6 +17,10 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./testkit": {
+      "types": "./dist/esm/testkit/contract.d.ts",
+      "import": "./dist/esm/testkit/contract.js"
+    },
     "./in-memory": {
       "types": "./dist/esm/providers/in-memory/index.d.ts",
       "import": "./dist/esm/providers/in-memory/index.js"
@@ -70,7 +74,8 @@
     "@tanstack/ai": "workspace:^",
     "@vectorize-io/hindsight-client": ">=0.6.0",
     "ioredis": ">=5.0.0",
-    "redis": ">=4.0.0"
+    "redis": ">=4.0.0",
+    "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {
     "ioredis": {
@@ -84,6 +89,9 @@
     },
     "@honcho-ai/sdk": {
       "optional": true
+    },
+    "vitest": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -92,6 +100,7 @@
     "@vectorize-io/hindsight-client": "^0.6.1",
     "@vitest/coverage-v8": "4.1.10",
     "ioredis-mock": "^8.9.0",
-    "redis": "^4.7.0"
+    "redis": "^4.7.0",
+    "vitest": "^4.1.10"
   }
 }
