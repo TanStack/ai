@@ -189,12 +189,12 @@ Only providers with a per-account catalog implement this. Where the voice list i
 Other providers have a voice-creation API but no adapter yet:
 
 - **xAI**: `POST /v1/custom-voices` clones a speaker from a clip of 120 seconds or less.
-- **BytePlus**: Seed Speech Voice Replication trains a clone with `POST /api/v3/tts/voice_clone`, then you poll `POST /api/v3/tts/get_voice`. The voice slot comes from the console, so the id is an input, not a result.
+- **BytePlus**: Seed Speech Voice Replication trains a clone with `POST /api/v3/tts/voice_clone`. The voice slot comes from the console, so the id is an input, not a result.
 - **fal.ai**: hosts clone endpoints such as `minimax/voice-clone`.
 
 Providers such as OpenAI, Gemini, and Cloudflare have a fixed voice catalog. They have no `generateVoice()` adapter, and they will not get one.
 
-BytePlus voice training is asynchronous, which is what `status` and `getVoiceStatus()` above are for. Its adapter returns the voice with `status: 'training'` straight away rather than holding the request open.
+BytePlus enrollment returns a training status in the same response, and a voice is usable at status 2 or 4. An adapter maps those to `ready`, and maps the pending status to `training` so the caller can poll. In practice the call returns a usable voice, so the poll is the exception.
 
 ## Options
 

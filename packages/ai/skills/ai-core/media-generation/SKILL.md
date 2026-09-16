@@ -490,10 +490,12 @@ const speech = await generateSpeech({
 ```
 
 **Async training.** Most providers finish the voice inside `generateVoice()`
-and return voices with no `status`. A provider that trains a clone in the
-background returns `status: 'training'` instead, and the voice is NOT usable
-until `getVoiceStatus()` reports `'ready'`. Do not assume a returned voice
-works: read `status` first.
+and return voices with no `status`. A provider that cannot returns
+`status: 'training'` instead, and the voice is NOT usable until
+`getVoiceStatus()` reports `'ready'`. Do not assume a returned voice works:
+read `status` first. No adapter in this repo returns `'training'` today, so
+this path is a contract for providers that need it rather than a step every
+caller pays for.
 
 ```typescript
 import { generateVoice, getVoiceStatus } from '@tanstack/ai'
@@ -551,8 +553,12 @@ Other providers have a voice-creation API but no adapter yet:
   `/api/v3/tts/create`, which attaches a reference clip to a single synthesis
   call and persists nothing. The `speaker_id` is bought in the console, so it
   is an input to training rather than a result — an adapter takes it from
-  `modelOptions` and echoes it back as `voiceId`. Training is async, so that
-  adapter returns `status: 'training'` and implements `getVoiceStatus`.
+  `modelOptions` and echoes it back as `voiceId`. Enrollment returns a
+  `status` inline (`2` success, `4` activated, both usable; `1` still
+  training, `3` failed) and the documented example returns `2`, so map `2`/`4`
+  to `ready` and only `1` to `training`. Status `4` is reached by the FIRST
+  synthesis call, which is also when the voice slot is billed — do not treat
+  `4` as something training produces.
 - **fal** — hosted clone endpoints such as `minimax/voice-clone`.
 
 OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
