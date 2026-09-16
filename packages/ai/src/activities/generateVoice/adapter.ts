@@ -1,8 +1,4 @@
-import type {
-  VoiceGenerationOptions,
-  VoiceResult,
-  VoiceStatusResult,
-} from '../../types'
+import type { VoiceGenerationOptions, VoiceResult } from '../../types'
 
 /**
  * Configuration for voice adapter instances
@@ -49,16 +45,6 @@ export interface VoiceAdapter<
   generateVoice: (
     options: VoiceGenerationOptions<TProviderOptions>,
   ) => Promise<VoiceResult>
-
-  /**
-   * Poll the training state of a voice.
-   *
-   * Optional on purpose. Most providers finish creating a voice inside
-   * `generateVoice()` and have nothing to poll, so they leave this out. Only
-   * implement it when the provider trains asynchronously and `generateVoice()`
-   * returns voices with `status: 'training'`.
-   */
-  getVoiceStatus?: (voiceId: string) => Promise<VoiceStatusResult>
 }
 
 /**
@@ -96,12 +82,6 @@ export abstract class BaseVoiceAdapter<
   abstract generateVoice(
     options: VoiceGenerationOptions<TProviderOptions>,
   ): Promise<VoiceResult>
-
-  /**
-   * Not abstract: an adapter whose provider creates a voice in one call has
-   * nothing to poll and should not be forced to write a stub.
-   */
-  getVoiceStatus?(voiceId: string): Promise<VoiceStatusResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

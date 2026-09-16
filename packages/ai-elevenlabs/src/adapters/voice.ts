@@ -117,34 +117,41 @@ export class ElevenLabsVoiceAdapter<
         )
       }
 
-      const previewResponse = await this.client.textToVoice.design({
-        voiceDescription: options.prompt,
-        modelId: this.model,
-        ...(opts.outputFormat ? { outputFormat: opts.outputFormat } : {}),
-        ...(opts.text ? { text: opts.text } : {}),
-        ...(opts.autoGenerateText != null
-          ? { autoGenerateText: opts.autoGenerateText }
-          : {}),
-        ...(opts.loudness != null ? { loudness: opts.loudness } : {}),
-        ...(opts.seed != null ? { seed: opts.seed } : {}),
-        ...(opts.guidanceScale != null
-          ? { guidanceScale: opts.guidanceScale }
-          : {}),
-        ...(opts.quality != null ? { quality: opts.quality } : {}),
-        ...(opts.shouldEnhance != null
-          ? { shouldEnhance: opts.shouldEnhance }
-          : {}),
-        ...(opts.promptStrength != null
-          ? { promptStrength: opts.promptStrength }
-          : {}),
-        ...(referenceAudioBase64 ? { referenceAudioBase64 } : {}),
-        ...(opts.remixingSessionId
-          ? { remixingSessionId: opts.remixingSessionId }
-          : {}),
-        ...(opts.remixingSessionIterationId
-          ? { remixingSessionIterationId: opts.remixingSessionIterationId }
-          : {}),
-      })
+      const requestOptions = options.abortSignal
+        ? { abortSignal: options.abortSignal }
+        : {}
+
+      const previewResponse = await this.client.textToVoice.design(
+        {
+          voiceDescription: options.prompt,
+          modelId: this.model,
+          ...(opts.outputFormat ? { outputFormat: opts.outputFormat } : {}),
+          ...(opts.text ? { text: opts.text } : {}),
+          ...(opts.autoGenerateText != null
+            ? { autoGenerateText: opts.autoGenerateText }
+            : {}),
+          ...(opts.loudness != null ? { loudness: opts.loudness } : {}),
+          ...(opts.seed != null ? { seed: opts.seed } : {}),
+          ...(opts.guidanceScale != null
+            ? { guidanceScale: opts.guidanceScale }
+            : {}),
+          ...(opts.quality != null ? { quality: opts.quality } : {}),
+          ...(opts.shouldEnhance != null
+            ? { shouldEnhance: opts.shouldEnhance }
+            : {}),
+          ...(opts.promptStrength != null
+            ? { promptStrength: opts.promptStrength }
+            : {}),
+          ...(referenceAudioBase64 ? { referenceAudioBase64 } : {}),
+          ...(opts.remixingSessionId
+            ? { remixingSessionId: opts.remixingSessionId }
+            : {}),
+          ...(opts.remixingSessionIterationId
+            ? { remixingSessionIterationId: opts.remixingSessionIterationId }
+            : {}),
+        },
+        requestOptions,
+      )
 
       const { format, contentType } = parseOutputFormat(opts.outputFormat)
       const voices: Array<GeneratedVoice> = previewResponse.previews.map(
@@ -156,17 +163,27 @@ export class ElevenLabsVoiceAdapter<
           duration: preview.durationSecs,
           ...(preview.language ? { language: preview.language } : {}),
           saved: false,
+          // The design endpoint returns a finished preview; nothing trains.
+          status: 'ready' as const,
         }),
       )
 
+      // A caller who passed `name` asked for a persisted voice. Returning an
+      // empty list would report success for a request that produced nothing.
+      if (voices.length === 0) {
+        throw new Error(
+          'ElevenLabs returned no voice previews for this description. Try a longer, more specific prompt.',
+        )
+      }
+
       if (options.name) {
-        const promoted = await this.promoteFirstPreview(
+        voices[0] = await this.promoteFirstPreview(
           voices,
           options.name,
           options.description ?? options.prompt,
           opts.labels,
+          requestOptions,
         )
-        if (promoted) voices[0] = promoted
       }
 
       return {
@@ -194,19 +211,25 @@ export class ElevenLabsVoiceAdapter<
     voiceName: string,
     voiceDescription: string,
     labels: Record<string, string> | undefined,
-  ): Promise<GeneratedVoice | undefined> {
+    requestOptions: { abortSignal?: AbortSignal },
+  ): Promise<GeneratedVoice> {
     const [best, ...rest] = voices
-    if (!best) return undefined
+    if (!best) {
+      throw new Error('No preview to promote into a library voice.')
+    }
 
-    const saved = await this.client.textToVoice.create({
-      voiceName,
-      voiceDescription,
-      generatedVoiceId: best.voiceId,
-      ...(labels ? { labels } : {}),
-      ...(rest.length > 0
-        ? { playedNotSelectedVoiceIds: rest.map((voice) => voice.voiceId) }
-        : {}),
-    })
+    const saved = await this.client.textToVoice.create(
+      {
+        voiceName,
+        voiceDescription,
+        generatedVoiceId: best.voiceId,
+        ...(labels ? { labels } : {}),
+        ...(rest.length > 0
+          ? { playedNotSelectedVoiceIds: rest.map((voice) => voice.voiceId) }
+          : {}),
+      },
+      requestOptions,
+    )
 
     return { ...best, voiceId: saved.voiceId, saved: true }
   }

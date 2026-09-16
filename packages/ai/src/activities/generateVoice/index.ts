@@ -28,12 +28,7 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
 import type { VoiceAdapter } from './adapter'
-import type {
-  StreamChunk,
-  VoiceGenerationOptions,
-  VoiceResult,
-  VoiceStatusResult,
-} from '../../types'
+import type { StreamChunk, VoiceResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -79,7 +74,8 @@ export interface VoiceActivityOptions<
   prompt?: string
   /**
    * Reference audio of the speaker to clone, for clone-capable models.
-   * Accepts a base64 string, data URL, https URL, File, Blob, or ArrayBuffer.
+   * Accepts a base64 string, base64 data URL, File, Blob, or ArrayBuffer.
+   * Remote URLs are not accepted; read the file and pass the bytes.
    */
   referenceAudio?: string | File | Blob | ArrayBuffer
   /**
@@ -235,10 +231,6 @@ async function runGenerateVoice<
     timeout,
     abortSignal: callerAbortSignal,
   })
-  const providerName =
-    (adapter as { name?: string; provider?: string }).provider ??
-    (adapter as { name?: string }).name ??
-    'unknown'
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -262,7 +254,6 @@ async function runGenerateVoice<
     requestId,
     provider: adapter.name,
     model,
-    requestType: 'create',
     prompt: rest.prompt,
     name: rest.name,
     description: rest.description,
@@ -271,18 +262,15 @@ async function runGenerateVoice<
     timestamp: startTime,
   })
 
-  logger.request(`activity=generateVoice provider=${providerName}`, {
-    provider: providerName,
+  logger.request(`activity=generateVoice provider=${adapter.name}`, {
+    provider: adapter.name,
     model,
   })
 
   try {
     const rawResult = await raceWithAbort(
       adapter.generateVoice({
-        ...(rest as Omit<
-          VoiceGenerationOptions<VoiceProviderOptions<TAdapter>>,
-          'model' | 'logger' | 'abortSignal'
-        >),
+        ...rest,
         model,
         logger,
         ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
@@ -297,7 +285,6 @@ async function runGenerateVoice<
       requestId,
       provider: adapter.name,
       model,
-      requestType: 'create',
       voiceIds: result.voices.map((voice) => voice.voiceId),
       voiceCount: result.voices.length,
       previewText: result.previewText,
@@ -335,7 +322,6 @@ async function runGenerateVoice<
       requestId,
       provider: adapter.name,
       model,
-      requestType: 'create',
       error: { message: err.message, name: err.name },
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
@@ -356,115 +342,6 @@ async function runGenerateVoice<
       error,
       source: 'generateVoice',
     })
-    throw error
-  }
-}
-
-// ===========================
-// Training Status
-// ===========================
-
-/**
- * Options for polling a voice's training state.
- */
-export interface VoiceStatusOptions<
-  TAdapter extends VoiceAdapter<string, VoiceProviderOptions<TAdapter>>,
-> {
-  /** The voice adapter that created the voice */
-  adapter: TAdapter & { kind: typeof kind }
-  /** The voice to poll, from `generateVoice()` */
-  voiceId: string
-  /** Enable debug logging. */
-  debug?: DebugOption
-  /** Stable conversation/thread id for correlating this run when persisted. */
-  threadId?: string
-}
-
-/**
- * Poll the training state of a voice.
- *
- * Only providers that train asynchronously implement this. A voice that came
- * back from `generateVoice()` without `status: 'training'` is usable already,
- * and there is nothing to poll.
- *
- * @example Wait for an async clone to finish
- * ```ts
- * const created = await generateVoice({ adapter, referenceAudio })
- * const [voice] = created.voices
- * if (!voice) throw new Error('The provider returned no voices.')
- *
- * let state = voice.status ?? 'ready'
- * while (state === 'training') {
- *   await new Promise((resolve) => setTimeout(resolve, 5_000))
- *   const polled = await getVoiceStatus({ adapter, voiceId: voice.voiceId })
- *   state = polled.status
- * }
- *
- * if (state === 'failed') throw new Error('Voice training failed.')
- * ```
- */
-export async function getVoiceStatus<
-  TAdapter extends VoiceAdapter<string, VoiceProviderOptions<TAdapter>>,
->(options: VoiceStatusOptions<TAdapter>): Promise<VoiceStatusResult> {
-  const { adapter, voiceId, threadId } = options
-  const logger: InternalLogger = resolveDebugOption(options.debug)
-
-  const poll = adapter.getVoiceStatus
-  if (!poll) {
-    throw new Error(
-      `The ${adapter.name} voice adapter creates a voice in one call and has no training status to poll. Read \`status\` on the voices generateVoice() returned instead.`,
-    )
-  }
-
-  const requestId = createId('voice-status')
-  const startTime = Date.now()
-
-  aiEventClient.emit('voice:request:started', {
-    requestId,
-    threadId,
-    provider: adapter.name,
-    model: adapter.model,
-    requestType: 'status',
-    voiceId,
-    hasReferenceAudio: false,
-    timestamp: startTime,
-  })
-
-  logger.request(`activity=getVoiceStatus provider=${adapter.name}`, {
-    provider: adapter.name,
-    model: adapter.model,
-  })
-
-  try {
-    const result = await poll.call(adapter, voiceId)
-
-    aiEventClient.emit('voice:request:completed', {
-      requestId,
-      threadId,
-      provider: adapter.name,
-      model: adapter.model,
-      requestType: 'status',
-      voiceIds: [result.voiceId],
-      voiceCount: 1,
-      trainingStatus: result.status,
-      duration: Date.now() - startTime,
-      timestamp: Date.now(),
-    })
-
-    return result
-  } catch (error) {
-    const err = error as Error
-    aiEventClient.emit('voice:request:error', {
-      requestId,
-      threadId,
-      provider: adapter.name,
-      model: adapter.model,
-      requestType: 'status',
-      error: { message: err.message, name: err.name },
-      duration: Date.now() - startTime,
-      timestamp: Date.now(),
-    })
-    logger.errors('getVoiceStatus failed', { error, source: 'getVoiceStatus' })
     throw error
   }
 }

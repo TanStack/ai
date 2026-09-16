@@ -76,10 +76,10 @@ export interface TTSAdapter<
    *
    * Optional, because only some providers have a catalog worth querying at
    * runtime. A provider whose voices are a fixed list known at build time
-   * (OpenAI, Gemini, BytePlus preset voices) exposes that list as a const and
-   * a type union in its `model-meta` instead, which is strictly better than a
-   * network call. Implement this only when the catalog is per-account and can
-   * change, which is the case wherever `generateVoice()` can add to it.
+   * publishes that list from its own package instead (`GeminiTTSVoices`, or
+   * the `OpenAITTSVoice` union), which is strictly better than a network
+   * call. Implement this only when the catalog is per-account and can change,
+   * which is the case wherever `generateVoice()` can add to it.
    */
   listVoices?: (options?: ListVoicesOptions) => Promise<ListVoicesResult>
 }

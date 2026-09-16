@@ -70,6 +70,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
         duration: 4.2,
         language: 'en',
         saved: false,
+        status: 'ready',
       },
       {
         voiceId: 'gen-2',
@@ -78,6 +79,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
         contentType: 'audio/mpeg',
         duration: 4.1,
         saved: false,
+        status: 'ready',
       },
     ])
   })
@@ -128,6 +130,101 @@ describe('elevenlabsVoiceDesign adapter', () => {
     })
   })
 
+  it('maps every provider option onto its wire field', async () => {
+    designMock.mockResolvedValue(makePreviews())
+    const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+
+    await adapter.generateVoice({
+      model: 'eleven_ttv_v3',
+      prompt: 'A warm, gravelly narrator',
+      logger: makeLogger(),
+      modelOptions: {
+        outputFormat: 'opus_48000_128',
+        text: 'A line the previews speak.',
+        autoGenerateText: false,
+        // Zero has to survive: a truthiness guard would drop these.
+        loudness: 0,
+        seed: 0,
+        guidanceScale: 0,
+        quality: 0,
+        shouldEnhance: false,
+        promptStrength: 0,
+        remixingSessionId: 'sess-1',
+        remixingSessionIterationId: 'iter-1',
+      },
+    })
+
+    expect(designMock.mock.calls[0]![0]).toMatchObject({
+      outputFormat: 'opus_48000_128',
+      text: 'A line the previews speak.',
+      autoGenerateText: false,
+      loudness: 0,
+      seed: 0,
+      guidanceScale: 0,
+      quality: 0,
+      shouldEnhance: false,
+      promptStrength: 0,
+      remixingSessionId: 'sess-1',
+      remixingSessionIterationId: 'iter-1',
+    })
+  })
+
+  it('derives format and contentType from the requested outputFormat', async () => {
+    designMock.mockResolvedValue({
+      text: 'A line.',
+      previews: [{ generatedVoiceId: 'gen-1', audioBase64: 'AAAA' }],
+    })
+    const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+
+    const result = await adapter.generateVoice({
+      model: 'eleven_ttv_v3',
+      prompt: 'A warm, gravelly narrator',
+      logger: makeLogger(),
+      modelOptions: { outputFormat: 'opus_48000_128' },
+    })
+
+    // No mediaType on the preview, so the requested format is the fallback.
+    expect(result.voices[0]).toMatchObject({
+      format: 'opus',
+      contentType: 'audio/opus',
+    })
+  })
+
+  it('forwards the abort signal to both SDK calls', async () => {
+    designMock.mockResolvedValue(makePreviews())
+    createMock.mockResolvedValue({ voiceId: 'saved-voice' })
+    const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+    const abort = new AbortController()
+
+    await adapter.generateVoice({
+      model: 'eleven_ttv_v3',
+      prompt: 'A warm, gravelly narrator',
+      name: 'Narrator',
+      logger: makeLogger(),
+      abortSignal: abort.signal,
+    })
+
+    // Without this the request keeps running after the caller gave up — and
+    // the create half would still persist a voice.
+    expect(designMock.mock.calls[0]![1]).toEqual({ abortSignal: abort.signal })
+    expect(createMock.mock.calls[0]![1]).toEqual({ abortSignal: abort.signal })
+  })
+
+  it('throws rather than reporting success when no previews come back', async () => {
+    designMock.mockResolvedValue({ text: 'A line.', previews: [] })
+    const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+
+    await expect(
+      adapter.generateVoice({
+        model: 'eleven_ttv_v3',
+        prompt: 'A warm, gravelly narrator',
+        name: 'Narrator',
+        logger: makeLogger(),
+      }),
+    ).rejects.toThrow(/no voice previews/i)
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
   it('requires a prompt', async () => {
     const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
     await expect(
@@ -172,6 +269,33 @@ describe('elevenlabsVoiceDesign adapter', () => {
       expect(designMock.mock.calls[0]![0]).toMatchObject({
         referenceAudioBase64: 'QUJD',
       })
+    })
+
+    it('encodes a Blob', async () => {
+      designMock.mockResolvedValue(makePreviews())
+      const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+
+      await adapter.generateVoice({
+        model: 'eleven_ttv_v3',
+        prompt: 'A warm, gravelly narrator',
+        referenceAudio: new Blob([new Uint8Array([65, 66, 67])]),
+        logger: makeLogger(),
+      })
+
+      expect(designMock.mock.calls[0]![0].referenceAudioBase64).toBe('QUJD')
+    })
+
+    it('rejects a data URL that is not base64', async () => {
+      const adapter = elevenlabsVoiceDesign('eleven_ttv_v3', { apiKey: 'k' })
+
+      await expect(
+        adapter.generateVoice({
+          model: 'eleven_ttv_v3',
+          prompt: 'A warm, gravelly narrator',
+          referenceAudio: 'data:audio/mpeg,raw-not-base64',
+          logger: makeLogger(),
+        }),
+      ).rejects.toThrow(/needs base64 reference audio/i)
     })
 
     it('rejects a remote URL rather than downloading it', async () => {

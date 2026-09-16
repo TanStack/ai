@@ -827,41 +827,30 @@ export interface SpeechUsageEvent extends BaseEventContext {
 // Voice Events
 // ===========================
 
-/** Whether a voice event describes creating a voice or polling its training. */
-export type VoiceRequestType = 'create' | 'status'
-
-/** Emitted when a voice creation or status request starts. */
+/** Emitted when a voice creation request starts. */
 export interface VoiceRequestStartedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
   provider: string
   model: string
-  /** Whether this is creating a voice or polling an async training run. */
-  requestType?: VoiceRequestType
   prompt?: string
   name?: string
   description?: string
-  /** The voice being polled, on a 'status' request. */
-  voiceId?: string
   /** Whether reference audio was supplied — the audio itself is never emitted. */
   hasReferenceAudio: boolean
 }
 
-/** Emitted when a voice creation or status request completes. */
+/** Emitted when a voice creation request completes. */
 export interface VoiceRequestCompletedEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
   provider: string
   model: string
-  /** Whether this is creating a voice or polling an async training run. */
-  requestType?: VoiceRequestType
   voiceIds: Array<string>
   voiceCount: number
   previewText?: string
-  /** Training state, on a 'status' request against an async provider. */
-  trainingStatus?: 'ready' | 'training' | 'failed'
   duration: number
 }
 
@@ -978,15 +967,13 @@ export interface SpeechRequestErrorEvent extends BaseEventContext {
   duration: number
 }
 
-/** Emitted when a voice creation or status request fails. */
+/** Emitted when a voice creation request fails. */
 export interface VoiceRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
   provider: string
   model: string
-  /** Whether this is creating a voice or polling an async training run. */
-  requestType?: VoiceRequestType
   error: { message: string; name?: string }
   duration: number
 }

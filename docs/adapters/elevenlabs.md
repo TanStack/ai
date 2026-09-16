@@ -386,13 +386,15 @@ const result = await generateVoice({
 });
 
 const [voice] = result.voices;
-console.log(voice?.voiceId);
-console.log(voice?.saved); // true, because a name was given
+if (!voice) throw new Error("The provider returned no voices.");
+
+console.log(voice.voiceId);
+console.log(voice.saved); // true, because a name was given
 ```
 
 Without a `name`, you get preview voices to audition. With a `name`, the best candidate is kept in your ElevenLabs voice library.
 
-`eleven_ttv_v3` also accepts `referenceAudio` to clone a real speaker. `eleven_multilingual_ttv_v2` does not. See [Voice Creation](../media/voice-creation) for the full guide.
+`eleven_ttv_v3` also accepts `referenceAudio`, a clip of a real speaker used as a design reference — it still needs a `prompt`, and `modelOptions.promptStrength` balances the two. `eleven_multilingual_ttv_v2` takes no reference audio. See [Voice Creation](../media/voice-creation) for the full guide.
 
 ## Models
 
@@ -401,10 +403,10 @@ Without a `name`, you get preview voices to audition. With a `name`, the best ca
 | Text-to-speech | `eleven_v3`, `eleven_v3_conversational`, `eleven_multilingual_v2`, `eleven_flash_v2_5`, `eleven_flash_v2` |
 | Music | `music_v2_5`, `music_v2` |
 | Sound effects | `eleven_text_to_sound_v2` |
-| Transcription | `scribe_v2`, `scribe_v2_medical`, `scribe_v2_realtime` |
+| Transcription | `scribe_v2`, `scribe_v2_medical` |
 | Voice design | `eleven_ttv_v3`, `eleven_multilingual_ttv_v2` |
 
-ElevenLabs deprecated `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1`. The adapter still accepts them, and each is marked `@deprecated` in your editor. Move to the current model in the same row.
+ElevenLabs deprecated `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1`. The adapter still accepts them, and each is commented as deprecated in `model-meta.ts`. Move to the current model in the same row.
 
 ## Transcription
 

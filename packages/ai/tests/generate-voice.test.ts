@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateVoice, getVoiceStatus, listVoices } from '../src/index'
+import { generateVoice, listVoices } from '../src/index'
 import { generationParamsFromBody } from '../src/client'
 import type { VoiceAdapter } from '../src/activities/generateVoice/adapter'
 import type { TTSAdapter } from '../src/activities/generateSpeech/adapter'
@@ -20,8 +20,18 @@ function mockVoiceAdapter(
         model: 'ttv-test',
         previewText: 'The quick brown fox.',
         voices: [
-          { voiceId: 'gen-1', audio: 'AAAA', saved: false },
-          { voiceId: 'gen-2', audio: 'BBBB', saved: false },
+          {
+            voiceId: 'gen-1',
+            audio: 'AAAA',
+            saved: false,
+            status: 'ready' as const,
+          },
+          {
+            voiceId: 'gen-2',
+            audio: 'BBBB',
+            saved: false,
+            status: 'ready' as const,
+          },
         ],
       })),
   }
@@ -46,7 +56,7 @@ describe('generateVoice', () => {
     const adapterFn = vi.fn(async (options) => ({
       id: 'voice-2',
       model: options.model,
-      voices: [{ voiceId: 'gen-9' }],
+      voices: [{ voiceId: 'gen-9', saved: false, status: 'ready' as const }],
     }))
     const abort = new AbortController()
 
@@ -68,7 +78,119 @@ describe('generateVoice', () => {
       name: 'Guide',
       description: 'Calm, unhurried',
     })
-    expect(passed.abortSignal).toBe(abort.signal)
+    // Composed, not passed through verbatim: asserting identity would pass
+    // even with the abort plumbing deleted, because combineAbortSignals
+    // returns the caller's signal unchanged when there is no timeout.
+    expect(passed.abortSignal).toBeInstanceOf(AbortSignal)
+    expect(passed.abortSignal?.aborted).toBe(false)
+    abort.abort()
+    expect(passed.abortSignal?.aborted).toBe(true)
+  })
+
+  it('rejects when the caller aborts an adapter that ignores the signal', async () => {
+    const abort = new AbortController()
+    const adapter = mockVoiceAdapter({
+      // Never settles, and never reads abortSignal — the activity's own race
+      // is what has to reject.
+      generateVoice: () => new Promise(() => {}),
+    })
+
+    const pending = generateVoice({
+      adapter,
+      prompt: 'A warm, gravelly narrator',
+      abortSignal: abort.signal,
+      debug: false,
+    })
+    abort.abort()
+
+    await expect(pending).rejects.toThrow(/abort/i)
+  })
+
+  it('rejects on timeout and reports it to middleware as an abort', async () => {
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+
+    await expect(
+      generateVoice({
+        adapter: mockVoiceAdapter({
+          generateVoice: () => new Promise(() => {}),
+        }),
+        prompt: 'A warm, gravelly narrator',
+        timeout: 10,
+        middleware: [{ name: 'spy', onAbort, onError }],
+        debug: false,
+      }),
+    ).rejects.toThrow(/timed out/i)
+
+    expect(onAbort).toHaveBeenCalledTimes(1)
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('runs middleware start, usage, and finish for the voice activity', async () => {
+    const calls: Array<string> = []
+    const usage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      unitsBilled: 1,
+      cost: 0.02,
+    }
+
+    const result = await generateVoice({
+      adapter: mockVoiceAdapter({
+        generateVoice: async () => ({
+          id: 'voice-mw',
+          model: 'ttv-test',
+          voices: [{ voiceId: 'gen-1', saved: true, status: 'ready' as const }],
+          usage,
+        }),
+      }),
+      prompt: 'A warm, gravelly narrator',
+      middleware: [
+        {
+          name: 'spy',
+          onStart: (ctx) => {
+            calls.push(`start:${ctx.activity}`)
+            // Proves the result transform hook is wired: video regressed here.
+            ctx.resultTransforms.push((value) => ({
+              ...(value as { voices: Array<{ voiceId: string }> }),
+              previewText: 'transformed',
+            }))
+          },
+          onUsage: () => {
+            calls.push('usage')
+          },
+          onFinish: () => {
+            calls.push('finish')
+          },
+        },
+      ],
+      debug: false,
+    })
+
+    expect(calls).toEqual(['start:voice', 'usage', 'finish'])
+    expect(result.previewText).toBe('transformed')
+  })
+
+  it('reports an adapter failure to middleware as an error', async () => {
+    const onError = vi.fn()
+    const onAbort = vi.fn()
+
+    await expect(
+      generateVoice({
+        adapter: mockVoiceAdapter({
+          generateVoice: async () => {
+            throw new Error('provider exploded')
+          },
+        }),
+        prompt: 'A warm, gravelly narrator',
+        middleware: [{ name: 'spy', onError, onAbort }],
+        debug: false,
+      }),
+    ).rejects.toThrow('provider exploded')
+
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onAbort).not.toHaveBeenCalled()
   })
 
   it('rejects a call with neither a prompt nor reference audio', async () => {
@@ -106,6 +228,17 @@ describe('generateVoice', () => {
 
     expect(chunks.at(0)?.type).toBe('RUN_STARTED')
     expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+
+    // The CUSTOM chunk in between is the only thing a client reads.
+    const payload = chunks.find(
+      (chunk) => chunk.type === 'CUSTOM' && chunk.name === 'generation:result',
+    )
+    expect(payload).toBeDefined()
+    expect(
+      (
+        payload as { value: { voices: Array<{ voiceId: string }> } }
+      ).value.voices.map((voice) => voice.voiceId),
+    ).toEqual(['gen-1', 'gen-2'])
   })
 })
 
@@ -124,76 +257,6 @@ describe('voice generation request parsing', () => {
     expect(() => generationParamsFromBody('voice', { name: 'Guide' })).toThrow(
       /must include prompt or referenceAudio/i,
     )
-  })
-})
-
-describe('getVoiceStatus', () => {
-  // Most providers create a voice in one call. The few that train
-  // asynchronously (BytePlus Seed Speech) return `status: 'training'` and are
-  // polled until they leave it.
-  function mockAsyncVoiceAdapter(
-    states: Array<'ready' | 'training' | 'failed'>,
-  ): VoiceAdapter {
-    const queue = [...states]
-    return {
-      kind: 'voice',
-      name: 'mock-async-voice',
-      model: 'clone-test',
-      '~types': { providerOptions: {} },
-      generateVoice: async () => ({
-        id: 'voice-async',
-        model: 'clone-test',
-        voices: [
-          { voiceId: 'slot-1', status: 'training' as const, saved: true },
-        ],
-      }),
-      getVoiceStatus: async (voiceId) => ({
-        voiceId,
-        status: queue.shift() ?? 'ready',
-      }),
-    }
-  }
-
-  it('reports a voice as still training rather than blocking on it', async () => {
-    const adapter = mockAsyncVoiceAdapter(['training'])
-    const created = await generateVoice({
-      adapter,
-      referenceAudio: 'QUJD',
-      debug: false,
-    })
-
-    expect(created.voices[0]).toMatchObject({
-      voiceId: 'slot-1',
-      status: 'training',
-    })
-
-    const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
-    expect(polled.status).toBe('training')
-  })
-
-  it('polls through to ready', async () => {
-    const adapter = mockAsyncVoiceAdapter(['training', 'training', 'ready'])
-    const seen: Array<string> = []
-    for (let i = 0; i < 3; i++) {
-      const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
-      seen.push(polled.status)
-    }
-    expect(seen).toEqual(['training', 'training', 'ready'])
-  })
-
-  it('surfaces a failed training run', async () => {
-    const adapter = mockAsyncVoiceAdapter(['failed'])
-    const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
-    expect(polled.status).toBe('failed')
-  })
-
-  it('explains itself when the adapter has nothing to poll', async () => {
-    // ElevenLabs and xAI finish inside generateVoice(), so they never
-    // implement getVoiceStatus. Calling it should say why, not throw a
-    // "not a function" TypeError.
-    await expect(
-      getVoiceStatus({ adapter: mockVoiceAdapter(), voiceId: 'gen-1' }),
-    ).rejects.toThrow(/creates a voice in one call/i)
   })
 })
 

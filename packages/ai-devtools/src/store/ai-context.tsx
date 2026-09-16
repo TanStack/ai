@@ -3419,8 +3419,9 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
-    // Voice creation shares the speech bucket — same family, and the panel
-    // renders activity events generically by name.
+    // Voice creation shares the speech bucket — same family. Like the other
+    // activity buckets beside it, this is recorded state: nothing renders
+    // `speechEvents` yet.
     for (const voiceEvent of [
       'voice:request:started',
       'voice:request:completed',

@@ -185,12 +185,10 @@ export {
 export {
   kind as voiceKind,
   generateVoice,
-  getVoiceStatus,
   createVoiceOptions,
   type VoiceActivityOptions,
   type VoiceActivityResult,
   type VoiceProviderOptions,
-  type VoiceStatusOptions,
 } from './generateVoice/index'
 
 export {

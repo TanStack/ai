@@ -2536,13 +2536,13 @@ export interface ListVoicesResult {
  * Options for creating a voice.
  *
  * Providers create voices in one of two ways, and some support both:
- * - **design** — synthesize a brand new voice from a text {@link prompt}
- *   (ElevenLabs text-to-voice).
- * - **clone** — derive a voice from {@link referenceAudio} of a real speaker
- *   (xAI custom voices, fal-hosted clone endpoints).
+ * - **design** — synthesize a brand new voice from a text {@link prompt}.
+ * - **clone** — derive a voice from {@link referenceAudio} of a real speaker.
  *
- * Exactly one of `prompt` / `referenceAudio` is required; which ones an
- * adapter accepts depends on the model.
+ * At least one of `prompt` / `referenceAudio` is required; which ones an
+ * adapter accepts depends on the model. An adapter may require both — the
+ * only adapter today, `elevenlabsVoiceDesign`, always needs `prompt` and
+ * takes `referenceAudio` as an additional design reference.
  */
 export interface VoiceGenerationOptions<
   TProviderOptions extends object = object,
@@ -2552,15 +2552,15 @@ export interface VoiceGenerationOptions<
   /** Text description of the voice to create, for design-capable models */
   prompt?: string
   /**
-   * Reference audio of the speaker to clone - base64 string, data URL, https
-   * URL, File, Blob, or ArrayBuffer. For clone-capable models.
+   * Reference audio of the speaker to clone - base64 string, base64 data URL,
+   * File, Blob, or ArrayBuffer. For clone-capable models. Remote URLs are not
+   * accepted; read the file and pass the bytes.
    */
   referenceAudio?: string | File | Blob | ArrayBuffer
   /**
-   * Name to store the voice under in the provider's voice library.
-   * Providers differ on what this implies: ElevenLabs only persists a designed
-   * voice when a name is given, while xAI persists either way and treats the
-   * name as metadata. Read {@link GeneratedVoice.saved} to find out what
+   * Name to store the voice under in the provider's voice library. Providers
+   * differ on what this implies — ElevenLabs only persists a designed voice
+   * when a name is given. Read {@link GeneratedVoice.saved} to find out what
    * actually happened.
    */
   name?: string
@@ -2605,47 +2605,26 @@ export interface GeneratedVoice {
    * Whether the voice is persisted in the provider's voice library. Unsaved
    * voices are previews and generally expire.
    */
-  saved?: boolean
+  saved: boolean
   /**
-   * Training state. Absent means the voice is usable now, which is the case
-   * for every provider that creates a voice in one call.
-   *
-   * Some providers train a clone asynchronously (BytePlus Seed Speech). Those
-   * return `'training'` here, and the voice is NOT usable until a later
-   * `getVoiceStatus()` call reports `'ready'`.
+   * Whether the voice can be used in `generateSpeech()` yet. Required so a
+   * caller never has to guess: every adapter states it outright.
    */
-  status?: VoiceTrainingStatus
+  status: VoiceTrainingStatus
 }
 
 /**
- * Training state of a voice.
+ * Whether a created voice is usable.
  *
- * - `'ready'` — usable in `generateSpeech()` now.
- * - `'training'` — the provider is still building it. Poll
- *   {@link VoiceAdapter.getVoiceStatus} until it leaves this state.
- * - `'failed'` — training finished without producing a usable voice.
+ * - `'ready'` — usable in `generateSpeech()` now. Every adapter today returns
+ *   this, because they all finish the voice inside `generateVoice()`.
+ * - `'training'` — the provider accepted the request but is still building
+ *   the voice, so it is not usable yet. Reserved for providers that train
+ *   asynchronously; no adapter returns it yet, and reading the state back
+ *   will land with the first adapter that needs it.
+ * - `'failed'` — the provider finished without producing a usable voice.
  */
 export type VoiceTrainingStatus = 'ready' | 'training' | 'failed'
-
-/**
- * Training state of one voice, returned by `getVoiceStatus()`.
- *
- * Only providers that train asynchronously implement the call behind this.
- */
-export interface VoiceStatusResult {
-  /** The voice being polled */
-  voiceId: string
-  /** Current training state */
-  status: VoiceTrainingStatus
-  /** Progress percentage (0-100), if the provider reports it */
-  progress?: number
-  /** Why training failed, when status is 'failed' */
-  error?: string
-  /** A preview of the trained voice, when the provider returns one */
-  audio?: string
-  /** Content type of the preview */
-  contentType?: string
-}
 
 /**
  * Result of voice creation.

@@ -1,7 +1,7 @@
 ---
 title: Voice Creation
 id: voice-creation
-order: 5
+order: 3.5
 description: "Create a custom voice from a text description or a reference clip with TanStack AI's generateVoice() API, then speak with it through generateSpeech()."
 keywords:
   - tanstack ai
@@ -20,7 +20,8 @@ Every text-to-speech provider ships a fixed catalog of voices. Your narrator, yo
 There are two ways to create a voice:
 
 - **Design**: you describe the voice in words. The provider invents it.
-- **Clone**: you supply a clip of a real speaker. The provider copies it.
+- **Clone**: you supply a clip of a real speaker, and the provider derives a
+  voice from it.
 
 Both give you a voice ID. Pass that ID to [`generateSpeech()`](./text-to-speech) as the `voice` option.
 
@@ -86,17 +87,25 @@ const result = await generateVoice({
 })
 
 const [saved] = result.voices
-console.log(saved?.saved) // true
-console.log(saved?.voiceId) // A permanent voice ID. Store it.
+if (!saved) throw new Error('The provider returned no voices.')
+
+console.log(saved.saved) // true
+console.log(saved.voiceId) // A permanent voice ID. Store it.
 ```
 
 Store `voiceId` in your database. Every later `generateSpeech()` call reuses it, and you never design the same voice twice.
 
 Providers differ on what `name` means. ElevenLabs keeps a voice only when you give a name. Read `saved` on each returned voice to see what happened.
 
-## Clone a voice from reference audio
+## Guide a design with reference audio
 
-Some models copy a real speaker from a clip. Pass the audio as `referenceAudio`.
+Some models take a clip of a real speaker as a reference. Pass the audio as
+`referenceAudio`.
+
+ElevenLabs is a design-with-reference, not a straight copy: `eleven_ttv_v3`
+still needs a `prompt`, and `modelOptions.promptStrength` sets how much of the
+result comes from the description rather than the clip. Pass `0` for a result
+that leans almost entirely on the reference.
 
 ```typescript
 import { readFile } from 'node:fs/promises'
@@ -108,7 +117,9 @@ const clip = await readFile('./narrator.mp3')
 const result = await generateVoice({
   adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
   prompt: 'The same speaker, but younger and more energetic',
-  referenceAudio: clip.buffer,
+  // `new Blob([clip])`, not `clip.buffer`: a Buffer can be a view into a
+  // shared pool, so its `.buffer` is not necessarily just the file's bytes.
+  referenceAudio: new Blob([clip]),
   name: 'Young Narrator',
 })
 ```
@@ -116,40 +127,6 @@ const result = await generateVoice({
 `referenceAudio` accepts a base64 string, a base64 data URL, a `Blob`, a `File`, or an `ArrayBuffer`. A remote URL is refused: read the file yourself and pass the bytes.
 
 CAUTION: Clone a voice only with the consent of the speaker. Most providers make this a condition of their terms.
-
-## Wait for an async clone
-
-Most providers finish the voice inside `generateVoice()`. Some train a clone in the background and hand you the voice before it is usable.
-
-Read `status` to tell them apart. A voice with no `status` is ready now. A voice with `status: 'training'` is not, so poll `getVoiceStatus()` until it changes.
-
-```typescript
-import { generateVoice, getVoiceStatus } from '@tanstack/ai'
-import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
-
-const created = await generateVoice({
-  adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
-  prompt: 'A warm, gravelly narrator in his sixties',
-  name: 'Irish Narrator',
-})
-
-const [voice] = created.voices
-if (!voice) throw new Error('The provider returned no voices.')
-
-let state = voice.status ?? 'ready'
-while (state === 'training') {
-  await new Promise((resolve) => setTimeout(resolve, 5000))
-  const polled = await getVoiceStatus({
-    adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
-    voiceId: voice.voiceId,
-  })
-  state = polled.status
-}
-
-if (state === 'failed') throw new Error('Voice training failed.')
-```
-
-`getVoiceStatus()` throws on an adapter that has nothing to poll, and the message says so. ElevenLabs is one of those, so the loop above exits immediately for it.
 
 ## Find a voice you made earlier
 
@@ -178,23 +155,21 @@ Each voice carries `voiceId`, and `name`, `origin`, `description`, `previewUrl` 
 
 Leave `origins` off to get everything, including the stock voices.
 
-Only providers with a per-account catalog implement this. Where the voice list is fixed, the provider package exports it as a const instead, which is better than a network call: use `GEMINI_TTS_VOICES` for Gemini, and OpenAI's `voice` union for OpenAI. `listVoices()` throws on those adapters and the message says so.
+Only providers with a per-account catalog implement this. Where the voice list is fixed, the provider package publishes it instead, which is better than a network call: use `GeminiTTSVoices` from `@tanstack/ai-gemini`, or the `OpenAITTSVoice` union from `@tanstack/ai-openai`. `listVoices()` throws on those adapters, and the message points at those exports.
 
 ## Provider support
 
-| Provider | Design | Clone | Adapter |
+| Provider | Design | Reference audio | Adapter |
 | --- | --- | --- | --- |
 | ElevenLabs | Yes | Yes, on `eleven_ttv_v3` | `elevenlabsVoiceDesign()` |
 
-Other providers have a voice-creation API but no adapter yet:
-
-- **xAI**: `POST /v1/custom-voices` clones a speaker from a clip of 120 seconds or less.
-- **BytePlus**: Seed Speech Voice Replication trains a clone with `POST /api/v3/tts/voice_clone`. The voice slot comes from the console, so the id is an input, not a result.
-- **fal.ai**: hosts clone endpoints such as `minimax/voice-clone`.
+ElevenLabs is the only provider with a `generateVoice()` adapter today.
 
 Providers such as OpenAI, Gemini, and Cloudflare have a fixed voice catalog. They have no `generateVoice()` adapter, and they will not get one.
 
-BytePlus enrollment returns a training status in the same response, and a voice is usable at status 2 or 4. An adapter maps those to `ready`, and maps the pending status to `training` so the caller can poll. In practice the call returns a usable voice, so the poll is the exception.
+xAI, BytePlus, and fal.ai each publish a voice-cloning API, so they are the
+candidates for the next adapter. None is implemented here yet, and this page
+will describe them once one is.
 
 ## Options
 
@@ -209,7 +184,7 @@ BytePlus enrollment returns a training status in the same response, and a voice 
 
 You must give `prompt`, or `referenceAudio`, or both. ElevenLabs always needs `prompt`, because its design endpoint requires a description.
 
-Each returned voice carries `voiceId`, and `audio`, `format`, `contentType`, `duration`, `language`, `saved`, and `status` when the provider reports them.
+Each returned voice carries `voiceId`, `saved`, and `status`, plus `audio`, `format`, `contentType`, `duration`, and `language` when the provider reports them. `status` is `'ready'` on every adapter today, because they all finish the voice before returning.
 
 ## Next steps
 

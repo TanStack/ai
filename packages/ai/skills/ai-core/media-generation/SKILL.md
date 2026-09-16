@@ -481,6 +481,7 @@ if (!voice) throw new Error('The provider returned no voices.')
 // voice.voiceId  -> pass to generateSpeech()
 // voice.audio    -> base64 preview, when the provider returns one
 // voice.saved    -> true only when it is in the provider's library
+// voice.status   -> 'ready' on every adapter today
 
 const speech = await generateSpeech({
   adapter: elevenlabsSpeech('eleven_v3'),
@@ -489,35 +490,11 @@ const speech = await generateSpeech({
 })
 ```
 
-**Async training.** Most providers finish the voice inside `generateVoice()`
-and return voices with no `status`. A provider that cannot returns
-`status: 'training'` instead, and the voice is NOT usable until
-`getVoiceStatus()` reports `'ready'`. Do not assume a returned voice works:
-read `status` first. No adapter in this repo returns `'training'` today, so
-this path is a contract for providers that need it rather than a step every
-caller pays for.
-
-```typescript
-import { generateVoice, getVoiceStatus } from '@tanstack/ai'
-import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
-
-const adapter = elevenlabsVoiceDesign('eleven_ttv_v3')
-const created = await generateVoice({ adapter, prompt: 'A calm narrator' })
-
-const [voice] = created.voices
-if (!voice) throw new Error('The provider returned no voices.')
-
-let state = voice.status ?? 'ready'
-while (state === 'training') {
-  await new Promise((resolve) => setTimeout(resolve, 5000))
-  state = (await getVoiceStatus({ adapter, voiceId: voice.voiceId })).status
-}
-```
-
-`getVoiceStatus` is an OPTIONAL adapter method. Adapters whose provider
-creates a voice in one call (ElevenLabs, xAI) leave it out, and calling
-`getVoiceStatus()` against one throws with a message saying so. Do not write a
-stub that returns a fake `'ready'`.
+**Status.** Every returned voice carries `status`. It is `'ready'` on every
+adapter today, because they all finish the voice before returning. The
+`'training'` and `'failed'` members exist for providers that build a voice
+asynchronously; no adapter returns them yet, so do not write polling code
+against them.
 
 **Finding voices again.** `generateVoice()` hands back an id you are expected
 to store. `listVoices({ adapter: <a TTS adapter>, origins })` reads the
@@ -536,30 +513,18 @@ const { voices } = await listVoices({
 `listVoices` hangs off the **TTS** adapter, not the voice adapter, because
 `voice` is a `generateSpeech()` option — that is where the id gets consumed.
 It is OPTIONAL, and only providers with a per-account catalog implement it.
-Where the catalog is fixed the package exports a const instead
-(`GEMINI_TTS_VOICES`, OpenAI's `voice` union, BytePlus preset speaker ids) —
-prefer the const, it is a type union rather than a network call. Calling
-`listVoices()` on such an adapter throws and names the const.
+Where the catalog is fixed the package publishes it instead — `GeminiTTSVoices`
+from `@tanstack/ai-gemini`, or the `OpenAITTSVoice` union from
+`@tanstack/ai-openai`. Prefer those: a type union beats a network call.
+Calling `listVoices()` on such an adapter throws and points at them.
 
 There is no React hook for this activity. Call it from a server route or
 server function and return the result as JSON.
 
-Other providers have a voice-creation API but no adapter yet:
-
-- **xAI** — `POST /v1/custom-voices`, one shot, returns the `voice_id`.
-- **BytePlus** — Seed Speech Voice Replication: `POST /api/v3/tts/voice_clone`
-  trains, `POST /api/v3/tts/get_voice` polls (1 training, 2 success, 3 failure,
-  4 activated). Do **not** confuse this with the `references` array on
-  `/api/v3/tts/create`, which attaches a reference clip to a single synthesis
-  call and persists nothing. The `speaker_id` is bought in the console, so it
-  is an input to training rather than a result — an adapter takes it from
-  `modelOptions` and echoes it back as `voiceId`. Enrollment returns a
-  `status` inline (`2` success, `4` activated, both usable; `1` still
-  training, `3` failed) and the documented example returns `2`, so map `2`/`4`
-  to `ready` and only `1` to `training`. Status `4` is reached by the FIRST
-  synthesis call, which is also when the voice slot is billed — do not treat
-  `4` as something training produces.
-- **fal** — hosted clone endpoints such as `minimax/voice-clone`.
+`elevenlabsVoiceDesign` is the only `generateVoice()` adapter in this repo.
+xAI, BytePlus, and fal.ai each publish a voice-cloning API and are the
+candidates for the next one, but none is implemented — do not write code
+against them from this file.
 
 OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
 

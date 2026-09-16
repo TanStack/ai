@@ -458,7 +458,7 @@ export async function listVoices<
   const list = adapter.listVoices
   if (!list) {
     throw new Error(
-      `The ${adapter.name} speech adapter has no per-account voice catalog to list. Its voices are a fixed set, exported as a const from its package.`,
+      `The ${adapter.name} speech adapter has no per-account voice catalog to list. Its voices are a fixed set — import the voice list or union its package exports instead (for example \`GeminiTTSVoices\` from @tanstack/ai-gemini, or the \`OpenAITTSVoice\` union from @tanstack/ai-openai).`,
     )
   }
 

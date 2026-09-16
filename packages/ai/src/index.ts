@@ -10,7 +10,6 @@ export {
   generateSpeech,
   listVoices,
   generateVoice,
-  getVoiceStatus,
   generateTranscription,
   embed,
   generateWorld,

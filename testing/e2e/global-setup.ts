@@ -1267,6 +1267,68 @@ function subtitleFor(textPrompt: string): {
   return { sentences, words }
 }
 
+function byteplusTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/tts/create' || req.method !== 'POST') return false
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectVoiceRequest(res, 'Malformed JSON body.')
+      }
+      if (typeof body.text_prompt !== 'string' || !body.text_prompt) {
+        return rejectVoiceRequest(
+          res,
+          'Missing text_prompt (note: the synthesis field is text_prompt, not text).',
+        )
+      }
+      const references = Array.isArray(body.references)
+        ? body.references
+        : undefined
+      const speaker = asRecord(references?.[0])?.speaker
+      if (typeof speaker !== 'string' || !speaker) {
+        return rejectVoiceRequest(
+          res,
+          'Missing references[0].speaker (the voice nests inside references[], not at the top level).',
+        )
+      }
+      const audioConfig = asRecord(body.audio_config)
+      const format = audioConfig?.format
+      if (typeof format !== 'string' || !(format in FAKE_AUDIO_BY_FORMAT)) {
+        return rejectVoiceRequest(
+          res,
+          `Missing or unsupported audio_config.format: ${String(format)}.`,
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          code: 0,
+          message: 'Success',
+          audio: FAKE_AUDIO_BY_FORMAT[format]!.toString('base64'),
+          duration: 2.4,
+          original_duration: 2.4,
+          url: `https://example.com/welcome-to-the-guitar-store.${format}`,
+          // Timings only come back when the caller opted in (core
+          // `timestamps: true` sets `enable_subtitle`).
+          // Subtitle times are MILLISECONDS even though `duration` above is
+          // seconds — the endpoint genuinely mixes units, so don't "fix" it.
+          ...(audioConfig?.enable_subtitle === true && {
+            subtitle: subtitleFor(body.text_prompt),
+          }),
+        }),
+      )
+      return true
+    },
+  }
+}
+
 /**
  * Mounts ElevenLabs' two-step voice design API:
  *
@@ -1377,68 +1439,6 @@ function rejectElevenLabsRequest(
   res.setHeader('Content-Type', 'application/json')
   res.end(JSON.stringify({ detail: { status: 'invalid_request', message } }))
   return true
-}
-
-function byteplusTTSMount(): Mountable {
-  return {
-    async handleRequest(
-      req: http.IncomingMessage,
-      res: http.ServerResponse,
-      pathname: string,
-    ): Promise<boolean> {
-      if (pathname !== '/tts/create' || req.method !== 'POST') return false
-
-      const body = await readJsonRequestBody(req)
-      if (!body) {
-        return rejectVoiceRequest(res, 'Malformed JSON body.')
-      }
-      if (typeof body.text_prompt !== 'string' || !body.text_prompt) {
-        return rejectVoiceRequest(
-          res,
-          'Missing text_prompt (note: the synthesis field is text_prompt, not text).',
-        )
-      }
-      const references = Array.isArray(body.references)
-        ? body.references
-        : undefined
-      const speaker = asRecord(references?.[0])?.speaker
-      if (typeof speaker !== 'string' || !speaker) {
-        return rejectVoiceRequest(
-          res,
-          'Missing references[0].speaker (the voice nests inside references[], not at the top level).',
-        )
-      }
-      const audioConfig = asRecord(body.audio_config)
-      const format = audioConfig?.format
-      if (typeof format !== 'string' || !(format in FAKE_AUDIO_BY_FORMAT)) {
-        return rejectVoiceRequest(
-          res,
-          `Missing or unsupported audio_config.format: ${String(format)}.`,
-        )
-      }
-
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(
-        JSON.stringify({
-          code: 0,
-          message: 'Success',
-          audio: FAKE_AUDIO_BY_FORMAT[format]!.toString('base64'),
-          duration: 2.4,
-          original_duration: 2.4,
-          url: `https://example.com/welcome-to-the-guitar-store.${format}`,
-          // Timings only come back when the caller opted in (core
-          // `timestamps: true` sets `enable_subtitle`).
-          // Subtitle times are MILLISECONDS even though `duration` above is
-          // seconds — the endpoint genuinely mixes units, so don't "fix" it.
-          ...(audioConfig?.enable_subtitle === true && {
-            subtitle: subtitleFor(body.text_prompt),
-          }),
-        }),
-      )
-      return true
-    },
-  }
 }
 
 /**
