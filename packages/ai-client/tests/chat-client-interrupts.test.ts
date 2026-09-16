@@ -2,6 +2,7 @@
 import { chat, createInterruptBinding, defineInterrupt } from '@tanstack/ai'
 import {
   EventType,
+  INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
   convertSchemaToJsonSchema,
   digestInterruptJson,
@@ -10,7 +11,6 @@ import {
   toolDefinition,
 } from '@tanstack/ai/client'
 import { z } from 'zod'
-import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
 import { InterruptManager } from '../src/interrupt-manager'
 import { ChatClient } from '../src/chat-client'
 import type {
@@ -25,12 +25,11 @@ import type {
 } from '@tanstack/ai/client'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { InterruptManagerSubmission } from '../src/interrupt-manager'
-import type { ResolvableChatInterrupt } from '../src/types'
+import type { ResolvableChatInterrupt, UIMessage } from '../src/types'
 import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,
 } from '../src/connection-adapters'
-import type { UIMessage } from '../src/types'
 
 const transferDefinition = toolDefinition({
   name: 'transfer',
@@ -291,7 +290,7 @@ describe('InterruptManager hydration', () => {
     expect(Object.isFrozen(snapshot[0]?.binding)).toBe(true)
   })
 
-  it('hydrates a real core client-tool terminal with distinct schema identity hashes', async () => {
+  it('hydrates a real client-tool terminal with distinct schema hashes and rejects drift', async () => {
     const coreChunks = [
       {
         type: EventType.RUN_STARTED,
@@ -390,7 +389,7 @@ describe('InterruptManager hydration', () => {
     expect(binding.responseSchemaHash).toBe(expectedResponseSchemaHash)
     expect(binding.outputSchemaHash).not.toBe(binding.responseSchemaHash)
 
-    const { manager } = createManager()
+    const { manager, submit } = createManager()
     manager.hydrate({
       threadId: 'core-thread',
       interruptedRunId: 'core-run',
@@ -417,7 +416,20 @@ describe('InterruptManager hydration', () => {
         },
       ],
     })
-    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+    const stale = manager.getInterrupts()[0]
+    expect(stale).toMatchObject({
+      kind: 'generic',
+      status: 'error',
+      canResolve: false,
+      errors: [{ code: 'stale' }],
+    })
+    expect(
+      manager.resolveClientToolOutput('core-call', {
+        accountId: 'account-1',
+      }),
+    ).toBe(true)
+    await settle()
+    expect(submit).not.toHaveBeenCalled()
   })
 
   it('keeps deprecated approval and client-tool reason aliases compatible', () => {
@@ -1124,7 +1136,84 @@ describe('InterruptManager transactions', () => {
     ).toBe(true)
   })
 
-  it('resolves client-tool generic fallback for native reason string', () => {
+  it('stages client-tool errors without validating the success schema', async () => {
+    const { manager, submit } = createManager()
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'client-tool-execution',
+      interruptId: 'client-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      toolName: 'lookup',
+      toolCallId: 'call-1',
+      outputSchemaHash,
+      responseSchemaHash: outputSchemaHash,
+    }
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [descriptor(binding)],
+    })
+
+    expect(manager.resolveClientToolError('call-1', 'Lookup failed')).toBe(true)
+    await settle()
+
+    expect(submit.mock.calls[0]?.[0].resolutions).toEqual([
+      {
+        interruptId: 'client-1',
+        status: 'resolved',
+        payload: { error: 'Lookup failed' },
+        metadata: { tanstack: { state: 'output-error' } },
+      },
+    ])
+  })
+
+  it('reports client-tool canonicalization failures as invalid output', async () => {
+    const canonicalTool = toolDefinition({
+      name: 'canonical',
+      description: 'Return canonical output',
+    }).client()
+    const outputSchemaHash = hashSchemaInput(canonicalTool.outputSchema)
+    const submit = vi.fn(
+      async (_submission: InterruptManagerSubmission) => undefined,
+    )
+    const manager = new InterruptManager({ tools: [canonicalTool], submit })
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'client-tool-execution',
+      interruptId: 'client-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      toolName: 'canonical',
+      toolCallId: 'call-1',
+      outputSchemaHash,
+      responseSchemaHash: outputSchemaHash,
+    }
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [descriptor(binding)],
+    })
+
+    expect(
+      manager.resolveClientToolOutput('call-1', {
+        value: undefined,
+      }),
+    ).toBe(true)
+    await settle()
+
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      manager
+        .getInterruptErrors()
+        .some((error) => error.code === 'item-validation-failed'),
+    ).toBe(true)
+  })
+
+  it('resolves pre-binding client-tool fallback with raw output', () => {
     const { manager, submit } = createManager()
     manager.hydrate({
       threadId: 'thread-1',
@@ -1148,7 +1237,13 @@ describe('InterruptManager transactions', () => {
     expect(
       manager.resolveClientToolOutput('call-degraded', { accountId: 'a' }),
     ).toBe(true)
-    expect(submit).toHaveBeenCalled()
+    expect(submit.mock.calls[0]?.[0].resolutions).toEqual([
+      {
+        interruptId: 'client-degraded',
+        status: 'resolved',
+        payload: { accountId: 'a' },
+      },
+    ])
   })
 
   it('supersedes a server batch error set without dropping local client, transport, or item errors', async () => {
