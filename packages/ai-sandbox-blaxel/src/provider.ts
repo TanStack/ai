@@ -15,11 +15,15 @@ import type {
 
 export interface BlaxelSandboxConfig {
   /**
-   * Blaxel API key. Falls back to the `BL_API_KEY` environment variable.
+   * Blaxel API key. Falls back to the `BL_API_KEY` environment variable. When
+   * neither is set, the provider uses whatever `@blaxel/core` resolves on its
+   * own: `BL_CLIENT_CREDENTIALS`, or the `bl login` session in
+   * `~/.blaxel/config.yaml`.
    */
   apiKey?: string
   /**
-   * Blaxel workspace. Falls back to the `BL_WORKSPACE` environment variable.
+   * Blaxel workspace. Falls back to the `BL_WORKSPACE` environment variable,
+   * then to the workspace `bl login` selected.
    */
   workspace?: string
   /** Sandbox image. Defaults to `blaxel/base-image:latest`. */
@@ -127,6 +131,15 @@ function randomName(): string {
 }
 
 /**
+ * Point `@blaxel/core` at the caller's credentials.
+ *
+ * With an API key (explicit or `BL_API_KEY`), initialize the SDK for that key
+ * and workspace. Without one, defer to the SDK's own resolution —
+ * `BL_CLIENT_CREDENTIALS` or the `bl login` session in `~/.blaxel/config.yaml`
+ * — so a developer who has already logged in with the CLI needs no further
+ * configuration. Either way, missing credentials fail here, at definition time,
+ * rather than on the first sandbox call.
+ *
  * @blaxel/core keeps one credential set in process-global settings. Refuse to
  * overwrite an already configured tenant: doing so could route an existing
  * provider's later requests into a different workspace.
@@ -140,7 +153,29 @@ function randomName(): string {
  * avoids, so the narrower check is the right trade: passing explicit
  * credentials to this provider is an explicit request to use them.
  */
-function configureBlaxelSdk(apiKey: string, workspace: string): void {
+function configureBlaxelSdk(config: BlaxelSandboxConfig): void {
+  const apiKey = config.apiKey ?? process.env.BL_API_KEY
+  const workspace = config.workspace ?? process.env.BL_WORKSPACE
+
+  if (!apiKey) {
+    // `headers` runs the SDK's own credential check and throws its actionable
+    // CredentialsError (naming BL_API_KEY / BL_WORKSPACE / `bl login`) when
+    // nothing usable was found.
+    const resolvedWorkspace = settings.headers['x-blaxel-workspace']
+    if (workspace !== undefined && resolvedWorkspace !== workspace) {
+      throw new Error(
+        `blaxel: the resolved Blaxel credentials belong to workspace "${resolvedWorkspace}", but "${workspace}" was requested. Pass \`apiKey\` for that workspace, or run \`bl login ${workspace}\`.`,
+      )
+    }
+    return
+  }
+
+  if (!workspace) {
+    throw new Error(
+      'Blaxel workspace is required. Pass `workspace` or set the BL_WORKSPACE environment variable.',
+    )
+  }
+
   // A fresh @blaxel/core 0.3.10 install exposes empty strings for its legacy
   // `apikey` and `workspace` defaults. Those mean "not configured", not a
   // conflicting tenant. `initialize()` writes the newer `apiKey` field.
@@ -167,19 +202,7 @@ class BlaxelProvider implements SandboxProvider {
   readonly name = 'blaxel'
 
   constructor(private readonly config: BlaxelSandboxConfig) {
-    const apiKey = config.apiKey ?? process.env.BL_API_KEY
-    if (!apiKey) {
-      throw new Error(
-        'Blaxel API key is required. Pass `apiKey` or set the BL_API_KEY environment variable.',
-      )
-    }
-    const workspace = config.workspace ?? process.env.BL_WORKSPACE
-    if (!workspace) {
-      throw new Error(
-        'Blaxel workspace is required. Pass `workspace` or set the BL_WORKSPACE environment variable.',
-      )
-    }
-    configureBlaxelSdk(apiKey, workspace)
+    configureBlaxelSdk(config)
   }
 
   capabilities(): SandboxCapabilities {
@@ -375,9 +398,9 @@ class BlaxelProvider implements SandboxProvider {
 
 /**
  * Blaxel sandbox provider — runs harness adapters inside isolated Blaxel
- * cloud sandboxes. Requires Blaxel credentials (`config.apiKey` /
- * `config.workspace`, or the `BL_API_KEY` and `BL_WORKSPACE` environment
- * variables).
+ * cloud sandboxes. Credentials come from `config.apiKey` / `config.workspace`,
+ * the `BL_API_KEY` and `BL_WORKSPACE` environment variables, or an existing
+ * `bl login` session — in that order.
  */
 export function blaxelSandbox(
   config: BlaxelSandboxConfig = {},

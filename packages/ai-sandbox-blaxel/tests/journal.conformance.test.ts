@@ -12,13 +12,9 @@ const credentialsAvailable = Boolean(apiKey && workspace)
 runJournalConformance({
   name: 'blaxel',
   createHandle: async () => {
-    const provider = blaxelSandbox({ apiKey, workspace })
+    const provider = blaxelSandbox({ apiKey, workspace, region: process.env.BL_REGION })
     const handle = await provider.create({})
     return { handle, dispose: () => handle.destroy() }
-  },
-  followUnsupported: {
-    reason:
-      'killableProcesses is false until a live Blaxel measurement proves kill() terminates the shell and its child process group',
   },
   ...(credentialsAvailable
     ? {}

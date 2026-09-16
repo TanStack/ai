@@ -16,13 +16,29 @@ let deleteGate: (() => Promise<Record<string, never>>) | undefined
 
 let getStatus: string | undefined = 'DEPLOYED'
 
+/** Credentials the fake SDK resolves on its own (`bl login`, BL_CLIENT_CREDENTIALS). */
+let sdkResolvedWorkspace: string | undefined
+
 const sdkSettings: {
   config: Record<string, unknown> & {
     apiKey?: string
     apikey?: string
     workspace?: string
   }
-} = { config: {} }
+  readonly headers: Record<string, string>
+} = {
+  config: {},
+  // Mirrors @blaxel/core: building headers asserts credentials and throws the
+  // SDK's actionable message when nothing was resolved.
+  get headers() {
+    if (!sdkResolvedWorkspace) {
+      throw new Error(
+        'No Blaxel credentials found. Set the BL_API_KEY and BL_WORKSPACE environment variables, or run `bl login`.',
+      )
+    }
+    return { 'x-blaxel-workspace': sdkResolvedWorkspace }
+  },
+}
 const initialize = vi.fn((config: typeof sdkSettings.config) => {
   sdkSettings.config = config
 })
@@ -107,6 +123,7 @@ beforeEach(() => {
   deleteGate = undefined
   getStatus = 'DEPLOYED'
   sdkSettings.config = {}
+  sdkResolvedWorkspace = undefined
   initialize.mockClear()
   vi.stubEnv('BL_API_KEY', 'test-key')
   vi.stubEnv('BL_WORKSPACE', 'test-workspace')
@@ -117,14 +134,35 @@ afterEach(() => {
 })
 
 describe('blaxelSandbox credentials', () => {
-  it('requires an API key', () => {
+  it('fails at definition time with the SDK message when nothing is configured', () => {
     delete process.env.BL_API_KEY
-    expect(() => blaxelSandbox()).toThrow(/BL_API_KEY/)
+    delete process.env.BL_WORKSPACE
+    expect(() => blaxelSandbox()).toThrow(/BL_API_KEY.*bl login/)
+    expect(initialize).not.toHaveBeenCalled()
   })
 
-  it('requires a workspace', () => {
+  it('requires a workspace alongside an API key', () => {
     delete process.env.BL_WORKSPACE
     expect(() => blaxelSandbox()).toThrow(/BL_WORKSPACE/)
+  })
+
+  it('uses an existing `bl login` session without an API key', () => {
+    delete process.env.BL_API_KEY
+    delete process.env.BL_WORKSPACE
+    sdkResolvedWorkspace = 'cli-workspace'
+    expect(() => blaxelSandbox()).not.toThrow()
+    expect(() => blaxelSandbox({ workspace: 'cli-workspace' })).not.toThrow()
+    // The SDK already holds the session; re-initializing would discard it.
+    expect(initialize).not.toHaveBeenCalled()
+  })
+
+  it('rejects a requested workspace the `bl login` session does not cover', () => {
+    delete process.env.BL_API_KEY
+    delete process.env.BL_WORKSPACE
+    sdkResolvedWorkspace = 'cli-workspace'
+    expect(() => blaxelSandbox({ workspace: 'other' })).toThrow(
+      /belong to workspace "cli-workspace".*"other".*bl login other/,
+    )
   })
 
   it('accepts the empty config defaults from @blaxel/core 0.3.10', () => {
