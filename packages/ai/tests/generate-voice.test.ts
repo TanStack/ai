@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateVoice } from '../src/index'
+import { generateVoice, getVoiceStatus } from '../src/index'
 import { generationParamsFromBody } from '../src/client'
 import type { VoiceAdapter } from '../src/activities/generateVoice/adapter'
 
@@ -122,5 +122,73 @@ describe('voice generation request parsing', () => {
     expect(() => generationParamsFromBody('voice', { name: 'Guide' })).toThrow(
       /must include prompt or referenceAudio/i,
     )
+  })
+})
+
+describe('getVoiceStatus', () => {
+  // Most providers create a voice in one call. The few that train
+  // asynchronously (BytePlus Seed Speech) return `status: 'training'` and are
+  // polled until they leave it.
+  function mockAsyncVoiceAdapter(
+    states: Array<'ready' | 'training' | 'failed'>,
+  ): VoiceAdapter {
+    const queue = [...states]
+    return {
+      kind: 'voice',
+      name: 'mock-async-voice',
+      model: 'clone-test',
+      '~types': { providerOptions: {} },
+      generateVoice: async () => ({
+        id: 'voice-async',
+        model: 'clone-test',
+        voices: [{ voiceId: 'slot-1', status: 'training' as const, saved: true }],
+      }),
+      getVoiceStatus: async (voiceId) => ({
+        voiceId,
+        status: queue.shift() ?? 'ready',
+      }),
+    }
+  }
+
+  it('reports a voice as still training rather than blocking on it', async () => {
+    const adapter = mockAsyncVoiceAdapter(['training'])
+    const created = await generateVoice({
+      adapter,
+      referenceAudio: 'QUJD',
+      debug: false,
+    })
+
+    expect(created.voices[0]).toMatchObject({
+      voiceId: 'slot-1',
+      status: 'training',
+    })
+
+    const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
+    expect(polled.status).toBe('training')
+  })
+
+  it('polls through to ready', async () => {
+    const adapter = mockAsyncVoiceAdapter(['training', 'training', 'ready'])
+    const seen: Array<string> = []
+    for (let i = 0; i < 3; i++) {
+      const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
+      seen.push(polled.status)
+    }
+    expect(seen).toEqual(['training', 'training', 'ready'])
+  })
+
+  it('surfaces a failed training run', async () => {
+    const adapter = mockAsyncVoiceAdapter(['failed'])
+    const polled = await getVoiceStatus({ adapter, voiceId: 'slot-1' })
+    expect(polled.status).toBe('failed')
+  })
+
+  it('explains itself when the adapter has nothing to poll', async () => {
+    // ElevenLabs and xAI finish inside generateVoice(), so they never
+    // implement getVoiceStatus. Calling it should say why, not throw a
+    // "not a function" TypeError.
+    await expect(
+      getVoiceStatus({ adapter: mockVoiceAdapter(), voiceId: 'gen-1' }),
+    ).rejects.toThrow(/creates a voice in one call/i)
   })
 })

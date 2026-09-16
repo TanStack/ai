@@ -489,6 +489,34 @@ const speech = await generateSpeech({
 })
 ```
 
+**Async training.** Most providers finish the voice inside `generateVoice()`
+and return voices with no `status`. A provider that trains a clone in the
+background returns `status: 'training'` instead, and the voice is NOT usable
+until `getVoiceStatus()` reports `'ready'`. Do not assume a returned voice
+works: read `status` first.
+
+```typescript
+import { generateVoice, getVoiceStatus } from '@tanstack/ai'
+import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
+
+const adapter = elevenlabsVoiceDesign('eleven_ttv_v3')
+const created = await generateVoice({ adapter, prompt: 'A calm narrator' })
+
+const [voice] = created.voices
+if (!voice) throw new Error('The provider returned no voices.')
+
+let state = voice.status ?? 'ready'
+while (state === 'training') {
+  await new Promise((resolve) => setTimeout(resolve, 5000))
+  state = (await getVoiceStatus({ adapter, voiceId: voice.voiceId })).status
+}
+```
+
+`getVoiceStatus` is an OPTIONAL adapter method. Adapters whose provider
+creates a voice in one call (ElevenLabs, xAI) leave it out, and calling
+`getVoiceStatus()` against one throws with a message saying so. Do not write a
+stub that returns a fake `'ready'`.
+
 There is no React hook for this activity. Call it from a server route or
 server function and return the result as JSON.
 
@@ -501,9 +529,8 @@ Other providers have a voice-creation API but no adapter yet:
   `/api/v3/tts/create`, which attaches a reference clip to a single synthesis
   call and persists nothing. The `speaker_id` is bought in the console, so it
   is an input to training rather than a result — an adapter takes it from
-  `modelOptions` and echoes it back as `voiceId`. Training is async, so the
-  adapter polls internally, bounded by the activity's `timeout` /
-  `abortSignal`.
+  `modelOptions` and echoes it back as `voiceId`. Training is async, so that
+  adapter returns `status: 'training'` and implements `getVoiceStatus`.
 - **fal** — hosted clone endpoints such as `minimax/voice-clone`.
 
 OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.

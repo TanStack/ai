@@ -9,6 +9,7 @@ export {
   getVideoJobStatus,
   generateSpeech,
   generateVoice,
+  getVoiceStatus,
   generateTranscription,
   embed,
   generateWorld,

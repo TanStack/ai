@@ -2557,6 +2557,45 @@ export interface GeneratedVoice {
    * voices are previews and generally expire.
    */
   saved?: boolean
+  /**
+   * Training state. Absent means the voice is usable now, which is the case
+   * for every provider that creates a voice in one call.
+   *
+   * Some providers train a clone asynchronously (BytePlus Seed Speech). Those
+   * return `'training'` here, and the voice is NOT usable until a later
+   * `getVoiceStatus()` call reports `'ready'`.
+   */
+  status?: VoiceTrainingStatus
+}
+
+/**
+ * Training state of a voice.
+ *
+ * - `'ready'` — usable in `generateSpeech()` now.
+ * - `'training'` — the provider is still building it. Poll
+ *   {@link VoiceAdapter.getVoiceStatus} until it leaves this state.
+ * - `'failed'` — training finished without producing a usable voice.
+ */
+export type VoiceTrainingStatus = 'ready' | 'training' | 'failed'
+
+/**
+ * Training state of one voice, returned by `getVoiceStatus()`.
+ *
+ * Only providers that train asynchronously implement the call behind this.
+ */
+export interface VoiceStatusResult {
+  /** The voice being polled */
+  voiceId: string
+  /** Current training state */
+  status: VoiceTrainingStatus
+  /** Progress percentage (0-100), if the provider reports it */
+  progress?: number
+  /** Why training failed, when status is 'failed' */
+  error?: string
+  /** A preview of the trained voice, when the provider returns one */
+  audio?: string
+  /** Content type of the preview */
+  contentType?: string
 }
 
 /**

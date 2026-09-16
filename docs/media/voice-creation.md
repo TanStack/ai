@@ -117,6 +117,40 @@ const result = await generateVoice({
 
 CAUTION: Clone a voice only with the consent of the speaker. Most providers make this a condition of their terms.
 
+## Wait for an async clone
+
+Most providers finish the voice inside `generateVoice()`. Some train a clone in the background and hand you the voice before it is usable.
+
+Read `status` to tell them apart. A voice with no `status` is ready now. A voice with `status: 'training'` is not, so poll `getVoiceStatus()` until it changes.
+
+```typescript
+import { generateVoice, getVoiceStatus } from '@tanstack/ai'
+import { elevenlabsVoiceDesign } from '@tanstack/ai-elevenlabs'
+
+const created = await generateVoice({
+  adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+  prompt: 'A warm, gravelly narrator in his sixties',
+  name: 'Irish Narrator',
+})
+
+const [voice] = created.voices
+if (!voice) throw new Error('The provider returned no voices.')
+
+let state = voice.status ?? 'ready'
+while (state === 'training') {
+  await new Promise((resolve) => setTimeout(resolve, 5000))
+  const polled = await getVoiceStatus({
+    adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+    voiceId: voice.voiceId,
+  })
+  state = polled.status
+}
+
+if (state === 'failed') throw new Error('Voice training failed.')
+```
+
+`getVoiceStatus()` throws on an adapter that has nothing to poll, and the message says so. ElevenLabs is one of those, so the loop above exits immediately for it.
+
 ## Provider support
 
 | Provider | Design | Clone | Adapter |
@@ -131,7 +165,7 @@ Other providers have a voice-creation API but no adapter yet:
 
 Providers such as OpenAI, Gemini, and Cloudflare have a fixed voice catalog. They have no `generateVoice()` adapter, and they will not get one.
 
-Note: BytePlus voice training is asynchronous. An adapter for it polls `get_voice` until the status is success, and the `timeout` and `abortSignal` options bound that wait.
+BytePlus voice training is asynchronous, which is what `status` and `getVoiceStatus()` above are for. Its adapter returns the voice with `status: 'training'` straight away rather than holding the request open.
 
 ## Options
 
@@ -146,7 +180,7 @@ Note: BytePlus voice training is asynchronous. An adapter for it polls `get_voic
 
 You must give `prompt`, or `referenceAudio`, or both. ElevenLabs always needs `prompt`, because its design endpoint requires a description.
 
-Each returned voice carries `voiceId`, and `audio`, `format`, `contentType`, `duration`, `language`, and `saved` when the provider reports them.
+Each returned voice carries `voiceId`, and `audio`, `format`, `contentType`, `duration`, `language`, `saved`, and `status` when the provider reports them.
 
 ## Next steps
 
