@@ -95,6 +95,8 @@ export function Chat() {
 
 `messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
 
+The shared `ChatClient` processes ready chunks in order without inserting a task between each chunk. It yields after bounded processing work to keep the main thread responsive.
+
 The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
 If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).

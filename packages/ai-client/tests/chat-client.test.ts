@@ -1636,6 +1636,22 @@ describe('ChatClient', () => {
       expect(client.getConnectionStatus()).toBe('error')
     })
 
+    it('should expose connectionStatus error when subscribe throws', async () => {
+      const connection = {
+        subscribe() {
+          throw new Error('subscription failed')
+        },
+        send: async () => {},
+      }
+      const client = new ChatClient({ connection })
+
+      expect(() => client.subscribe()).not.toThrow()
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(false)
+        expect(client.getConnectionStatus()).toBe('error')
+      })
+    })
+
     it('should remain pending without terminal run events', async () => {
       const adapter = createSubscribeAdapter([
         {

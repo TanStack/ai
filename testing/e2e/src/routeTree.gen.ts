@@ -30,6 +30,7 @@ import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
+import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
@@ -211,6 +212,12 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatClientStreamProcessingRoute =
+  ChatClientStreamProcessingRouteImport.update({
+    id: '/chat-client-stream-processing',
+    path: '/chat-client-stream-processing',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
   id: '/chat-client-default-bridge',
   path: '/chat-client-default-bridge',
@@ -598,6 +605,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -694,6 +702,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -791,6 +800,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -889,6 +899,7 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -985,6 +996,7 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1081,6 +1093,7 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1178,6 +1191,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
+  ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsMemoryRoute: typeof DevtoolsMemoryRoute
@@ -1413,6 +1427,13 @@ declare module '@tanstack/react-router' {
       path: '/devtools-chat'
       fullPath: '/devtools-chat'
       preLoaderRoute: typeof DevtoolsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat-client-stream-processing': {
+      id: '/chat-client-stream-processing'
+      path: '/chat-client-stream-processing'
+      fullPath: '/chat-client-stream-processing'
+      preLoaderRoute: typeof ChatClientStreamProcessingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-client-default-bridge': {
@@ -1991,6 +2012,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
+  ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsMemoryRoute: DevtoolsMemoryRoute,
