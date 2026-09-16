@@ -152,6 +152,13 @@ describe('createBedrockText (branching factory)', () => {
     ).toBeInstanceOf(RespAdapter)
   })
 
+  it('rejects Gemma 4 on the default Converse path (compile-time) and throws at runtime', () => {
+    expect(() => {
+      // @ts-expect-error — Gemma 4 is chat/responses only, not Converse
+      createBedrockText('google.gemma-4-31b', 'k')
+    }).toThrowError(/Converse-capable models:/)
+  })
+
   it('rejects a chat-only model with api:responses (compile-time) and throws at runtime', () => {
     expect(() => {
       // @ts-expect-error — a chat-only model is not assignable to the api:'responses' overload
