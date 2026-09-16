@@ -11,6 +11,7 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
+import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
 
 // --- minimal mock text adapter ---------------------------------------------
@@ -1411,5 +1412,87 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
+  })
+
+  it('saves live activity and reconstructs it without sending it to the adapter', async () => {
+    const persistence = memoryPersistence()
+    const { adapter, calls } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.ACTIVITY_SNAPSHOT,
+          messageId: 'act-1',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          timestamp: 1,
+        },
+        {
+          type: EventType.ACTIVITY_DELTA,
+          messageId: 'act-1',
+          activityType: 'SEARCH',
+          patch: [{ op: 'add', path: '/done', value: true }],
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+      [ev.runStarted('r2'), ev.text('again'), ev.runFinished('r2')],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+    expect(await persistence.stores.activities!.loadActivities('t1')).toEqual([
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { q: 'x', done: true },
+        index: 1,
+      },
+    ])
+
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ role: string }> }
+    expect(reconstructed.messages.map((message) => message.role)).toEqual([
+      'user',
+      'activity',
+      'assistant',
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'hello' },
+          { role: 'user', content: 'again' },
+        ],
+        runId: 'r2',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    for (const call of calls) {
+      const messages = (call as { messages: Array<{ role: string }> }).messages
+      expect(messages.every((message) => message.role !== 'activity')).toBe(
+        true,
+      )
+    }
   })
 })

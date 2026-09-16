@@ -1,4 +1,5 @@
 import type {
+  ActivityRecord,
   ModelMessage,
   MetadataStore,
   PersistedArtifactRef,
@@ -12,7 +13,7 @@ import type {
 // `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
 // pair a client-visible `threadId` with a server-trusted `userId`/`tenantId`
 // before authorizing load/save (e.g. via `reconstructChat({ authorize })`).
-export type { MetadataStore, Scope }
+export type { ActivityRecord, MetadataStore, Scope }
 
 // ===========================================================================
 // Store contracts
@@ -84,6 +85,37 @@ export interface MessageStore {
    * history; the previous contents are discarded (not merged or appended).
    */
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
+}
+
+/**
+ * Durable sidecar for frontend-only AG-UI activity.
+ *
+ * Activity is never a {@link ModelMessage} and must not live in
+ * {@link MessageStore}. This store is optional: backends that omit it keep
+ * today's behavior (activity is not durable on the server).
+ *
+ * `saveActivities` always receives and persists the **complete, authoritative**
+ * activity list — it is an overwrite, never an append.
+ */
+export interface ActivityStore {
+  /**
+   * Return the stored activity rows for `threadId`, in the order they were
+   * last saved.
+   *
+   * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
+   * that was never saved. Callers treat `[]` as "no activity".
+   */
+  loadActivities: (threadId: string) => Promise<Array<ActivityRecord>>
+  /**
+   * Overwrite the stored activity rows for `threadId` with `activities`.
+   *
+   * INVARIANT: this is a full replace. `activities` is the complete
+   * authoritative list; the previous contents are discarded.
+   */
+  saveActivities: (
+    threadId: string,
+    activities: Array<ActivityRecord>,
+  ) => Promise<void>
 }
 
 // Run lifecycle types live in `@tanstack/ai` and are re-exported here: one run,
@@ -321,6 +353,10 @@ export interface InterruptStore {
 
 /** Type a {@link MessageStore} implementation inline. */
 export function defineMessageStore(store: MessageStore): MessageStore {
+  return store
+}
+/** Type an {@link ActivityStore} implementation inline. */
+export function defineActivityStore(store: ActivityStore): ActivityStore {
   return store
 }
 /** Type an {@link InterruptStore} implementation inline. */
@@ -577,6 +613,7 @@ export interface BlobStore {
  */
 export interface AIPersistenceStores {
   messages?: MessageStore
+  activities?: ActivityStore
   runs?: RunStore
   interrupts?: InterruptStore
   metadata?: MetadataStore
@@ -593,6 +630,7 @@ export interface AIPersistenceStores {
  */
 export interface ChatTranscriptStores {
   messages: MessageStore
+  activities?: ActivityStore
   runs?: RunStore
   interrupts?: InterruptStore
   metadata?: MetadataStore
@@ -607,6 +645,7 @@ export interface ChatTranscriptStores {
  */
 export interface ChatPersistenceStores {
   messages: MessageStore
+  activities?: ActivityStore
   runs: RunStore
   interrupts: InterruptStore
   metadata: MetadataStore
@@ -752,6 +791,7 @@ export type ComposedAIPersistenceStores<
 
 const storeKeys = [
   'messages',
+  'activities',
   'runs',
   'generationRuns',
   'interrupts',

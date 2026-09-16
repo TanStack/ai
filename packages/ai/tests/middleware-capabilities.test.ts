@@ -98,6 +98,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     currentMessageId: null,
     accumulatedContent: '',
     messages: [],
+    activities: [],
     createId: (prefix) => `${prefix}-id`,
     capabilities: new CapabilityRegistry(),
     get: (capability) => capability[0](ctx),

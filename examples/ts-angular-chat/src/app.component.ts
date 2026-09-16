@@ -43,44 +43,73 @@ import { chatTools } from './lib/chat-tools'
 
           @for (message of chat.messages(); track message.id) {
             @if (isRenderable(message)) {
-              <div
-                class="msg"
-                [class]="
-                  message.role === 'user' ? 'msg--user' : 'msg--assistant'
-                "
-              >
-                @if (message.role !== 'user') {
-                  <span class="avatar">AI</span>
-                }
-                <div class="msg__stack">
-                  @for (part of message.parts; track $index) {
-                    @if (part.type === 'text' && part.content) {
-                      <div class="bubble">{{ part.content }}</div>
-                    } @else if (part.type === 'tool-call') {
-                      <div
-                        class="tool"
-                        [class.tool--running]="
-                          part.state !== 'complete' && part.state !== 'error'
-                        "
-                      >
-                        <span class="tool__glyph">⚙</span>
-                        <span class="tool__name">{{ part.name }}</span>
-                        @if (formatArgs(part.arguments)) {
-                          <code class="tool__chip">{{
-                            formatArgs(part.arguments)
-                          }}</code>
-                        }
-                        @if (hasOutput(part.output)) {
-                          <span class="tool__arrow">→</span>
-                          <code class="tool__chip tool__chip--out">{{
-                            formatOutput(part.output)
-                          }}</code>
-                        }
-                      </div>
-                    }
+              @if (message.role === 'activity') {
+                <div class="activity">
+                  <span class="activity__type">{{
+                    activityType(message)
+                  }}</span>
+                  @if (activitySteps(message).length > 0) {
+                    <ol class="activity__steps">
+                      @for (step of activitySteps(message); track $index) {
+                        <li
+                          class="activity__step"
+                          [class.activity__step--done]="
+                            step.status === 'completed'
+                          "
+                          [class.activity__step--run]="
+                            step.status === 'in_progress'
+                          "
+                        >
+                          {{ step.content }}
+                        </li>
+                      }
+                    </ol>
+                  } @else if (activityPayload(message)) {
+                    <code class="activity__payload">{{
+                      activityPayload(message)
+                    }}</code>
                   }
                 </div>
-              </div>
+              } @else {
+                <div
+                  class="msg"
+                  [class]="
+                    message.role === 'user' ? 'msg--user' : 'msg--assistant'
+                  "
+                >
+                  @if (message.role !== 'user') {
+                    <span class="avatar">AI</span>
+                  }
+                  <div class="msg__stack">
+                    @for (part of message.parts; track $index) {
+                      @if (part.type === 'text' && part.content) {
+                        <div class="bubble">{{ part.content }}</div>
+                      } @else if (part.type === 'tool-call') {
+                        <div
+                          class="tool"
+                          [class.tool--running]="
+                            part.state !== 'complete' && part.state !== 'error'
+                          "
+                        >
+                          <span class="tool__glyph">⚙</span>
+                          <span class="tool__name">{{ part.name }}</span>
+                          @if (formatArgs(part.arguments)) {
+                            <code class="tool__chip">{{
+                              formatArgs(part.arguments)
+                            }}</code>
+                          }
+                          @if (hasOutput(part.output)) {
+                            <span class="tool__arrow">→</span>
+                            <code class="tool__chip tool__chip--out">{{
+                              formatOutput(part.output)
+                            }}</code>
+                          }
+                        </div>
+                      }
+                    }
+                  </div>
+                </div>
+              }
             }
           }
 
@@ -185,14 +214,62 @@ export class AppComponent {
     })
   }
 
-  /** A message is worth rendering if it has visible text or a tool call. */
+  /** A message is worth rendering if it has visible text, a tool call, or activity. */
   isRenderable(message: {
+    role: string
     parts: ReadonlyArray<{ type: string; content?: unknown }>
   }): boolean {
+    if (message.role === 'activity') return true
     return message.parts.some(
       (part) =>
         (part.type === 'text' && !!part.content) || part.type === 'tool-call',
     )
+  }
+
+  activityType(message: {
+    parts: ReadonlyArray<{ type: string; activityType?: string }>
+  }): string {
+    const part = message.parts.find((item) => item.type === 'activity')
+    return part && typeof part.activityType === 'string'
+      ? part.activityType
+      : 'activity'
+  }
+
+  activitySteps(message: {
+    parts: ReadonlyArray<{ type: string; content?: unknown }>
+  }): Array<{ content: string; status: string }> {
+    const part = message.parts.find((item) => item.type === 'activity')
+    if (!part || typeof part.content !== 'object' || part.content === null) {
+      return []
+    }
+    if (!('steps' in part.content) || !Array.isArray(part.content.steps)) {
+      return []
+    }
+    const steps: Array<{ content: string; status: string }> = []
+    for (const step of part.content.steps) {
+      if (typeof step !== 'object' || step === null || !('content' in step)) {
+        continue
+      }
+      if (typeof step.content !== 'string') continue
+      const status =
+        'status' in step && typeof step.status === 'string' ? step.status : ''
+      steps.push({ content: step.content, status })
+    }
+    return steps
+  }
+
+  activityPayload(message: {
+    parts: ReadonlyArray<{ type: string; content?: unknown }>
+  }): string {
+    const part = message.parts.find((item) => item.type === 'activity')
+    if (!part || typeof part.content !== 'object' || part.content === null) {
+      return ''
+    }
+    try {
+      return JSON.stringify(part.content)
+    } catch {
+      return ''
+    }
   }
 
   /** Compact, readable tool arguments — hides empty `{}`. */

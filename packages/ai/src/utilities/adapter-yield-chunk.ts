@@ -10,7 +10,9 @@ export type AdapterYieldChunk = StreamChunk & {
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   // `any` so TokenUsage adapter yields stay assignable after public usage[]
   usage?: any
-  content?: string
+  // Leftover text-message `content` is a string. ACTIVITY_SNAPSHOT.content is
+  // a structured object. The leftover bag intersects every StreamChunk variant.
+  content?: string | Record<string, any>
   args?: string
   toolName?: string
   toolCallName?: string
