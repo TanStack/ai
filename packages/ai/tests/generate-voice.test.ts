@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { generateVoice, getVoiceStatus } from '../src/index'
+import { generateVoice, getVoiceStatus, listVoices } from '../src/index'
 import { generationParamsFromBody } from '../src/client'
 import type { VoiceAdapter } from '../src/activities/generateVoice/adapter'
+import type { TTSAdapter } from '../src/activities/generateSpeech/adapter'
+import type { ListVoicesOptions } from '../src/types'
 
 function mockVoiceAdapter(
   overrides?: Partial<{ generateVoice: VoiceAdapter['generateVoice'] }>,
@@ -192,5 +194,47 @@ describe('getVoiceStatus', () => {
     await expect(
       getVoiceStatus({ adapter: mockVoiceAdapter(), voiceId: 'gen-1' }),
     ).rejects.toThrow(/creates a voice in one call/i)
+  })
+})
+
+describe('listVoices', () => {
+  function mockSpeechAdapter(
+    listVoicesImpl?: TTSAdapter['listVoices'],
+  ): TTSAdapter {
+    return {
+      kind: 'tts',
+      name: 'mock-speech',
+      model: 'tts-test',
+      '~types': { providerOptions: {} },
+      generateSpeech: async () => ({
+        id: 's1',
+        model: 'tts-test',
+        audio: '',
+        format: 'mp3',
+      }),
+      ...(listVoicesImpl ? { listVoices: listVoicesImpl } : {}),
+    }
+  }
+
+  it('returns the adapter catalog and forwards the filter', async () => {
+    const impl = vi.fn(async (_options?: ListVoicesOptions) => ({
+      voices: [{ voiceId: 'v1', origin: 'generated' as const }],
+    }))
+
+    const result = await listVoices({
+      adapter: mockSpeechAdapter(impl),
+      origins: ['generated'],
+    })
+
+    expect(result.voices).toEqual([{ voiceId: 'v1', origin: 'generated' }])
+    expect(impl.mock.calls[0]![0]).toMatchObject({ origins: ['generated'] })
+  })
+
+  it('points at the const when the provider has a fixed voice set', async () => {
+    // OpenAI and Gemini ship their voices as a type union, so calling this
+    // should say where to look rather than throw a TypeError.
+    await expect(
+      listVoices({ adapter: mockSpeechAdapter() }),
+    ).rejects.toThrow(/no per-account voice catalog/i)
   })
 })

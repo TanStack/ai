@@ -24,7 +24,7 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 - **BytePlus**: Seed Speech (`seed-audio-1.0`)
 - **fal.ai**: Kokoro, ElevenLabs, MiniMax, Chatterbox, Dia, Orpheus, F5-TTS, VibeVoice, and more
 
-Every provider here has a fixed catalog of voices. When none of them fit, [create your own](./voice-creation) and pass the new voice ID as `voice`.
+Most providers here ship a fixed catalog of voices. When none of them fit, [create your own](./voice-creation) and pass the new voice ID as `voice`. On a provider whose catalog is per-account, `listVoices()` reads back what is available.
 
 ## Basic Usage
 

@@ -163,6 +163,8 @@ export { snapToDurationOption } from './generateVideo/snap'
 export {
   kind as ttsKind,
   generateSpeech,
+  listVoices,
+  type ListVoicesActivityOptions,
   type TTSActivityOptions,
   type TTSActivityResult,
   type TTSProviderOptions,

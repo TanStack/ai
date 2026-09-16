@@ -355,6 +355,22 @@ const sfx = await generateAudio({
 });
 ```
 
+## Listing Voices
+
+`elevenlabsSpeech` can read the account's voice catalog, which includes anything `generateVoice()` has saved:
+
+```typescript
+import { listVoices } from "@tanstack/ai";
+import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const { voices } = await listVoices({
+  adapter: elevenlabsSpeech("eleven_v3"),
+  origins: ["generated", "cloned"],
+});
+```
+
+ElevenLabs has no origin filter on `GET /v1/voices`, so the adapter fetches the catalog and narrows in memory. Its `famous` and `high_quality` categories both read as `professional`.
+
 ## Voice Design
 
 `elevenlabsVoiceDesign` creates a new voice from a description. The voice IDs it returns go straight into `generateSpeech()`:
@@ -464,6 +480,10 @@ Creates an ElevenLabs transcription adapter for use with `generateTranscription(
 ### `elevenlabsVoiceDesign(model, config?)` / `createElevenLabsVoiceDesign(model, apiKey, config?)`
 
 Creates an ElevenLabs voice-design adapter for use with `generateVoice()`.
+
+### `elevenlabsSpeech(...).listVoices(options?)`
+
+Reads the account's voice catalog via `GET /v1/voices`, for use with `listVoices()`.
 
 ## Limitations
 

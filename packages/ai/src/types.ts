@@ -2480,6 +2480,55 @@ export interface TTSResult {
 }
 
 // ============================================================================
+// Voice Catalog Types
+// ============================================================================
+
+/**
+ * Where a voice in a provider's catalog came from.
+ *
+ * `'premade'` is the provider's own stock catalog. `'generated'` and
+ * `'cloned'` are voices the account made, which is what `generateVoice()`
+ * produces. `'professional'` covers a provider's curated or paid tiers.
+ */
+export type VoiceOrigin = 'premade' | 'generated' | 'cloned' | 'professional'
+
+/** One voice from a provider's catalog. */
+export interface CatalogVoice {
+  /** Pass this to `generateSpeech()` as `voice` */
+  voiceId: string
+  /** Display name, when the provider stores one */
+  name?: string
+  /** Where the voice came from */
+  origin?: VoiceOrigin
+  /** Provider description of the voice */
+  description?: string
+  /** URL of a sample, when the provider hosts one */
+  previewUrl?: string
+  /** Provider labels, such as accent, age, or use case */
+  labels?: Record<string, string>
+}
+
+/** Options for listing a provider's voices. */
+export interface ListVoicesOptions {
+  /**
+   * Restrict the result to voices of these origins. Adapters filter server
+   * side when the provider supports it, and in memory otherwise.
+   */
+  origins?: Array<VoiceOrigin>
+  /**
+   * Effective abort signal. Adapters forward this to the provider SDK when
+   * supported.
+   */
+  abortSignal?: AbortSignal
+}
+
+/** Result of listing a provider's voices. */
+export interface ListVoicesResult {
+  /** The voices available to this account */
+  voices: Array<CatalogVoice>
+}
+
+// ============================================================================
 // Voice Creation Types
 // ============================================================================
 

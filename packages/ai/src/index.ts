@@ -8,6 +8,7 @@ export {
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
+  listVoices,
   generateVoice,
   getVoiceStatus,
   generateTranscription,

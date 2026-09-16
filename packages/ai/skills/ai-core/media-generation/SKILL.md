@@ -517,6 +517,28 @@ creates a voice in one call (ElevenLabs, xAI) leave it out, and calling
 `getVoiceStatus()` against one throws with a message saying so. Do not write a
 stub that returns a fake `'ready'`.
 
+**Finding voices again.** `generateVoice()` hands back an id you are expected
+to store. `listVoices({ adapter: <a TTS adapter>, origins })` reads the
+account catalog back when you did not.
+
+```typescript
+import { listVoices } from '@tanstack/ai'
+import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
+
+const { voices } = await listVoices({
+  adapter: elevenlabsSpeech('eleven_v3'),
+  origins: ['generated', 'cloned'],
+})
+```
+
+`listVoices` hangs off the **TTS** adapter, not the voice adapter, because
+`voice` is a `generateSpeech()` option — that is where the id gets consumed.
+It is OPTIONAL, and only providers with a per-account catalog implement it.
+Where the catalog is fixed the package exports a const instead
+(`GEMINI_TTS_VOICES`, OpenAI's `voice` union, BytePlus preset speaker ids) —
+prefer the const, it is a type union rather than a network call. Calling
+`listVoices()` on such an adapter throws and names the const.
+
 There is no React hook for this activity. Call it from a server route or
 server function and return the result as JSON.
 

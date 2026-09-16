@@ -151,6 +151,35 @@ if (state === 'failed') throw new Error('Voice training failed.')
 
 `getVoiceStatus()` throws on an adapter that has nothing to poll, and the message says so. ElevenLabs is one of those, so the loop above exits immediately for it.
 
+## Find a voice you made earlier
+
+Store the `voiceId` and you never need this. If you lose it, `listVoices()` reads the account's catalog back.
+
+```typescript
+import { listVoices } from '@tanstack/ai'
+import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
+
+const { voices } = await listVoices({
+  adapter: elevenlabsSpeech('eleven_v3'),
+  origins: ['generated', 'cloned'],
+})
+
+for (const voice of voices) {
+  console.log(voice.voiceId, voice.name)
+}
+```
+
+Each voice carries `voiceId`, and `name`, `origin`, `description`, `previewUrl` and `labels` when the provider reports them. `origin` is one of:
+
+- `premade`: the provider's stock catalog.
+- `generated`: designed from a description.
+- `cloned`: made from reference audio.
+- `professional`: a curated or paid tier.
+
+Leave `origins` off to get everything, including the stock voices.
+
+Only providers with a per-account catalog implement this. Where the voice list is fixed, the provider package exports it as a const instead, which is better than a network call: use `GEMINI_TTS_VOICES` for Gemini, and OpenAI's `voice` union for OpenAI. `listVoices()` throws on those adapters and the message says so.
+
 ## Provider support
 
 | Provider | Design | Clone | Adapter |

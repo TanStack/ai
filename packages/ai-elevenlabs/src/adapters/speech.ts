@@ -8,11 +8,15 @@ import {
 } from '../utils/client'
 import type { ElevenLabs, ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import type {
+  CatalogVoice,
+  ListVoicesOptions,
+  ListVoicesResult,
   TTSAlignment,
   TTSCapabilities,
   TTSOptions,
   TTSResult,
   TTSSegment,
+  VoiceOrigin,
 } from '@tanstack/ai'
 import type { ElevenLabsClientConfig } from '../utils/client'
 import type { ElevenLabsOutputFormat, ElevenLabsTTSModel } from '../model-meta'
@@ -251,6 +255,32 @@ export class ElevenLabsSpeechAdapter<
     }
   }
 
+  /**
+   * List the voices this API key can use, via `GET /v1/voices`.
+   *
+   * The catalog is per-account and grows every time `generateVoice()` saves a
+   * voice, so it has to be read at runtime rather than shipped as a const.
+   */
+  override async listVoices(
+    options?: ListVoicesOptions,
+  ): Promise<ListVoicesResult> {
+    const response = await this.client.voices.getAll(
+      {},
+      options?.abortSignal ? { abortSignal: options.abortSignal } : {},
+    )
+
+    const voices = response.voices.map(toCatalogVoice)
+    const origins = options?.origins
+    // ElevenLabs has no origin filter on /v1/voices, so narrow in memory.
+    return {
+      voices: origins
+        ? voices.filter(
+            (voice) => voice.origin && origins.includes(voice.origin),
+          )
+        : voices,
+    }
+  }
+
   protected override generateId(): string {
     return generateId(this.name)
   }
@@ -310,6 +340,44 @@ function mapVoiceSettings(
     ...(settings.useSpeakerBoost != null
       ? { useSpeakerBoost: settings.useSpeakerBoost }
       : {}),
+  }
+}
+
+/**
+ * ElevenLabs voice categories map onto {@link VoiceOrigin} with two joins:
+ * `famous` and `high_quality` are both curated tiers, so both read as
+ * `'professional'`. An unrecognized category is dropped rather than guessed,
+ * which keeps an `origins` filter from silently matching the wrong thing.
+ */
+function toVoiceOrigin(
+  category: ElevenLabs.VoiceCategory | undefined,
+): VoiceOrigin | undefined {
+  switch (category) {
+    case 'premade':
+      return 'premade'
+    case 'generated':
+      return 'generated'
+    case 'cloned':
+      return 'cloned'
+    case 'professional':
+    case 'famous':
+    case 'high_quality':
+      return 'professional'
+    case undefined:
+    default:
+      return undefined
+  }
+}
+
+function toCatalogVoice(voice: ElevenLabs.Voice): CatalogVoice {
+  const origin = toVoiceOrigin(voice.category)
+  return {
+    voiceId: voice.voiceId,
+    ...(voice.name ? { name: voice.name } : {}),
+    ...(origin ? { origin } : {}),
+    ...(voice.description ? { description: voice.description } : {}),
+    ...(voice.previewUrl ? { previewUrl: voice.previewUrl } : {}),
+    ...(voice.labels ? { labels: voice.labels } : {}),
   }
 }
 
