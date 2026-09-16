@@ -191,8 +191,15 @@ export interface ToolCall<TMetadata = unknown> {
  * keeping this convention opaque to the framework core. The index signature
  * preserves those per-adapter fields.
  */
+export interface ProviderExecutedToolSource {
+  url: string
+  title?: string
+  pageAge?: string
+}
+
 export interface ProviderExecutedToolMetadata {
   providerExecuted?: boolean
+  sources?: Array<ProviderExecutedToolSource>
   [key: string]: unknown
 }
 
