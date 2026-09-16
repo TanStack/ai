@@ -29,7 +29,7 @@ describe('withBedrockDefaults', () => {
     expect(out.baseURL).toBe('https://bedrock-mantle.eu-west-1.api.aws/v1')
   })
 
-  it('uses /openai/v1 on mantle for google.gemma-4-* (#925)', () => {
+  it('uses catalog mantlePath /openai/v1 for google.gemma-4-31b (#925)', () => {
     const out = withBedrockDefaults(
       { apiKey: 'k', region: 'eu-central-1', endpoint: 'mantle' },
       undefined,
@@ -58,13 +58,24 @@ describe('withBedrockDefaults', () => {
     expect(out.baseURL).toBe('https://bedrock-mantle.eu-central-1.api.aws/v1')
   })
 
-  it('does not treat a non-prefix gemma id as Gemma', () => {
+  it('uses /v1 on mantle for an id that is not in the catalog', () => {
     const out = withBedrockDefaults(
       { apiKey: 'k', region: 'eu-central-1', endpoint: 'mantle' },
       undefined,
       'acme.google.gemma-fake-v1:0',
     )
     expect(out.baseURL).toBe('https://bedrock-mantle.eu-central-1.api.aws/v1')
+  })
+
+  it('uses catalog mantlePath when forced to mantle', () => {
+    const out = withBedrockDefaults(
+      { apiKey: 'k', region: 'us-west-2', endpoint: 'runtime' },
+      'mantle',
+      'google.gemma-4-31b',
+    )
+    expect(out.baseURL).toBe(
+      'https://bedrock-mantle.us-west-2.api.aws/openai/v1',
+    )
   })
 
   it('leaves the runtime path unchanged for Gemma', () => {

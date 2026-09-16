@@ -2,4 +2,4 @@
 '@tanstack/ai-bedrock': patch
 ---
 
-Use `/openai/v1` on the Bedrock Mantle endpoint for `google.gemma-4-*` models so chat and responses requests hit the path AWS serves instead of a misleading 401. Gemma 3 stays on `/v1`.
+Use each Bedrock catalog row's `mantlePath` on the Mantle endpoint so Gemma 4 hits `/openai/v1` instead of a misleading 401. Other models stay on `/v1`.

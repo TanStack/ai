@@ -51,9 +51,17 @@
   { "match": "mistral", "converse": true, "chat": true, "responses": false },
   { "match": "qwen", "converse": true, "chat": true, "responses": false },
   {
+    "match": "google.gemma-4-",
+    "converse": false,
+    "chat": true,
+    "responses": true,
+    "mantlePath": "/openai/v1"
+  },
+  {
     "match": "google.gemma",
     "converse": true,
     "chat": true,
-    "responses": false
+    "responses": false,
+    "mantlePath": "/v1"
   }
 ]
