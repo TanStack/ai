@@ -151,6 +151,7 @@ packages:
   - 'examples/*'
   - 'testing/*'
   - 'codemods'
+  - 'tools/*'
 
 allowBuilds:
   # Vite + every transitive bundler-step needs the platform-specific binary.

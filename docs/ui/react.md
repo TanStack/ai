@@ -625,3 +625,38 @@ function PickedWidgets({
 If widgets live in other files, call `createChatHookContexts()` first and pass `chatContext`, `partContext`, and `interruptContext` under `context`. That breaks the circular import, the same way Form uses `createFormHookContexts`.
 
 See also [Solid](./solid), [Vue](./vue), [Svelte](./svelte), and [custom adapters](./custom-adapters).
+
+## Render markdown
+
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-react/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
+
+```tsx
+import { TextPart } from '@tanstack/ai-react/ui'
+
+export function Reply({ content }: { content: string }) {
+  return <TextPart content={content} />
+}
+```
+
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
+
+- `highlighter`: a synchronous `CodeHighlighter`.
+- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
+- `components`: a tag-name map with normal HTML props (`href`, `className`). `inline` and `node` are not passed.
+
+```tsx
+import { TextPart } from '@tanstack/ai-react/ui'
+
+export function Reply({ content }: { content: string }) {
+  return (
+    <TextPart
+      content={content}
+      components={{
+        a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+      }}
+    />
+  )
+}
+```
+
+If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, see [TextPart markdown](../migration/text-part-markdown).

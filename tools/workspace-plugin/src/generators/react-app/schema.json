@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "react-app",
+  "title": "React App",
+  "type": "object",
+  "description": "Create a TanStack Start React chat app under examples/",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name of the app",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      },
+      "x-prompt": "App name"
+    }
+  },
+  "required": ["name"]
+}

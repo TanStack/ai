@@ -9,6 +9,7 @@
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
+    "tools/**",
     "packages/ai-code-mode/models-eval"
   ],
   "ignore": [

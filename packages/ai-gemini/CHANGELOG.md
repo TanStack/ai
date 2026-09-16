@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.29.3
+
+### Patch Changes
+
+- [#1375](https://github.com/TanStack/ai/pull/1375) [`bad612a`](https://github.com/TanStack/ai/commit/bad612a3ae64702a3194c986a70f1905cad42751) - Forward the caller's abort signal to the Google SDK request (`config.abortSignal`) so aborting a Gemini chat actually cancels the in-flight HTTP request, matching the OpenAI-compatible adapters.
+
 ## 0.29.2
 
 ### Patch Changes

@@ -37,7 +37,7 @@ export interface ElevenLabsVoiceSettings {
 export interface ElevenLabsSpeechProviderOptions {
   /** ElevenLabs voice ID to synthesize. Required if `generateSpeech().voice` is not set. */
   voiceId?: string
-  /** Output audio format encoded as `codec_samplerate[_bitrate]`. Defaults to `mp3_44100_128`. */
+  /** Output audio format encoded as `codec_samplerate[_bitrate]`. Overrides `format`, including WAV wrapping. Defaults to `mp3_44100_128`. */
   outputFormat?: ElevenLabsOutputFormat
   /** Voice-settings overrides for this request only. */
   voiceSettings?: ElevenLabsVoiceSettings
@@ -120,6 +120,7 @@ export class ElevenLabsSpeechAdapter<
       } = options.modelOptions ?? {}
       const effectiveOutputFormat =
         outputFormat ?? inferOutputFormatFromResponseFormat(options.format)
+      const wrapAsWav = outputFormat == null && options.format === 'wav'
 
       const stream = await this.client.textToSpeech.convert(voiceId, {
         text: options.text,
@@ -149,8 +150,12 @@ export class ElevenLabsSpeechAdapter<
       })
 
       const buffer = await readStreamToArrayBuffer(stream)
-      const base64 = arrayBufferToBase64(buffer)
-      const { format, contentType } = parseOutputFormat(effectiveOutputFormat)
+      const base64 = arrayBufferToBase64(
+        wrapAsWav ? wrapPcmAsWav(buffer) : buffer,
+      )
+      const { format, contentType } = wrapAsWav
+        ? { format: 'wav', contentType: 'audio/wav' }
+        : parseOutputFormat(effectiveOutputFormat)
 
       return {
         id: generateId(this.name),
@@ -206,6 +211,7 @@ function inferOutputFormatFromResponseFormat(
     case 'mp3':
       return 'mp3_44100_128'
     case 'pcm':
+    case 'wav':
       return 'pcm_44100'
     case 'opus':
       return 'opus_48000_128'
@@ -213,12 +219,33 @@ function inferOutputFormatFromResponseFormat(
       return undefined
     case 'aac':
     case 'flac':
-    case 'wav':
     default:
-      // `aac` / `flac` / `wav` are not native ElevenLabs formats —
-      // fall back to mp3 rather than blowing up mid-request.
-      return 'mp3_44100_128'
+      throw new Error(
+        `ElevenLabs TTS does not support format '${format}'. Use mp3, pcm, opus, or wav.`,
+      )
   }
+}
+
+/** Wrap ElevenLabs pcm_44100 (16-bit little-endian mono) in a RIFF/WAV container. */
+function wrapPcmAsWav(pcm: ArrayBuffer): ArrayBuffer {
+  const wav = new ArrayBuffer(44 + pcm.byteLength)
+  const bytes = new Uint8Array(wav)
+  const header = new DataView(wav)
+  const encoder = new TextEncoder()
+  bytes.set(encoder.encode('RIFF'), 0)
+  header.setUint32(4, 36 + pcm.byteLength, true)
+  bytes.set(encoder.encode('WAVEfmt '), 8)
+  header.setUint32(16, 16, true) // PCM format chunk size
+  header.setUint16(20, 1, true) // PCM encoding
+  header.setUint16(22, 1, true) // mono
+  header.setUint32(24, 44100, true) // sample rate
+  header.setUint32(28, 44100 * 2, true) // bytes per second
+  header.setUint16(32, 2, true) // bytes per sample
+  header.setUint16(34, 16, true) // bits per sample
+  bytes.set(encoder.encode('data'), 36)
+  header.setUint32(40, pcm.byteLength, true)
+  bytes.set(new Uint8Array(pcm), 44)
+  return wav
 }
 
 /**
