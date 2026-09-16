@@ -103,7 +103,8 @@ export interface MessageStore {
    * that was never saved. Callers treat `[]` as "no history".
    */
   loadThread: <
-    TOptions extends { limit?: number; before?: string } | undefined = undefined,
+    TOptions extends { limit?: number; before?: string } | undefined =
+      undefined,
   >(
     threadId: string,
     options?: TOptions,

@@ -71,11 +71,11 @@ describe('useChat history paging types', () => {
 
   it('rejects history on a storage adapter', () => {
     const _typeCheck = () => {
+      // @ts-expect-error history is only valid with persistence: true
       typeCheck({
         connection,
         persistence,
         threadId: 'support-42',
-        // @ts-expect-error history is only valid with persistence: true
         history: { pageSize: 50 },
       })
     }

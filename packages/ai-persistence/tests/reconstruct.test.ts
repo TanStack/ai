@@ -49,10 +49,7 @@ describe('reconstructChat', () => {
       { role: 'assistant', content: 'hi' },
     ])
 
-    const response = await reconstructChat(
-      persistence,
-      new Request(chatUrl()),
-    )
+    const response = await reconstructChat(persistence, new Request(chatUrl()))
     expect(response.status).toBe(200)
     expect(response.headers.get('cache-control')).toBe('no-store')
     const parsed = await body(response)
@@ -81,10 +78,7 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const parsed = await hydrate(persistence, chatUrl())
     expect(parsed.messages[0]).toMatchObject({
       id: 'assistant-1',
       role: 'assistant',
@@ -114,10 +108,7 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const parsed = await hydrate(persistence, chatUrl())
 
     expect(parsed.messages[0]).toMatchObject({
       id: 'assistant-1',
@@ -138,10 +129,7 @@ describe('reconstructChat', () => {
       },
     ])
 
-    const parsed = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const parsed = await hydrate(persistence, chatUrl())
 
     expect(parsed.messages[0]).toMatchObject({
       id: 'user-1',
@@ -161,18 +149,12 @@ describe('reconstructChat', () => {
       startedAt: 1000,
     })
 
-    const parsed = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const parsed = await hydrate(persistence, chatUrl())
     expect(parsed.activeRun).toEqual({ runId: 'run-live' })
 
     // Once the run finishes, no active run is reported.
     await persistence.stores.runs!.update('run-live', { status: 'completed' })
-    const after = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const after = await hydrate(persistence, chatUrl())
     expect(after.activeRun).toBeNull()
   })
 
@@ -204,10 +186,7 @@ describe('reconstructChat', () => {
       payload,
     })
 
-    const parsed = await hydrate(
-      persistence,
-      chatUrl(),
-    )
+    const parsed = await hydrate(persistence, chatUrl())
     expect(parsed.interrupts).toEqual({
       runId: 'run-paused',
       pending: [payload],
@@ -260,20 +239,14 @@ describe('reconstructChat', () => {
 describe('reconstructChat paging', () => {
   it('with limit returns the newest UI window and page.truncated', async () => {
     const persistence = await saveThread(threeTurnThread)
-    const parsed = await hydrate(
-      persistence,
-      chatUrl('threadId=t1&limit=2'),
-    )
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
     expect(idsOf(parsed)).toEqual(['2', '3'])
     expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
   })
 
   it('limit=0 returns the full thread', async () => {
     const persistence = await saveThread(threeTurnThread)
-    const parsed = await hydrate(
-      persistence,
-      chatUrl('threadId=t1&limit=0'),
-    )
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=0'))
     expect(idsOf(parsed)).toEqual(['1', '2', '3'])
     expect(parsed.page).toBeUndefined()
   })
@@ -317,10 +290,7 @@ describe('reconstructChat paging', () => {
       },
       { id: 'user-2', role: 'user', content: 'thanks' },
     ])
-    const parsed = await hydrate(
-      persistence,
-      chatUrl('threadId=t1&limit=2'),
-    )
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
     expect(idsOf(parsed)).toEqual(['assistant-1', 'user-2'])
     expect(parsed.messages[0]?.parts).toEqual(
       expect.arrayContaining([
