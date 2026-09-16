@@ -436,12 +436,12 @@ Both are adapter capabilities, not universal. The activity rejects the request
 before it reaches the provider when the adapter cannot do it, so read
 `adapter.capabilities` rather than guessing:
 
-| Adapter | `maxSpeakers` | `timestamps` |
-| --- | --- | --- |
-| `byteplusSpeech` | 3 | yes (`enable_subtitle`, word + sentence) |
-| `elevenlabsSpeech` | 10 | yes (character, plus voice segments on dialogue) |
-| `geminiSpeech` | 2 | no |
-| every other TTS adapter | not supported | no |
+| Adapter                 | `maxSpeakers` | `timestamps`                                     |
+| ----------------------- | ------------- | ------------------------------------------------ |
+| `byteplusSpeech`        | 3             | yes (`enable_subtitle`, word + sentence)         |
+| `elevenlabsSpeech`      | 10            | yes (character, plus voice segments on dialogue) |
+| `geminiSpeech`          | 2             | no                                               |
+| every other TTS adapter | not supported | no                                               |
 
 ### 4. Audio Transcription
 

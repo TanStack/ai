@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateSpeech } from '../src/activities/generateSpeech/index'
 import { BaseTTSAdapter } from '../src/activities/generateSpeech/adapter'
-import type { TTSCapabilities, TTSOptions, TTSResult } from '../src/types'
+import type { TTSCapabilities } from '../src/activities/generateSpeech/adapter'
+import type { TTSOptions, TTSResult } from '../src/types'
 
 /**
  * Records what the activity hands the adapter, so the tests can assert on the
