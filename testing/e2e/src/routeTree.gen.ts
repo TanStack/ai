@@ -16,6 +16,7 @@ import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
@@ -66,6 +67,7 @@ import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.mu
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
+import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
@@ -137,6 +139,11 @@ const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   id: '/middleware-test',
   path: '/middleware-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessageHistoryPagingRoute = MessageHistoryPagingRouteImport.update({
+  id: '/message-history-paging',
+  path: '/message-history-paging',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
@@ -403,6 +410,11 @@ const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
   path: '/api/message-ids',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMessageHistoryPagingRoute = ApiMessageHistoryPagingRouteImport.update({
+  id: '/api/message-history-paging',
+  path: '/api/message-history-paging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/api/mcp-test',
   path: '/api/mcp-test',
@@ -612,6 +624,7 @@ export interface FileRoutesByFullPath {
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -651,6 +664,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -708,6 +722,7 @@ export interface FileRoutesByTo {
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -747,6 +762,7 @@ export interface FileRoutesByTo {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -805,6 +821,7 @@ export interface FileRoutesById {
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -844,6 +861,7 @@ export interface FileRoutesById {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -903,6 +921,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -942,6 +961,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -999,6 +1019,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -1038,6 +1059,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -1095,6 +1117,7 @@ export interface FileRouteTypes {
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -1134,6 +1157,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -1192,6 +1216,7 @@ export interface RootRouteChildren {
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
+  MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
@@ -1231,6 +1256,7 @@ export interface RootRouteChildren {
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
+  ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
@@ -1315,6 +1341,13 @@ declare module '@tanstack/react-router' {
       path: '/middleware-test'
       fullPath: '/middleware-test'
       preLoaderRoute: typeof MiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/message-history-paging': {
+      id: '/message-history-paging'
+      path: '/message-history-paging'
+      fullPath: '/message-history-paging'
+      preLoaderRoute: typeof MessageHistoryPagingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/markdown-cjk': {
@@ -1667,6 +1700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMessageIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/message-history-paging': {
+      id: '/api/message-history-paging'
+      path: '/api/message-history-paging'
+      fullPath: '/api/message-history-paging'
+      preLoaderRoute: typeof ApiMessageHistoryPagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-test': {
       id: '/api/mcp-test'
       path: '/api/mcp-test'
@@ -2005,6 +2045,7 @@ const rootRouteChildren: RootRouteChildren = {
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
+  MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   TextFirstToolRoute: TextFirstToolRoute,
@@ -2044,6 +2085,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
+  ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
