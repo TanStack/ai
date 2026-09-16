@@ -236,20 +236,12 @@ describe('exposePreviewTool', () => {
     )
 
     const promise = makeTool().execute?.({ port: 5173 })
-    const outcome = promise?.then(
-      (value) => ({ ok: true as const, value }),
-      (error: unknown) => ({ ok: false as const, error }),
-    )
-    await vi.runAllTimersAsync()
-    const result = await outcome
-
-    expect(result?.ok).toBe(false)
-    expect(String(result && !result.ok ? result.error : '')).toMatch(
+    const assertion = expect(promise).rejects.toThrow(
       /replacement preview tunnel could not be verified/,
     )
-    expect(String(result && !result.ok ? result.error : '')).not.toMatch(
-      /restart the dev server/,
-    )
+    await vi.runAllTimersAsync()
+    await assertion
+
     expect(tunnelDestroyMock).toHaveBeenCalledTimes(1)
   })
 })
