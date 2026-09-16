@@ -2419,7 +2419,9 @@ export interface TTSResult {
  * Exactly one of `prompt` / `referenceAudio` is required; which ones an
  * adapter accepts depends on the model.
  */
-export interface VoiceGenerationOptions<TProviderOptions extends object = object> {
+export interface VoiceGenerationOptions<
+  TProviderOptions extends object = object,
+> {
   /** The model to use for voice creation */
   model: string
   /** Text description of the voice to create, for design-capable models */

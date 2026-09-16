@@ -130,7 +130,7 @@ export class ElevenLabsAudioAdapter<
         return await this.runSoundEffects(options)
       }
       throw new Error(
-        `Unsupported ElevenLabs audio model "${this.model}". Expected one of: ${ELEVENLABS_AUDIO_MODELS.join(", ")}.`,
+        `Unsupported ElevenLabs audio model "${this.model}". Expected one of: ${ELEVENLABS_AUDIO_MODELS.join(', ')}.`,
       )
     } catch (error) {
       logger.errors('elevenlabs.generateAudio fatal', {
