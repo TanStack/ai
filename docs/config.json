@@ -242,19 +242,19 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Svelte",
@@ -290,6 +290,11 @@
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Highlight markdown",
+          "to": "ui/markdown",
+          "addedAt": "2026-09-15"
         }
       ]
     },
@@ -1175,6 +1180,11 @@
           "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
+        },
+        {
+          "label": "TextPart markdown",
+          "to": "migration/text-part-markdown",
+          "addedAt": "2026-09-15"
         }
       ],
       "tab": "guides"

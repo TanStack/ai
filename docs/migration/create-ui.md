@@ -18,7 +18,7 @@ Change your import from `@tanstack/ai-react-ui` to `@tanstack/ai-react/ui`. The 
 + import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react/ui'
 ```
 
-Nothing else changes. `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, and `ThinkingPart` keep their current props and behaviour on the subpath, and stay supported until `1.0.0`.
+Nothing else changes for the package move. `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, and `ThinkingPart` stay on the subpath until `1.0.0`. `TextPart` markdown plugins did change. See [TextPart markdown](./text-part-markdown).
 
 `useChat` is not re-exported from the shim. Import it from `@tanstack/ai-react`, or the matching framework package.
 
