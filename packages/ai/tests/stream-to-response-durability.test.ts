@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { memoryStream } from '../src/stream-durability'
 import {
   RUN_ACCEPTED_EVENT,
@@ -9,9 +10,11 @@ import {
 } from '../src/stream-to-response'
 import { EventType } from '../src/types'
 import { chat } from '../src/activities/chat/index'
+import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
+import { withTanstackMetadata } from '../src/utilities/merge-metadata'
 import { createMockAdapter, ev } from './test-utils'
 import type { StreamDurability } from '../src/stream-durability'
-import type { StreamChunk } from '../src/types'
+import type { CustomEvent, StreamChunk } from '../src/types'
 import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 function fiveChunkStream(): {
@@ -832,5 +835,164 @@ describe('a failing middleware onFinish surfaces past the transport', () => {
         error: expect.objectContaining({ message: 'messages.append failed' }),
       }),
     )
+  })
+})
+
+/**
+ * A hand-built stream: `custom`, then a few text deltas that do not fill the
+ * default batch, then a terminal. Fed straight into the durability producer (no
+ * chat engine), so the batching boundary is exactly what's under test.
+ */
+function customThenText(custom: StreamChunk): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield custom
+      yield ev.textStart()
+      yield ev.textContent('a')
+      yield ev.textContent('b')
+      yield ev.textEnd()
+      yield ev.runFinished('stop')
+    },
+  }
+}
+
+const isWorkStarted = (chunk: StreamChunk): boolean =>
+  chunk.type === EventType.CUSTOM && chunk.name === 'work:started'
+
+const hasModelText = (chunks: Array<StreamChunk>): boolean =>
+  chunks.some((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+
+describe('a CUSTOM chunk flushes the durability batch only when marked', () => {
+  it('flushes a CUSTOM chunk carrying metadata.tanstack.flush on its own', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=flush-marked', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+
+    // The exact chunk `createCustomEventChunk(name, value, { flush: true })`
+    // produces — the flush hint rides in `metadata.tanstack`.
+    const base: CustomEvent = {
+      type: EventType.CUSTOM,
+      name: 'work:started',
+      value: {},
+      timestamp: Date.now(),
+    }
+    const marked = withTanstackMetadata(base, { flush: true })
+
+    await readBody(
+      toServerSentEventsResponse(customThenText(marked), {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const batch = batches.find((chunks) => chunks.some(isWorkStarted))
+    if (batch === undefined) throw new Error('work:started was never appended')
+    // Flushed alone rather than buffered into the batch with the following text —
+    // this is what lets a live progress indicator render at emit time.
+    expect(batch).toHaveLength(1)
+    expect(hasModelText(batch)).toBe(false)
+  })
+
+  it('leaves an unmarked CUSTOM chunk to batch with the following chunks', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=flush-unmarked', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+
+    const plain: StreamChunk = {
+      type: EventType.CUSTOM,
+      name: 'work:started',
+      value: {},
+      timestamp: Date.now(),
+    }
+
+    await readBody(
+      toServerSentEventsResponse(customThenText(plain), {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const batch = batches.find((chunks) => chunks.some(isWorkStarted))
+    if (batch === undefined) throw new Error('work:started was never appended')
+    // Not a boundary and not enough to fill the batch, so it ships with the text
+    // when the terminal boundary flushes.
+    expect(hasModelText(batch)).toBe(true)
+  })
+})
+
+/**
+ * A run whose server tool emits several progress events with `{ flush: true }`
+ * while it runs — before it returns, so no tool-call boundary separates them.
+ * The tool emit path (`executeToolCalls` → `createCustomEventChunk`) only exists
+ * inside a `chat()` run, so this exercises the tool-execution context end-to-end,
+ * the counterpart to the compaction (middleware) integration test.
+ */
+function toolFlushRun(): AsyncIterable<StreamChunk> {
+  const tool = toolDefinition({
+    name: 'longJob',
+    description: 'Reports progress while it runs',
+    inputSchema: z.object({}),
+  }).server((_args, ctx) => {
+    for (const step of [1, 2, 3]) {
+      ctx?.emitCustomEvent('tool:progress', { step }, { flush: true })
+    }
+    return { done: true }
+  })
+  const { adapter } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.toolStart('call_1', 'longJob'),
+        ev.toolArgs('call_1', '{}'),
+        ev.runFinished('tool_calls'),
+      ],
+      [
+        ev.runStarted(),
+        ev.textStart(),
+        ev.textContent('done'),
+        ev.textEnd(),
+        ev.runFinished('stop'),
+      ],
+    ],
+  })
+  return chat({
+    adapter,
+    messages: [{ role: 'user', content: 'go' }],
+    tools: [tool],
+  }) as AsyncIterable<StreamChunk>
+}
+
+const isToolProgress = (chunk: StreamChunk): boolean =>
+  chunk.type === EventType.CUSTOM && chunk.name === 'tool:progress'
+
+describe('a tool flushes progress events through a live run', () => {
+  it('delivers each { flush: true } event a tool emits in its own batch', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=tool-flush', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+
+    await readBody(
+      toServerSentEventsResponse(toolFlushRun(), {
+        durability: { adapter: durability },
+      }),
+    )
+
+    // Each of the three progress events flushed on its own instead of buffering
+    // until the tool returns — the durability test above proves an unmarked
+    // CUSTOM would have batched into one instead.
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const progressBatches = batches.filter((chunks) =>
+      chunks.some(isToolProgress),
+    )
+    expect(progressBatches).toHaveLength(3)
   })
 })
