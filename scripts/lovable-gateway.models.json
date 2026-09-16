@@ -1,10 +1,11 @@
 [
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-flash",
     "object": "model",
     "created": 1779667200,
     "released": 1742428800,
-    "expiration_date": null,
+    "expiration_date": 1806451200,
     "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 2.5 Flash",
@@ -125,11 +126,12 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-flash-image",
     "object": "model",
     "created": 1779667200,
     "released": 1756166400,
-    "expiration_date": null,
+    "expiration_date": 1805068800,
     "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 2.5 Flash Image",
@@ -191,11 +193,12 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-flash-lite",
     "object": "model",
     "created": 1779667200,
     "released": 1750118400,
-    "expiration_date": null,
+    "expiration_date": 1801094400,
     "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 2.5 Flash Lite",
@@ -316,6 +319,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-flash-lite-preview-tts",
     "object": "model",
     "created": 1783382400,
@@ -359,6 +363,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-flash-tts",
     "object": "model",
     "created": 1783382400,
@@ -403,11 +408,12 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-pro",
     "object": "model",
     "created": 1779667200,
     "released": 1742428800,
-    "expiration_date": null,
+    "expiration_date": 1806451200,
     "deprecated": true,
     "owned_by": "google",
     "name": "Gemini 2.5 Pro",
@@ -578,6 +584,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-2.5-pro-tts",
     "object": "model",
     "created": 1783382400,
@@ -622,6 +629,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3-flash-preview",
     "object": "model",
     "created": 1779667200,
@@ -747,6 +755,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3-pro-image",
     "object": "model",
     "created": 1782086400,
@@ -821,6 +830,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.1-flash-image",
     "object": "model",
     "created": 1782086400,
@@ -895,6 +905,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.1-flash-lite",
     "object": "model",
     "created": 1781654400,
@@ -1020,6 +1031,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.1-flash-lite-image",
     "object": "model",
     "created": 1783296000,
@@ -1093,6 +1105,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.1-flash-tts-preview",
     "object": "model",
     "created": 1783382400,
@@ -1137,6 +1150,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.1-pro-preview",
     "object": "model",
     "created": 1779667200,
@@ -1312,6 +1326,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.5-flash",
     "object": "model",
     "created": 1779667200,
@@ -1437,6 +1452,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.6-flash",
     "object": "model",
     "created": 1784505600,
@@ -1562,6 +1578,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-3.7-flash",
     "object": "model",
     "created": 1786752000,
@@ -1687,6 +1704,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-embedding-001",
     "object": "model",
     "created": 1779667200,
@@ -1721,6 +1739,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/gemini-embedding-2",
     "object": "model",
     "created": 1781136000,
@@ -1782,6 +1801,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/veo-3.1",
     "object": "model",
     "created": 1785715200,
@@ -1817,6 +1837,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/veo-3.1-fast",
     "object": "model",
     "created": 1785715200,
@@ -1852,6 +1873,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "google/veo-3.1-lite",
     "object": "model",
     "created": 1785715200,
@@ -1884,6 +1906,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/chat-latest",
     "object": "model",
     "created": 1787270400,
@@ -1939,6 +1962,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-4o-mini-transcribe",
     "object": "model",
     "created": 1781568000,
@@ -1991,6 +2015,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-4o-mini-tts",
     "object": "model",
     "created": 1781568000,
@@ -2034,6 +2059,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-4o-transcribe",
     "object": "model",
     "created": 1781654400,
@@ -2086,6 +2112,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5",
     "object": "model",
     "created": 1779667200,
@@ -2177,6 +2204,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5-mini",
     "object": "model",
     "created": 1779667200,
@@ -2268,6 +2296,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5-nano",
     "object": "model",
     "created": 1779667200,
@@ -2324,6 +2353,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.2",
     "object": "model",
     "created": 1779667200,
@@ -2415,6 +2445,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.4",
     "object": "model",
     "created": 1779667200,
@@ -2521,6 +2552,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.4-mini",
     "object": "model",
     "created": 1779667200,
@@ -2612,6 +2644,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.4-nano",
     "object": "model",
     "created": 1779667200,
@@ -2668,6 +2701,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.4-pro",
     "object": "model",
     "created": 1779667200,
@@ -2739,6 +2773,9 @@
     }
   },
   {
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "openai/gpt-5.5",
     "object": "model",
     "created": 1779667200,
@@ -2845,6 +2882,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.5-pro",
     "object": "model",
     "created": 1783382400,
@@ -2916,6 +2954,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.6-luna",
     "object": "model",
     "created": 1784073600,
@@ -3022,6 +3061,9 @@
     }
   },
   {
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "openai/gpt-5.6-sol",
     "object": "model",
     "created": 1783987200,
@@ -3128,6 +3170,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-5.6-terra",
     "object": "model",
     "created": 1784073600,
@@ -3234,6 +3277,157 @@
     }
   },
   {
+    "premium_output_modalities": [
+      "text"
+    ],
+    "id": "openai/gpt-6-astra",
+    "object": "model",
+    "created": 1788739200,
+    "released": 1788480000,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT-6 Astra",
+    "description": "OpenAI's most capable model for complex reasoning, coding, research, and document creation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2026-04-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00001",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00002",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000001",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.000002",
+                "min": 272000
+              }
+            ]
+          },
+          "cache_write": {
+            "tiers": [
+              {
+                "cost": "0.0000125",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.000025",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00005",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000075",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00002",
+                  "min": 0,
+                  "max": 272000
+                },
+                {
+                  "cost": "0.00004",
+                  "min": 272000
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000002",
+                    "min": 0,
+                    "max": 272000
+                  },
+                  {
+                    "cost": "0.000004",
+                    "min": 272000
+                  }
+                ]
+              },
+              "cache_write": {
+                "tiers": [
+                  {
+                    "cost": "0.000025",
+                    "min": 0,
+                    "max": 272000
+                  },
+                  {
+                    "cost": "0.00005",
+                    "min": 272000
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.0001",
+                  "min": 0,
+                  "max": 272000
+                },
+                {
+                  "cost": "0.00015",
+                  "min": 272000
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "premium_output_modalities": [],
     "id": "openai/gpt-image-1-mini",
     "object": "model",
     "created": 1779753600,
@@ -3286,6 +3480,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/gpt-image-2",
     "object": "model",
     "created": 1779753600,
@@ -3338,6 +3533,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/text-embedding-3-large",
     "object": "model",
     "created": 1779667200,
@@ -3371,6 +3567,7 @@
     }
   },
   {
+    "premium_output_modalities": [],
     "id": "openai/text-embedding-3-small",
     "object": "model",
     "created": 1779667200,

@@ -174,7 +174,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -225,10 +225,10 @@
           "min": 128000
         }
       ],
-      "input_cache_read": "0.00000026",
+      "input_cache_read": "0.00000013",
       "input_cache_read_tiers": [
         {
-          "cost": "0.00000026",
+          "cost": "0.00000013",
           "min": 0,
           "max": 128000
         },
@@ -604,8 +604,7 @@
       "output": ["text"]
     },
     "pricing": {
-      "input": "0.00000005",
-      "varies_by_provider": true
+      "input": "0.00000001"
     }
   },
   {
@@ -1063,7 +1062,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["vision", "file-input", "reasoning", "tool-use"],
+    "tags": [
+      "vision",
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -1092,7 +1097,7 @@
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000004",
-      "input_cache_read": "0.000000001",
+      "input_cache_read": "0.00000001",
       "input_cache_write": "0.000000125"
     }
   },
@@ -1109,7 +1114,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["vision", "file-input", "reasoning", "tool-use"],
+    "tags": [
+      "vision",
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -1145,19 +1156,19 @@
           "max": 256001
         },
         {
-          "cost": "0.0000012",
+          "cost": "0.0000005",
           "min": 256001
         }
       ],
-      "output": "0.0000024",
+      "output": "0.0000025",
       "output_tiers": [
         {
-          "cost": "0.0000024",
+          "cost": "0.0000025",
           "min": 0,
           "max": 256001
         },
         {
-          "cost": "0.0000072",
+          "cost": "0.000003",
           "min": 256001
         }
       ],
@@ -1169,7 +1180,7 @@
           "max": 256001
         },
         {
-          "cost": "0.00000012",
+          "cost": "0.00000005",
           "min": 256001
         }
       ],
@@ -1181,7 +1192,7 @@
           "max": 256001
         },
         {
-          "cost": "0.0000015",
+          "cost": "0.000000625",
           "min": 256001
         }
       ]
@@ -1244,7 +1255,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision", "file-input"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "file-input",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -1296,10 +1313,10 @@
           "min": 256000
         }
       ],
-      "input_cache_read": "0.0000001",
+      "input_cache_read": "0.00000005",
       "input_cache_read_tiers": [
         {
-          "cost": "0.0000001",
+          "cost": "0.00000005",
           "min": 0,
           "max": 256000
         },
@@ -1340,7 +1357,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1441,7 +1459,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -1492,7 +1510,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1632,7 +1651,8 @@
       "vision",
       "implicit-caching",
       "video-input",
-      "file-input"
+      "file-input",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1681,7 +1701,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1707,7 +1728,7 @@
       }
     ],
     "pricing": {
-      "input": "0.00000016",
+      "input": "0.00000015",
       "output": "0.00000047",
       "input_cache_read": "0.000000016",
       "input_cache_write": "0.0000002"
@@ -1726,7 +1747,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -1778,7 +1805,8 @@
       "tool-use",
       "vision",
       "file-input",
-      "implicit-caching"
+      "implicit-caching",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5566,9 +5594,9 @@
       "varies_by_provider": true,
       "regional": {
         "us": {
-          "input": "0.00000174",
-          "output": "0.00000348",
-          "input_cache_read": "0.00000015"
+          "input": "0.00000132",
+          "output": "0.00000396",
+          "input_cache_read": "0.000000132"
         }
       }
     }
@@ -5643,8 +5671,8 @@
     "owned_by": "deepseek",
     "name": "DeepSeek V4.1 Flash",
     "description": "DeepSeek V4.1 Flash is an AI model from DeepSeek designed for fast, efficient multimodal interactions. It combines native multimodal capabilities with a new architecture focused on stronger performance, faster responses, and lower computational cost.",
-    "context_window": 1048576,
-    "max_tokens": 32768,
+    "context_window": 1000000,
+    "max_tokens": 384000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -5666,9 +5694,18 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000012",
-      "input_cache_read": "0.00000003",
+      "input": "0.00000015",
+      "output": "0.0000006",
+      "input_cache_read": "0.000000015",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 0,
+            "end_minute_utc": 840
+          }
+        ]
+      },
       "varies_by_provider": true,
       "regional": {
         "us": {
@@ -7186,6 +7223,62 @@
     }
   },
   {
+    "id": "google/gemini-3.8-live",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789430400,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Live",
+    "description": "Gemini 3.8 Live is Google's model for real-time audio conversations. It supports spoken interactions for developers building voice assistants, conversational experiences, and applications that respond to users through audio.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-realtime"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000075",
+      "output": "0.0000045",
+      "audio_input_token_cost": "0.000003",
+      "audio_output_token_cost": "0.000012"
+    }
+  },
+  {
+    "id": "google/gemini-3.8-live-extended-thinking",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789430400,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Live Extended Thinking",
+    "description": "Gemini 3.8 Live Extended Thinking is Google's real-time audio model with extended thinking capabilities. It combines spoken interaction with additional reasoning for voice assistants and other conversational applications.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-realtime"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000075",
+      "output": "0.0000045",
+      "audio_input_token_cost": "0.000003",
+      "audio_output_token_cost": "0.000012"
+    }
+  },
+  {
     "id": "google/gemini-embedding-001",
     "object": "model",
     "created": 1755815280,
@@ -7882,9 +7975,9 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000006",
-      "output": "0.00000018",
-      "input_cache_read": "0.000000012"
+      "input": "0.000000021",
+      "output": "0.000000063",
+      "input_cache_read": "0.0000000042"
     }
   },
   {
@@ -8100,6 +8193,72 @@
     "pricing": {
       "input": "0",
       "output": "0"
+    }
+  },
+  {
+    "id": "inference-net/schematron-v2-small",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1776297600,
+    "owned_by": "inference-net",
+    "name": "Schematron V2 Small",
+    "description": "Schematron V2 Small is a specialized model from Inference.net for extracting structured data from HTML. It uses a supplied JSON Schema to produce conforming JSON and is designed for complex schemas and long pages.",
+    "context_window": 128000,
+    "max_tokens": 4096,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["structured-output"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000005",
+      "output": "0.00000023",
+      "input_cache_read": "0.00000005"
+    }
+  },
+  {
+    "id": "inference-net/schematron-v2-turbo",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1776297600,
+    "owned_by": "inference-net",
+    "name": "Schematron V2 Turbo",
+    "description": "Schematron V2 Turbo is a specialized model from Inference.net for extracting structured data from HTML. It uses a supplied JSON Schema to produce conforming JSON and is optimized for high-throughput extraction.",
+    "context_window": 128000,
+    "max_tokens": 8192,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["structured-output"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000003",
+      "output": "0.00000015",
+      "input_cache_read": "0.00000003"
     }
   },
   {
@@ -9284,14 +9443,14 @@
       "video_duration_pricing": [
         {
           "resolution": "2k",
-          "cost_per_second": "0.065"
+          "cost_per_second": "0.13"
         },
         {
           "resolution": "768p",
-          "cost_per_second": "0.04"
+          "cost_per_second": "0.08"
         },
         {
-          "cost_per_second": "0.065"
+          "cost_per_second": "0.13"
         }
       ]
     }
@@ -9343,14 +9502,14 @@
       "video_duration_pricing": [
         {
           "resolution": "480p",
-          "cost_per_second": "0.025"
+          "cost_per_second": "0.05"
         },
         {
           "resolution": "768p",
-          "cost_per_second": "0.04"
+          "cost_per_second": "0.08"
         },
         {
-          "cost_per_second": "0.04"
+          "cost_per_second": "0.08"
         }
       ]
     }
@@ -9368,7 +9527,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9406,7 +9565,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9444,7 +9603,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9481,7 +9640,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9502,7 +9661,6 @@
       "output": "0.0000012",
       "input_cache_read": "0.00000003",
       "input_cache_write": "0.000000375",
-      "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
         "output": "0.0000024",
@@ -9524,7 +9682,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9560,7 +9718,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9581,6 +9739,7 @@
       "output": "0.0000012",
       "input_cache_read": "0.00000006",
       "input_cache_write": "0.000000375",
+      "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
         "output": "0.0000024",
@@ -9602,7 +9761,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9702,7 +9861,8 @@
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000003",
-      "output": "0.0000009"
+      "output": "0.0000009",
+      "input_cache_read": "0.00000003"
     }
   },
   {
@@ -9724,73 +9884,8 @@
       "output": ["text"]
     },
     "pricing": {
-      "input": "0.00000015"
-    }
-  },
-  {
-    "id": "mistral/devstral-2",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1765238400,
-    "owned_by": "mistral",
-    "name": "Devstral 2",
-    "description": "An enterprise-grade text model that excels at using tools to explore codebases, editing multiple files, and powering software engineering agents.",
-    "context_window": 256000,
-    "max_tokens": 256000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000004",
-      "output": "0.000002"
-    }
-  },
-  {
-    "id": "mistral/devstral-small-2",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1765238400,
-    "owned_by": "mistral",
-    "name": "Devstral Small 2",
-    "description": "Our open source model that excels at using tools to explore codebases, editing multiple files, and powering software engineering agents.",
-    "context_window": 256000,
-    "max_tokens": 256000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000001",
-      "output": "0.0000003"
+      "input": "0.00000015",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -9801,7 +9896,7 @@
     "owned_by": "mistral",
     "name": "Ministral 14B",
     "description": "Ministral 3 14B is the largest model in the Ministral 3 family, offering state-of-the-art capabilities and performance comparable to its larger Mistral Small 3.2 24B counterpart. Optimized for local deployment, it delivers high performance across diverse hardware, including local setups.",
-    "context_window": 256000,
+    "context_window": 262144,
     "max_tokens": 256000,
     "type": "language",
     "zdr": "all",
@@ -9823,7 +9918,8 @@
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000002",
-      "output": "0.0000002"
+      "output": "0.0000002",
+      "input_cache_read": "0.00000002"
     }
   },
   {
@@ -9834,7 +9930,7 @@
     "owned_by": "mistral",
     "name": "Ministral 3B",
     "description": "A compact, efficient model for on-device tasks like smart assistants and local analytics, offering low-latency performance.",
-    "context_window": 128000,
+    "context_window": 131072,
     "max_tokens": 4000,
     "type": "language",
     "zdr": "all",
@@ -9856,7 +9952,8 @@
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000001",
-      "output": "0.0000001"
+      "output": "0.0000001",
+      "input_cache_read": "0.00000001"
     }
   },
   {
@@ -9867,7 +9964,7 @@
     "owned_by": "mistral",
     "name": "Ministral 8B",
     "description": "A more powerful model with faster, memory-efficient inference, ideal for complex workflows and demanding edge applications.",
-    "context_window": 128000,
+    "context_window": 262144,
     "max_tokens": 4000,
     "type": "language",
     "zdr": "all",
@@ -9889,7 +9986,8 @@
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.00000015",
-      "output": "0.00000015"
+      "output": "0.00000015",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -9922,7 +10020,7 @@
     "owned_by": "mistral",
     "name": "Mistral Large 3",
     "description": "Mistral Large 3 2512 is Mistral’s most capable model to date. It has a sparse mixture-of-experts architecture with 41B active parameters (675B total).",
-    "context_window": 256000,
+    "context_window": 262144,
     "max_tokens": 256000,
     "type": "language",
     "zdr": "all",
@@ -9944,40 +10042,8 @@
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000005",
-      "output": "0.0000015"
-    }
-  },
-  {
-    "id": "mistral/mistral-medium",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1746576000,
-    "owned_by": "mistral",
-    "name": "Mistral Medium 3.1",
-    "description": "Mistral Medium 3 delivers frontier performance while being an order of magnitude less expensive. For instance, the model performs at or above 90% of Claude Sonnet 3.7 on benchmarks across the board at a significantly lower cost.",
-    "context_window": 128000,
-    "max_tokens": 64000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000004",
-      "output": "0.000002"
+      "output": "0.0000015",
+      "input_cache_read": "0.00000005"
     }
   },
   {
@@ -9988,7 +10054,7 @@
     "owned_by": "mistral",
     "name": "Mistral Medium Latest",
     "description": "Mistral's frontier-class multimodal model optimized for agentic and coding use cases.",
-    "context_window": 256000,
+    "context_window": 262144,
     "max_tokens": 256000,
     "type": "language",
     "zdr": "all",
@@ -10017,7 +10083,8 @@
     ],
     "pricing": {
       "input": "0.0000015",
-      "output": "0.0000075"
+      "output": "0.0000075",
+      "input_cache_read": "0.00000015"
     }
   },
   {
@@ -10028,15 +10095,15 @@
     "owned_by": "mistral",
     "name": "Mistral Nemo 12B",
     "description": "A 12B parameter model with a 128k token context length built by Mistral in collaboration with NVIDIA. The model is multilingual, supporting English, French, German, Spanish, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, and Hindi. It supports function calling and is released under the Apache 2.0 license.",
-    "context_window": 128000,
-    "max_tokens": 128000,
+    "context_window": 60288,
+    "max_tokens": 16000,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image"],
+      "input": ["text"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -10049,8 +10116,8 @@
     "temperature": true,
     "knowledge": "2024-04",
     "pricing": {
-      "input": "0.00000015",
-      "output": "0.00000015",
+      "input": "0.00000004",
+      "output": "0.00000017",
       "varies_by_provider": true
     }
   },
@@ -10061,8 +10128,8 @@
     "released": 1726531200,
     "owned_by": "mistral",
     "name": "Mistral Small",
-    "description": "Mistral Small is the ideal choice for simple tasks that one can do in bulk - like Classification, Customer Support, or Text Generation. It offers excellent performance at an affordable price point.",
-    "context_window": 32000,
+    "description": "Mistral Small currently runs Mistral Small 4, a multimodal model combining instruction following, reasoning, and coding with a 262,144-token context window.",
+    "context_window": 262144,
     "max_tokens": 4000,
     "type": "language",
     "zdr": "all",
@@ -10083,41 +10150,9 @@
     "temperature": true,
     "knowledge": "2025-06",
     "pricing": {
-      "input": "0.0000001",
-      "output": "0.0000003"
-    }
-  },
-  {
-    "id": "mistral/pixtral-12b",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1726531200,
-    "owned_by": "mistral",
-    "name": "Pixtral 12B 2409",
-    "description": "A 12B model with image understanding capabilities in addition to text.",
-    "context_window": 128000,
-    "max_tokens": 4000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-09",
-    "pricing": {
       "input": "0.00000015",
-      "output": "0.00000015"
+      "output": "0.0000006",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -10283,6 +10318,7 @@
       "input": "0.00000095",
       "output": "0.000004",
       "input_cache_read": "0.00000016",
+      "varies_by_provider": true,
       "regional": {
         "us": {
           "input": "0.00000095",
@@ -10330,6 +10366,7 @@
     ],
     "temperature": true,
     "knowledge": "2025-01",
+    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.00000095",
       "output": "0.000004",
@@ -10411,6 +10448,7 @@
       "implicit-caching",
       "file-input",
       "vision",
+      "structured-output",
       "video-input"
     ],
     "regions": ["us"],
@@ -10425,7 +10463,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -10586,7 +10626,8 @@
     ],
     "pricing": {
       "input": "0.00000005",
-      "output": "0.00000024"
+      "output": "0.0000002",
+      "input_cache_read": "0.000000025"
     }
   },
   {
@@ -13245,6 +13286,7 @@
       "vision",
       "implicit-caching",
       "web-search",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -13517,6 +13559,7 @@
       "vision",
       "implicit-caching",
       "web-search",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -13666,6 +13709,7 @@
       "file-input",
       "vision",
       "web-search",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -13941,6 +13985,7 @@
       "file-input",
       "vision",
       "web-search",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -14090,6 +14135,7 @@
       "tool-use",
       "vision",
       "implicit-caching",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -14364,6 +14410,7 @@
       "tool-use",
       "vision",
       "implicit-caching",
+      "explicit-caching",
       "websocket-realtime",
       "fast"
     ],
@@ -14507,14 +14554,15 @@
     "zdr": "some",
     "no_training": "all",
     "tags": [
-      "fast",
       "file-input",
       "implicit-caching",
       "reasoning",
       "tool-use",
       "vision",
       "web-search",
-      "websocket-realtime"
+      "websocket-realtime",
+      "explicit-caching",
+      "fast"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -14770,14 +14818,15 @@
     "zdr": "some",
     "no_training": "all",
     "tags": [
-      "fast",
       "file-input",
       "implicit-caching",
       "reasoning",
       "tool-use",
       "vision",
       "web-search",
-      "websocket-realtime"
+      "websocket-realtime",
+      "explicit-caching",
+      "fast"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -15051,6 +15100,31 @@
       "input": "0.000005",
       "output": "0.00003",
       "input_cache_read": "0.00000125"
+    }
+  },
+  {
+    "id": "openai/gpt-live-1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788998400,
+    "owned_by": "openai",
+    "name": "GPT-Live 1",
+    "description": "Our premier model for natural, expressive voice conversations with smooth interruption handling.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["audio-input"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "realtime_session_duration_cost_per_second": "0.0008334"
     }
   },
   {
@@ -18070,6 +18144,7 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
+    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.000001",
       "output": "0.00000405",
@@ -18126,6 +18201,7 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
+    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000012",
@@ -18692,6 +18768,7 @@
     ],
     "knowledge": "2025-04",
     "interleaved": true,
+    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000022",
@@ -18904,7 +18981,8 @@
     "pricing": {
       "input": "0.0000014",
       "output": "0.0000044",
-      "input_cache_read": "0.00000026"
+      "input_cache_read": "0.00000026",
+      "varies_by_provider": true
     }
   },
   {
