@@ -22,7 +22,7 @@ describe('BedrockTextAdapter', () => {
     expect(a.model).toBe('openai.gpt-oss-120b-1:0')
   })
 
-  it('uses catalog mantlePath for Gemma 4 on mantle (#925)', () => {
+  it('uses config mantlePath for Gemma 4 on mantle (#925)', () => {
     class Probe extends BedrockTextAdapter<'google.gemma-4-31b'> {
       url() {
         return this.client.baseURL
@@ -88,7 +88,7 @@ describe('BedrockResponsesTextAdapter', () => {
     expect(a.kind).toBe('text')
   })
 
-  it('uses catalog mantlePath for Gemma 4 (#925)', () => {
+  it('uses config mantlePath for Gemma 4 (#925)', () => {
     class Probe extends BedrockResponsesTextAdapter<'google.gemma-4-31b'> {
       url() {
         return this.client.baseURL

@@ -29,13 +29,12 @@ describe('bedrock model-meta', () => {
     expect(BEDROCK_RESPONSES_MODELS).toContain('openai.gpt-oss-120b-1:0')
   })
 
-  it('includes Gemma 4 on chat/responses with mantlePath /openai/v1', () => {
+  it('includes Gemma 4 on chat/responses', () => {
     expect(BEDROCK_CHAT_MODELS).toContain('google.gemma-4-31b')
     expect(BEDROCK_RESPONSES_MODELS).toContain('google.gemma-4-31b')
     expect(BEDROCK_CONVERSE_MODELS).not.toContain('google.gemma-4-31b')
-    const row = GENERATED_BEDROCK_MODELS.find(
-      (m) => m.id === 'google.gemma-4-31b',
-    )
-    expect(row?.mantlePath).toBe('/openai/v1')
+    expect(
+      GENERATED_BEDROCK_MODELS.some((m) => m.id === 'google.gemma-4-31b'),
+    ).toBe(true)
   })
 })

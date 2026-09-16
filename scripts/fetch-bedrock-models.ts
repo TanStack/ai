@@ -9,12 +9,13 @@
  *   AWS_REGION=us-east-1 pnpm tsx scripts/fetch-bedrock-models.ts
  *
  * Per-API flags (converse / chat / responses) and optional mantlePath come
- * from the static seed file scripts/bedrock-api-compatibility.json.
+ * from packages/ai-bedrock/src/api-compatibility.ts.
  * APIs are transcribed from:
  * https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html
  * mantlePath is transcribed from each model card's Programmatic Access URL
  * (default /v1). First matching seed rule wins; put more specific matches first.
- * Update the JSON seed to add new providers/models before re-running the script.
+ * Seed extra `models` on a rule when ListFoundationModels does not return them.
+ * Update the compatibility config to add new providers/models before re-running.
  *
  * Why manual: ListFoundationModels carries modalities + inference types but no
  * pricing, and per-account/region availability varies. The committed model-catalog
@@ -25,48 +26,21 @@ import {
   ListFoundationModelsCommand,
   ListInferenceProfilesCommand,
 } from '@aws-sdk/client-bedrock'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
+import {
+  BEDROCK_API_COMPATIBILITY,
+  lookupBedrockCompatibility,
+} from '../packages/ai-bedrock/src/api-compatibility.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
-
-type MantlePath = '/v1' | '/openai/v1'
-
-interface CompatibilityRule {
-  match: string
-  converse: boolean
-  chat: boolean
-  responses: boolean
-  mantlePath?: MantlePath
-}
 
 interface CatalogApis {
   converse: boolean
   chat: boolean
   responses: boolean
-  mantlePath: MantlePath
-}
-
-function loadCompatibilitySeed(): CompatibilityRule[] {
-  const seedPath = join(__dirname, 'bedrock-api-compatibility.json')
-  return JSON.parse(readFileSync(seedPath, 'utf-8')) as CompatibilityRule[]
-}
-
-function lookupApis(id: string, rules: CompatibilityRule[]): CatalogApis {
-  for (const rule of rules) {
-    if (id.includes(rule.match)) {
-      return {
-        converse: rule.converse,
-        chat: rule.chat,
-        responses: rule.responses,
-        mantlePath: rule.mantlePath ?? '/v1',
-      }
-    }
-  }
-  // Default: Converse is supported by virtually all text models; chat/responses are opt-in.
-  return { converse: true, chat: false, responses: false, mantlePath: '/v1' }
 }
 
 function emitCatalog(
@@ -93,7 +67,7 @@ function emitCatalog(
       entry.profileId !== undefined ? `profileId: '${entry.profileId}', ` : ''
 
     lines.push(
-      `  { id: '${entry.id}', ${profilePart}input: [${inputLiteral}], output: [${outputLiteral}], apis: { converse: ${apis.converse}, chat: ${apis.chat}, responses: ${apis.responses} }, mantlePath: '${apis.mantlePath}' },`,
+      `  { id: '${entry.id}', ${profilePart}input: [${inputLiteral}], output: [${outputLiteral}], apis: { converse: ${apis.converse}, chat: ${apis.chat}, responses: ${apis.responses} } },`,
     )
   }
 
@@ -104,7 +78,7 @@ function emitCatalog(
 async function main() {
   const region = process.env['AWS_REGION'] ?? 'us-east-1'
   const client = new BedrockClient({ region })
-  const compatRules = loadCompatibilitySeed()
+  const compatRules = BEDROCK_API_COMPATIBILITY
 
   // ListFoundationModels typically returns no nextToken, but loop on it anyway
   // so we stay correct if it ever paginates.
@@ -161,7 +135,7 @@ async function main() {
   const entries = textModels.map((m) => {
     const profileId = profileByBaseId.get(m.id)
     const resolvedId = profileId ?? m.id
-    const apis = lookupApis(resolvedId, compatRules)
+    const apis = lookupBedrockCompatibility(resolvedId)
 
     const entry: {
       id: string
@@ -171,7 +145,7 @@ async function main() {
       apis: CatalogApis
     } = {
       id: resolvedId,
-      input: m.input,
+      input: [...m.input],
       output: ['text'],
       apis,
     }
@@ -182,6 +156,20 @@ async function main() {
 
     return entry
   })
+
+  const seenIds = new Set(entries.map((entry) => entry.id))
+  for (const rule of compatRules) {
+    for (const extra of rule.models ?? []) {
+      if (seenIds.has(extra.id)) continue
+      seenIds.add(extra.id)
+      entries.push({
+        id: extra.id,
+        input: [...extra.input],
+        output: ['text'],
+        apis: lookupBedrockCompatibility(extra.id),
+      })
+    }
+  }
 
   const outPath = join(
     ROOT,

@@ -1,6 +1,6 @@
 import { resolveBedrockAuth } from './auth'
 import { createSigV4Fetch } from './openai-sigv4-fetch'
-import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
+import { mantlePathForModel } from '../api-compatibility'
 import type { ClientOptions } from 'openai'
 import type { BedrockEndpoint } from './auth'
 
@@ -27,13 +27,6 @@ export interface BedrockClientConfig extends Omit<
 const DEFAULT_REGION = 'us-east-1'
 /** OpenAI SDK requires a non-empty apiKey even when a signed fetch overrides Authorization. */
 const SIGV4_PLACEHOLDER_KEY = 'bedrock-sigv4'
-
-/** Mantle OpenAI path from the catalog row. Unknown ids stay on `/v1`. */
-function mantlePathForModel(model: string | undefined): string {
-  if (typeof model !== 'string') return '/v1'
-  const entry = GENERATED_BEDROCK_MODELS.find((m) => m.id === model)
-  return entry?.mantlePath ?? '/v1'
-}
 
 function buildBaseURL(
   region: string,
