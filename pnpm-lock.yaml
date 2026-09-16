@@ -824,8 +824,8 @@ importers:
         specifier: ^0.97.1
         version: 0.97.1(zod@4.2.1)
       '@elevenlabs/elevenlabs-js':
-        specifier: ^2.44.0
-        version: 2.44.0
+        specifier: ^2.68.0
+        version: 2.68.0
       '@mcp-ui/client':
         specifier: ^7.1.1
         version: 7.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -5010,10 +5010,6 @@ packages:
 
   '@elevenlabs/client@1.25.0':
     resolution: {integrity: sha512-vBUCW7JNm0LXlReO1GQEuZSSg+AFwJ0EBvtVKfayPO2DpKh68Wq6WM6d27bMDrWkBf43C/Ifs9ZMBm6qaSj0Jg==}
-
-  '@elevenlabs/elevenlabs-js@2.44.0':
-    resolution: {integrity: sha512-qmggk9IvAQTkepA+A1d2VBIIiYXszrUaCDx0dJk2KeCMABFHOo7iHzLCG0bjzXO7YwF4ksc44ubkwMKYsqn26A==}
-    engines: {node: '>=18.0.0'}
 
   '@elevenlabs/elevenlabs-js@2.68.0':
     resolution: {integrity: sha512-X4woj/NPL5qLeuudubZERiA1xEnl8lLerqWOi3LMGDCwWJN+dLERTIQIowPhxeJ+gQcKPNxzG/SIeF9Uz5lPIQ==}
@@ -20605,16 +20601,6 @@ snapshots:
       livekit-client: 2.22.3(@types/dom-mediacapture-record@1.0.22)
     transitivePeerDependencies:
       - '@types/dom-mediacapture-record'
-
-  '@elevenlabs/elevenlabs-js@2.44.0':
-    dependencies:
-      command-exists: 1.2.9
-      node-fetch: 2.7.0
-      ws: 8.21.0
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
-      - utf-8-validate
 
   '@elevenlabs/elevenlabs-js@2.68.0':
     dependencies:

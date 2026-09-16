@@ -79,6 +79,9 @@ function assertGenerationKind(kind: unknown): asserts kind is GenerationKind {
  * one of its keys is enough.
  */
 function requiredKeysForKind(kind: GenerationKind): Array<string> {
+  // Enumerated rather than defaulted so a new generation kind has to declare
+  // the field that identifies its body instead of silently inheriting
+  // `prompt`.
   switch (kind) {
     case 'tts':
       return ['text']
@@ -86,7 +89,11 @@ function requiredKeysForKind(kind: GenerationKind): Array<string> {
       return ['audio']
     case 'voice':
       return ['prompt', 'referenceAudio']
-    default:
+    case 'image':
+    case 'audio':
+    case 'video':
+    case 'world':
+    case 'liveVideo':
       return ['prompt']
   }
 }
