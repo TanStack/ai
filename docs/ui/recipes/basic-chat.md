@@ -104,4 +104,5 @@ Render `<ChatScreen />`. Type a message. The reply streams into the page.
 
 - One tool that renders as raw JSON? See [format a tool](./format-a-tool).
 - Need the user to approve something? See [tool approval](./tool-approval).
+- Want markdown with colored fences? See [Highlight markdown code](../markdown).
 - Using Solid, Vue, or Svelte? The same shape applies. See [Solid](../solid), [Vue](../vue), or [Svelte](../svelte).

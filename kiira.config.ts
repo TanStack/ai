@@ -65,6 +65,10 @@ export default defineConfig({
     octane: '^0.1.17',
     // Remix 3 is a peer of @tanstack/ai-remix, not a root workspace dep.
     remix: '^3.0.0-rc.1',
+    // TextPart highlighter examples. Not a workspace dependency.
+    // Subpath exports are mapped in tsconfig.docs.json because kiira
+    // does not read package.json exports.
+    '@tanstack/highlight': '^0.1.0',
     // remix/ui re-exports this. Kiira's paths["*"] does not read the
     // package.json exports field, so the jsx-runtime file must exist on disk.
     '@remix-run/ui': '^0.8.0',

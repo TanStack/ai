@@ -64,11 +64,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:^",
-    "react-markdown": "^10.1.0",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
+    "@tanstack/markdown": "^0.0.13"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",
