@@ -1161,6 +1161,9 @@ export class ChatClient<
           : undefined
       if (parentRunId) {
         this.runParents.set(chunkRunId, parentRunId)
+        if (this.supersededInterruptRunIds.has(chunkRunId)) {
+          this.markLineageAnswered(parentRunId)
+        }
       }
       this.activeResumeThreadId =
         'threadId' in chunk && typeof chunk.threadId === 'string'
@@ -1177,11 +1180,24 @@ export class ChatClient<
       // client-cached run pointer (which goes stale the moment a turn spans a
       // second run) is ever written. Interrupt/terminal handling overwrites or
       // clears it in observeInterruptState.
-      if (this.persistor && this.connection.joinRun && !this.lastResume) {
+      if (
+        this.persistor &&
+        this.connection.joinRun &&
+        !this.lastResume &&
+        !this.supersededInterruptRunIds.has(chunkRunId)
+      ) {
         this.persistResumeSnapshot({
           threadId: this.activeResumeThreadId ?? this.threadId,
           runId: chunkRunId,
         })
+      }
+      if (
+        this.lastResume &&
+        this.supersededInterruptRunIds.has(this.lastResume.runId)
+      ) {
+        this.lastResume = null
+        this.persistor?.persistResumeSnapshot(null)
+        this.interruptManager.reset()
       }
       return
     }

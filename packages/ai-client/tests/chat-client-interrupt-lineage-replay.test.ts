@@ -3,6 +3,7 @@ import { EventType } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import type { Interrupt, StreamChunk } from '@tanstack/ai/client'
 import type { SubscribeConnectionAdapter } from '../src/connection-adapters'
+import type { ChatClientPersistence, ChatPersistedState } from '../src/types'
 
 /**
  * A connection whose `subscribe()` yields chunks pushed onto it via
@@ -90,6 +91,132 @@ function runFinishedSuccess(runId: string, threadId: string): StreamChunk {
 }
 
 describe('ChatClient interrupt lineage on replay (#1368)', () => {
+  it.each([
+    {
+      name: 'does not rejoin a completed child after its late parent link',
+      chunks: [
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedInterrupt('run-A', 'thread-1'),
+      ],
+      expectedPending: 0,
+      expectedRun: undefined,
+    },
+    {
+      name: 'clears a persisted parent pause after its late link',
+      chunks: [
+        runStarted('run-A', 'thread-1'),
+        runFinishedInterrupt('run-A', 'thread-1'),
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+      ],
+      expectedPending: 0,
+      expectedRun: undefined,
+    },
+    {
+      name: 'preserves an unrelated persisted pause after a late link',
+      chunks: [
+        runStarted('run-D', 'thread-1'),
+        runFinishedInterrupt('run-D', 'thread-1'),
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+      ],
+      expectedPending: 1,
+      expectedRun: 'run-D',
+    },
+  ])('$name', async ({ chunks, expectedPending, expectedRun }) => {
+    let stored: ChatPersistedState | undefined
+    const persistence: ChatClientPersistence = {
+      getItem: () => stored,
+      setItem: (_id, state) => {
+        stored = state
+      },
+      removeItem: () => {
+        stored = undefined
+      },
+    }
+    const replay = createReplayQueue()
+    const joinRun = vi.fn(async function* () {})
+    const connection = { ...replay.connection, joinRun }
+    const seen: Array<StreamChunk> = []
+    const options = { threadId: 'thread-1', connection, persistence }
+    const client = new ChatClient({
+      ...options,
+      onChunk: (chunk) => seen.push(chunk),
+    })
+    let reloaded: ChatClient | undefined
+    client.subscribe()
+    try {
+      for (const chunk of chunks) {
+        replay.publish(chunk)
+        await vi.waitFor(() => expect(seen).toContain(chunk))
+      }
+      expect(client.getInterrupts()).toHaveLength(expectedPending)
+      expect(stored?.resume?.resumeState.runId).toBe(expectedRun)
+      client.dispose()
+      reloaded = new ChatClient(options)
+      reloaded.attach()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(reloaded.getInterrupts()).toHaveLength(expectedPending)
+      expect(joinRun).not.toHaveBeenCalled()
+    } finally {
+      client.dispose()
+      reloaded?.dispose()
+    }
+  })
+
+  it.each([
+    {
+      name: 'suppresses a stale pause after a completed child gains its parent link',
+      chunks: [
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedInterrupt('run-A', 'thread-1'),
+      ],
+      expected: [0, 0, 0],
+    },
+    {
+      name: 'clears a visible pause when a completed child gains its parent link',
+      chunks: [
+        runStarted('run-A', 'thread-1'),
+        runFinishedInterrupt('run-A', 'thread-1'),
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+      ],
+      expected: [0, 1, 1, 0],
+    },
+    {
+      name: 'propagates completion through late transitive parent links',
+      chunks: [
+        runFinishedSuccess('run-C', 'thread-1'),
+        runStarted('run-C', 'thread-1', 'run-B'),
+        runFinishedInterrupt('run-A', 'thread-1'),
+        runStarted('run-B', 'thread-1', 'run-A'),
+      ],
+      expected: [0, 0, 1, 0],
+    },
+  ])('$name', async ({ chunks, expected }) => {
+    const { connection, publish } = createReplayQueue()
+    const seen: Array<StreamChunk> = []
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      onChunk: (chunk) => seen.push(chunk),
+    })
+    client.subscribe()
+
+    try {
+      for (const [index, chunk] of chunks.entries()) {
+        publish(chunk)
+        await vi.waitFor(() => expect(seen).toContain(chunk))
+        expect(client.getInterrupts()).toHaveLength(expected[index]!)
+      }
+      expect(client.getResumeState()).toBeNull()
+    } finally {
+      client.unsubscribe()
+    }
+  })
+
   it('clears a resolved interrupt once its continuation run finishes, surviving a re-emitted stale pause', async () => {
     const { connection, publish } = createReplayQueue()
     const seen: Array<StreamChunk> = []
