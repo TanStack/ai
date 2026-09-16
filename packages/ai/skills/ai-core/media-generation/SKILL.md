@@ -364,7 +364,10 @@ Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
 > drops `voice`. Voice ids ending `_uranus_bigtts` are TTS 2.0,
 > `_mars_bigtts` / `_moon_bigtts` are TTS 1.0, and `*_emo_v2_*` are the 1.0
 > voices that accept emotion tags. Formats: `wav`, `mp3`, `pcm`, `ogg_opus`;
-> `watermark` is also available on `modelOptions`.
+> `modelOptions.watermark` takes an object here, not a boolean:
+> `{ aigc_watermark }` for an audible marker and `{ aigc_metadata: { enable } }`
+> for header provenance. `watermark: true` is shorthand for
+> `{ aigc_watermark: true }`.
 
 ```typescript
 import { generateSpeech } from '@tanstack/ai'
