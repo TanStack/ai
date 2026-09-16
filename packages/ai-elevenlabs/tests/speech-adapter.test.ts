@@ -145,6 +145,90 @@ describe('elevenlabsSpeech adapter', () => {
     })
   })
 
+  it('wraps PCM samples in a 44.1 kHz, 16-bit mono WAV container', async () => {
+    const samples = Buffer.from([0, 0, 255, 127, 0, 128, 255, 255])
+    convertMock.mockResolvedValue(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(samples.subarray(0, 3))
+          controller.enqueue(samples.subarray(3))
+          controller.close()
+        },
+      }),
+    )
+    const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+    const result = await adapter.generateSpeech({
+      model: 'eleven_v3',
+      text: 'hi',
+      voice: 'v',
+      format: 'wav',
+      logger: makeLogger(),
+    })
+
+    expect(convertMock.mock.calls[0]![1].outputFormat).toBe('pcm_44100')
+    expect(result).toMatchObject({ format: 'wav', contentType: 'audio/wav' })
+    const wav = Buffer.from(result.audio, 'base64')
+    expect(wav.length).toBe(44 + samples.length)
+    expect(wav.toString('ascii', 0, 4)).toBe('RIFF')
+    expect(wav.readUInt32LE(4)).toBe(wav.length - 8)
+    expect(wav.toString('ascii', 8, 16)).toBe('WAVEfmt ')
+    expect(wav.readUInt32LE(16)).toBe(16)
+    expect(wav.readUInt16LE(20)).toBe(1)
+    expect(wav.readUInt16LE(22)).toBe(1)
+    expect(wav.readUInt32LE(24)).toBe(44100)
+    expect(wav.readUInt32LE(28)).toBe(88200)
+    expect(wav.readUInt16LE(32)).toBe(2)
+    expect(wav.readUInt16LE(34)).toBe(16)
+    expect(wav.toString('ascii', 36, 40)).toBe('data')
+    expect(wav.readUInt32LE(40)).toBe(samples.length)
+    expect(wav.subarray(44)).toEqual(samples)
+  })
+
+  it.each(['aac', 'flac'] as const)(
+    'rejects %s before calling the SDK',
+    async (format) => {
+      convertMock.mockResolvedValue(
+        makeStream(new Uint8Array([255, 251, 144, 0])),
+      )
+      const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+      await expect(
+        adapter.generateSpeech({
+          model: 'eleven_v3',
+          text: 'hi',
+          voice: 'v',
+          format,
+          logger: makeLogger(),
+        }),
+      ).rejects.toThrow(
+        `ElevenLabs TTS does not support format '${format}'. Use mp3, pcm, opus, or wav.`,
+      )
+      expect(convertMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['wav', 'aac', 'flac'] as const)(
+    'keeps explicit outputFormat precedence over %s',
+    async (format) => {
+      const bytes = new Uint8Array([1, 2, 3])
+      convertMock.mockResolvedValue(makeStream(bytes))
+      const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+      const result = await adapter.generateSpeech({
+        model: 'eleven_v3',
+        text: 'hi',
+        voice: 'v',
+        format,
+        modelOptions: { outputFormat: 'mp3_22050_32' },
+        logger: makeLogger(),
+      })
+      expect(convertMock.mock.calls[0]![1].outputFormat).toBe('mp3_22050_32')
+      expect(result).toMatchObject({
+        format: 'mp3',
+        contentType: 'audio/mpeg',
+        audio: Buffer.from(bytes).toString('base64'),
+      })
+    },
+  )
+
   it('reports SDK errors through logger.errors', async () => {
     convertMock.mockRejectedValue(new Error('boom'))
     const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })

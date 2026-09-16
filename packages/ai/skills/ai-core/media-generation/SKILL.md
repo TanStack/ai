@@ -5,7 +5,7 @@ description: >
   activity-specific adapters: generateImage() with openaiImage/geminiImage/byteplusImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
   polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
-  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech,
+  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech,
   generateTranscription() with openaiTranscription/byteplusTranscription. React hooks:
   useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
@@ -20,6 +20,7 @@ sources:
   - 'TanStack/ai:docs/media/audio-generation.md'
   - 'TanStack/ai:docs/media/video-generation.md'
   - 'TanStack/ai:docs/media/text-to-speech.md'
+  - 'TanStack/ai:docs/adapters/elevenlabs.md'
   - 'TanStack/ai:docs/media/transcription.md'
   - 'TanStack/ai:docs/advanced/debug-logging.md'
 ---
@@ -352,8 +353,14 @@ const { generate, result, isLoading } = useGenerateAudio({
 
 ### 3. Text-to-Speech
 
-Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
-`byteplusSpeech` (`seed-audio-1.0`).
+Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview),
+`byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v3`).
+
+`elevenlabsSpeech` accepts `format: 'mp3' | 'pcm' | 'opus' | 'wav'`.
+WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header.
+AAC and FLAC requests throw before the API call.
+An explicit `modelOptions.outputFormat` overrides `format` and returns
+the selected provider format without WAV wrapping.
 
 > **BytePlus Seed Speech is a separate product from ModelArk** — it reads
 > **`BYTEPLUS_VOICE_API_KEY`**, not `ARK_API_KEY`, and an Ark key there fails

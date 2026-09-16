@@ -286,6 +286,8 @@ Get your API key from the [ElevenLabs dashboard](https://elevenlabs.io/). Create
 
 For one-shot speech generation (not realtime), use `elevenlabsSpeech` with `generateSpeech()`:
 
+The `format` option supports `mp3` (default), `pcm`, `opus`, and `wav`. WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header. Requests for `aac` or `flac` throw before the API call. An explicit `modelOptions.outputFormat` overrides `format` and returns the selected provider format without WAV wrapping.
+
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
 import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
