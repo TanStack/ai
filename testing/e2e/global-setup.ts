@@ -1233,6 +1233,35 @@ function byteplusSeedanceMount(): Mountable {
  * `subtitle` is omitted: the adapter only asks for it via `enable_subtitle`,
  * which this feature doesn't set.
  */
+/**
+ * Build a plausible `subtitle` block for a synthesised prompt: one sentence
+ * per line (a dialogue prompt has one line per turn) and one word entry per
+ * whitespace-separated token, at a flat 400 ms each.
+ *
+ * Times are **milliseconds**, matching the real endpoint — the adapter is what
+ * converts them to the seconds the core `alignment` / `segments` use.
+ */
+function subtitleFor(textPrompt: string): {
+  sentences: Array<{ text: string; start_time: number; end_time: number }>
+  words: Array<{ text: string; start_time: number; end_time: number }>
+} {
+  const WORD_MS = 400
+  const sentences = []
+  const words = []
+  let cursor = 0
+  for (const line of textPrompt.split('\n')) {
+    // Strip the `@AudioN: ` speaker marker a dialogue prompt puts on each line.
+    const text = line.replace(/^@Audio\d+:\s*/, '')
+    const start = cursor
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      words.push({ text: word, start_time: cursor, end_time: cursor + WORD_MS })
+      cursor += WORD_MS
+    }
+    sentences.push({ text, start_time: start, end_time: cursor })
+  }
+  return { sentences, words }
+}
+
 function byteplusTTSMount(): Mountable {
   return {
     async handleRequest(
@@ -1281,20 +1310,12 @@ function byteplusTTSMount(): Mountable {
           duration: 2.4,
           original_duration: 2.4,
           url: `https://example.com/welcome-to-the-guitar-store.${format}`,
-          // Timings only come back when the caller opted in. No spec sets
-          // `enable_subtitle` today; this keeps the branch honest if one does.
+          // Timings only come back when the caller opted in (core
+          // `timestamps: true` sets `enable_subtitle`).
           // Subtitle times are MILLISECONDS even though `duration` above is
           // seconds — the endpoint genuinely mixes units, so don't "fix" it.
           ...(audioConfig?.enable_subtitle === true && {
-            subtitle: {
-              sentences: [
-                {
-                  text: 'welcome to the guitar store',
-                  start_time: 0,
-                  end_time: 2400,
-                },
-              ],
-            },
+            subtitle: subtitleFor(body.text_prompt),
           }),
         }),
       )

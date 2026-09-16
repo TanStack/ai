@@ -107,3 +107,47 @@ for (const provider of providersFor('tts')) {
     })
   })
 }
+
+// Dialogue and timestamps are adapter capabilities, not a feature every TTS
+// provider has. Seed Audio 1.0 is the one wired end to end here: its mount
+// validates the request the adapter builds (`references` + `@AudioN` markers)
+// and answers with the real mixed-unit subtitle shape, so this covers the core
+// `turns` / `timestamps` contract, not just the client plumbing.
+//
+// ElevenLabs has both capabilities but talks to `/v1/text-to-dialogue`, which
+// aimock does not serve — that adapter's four-way endpoint branch is covered
+// by unit tests instead.
+test.describe('byteplus -- tts dialogue', () => {
+  test('fetcher -- turns come back with per-turn segments and word alignment', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(
+      featureUrl('byteplus', 'tts', testId, aimockPort, 'fetcher'),
+    )
+    await clickGenerate(page, 'generate-dialogue-button')
+    await waitForGenerationComplete(page)
+
+    await expect(page.getByTestId('generated-audio')).toBeVisible()
+    // Two turns in, two segments out.
+    await expect(page.getByTestId('segment-count')).toHaveText('2')
+    await expect(page.getByTestId('alignment-unit')).toHaveText('word')
+    // 11 words at 400ms = 4400ms, reported in ms by the provider and
+    // converted to seconds by the adapter.
+    await expect(page.getByTestId('alignment-end')).toHaveText('4.4')
+  })
+
+  test('sse -- turns survive the streaming transport', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(featureUrl('byteplus', 'tts', testId, aimockPort, 'sse'))
+    await clickGenerate(page, 'generate-dialogue-button')
+    await waitForGenerationComplete(page)
+
+    await expect(page.getByTestId('segment-count')).toHaveText('2')
+    await expect(page.getByTestId('alignment-unit')).toHaveText('word')
+  })
+})
