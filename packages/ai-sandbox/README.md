@@ -75,6 +75,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-upstash-box`   | Upstash Box cloud sandboxes, snapshots |
 | `@tanstack/ai-sandbox-sprites`       | Sprites stateful sandboxes             |
 | `@tanstack/ai-sandbox-blaxel`        | Blaxel cloud sandboxes and previews    |
+| `@tanstack/ai-sandbox-e2b`           | E2B microVMs, snapshots and fork       |
 
 Install the provider you select separately. For Blaxel:
 
