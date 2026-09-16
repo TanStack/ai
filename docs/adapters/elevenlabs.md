@@ -302,6 +302,37 @@ const result = await generateSpeech({
 console.log(result.audio); // Base64-encoded audio
 ```
 
+### Dialogue and timings
+
+ElevenLabs has a separate dialogue endpoint that takes up to **10 distinct
+voices**, and a timestamped twin of each endpoint. `turns` and `timestamps`
+pick between them, so you never choose an endpoint by hand:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const result = await generateSpeech({
+  adapter: elevenlabsSpeech("eleven_v3"),
+  turns: [
+    { text: "Knock knock.", voice: "bYTqZQo3Jz7LQtmGTgwi" },
+    { text: "Who is there?", voice: "6lCwbsX1yVjD49QmpkTR" },
+  ],
+  timestamps: true,
+});
+
+// Character timings for the whole clip.
+console.log(result.alignment?.unit); // 'character'
+
+// One entry per turn, with the voice that spoke it.
+for (const segment of result.segments ?? []) {
+  console.log(segment.turnIndex, segment.voice, segment.text);
+}
+```
+
+`segments` only comes back from the dialogue endpoint. A single-voice request
+with `timestamps: true` returns `alignment` alone.
+
 ## Music & Sound Effects
 
 `elevenlabsAudio` covers both music generation and sound effects depending on the model:

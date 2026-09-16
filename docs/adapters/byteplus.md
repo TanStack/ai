@@ -480,6 +480,50 @@ for (const sentence of result.subtitle?.sentences ?? []) {
 }
 ```
 
+Prefer the cross-provider `timestamps: true` over `modelOptions.enable_subtitle`
+unless you want the raw BytePlus block. It sets the same flag and maps the
+response onto `result.alignment` (per word) and `result.segments` (per
+sentence), already converted to seconds:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'welcome to the guitar store',
+  timestamps: true,
+})
+
+console.log(result.alignment?.unit) // 'word'
+console.log(result.alignment?.endSeconds.at(-1)) // where speech stops
+```
+
+Seed Audio 1.0 also synthesizes multi-role dialogue in one pass. Pass `turns`
+and the adapter builds the `references` array and the role-structured prompt
+for you, up to **three distinct voices** per request:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+// Replace SECOND_VOICE with another voice id from the BytePlus voice list.
+const SECOND_VOICE = 'your-second-voice-id'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  turns: [
+    { text: 'Do you sell picks?', voice: 'en_female_stokie_uranus_bigtts' },
+    { text: 'By the till.', voice: SECOND_VOICE },
+  ],
+  timestamps: true,
+})
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.startSeconds, segment.text)
+}
+```
+
 ### Watermarking speech
 
 Seed Audio takes an object here, not a flag. Two markers, both off by default:
@@ -508,7 +552,7 @@ const result = await generateSpeech({
 Three things to plan around:
 
 - **Synthesis is capped at 120 seconds of output.** The cap applies to `originalDuration` (the length before `speech_rate` is applied), which is also what BytePlus bills on.
-- **Subtitle timings are milliseconds** while `duration` and `originalDuration` are seconds. The units genuinely differ.
+- **Subtitle timings are milliseconds** on the raw `subtitle` block, while `duration` and `originalDuration` are seconds. `alignment` and `segments` are always seconds.
 - The `url` on the result expires roughly two hours after generation — persist the base64 `audio`, not the link.
 
 The client half is the standard [`useGenerateSpeech` hook](../media/text-to-speech#streaming-mode-server-route--client-hook); nothing about it is BytePlus-specific.

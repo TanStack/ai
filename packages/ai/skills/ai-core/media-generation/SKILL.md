@@ -406,6 +406,43 @@ const { generate, result, isLoading } = useGenerateSpeech({
 // Play:   <audio src={`data:audio/${result.format};base64,${result.audio}`} controls />
 ```
 
+**Dialogue (`turns`) and timings (`timestamps`).** `text` + `voice` is one
+speaker. For a multi-voice script pass `turns` instead of `text` (they are
+mutually exclusive), and set `timestamps: true` to get `result.alignment`
+(per character or per word, `alignment.unit` says which) and `result.segments`
+(one per turn or per sentence). All times are seconds.
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+// Second voice id comes from the BytePlus voice list.
+const SECOND_VOICE = 'your-second-voice-id'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  turns: [
+    { text: 'Do you sell picks?', voice: 'en_female_stokie_uranus_bigtts' },
+    { text: 'By the till.', voice: SECOND_VOICE },
+  ],
+  timestamps: true,
+})
+
+result.alignment?.endSeconds.at(-1) // where speech stops, not where the file does
+result.segments?.[0] // { startSeconds, endSeconds, turnIndex?, voice?, text? }
+```
+
+Both are adapter capabilities, not universal. The activity rejects the request
+before it reaches the provider when the adapter cannot do it, so read
+`adapter.capabilities` rather than guessing:
+
+| Adapter | `maxSpeakers` | `timestamps` |
+| --- | --- | --- |
+| `byteplusSpeech` | 3 | yes (`enable_subtitle`, word + sentence) |
+| `elevenlabsSpeech` | 10 | yes (character, plus voice segments on dialogue) |
+| `geminiSpeech` | 2 | no |
+| every other TTS adapter | not supported | no |
+
 ### 4. Audio Transcription
 
 Adapters: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
@@ -1014,7 +1051,11 @@ generateAudio({
 
 ### g. MEDIUM: Gemini TTS multi-speaker with 0 or 3+ speakers
 
-`multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
+Prefer `turns` for new code: it builds `multiSpeakerVoiceConfig` and the
+labelled prompt for you, and the two-speaker cap is enforced by the activity
+from `capabilities.maxSpeakers`.
+
+The hand-rolled form below still works. `multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
 (not at Gemini's API) with a clear error. Don't try to work around it with
 `as any`.
 
