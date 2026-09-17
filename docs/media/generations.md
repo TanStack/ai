@@ -65,6 +65,8 @@ function ImageGenerator() {
 That is the whole loop. Swap `generateImage` and `useGenerateImage` for any other pair
 in the table below and nothing else changes.
 
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+
 ## Which transport?
 
 | Transport | Use it when | How |

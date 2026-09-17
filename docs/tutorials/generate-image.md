@@ -1,21 +1,24 @@
 ---
-title: Basic Chat
-id: basic-chat
-order: 1
-description: "Create a TanStack Start app, then add a streaming React chat. BYOK holds the OpenRouter key in the tab. useChat talks to a server route that streams tokens."
+title: Generate Image
+id: generate-image
+order: 2
+description: "Create a TanStack Start app, then add React image generation. BYOK holds the OpenRouter key in the tab. useGenerateImage talks to a server route that runs generateImage."
 keywords:
   - tanstack ai
   - tutorial
-  - basic chat
-  - useChat
+  - generate image
+  - useGenerateImage
+  - generateImage
   - byok
   - openrouter
   - tanstack start
 ---
 
-Create a TanStack Start app. Then add a streaming chat.
+You want a prompt box that returns an image.
 
-This tutorial is React + Start. For other frameworks, open [Quick Start](../getting-started/quick-start).
+Create a TanStack Start app. Then generate an image with OpenRouter.
+
+This tutorial is React + Start. For other frameworks, open [Quick Start](../getting-started/quick-start). For sizes and other providers, open [Image Generation](../media/image-generation).
 
 You can skip the scaffold and paste a key in the sandbox at the end of this page.
 
@@ -39,11 +42,11 @@ Get an OpenRouter key from [openrouter.ai](https://openrouter.ai).
 
 ## Client and server
 
-A chat has two sides.
+An image generation has two sides.
 
-The **client** runs in the browser. It holds the key, draws messages, and POSTs to your route.
+The **client** runs in the browser. It holds the key, draws the prompt box, and POSTs to your route.
 
-The **server** route reads that key, calls OpenRouter, and streams tokens back.
+The **server** route reads that key, calls OpenRouter, and streams the image back.
 
 The next steps build the client. Then they add the route.
 
@@ -105,7 +108,7 @@ export function OpenRouterKeyForm() {
         Save key
       </button>
       {missingKey ? (
-        <p>Paste an OpenRouter key, then send again.</p>
+        <p>Paste an OpenRouter key, then generate again.</p>
       ) : null}
       {error ? <p>{error}</p> : null}
     </form>
@@ -115,43 +118,47 @@ export function OpenRouterKeyForm() {
 
 If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
-## 3. Hook up `useChat`
+## 3. Hook up `useGenerateImage`
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` to `useChat`. The hook sends the key in an `x-byok-*` header.
+Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` and `byokProvider`. The hook sends the OpenRouter key in an `x-byok-*` header.
 
 ```tsx ignore
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  fetchServerSentEvents,
-  useChat,
-} from '@tanstack/ai-react'
+import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
-function ChatPage() {
-  const [input, setInput] = useState('')
-  const { messages, sendMessage, isLoading, error, stop } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
+function imageSrc(image: { url?: string; b64Json?: string }) {
+  if (image.url) return image.url
+  if (image.b64Json) return `data:image/png;base64,${image.b64Json}`
+  return undefined
+}
+
+function ImagePage() {
+  const [prompt, setPrompt] = useState('')
+  const { generate, result, isLoading, error, stop } = useGenerateImage({
+    connection: fetchServerSentEvents('/api/generate/image'),
     byok,
+    byokProvider: () => openrouterByok.id,
   })
 
-  const handleSendMessage = () => {
-    if (!input.trim()) return
-    sendMessage(input.trim())
-    setInput('')
+  const handleGenerate = () => {
+    const next = prompt.trim()
+    if (!next) return
+    void generate({ prompt: next })
   }
 
   return (
     <div>
       <OpenRouterKeyForm />
-      {messages.map((message) => (
-        <div key={message.id}>
-          {message.parts.map((part, index) =>
-            part.type === 'text' ? <p key={index}>{part.content}</p> : null,
-          )}
-        </div>
-      ))}
+      {result?.images[0] ? (
+        <img
+          src={imageSrc(result.images[0])}
+          alt={prompt.trim() || 'Generated image'}
+        />
+      ) : null}
       {error ? <p>{error.message}</p> : null}
       {isLoading ? (
         <button type="button" onClick={stop}>
@@ -159,33 +166,33 @@ function ChatPage() {
         </button>
       ) : null}
       <textarea
-        value={input}
-        onChange={(event) => setInput(event.target.value)}
+        value={prompt}
+        onChange={(event) => setPrompt(event.target.value)}
         disabled={isLoading}
       />
       <button
         type="button"
-        onClick={handleSendMessage}
-        disabled={!input.trim() || isLoading}
+        onClick={handleGenerate}
+        disabled={!prompt.trim() || isLoading}
       >
-        Send
+        Generate
       </button>
     </div>
   )
 }
 
 export const Route = createFileRoute('/')({
-  component: ChatPage,
+  component: ImagePage,
 })
 ```
 
-`messages` updates as tokens arrive. Click Stop to cancel.
+`generate({ prompt })` starts the run. `result.images` holds the image when it arrives.
 
-A send with no key does not POST. The form shows "Paste an OpenRouter key, then send again."
+A generate with no key does not POST. The form shows "Paste an OpenRouter key, then generate again."
 
 ## 4. Add the server route
 
-Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path. Do this in two steps.
+Create `src/routes/api.generate.image.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/generate/image` path. Do this in two steps.
 
 ### Read the key
 
@@ -193,19 +200,19 @@ Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
-import { chatParamsFromRequest } from '@tanstack/ai'
+import { generationParamsFromRequest } from '@tanstack/ai'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
-  const params = await chatParamsFromRequest(request)
+  await generationParamsFromRequest('image', request)
   const apiKey = getByokKey(request, openrouterByok)
   if (!apiKey) return byokMissing(openrouterByok)
 
   return new Response('ok')
 }
 
-export const Route = createFileRoute('/api/chat')({
+export const Route = createFileRoute('/api/generate/image')({
   server: {
     handlers: {
       POST,
@@ -218,36 +225,45 @@ This is a stub. The next step replaces the `ok` body.
 
 Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the adapter main entry.
 
-### Call `chat` and return the stream
+### Call `generateImage` and return the stream
 
-Replace the `ok` response. Pass the key into `createOpenRouterText`. Wrap `chat()` with `toServerSentEventsResponse`.
+Replace the `ok` response. `generationParamsFromRequest` reads the prompt from the POST body. Pass the key into `createOpenRouterImage`. Wrap `generateImage()` with `toServerSentEventsResponse`. Pass `stream: true` so the hook can listen.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  chat,
-  chatParamsFromRequest,
+  generateImage,
+  generationParamsFromRequest,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { createOpenRouterImage } from '@tanstack/ai-openrouter'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
-  const params = await chatParamsFromRequest(request)
+  const { input, threadId, runId } = await generationParamsFromRequest(
+    'image',
+    request,
+  )
   const apiKey = getByokKey(request, openrouterByok)
   if (!apiKey) return byokMissing(openrouterByok)
+  if (typeof input.prompt !== 'string') {
+    return new Response('This route accepts a text prompt only.', {
+      status: 400,
+    })
+  }
 
-  const stream = chat({
-    adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
-    messages: params.messages,
-    threadId: params.threadId,
-    runId: params.runId,
+  const stream = generateImage({
+    adapter: createOpenRouterImage('google/gemini-3.1-flash-image', apiKey),
+    prompt: input.prompt,
+    stream: true,
+    threadId,
+    runId,
   })
   return toServerSentEventsResponse(stream)
 }
 
-export const Route = createFileRoute('/api/chat')({
+export const Route = createFileRoute('/api/generate/image')({
   server: {
     handlers: {
       POST,
@@ -256,18 +272,18 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+This route accepts a text prompt only. OpenRouter returns one image per request.
+
 ## 5. Try it
 
-Run the app. Paste an OpenRouter key. Send a message. Tokens stream into the UI.
+Run the app. Paste an OpenRouter key. Type a prompt. Click Generate. The image appears.
 
-The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/basic-chat`.
+The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/generate-image`.
 
-<!-- ::client-example library=ai framework=react slug=basic-chat -->
+<!-- ::client-example library=ai framework=react slug=generate-image -->
 
-You have a streaming chat. The OpenRouter key never sits in a server env file.
+You have an image from a prompt. The OpenRouter key never sits in a server env file.
 
-The full example is on GitHub: [TanStack/ai `examples/react/basic-chat`](https://github.com/TanStack/ai/tree/main/examples/react/basic-chat).
+The full example is on GitHub: [TanStack/ai `examples/react/generate-image`](https://github.com/TanStack/ai/tree/main/examples/react/generate-image).
 
-For a headless chat UI, open [A chat box with no tools](../ui/recipes/basic-chat).
-
-For an image from a prompt, open [Generate Image](./generate-image).
+For sizes, image-to-image, and other providers, open [Image Generation](../media/image-generation).

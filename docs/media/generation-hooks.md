@@ -71,6 +71,8 @@ The same pattern applies to image, speech, transcription, summarize, and video. 
 
 Trigger image generation and render the results.
 
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+
 ```tsx
 import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
 import { useState } from 'react'

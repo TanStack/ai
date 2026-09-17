@@ -18,6 +18,8 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 
 Build a streaming React chat in [Basic Chat](../tutorials/basic-chat). The key stays in the tab.
 
+Generate an image from a prompt in [Generate Image](../tutorials/generate-image).
+
 ## Key Features
 
 - ✅ **Type-Safe** - Full TypeScript support with Zod schema inference

@@ -7,6 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -30,6 +31,24 @@ pnpm --filter basic-chat dev
 Open http://localhost:3100. Paste an OpenRouter key. Send a message.
 
 📖 [Full Documentation](react/basic-chat/README.md)
+
+---
+
+### Generate Image
+
+A slim TanStack Start image app. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/generate-image`
+
+**Getting Started:**
+
+```bash
+pnpm --filter generate-image dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Type a prompt. Click Generate.
+
+📖 [Full Documentation](react/generate-image/README.md)
 
 ---
 
