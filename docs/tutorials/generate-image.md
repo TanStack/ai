@@ -192,6 +192,77 @@ export const Route = createFileRoute('/')({
 
 A generate with no key does not POST. The form shows "Paste an OpenRouter key, then generate again."
 
+## Bonus: transform `result` with `onResult`
+
+`result` is the full `ImageGenerationResult`. You still pick a URL or base64 for `<img>`.
+
+Pass `onResult`. Return a src string. The hook then stores that string on `result`.
+
+```tsx ignore
+import { useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
+import { OpenRouterKeyForm } from '@/components/open-router-key-form'
+import { byok } from '@/lib/byok'
+
+function ImagePage() {
+  const [prompt, setPrompt] = useState('')
+  // POST { prompt } to /api/generate/image over SSE.
+  // onResult runs when the image arrives. The return value becomes `result`.
+  const { generate, result, isLoading, error, stop } = useGenerateImage({
+    connection: fetchServerSentEvents('/api/generate/image'),
+    byok,
+    onResult: (raw) => {
+      const image = raw.images[0]
+      if (image?.url) return image.url
+      if (image?.b64Json) return `data:image/png;base64,${image.b64Json}`
+      return null
+    },
+  })
+
+  const handleGenerate = () => {
+    const next = prompt.trim()
+    if (!next) return
+    void generate({ prompt: next })
+  }
+
+  return (
+    <div>
+      <OpenRouterKeyForm />
+      {result ? (
+        <img src={result} alt={prompt.trim() || 'Generated image'} />
+      ) : null}
+      {error ? <p>{error.message}</p> : null}
+      {isLoading ? (
+        <button type="button" onClick={stop}>
+          Stop
+        </button>
+      ) : null}
+      <textarea
+        value={prompt}
+        onChange={(event) => setPrompt(event.target.value)}
+        disabled={isLoading}
+      />
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={!prompt.trim() || isLoading}
+      >
+        Generate
+      </button>
+    </div>
+  )
+}
+
+export const Route = createFileRoute('/')({
+  component: ImagePage,
+})
+```
+
+A returned string replaces `result`. A `null` return keeps the previous `result`.
+
+The server route does not change.
+
 ## 4. Add the server route
 
 Create `src/routes/api.generate.image.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/generate/image` path. Do this in two steps.
