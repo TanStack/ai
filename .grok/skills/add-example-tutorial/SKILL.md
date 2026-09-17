@@ -35,6 +35,7 @@ Match Basic Chat only for the Start routes folder:
 
 - `src/routes/index.tsx` is the page.
 - `src/routes/api.chat.ts` is the server route (next to `index.tsx`). Start maps `api.chat.ts` to `/api/chat`.
+- `tsconfig.json` is self-contained (Start-style). Do not extend the repo root.
 
 Add other files only when this tutorial needs them (a key form, a tool, a store). Many examples will not use BYOK. Do not add BYOK files by default.
 
@@ -92,3 +93,4 @@ Point Overview and Quick Start at the tutorial. Cross-link any recipe that cover
 | BYOK files on a tutorial that does not need keys | Skip them                                                     |
 | Tutorial is only commands and code               | Problem, why, how, then each step as one piece                |
 | Skip nav or the sandbox comment                  | Add the Examples tab child and the `::client-example` comment |
+| `tsconfig.json` extends `../../../tsconfig.json` | Keep a self-contained Start-style tsconfig in the example     |

@@ -37,6 +37,11 @@ describe('react-app generator', () => {
     const vite = tree.read('examples/react/lab-byok/vite.config.ts', 'utf-8')
     expect(vite).toContain('3100')
 
+    const tsconfig = tree.read('examples/react/lab-byok/tsconfig.json', 'utf-8')
+    expect(tsconfig).not.toContain('"extends"')
+    expect(tsconfig).toContain('"moduleResolution": "Bundler"')
+    expect(tsconfig).toContain('"@/*"')
+
     const generated = tree
       .listChanges()
       .filter((change) => change.path.includes('examples/react/lab-byok/'))
