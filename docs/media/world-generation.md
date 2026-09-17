@@ -169,9 +169,8 @@ World Labs Marble is a job, not a live stream. `generateWorld()` waits until the
 import { generateWorld } from '@tanstack/ai'
 import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 
-const apiKey = process.env.WORLDLABS_API_KEY ?? ''
 const world = await generateWorld({
-  adapter: worldlabsWorld('marble-1.1', { apiKey }),
+  adapter: worldlabsWorld('marble-1.1'),
   prompt: 'A mystical forest with glowing mushrooms',
 })
 ```

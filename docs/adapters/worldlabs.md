@@ -41,11 +41,17 @@ Create a key in the [World Labs platform](https://platform.worldlabs.ai/api-keys
 import { generateWorld } from '@tanstack/ai'
 import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 
-const apiKey = process.env.WORLDLABS_API_KEY ?? ''
 const world = await generateWorld({
-  adapter: worldlabsWorld('marble-1.1', { apiKey }),
+  adapter: worldlabsWorld('marble-1.1'),
   prompt: 'A mystical forest with glowing mushrooms',
-  timeout: 12 * 60 * 1000,
+})
+```
+
+To pass a key explicitly:
+
+```ts
+const adapter = worldlabsWorld('marble-1.1', {
+  apiKey: process.env.WORLDLABS_API_KEY!,
 })
 ```
 
@@ -78,9 +84,8 @@ The `prompt` argument is the text. Put media on `modelOptions`.
 import { generateWorld } from '@tanstack/ai'
 import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 
-const apiKey = process.env.WORLDLABS_API_KEY ?? ''
 const world = await generateWorld({
-  adapter: worldlabsWorld('marble-1.1', { apiKey }),
+  adapter: worldlabsWorld('marble-1.1'),
   prompt: 'A cozy living room',
   modelOptions: {
     image: { uri: 'https://example.com/room.jpg' },
