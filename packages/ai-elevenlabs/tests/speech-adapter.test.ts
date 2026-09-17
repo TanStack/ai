@@ -382,6 +382,30 @@ describe('elevenlabsSpeech adapter', () => {
       expect(result.segments).toBeUndefined()
     })
 
+    it('wraps timestamped pcm in WAV when format is wav', async () => {
+      convertWithTimestampsMock.mockResolvedValue({
+        audioBase64: Buffer.from([1, 2, 3, 4]).toString('base64'),
+      })
+      const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+
+      const result = await adapter.generateSpeech({
+        model: 'eleven_v3',
+        text: 'hi',
+        voice: 'voice-a',
+        format: 'wav',
+        timestamps: true,
+        logger: makeLogger(),
+      })
+
+      expect(convertWithTimestampsMock.mock.calls[0]![1].outputFormat).toBe(
+        'pcm_44100',
+      )
+      const bytes = Buffer.from(result.audio, 'base64')
+      expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF')
+      expect([...bytes.subarray(44)]).toEqual([1, 2, 3, 4])
+      expect(result.format).toBe('wav')
+    })
+
     it('does not need a voice when turns carry their own', async () => {
       dialogueConvertMock.mockResolvedValue(makeStream(new Uint8Array()))
       const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
