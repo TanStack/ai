@@ -137,6 +137,30 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
     expect(synced.supportedParameters).toEqual(['tools', 'temperature'])
     expect(synced.pricing.prompt).toBe('0.000003')
   })
+
+  it('keeps native capabilities and modalities; OpenRouter only fills empty pricing', () => {
+    const enrich = native({
+      provider: 'openrouter',
+      rawId: 'anthropic/claude-sonnet-4.5',
+      contextWindow: 1_000_000,
+      inputModalities: ['text', 'image', 'file'],
+      outputModalities: ['text'],
+      pricing: { prompt: '0.000003', completion: '0.000015' },
+      capabilities: ['tools', 'temperature', 'include_reasoning', 'top_k'],
+    })
+    const row = native({
+      rawId: 'claude-sonnet-4-5',
+      contextWindow: 200_000,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      capabilities: ['tools', 'temperature'],
+    })
+    const synced = toSyncModel(row, enrich, 'anthropic')
+    expect(synced.contextWindow).toBe(200_000)
+    expect(synced.inputModalities).toEqual(['text', 'image'])
+    expect(synced.supportedParameters).toEqual(['tools', 'temperature'])
+    expect(synced.pricing.prompt).toBe('0.000003')
+  })
 })
 
 describe('skipNativeModelReason', () => {

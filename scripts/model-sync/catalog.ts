@@ -1,9 +1,9 @@
 /**
  * modelschemas catalog rows for native-provider model-meta inserts.
  *
- * Native catalogs have the provider's own ids and activity. OpenRouter
- * rows on modelschemas supply pricing, modalities, and supported_parameters
- * when the native row leaves those fields empty.
+ * Native catalogs supply ids, activity, limits, modalities, and
+ * capabilities. OpenRouter rows on modelschemas fill a field only when
+ * the native row left it empty (pricing is still empty on native rows).
  */
 
 import { toModelConstName, toNativeProviderId } from './ids'
@@ -193,25 +193,39 @@ function pickList(
   return preferred.length > 0 ? preferred : fallback
 }
 
+function hasPricing(pricing: CatalogPricing): boolean {
+  return pricing.prompt != null || pricing.completion != null
+}
+
 export function toSyncModel(
   native: CatalogModel,
   enrich: CatalogModel | undefined,
   provider: SyncedProvider,
 ): SyncModel {
-  const src = enrich ?? native
+  const fallback = enrich
   return {
     nativeId: toNativeProviderId(native.rawId, provider),
     firstSeenAt: native.firstSeenAt,
-    contextWindow: pickNumber(src.contextWindow, native.contextWindow),
-    maxOutput: pickNumber(src.maxOutput, native.maxOutput),
-    inputModalities: pickList(src.inputModalities, native.inputModalities),
-    outputModalities: pickList(src.outputModalities, native.outputModalities),
-    pricing:
-      src.pricing.prompt != null || src.pricing.completion != null
-        ? src.pricing
-        : native.pricing,
+    contextWindow: pickNumber(
+      native.contextWindow,
+      fallback?.contextWindow ?? null,
+    ),
+    maxOutput: pickNumber(native.maxOutput, fallback?.maxOutput ?? null),
+    inputModalities: pickList(
+      native.inputModalities,
+      fallback?.inputModalities ?? [],
+    ),
+    outputModalities: pickList(
+      native.outputModalities,
+      fallback?.outputModalities ?? [],
+    ),
+    pricing: hasPricing(native.pricing)
+      ? native.pricing
+      : (fallback?.pricing ?? native.pricing),
     supportedParameters:
-      src.capabilities.length > 0 ? src.capabilities : native.capabilities,
+      native.capabilities.length > 0
+        ? native.capabilities
+        : (fallback?.capabilities ?? []),
   }
 }
 

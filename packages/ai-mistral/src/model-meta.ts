@@ -28,11 +28,12 @@ const CODESTRAL_2508 = {
 
 const LABS_LEANSTRAL_1_5 = {
   name: 'labs-leanstral-1-5',
+  context_window: 262_144,
   supports: {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming'],
+    features: ['streaming', 'tools', 'reasoning'],
   },
   pricing: {
     input: {
@@ -46,11 +47,12 @@ const LABS_LEANSTRAL_1_5 = {
 
 const LABS_LEANSTRAL_1_5_1 = {
   name: 'labs-leanstral-1-5-1',
+  context_window: 262_144,
   supports: {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming'],
+    features: ['streaming', 'tools', 'reasoning'],
   },
   pricing: {
     input: {
@@ -85,11 +87,12 @@ const MINISTRAL_14B_2512 = {
 
 const MINISTRAL_14B_LATEST = {
   name: 'ministral-14b-latest',
+  context_window: 262_144,
   supports: {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming'],
+    features: ['streaming', 'tools'],
   },
   pricing: {
     input: {
@@ -166,11 +169,12 @@ const MISTRAL_LARGE_2512 = {
 
 const MISTRAL_MEDIUM = {
   name: 'mistral-medium',
+  context_window: 262_144,
   supports: {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming'],
+    features: ['streaming', 'tools', 'reasoning'],
   },
   pricing: {
     input: {
@@ -184,11 +188,12 @@ const MISTRAL_MEDIUM = {
 
 const MISTRAL_MEDIUM_2604 = {
   name: 'mistral-medium-2604',
+  context_window: 262_144,
   supports: {
     input: ['text'],
     output: ['text'],
     endpoints: ['chat'],
-    features: ['streaming'],
+    features: ['streaming', 'tools', 'reasoning'],
   },
   pricing: {
     input: {

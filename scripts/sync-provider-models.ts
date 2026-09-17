@@ -3,8 +3,8 @@
  *
  * For each synced provider, this script:
  * 1. Lists that provider's models from modelschemas (`@modelschemas/client`)
- * 2. Enriches empty pricing/modalities/capabilities from the OpenRouter
- *    catalog on modelschemas
+ * 2. Uses native limits, modalities, and capabilities. Fills empty fields
+ *    (today: pricing) from the modelschemas OpenRouter catalog
  * 3. Identifies models missing from the provider's model-meta.ts
  * 4. Generates and inserts new model constants, array entries, and type map entries
  *
@@ -112,8 +112,9 @@ interface ProviderConfig {
   acceptedActivities: Array<string | null>
   /**
    * When true, skip a native id until the modelschemas OpenRouter catalog
-   * has a matching row (openai/anthropic/gemini/grok). BytePlus and
-   * ElevenLabs publish usable native rows, so they stay false.
+   * has a matching row so the insert has prices. Native catalogs still
+   * leave pricing empty. Groq/Mistral insert without a price. BytePlus
+   * and ElevenLabs do not write pricing.
    */
   requireOpenRouterEnrich: boolean
   includePricing: boolean

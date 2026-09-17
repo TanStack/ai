@@ -322,13 +322,8 @@ const QWEN3_32B = {
  */
 const QWEN_QWEN3_8_27B = {
   name: 'qwen/qwen3.8-27b',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming'],
-    tools: [] as const,
-  },
+  context_window: 131_042,
+  max_completion_tokens: 16_384,
   pricing: {
     input: {
       normal: 0,
@@ -336,6 +331,20 @@ const QWEN_QWEN3_8_27B = {
     output: {
       normal: 0,
     },
+  },
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: [
+      'streaming',
+      'tools',
+      'json_object',
+      'json_schema',
+      'reasoning',
+      'vision',
+    ],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
