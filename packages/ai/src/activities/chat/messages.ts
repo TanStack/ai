@@ -14,7 +14,6 @@ import type {
   TextPart,
   ToolCall,
   ToolCallPart,
-  ToolResultOutcome,
   ToolResultPart,
   UIMessage,
   UIResourcePart,
@@ -86,18 +85,6 @@ function parseToolResultContent(content: string): unknown {
   } catch {
     return content
   }
-}
-
-function toolResultOutcomeFrom(value: unknown): ToolResultOutcome | undefined {
-  return value === 'cancelled' || value === 'denied' ? value : undefined
-}
-
-function toolResultOutcomeFromContent(
-  content: string | null | undefined | Array<ContentPart>,
-): ToolResultOutcome | undefined {
-  if (typeof content !== 'string') return undefined
-  const parsed = parseToolResultContent(content)
-  return isRecord(parsed) ? toolResultOutcomeFrom(parsed.outcome) : undefined
 }
 
 function toolResultMetadata(
@@ -769,9 +756,7 @@ export function modelMessageToUIMessage(
     }
     parts.push(structuredOutput)
   } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
-    const toolResultOutcome =
-      tanstackMetadata(modelMessage)?.toolResultOutcome ??
-      toolResultOutcomeFromContent(modelMessage.content)
+    const toolResultOutcome = tanstackMetadata(modelMessage)?.toolResultOutcome
     const resultState =
       modelMessage.error === undefined && toolResultOutcome === undefined
         ? 'complete'
@@ -1091,9 +1076,7 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.role === 'assistant'
       ) {
         const content = toolResultContent(msg.content)
-        const toolResultOutcome =
-          tanstackMetadata(msg)?.toolResultOutcome ??
-          toolResultOutcomeFromContent(msg.content)
+        const toolResultOutcome = tanstackMetadata(msg)?.toolResultOutcome
         const resultState =
           msg.error === undefined && toolResultOutcome === undefined
             ? 'complete'

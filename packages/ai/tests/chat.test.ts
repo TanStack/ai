@@ -1674,8 +1674,11 @@ describe('chat()', () => {
 
     it('emits a denied result when an ephemeral resume includes its approval placeholder', async () => {
       const execute = vi.fn()
-      const { adapter } = createMockAdapter({
-        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.runFinished('stop')],
+          [ev.runStarted(), ev.runFinished('stop')],
+        ],
       })
 
       const chunks = await collectChunks(
@@ -1735,6 +1738,16 @@ describe('chat()', () => {
           }),
         ]),
       )
+
+      const followUpMessages = calls.at(-1)?.messages as
+        | Array<{ role: string; toolCallId?: string }>
+        | undefined
+      expect(
+        followUpMessages?.filter(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === 'call_denied',
+        ),
+      ).toHaveLength(1)
     })
 
     it('translates a validated ephemeral client-tool output', async () => {

@@ -3161,6 +3161,17 @@ class TextEngine<
           return false
         }
       })
+      const existingToolResultIdx = this.resumeDeniedToolResults.has(
+        result.toolCallId,
+      )
+        ? this.messages.findIndex(
+            (message) =>
+              message.role === 'tool' &&
+              message.toolCallId === result.toolCallId,
+          )
+        : -1
+      const resultMessageIdx =
+        existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
       const newToolMessage: ModelMessage = {
         role: 'tool',
@@ -3171,11 +3182,11 @@ class TextEngine<
         }),
       }
 
-      if (placeholderIdx >= 0) {
+      if (resultMessageIdx >= 0) {
         this.messages = [
-          ...this.messages.slice(0, placeholderIdx),
+          ...this.messages.slice(0, resultMessageIdx),
           newToolMessage,
-          ...this.messages.slice(placeholderIdx + 1),
+          ...this.messages.slice(resultMessageIdx + 1),
         ]
       } else {
         this.messages = [...this.messages, newToolMessage]

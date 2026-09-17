@@ -1032,6 +1032,48 @@ describe('Message Converters', () => {
       })
     })
 
+    it('does not infer a tool result outcome from arbitrary content', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        content: '{"outcome":"cancelled"}',
+        toolCallId: 'tool-1',
+      }
+
+      expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: '{"outcome":"cancelled"}',
+        state: 'complete',
+      })
+
+      const restored = modelMessagesToUIMessages([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tool-1',
+              type: 'function',
+              function: { name: 'example', arguments: '{}' },
+            },
+          ],
+        },
+        modelMessage,
+      ])
+
+      expect(restored[0]?.parts).toContainEqual(
+        expect.objectContaining({ type: 'tool-call', state: 'complete' }),
+      )
+      const restoredToolResult = restored[0]?.parts.find(
+        (part) => part.type === 'tool-result',
+      )
+      expect(restoredToolResult).toMatchObject({
+        type: 'tool-result',
+        state: 'complete',
+      })
+      expect(restoredToolResult?.outcome).toBeUndefined()
+    })
+
     it('should convert assistant message with toolCalls and text', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
