@@ -102,6 +102,31 @@ function createMockMcpServer(): McpServer {
     },
   )
 
+  // Never stores a result. Abort tests poll until the client signal fires.
+  server.experimental.tasks.registerToolTask(
+    'hanging_appraisal',
+    {
+      description: 'Task-required tool that never reaches a terminal result',
+      inputSchema: { ids: z.array(z.string()) },
+      execution: { taskSupport: 'required' },
+    },
+    {
+      async createTask(_args, { taskStore: store, taskRequestedTtl }) {
+        const task = await store.createTask({
+          ttl: taskRequestedTtl ?? 10_000,
+          pollInterval: 1,
+        })
+        return { task }
+      },
+      async getTask(_args, { taskId, taskStore: store }) {
+        return store.getTask(taskId)
+      },
+      async getTaskResult(_args, { taskId, taskStore: store }) {
+        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
+      },
+    },
+  )
+
   // A static resource + prompt so the resource/prompt read+convert path can be
   // exercised end-to-end (see api.mcp-status-test). The catalog text carries a
   // distinctive token (STRAT-001) the spec asserts survives conversion.

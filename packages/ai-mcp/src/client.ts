@@ -41,6 +41,8 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js'
 import type { ServerTool } from '@tanstack/ai'
 
+const MAX_TOOLS_LIST_PAGES = 100
+
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
@@ -183,19 +185,35 @@ class MCPClientImpl<
    * metadata caches (output-schema validators, task flags) are not armed —
    * `callTool`'s lazy lookup must not switch a previously validation-free
    * direct call over to strict structured-content validation.
+   *
+   * When `raw` is off, only the first page uses `listTools()`. Later pages
+   * are raw requests: `listTools()` clears the SDK metadata cache before
+   * writing the current page, which would drop validators for earlier tools.
    */
   async #listTools(options?: { raw?: boolean }): Promise<Array<McpToolDef>> {
     const defs: Array<McpToolDef> = []
     let cursor: string | undefined
+    let pageCount = 0
     do {
-      const page = options?.raw
+      pageCount++
+      if (pageCount > MAX_TOOLS_LIST_PAGES) {
+        throw new Error(
+          `MCP tools/list pagination exceeded ${MAX_TOOLS_LIST_PAGES} pages`,
+        )
+      }
+      const useRaw = options?.raw === true || pageCount > 1
+      const page = useRaw
         ? await this.#client.request(
             { method: 'tools/list', ...(cursor ? { params: { cursor } } : {}) },
             ListToolsResultSchema,
           )
         : await this.#client.listTools(cursor ? { cursor } : undefined)
       defs.push(...page.tools)
-      cursor = page.nextCursor
+      const nextCursor = page.nextCursor
+      if (nextCursor !== undefined && nextCursor === cursor) {
+        throw new Error('MCP tools/list pagination repeated a cursor')
+      }
+      cursor = nextCursor
     } while (cursor)
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
     return defs

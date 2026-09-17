@@ -1,5 +1,7 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it, vi } from 'vitest'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 import { createMCPClient, createMCPClientFromTransport } from '../src/client'
 import {
   DuplicateToolNameError,
@@ -11,6 +13,8 @@ import {
   makeServerWithBrokenToolList,
   makeServerWithChangingTools,
   makeServerWithLaxOutputSchemaTool,
+  makeServerWithLoopingCursor,
+  makeServerWithPaginatedLaxSchemaTool,
   makeServerWithPaginatedTools,
   makeServerWithPendingTaskTool,
   makeServerWithStructuredTool,
@@ -36,8 +40,6 @@ describe('createMCPClient', () => {
   it('binds passed toolDefinitions to the server, typed + validated', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const getWeather = toolDefinition({
       name: 'get_weather',
       description: 'Get weather for a city',
@@ -59,8 +61,6 @@ describe('createMCPClient', () => {
   it('throws MCPToolNotFoundError for a definition the server lacks', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const ghost = toolDefinition({
       name: 'does_not_exist',
       description: 'A tool that does not exist on the server',
@@ -72,8 +72,6 @@ describe('createMCPClient', () => {
   it('throws DuplicateToolNameError when bound defs collide within one tools() call', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const getWeather = toolDefinition({
       name: 'get_weather',
       description: 'Get weather for a city',
@@ -92,8 +90,6 @@ describe('createMCPClient', () => {
       clientTransport,
       'wx',
     )
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const getWeather = toolDefinition({
       name: 'get_weather',
       description: 'Get weather for a city',
@@ -109,8 +105,6 @@ describe('createMCPClient', () => {
       clientTransport,
       'wx',
     )
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const getWeather = toolDefinition({
       name: 'get_weather',
       description: 'Get weather for a city',
@@ -146,8 +140,6 @@ describe('createMCPClient', () => {
   it('forwards server annotations + display title on bound definitions', async () => {
     const { clientTransport } = await makeServerWithAnnotatedTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const getWeather = toolDefinition({
       name: 'get_weather',
       description: 'Get weather for a city',
@@ -178,8 +170,6 @@ describe('createMCPClient', () => {
   it('binds and executes a task-required tool definition', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const researchTask = toolDefinition({
       name: 'research_task',
       description: 'A long-running tool that requires task-based execution',
@@ -244,6 +234,21 @@ describe('createMCPClient', () => {
     ])
   })
 
+  it('keeps output-schema validation for tools listed on an earlier page', async () => {
+    const { clientTransport } = await makeServerWithPaginatedLaxSchemaTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.tools()
+    // Page 1 declared an outputSchema; a later page must not wipe that
+    // SDK cache. Text-only content then fails structured-content validation.
+    await expect(client.callTool('first_page_tool')).rejects.toThrow()
+  })
+
+  it('fails tools() when tools/list repeats a pagination cursor', async () => {
+    const { clientTransport } = await makeServerWithLoopingCursor()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await expect(client.tools()).rejects.toThrow(/repeated a cursor/)
+  })
+
   it('callTool does not re-list for a name absent from the cached list', async () => {
     const { clientTransport, getListRequests } =
       await makeServerWithPaginatedTools()
@@ -297,8 +302,6 @@ describe('createMCPClient', () => {
   it('throws MCPTaskRequiredToolError when binding a task-required tool the server cannot execute', async () => {
     const { clientTransport } = await makeServerWithUnsupportedTaskTool()
     await using client = await createMCPClientFromTransport(clientTransport)
-    const { toolDefinition } = await import('@tanstack/ai')
-    const { z } = await import('zod')
     const needsTasks = toolDefinition({
       name: 'needs_tasks',
       description: 'Requires tasks the server cannot execute',

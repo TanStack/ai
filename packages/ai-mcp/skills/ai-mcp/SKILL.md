@@ -453,7 +453,9 @@ TanStack AI stops waiting for MCP tool calls when the chat run's
 `AbortController` fires (e.g. client disconnect, server abort). The
 `abortSignal` is threaded through `ToolExecutionContext` into every tool call
 with no extra code. For a task-required tool, aborting stops the local task
-stream but does not cancel a remote task the MCP server has already created.
+stream and sends a best-effort `tasks/cancel` for a remote task the MCP
+server has already created. Cancel is best-effort: a server that ignores
+`tasks/cancel` may keep running until TTL.
 
 You can also read it in a hand-written server tool that wraps an MCP call:
 
@@ -767,9 +769,10 @@ and do NOT appear in the library's runtime dependency graph.
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
   `name` is not exposed by the server.
-- `MCPTaskRequiredToolError` — deprecated compatibility export. Task-required
-  tools now run automatically through the SDK's experimental
-  `tasks/callToolStream` flow, so `client.tools()` no longer throws this error.
+- `MCPTaskRequiredToolError` — thrown when a task-required tool is bound via
+  `tools([defs])` or called via `callTool()` and the server does not declare
+  the tasks capability for `tools/call`. Auto-discovery skips those tools
+  instead of throwing.
 - `DuplicateToolNameError` — thrown by a single pool's own `tools()` when two
   tools within that pool share the same name (same server or pool clients with no
   prefix). Exported from `@tanstack/ai-mcp`.

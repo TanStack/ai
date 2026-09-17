@@ -121,23 +121,54 @@ export async function callMcpTool(
     CallToolResultSchema,
     { signal, task: {} },
   )
+  const iterator = stream[Symbol.asyncIterator]()
   let taskId: string | undefined
-  for await (const message of stream) {
-    if (message.type === 'taskCreated') taskId = message.task.taskId
-    if (message.type === 'result') return message.result
-    if (message.type === 'error') {
-      // On abort the SDK merely stops polling; the server-side task keeps
-      // running until its TTL. Propagate the abort as a best-effort cancel
-      // (never masking the original error with a cancel failure).
-      if (signal?.aborted && taskId !== undefined) {
-        await client.experimental.tasks.cancelTask(taskId).catch(() => {})
-      }
-      throw message.error
+  try {
+    while (true) {
+      const step = await nextWithAbort(iterator, signal)
+      if (step.done) break
+      const message = step.value
+      if (message.type === 'taskCreated') taskId = message.task.taskId
+      if (message.type === 'result') return message.result
+      if (message.type === 'error') throw message.error
     }
+  } catch (error) {
+    // Abort stops this client from waiting. Cancel the remote task in the
+    // background so a slow `tasks/cancel` cannot stall the abort path.
+    // Cancel failures must not mask the original abort error.
+    if (signal?.aborted && taskId !== undefined) {
+      void client.experimental.tasks.cancelTask(taskId).catch(() => {})
+    }
+    throw error
   }
   throw new Error(
     `MCP task-required tool "${mcpName}" ended without a result or error`,
   )
+}
+
+function abortReason(signal: AbortSignal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('Aborted', 'AbortError')
+}
+
+function nextWithAbort<T>(iterator: AsyncIterator<T>, signal?: AbortSignal) {
+  if (!signal) return iterator.next()
+  signal.throwIfAborted()
+  return new Promise<IteratorResult<T>>((resolve, reject) => {
+    const onAbort = () => reject(abortReason(signal))
+    signal.addEventListener('abort', onAbort, { once: true })
+    iterator.next().then(
+      (result) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
 }
 
 /**

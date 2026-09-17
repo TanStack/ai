@@ -69,3 +69,79 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
     expect(promptText.toLowerCase()).toContain('guitar')
   })
 })
+
+test.describe('mcp — task execution error paths', () => {
+  test('aborts a hanging task-required tool without waiting for a result', async ({
+    request,
+  }) => {
+    const res = await request.get('/api/mcp-task-errors?scenario=abort')
+    const body = await res.text()
+    expect(
+      res.ok(),
+      `mcp-task-errors abort failed (${res.status()}): ${body}`,
+    ).toBe(true)
+    const json = JSON.parse(body) as {
+      aborted: boolean
+      elapsedMs: number
+      errorName: string
+      message: string
+    }
+    expect(json.aborted).toBe(true)
+    expect(json.elapsedMs).toBeLessThan(5000)
+    expect(json.message).not.toContain('4200')
+    expect(json.errorName).not.toBe('none')
+  })
+
+  test('skips a task-required tool when the server has no tasks capability', async ({
+    request,
+  }) => {
+    const res = await request.get(
+      '/api/mcp-task-errors?scenario=skip-unsupported',
+    )
+    const body = await res.text()
+    expect(
+      res.ok(),
+      `mcp-task-errors skip-unsupported failed (${res.status()}): ${body}`,
+    ).toBe(true)
+    const json = JSON.parse(body) as { tools: Array<string> }
+    expect(json.tools).toEqual(['plain_tool'])
+  })
+
+  test('callTool throws MCPTaskRequiredToolError without the tasks capability', async ({
+    request,
+  }) => {
+    const res = await request.get(
+      '/api/mcp-task-errors?scenario=call-unsupported',
+    )
+    const body = await res.text()
+    expect(
+      res.ok(),
+      `mcp-task-errors call-unsupported failed (${res.status()}): ${body}`,
+    ).toBe(true)
+    const json = JSON.parse(body) as {
+      errorName: string
+      isTaskRequired: boolean
+    }
+    expect(json.errorName).toBe('MCPTaskRequiredToolError')
+    expect(json.isTaskRequired).toBe(true)
+  })
+
+  test('tools([defs]) throws MCPTaskRequiredToolError without the tasks capability', async ({
+    request,
+  }) => {
+    const res = await request.get(
+      '/api/mcp-task-errors?scenario=bind-unsupported',
+    )
+    const body = await res.text()
+    expect(
+      res.ok(),
+      `mcp-task-errors bind-unsupported failed (${res.status()}): ${body}`,
+    ).toBe(true)
+    const json = JSON.parse(body) as {
+      errorName: string
+      isTaskRequired: boolean
+    }
+    expect(json.errorName).toBe('MCPTaskRequiredToolError')
+    expect(json.isTaskRequired).toBe(true)
+  })
+})

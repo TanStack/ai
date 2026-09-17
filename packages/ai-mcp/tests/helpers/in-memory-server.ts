@@ -250,6 +250,66 @@ export async function makeServerWithPaginatedTools() {
   return { server, clientTransport, getListRequests }
 }
 
+/**
+ * Two-page tools/list whose first-page tool declares an outputSchema but
+ * answers with text-only content. After a full paginated `tools()`, SDK
+ * structured-content validation must still apply to the first-page tool.
+ */
+export async function makeServerWithPaginatedLaxSchemaTool() {
+  const { server, getListRequests } = makeLowLevelToolServer({
+    name: 'paged-lax',
+    pages: [
+      [
+        {
+          name: 'first_page_tool',
+          description: 'On page one, declares an output schema it never honors',
+          inputSchema: { type: 'object' },
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        },
+      ],
+      [
+        {
+          name: 'second_page_tool',
+          description: 'On page two',
+          inputSchema: { type: 'object' },
+        },
+      ],
+    ],
+  })
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport, getListRequests }
+}
+
+/** tools/list always returns the same nextCursor so pagination never ends. */
+export async function makeServerWithLoopingCursor() {
+  const server = new Server(
+    { name: 'looping-list', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: [
+      {
+        name: 'loop_tool',
+        description: 'Listed forever',
+        inputSchema: { type: 'object' },
+      },
+    ],
+    nextCursor: 'same',
+  }))
+  server.setRequestHandler(CallToolRequestSchema, (req) => ({
+    content: [{ type: 'text' as const, text: `called ${req.params.name}` }],
+  }))
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected pair whose tools/list always errors but tools/call works. */
 export async function makeServerWithBrokenToolList() {
   const { server } = makeLowLevelToolServer({

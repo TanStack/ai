@@ -187,6 +187,83 @@ describe('callMcpTool', () => {
     await expect(callMcpTool(client, 'research', {}, true)).rejects.toBe(error)
   })
 
+  it('does not wait for tasks/cancel before rethrowing abort', async () => {
+    const abortError = new DOMException('Aborted', 'AbortError')
+    const controller = new AbortController()
+    let cancelFinished = false
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskCreated' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+              controller.abort()
+              yield { type: 'error' as const, error: abortError }
+            })(),
+          cancelTask: () =>
+            new Promise<void>((resolve) => {
+              setTimeout(() => {
+                cancelFinished = true
+                resolve()
+              }, 200)
+            }),
+        },
+      },
+    } as unknown as Client
+
+    const started = Date.now()
+    await expect(
+      callMcpTool(client, 'research', {}, true, controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(Date.now() - started).toBeLessThan(100)
+    expect(cancelFinished).toBe(false)
+  })
+
+  it('stops waiting when abort fires while the task stream is idle', async () => {
+    const controller = new AbortController()
+    let created = false
+    const cancelTask = vi.fn().mockResolvedValue(undefined)
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskCreated' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+              created = true
+              await new Promise<never>(() => {})
+            })(),
+          cancelTask,
+        },
+      },
+    } as unknown as Client
+
+    const pending = callMcpTool(client, 'research', {}, true, controller.signal)
+    await vi.waitFor(() => {
+      expect(created).toBe(true)
+    })
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(cancelTask).toHaveBeenCalledWith('task-1')
+  })
+
   it('throws if a task stream ends without a terminal message', async () => {
     const client = {
       experimental: {

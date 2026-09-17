@@ -82,9 +82,9 @@ function createTasksMcpServer(): McpServer {
           `[mcp-tasks] created task ${task.taskId} — appraising ${ids.length} guitar(s), completes in ${APPRAISAL_DURATION_MS}ms`,
         )
         // Complete the task in the background; the client keeps polling
-        // getTask until the status turns terminal. If the user aborts the
-        // chat mid-task, this timer still fires and the stored result is
-        // simply never fetched (documented ai-mcp abort semantics).
+        // getTask until the status turns terminal. Abort sends best-effort
+        // `tasks/cancel`. This demo timer is not wired to that cancel, so it
+        // may still fire and `storeTaskResult` then fails on a cancelled task.
         setTimeout(() => {
           const total = ids.length * PRICE_PER_GUITAR
           store
