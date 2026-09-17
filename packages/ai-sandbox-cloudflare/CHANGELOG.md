@@ -1,5 +1,11 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1167](https://github.com/TanStack/ai/pull/1167) [`f791c71`](https://github.com/TanStack/ai/commit/f791c717eff898593dc86105c66b8d9b6bba7ac5) - Add the app-wide `stallTimeoutMs` option for both coordinator modes, with authenticated `/_bridge` and `/tool-exec` callbacks refreshing run activity on arrival and completion.
+
 ## 0.3.14
 
 ### Patch Changes

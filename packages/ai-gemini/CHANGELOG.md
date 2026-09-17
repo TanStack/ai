@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.30.0
+
+### Minor Changes
+
+- [#971](https://github.com/TanStack/ai/pull/971) [`507f66c`](https://github.com/TanStack/ai/commit/507f66ca88e609f801e8710cafa863ca5ba6fe33) - Add native structured-output streaming for the Gemini and experimental Gemini Interactions text adapters.
+
 ## 0.29.4
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @tanstack/ai-client
 
+## 0.32.1
+
+### Patch Changes
+
+- [#1410](https://github.com/TanStack/ai/pull/1410) [`db79c23`](https://github.com/TanStack/ai/commit/db79c23e0591bf42f64e7809d3d50bf6950c2e61) - When BYOK is on and no provider slug is passed, use the only saved key, or the only provider listed in `defineByok({ providers })`. A send with two saved keys and no slug still throws.
+
+- [#1369](https://github.com/TanStack/ai/pull/1369) [`3852e16`](https://github.com/TanStack/ai/commit/3852e16158168b911f544f6a23f377fb3db9cd45) - Fix resolved interrupts reappearing as pending when a fresh `ChatClient` replays saved events. The client follows `parentRunId` links and clears stale pauses after a continuation ends without an interrupt. This also works when parent links arrive after terminal events. Intermediate `tool_calls` events do not mark the run or its ancestors as answered.
+
 ## 0.32.0
 
 ### Minor Changes
