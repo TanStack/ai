@@ -131,9 +131,8 @@ pnpm dev
 
 ### World generation (ts-react-media)
 
-The media example has a **World** tab. Paste a Reactor key in the header
-dialog. The relay calls `generateWorld()`. The page connects and can steer
-the scene mid-run.
+The media example has a **World** tab. Pick a Reactor model for a live
+steerable stream, or a Marble model for a finished 3D World Labs world.
 
 ```bash
 cd examples/ts-react-media
@@ -141,7 +140,8 @@ pnpm install
 pnpm dev
 ```
 
-Open the World tab. Paste a Reactor key, or set `REACTOR_API_KEY`.
+Open the World tab. Paste a Reactor key (`REACTOR_API_KEY`) or a World Labs
+key (`WORLDLABS_API_KEY`).
 
 ---
 

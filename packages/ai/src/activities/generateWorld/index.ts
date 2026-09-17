@@ -1,9 +1,9 @@
 /**
  * World Activity (Experimental)
  *
- * Mints a session token for a live, prompt-steerable world. Unlike
- * generateVideo (a job that finishes with a URL), the browser then connects
- * with the token, sets the prompt, and streams until pause/reset/close.
+ * Live adapters mint a session token for a prompt-steerable world. Job
+ * adapters start generation and return a viewer URL, or an operation id
+ * while the job is still running.
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -76,7 +76,7 @@ export interface WorldActivityOptions<
   /** Provider-specific options for world generation */
   modelOptions?: WorldProviderOptions<TAdapter>
   /**
-   * Whether to wrap the token result as StreamChunks for SSE transport.
+   * Whether to wrap the result as StreamChunks for SSE transport.
    * This is not the live video. When false or omitted, returns
    * Promise<WorldGenerationResult>.
    *
@@ -100,7 +100,7 @@ export interface WorldActivityOptions<
   /** Stable run id for correlating this run when persisted. */
   runId?: string
   /**
-   * Maximum duration of the token mint in milliseconds.
+   * Maximum wait for the mint or job poll, in milliseconds.
    * No SDK-wide default. Composed with {@link abortSignal}; the first abort wins.
    */
   timeout?: number
@@ -135,7 +135,8 @@ function createId(prefix: string): string {
 // ===========================
 
 /**
- * World generation activity - opens a live, prompt-steerable world session.
+ * World generation activity. Live adapters mint a session token. Job
+ * adapters return a viewer URL or an in-progress operation id.
  *
  * @example Mint a session token on the server
  * ```ts
