@@ -30,6 +30,8 @@ You want a streaming chat in your app. TanStack AI streams from a server route. 
 
 For a React + Start app with BYOK, open [Basic Chat](../tutorials/basic-chat).
 
+For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).
+
 > [!TIP]
 > If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
 
