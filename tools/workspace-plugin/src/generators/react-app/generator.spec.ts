@@ -11,6 +11,7 @@ describe('react-app generator', () => {
     expect(pkg).toContain('"@tanstack/ai": "workspace:*"')
     expect(pkg).toContain('"@tanstack/ai-mistral": "workspace:*"')
     expect(pkg).not.toContain('@tanstack/ai-vue')
+    expect(pkg).not.toContain('"nitro"')
 
     const apiChat = tree.read(
       'examples/react/lab-byok/src/routes/api.chat.ts',
@@ -36,6 +37,7 @@ describe('react-app generator', () => {
 
     const vite = tree.read('examples/react/lab-byok/vite.config.ts', 'utf-8')
     expect(vite).toContain('3100')
+    expect(vite).not.toContain('nitro')
 
     const tsconfig = tree.read('examples/react/lab-byok/tsconfig.json', 'utf-8')
     expect(tsconfig).not.toContain('"extends"')
