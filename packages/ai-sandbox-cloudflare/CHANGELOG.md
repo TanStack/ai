@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.3.13
+
+### Patch Changes
+
+- [#1200](https://github.com/TanStack/ai/pull/1200) [`39b4bf2`](https://github.com/TanStack/ai/commit/39b4bf296df7dca9195b2e4cda05529459625dae) - `exposePreview` now verifies the preview URL is actually reachable before returning it: it fails with an actionable error when nothing is listening on the port, and detects and replaces stale quick tunnels instead of re-sharing dead URLs ([#992](https://github.com/TanStack/ai/issues/992)).
+
+- Updated dependencies [[`75d94cf`](https://github.com/TanStack/ai/commit/75d94cf8babc22d19a6120b68f073d4e48cd69d4), [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai-sandbox@0.5.8
+  - @tanstack/ai@0.54.1
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
 ## 0.3.12
 
 ### Patch Changes

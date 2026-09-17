@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.54.1
+
+### Patch Changes
+
+- [#1395](https://github.com/TanStack/ai/pull/1395) [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6) - Return real WAV audio for ElevenLabs speech requests with `format: 'wav'` and reject unsupported AAC and FLAC formats instead of silently returning MP3. Preserve explicit `modelOptions.outputFormat` overrides and document the supported formats in the media-generation skill.
+
 ## 0.54.0
 
 ### Minor Changes
