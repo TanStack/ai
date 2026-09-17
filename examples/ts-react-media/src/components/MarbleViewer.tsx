@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import type { Object3D, PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { marbleSplatProxyPath, splatFileName } from '@/lib/marble-splat'
 
 type MarbleViewerProps = {
@@ -8,73 +9,129 @@ type MarbleViewerProps = {
   groundPlaneOffset?: number
 }
 
+type ViewerRuntime = {
+  scene: Scene
+  camera: PerspectiveCamera
+  webgl: WebGLRenderer
+  controls: { update: (camera: Object3D) => void }
+}
+
 export function MarbleViewer({
   splatUrl,
   metricScaleFactor,
   groundPlaneOffset,
 }: MarbleViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const runtimeRef = useRef<ViewerRuntime | null>(null)
+  const splatRef = useRef<{ dispose: () => void } | null>(null)
+  const [runtimeReady, setRuntimeReady] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    const host = containerRef.current
+    if (!host) return
+    const root = host
 
-    let disposed = false
-    let renderer: import('three').WebGLRenderer | null = null
-    let splat: { dispose: () => void } | null = null
-    let resizeObserver: ResizeObserver | null = null
+    let cancelled = false
+    let webgl: WebGLRenderer | undefined
+    let resizeObserver: ResizeObserver | undefined
 
-    async function start() {
+    void (async () => {
       const THREE = await import('three')
       const spark = await import('@sparkjsdev/spark')
-      if (disposed || !container) return
-      const host = container
+      if (cancelled) return
 
       const scene = new THREE.Scene()
       const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 8000)
       camera.position.set(0, 1.6, 0)
 
-      const webgl = new THREE.WebGLRenderer({ antialias: true })
+      webgl = new THREE.WebGLRenderer({ antialias: true })
       webgl.setClearColor(0x000000, 1)
       webgl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-      webgl.domElement.tabIndex = 0
-      webgl.domElement.className = 'block h-full w-full outline-none'
-      host.appendChild(webgl.domElement)
-      renderer = webgl
+      const canvas = webgl.domElement
+      canvas.tabIndex = 0
+      canvas.className = 'block h-full w-full outline-none'
+      root.appendChild(canvas)
 
       const sparkRenderer = new spark.SparkRenderer({ renderer: webgl })
       scene.add(sparkRenderer)
-      const controls = new spark.SparkControls({ canvas: webgl.domElement })
+      const controls = new spark.SparkControls({ canvas })
       controls.fpsMovement.enable = false
-      webgl.domElement.addEventListener('pointerdown', () => {
-        webgl.domElement.focus()
+      canvas.addEventListener('pointerdown', () => {
+        canvas.focus()
       })
-      webgl.domElement.addEventListener('focus', () => {
+      canvas.addEventListener('focus', () => {
         controls.fpsMovement.enable = true
       })
-      webgl.domElement.addEventListener('blur', () => {
+      canvas.addEventListener('blur', () => {
         controls.fpsMovement.enable = false
+      })
+      canvas.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault()
+        setError('The 3D viewer lost the GPU context')
       })
 
       function resize() {
-        const width = host.clientWidth || 1
-        const height = host.clientHeight || 1
+        if (!webgl) return
+        const width = root.clientWidth || 1
+        const height = root.clientHeight || 1
         camera.aspect = width / height
         camera.updateProjectionMatrix()
         webgl.setSize(width, height, false)
       }
       resize()
       resizeObserver = new ResizeObserver(resize)
-      resizeObserver.observe(host)
+      resizeObserver.observe(root)
 
-      const response = await fetch(marbleSplatProxyPath(splatUrl))
-      if (!response.ok) {
-        throw new Error('Splat download failed')
+      runtimeRef.current = { scene, camera, webgl, controls }
+      webgl.setAnimationLoop(() => {
+        const runtime = runtimeRef.current
+        if (!runtime) return
+        runtime.controls.update(runtime.camera)
+        runtime.webgl.render(runtime.scene, runtime.camera)
+      })
+      setRuntimeReady((count) => count + 1)
+    })().catch((caught: unknown) => {
+      if (cancelled) return
+      setLoading(false)
+      setError(caught instanceof Error ? caught.message : String(caught))
+    })
+
+    return () => {
+      cancelled = true
+      resizeObserver?.disconnect()
+      splatRef.current?.dispose()
+      splatRef.current = null
+      if (webgl) {
+        webgl.setAnimationLoop(null)
+        webgl.dispose()
+        webgl.domElement.remove()
       }
+      runtimeRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const runtime = runtimeRef.current
+    if (!runtimeReady || !runtime) return
+
+    let cancelled = false
+    const abort = new AbortController()
+    setLoading(true)
+    setError(null)
+
+    splatRef.current?.dispose()
+    splatRef.current = null
+
+    void (async () => {
+      const spark = await import('@sparkjsdev/spark')
+      const response = await fetch(marbleSplatProxyPath(splatUrl), {
+        signal: abort.signal,
+      })
+      if (!response.ok) throw new Error('Splat download failed')
       const fileBytes = await response.arrayBuffer()
-      if (disposed) return
+      if (cancelled) return
 
       const mesh = new spark.SplatMesh({
         fileBytes,
@@ -88,35 +145,27 @@ export function MarbleViewer({
       if (groundPlaneOffset != null) {
         mesh.position.y = -groundPlaneOffset
       }
-      scene.add(mesh)
-      splat = mesh
+      runtime.scene.add(mesh)
+      splatRef.current = mesh
       await mesh.initialized
-      if (disposed) return
+      if (cancelled) {
+        mesh.dispose()
+        return
+      }
       setLoading(false)
-
-      webgl.setAnimationLoop(() => {
-        controls.update(camera)
-        webgl.render(scene, camera)
-      })
-    }
-
-    start().catch((caught: unknown) => {
-      if (disposed) return
+    })().catch((caught: unknown) => {
+      if (cancelled || abort.signal.aborted) return
       setLoading(false)
       setError(caught instanceof Error ? caught.message : String(caught))
     })
 
     return () => {
-      disposed = true
-      resizeObserver?.disconnect()
-      if (renderer) {
-        renderer.setAnimationLoop(null)
-        renderer.dispose()
-        renderer.domElement.remove()
-      }
-      splat?.dispose()
+      cancelled = true
+      abort.abort()
+      splatRef.current?.dispose()
+      splatRef.current = null
     }
-  }, [splatUrl, metricScaleFactor, groundPlaneOffset])
+  }, [runtimeReady, splatUrl, metricScaleFactor, groundPlaneOffset])
 
   return (
     <div className="relative aspect-video w-full bg-black">

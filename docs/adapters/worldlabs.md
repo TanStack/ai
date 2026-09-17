@@ -12,7 +12,7 @@ keywords:
   - adapter
 ---
 
-You want a finished 3D world from a prompt, an image, or a video. World Labs Marble generates splat files, a mesh, and a viewer URL. Generation takes a few minutes.
+You want a finished 3D world from a prompt, an image, or a video. World Labs Marble generates splat files, a mesh, and a viewer URL. Generation often takes several minutes.
 
 Use `worldlabsWorld()` with `generateWorld()`. This adapter does not support `chat()`.
 
@@ -45,12 +45,13 @@ const apiKey = process.env.WORLDLABS_API_KEY ?? ''
 const world = await generateWorld({
   adapter: worldlabsWorld('marble-1.1', { apiKey }),
   prompt: 'A mystical forest with glowing mushrooms',
+  timeout: 12 * 60 * 1000,
 })
 ```
 
-`world.url` is the Marble viewer URL (`https://marble.worldlabs.ai/world/{id}`). `world.assets` has splat, mesh, panorama, and thumbnail links when the job finishes.
+`world.url` is the Marble viewer URL (`https://marble.worldlabs.ai/world/{id}`). Do not iframe it. `world.assets` is optional. Splat, mesh, panorama, and thumbnail links appear only when the World Labs response includes them. Those URLs are often signed CDN links.
 
-World Labs bills in credits per generation. The call waits until the world is ready (about 5 minutes). Pass a long `timeout` on serverless, or set `wait: false` and poll later.
+World Labs bills in credits per generation. The call waits until the world is ready (often several minutes). Pass a long `timeout` on serverless, or set `wait: false` and poll later.
 
 ## Models
 
@@ -64,8 +65,8 @@ const adapter = worldlabsWorld('marble-1.1')
 
 | Id | Notes |
 | --- | --- |
-| `marble-1.1-plus` | Largest outdoor and indoor worlds. Uses more credits. |
-| `marble-1.1` | Default Marble 1.1 |
+| `marble-1.1-plus` | Dynamic world sizing |
+| `marble-1.1` | World Labs default model id |
 | `marble-1.0` | Marble 1.0 |
 | `marble-1.0-draft` | Faster draft quality |
 
@@ -97,23 +98,12 @@ Pass only one of `image`, `images`, or `video`.
 | `video` | One video. Same source fields as `image` |
 | `isPano` | `auto`, `true`, or `false` for a single image |
 | `wait` | Default `true`. Set `false` to return `operationId` at once |
+| `pollIntervalMs` | Poll delay when `wait` is true. Default 2000 |
 
-Optional metadata: `displayName`, `seed`, `tags`.
+Optional metadata: `displayName`, `seed`, `tags`, `disableRecaption`, `permission`.
 
-When `wait` is `false`, `world.status` is `waiting` and `world.operationId` is set. Call `generateWorld` again with `wait: true` only starts a new job. Poll the World Labs operations API with that id, or keep `wait` at the default.
-
-## Custom endpoint
-
-```ts
-import { worldlabsWorld } from '@tanstack/ai-worldlabs'
-
-const apiKey = process.env.WORLDLABS_API_KEY ?? ''
-const adapter = worldlabsWorld('marble-1.1', {
-  apiKey,
-  baseUrl: 'https://api.worldlabs.ai',
-})
-```
+When `wait` is `false`, `world.status` is `waiting` and `world.operationId` is set. This adapter cannot resume that id. Call `generateWorld` again with `wait: true` only starts a new job. Poll `GET /marble/v1/operations/{operationId}` yourself, or keep `wait` at the default.
 
 ## What you have now
 
-A server call that generates a Marble world and returns the viewer URL plus asset links. The media example loads `world.assets.splats.spzUrls` in Spark so you can walk the scene in the page. You can also open `world.url`. Splat export needs a World Labs plan that returns those files.
+A server call that generates a Marble world and returns the viewer URL plus optional asset links. The media example picks one SPZ (prefers `500k`) and loads it in Spark through `/api/marble-splat`. If no splat URL is present, it shows a thumbnail and an Open in Marble link.

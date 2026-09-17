@@ -14,6 +14,7 @@ export function pickSplatUrl(
   return undefined
 }
 
+/** Same-origin proxy allowlist. Marble asset URLs are signed CDN links and are not CORS-open. */
 export function isAllowedMarbleSplatUrl(value: string): boolean {
   let url: URL
   try {
@@ -44,8 +45,7 @@ export function marbleSplatProxyPath(
 }
 
 export function safeDownloadName(name: string): string | undefined {
-  if (!/^[A-Za-z0-9._-]{1,128}$/.test(name)) return undefined
-  return name
+  return /^[A-Za-z0-9._-]{1,128}$/.test(name) ? name : undefined
 }
 
 export class MarblePlanError extends Error {
@@ -70,6 +70,9 @@ export async function downloadMarbleAsset(
     throw new Error('Download failed')
   }
   const blob = await response.blob()
+  if (blob.size === 0) {
+    throw new Error('Download failed')
+  }
   const objectUrl = URL.createObjectURL(blob)
   try {
     const link = document.createElement('a')

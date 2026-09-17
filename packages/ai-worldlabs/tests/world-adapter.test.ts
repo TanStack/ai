@@ -5,6 +5,7 @@ import {
   isWorldLabsWorldModel,
   worldlabsWorld,
 } from '../src'
+import type { WorldLabsWorldProviderOptions } from '../src'
 
 const OPERATION_ID = 'op-1'
 const WORLD_ID = 'world-1'
@@ -55,6 +56,43 @@ function worldPayload() {
   }
 }
 
+function generateMarble(
+  fetchImpl: typeof fetch,
+  options: {
+    prompt?: string
+    modelOptions?: WorldLabsWorldProviderOptions
+    abortSignal?: AbortSignal
+  } = {},
+) {
+  return generateWorld({
+    adapter: worldlabsWorld('marble-1.1', {
+      apiKey: 'wlt_test',
+      fetch: fetchImpl,
+    }),
+    prompt: options.prompt ?? 'a forest',
+    ...(options.modelOptions ? { modelOptions: options.modelOptions } : {}),
+    ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+    debug: false,
+  })
+}
+
+function completedWorld(extra?: Record<string, unknown>) {
+  return jsonResponse({
+    operation_id: OPERATION_ID,
+    done: true,
+    response: worldPayload(),
+    ...extra,
+  })
+}
+
+function expectWorldPrompt(expected: unknown) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = (await requestJson(input, init)) as { world_prompt: unknown }
+    expect(body.world_prompt).toEqual(expected)
+    return completedWorld()
+  })
+}
+
 describe('World Labs world adapter', () => {
   it('narrows known Marble model ids', () => {
     expect(isWorldLabsWorldModel('marble-1.1')).toBe(true)
@@ -94,14 +132,9 @@ describe('World Labs world adapter', () => {
       },
     )
 
-    const result = await generateWorld({
-      adapter: worldlabsWorld('marble-1.1', {
-        apiKey: 'wlt_test',
-        fetch: fetchImpl,
-      }),
+    const result = await generateMarble(fetchImpl, {
       prompt: 'A mystical forest with glowing mushrooms',
       modelOptions: { pollIntervalMs: 1 },
-      debug: false,
     })
 
     expect(fetchImpl).toHaveBeenCalledTimes(2)
@@ -111,7 +144,16 @@ describe('World Labs world adapter', () => {
     expect(result.operationId).toBe(OPERATION_ID)
     expect(result.model).toBe('marble-1.1')
     expect(result.assets?.caption).toBe('A fantastical forest')
+    expect(result.assets?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+    expect(result.assets?.splats?.spzUrls).toEqual({
+      '100k': 'https://example.com/100k.spz',
+    })
     expect(result.assets?.splats?.metricScaleFactor).toBe(1.23)
+    expect(result.assets?.splats?.groundPlaneOffset).toBe(0.42)
+    expect(result.assets?.mesh?.colliderMeshUrl).toBe(
+      'https://example.com/collider.glb',
+    )
+    expect(result.assets?.imagery?.panoUrl).toBe('https://example.com/pano.jpg')
     expect(result.token).toBeUndefined()
   })
 
@@ -144,52 +186,32 @@ describe('World Labs world adapter', () => {
   })
 
   it('sends an image prompt when modelOptions.image is set', async () => {
-    const fetchImpl = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const body = (await requestJson(input, init)) as {
-          world_prompt: unknown
-        }
-        expect(body.world_prompt).toEqual({
-          type: 'image',
-          image_prompt: {
-            source: 'uri',
-            uri: 'https://example.com/scene.jpg',
-          },
-          text_prompt: 'A beautiful landscape',
-          is_pano: 'auto',
-        })
-        return jsonResponse({
-          operation_id: OPERATION_ID,
-          done: true,
-          response: worldPayload(),
-        })
+    await generateMarble(
+      expectWorldPrompt({
+        type: 'image',
+        image_prompt: {
+          source: 'uri',
+          uri: 'https://example.com/scene.jpg',
+        },
+        text_prompt: 'A beautiful landscape',
+        is_pano: 'auto',
+      }),
+      {
+        prompt: 'A beautiful landscape',
+        modelOptions: {
+          image: { uri: 'https://example.com/scene.jpg' },
+          isPano: 'auto',
+        },
       },
     )
-
-    await generateWorld({
-      adapter: worldlabsWorld('marble-1.1', {
-        apiKey: 'wlt_test',
-        fetch: fetchImpl,
-      }),
-      prompt: 'A beautiful landscape',
-      modelOptions: {
-        image: { uri: 'https://example.com/scene.jpg' },
-        isPano: 'auto',
-      },
-      debug: false,
-    })
   })
 
   it('throws when generate returns an error status', async () => {
-    const fetchImpl = vi.fn(async () =>
-      jsonResponse({ detail: 'no credits' }, 402),
-    )
-
     await expect(
       generateWorld({
         adapter: worldlabsWorld('marble-1.0', {
           apiKey: 'wlt_test',
-          fetch: fetchImpl,
+          fetch: vi.fn(async () => jsonResponse({ detail: 'no credits' }, 402)),
         }),
         prompt: 'a forest',
         debug: false,
@@ -198,41 +220,223 @@ describe('World Labs world adapter', () => {
   })
 
   it('throws when the completed operation has an error', async () => {
-    const fetchImpl = vi.fn(async () =>
-      jsonResponse({
-        operation_id: OPERATION_ID,
-        done: true,
-        error: { code: 500, message: 'generation exploded' },
-      }),
-    )
-
     await expect(
-      generateWorld({
-        adapter: worldlabsWorld('marble-1.1', {
-          apiKey: 'wlt_test',
-          fetch: fetchImpl,
-        }),
-        prompt: 'a forest',
-        debug: false,
-      }),
+      generateMarble(
+        vi.fn(async () =>
+          jsonResponse({
+            operation_id: OPERATION_ID,
+            done: true,
+            error: { code: 500, message: 'generation exploded' },
+          }),
+        ),
+      ),
     ).rejects.toThrow(/generation exploded/)
   })
 
   it('throws when image and video are both set', async () => {
     await expect(
-      generateWorld({
-        adapter: worldlabsWorld('marble-1.1', {
-          apiKey: 'wlt_test',
-          fetch: vi.fn(),
-        }),
-        prompt: 'a forest',
+      generateMarble(vi.fn(), {
         modelOptions: {
           image: { uri: 'https://example.com/a.jpg' },
           video: { uri: 'https://example.com/a.mp4' },
         },
-        debug: false,
       }),
     ).rejects.toThrow(/only one of/)
+  })
+
+  it('returns ready when wait is false but generate already finished', async () => {
+    const fetchImpl = vi.fn(async () => completedWorld())
+    const result = await generateMarble(fetchImpl, {
+      modelOptions: { wait: false },
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(result.status).toBe('ready')
+    expect(result.url).toBe(MARBLE_URL)
+  })
+
+  it('throws when wait is false and generate already failed', async () => {
+    await expect(
+      generateMarble(
+        vi.fn(async () =>
+          jsonResponse({
+            operation_id: OPERATION_ID,
+            done: true,
+            error: { message: 'generation exploded' },
+          }),
+        ),
+        { modelOptions: { wait: false } },
+      ),
+    ).rejects.toThrow(/generation exploded/)
+  })
+
+  it('throws when a poll request fails', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (requestUrl(input).endsWith('/marble/v1/worlds:generate')) {
+        return jsonResponse({ operation_id: OPERATION_ID, done: false })
+      }
+      return jsonResponse({ detail: 'ops down' }, 500)
+    })
+    await expect(
+      generateMarble(fetchImpl, { modelOptions: { pollIntervalMs: 1 } }),
+    ).rejects.toThrow(/operation poll failed \(500/)
+  })
+
+  it('throws when a poll payload omits done', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (requestUrl(input).endsWith('/marble/v1/worlds:generate')) {
+        return jsonResponse({ operation_id: OPERATION_ID, done: false })
+      }
+      return jsonResponse({ operation_id: OPERATION_ID })
+    })
+    await expect(
+      generateMarble(fetchImpl, { modelOptions: { pollIntervalMs: 1 } }),
+    ).rejects.toThrow(/invalid poll payload/)
+  })
+
+  it('throws when generate omits operation_id', async () => {
+    await expect(
+      generateMarble(vi.fn(async () => jsonResponse({ done: false }))),
+    ).rejects.toThrow(/missing operation_id/)
+  })
+
+  it('throws when a completed operation has no world', async () => {
+    await expect(
+      generateMarble(
+        vi.fn(async () =>
+          jsonResponse({
+            operation_id: OPERATION_ID,
+            done: true,
+            response: { world_id: '', world_marble_url: '' },
+          }),
+        ),
+      ),
+    ).rejects.toThrow(/completed without a world/)
+  })
+
+  it('throws when the operation error message is blank', async () => {
+    await expect(
+      generateMarble(
+        vi.fn(async () =>
+          jsonResponse({
+            operation_id: OPERATION_ID,
+            done: true,
+            error: { code: 500, message: '' },
+          }),
+        ),
+      ),
+    ).rejects.toThrow(/World Labs operation failed \(code 500\)/)
+  })
+
+  it('sends a dataBase64 image prompt', async () => {
+    await generateMarble(
+      expectWorldPrompt({
+        type: 'image',
+        image_prompt: {
+          source: 'data_base64',
+          data_base64: 'abcd',
+          extension: 'jpg',
+        },
+        text_prompt: 'A room',
+      }),
+      {
+        prompt: 'A room',
+        modelOptions: { image: { dataBase64: 'abcd', extension: 'jpg' } },
+      },
+    )
+  })
+
+  it('sends a multi-image prompt with azimuth', async () => {
+    await generateMarble(
+      expectWorldPrompt({
+        type: 'multi-image',
+        multi_image_prompt: [
+          { content: { source: 'data_base64', data_base64: 'one' } },
+          {
+            content: { source: 'uri', uri: 'https://example.com/two.jpg' },
+            azimuth: 90,
+          },
+        ],
+        text_prompt: 'A courtyard',
+      }),
+      {
+        prompt: 'A courtyard',
+        modelOptions: {
+          images: [
+            { dataBase64: 'one' },
+            { uri: 'https://example.com/two.jpg', azimuth: 90 },
+          ],
+        },
+      },
+    )
+  })
+
+  it('sends a video prompt', async () => {
+    await generateMarble(
+      expectWorldPrompt({
+        type: 'video',
+        video_prompt: {
+          source: 'uri',
+          uri: 'https://example.com/a.mp4',
+        },
+        text_prompt: 'A flythrough',
+      }),
+      {
+        prompt: 'A flythrough',
+        modelOptions: { video: { uri: 'https://example.com/a.mp4' } },
+      },
+    )
+  })
+
+  it('throws when a media ref has no source', async () => {
+    await expect(
+      generateMarble(vi.fn(), { modelOptions: { image: {} } }),
+    ).rejects.toThrow(/exactly one of/)
+  })
+
+  it('aborts while waiting to poll', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input)
+      if (url.endsWith('/marble/v1/worlds:generate')) {
+        queueMicrotask(() => controller.abort())
+        return jsonResponse({ operation_id: OPERATION_ID, done: false })
+      }
+      throw new Error(`unexpected url ${url}`)
+    })
+    await expect(
+      generateMarble(fetchImpl, {
+        modelOptions: { pollIntervalMs: 50 },
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toThrow(/aborted/)
+    expect(
+      fetchImpl.mock.calls.some((call) =>
+        requestUrl(call[0] as RequestInfo | URL).includes('/operations/'),
+      ),
+    ).toBe(false)
+  })
+
+  it('sends WLT-Api-Key on generate', async () => {
+    const fetchImpl = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers =
+          input instanceof Request ? input.headers : new Headers(init?.headers)
+        expect(headers.get('WLT-Api-Key') ?? headers.get('wlt-api-key')).toBe(
+          'wlt_test',
+        )
+        return completedWorld()
+      },
+    )
+    await generateMarble(fetchImpl)
+  })
+
+  it('maps expires_at to milliseconds', async () => {
+    const result = await generateMarble(
+      vi.fn(async () =>
+        completedWorld({ expires_at: '2026-01-02T03:04:05.000Z' }),
+      ),
+    )
+    expect(result.expiresAt).toBe(Date.parse('2026-01-02T03:04:05.000Z'))
   })
 
   it('throws when WORLDLABS_API_KEY is missing', () => {

@@ -1,36 +1,40 @@
 import { BaseWorldAdapter } from '@tanstack/ai/adapters'
-import { generateId } from '@tanstack/ai-utils'
-import { createWorldLabsClient } from '../utils/client'
-import type { WorldLabsClientConfig } from '../utils/client'
 import {
   generateWorldMarbleV1WorldsGeneratePost,
   getOperationMarbleV1OperationsOperationIdGet,
 } from '../generated/sdk.gen'
+import { createWorldLabsClient } from '../utils/client'
+import type {
+  WorldGenerationAssets,
+  WorldGenerationOptions,
+  WorldGenerationResult,
+} from '@tanstack/ai'
+import type { Client } from '../generated/client'
 import type {
   GenerateWorldResponse,
   GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult,
   World,
   WorldsGenerateRequest,
 } from '../generated/types.gen'
-import type { Client } from '../generated/client'
-import type {
-  WorldGenerationAssets,
-  WorldGenerationOptions,
-  WorldGenerationResult,
-} from '@tanstack/ai'
 import type {
   WorldLabsMediaRef,
   WorldLabsWorldModel,
   WorldLabsWorldProviderOptions,
 } from '../model-meta'
+import type { WorldLabsClientConfig } from '../utils/client'
 
 export type { WorldLabsClientConfig }
+
+type WorldOperation =
+  | GenerateWorldResponse
+  | GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000
 
 /**
  * World Labs Marble adapter. Starts a world generation job and, by default,
- * polls until the world is ready.
+ * polls until the world is ready. `modelOptions.wait === false` returns
+ * `operationId` at once. A later `generateWorld` call cannot resume that id.
  *
  * @example
  * ```ts
@@ -70,31 +74,30 @@ export class WorldLabsWorldAdapter<
         modelOptions,
         abortSignal,
       })
+      requireOperationId(started)
 
-      if (modelOptions?.wait === false) {
-        const result = pendingResult({
-          prompt,
-          model: this.model,
-          operation: started,
-        })
-        logger.output(
-          `activity=generateWorld provider=worldlabs model=${this.model}`,
-          { model: this.model, status: result.status },
+      if (started.done || started.error) {
+        return logWorldResult(
+          logger,
+          this.model,
+          completedResult({
+            prompt,
+            model: this.model,
+            operation: started,
+          }),
         )
-        return result
       }
 
-      if (started.done) {
-        const result = completedResult({
-          prompt,
-          model: this.model,
-          operation: started,
-        })
-        logger.output(
-          `activity=generateWorld provider=worldlabs model=${this.model}`,
-          { model: this.model, status: result.status },
+      if (modelOptions?.wait === false) {
+        return logWorldResult(
+          logger,
+          this.model,
+          pendingResult({
+            prompt,
+            model: this.model,
+            operation: started,
+          }),
         )
-        return result
       }
 
       const finished = await this.pollUntilDone({
@@ -102,21 +105,22 @@ export class WorldLabsWorldAdapter<
         abortSignal,
         pollIntervalMs: modelOptions?.pollIntervalMs,
       })
-      const result = completedResult({
-        prompt,
-        model: this.model,
-        operation: finished,
-      })
-      logger.output(
-        `activity=generateWorld provider=worldlabs model=${this.model}`,
-        { model: this.model, status: result.status },
+      return logWorldResult(
+        logger,
+        this.model,
+        completedResult({
+          prompt,
+          model: this.model,
+          operation: finished,
+        }),
       )
-      return result
     } catch (error) {
-      logger.errors('worldlabs.createWorld failed', {
-        error,
-        source: 'worldlabs.createWorld',
-      })
+      if (!isAbortError(error)) {
+        logger.errors('worldlabs.createWorld failed', {
+          error,
+          source: 'worldlabs.createWorld',
+        })
+      }
       throw error
     }
   }
@@ -129,18 +133,18 @@ export class WorldLabsWorldAdapter<
     const body: WorldsGenerateRequest = {
       model: this.model,
       world_prompt: buildWorldPrompt(args.prompt, args.modelOptions),
-      ...(args.modelOptions?.displayName !== undefined
-        ? { display_name: args.modelOptions.displayName }
-        : {}),
-      ...(args.modelOptions?.seed !== undefined
-        ? { seed: args.modelOptions.seed }
-        : {}),
-      ...(args.modelOptions?.tags !== undefined
-        ? { tags: args.modelOptions.tags }
-        : {}),
-      ...(args.modelOptions?.permission !== undefined
-        ? { permission: args.modelOptions.permission }
-        : {}),
+    }
+    if (args.modelOptions?.displayName !== undefined) {
+      body.display_name = args.modelOptions.displayName
+    }
+    if (args.modelOptions?.seed !== undefined) {
+      body.seed = args.modelOptions.seed
+    }
+    if (args.modelOptions?.tags !== undefined) {
+      body.tags = args.modelOptions.tags
+    }
+    if (args.modelOptions?.permission !== undefined) {
+      body.permission = args.modelOptions.permission
     }
 
     const result = await generateWorldMarbleV1WorldsGeneratePost({
@@ -164,9 +168,9 @@ export class WorldLabsWorldAdapter<
     operationId: string
     abortSignal?: AbortSignal
     pollIntervalMs?: number
-  }): Promise<GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult> {
+  }): Promise<WorldOperation> {
     const interval =
-      args.pollIntervalMs !== undefined && args.pollIntervalMs > 0
+      args.pollIntervalMs && args.pollIntervalMs > 0
         ? args.pollIntervalMs
         : DEFAULT_POLL_INTERVAL_MS
 
@@ -183,6 +187,12 @@ export class WorldLabsWorldAdapter<
           'World Labs operation poll failed',
           result.response,
           result.error,
+        )
+      }
+
+      if (typeof result.data.done !== 'boolean') {
+        throw new Error(
+          `World Labs operation ${args.operationId} returned an invalid poll payload.`,
         )
       }
 
@@ -219,26 +229,27 @@ function buildWorldPrompt(
   prompt: string,
   options?: WorldLabsWorldProviderOptions,
 ): WorldsGenerateRequest['world_prompt'] {
-  const imageCount = options?.image ? 1 : 0
-  const imagesCount = options?.images ? 1 : 0
-  const videoCount = options?.video ? 1 : 0
-  if (imageCount + imagesCount + videoCount > 1) {
+  if (
+    [options?.image, options?.images, options?.video].filter(Boolean).length > 1
+  ) {
     throw new Error(
       'World Labs: pass only one of modelOptions.image, modelOptions.images, or modelOptions.video.',
     )
   }
 
   const textPrompt = prompt.trim().length > 0 ? prompt : undefined
-  const disableRecaption = options?.disableRecaption
+  const shared = {
+    ...(textPrompt !== undefined ? { text_prompt: textPrompt } : {}),
+    ...(options?.disableRecaption !== undefined
+      ? { disable_recaption: options.disableRecaption }
+      : {}),
+  }
 
   if (options?.image) {
     return {
       type: 'image',
       image_prompt: toContentRef(options.image),
-      ...(textPrompt !== undefined ? { text_prompt: textPrompt } : {}),
-      ...(disableRecaption !== undefined
-        ? { disable_recaption: disableRecaption }
-        : {}),
+      ...shared,
       ...(options.isPano !== undefined ? { is_pano: options.isPano } : {}),
     }
   }
@@ -250,10 +261,7 @@ function buildWorldPrompt(
         content: toContentRef(image),
         ...(image.azimuth !== undefined ? { azimuth: image.azimuth } : {}),
       })),
-      ...(textPrompt !== undefined ? { text_prompt: textPrompt } : {}),
-      ...(disableRecaption !== undefined
-        ? { disable_recaption: disableRecaption }
-        : {}),
+      ...shared,
     }
   }
 
@@ -261,18 +269,15 @@ function buildWorldPrompt(
     return {
       type: 'video',
       video_prompt: toContentRef(options.video),
-      ...(textPrompt !== undefined ? { text_prompt: textPrompt } : {}),
-      ...(disableRecaption !== undefined
-        ? { disable_recaption: disableRecaption }
-        : {}),
+      ...shared,
     }
   }
 
   return {
     type: 'text',
     text_prompt: prompt,
-    ...(disableRecaption !== undefined
-      ? { disable_recaption: disableRecaption }
+    ...(options?.disableRecaption !== undefined
+      ? { disable_recaption: options.disableRecaption }
       : {}),
   }
 }
@@ -291,9 +296,7 @@ function toContentRef(
       'World Labs media ref needs exactly one of uri, mediaAssetId, or dataBase64.',
     )
   }
-  if (ref.uri) {
-    return { source: 'uri', uri: ref.uri }
-  }
+  if (ref.uri) return { source: 'uri', uri: ref.uri }
   if (ref.mediaAssetId) {
     return { source: 'media_asset', media_asset_id: ref.mediaAssetId }
   }
@@ -314,6 +317,7 @@ function pendingResult(args: {
   model: string
   operation: GenerateWorldResponse
 }): WorldGenerationResult {
+  const expiresAt = expiresAtMs(args.operation.expires_at)
   return {
     id: args.operation.operation_id,
     model: args.model,
@@ -321,28 +325,22 @@ function pendingResult(args: {
     status: 'waiting',
     operationId: args.operation.operation_id,
     worldId: worldIdFromMetadata(args.operation.metadata),
-    ...(expiresAtMs(args.operation.expires_at) !== undefined
-      ? { expiresAt: expiresAtMs(args.operation.expires_at) }
-      : {}),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
   }
 }
 
 function completedResult(args: {
   prompt: string
   model: string
-  operation:
-    | GenerateWorldResponse
-    | GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult
+  operation: WorldOperation
 }): WorldGenerationResult {
   if (args.operation.error) {
-    const message =
-      args.operation.error.message ??
-      `World Labs operation failed${
-        args.operation.error.code != null
-          ? ` (code ${args.operation.error.code})`
-          : ''
-      }`
-    throw new Error(message)
+    const raw = args.operation.error.message?.trim()
+    const code = args.operation.error.code
+    throw new Error(
+      raw ||
+        `World Labs operation failed${code != null ? ` (code ${code})` : ''}`,
+    )
   }
 
   const world = worldFromResponse(args.operation.response)
@@ -352,31 +350,59 @@ function completedResult(args: {
     )
   }
 
+  const assets = mapAssets(world.assets)
+  const expiresAt = expiresAtMs(args.operation.expires_at)
   return {
-    id: world.world_id || generateId('world'),
+    id: world.world_id,
     model: world.model ?? args.model,
     prompt: args.prompt,
     status: 'ready',
     url: world.world_marble_url,
     worldId: world.world_id,
     operationId: args.operation.operation_id,
-    ...(mapAssets(world.assets) ? { assets: mapAssets(world.assets) } : {}),
-    ...(expiresAtMs(args.operation.expires_at) !== undefined
-      ? { expiresAt: expiresAtMs(args.operation.expires_at) }
-      : {}),
+    ...(assets ? { assets } : {}),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
   }
 }
 
 function worldFromResponse(
-  response:
-    | GenerateWorldResponse['response']
-    | GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult['response'],
+  response: WorldOperation['response'],
 ): World | undefined {
   if (!response || typeof response !== 'object') return undefined
   if (!('world_id' in response) || !('world_marble_url' in response)) {
     return undefined
   }
+  const worldId = response.world_id
+  const url = response.world_marble_url
+  if (typeof worldId !== 'string' || worldId.length === 0) return undefined
+  if (typeof url !== 'string' || url.length === 0) return undefined
   return response as World
+}
+
+function requireOperationId(data: GenerateWorldResponse): void {
+  if (typeof data.operation_id !== 'string' || data.operation_id.length === 0) {
+    throw new Error('World Labs generate request failed: missing operation_id')
+  }
+}
+
+function logWorldResult(
+  logger: WorldGenerationOptions['logger'],
+  model: string,
+  result: WorldGenerationResult,
+): WorldGenerationResult {
+  logger.output(`activity=generateWorld provider=worldlabs model=${model}`, {
+    model,
+    status: result.status,
+  })
+  return result
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' ||
+      error.message === 'The operation was aborted')
+  )
 }
 
 function worldIdFromMetadata(
@@ -387,52 +413,55 @@ function worldIdFromMetadata(
   return typeof worldId === 'string' && worldId.length > 0 ? worldId : undefined
 }
 
+function nonEmpty<T extends object>(value: T): T | undefined {
+  return Object.keys(value).length > 0 ? value : undefined
+}
+
 function mapAssets(assets: World['assets']): WorldGenerationAssets | undefined {
   if (!assets) return undefined
-  const mapped: WorldGenerationAssets = {
+  const splats = mapSplatAssets(assets.splats)
+  const mesh = mapMeshAssets(assets.mesh)
+  return nonEmpty({
     ...(assets.caption ? { caption: assets.caption } : {}),
     ...(assets.thumbnail_url ? { thumbnailUrl: assets.thumbnail_url } : {}),
-    ...(assets.splats
-      ? {
-          splats: {
-            ...(assets.splats.spz_urls
-              ? { spzUrls: assets.splats.spz_urls }
-              : {}),
-            ...(assets.splats.semantics_metadata?.metric_scale_factor != null
-              ? {
-                  metricScaleFactor:
-                    assets.splats.semantics_metadata.metric_scale_factor,
-                }
-              : {}),
-            ...(assets.splats.semantics_metadata?.ground_plane_offset != null
-              ? {
-                  groundPlaneOffset:
-                    assets.splats.semantics_metadata.ground_plane_offset,
-                }
-              : {}),
-          },
-        }
-      : {}),
-    ...(assets.mesh
-      ? {
-          mesh: {
-            ...(assets.mesh.collider_mesh_url
-              ? { colliderMeshUrl: assets.mesh.collider_mesh_url }
-              : {}),
-            ...(assets.mesh.hq_mesh_url
-              ? { hqMeshUrl: assets.mesh.hq_mesh_url }
-              : {}),
-            ...(assets.mesh.full_res_mesh_url
-              ? { fullResMeshUrl: assets.mesh.full_res_mesh_url }
-              : {}),
-          },
-        }
-      : {}),
+    ...(splats ? { splats } : {}),
+    ...(mesh ? { mesh } : {}),
     ...(assets.imagery?.pano_url
       ? { imagery: { panoUrl: assets.imagery.pano_url } }
       : {}),
-  }
-  return Object.keys(mapped).length > 0 ? mapped : undefined
+  })
+}
+
+function mapSplatAssets(
+  splats: NonNullable<World['assets']>['splats'],
+): WorldGenerationAssets['splats'] | undefined {
+  if (!splats) return undefined
+  return nonEmpty({
+    ...(splats.spz_urls && Object.keys(splats.spz_urls).length > 0
+      ? { spzUrls: splats.spz_urls }
+      : {}),
+    ...(splats.semantics_metadata?.metric_scale_factor != null
+      ? { metricScaleFactor: splats.semantics_metadata.metric_scale_factor }
+      : {}),
+    ...(splats.semantics_metadata?.ground_plane_offset != null
+      ? { groundPlaneOffset: splats.semantics_metadata.ground_plane_offset }
+      : {}),
+  })
+}
+
+function mapMeshAssets(
+  mesh: NonNullable<World['assets']>['mesh'],
+): WorldGenerationAssets['mesh'] | undefined {
+  if (!mesh) return undefined
+  return nonEmpty({
+    ...(mesh.collider_mesh_url
+      ? { colliderMeshUrl: mesh.collider_mesh_url }
+      : {}),
+    ...(mesh.hq_mesh_url ? { hqMeshUrl: mesh.hq_mesh_url } : {}),
+    ...(mesh.full_res_mesh_url
+      ? { fullResMeshUrl: mesh.full_res_mesh_url }
+      : {}),
+  })
 }
 
 function expiresAtMs(value: string | null | undefined): number | undefined {
@@ -475,21 +504,28 @@ function errorDetail(error: unknown): string | undefined {
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    return Promise.reject(abortError(signal))
+  }
   return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(abortError(signal))
-      return
-    }
-    const timer = setTimeout(resolve, ms)
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
     const onAbort = () => {
       clearTimeout(timer)
       reject(abortError(signal))
     }
-    signal?.addEventListener('abort', onAbort, { once: true })
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 
 function abortError(signal?: AbortSignal): Error {
   if (signal?.reason instanceof Error) return signal.reason
-  return new Error('The operation was aborted')
+  const error = new Error('The operation was aborted')
+  error.name = 'AbortError'
+  return error
 }

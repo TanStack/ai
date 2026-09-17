@@ -97,9 +97,14 @@ function readReactorPayload(value: unknown): {
 const WORLDLABS_MAX_SEED_IMAGES = 4
 
 function imageExtension(file: File): string | undefined {
-  if (file.type === 'image/jpeg') return 'jpg'
-  if (file.type === 'image/png') return 'png'
-  if (file.type === 'image/webp') return 'webp'
+  switch (file.type) {
+    case 'image/jpeg':
+      return 'jpg'
+    case 'image/png':
+      return 'png'
+    case 'image/webp':
+      return 'webp'
+  }
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'jpeg') return 'jpg'
   if (ext === 'jpg' || ext === 'png' || ext === 'webp') return ext
@@ -231,6 +236,7 @@ export default function WorldStudio() {
   const [recording, setRecording] = useState(false)
   const [recorderUnavailable, setRecorderUnavailable] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [thumbFailed, setThumbFailed] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const reactorRef = useRef<Reactor | null>(null)
   const reactorTokenRef = useRef<string | null>(null)
@@ -254,8 +260,11 @@ export default function WorldStudio() {
     if (reactor) {
       try {
         await reactor.disconnect()
-      } catch {
-        // Disconnect can fail if the session already ended.
+      } catch (caught) {
+        const message = errorMessage(caught)
+        if (!/already (ended|closed|disconnected)/i.test(message)) {
+          console.warn('Reactor disconnect failed', caught)
+        }
       }
     }
     const video = videoRef.current
@@ -268,6 +277,7 @@ export default function WorldStudio() {
     await teardown()
     setPlaying(false)
     setMarble(null)
+    setThumbFailed(false)
     setRecording(false)
     setRecorderUnavailable(false)
     setDownloading(null)
@@ -310,6 +320,7 @@ export default function WorldStudio() {
         ),
       )
       setMarble(world)
+      setThumbFailed(false)
       setStatus('ready')
     } catch (caught) {
       setMarble(null)
@@ -469,6 +480,8 @@ export default function WorldStudio() {
   const isBusy = status === 'connecting' || status === 'generating'
   const canStart =
     !isBusy && prompt.trim().length > 0 && (!needsSeed || seedFile !== null)
+  const startLabel = isMarble ? 'Generate world' : 'Start world'
+  const busyLabel = isMarble ? 'Generating…' : 'Starting…'
 
   return (
     <div className="space-y-3">
@@ -479,8 +492,9 @@ export default function WorldStudio() {
             Paste a key in the header dialog, or set{' '}
             <code className="font-mono text-gray-300">WORLDLABS_API_KEY</code>{' '}
             on the server. Add optional seed photos (up to four of the same
-            scene). The world opens here. WASD to move, drag to look. Download
-            splat files when this plan returns them.
+            scene). If splat files are present, the world opens here. Click the
+            world, then WASD to move. Download files when the response includes
+            them.
           </>
         ) : (
           <>
@@ -507,23 +521,23 @@ export default function WorldStudio() {
               metricScaleFactor={marble.metricScaleFactor}
               groundPlaneOffset={marble.groundPlaneOffset}
             />
-          ) : marble?.thumbnailUrl ? (
+          ) : marble?.thumbnailUrl && !thumbFailed ? (
             <img
               src={marble.thumbnailUrl}
               alt={marble.caption ?? 'Generated world'}
               className="aspect-video w-full object-cover"
+              onError={() => setThumbFailed(true)}
             />
           ) : null}
           {marble && status !== 'generating' ? (
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
               {marble.splatUrl ? (
                 <p className="text-gray-400">
-                  Click the world. WASD to move, drag to look.
+                  Click the world, then WASD to move, drag to look.
                 </p>
               ) : (
                 <p className="text-gray-400">
-                  This plan did not return splat files. Open in Marble still
-                  works.
+                  No splat file on this world. Open in Marble still works.
                 </p>
               )}
               {marbleAssetLinks(marble).map((asset) => (
@@ -596,7 +610,6 @@ export default function WorldStudio() {
           needsSeed &&
           isReactorWorldModel(model) &&
           reactorRef.current ? (
-            // Pads sit above the input bar.
             <div className="absolute inset-x-0 top-0 bottom-24">
               <LingbotControls
                 reactor={reactorRef.current}
@@ -735,13 +748,7 @@ export default function WorldStudio() {
               className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isBusy
-                ? isMarble
-                  ? 'Generating…'
-                  : 'Starting…'
-                : isMarble
-                  ? 'Generate world'
-                  : 'Start world'}
+              {isBusy ? busyLabel : startLabel}
             </button>
 
             <label className="flex items-center gap-2 text-sm text-gray-400">

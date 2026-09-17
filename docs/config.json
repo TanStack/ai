@@ -685,7 +685,7 @@
           "label": "World Generation",
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
-          "updatedAt": "2026-09-15"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Generation Hooks",
@@ -1108,7 +1108,7 @@
           "label": "World Labs",
           "to": "adapters/worldlabs",
           "addedAt": "2026-09-14",
-          "updatedAt": "2026-09-15"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "OpenRouter Adapter",

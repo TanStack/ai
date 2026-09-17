@@ -39,7 +39,7 @@ const world = await generateWorld({
   prompt: 'A mystical forest with glowing mushrooms',
 })
 
-// world.url is the Marble viewer URL. world.assets has splat and mesh links.
+// world.url is the Marble viewer URL. world.assets is optional splat/mesh links.
 ```
 
 Set `WORLDLABS_API_KEY`, or pass `apiKey` in the adapter config. See the [World Labs adapter docs](https://tanstack.com/ai/latest/docs/adapters/worldlabs).

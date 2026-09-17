@@ -2223,7 +2223,7 @@ export interface VideoUrlResult {
 // ============================================================================
 
 /**
- * Options for world generation (live, prompt-steerable sessions).
+ * Options for world generation (live session or finished job).
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -2235,8 +2235,10 @@ export interface WorldGenerationOptions<
   /** Natural-language description of the world or scene */
   prompt: string
   /**
-   * Provider mint options. Reactor resolution/seed/audio are browser
-   * `sendCommand` fields, not token-mint fields.
+   * Provider-specific options. Live adapters (Reactor) use mint fields here.
+   * Job adapters (World Labs) use image/video inputs, `wait`, and poll.
+   * Reactor resolution/seed/audio are browser `sendCommand` fields, not
+   * token-mint fields.
    */
   modelOptions?: TProviderOptions
   /**
@@ -2254,15 +2256,19 @@ export interface WorldGenerationOptions<
 }
 
 /**
- * Downloadable assets from a finished world job (splat files, meshes, pano).
- * Live session adapters omit this.
+ * Assets from a finished world job. Live session adapters omit this.
+ * URLs are often signed CDN links. They can expire and may need a proxy
+ * to fetch from a browser.
  *
  * @experimental World generation is an experimental feature and may change.
  */
 export interface WorldGenerationAssets {
+  /** Auto-generated scene description */
   caption?: string
+  /** Preview image URL */
   thumbnailUrl?: string
   splats?: {
+    /** Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …) */
     spzUrls?: Record<string, string>
     metricScaleFactor?: number
     groundPlaneOffset?: number
@@ -2281,12 +2287,12 @@ export interface WorldGenerationAssets {
  * Result of world generation. JSON-serializable so a server route can return
  * it to a browser.
  *
- * Live session adapters set `token` and `expiresAt`. The browser uses
- * `token` + `model` to open the session (set the prompt, start streaming,
- * steer mid-run).
+ * Live adapters (Reactor): `status: 'ready'` with `token` and token
+ * `expiresAt`. The browser uses `token` + `model` to open the session.
  *
- * Job adapters set `url` and `worldId` when generation finishes. They can
- * omit `token`.
+ * Job adapters (World Labs): `status: 'ready'` with viewer `url` and
+ * `worldId`, or `status: 'waiting'` with `operationId` and no `url`.
+ * `expiresAt` on a job is operation expiry, not a session token.
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -2297,7 +2303,10 @@ export interface WorldGenerationResult {
   model: string
   /** Short-lived session token for a live client connection */
   token?: string
-  /** Token expiry as milliseconds since epoch */
+  /**
+   * Expiry as milliseconds since epoch. Live adapters: session token.
+   * Job adapters: operation expiry when the provider sends it.
+   */
   expiresAt?: number
   /** Prompt used to generate the world, or the prompt the client should send */
   prompt: string
@@ -2305,13 +2314,13 @@ export interface WorldGenerationResult {
   status: 'ready' | 'waiting'
   /** Provider session id, when the adapter created one */
   sessionId?: string
-  /** Viewer or download URL for a finished world job */
+  /** Viewer URL for a finished world job (not an asset download URL) */
   url?: string
   /** Provider world id for a finished or in-progress job */
   worldId?: string
   /** Provider operation id for a long-running world job */
   operationId?: string
-  /** Downloadable assets when a world job has finished */
+  /** Assets when a world job has finished and the provider returned them */
   assets?: WorldGenerationAssets
   /** Token usage / billing, when the adapter can report it */
   usage?: TokenUsage
