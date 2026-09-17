@@ -9,6 +9,7 @@ import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
+  // Unwrap the prompt the hook POSTed. Then read the OpenRouter key.
   const { input, threadId, runId } = await generationParamsFromRequest(
     'image',
     request,
@@ -21,6 +22,8 @@ export async function POST({ request }: { request: Request }) {
     })
   }
 
+  // Call OpenRouter. stream: true so the hook can listen on SSE.
+  // The hook stores the finished picture on result.images.
   const stream = generateImage({
     adapter: createOpenRouterImage('google/gemini-3.1-flash-image', apiKey),
     prompt: input.prompt,

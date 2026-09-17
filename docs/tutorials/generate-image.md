@@ -120,16 +120,16 @@ If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
 ## 3. Hook up `useGenerateImage`
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` and `byokProvider`. The hook sends the OpenRouter key in an `x-byok-*` header.
+Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok`. The hook sends the key in an `x-byok-*` header.
 
 ```tsx ignore
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
+// OpenRouter returns a public URL or raw base64. <img src> accepts both.
 function imageSrc(image: { url?: string; b64Json?: string }) {
   if (image.url) return image.url
   if (image.b64Json) return `data:image/png;base64,${image.b64Json}`
@@ -138,10 +138,12 @@ function imageSrc(image: { url?: string; b64Json?: string }) {
 
 function ImagePage() {
   const [prompt, setPrompt] = useState('')
+  // POST { prompt } to /api/generate/image over SSE.
+  // byok sends the OpenRouter key as x-byok-openrouter.
+  // When the stream ends, result.images holds the picture.
   const { generate, result, isLoading, error, stop } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
     byok,
-    byokProvider: () => openrouterByok.id,
   })
 
   const handleGenerate = () => {
@@ -241,6 +243,7 @@ import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST({ request }: { request: Request }) {
+  // Unwrap the prompt the hook POSTed. Then read the OpenRouter key.
   const { input, threadId, runId } = await generationParamsFromRequest(
     'image',
     request,
@@ -253,6 +256,8 @@ export async function POST({ request }: { request: Request }) {
     })
   }
 
+  // Call OpenRouter. stream: true so the hook can listen on SSE.
+  // The hook stores the finished picture on result.images.
   const stream = generateImage({
     adapter: createOpenRouterImage('google/gemini-3.1-flash-image', apiKey),
     prompt: input.prompt,

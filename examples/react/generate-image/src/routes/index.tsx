@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
+// OpenRouter returns a public URL or raw base64. <img src> accepts both.
 function imageSrc(image: { url?: string; b64Json?: string }) {
   if (image.url) return image.url
   if (image.b64Json) return `data:image/png;base64,${image.b64Json}`
@@ -13,10 +13,12 @@ function imageSrc(image: { url?: string; b64Json?: string }) {
 
 function ImagePage() {
   const [prompt, setPrompt] = useState('')
+  // POST { prompt } to /api/generate/image over SSE.
+  // byok sends the OpenRouter key as x-byok-openrouter.
+  // When the stream ends, result.images holds the picture.
   const { generate, result, isLoading, error, stop, reset } = useGenerateImage({
     connection: fetchServerSentEvents('/api/generate/image'),
     byok,
-    byokProvider: () => openrouterByok.id,
   })
 
   const handleGenerate = () => {
