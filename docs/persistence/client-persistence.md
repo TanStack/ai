@@ -194,7 +194,8 @@ the scrollbar.
 - Without `history`, hydrate loads the full thread.
 - `history` is only valid with `persistence: true`.
 - With `history.pageSize`, send posts only the new turn. Reload posts the last
-  user message so the server can drop the old assistant after that id.
+  user (the old assistant is already gone locally). Resume posts from that
+  user through the painted assistant so the stored tool-call is not dropped.
 - If `loadOlderMessages()` fails, the promise rejects and painted messages
   stay. `hasOlderMessages` stays true. Catch the rejection in your UI.
 

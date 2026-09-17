@@ -2935,9 +2935,12 @@ export class ChatClient<
       if (this.disposed) return
       if (generation !== this.historyGeneration) return
       const olderMessages = normalizeMessagesDates(result.messages)
+      if (olderMessages.length === 0) {
+        throw new Error('Older page was empty')
+      }
+      this.applyHydrationPage(result.page)
       this.processor.prependMessages(olderMessages)
       this.rememberServerMessageIds(olderMessages)
-      this.applyHydrationPage(result.page)
     } finally {
       this.loadOlderMessagesInFlight = false
     }
@@ -2987,10 +2990,16 @@ export class ChatClient<
     if (unknownMessages.length > 0) {
       return unknownMessages
     }
-    // Reload (or any resend with no new ids) still needs the last user so
-    // withPersistence can cut the stored tail after that message.
-    const lastUser = messages.findLast((message) => message.role === 'user')
-    return lastUser === undefined ? [] : [lastUser]
+    // No new ids: reload has already dropped the old assistant, so this is
+    // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
+    // that assistant and the stored tool-call stays.
+    const lastUserIndex = messages.findLastIndex(
+      (message) => message.role === 'user',
+    )
+    if (lastUserIndex === -1) {
+      return []
+    }
+    return messages.slice(lastUserIndex)
   }
 
   /**

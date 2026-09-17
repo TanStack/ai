@@ -118,8 +118,9 @@ If `messages` is not empty, the middleware merges by id:
 
 `saveThread` replaces the stored thread with that merged list.
 
-A client with `history: { pageSize }` posts only the new turn, or the last user
-message on reload. See [Client persistence](./client-persistence).
+A client with `history: { pageSize }` posts only the new turn. Reload posts
+the last user. Resume posts from that user through the painted assistant.
+See [Client persistence](./client-persistence).
 
 ## Compaction keeps the transcript complete
 

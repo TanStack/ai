@@ -1512,6 +1512,27 @@ describe('withPersistence (merge by id)', () => {
     })
   })
 
+  it('keeps the shared assistant when incoming is the last user plus that assistant', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+      { role: 'assistant', content: 'later extra', id: 'a2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+    ])
+
+    expect(thread.find((message) => message.id === 'a1')).toEqual({
+      role: 'assistant',
+      content: 'tool call',
+      id: 'a1',
+    })
+    expect(thread.find((message) => message.id === 'a2')).toBeUndefined()
+  })
+
   it('drops stored messages after the last shared incoming id', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.messages!.saveThread('t1', [

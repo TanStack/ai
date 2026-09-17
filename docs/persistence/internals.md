@@ -94,9 +94,9 @@ Two postures:
   in-memory list. Merge keeps stored extras the client omitted, unless a
   shared id cuts the stored tail (reload).
 - **Server-authoritative**: the same thread opens on another device. With
-  `history: { pageSize }`, the client posts only the new turn, or the last
-  user message on reload. Merge keeps stored extras that sit before the
-  cutoff.
+  `history: { pageSize }`, the client posts only the new turn. Reload posts
+  the last user. Resume posts from that user through the painted assistant.
+  Merge keeps stored extras that sit before the cutoff.
 
 ## What a reload restores
 

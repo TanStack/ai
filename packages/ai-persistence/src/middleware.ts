@@ -2011,10 +2011,11 @@ export interface WithPersistenceOptions {
  * `stores.runs` is also required.
  *
  * Incoming `messages` merge into the stored thread by id. An empty list loads
- * the stored thread. A non-empty list keeps stored messages the client omitted
- * (original order), replaces the same id in place with the incoming version,
- * and appends ids the store does not have (and messages with no id).
- * `saveThread` still replaces the thread with that merged list.
+ * the stored thread. The last incoming id that already exists in stored is a
+ * cutoff; stored messages after it are dropped (reload). If no incoming id is
+ * in stored, every stored message stays. Same id: incoming wins. New ids and
+ * messages with no id are appended. `saveThread` still replaces the thread
+ * with that merged list.
  *
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at

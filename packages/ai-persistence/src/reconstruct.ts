@@ -274,7 +274,7 @@ async function windowFromArray(input: {
   const full = threadMessages(await messageStore.loadThread(threadId))
   const older = uiBeforeCursor(modelMessagesToUIMessages(full), before)
   if (older === undefined) {
-    return { messages: [], page: completePage() }
+    return { messages: [], page: truncatedPage(before) }
   }
   return newestUiWindow(older, pageSize)
 }

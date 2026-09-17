@@ -78,8 +78,10 @@ it because `stores.messages` is possibly `undefined`.
 `withPersistence` merges incoming `messages` into the stored thread by id.
 
 - **Empty `messages`**: load the stored thread and continue.
-- **Non-empty `messages`**: merge by id. Keep every stored message the client
-  omitted. Append new ids, and messages with no id. Same id: incoming wins.
+- **Non-empty `messages`**: merge by id. The last incoming id that already
+  exists in stored is a cutoff. Stored messages after it are dropped. If no
+  incoming id is in stored, every stored message stays. Same id: incoming
+  wins. New ids and messages with no id are appended.
 - `saveThread` replaces the thread with that merged list. Merge is middleware,
   not the store.
 

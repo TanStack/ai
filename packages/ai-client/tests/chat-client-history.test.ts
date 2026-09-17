@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
 import { createTextChunks, createUIMessage } from './test-utils'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type {
+  ModelMessage,
+  RunAgentResumeItem,
+  StreamChunk,
+} from '@tanstack/ai/client'
 import type {
   ChatHydrateOptions,
   ChatHydrationResult,
@@ -318,6 +322,183 @@ describe('ChatClient history paging', () => {
     await client.reload()
 
     expect(sentIds[0]).toEqual(['u1'])
+  })
+
+  it('resume after a paged hydrate posts from the last user through the assistant', async () => {
+    const painted = [
+      createUIMessage('u1', 'ask', 'user'),
+      createUIMessage('a1', 'tool?', 'assistant'),
+    ]
+    const sentIds: Array<Array<string>> = []
+    const resume: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'i1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: createHistoryConnection({
+        hydrate: () =>
+          Promise.resolve({
+            messages: painted,
+            activeRun: null,
+            interrupts: {
+              runId: 'run-1',
+              pending: [
+                {
+                  id: 'i1',
+                  reason: 'approval_requested',
+                  message: 'Approve?',
+                },
+              ],
+            },
+            page: { truncated: false },
+          }),
+        onSend: (messages) => {
+          sentIds.push(messageIds(messages))
+        },
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getMessages().map((message) => message.id)).toEqual([
+        'u1',
+        'a1',
+      ])
+    })
+
+    await client.resumeInterruptsUnsafe(resume, {
+      threadId: 't1',
+      runId: 'run-1',
+    })
+
+    expect(sentIds[0]).toEqual(['u1', 'a1'])
+  })
+
+  it('send after Load older still posts only the new turn', async () => {
+    const windowMessages = [
+      createUIMessage('m2', 'two', 'user'),
+      createUIMessage('m3', 'three', 'assistant'),
+    ]
+    const older = createUIMessage('m1', 'one', 'user')
+    const sentIds: Array<Array<string>> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: createHistoryConnection({
+        hydrate: (_threadId, options) => {
+          if (options?.before === 'm2') {
+            return Promise.resolve(
+              hydrationResult([older], { truncated: false }),
+            )
+          }
+          return Promise.resolve(
+            hydrationResult(windowMessages, {
+              truncated: true,
+              cursor: 'm2',
+            }),
+          )
+        },
+        onSend: (messages) => {
+          sentIds.push(messageIds(messages))
+        },
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getHasOlderMessages()).toBe(true)
+    })
+    await client.loadOlderMessages()
+    await client.sendMessage({ content: 'hello', id: 'new-user' })
+
+    expect(sentIds[0]).toEqual(['new-user'])
+  })
+
+  it('loadOlderMessages rejects an empty older page and keeps hasOlderMessages', async () => {
+    const windowMessages = [
+      createUIMessage('m2', 'two', 'user'),
+      createUIMessage('m3', 'three', 'assistant'),
+    ]
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      connection: createHistoryConnection({
+        hydrate: (_threadId, options) => {
+          if (options?.before === 'm2') {
+            return Promise.resolve(
+              hydrationResult([], { truncated: true, cursor: 'm2' }),
+            )
+          }
+          return Promise.resolve(
+            hydrationResult(windowMessages, {
+              truncated: true,
+              cursor: 'm2',
+            }),
+          )
+        },
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getHasOlderMessages()).toBe(true)
+    })
+
+    await expect(client.loadOlderMessages()).rejects.toThrow(
+      'Older page was empty',
+    )
+    expect(client.getMessages().map((message) => message.id)).toEqual([
+      'm2',
+      'm3',
+    ])
+    expect(client.getHasOlderMessages()).toBe(true)
+  })
+
+  it('applies page state before prepend so the last page is not stuck', async () => {
+    const windowMessages = [
+      createUIMessage('m2', 'two', 'user'),
+      createUIMessage('m3', 'three', 'assistant'),
+    ]
+    const older = createUIMessage('m1', 'one', 'user')
+    const hasOlderOnChange: Array<boolean> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      persistence: true,
+      history: { pageSize: 50 },
+      onMessagesChange: (messages) => {
+        if (messages.some((message) => message.id === 'm1')) {
+          hasOlderOnChange.push(client.getHasOlderMessages())
+        }
+      },
+      connection: createHistoryConnection({
+        hydrate: (_threadId, options) => {
+          if (options?.before === 'm2') {
+            return Promise.resolve(
+              hydrationResult([older], { truncated: false }),
+            )
+          }
+          return Promise.resolve(
+            hydrationResult(windowMessages, {
+              truncated: true,
+              cursor: 'm2',
+            }),
+          )
+        },
+      }),
+    })
+
+    await vi.waitFor(() => {
+      expect(client.getHasOlderMessages()).toBe(true)
+    })
+    await client.loadOlderMessages()
+
+    expect(hasOlderOnChange[0]).toBe(false)
+    expect(client.getHasOlderMessages()).toBe(false)
   })
 
   it('clear resets older-page state and ignores a late older fetch', async () => {

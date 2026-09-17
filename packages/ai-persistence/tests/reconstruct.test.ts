@@ -252,7 +252,7 @@ describe('reconstructChat paging', () => {
     expect(parsed.page).toBeUndefined()
   })
 
-  it('unknown before returns empty messages and truncated false', async () => {
+  it('unknown before returns empty messages and keeps truncated true', async () => {
     const persistence = await saveThread(threeTurnThread)
     await persistence.stores.runs.createOrResume({
       runId: 'run-live',
@@ -264,7 +264,10 @@ describe('reconstructChat paging', () => {
       chatUrl('threadId=t1&limit=2&before=no-such-cursor'),
     )
     expect(parsed.messages).toEqual([])
-    expect(parsed.page).toEqual({ truncated: false })
+    expect(parsed.page).toEqual({
+      truncated: true,
+      cursor: 'no-such-cursor',
+    })
     expect(parsed.activeRun).toEqual({ runId: 'run-live' })
   })
 
@@ -328,6 +331,58 @@ describe('reconstructChat paging', () => {
           truncated: true as const,
           cursor: 'before-1',
         })
+      },
+      saveThread(threadId, messages) {
+        return inner.saveThread(threadId, messages)
+      },
+    } as MessageStore)
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
+    expect(idsOf(parsed)).toEqual(['2', '3'])
+    expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
+  })
+
+  it('keeps a MessagePage adapter cursor when the UI window fits pageSize', async () => {
+    const persistence = memoryPersistence()
+    const inner = persistence.stores.messages
+    persistence.stores.messages = defineMessageStore({
+      loadThread(threadId, options) {
+        if (options?.limit === undefined) {
+          return inner.loadThread(threadId)
+        }
+        return Promise.resolve({
+          messages: [
+            { id: '2', role: 'assistant', content: 'two' },
+            { id: '3', role: 'user', content: 'three' },
+          ],
+          truncated: true as const,
+          cursor: 'adapter-cursor',
+        })
+      },
+      saveThread(threadId, messages) {
+        return inner.saveThread(threadId, messages)
+      },
+    } as MessageStore)
+    const parsed = await hydrate(persistence, chatUrl('threadId=t1&limit=2'))
+    expect(idsOf(parsed)).toEqual(['2', '3'])
+    expect(parsed.page).toEqual({
+      truncated: true,
+      cursor: 'adapter-cursor',
+    })
+  })
+
+  it('slices an array adapter that honors limit plus one', async () => {
+    const persistence = memoryPersistence()
+    const inner = persistence.stores.messages
+    await inner.saveThread('t1', threeTurnThread)
+    persistence.stores.messages = defineMessageStore({
+      loadThread(threadId, options) {
+        const limit = options?.limit
+        if (limit === undefined) {
+          return inner.loadThread(threadId)
+        }
+        return inner
+          .loadThread(threadId)
+          .then((list) => list.slice(Math.max(0, list.length - limit)))
       },
       saveThread(threadId, messages) {
         return inner.saveThread(threadId, messages)
