@@ -3,8 +3,6 @@ id: FileChangedPayload
 title: FileChangedPayload
 ---
 
-# Interface: FileChangedPayload
-
 Defined in: [packages/ai/src/custom-events.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L35)
 
 ## Properties

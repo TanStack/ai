@@ -93,6 +93,7 @@ export function makePR(overrides: Partial<PRItem> = {}): PRItem {
     files: ['packages/ai/src/core/chat.ts', '.changeset/nice-fix.md'],
     labels: [],
     assignees: [],
+    requestedReviewers: [],
     ciState: 'success',
     linkedIssues: [50],
     timeline: [],

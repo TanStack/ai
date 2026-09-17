@@ -1,5 +1,19 @@
 # @tanstack/ai-openai
 
+## 0.22.8
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.22.7
+
+### Patch Changes
+
+- [#1322](https://github.com/TanStack/ai/pull/1322) [`2f6a45c`](https://github.com/TanStack/ai/commit/2f6a45c4f889a6cd08f0c25df508fb6a381a8309) - `openaiCompatible` and `openaiCompatibleText` accept the OpenAI SDK token-provider `apiKey` (`() => Promise<string>`), so Azure Entra and rotating keys type-check.
+
 ## 0.22.6
 
 ### Patch Changes

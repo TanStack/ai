@@ -3,8 +3,6 @@ id: MCPDuplicateToolNameError
 title: MCPDuplicateToolNameError
 ---
 
-# Class: MCPDuplicateToolNameError
-
 Defined in: [packages/ai/src/activities/chat/mcp/manager.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/manager.ts#L31)
 
 ## Extends

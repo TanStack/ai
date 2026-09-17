@@ -14,8 +14,6 @@ keywords:
   - middleware debugging
 ---
 
-# Debug Logging
-
 You have a `chat()` that isn't behaving as expected — a missing chunk, a middleware that doesn't seem to fire, a tool call with wrong args. By the end of this guide, you'll have turned on debug logging and will see every chunk, middleware transform, and tool call flowing through your call.
 
 ## Turn it on

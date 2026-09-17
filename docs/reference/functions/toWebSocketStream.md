@@ -3,8 +3,6 @@ id: toWebSocketStream
 title: toWebSocketStream
 ---
 
-# Function: toWebSocketStream()
-
 ```ts
 function toWebSocketStream<TOffset>(
    socket, 

@@ -3,8 +3,6 @@ id: MCPConnectionPolicy
 title: MCPConnectionPolicy
 ---
 
-# Type Alias: MCPConnectionPolicy
-
 ```ts
 type MCPConnectionPolicy = "close" | "keep-alive";
 ```

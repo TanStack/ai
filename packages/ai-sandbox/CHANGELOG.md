@@ -1,5 +1,24 @@
 # @tanstack/ai-sandbox
 
+## 0.5.9
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-persistence@0.6.0
+  - @tanstack/ai-skills@0.1.4
+
+## 0.5.8
+
+### Patch Changes
+
+- [#1334](https://github.com/TanStack/ai/pull/1334) [`75d94cf`](https://github.com/TanStack/ai/commit/75d94cf8babc22d19a6120b68f073d4e48cd69d4) - Reject host-tool bridge startup with the original Node.js error when its HTTP listener cannot start.
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+  - @tanstack/ai-persistence@0.5.7
+
 ## 0.5.7
 
 ### Patch Changes

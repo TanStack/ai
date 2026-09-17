@@ -3,8 +3,6 @@ id: AfterToolCallInfo
 title: AfterToolCallInfo
 ---
 
-# Interface: AfterToolCallInfo
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L408)
 
 Outcome information provided to onAfterToolCall.

@@ -3,8 +3,6 @@ id: UIResourceEvent
 title: UIResourceEvent
 ---
 
-# Interface: UIResourceEvent
-
 Defined in: [packages/ai/src/types.ts:1451](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1451)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into

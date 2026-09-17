@@ -3,8 +3,6 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-# Interface: VideoUrlResult
-
 Defined in: [packages/ai/src/types.ts:2204](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2204)
 
 **`Experimental`**

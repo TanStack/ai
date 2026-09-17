@@ -1,5 +1,16 @@
 # @tanstack/ai-memory
 
+## 0.2.0
+
+### Minor Changes
+
+- [#1388](https://github.com/TanStack/ai/pull/1388) [`1d578cb`](https://github.com/TanStack/ai/commit/1d578cb6909800edfa5766fca5f6d90854856b03) - Ship the memory adapter contract suite as `@tanstack/ai-memory/testkit`. `runMemoryAdapterContract` was only reachable inside the repo (`tests/contract.ts`, not published), while the custom-adapter guide told you to import it from `@tanstack/ai-memory/tests/contract`. It now lives in `src/testkit/contract.ts` and is exported the same way as `@tanstack/ai-persistence/testkit`, with `vitest` as an optional peer dependency.
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+
 ## 0.1.11
 
 ### Patch Changes

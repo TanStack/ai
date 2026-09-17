@@ -3,8 +3,6 @@ id: getRunDetached
 title: getRunDetached
 ---
 
-# Variable: getRunDetached
-
 ```ts
 getRunDetached: CapabilityGetter<true>;
 ```

@@ -1,5 +1,21 @@
 # @tanstack/ai
 
+## 0.55.0
+
+### Minor Changes
+
+- [#1400](https://github.com/TanStack/ai/pull/1400) [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410) - Page long chat threads on hydrate. Pass `history: { pageSize }` with `persistence: true`. Then call `loadOlderMessages()` to prepend older turns. `withPersistence` merges incoming messages by id so a short client list keeps stored extras. `loadThread` accepts optional `limit` / `before` and can return a `MessagePage`.
+
+### Patch Changes
+
+- [#1398](https://github.com/TanStack/ai/pull/1398) [`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74) - fix(chat): keep ui-resource parts emitted during the current run on the interrupt MESSAGES_SNAPSHOT. Server tools emitting `ui://` widgets via `ctx.emitCustomEvent('ui-resource', ...)` now have the resource recorded on the tool-call anchor ModelMessage, so the MESSAGES_SNAPSHOT emitted when the run pauses on a client tool no longer drops the widget from client state ([#1397](https://github.com/TanStack/ai/issues/1397)).
+
+## 0.54.1
+
+### Patch Changes
+
+- [#1395](https://github.com/TanStack/ai/pull/1395) [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6) - Return real WAV audio for ElevenLabs speech requests with `format: 'wav'` and reject unsupported AAC and FLAC formats instead of silently returning MP3. Preserve explicit `modelOptions.outputFormat` overrides and document the supported formats in the media-generation skill.
+
 ## 0.54.0
 
 ### Minor Changes

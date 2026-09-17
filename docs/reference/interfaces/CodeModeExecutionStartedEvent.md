@@ -3,8 +3,6 @@ id: CodeModeExecutionStartedEvent
 title: CodeModeExecutionStartedEvent
 ---
 
-# Interface: CodeModeExecutionStartedEvent
-
 Defined in: [packages/ai/src/types.ts:1487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1487)
 
 Custom event for extensibility.

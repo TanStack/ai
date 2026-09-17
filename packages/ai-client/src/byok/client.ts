@@ -42,6 +42,23 @@ export const EMPTY_BYOK_SNAPSHOT: ByokSnapshot = {
   storageError: null,
 }
 
+const registeredProviderIds = new WeakMap<ByokClient, Array<ProviderId>>()
+
+/**
+ * Provider to stamp when the caller did not pass a slug.
+ * One saved key wins. Else the only provider listed in `defineByok({ providers })`.
+ */
+export function byokFallbackProviderId(byok: ByokClient) {
+  const savedIds = Object.entries(byok.keys())
+    .filter((entry) => Boolean(entry[1]))
+    .map((entry) => entry[0])
+    .filter(isProviderId)
+  if (savedIds.length === 1) return savedIds[0]
+  const registered = registeredProviderIds.get(byok) ?? []
+  if (registered.length === 1) return registered[0]
+  return undefined
+}
+
 function requireProviderId(value: string): ProviderId {
   if (!isProviderId(value)) {
     throw new Error(`Invalid BYOK provider id: ${value}`)
@@ -98,13 +115,17 @@ export class ByokClient {
 
   constructor(options: DefineByokOptions = {}) {
     this.storage = options.storage ?? memoryStorage()
+    const registered: Array<ProviderId> = []
     for (const provider of options.providers ?? []) {
+      const id = requireProviderId(provider.id)
+      registered.push(id)
       if (provider.with?.length) {
-        this.#companions[requireProviderId(provider.id)] = provider.with.map(
-          (companion) => requireProviderId(companion.id),
+        this.#companions[id] = provider.with.map((companion) =>
+          requireProviderId(companion.id),
         )
       }
     }
+    registeredProviderIds.set(this, registered)
     this.#locked = Boolean(this.storage.unlockable)
     this.#snapshot = this.#buildSnapshot()
     this.#ready = this.#hydrate()

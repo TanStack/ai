@@ -456,7 +456,9 @@ The suffix on a voice id tells you which generation you are asking for:
 
 The full roster lives in the [BytePlus voice list](https://docs.byteplus.com/en/docs/byteplusvoice/voicelist) and changes far more often than this package ships, so any string is accepted.
 
-Output formats are `wav`, `mp3`, `pcm` and `ogg_opus`. Reach for `modelOptions` for `ogg_opus`, for an explicit `sample_rate`, for `references` (voice cloning — up to three 30-second audio clips, addressed from the text as `@Audio1`–`@Audio3`), for `watermark`, or for word-level timings:
+`speaker` also takes a voice you cloned through Voice Replication, not only a stock id. That field is the join between replication and synthesis.
+
+Output formats are `wav`, `mp3`, `pcm` and `ogg_opus`. Reach for `modelOptions` for `ogg_opus`, for an explicit `sample_rate`, for `references` (voice cloning, up to three 30-second audio clips, addressed from the text as `@Audio1` to `@Audio3`), for `watermark`, or for word-level timings:
 
 ```typescript
 import { generateSpeech } from '@tanstack/ai'
@@ -477,6 +479,31 @@ for (const sentence of result.subtitle?.sentences ?? []) {
   console.log(sentence.text, sentence.start_time)
 }
 ```
+
+### Watermarking speech
+
+Seed Audio takes an object here, not a flag. Two markers, both off by default:
+
+- `aigc_watermark`: appends an audible rhythm marker to the end of the clip.
+- `aigc_metadata`: writes provenance into the audio header. It writes nothing unless `enable` is `true`.
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'welcome to the guitar store',
+  modelOptions: {
+    watermark: {
+      aigc_watermark: true,
+      aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+    },
+  },
+})
+```
+
+`watermark: true` is shorthand for `{ aigc_watermark: true }`, so the audible marker is what a boolean gives you. Images and video keep their own boolean `watermark`. Only speech takes the object.
 
 Three things to plan around:
 

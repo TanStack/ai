@@ -3,8 +3,6 @@ id: "@tanstack/ai"
 title: "@tanstack/ai"
 ---
 
-# @tanstack/ai
-
 ## Classes
 
 - [BaseRerankAdapter](classes/BaseRerankAdapter.md)
@@ -100,6 +98,9 @@ title: "@tanstack/ai"
 - [JSONParser](interfaces/JSONParser.md)
 - [JSONSchema](interfaces/JSONSchema.md)
 - [LazyToolsConfig](interfaces/LazyToolsConfig.md)
+- [LiveVideoAdapter](interfaces/LiveVideoAdapter.md)
+- [LiveVideoGenerationOptions](interfaces/LiveVideoGenerationOptions.md)
+- [LiveVideoGenerationResult](interfaces/LiveVideoGenerationResult.md)
 - [Logger](interfaces/Logger.md)
 - [MCPToolSource](interfaces/MCPToolSource.md)
 - [MediaInputMetadata](interfaces/MediaInputMetadata.md)
@@ -229,6 +230,9 @@ title: "@tanstack/ai"
 - [VideoUrlResult](interfaces/VideoUrlResult.md)
 - [WebSocketLike](interfaces/WebSocketLike.md)
 - [WebSocketStreamInit](interfaces/WebSocketStreamInit.md)
+- [WorldAdapter](interfaces/WorldAdapter.md)
+- [WorldGenerationOptions](interfaces/WorldGenerationOptions.md)
+- [WorldGenerationResult](interfaces/WorldGenerationResult.md)
 - [WsRunContext](interfaces/WsRunContext.md)
 
 ## Type Aliases
@@ -244,6 +248,7 @@ title: "@tanstack/ai"
 - [AnyEmbeddingAdapter](type-aliases/AnyEmbeddingAdapter.md)
 - [AnyGenerationMiddleware](type-aliases/AnyGenerationMiddleware.md)
 - [AnyImageAdapter](type-aliases/AnyImageAdapter.md)
+- [AnyLiveVideoAdapter](type-aliases/AnyLiveVideoAdapter.md)
 - [AnyRerankAdapter](type-aliases/AnyRerankAdapter.md)
 - [AnyServerTool](type-aliases/AnyServerTool.md)
 - [AnySummarizeAdapter](type-aliases/AnySummarizeAdapter.md)
@@ -252,6 +257,7 @@ title: "@tanstack/ai"
 - [AnyTranscriptionAdapter](type-aliases/AnyTranscriptionAdapter.md)
 - [AnyTTSAdapter](type-aliases/AnyTTSAdapter.md)
 - [AnyVideoAdapter](type-aliases/AnyVideoAdapter.md)
+- [AnyWorldAdapter](type-aliases/AnyWorldAdapter.md)
 - [ApprovalCapabilityOf](type-aliases/ApprovalCapabilityOf.md)
 - [ApprovalSchemaConfig](type-aliases/ApprovalSchemaConfig.md)
 - [ApprovalSchemaOf](type-aliases/ApprovalSchemaOf.md)
@@ -390,6 +396,7 @@ title: "@tanstack/ai"
 - [createFrozenRegistry](functions/createFrozenRegistry.md)
 - [createImageOptions](functions/createImageOptions.md)
 - [createInterruptBinding](functions/createInterruptBinding.md)
+- [createLiveVideoOptions](functions/createLiveVideoOptions.md)
 - [createModel](functions/createModel.md)
 - [createRealtimeEventEmitter](functions/createRealtimeEventEmitter.md)
 - [createReplayStream](functions/createReplayStream.md)
@@ -399,6 +406,7 @@ title: "@tanstack/ai"
 - [createToolRegistry](functions/createToolRegistry.md)
 - [createTranscriptionOptions](functions/createTranscriptionOptions.md)
 - [createVideoOptions](functions/createVideoOptions.md)
+- [createWorldOptions](functions/createWorldOptions.md)
 - [decodeWsFrame](functions/decodeWsFrame.md)
 - [defineChatMiddleware](functions/defineChatMiddleware.md)
 - [defineInterrupt](functions/defineInterrupt.md)
@@ -412,10 +420,12 @@ title: "@tanstack/ai"
 - [fromSpecTokenUsage](functions/fromSpecTokenUsage.md)
 - [generateAudio](functions/generateAudio.md)
 - [generateImage](functions/generateImage.md)
+- [generateLiveVideo](functions/generateLiveVideo.md)
 - [generateMessageId](functions/generateMessageId.md)
 - [generateSpeech](functions/generateSpeech.md)
 - [generateTranscription](functions/generateTranscription.md)
 - [generateVideo](functions/generateVideo.md)
+- [generateWorld](functions/generateWorld.md)
 - [generationParamsFromBody](functions/generationParamsFromBody.md)
 - [generationParamsFromRequest](functions/generationParamsFromRequest.md)
 - [genericInterruptContinuationFromDescriptor](functions/genericInterruptContinuationFromDescriptor.md)

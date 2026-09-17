@@ -159,14 +159,53 @@ describe('BytePlusTTSAdapter', () => {
     ])
   })
 
-  it('forwards watermark when set', async () => {
-    const fetchMock = ttsFetch()
-    await generateSpeech({
-      adapter: adapterWith(fetchMock),
-      text: 'hi',
-      modelOptions: { watermark: true },
+  // The endpoint takes an object here, not the boolean the field looked like.
+  describe('watermark', () => {
+    it('normalizes `true` to the audible marker', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: { watermark: true },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_watermark: true,
+      })
     })
-    expect(lastRequest(fetchMock).body.watermark).toBe(true)
+
+    it('normalizes `false` to the audible marker off', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: { watermark: false },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_watermark: false,
+      })
+    })
+
+    it('forwards an explicit config unchanged', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: {
+          watermark: {
+            aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+          },
+        },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+      })
+    })
+
+    it('omits watermark when unset', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      expect(lastRequest(fetchMock).body).not.toHaveProperty('watermark')
+    })
   })
 
   describe('format mapping', () => {

@@ -3,8 +3,6 @@ id: InterruptBoundaryPhase
 title: InterruptBoundaryPhase
 ---
 
-# Type Alias: InterruptBoundaryPhase
-
 ```ts
 type InterruptBoundaryPhase = typeof INTERRUPT_BOUNDARY_PHASES[number];
 ```

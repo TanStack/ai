@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Quick Start: React Native",
@@ -45,6 +45,48 @@
         }
       ],
       "tab": "get-started"
+    },
+    {
+      "label": "Tutorials",
+      "tab": "tutorial",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "tutorials/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "tutorials/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "tutorials/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "tab": "examples",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "framework/react/examples/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "framework/react/examples/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "framework/react/examples/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        }
+      ]
     },
     {
       "label": "Comparison",
@@ -242,19 +284,19 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Svelte",
@@ -290,6 +332,11 @@
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Highlight markdown",
+          "to": "ui/markdown",
+          "addedAt": "2026-09-15"
         }
       ]
     },
@@ -400,7 +447,8 @@
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "MCP Type Generation",
@@ -831,7 +879,8 @@
         {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Provisioning",
@@ -849,7 +898,7 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-20"
         }
       ]
     },
@@ -875,7 +924,8 @@
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Operating",
@@ -1095,13 +1145,13 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-16"
         }
       ],
       "tab": "adapters"
@@ -1175,6 +1225,11 @@
           "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
+        },
+        {
+          "label": "TextPart markdown",
+          "to": "migration/text-part-markdown",
+          "addedAt": "2026-09-15"
         }
       ],
       "tab": "guides"

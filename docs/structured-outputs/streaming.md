@@ -18,6 +18,8 @@ You have an existing chat-style endpoint and you want the structured response to
 
 By the end you'll have a server endpoint streaming structured JSON as Server-Sent Events, and a client that reads a typed `partial` (progressive object) and `final` (completed terminal object) from `useChat`.
 
+For a full Start app that shows a table from `partial.rows`, open [Streaming Structured Table](../tutorials/streaming-structured-table).
+
 > **Note:** This is the streaming counterpart of [One-Shot Extraction](./one-shot). If you don't need progressive UI updates, the one-shot path is simpler. If you want users to iterate on the object across multiple turns and keep history, see [Multi-Turn Chat](./multi-turn).
 
 ## Server endpoint

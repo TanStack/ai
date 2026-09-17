@@ -3,8 +3,6 @@ id: VideoStatusResult
 title: VideoStatusResult
 ---
 
-# Interface: VideoStatusResult
-
 Defined in: [packages/ai/src/types.ts:2188](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2188)
 
 **`Experimental`**

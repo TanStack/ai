@@ -3,8 +3,6 @@ id: ConstrainedContent
 title: ConstrainedContent
 ---
 
-# Type Alias: ConstrainedContent\<TInputModalitiesTypes\>
-
 ```ts
 type ConstrainedContent<TInputModalitiesTypes> = 
   | string

@@ -1,5 +1,30 @@
 # @tanstack/ai-vue
 
+## 0.23.0
+
+### Minor Changes
+
+- [#1400](https://github.com/TanStack/ai/pull/1400) [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410) - Page long chat threads on hydrate. Pass `history: { pageSize }` with `persistence: true`. Then call `loadOlderMessages()` to prepend older turns. `withPersistence` merges incoming messages by id so a short client list keeps stored extras. `loadThread` accepts optional `limit` / `before` and can return a `MessagePage`.
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-client@0.32.0
+
+## 0.22.0
+
+### Minor Changes
+
+- [#1338](https://github.com/TanStack/ai/pull/1338) [`5ae2cd2`](https://github.com/TanStack/ai/commit/5ae2cd2c3c4e2cabf2758a1a2eca9c14d44cb626) - Render `TextPart` markdown with `@tanstack/markdown` instead of the per-framework unified stacks (`react-markdown`, `@crazydos/vue-markdown`, `solid-markdown` plus `remark-gfm`, `rehype-raw`, `rehype-highlight`, `rehype-sanitize`). This drops the unified dependency tree and uses TanStack Markdown's streaming profile (raw HTML escaped, executable URLs removed, empty trailing blocks suppressed while a response streams).
+
+  **Breaking:** the `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` props are removed. Use `extensions` (TanStack Markdown extensions) and `highlighter` (a synchronous `CodeHighlighter`, for example from `@tanstack/highlight/markdown`) instead. Fenced code renders as `<pre class="tm-code"><code class="language-…">` until a `highlighter` is passed. This is not a visible change: the previous chain ran `rehype-sanitize` last, which stripped the `hljs-*` classes `rehype-highlight` added, so the built-in `TextPart` never showed highlighted code. Raw HTML in message content is now escaped rather than sanitized and rendered. Bare URLs are not auto-linked. Task lists no longer get `contains-task-list` or `task-list-item`. The Solid `components` prop is removed. React keeps `components` as a tag-name map with normal HTML props (`href`, `className`). `inline` and `node` are not passed.
+
+### Patch Changes
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+
 ## 0.21.1
 
 ### Patch Changes

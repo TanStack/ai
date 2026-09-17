@@ -18,6 +18,7 @@ export type {
   ActivityRecord,
   ActivityStore,
   MessageStore,
+  MessagePage,
   RunStatus,
   TerminalRunStatus,
   RunRecord,

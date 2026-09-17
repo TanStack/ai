@@ -3,8 +3,6 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage\<TData\>
-
 Defined in: [packages/ai/src/types.ts:576](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L576)
 
 UIMessage - Domain-specific message format optimized for building chat UIs

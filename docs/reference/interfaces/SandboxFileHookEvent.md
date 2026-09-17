@@ -3,8 +3,6 @@ id: SandboxFileHookEvent
 title: SandboxFileHookEvent
 ---
 
-# Interface: SandboxFileHookEvent
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L39)
 
 The file event a sandbox hook receives: the serializable [SandboxFileEvent](SandboxFileEvent.md)

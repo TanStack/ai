@@ -69,10 +69,12 @@ import {
   peelInboundActivities,
 } from './activity-records'
 import {
+  appendUiResourceToModelMessages,
   convertMessagesToModelMessages,
   generateMessageId,
   modelMessagesToUIMessages,
   safeJsonStringify,
+  uiResourcePartFromCustomValue,
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
@@ -2807,6 +2809,22 @@ class TextEngine<
     }
   }
 
+  /**
+   * Record a `ui-resource` CUSTOM chunk on the assistant ModelMessage owning
+   * its `toolCallId` so the resource survives later MESSAGES_SNAPSHOT chunks
+   * (e.g. the interrupt snapshot emitted when the run pauses on a client
+   * tool). Mirrors the anchor-preserving approach used for
+   * `toolCallMetadata` (#867). See #1397.
+   */
+  private recordEmittedUiResource(value: unknown): void {
+    const part = uiResourcePartFromCustomValue(value)
+    if (!part) return
+    const next = appendUiResourceToModelMessages(this.messages, part)
+    if (next === this.messages) return
+    this.messages = next
+    this.middlewareCtx.messages = this.messages
+  }
+
   private buildMessagesSnapshotChunk(): StreamChunk {
     const withIds = this.messages.map((message, index) => ({
       ...message,
@@ -4478,6 +4496,11 @@ class TextEngine<
         if (spec.type === EventType.RUN_STARTED) {
           if (this.hasPublicRunStarted) continue
           this.hasPublicRunStarted = true
+        }
+        // Persist MCP Apps ui-resource emissions onto the tool-call anchor
+        // message so interrupt MESSAGES_SNAPSHOT chunks keep them (#1397).
+        if (spec.type === EventType.CUSTOM && spec.name === 'ui-resource') {
+          this.recordEmittedUiResource((spec as CustomEvent).value)
         }
         yield spec
         this.middlewareCtx.chunkIndex++
