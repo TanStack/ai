@@ -145,8 +145,8 @@ records and rank them yourself.
 
 ## Step 2: Run the contract suite
 
-`@tanstack/ai-memory/testkit` exports `runMemoryAdapterContract`, the same suite every
-packaged adapter runs. Point it at a factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
+`@tanstack/ai-memory/testkit` exports `runMemoryAdapterContract`. `inMemory` and `redis`
+run this suite. Point it at a factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
 isolation, empty recall, receipt shape, and the optional introspection methods.
 
 ```ts ignore

@@ -58,6 +58,22 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "nx": {
+    "targets": {
+      "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:types": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
+  },
   "keywords": [
     "ai",
     "tanstack",
