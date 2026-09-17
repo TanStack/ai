@@ -30,6 +30,8 @@ You want a streaming chat in your app. TanStack AI streams from a server route. 
 
 For a React + Start app with BYOK, open [Basic Chat](../tutorials/basic-chat).
 
+For an image from a prompt, open [Generate Image](../tutorials/generate-image).
+
 For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).
 
 > [!TIP]

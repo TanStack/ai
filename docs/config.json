@@ -56,6 +56,11 @@
           "addedAt": "2026-09-17"
         },
         {
+          "label": "Generate Image",
+          "to": "tutorials/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17"
@@ -69,6 +74,11 @@
         {
           "label": "Basic Chat",
           "to": "framework/react/examples/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "framework/react/examples/generate-image",
           "addedAt": "2026-09-17"
         },
         {

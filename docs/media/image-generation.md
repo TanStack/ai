@@ -376,6 +376,8 @@ runtime error so calls fail fast rather than silently dropping the inputs.
 
 ## Full-Stack Usage
 
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+
 TanStack AI provides React hooks and server-side streaming helpers to build full-stack image generation with minimal boilerplate.
 
 > **Note:** To keep a batch across reloads, or to keep the images after the
