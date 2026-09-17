@@ -9,7 +9,7 @@
 export type CIState = 'success' | 'failure' | 'pending' | 'unknown'
 
 export interface TimelineEvent {
-  kind: 'comment' | 'review' | 'commit'
+  kind: 'comment' | 'review' | 'commit' | 'assigned' | 'review-requested'
   /** GitHub login, or null when the account was deleted / unresolvable. */
   actor: string | null
   isBot: boolean
@@ -19,6 +19,8 @@ export interface TimelineEvent {
   body?: string
   /** Only present for reviews: APPROVED | CHANGES_REQUESTED | COMMENTED | DISMISSED. */
   reviewState?: string
+  /** Recipient of an assignment or review request (actor is the initiator). */
+  subject?: string | null
 }
 
 export interface PRItem {
@@ -41,10 +43,11 @@ export interface PRItem {
   additions: number
   deletions: number
   changedFiles: number
-  /** Paths of changed files (capped at 100 by the API query). */
+  /** All changed paths, paginated during collection. */
   files: Array<string>
   labels: Array<string>
   assignees: Array<string>
+  requestedReviewers: Array<string>
   ciState: CIState
   /** Issue numbers this PR closes (via closingIssuesReferences). */
   linkedIssues: Array<number>
@@ -95,7 +98,9 @@ export interface ClosedItem {
   closedAt: string
   /** Only for PRs; null when closed without merging. */
   mergedAt: string | null
-  /** Comment/review events, enough to compute first-response time. */
+  /** Changed paths for recent merged-PR area experience. */
+  files?: Array<string>
+  /** Comment/review and assignment/request events. */
   timeline: Array<TimelineEvent>
 }
 
@@ -104,6 +109,8 @@ export interface RepoSnapshot {
   repo: string
   /** ISO timestamp the snapshot was taken. */
   takenAt: string
+  /** CODEOWNERS from the default branch, never from PR code. */
+  codeowners: string
   prs: Array<PRItem>
   issues: Array<IssueItem>
   discussions: Array<DiscussionItem>
@@ -119,7 +126,7 @@ export interface MaintainerEntry {
   discord?: string | null
   /** File globs this maintainer owns; used to route PR assignment. */
   areas: Array<string>
-  /** Routing skips this maintainer once they have this many open assignments. */
+  /** Legacy setting, accepted for compatibility but no longer limits routing. */
   maxOpenAssignments?: number
 }
 
