@@ -20,6 +20,7 @@
  */
 import { createServer } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { once } from 'node:events'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -350,9 +351,7 @@ export async function startHostToolBridge(
     })
   })
 
-  await new Promise<void>((resolve) =>
-    httpServer.listen(0, bindAddress, resolve),
-  )
+  await once(httpServer.listen(0, bindAddress), 'listening')
   const port = (httpServer.address() as AddressInfo).port
   const url = `http://${options.hostForSandbox}:${port}/mcp`
 

@@ -405,10 +405,16 @@ function elevenLabsTTSMount(): Mountable {
       if (req.method !== 'POST' || pathname === '/' || pathname === '')
         return false
       await drainBody(req)
+      const outputFormat = new URL(
+        req.url ?? '/',
+        'http://localhost',
+      ).searchParams.get('output_format')
+      const isPcm = outputFormat === 'pcm_44100'
+      const audio = isPcm ? FAKE_PCM_BYTES : FAKE_MP3_BYTES
       res.statusCode = 200
-      res.setHeader('Content-Type', 'audio/mpeg')
-      res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
-      res.end(FAKE_MP3_BYTES)
+      res.setHeader('Content-Type', isPcm ? 'audio/pcm' : 'audio/mpeg')
+      res.setHeader('Content-Length', String(audio.length))
+      res.end(audio)
       return true
     },
   }

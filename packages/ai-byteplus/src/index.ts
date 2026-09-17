@@ -84,6 +84,7 @@ export type {
   BytePlusTTSSampleRate,
   BytePlusTTSSubtitle,
   BytePlusTTSSubtitleEntry,
+  BytePlusTTSWatermark,
   BytePlusVoiceErrorBody,
 } from './audio/wire-types'
 export {

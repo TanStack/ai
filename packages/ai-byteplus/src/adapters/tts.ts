@@ -275,9 +275,7 @@ export function buildTTSRequestBody(options: {
     model,
     [TTS_TEXT_FIELD]: text,
     // The voice belongs inside `references`, not at the top level — a
-    // top-level `speaker` is silently ignored by the server. The flat member
-    // shape here is the best-supported reading of the docs; see
-    // `BytePlusTTSReference` for the unresolved part and the live-probe flag.
+    // top-level `speaker` is silently ignored by the server.
     references: modelOptions?.references ?? [
       {
         speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
@@ -286,7 +284,12 @@ export function buildTTSRequestBody(options: {
     audio_config: audioConfig,
   }
   if (modelOptions?.watermark !== undefined) {
-    body.watermark = modelOptions.watermark
+    // The endpoint wants an object. `true` means the audible marker, which is
+    // what a caller passing a boolean is asking for.
+    body.watermark =
+      typeof modelOptions.watermark === 'boolean'
+        ? { aigc_watermark: modelOptions.watermark }
+        : modelOptions.watermark
   }
 
   return { body, audioFormat, sampleRate }
