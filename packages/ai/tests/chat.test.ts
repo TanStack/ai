@@ -1651,10 +1651,87 @@ describe('chat()', () => {
             type: EventType.TOOL_CALL_RESULT,
             toolCallId: 'call_reject',
             content: JSON.stringify({ reason: 'unsafe' }),
+            metadata: {
+              tanstack: {
+                state: 'output-error',
+                toolResultOutcome: 'denied',
+              },
+            },
           }),
           expect.objectContaining({
             type: EventType.TOOL_CALL_RESULT,
             toolCallId: 'call_cancel',
+            metadata: {
+              tanstack: {
+                state: 'output-error',
+                toolResultOutcome: 'cancelled',
+              },
+            },
+          }),
+        ]),
+      )
+    })
+
+    it('emits a denied result when an ephemeral resume includes its approval placeholder', async () => {
+      const execute = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread-1',
+          runId: 'continuation-run',
+          parentRunId: 'interrupted-run',
+          messages: [
+            { role: 'user', content: 'Do it' },
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'call_denied',
+                  type: 'function',
+                  function: { name: 'deleteData', arguments: '{}' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              content: JSON.stringify({
+                approved: false,
+                message: 'User denied this action',
+              }),
+              toolCallId: 'call_denied',
+            },
+          ],
+          tools: [
+            { ...serverTool('deleteData', execute), needsApproval: true },
+          ],
+          resume: [
+            {
+              interruptId: 'approval_call_denied',
+              status: 'resolved',
+              payload: { approved: false },
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(chunks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: 'call_denied',
+            content: JSON.stringify({ error: 'User declined tool execution' }),
+            metadata: {
+              tanstack: {
+                state: 'output-error',
+                toolResultOutcome: 'denied',
+              },
+            },
           }),
         ]),
       )

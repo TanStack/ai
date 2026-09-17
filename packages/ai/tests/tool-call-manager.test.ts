@@ -627,8 +627,31 @@ describe('executeToolCalls', () => {
         error: 'User declined tool execution',
       })
       expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.outcome).toBe('denied')
       expect(result.needsClientExecution).toHaveLength(0)
       expect(result.needsApproval).toHaveLength(0)
+    })
+
+    it('marks cancelled tool calls separately from execution errors', async () => {
+      const result = await drainExecuteToolCalls(
+        [makeToolCall('call_1', 'get_local_data', '{"key":"myKey"}')],
+        [clientToolWithoutApproval],
+        new Map(),
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { cancelledToolCallIds: new Set(['call_1']) },
+      )
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.result).toEqual({
+        error: 'Tool execution cancelled',
+      })
+      expect(result.results[0]?.state).toBe('output-error')
+      expect(result.results[0]?.outcome).toBe('cancelled')
+      expect(result.needsClientExecution).toHaveLength(0)
     })
 
     it('should treat approval response object as a real result if leaked into clientResults (bug scenario)', async () => {

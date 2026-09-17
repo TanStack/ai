@@ -5265,6 +5265,31 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.error).toBe('boom')
     })
 
+    it('should preserve a denied outcome on output-error tool results', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"error":"User declined tool execution"}',
+          role: 'tool',
+          metadata: {
+            tanstack: { state: 'output-error', toolResultOutcome: 'denied' },
+          },
+        }),
+      )
+
+      const toolResultPart = processor
+        .getMessages()[0]
+        ?.parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      expect(toolResultPart.state).toBe('error')
+      expect(toolResultPart.outcome).toBe('denied')
+    })
+
     it('keeps the tool-call part terminal at "error" through RUN_FINISHED even when output-error arrives before TOOL_CALL_END', () => {
       const processor = new StreamProcessor()
 

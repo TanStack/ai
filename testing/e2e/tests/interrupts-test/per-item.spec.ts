@@ -6,6 +6,7 @@ import {
   waitForTestComplete,
   getMetadata,
   getEventLog,
+  getMessages,
 } from './helpers'
 
 /**
@@ -107,6 +108,18 @@ test.describe('Per-item interrupt resolution', () => {
       expect(parseInt(meta.approvalDeniedCount)).toBe(1)
       expect(parseInt(meta.approvalGrantedCount)).toBe(0)
 
+      const messages = await getMessages(page)
+      expect(
+        messages
+          .flatMap((message) => message.parts)
+          .some(
+            (part) =>
+              part.type === 'tool-result' &&
+              part.state === 'error' &&
+              part.outcome === 'denied',
+          ),
+      ).toBe(true)
+
       // A denied tool must not run.
       if (s.group === 'client') {
         const events = await getEventLog(page)
@@ -132,6 +145,18 @@ test.describe('Per-item interrupt resolution', () => {
       const meta = await getMetadata(page)
       expect(meta.hasError).toBe('false')
       expect(parseInt(meta.approvalCancelledCount)).toBe(1)
+
+      const messages = await getMessages(page)
+      expect(
+        messages
+          .flatMap((message) => message.parts)
+          .some(
+            (part) =>
+              part.type === 'tool-result' &&
+              part.state === 'error' &&
+              part.outcome === 'cancelled',
+          ),
+      ).toBe(true)
 
       // A cancelled tool must not run.
       if (s.group === 'client') {

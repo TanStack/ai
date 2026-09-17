@@ -39,6 +39,30 @@ describe('Message Converters', () => {
         },
       ])
     })
+
+    it('persists a tool result outcome in TanStack metadata', () => {
+      const result = uiMessageToModelMessages({
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined tool execution"}',
+            state: 'error',
+            outcome: 'denied',
+          },
+        ],
+      })
+
+      expect(result).toContainEqual({
+        role: 'tool',
+        content: '{"error":"User declined tool execution"}',
+        toolCallId: 'call-1',
+        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+      })
+    })
+
     it('should convert simple text message', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
@@ -990,6 +1014,24 @@ describe('Message Converters', () => {
       })
     })
 
+    it('should preserve a cancelled tool result outcome', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        content: '{"error":"Tool execution cancelled"}',
+        toolCallId: 'tool-1',
+        metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+      }
+
+      expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: '{"error":"Tool execution cancelled"}',
+        state: 'error',
+        outcome: 'cancelled',
+        metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+      })
+    })
+
     it('should convert assistant message with toolCalls and text', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
@@ -1471,6 +1513,40 @@ describe('Message Converters', () => {
           state: 'complete',
         },
       ])
+    })
+
+    it('should restore a cancelled tool result and its call as errors', () => {
+      const result = modelMessagesToUIMessages([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'deleteData', arguments: '{}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: '{"error":"Tool execution cancelled"}',
+          toolCallId: 'tc-1',
+          metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+        },
+      ])
+
+      const parts = result[0]?.parts ?? []
+      expect(parts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'tool-call', state: 'error' }),
+          expect.objectContaining({
+            type: 'tool-result',
+            state: 'error',
+            outcome: 'cancelled',
+          }),
+        ]),
+      )
     })
 
     it('should handle multi-round tool flow with proper merging', () => {

@@ -3132,9 +3132,15 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
+      const resultMetadata = {
+        ...(result.state === 'output-error' ? { state: result.state } : {}),
+        ...(result.outcome !== undefined
+          ? { toolResultOutcome: result.outcome }
+          : {}),
+      }
       chunks.push(
-        (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, { state: result.state })
+        (Object.keys(resultMetadata).length > 0
+          ? withTanstackMetadata(resultChunk, resultMetadata)
           : resultChunk) as StreamChunk,
       )
 
@@ -3160,6 +3166,9 @@ class TextEngine<
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.outcome !== undefined && {
+          metadata: { tanstack: { toolResultOutcome: result.outcome } },
+        }),
       }
 
       if (placeholderIdx >= 0) {
@@ -3198,7 +3207,10 @@ class TextEngine<
         }
 
         // Only mark as complete if NOT pending execution
-        if (!hasPendingExecution) {
+        if (
+          !hasPendingExecution &&
+          !this.resumeDeniedToolResults.has(message.toolCallId)
+        ) {
           completedToolIds.add(message.toolCallId)
         }
       }

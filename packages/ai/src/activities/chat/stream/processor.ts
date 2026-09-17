@@ -1641,6 +1641,7 @@ export class StreamProcessor {
 
     // Step 2: Create/update the tool-result part
     const resultState: ToolResultState = isOutputError ? 'error' : 'complete'
+    const toolResultOutcome = tanstackMetadata(chunk)?.toolResultOutcome
     this.messages = updateToolResultPart(
       this.messages,
       messageId,
@@ -1648,6 +1649,7 @@ export class StreamProcessor {
       chunk.content,
       resultState,
       resultState === 'error' ? this.extractToolResultError(output) : undefined,
+      toolResultOutcome,
     )
     this.emitMessagesChange()
   }

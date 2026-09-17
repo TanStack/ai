@@ -30,12 +30,16 @@
       "@tanstack/highlight/languages/*": [
         "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/languages/*.d.ts"
       ],
-      "@tanstack/highlight/themes/*": [
-        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/themes/*.d.ts"
-      ],
-      "@fal-ai/client/realtime": [
-        "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
-        "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
+    "@tanstack/highlight/themes/*": [
+      "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/themes/*.d.ts"
+    ],
+    "@fal-ai/client": [
+      "./node_modules/.kiira/node_modules/@fal-ai/client/src/index.d.ts",
+      "./examples/ts-react-media/node_modules/@fal-ai/client/src/index.d.ts"
+    ],
+    "@fal-ai/client/realtime": [
+      "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
+      "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
       ]
     }
   }

@@ -14,6 +14,8 @@ import type {
   TextPart,
   ToolCall,
   ToolCallPart,
+  ToolResultOutcome,
+  ToolResultPart,
   UIMessage,
   UIResourcePart,
 } from '../../types'
@@ -83,6 +85,31 @@ function parseToolResultContent(content: string): unknown {
     return JSON.parse(content)
   } catch {
     return content
+  }
+}
+
+function toolResultOutcomeFrom(value: unknown): ToolResultOutcome | undefined {
+  return value === 'cancelled' || value === 'denied' ? value : undefined
+}
+
+function toolResultOutcomeFromContent(
+  content: string | null | undefined | Array<ContentPart>,
+): ToolResultOutcome | undefined {
+  if (typeof content !== 'string') return undefined
+  const parsed = parseToolResultContent(content)
+  return isRecord(parsed) ? toolResultOutcomeFrom(parsed.outcome) : undefined
+}
+
+function toolResultMetadata(
+  part: ToolResultPart,
+): Record<string, unknown> | undefined {
+  if (part.outcome === undefined) return part.metadata
+  const current = part.metadata
+  const currentTanstack =
+    current !== undefined && isRecord(current.tanstack) ? current.tanstack : {}
+  return {
+    ...(current ?? {}),
+    tanstack: { ...currentTanstack, toolResultOutcome: part.outcome },
   }
 }
 
@@ -578,6 +605,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           (part.state === 'complete' || part.state === 'error') &&
           !emittedToolResultIds.has(part.toolCallId)
         ) {
+          const metadata = toolResultMetadata(part)
           messageList.push({
             ...(part.id !== undefined && { id: part.id }),
             ...optionalCreatedAt(part),
@@ -585,7 +613,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             content: part.content,
             toolCallId: part.toolCallId,
             ...(part.name !== undefined && { name: part.name }),
-            ...(part.metadata !== undefined && { metadata: part.metadata }),
+            ...(metadata !== undefined && { metadata }),
             ...(part.error !== undefined && { error: part.error }),
           })
           emittedToolResultIds.add(part.toolCallId)
@@ -741,11 +769,19 @@ export function modelMessageToUIMessage(
     }
     parts.push(structuredOutput)
   } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
+    const toolResultOutcome =
+      tanstackMetadata(modelMessage)?.toolResultOutcome ??
+      toolResultOutcomeFromContent(modelMessage.content)
+    const resultState =
+      modelMessage.error === undefined && toolResultOutcome === undefined
+        ? 'complete'
+        : 'error'
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
       content: toolResultContent(modelMessage.content),
-      state: modelMessage.error === undefined ? 'complete' : 'error',
+      state: resultState,
+      ...(toolResultOutcome !== undefined && { outcome: toolResultOutcome }),
       ...(modelMessage.id !== undefined && { id: modelMessage.id }),
       ...(modelMessage.name !== undefined && { name: modelMessage.name }),
       ...(modelMessage.metadata !== undefined && {
@@ -1055,6 +1091,13 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.role === 'assistant'
       ) {
         const content = toolResultContent(msg.content)
+        const toolResultOutcome =
+          tanstackMetadata(msg)?.toolResultOutcome ??
+          toolResultOutcomeFromContent(msg.content)
+        const resultState =
+          msg.error === undefined && toolResultOutcome === undefined
+            ? 'complete'
+            : 'error'
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>
             part.type === 'tool-call' && part.id === msg.toolCallId,
@@ -1065,14 +1108,16 @@ export function modelMessagesToUIMessages(
             typeof content === 'string'
               ? parseToolResultContent(content)
               : content
-          toolCallPart.state = msg.error === undefined ? 'complete' : 'error'
+          toolCallPart.state = resultState === 'error' ? 'error' : 'complete'
         }
-
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,
           content,
-          state: msg.error === undefined ? 'complete' : 'error',
+          state: resultState,
+          ...(toolResultOutcome !== undefined && {
+            outcome: toolResultOutcome,
+          }),
           ...(msg.id !== undefined &&
             msg.id !== currentAssistantMessage.id && { id: msg.id }),
           ...(msg.name !== undefined && { name: msg.name }),

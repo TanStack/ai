@@ -162,6 +162,28 @@ export async function getEventLog(
   })
 }
 
+export async function getMessages(page: Page): Promise<
+  Array<{
+    parts: Array<{
+      type: string
+      state?: string
+      outcome?: string
+      toolCallId?: string
+    }>
+  }>
+> {
+  return page.evaluate(() => {
+    const el = document.getElementById('messages-json-content')
+    if (!el) return []
+    try {
+      const parsed: unknown = JSON.parse(el.textContent || '[]')
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })
+}
+
 export async function getToolCalls(
   page: Page,
 ): Promise<

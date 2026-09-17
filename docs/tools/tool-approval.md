@@ -28,6 +28,17 @@ see [Migrate to AG-UI interrupts](../interrupts/migration).
 
 After `approval-responded` the call executes (if approved). Although `complete` exists in the `ToolCallState` union, the runtime never transitions the tool-call part to it — the result surfaces as a populated `part.output` plus a sibling `tool-result` part whose own state is `complete` or `error`.
 
+### Tool result outcomes
+
+Cancelled and denied tool results keep the existing `state: 'error'` and wire
+`output-error` behavior for compatibility, but `ToolResultPart.outcome` is set
+to `'cancelled'` or `'denied'`. Ordinary tool execution failures do not set an
+`outcome`.
+
+When a result is persisted as a `ModelMessage`, the outcome is stored in
+`metadata.tanstack.toolResultOutcome` and restored to the UI part. Consumers
+should use this structured value instead of matching the localized error text.
+
 Approvals run ephemerally: the run resumes from the full client message
 history that the browser sends back, so a stateless route needs no server
 storage to rebuild the paused call.
