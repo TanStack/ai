@@ -871,8 +871,8 @@
     "owned_by": "alibaba",
     "name": "Qwen3 Next 80B A3B Instruct",
     "description": "A new generation of open-source, non-thinking mode model powered by Qwen3. This version demonstrates superior Chinese text understanding, augmented logical reasoning, and enhanced capabilities in text generation tasks over the previous iteration (Qwen3-235B-A22B-Instruct-2507).",
-    "context_window": 131072,
-    "max_tokens": 32768,
+    "context_window": 262114,
+    "max_tokens": 262114,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -904,9 +904,9 @@
     "released": 1757548800,
     "owned_by": "alibaba",
     "name": "Qwen3 Next 80B A3B Thinking",
-    "description": "A new generation of Qwen3-based open-source thinking mode models. This version offers improved instruction following and streamlined summary responses over the previous iteration (Qwen3-235B-A22B-Thinking-2507).",
-    "context_window": 131072,
-    "max_tokens": 32768,
+    "description": "Qwen3-Next uses a highly sparse MoE design: 80B total parameters, but only ~3B activated per inference step. Experiments show that, with global load balancing, increasing total expert parameters while keeping activated experts fixed steadily reduces training loss.Compared to Qwen3’s MoE (128 total experts, 8 routed), Qwen3-Next expands to 512 total experts, combining 10 routed experts + 1 shared expert — maximizing resource usage without hurting performance. The Qwen3-Next-80B-A3B-Thinking excels at complex reasoning tasks — outperforming higher-cost models like Qwen3-30B-A3B-Thinking-2507 and Qwen3-32B-Thinking, outpeforming the closed-source Gemini-2.5-Flash-Thinking on multiple benchmarks, and approaching the performance of our top-tier model Qwen3-235B-A22B-Thinking-2507.",
+    "context_window": 262144,
+    "max_tokens": 262144,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
@@ -1742,7 +1742,7 @@
     "owned_by": "alibaba",
     "name": "Qwen 3.8 Max",
     "description": "Qwen 3.8 Max is a 2.4-trillion-parameter MoE model delivering a comprehensive leap in coding and professional work. Autonomously codes and delivers complete projects spanning 10+ days. Handles hundreds of specialized tasks across legal, financial, design, and other professional domains, producing production-grade results end-to-end in a single conversation. Native visual understanding runs through the full cycle of planning, execution, and verification, enabling deep semantic analysis of ultra-long documents and extended video content. In long-horizon tasks, plans autonomously, iterates through closed feedback loops, and continuously evolves.",
-    "context_window": 1000000,
+    "context_window": 262144,
     "max_tokens": 128000,
     "type": "language",
     "zdr": "all",
@@ -1783,8 +1783,7 @@
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
-      "input_cache_read": "0.00000025",
-      "input_cache_write": "0.0000025"
+      "input_cache_read": "0.00000025"
     }
   },
   {
@@ -5671,8 +5670,8 @@
     "owned_by": "deepseek",
     "name": "DeepSeek V4.1 Flash",
     "description": "DeepSeek V4.1 Flash is an AI model from DeepSeek designed for fast, efficient multimodal interactions. It combines native multimodal capabilities with a new architecture focused on stronger performance, faster responses, and lower computational cost.",
-    "context_window": 1000000,
-    "max_tokens": 384000,
+    "context_window": 1048576,
+    "max_tokens": 32768,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -5694,18 +5693,9 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000015",
-      "output": "0.0000006",
-      "input_cache_read": "0.000000015",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 0,
-            "end_minute_utc": 840
-          }
-        ]
-      },
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.00000003",
       "varies_by_provider": true,
       "regional": {
         "us": {
@@ -7443,8 +7433,7 @@
     "temperature": true,
     "pricing": {
       "input": "0.00000014",
-      "output": "0.0000004",
-      "varies_by_provider": true
+      "output": "0.0000004"
     }
   },
   {
@@ -8794,145 +8783,6 @@
     }
   },
   {
-    "id": "kwaipilot/kat-coder-air-v2.5",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1783641600,
-    "owned_by": "kwaipilot",
-    "name": "Kat Coder Air V2.5",
-    "description": "Fast response version of Kat Coder V2.5 optimized for Agent and Claw use cases.",
-    "context_window": 256000,
-    "max_tokens": 80000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000015",
-      "output": "0.0000006",
-      "input_cache_read": "0.00000003"
-    }
-  },
-  {
-    "id": "kwaipilot/kat-coder-pro-v1",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1762646400,
-    "owned_by": "kwaipilot",
-    "name": "KAT-Coder-Pro V1",
-    "description": "KAT-Coder-Pro V1 is KwaiKAT's most advanced agentic coding model in the KwaiKAT series. Designed specifically for agentic coding tasks, it excels in real-world software engineering scenarios, achieving a remarkable 73.4% solve rate on the SWE-Bench Verified benchmark. KAT-Coder-Pro V1 delivers top-tier coding performance and has been rigorously tested by thousands of in-house engineers. The model has been optimized for tool-use capability, multi-turn interaction, instruction following, generalization and comprehensive capabilities through a multi-stage training process, including mid-training, supervised fine-tuning (SFT), reinforcement fine-tuning (RFT), and scalable agentic RL.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000012",
-      "input_cache_read": "0.00000006"
-    }
-  },
-  {
-    "id": "kwaipilot/kat-coder-pro-v2",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1774569600,
-    "owned_by": "kwaipilot",
-    "name": "Kat Coder Pro V2",
-    "description": "A high-performance edition designed for complex enterprise projects and SaaS integration.",
-    "context_window": 256000,
-    "max_tokens": 256000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["tool-use", "reasoning", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000012",
-      "input_cache_read": "0.00000006"
-    }
-  },
-  {
-    "id": "kwaipilot/kat-coder-pro-v2.5",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1783641600,
-    "owned_by": "kwaipilot",
-    "name": "Kat Coder Pro V2.5",
-    "description": "KAT-Coder-V2.5 is a coding-focused agentic model trained to act autonomously inside real, executable repositories rather than as a single-turn code generator.",
-    "context_window": 256000,
-    "max_tokens": 80000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000074",
-      "output": "0.00000296",
-      "input_cache_read": "0.00000015"
-    }
-  },
-  {
     "id": "meta/llama-3.1-70b",
     "object": "model",
     "created": 1755815280,
@@ -9141,8 +8991,7 @@
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
-      "input_cache_read": "0.00000004",
-      "varies_by_provider": true
+      "input_cache_read": "0.00000004"
     }
   },
   {
@@ -10232,21 +10081,15 @@
     "owned_by": "moonshotai",
     "name": "Kimi K2.5",
     "description": "kimi-k2.5 is Kimi's most versatile model to date, featuring a native multimodal architecture that supports both visual and text input, thinking and non-thinking modes, and dialogue and agent tasks.",
-    "context_window": 262114,
-    "max_tokens": 262114,
+    "context_window": 256000,
+    "max_tokens": 256000,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": [
-      "reasoning",
-      "vision",
-      "tool-use",
-      "implicit-caching",
-      "video-input"
-    ],
+    "tags": ["reasoning", "vision", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image", "video"],
+      "input": ["text", "image"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -10268,8 +10111,7 @@
     "interleaved": true,
     "pricing": {
       "input": "0.0000006",
-      "output": "0.000003",
-      "input_cache_read": "0.0000001"
+      "output": "0.000003"
     }
   },
   {
@@ -15213,8 +15055,8 @@
     ],
     "knowledge": "2024-10",
     "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
+      "input": "0.00000003",
+      "output": "0.00000014",
       "varies_by_provider": true
     }
   },
@@ -18217,6 +18059,29 @@
     }
   },
   {
+    "id": "typesafe-ai/jev",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789430400,
+    "owned_by": "typesafe-ai",
+    "name": "Jev",
+    "description": "Jev is TypeSafe AI’s System One evaluation model for fast, structured decisions in software. It evaluates shared state against typed questions and returns choices, scores, and boolean probabilities, supporting classification, routing, rubric-based assessment, and automated verification. Multiple questions can be evaluated in parallel within a single request.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.000000042",
+      "output": "0"
+    }
+  },
+  {
     "id": "voyage/rerank-2.5",
     "object": "model",
     "created": 1755815280,
@@ -19110,7 +18975,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["implicit-caching", "reasoning", "tool-use"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {

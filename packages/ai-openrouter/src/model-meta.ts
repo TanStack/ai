@@ -229,11 +229,11 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.04,
+        normal: 0.03,
         cached: 0.01,
       },
       output: {
-        normal: 0.1,
+        normal: 0.13,
       },
     },
     image: 0,
@@ -330,11 +330,11 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 1.875,
-        cached: 0.2175,
+        normal: 2.1,
+        cached: 0.23,
       },
       output: {
-        normal: 10.5,
+        normal: 10.95,
       },
     },
     image: 0,
@@ -2736,11 +2736,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   pricing: {
     text: {
       input: {
-        normal: 0.9834,
-        cached: 0.03278,
+        normal: 0.66,
+        cached: 0.022,
       },
       output: {
-        normal: 2.9502,
+        normal: 1.98,
       },
     },
     image: 0,
@@ -4176,11 +4176,11 @@ const GRYPHE_MYTHOMAX_L2_13B = {
   pricing: {
     text: {
       input: {
-        normal: 0.06,
+        normal: 0.08,
         cached: 0,
       },
       output: {
-        normal: 0.06,
+        normal: 0.11,
       },
     },
     image: 0,
@@ -5069,11 +5069,11 @@ const META_MUSE_GLIMMER_30B = {
   pricing: {
     text: {
       input: {
-        normal: 0.35,
+        normal: 0.3,
         cached: 0.04,
       },
       output: {
-        normal: 1.5,
+        normal: 1.1,
       },
     },
     image: 0,
@@ -6701,11 +6701,11 @@ const MOONSHOTAI_KIMI_K3 = {
   pricing: {
     text: {
       input: {
-        normal: 2.648138063,
-        cached: 0.30264435,
+        normal: 3,
+        cached: 0.3,
       },
       output: {
-        normal: 13.28272425,
+        normal: 15,
       },
     },
     image: 0,
@@ -6985,11 +6985,11 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
   pricing: {
     text: {
       input: {
-        normal: 0.05,
-        cached: 0.03,
+        normal: 0.06,
+        cached: 0,
       },
       output: {
-        normal: 0.2,
+        normal: 0.24,
       },
     },
     image: 0,
@@ -11315,15 +11315,15 @@ const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 16384,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.15,
+        normal: 0.13,
         cached: 0,
       },
       output: {
-        normal: 0.6,
+        normal: 0.52,
       },
     },
     image: 0,
@@ -12583,6 +12583,35 @@ const SAO10K_L3_3_EURYALE_70B = {
     image: 0,
   },
 } as const
+const STEALTH_UNION_ALPHA = {
+  id: 'stealth/union-alpha',
+  name: 'Union Alpha',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 131072,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
 const STEPFUN_STEP_3_5_FLASH = {
   id: 'stepfun/step-3.5-flash',
   name: 'StepFun: Step 3.5 Flash',
@@ -12945,11 +12974,9 @@ const THEDRUMMER_UNSLOPNEMO_12B = {
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'toolChoice',
       'topLogprobs',
       'topP',
     ],
@@ -13681,15 +13708,15 @@ const Z_AI_GLM_4_6 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 16384,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.43,
-        cached: 0.08,
+        normal: 0.5,
+        cached: 0.1,
       },
       output: {
-        normal: 1.75,
+        normal: 2,
       },
     },
     image: 0,
@@ -13928,7 +13955,7 @@ const Z_AI_GLM_5_2 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 128000,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
@@ -14075,11 +14102,11 @@ const Z_AI_GLM_5_3_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0.02,
+        normal: 0.09,
+        cached: 0.018,
       },
       output: {
-        normal: 0.3333,
+        normal: 0.3,
       },
     },
     image: 0,
@@ -18984,6 +19011,15 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
+  [STEALTH_UNION_ALPHA.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
   [STEPFUN_STEP_3_5_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -19119,11 +19155,9 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'toolChoice'
       | 'topLogprobs'
       | 'topP'
     >
@@ -20148,6 +20182,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [SAO10K_L3_LUNARIS_8B.id]: ReadonlyArray<'text'>
   [SAO10K_L3_1_EURYALE_70B.id]: ReadonlyArray<'text'>
   [SAO10K_L3_3_EURYALE_70B.id]: ReadonlyArray<'text'>
+  [STEALTH_UNION_ALPHA.id]: ReadonlyArray<'text' | 'image'>
   [STEPFUN_STEP_3_5_FLASH.id]: ReadonlyArray<'text'>
   [STEPFUN_STEP_3_7_FLASH.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [TENCENT_HUNYUAN_A13B_INSTRUCT.id]: ReadonlyArray<'text'>
@@ -20591,6 +20626,7 @@ export const OPENROUTER_CHAT_MODELS = [
   SAO10K_L3_LUNARIS_8B.id,
   SAO10K_L3_1_EURYALE_70B.id,
   SAO10K_L3_3_EURYALE_70B.id,
+  STEALTH_UNION_ALPHA.id,
   STEPFUN_STEP_3_5_FLASH.id,
   STEPFUN_STEP_3_7_FLASH.id,
   TENCENT_HUNYUAN_A13B_INSTRUCT.id,
@@ -21453,7 +21489,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     STEPFUN_STEP_3_7_FLASH.id,
     TENCENT_HY3.id,
     TENCENT_HY4_PREVIEW.id,
-    THEDRUMMER_UNSLOPNEMO_12B.id,
     UPSTAGE_SOLAR_PRO_3.id,
     UPSTAGE_SOLAR_PRO4.id,
     X_AI_GROK_4_20.id,

@@ -124,10 +124,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inference-net/schematron-v2-small',
   'inference-net/schematron-v2-turbo',
   'interfaze/interfaze-beta',
-  'kwaipilot/kat-coder-air-v2.5',
-  'kwaipilot/kat-coder-pro-v1',
-  'kwaipilot/kat-coder-pro-v2',
-  'kwaipilot/kat-coder-pro-v2.5',
   'meta/llama-3.1-70b',
   'meta/llama-3.1-8b',
   'meta/llama-3.3-70b',
@@ -274,6 +270,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'tencent/hy4-preview',
   'thinkingmachines/inkling',
   'thinkingmachines/inkling-small',
+  'typesafe-ai/jev',
   'xiaomi/mimo-v2.5',
   'xiaomi/mimo-v2.5-pro',
   'zai/glm-4.5',
@@ -312,7 +309,6 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'inference-net',
   'interfaze',
   'klingai',
-  'kwaipilot',
   'meta',
   'minimax',
   'mistral',
@@ -330,6 +326,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'stepfun',
   'tencent',
   'thinkingmachines',
+  'typesafe-ai',
   'voyage',
   'xiaomi',
   'zai',
@@ -1324,41 +1321,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'structured_outputs'
     >
   'interfaze/interfaze-beta': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-air-v2.5': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-pro-v1': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'kwaipilot/kat-coder-pro-v2': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-pro-v2.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2533,6 +2495,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'typesafe-ai/jev': VercelGatewayCommonOptions
   'xiaomi/mimo-v2.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2836,10 +2799,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inference-net/schematron-v2-small': readonly ['text']
   'inference-net/schematron-v2-turbo': readonly ['text']
   'interfaze/interfaze-beta': readonly ['text', 'image', 'document']
-  'kwaipilot/kat-coder-air-v2.5': readonly ['text', 'image']
-  'kwaipilot/kat-coder-pro-v1': readonly ['text']
-  'kwaipilot/kat-coder-pro-v2': readonly ['text']
-  'kwaipilot/kat-coder-pro-v2.5': readonly ['text', 'image']
   'meta/llama-3.1-70b': readonly ['text']
   'meta/llama-3.1-8b': readonly ['text']
   'meta/llama-3.3-70b': readonly ['text']
@@ -2869,7 +2828,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'mistral/mistral-small': readonly ['text', 'image']
   'moonshotai/kimi-k2': readonly ['text']
   'moonshotai/kimi-k2-thinking': readonly ['text']
-  'moonshotai/kimi-k2.5': readonly ['text', 'image', 'video']
+  'moonshotai/kimi-k2.5': readonly ['text', 'image']
   'moonshotai/kimi-k2.6': readonly ['text', 'image', 'video']
   'moonshotai/kimi-k2.7-code': readonly ['text', 'image', 'document', 'video']
   'moonshotai/kimi-k2.7-code-highspeed': readonly [
@@ -2995,6 +2954,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'tencent/hy4-preview': readonly ['text']
   'thinkingmachines/inkling': readonly ['text', 'image', 'document']
   'thinkingmachines/inkling-small': readonly ['text', 'image', 'document']
+  'typesafe-ai/jev': readonly ['text']
   'xiaomi/mimo-v2.5': readonly ['text', 'image']
   'xiaomi/mimo-v2.5-pro': readonly ['text']
   'zai/glm-4.5': readonly ['text']
