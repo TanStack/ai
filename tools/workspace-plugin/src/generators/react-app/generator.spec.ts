@@ -27,6 +27,13 @@ describe('react-app generator', () => {
     const byok = tree.read('examples/react/lab-byok/src/lib/byok.ts', 'utf-8')
     expect(byok).toContain('openaiByok')
 
+    const index = tree.read(
+      'examples/react/lab-byok/src/routes/index.tsx',
+      'utf-8',
+    )
+    expect(index).toContain('forwardedProps')
+    expect(index).not.toContain('byokProvider:')
+
     const vite = tree.read('examples/react/lab-byok/vite.config.ts', 'utf-8')
     expect(vite).toContain('3100')
 

@@ -111,8 +111,6 @@ function ChatPage() {
   const [interactionId, setInteractionId] = useState<string | undefined>(
     undefined,
   )
-  const selectedProviderRef = useRef(selectedModel.provider)
-  selectedProviderRef.current = selectedModel.provider
   const snapshot = useByok(byok)
   const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({})
   const [keyDialog, setKeyDialog] = useState<{
@@ -161,7 +159,6 @@ function ChatPage() {
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
       byok,
-      byokProvider: () => toByokProvider(selectedProviderRef.current),
       forwardedProps,
       onCustomEvent: (eventType, data) => {
         if (eventType === 'gemini.interactionId') {
