@@ -51,7 +51,7 @@ The **client** holds the key, sends the prompt, and shows rows from `partial`.
 
 The **server** route reads that key, calls OpenRouter with the schema, and streams JSON back.
 
-The next steps share one schema. Then they build the client. Then they add the route.
+The next steps share one schema. Then they save the key. Then they show the table. Then they add the route.
 
 ## 2. Share a schema
 
@@ -73,7 +73,7 @@ export const tableSchema = z.object({
 })
 ```
 
-## 3. Show the table from `partial`
+## 3. Set up BYOK on the client
 
 Create `src/lib/byok.ts`. `memoryStorage()` keeps the key in this tab.
 
@@ -141,16 +141,21 @@ export function OpenRouterKeyForm() {
 
 If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok`, `byokProvider`, and `outputSchema: tableSchema` to `useChat`. `byokProvider` tells the hook which key to send.
+## 4. Show the table from `partial`
 
-`partial` is a progressive object. `partial.rows` grows as JSON streams in. `final` is the completed object, or `null` until the run finishes.
+Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` and `outputSchema: tableSchema` to `useChat`.
+
+The server streams JSON text in chunks. The hook parses that incomplete JSON into `partial`. Fields show up as soon as they parse. A new row can have empty cells until more text arrives.
+
+`final` is the completed object. It stays `null` until the stream ends. If you only read `final`, the table stays empty until the run is done.
+
+Show `partial.rows` while the model writes. Use `final` when you need the complete object, for example to save it.
 
 Missing cells show `…` until that field arrives.
 
 ```tsx ignore
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
@@ -161,7 +166,6 @@ function TablePage() {
   const { sendMessage, isLoading, error, stop, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
     byok,
-    byokProvider: () => openrouterByok.id,
     outputSchema: tableSchema,
   })
 
@@ -238,7 +242,7 @@ export const Route = createFileRoute('/')({
 
 A send with no key does not POST. The form shows "Paste an OpenRouter key, then send again."
 
-## 4. Add the server route
+## 5. Add the server route
 
 Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path.
 

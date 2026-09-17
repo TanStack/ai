@@ -14,6 +14,7 @@ import {
   ByokMissingError,
   ByokUnresolvedProviderError,
 } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
 import {
   prepareResolvedByokHeaders,
   resolveByokProviderId,
@@ -2422,6 +2423,7 @@ export class ChatClient<
         const provider = resolveByokProviderId(
           this.byokProvider,
           mergedBody.provider,
+          byokFallbackProviderId(this.byok),
         )
         byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
       }

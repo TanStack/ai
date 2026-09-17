@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
@@ -11,7 +10,6 @@ function TablePage() {
   const { sendMessage, isLoading, error, stop, partial, final } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
     byok,
-    byokProvider: () => openrouterByok.id,
     outputSchema: tableSchema,
   })
 
