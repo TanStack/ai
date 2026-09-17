@@ -3,8 +3,6 @@ id: DebugCategories
 title: DebugCategories
 ---
 
-# Interface: DebugCategories
-
 Defined in: [packages/ai/src/logger/types.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L30)
 
 Per-category toggles for debug logging. Each flag enables or disables one class of log message. Unspecified flags default to `true` when `DebugConfig` is partially specified; `undefined` on the `debug` option defaults all flags to `false` except `errors`.

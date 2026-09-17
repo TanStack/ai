@@ -3,8 +3,6 @@ id: ContentPartDataSource
 title: ContentPartDataSource
 ---
 
-# Interface: ContentPartDataSource
-
 Defined in: [packages/ai/src/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L217)
 
 Source specification for inline data content (base64).

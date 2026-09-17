@@ -3,8 +3,6 @@ id: VideoPart
 title: VideoPart
 ---
 
-# Interface: VideoPart\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:288](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L288)
 
 Video content part for multimodal messages.

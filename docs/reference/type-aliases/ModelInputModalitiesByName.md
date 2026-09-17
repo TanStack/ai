@@ -3,8 +3,6 @@ id: ModelInputModalitiesByName
 title: ModelInputModalitiesByName
 ---
 
-# Type Alias: ModelInputModalitiesByName
-
 ```ts
 type ModelInputModalitiesByName = Record<string, ReadonlyArray<MediaPromptModality>>;
 ```

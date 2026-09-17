@@ -3,8 +3,6 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-# Interface: VideoAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName, TModelInputModalitiesByName, TModelDurationByName\>
-
 Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L60)
 
 **`Experimental`**

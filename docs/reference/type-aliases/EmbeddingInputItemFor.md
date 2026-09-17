@@ -3,8 +3,6 @@ id: EmbeddingInputItemFor
 title: EmbeddingInputItemFor
 ---
 
-# Type Alias: EmbeddingInputItemFor\<TModalities\>
-
 ```ts
 type EmbeddingInputItemFor<TModalities> = 
   | string
@@ -12,7 +10,7 @@ type EmbeddingInputItemFor<TModalities> =
   | EmbeddingItemByModality[TModalities];
 ```
 
-Defined in: [packages/ai/src/types.ts:2436](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2436)
+Defined in: [packages/ai/src/types.ts:2564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2564)
 
 Embedding item type narrowed to the modalities a specific model supports.
 `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;

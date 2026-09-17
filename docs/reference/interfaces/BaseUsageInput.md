@@ -3,8 +3,6 @@ id: BaseUsageInput
 title: BaseUsageInput
 ---
 
-# Interface: BaseUsageInput
-
 Defined in: [packages/ai/src/utilities/usage.ts:7](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/usage.ts#L7)
 
 Input parameters for building base TokenUsage.

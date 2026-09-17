@@ -3,8 +3,6 @@ id: CodeModeExternalCallEvent
 title: CodeModeExternalCallEvent
 ---
 
-# Interface: CodeModeExternalCallEvent
-
 Defined in: [packages/ai/src/types.ts:1499](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1499)
 
 Custom event for extensibility.

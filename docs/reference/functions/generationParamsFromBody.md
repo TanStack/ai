@@ -3,13 +3,11 @@ id: generationParamsFromBody
 title: generationParamsFromBody
 ---
 
-# Function: generationParamsFromBody()
-
 ```ts
 function generationParamsFromBody<TKind>(kind, body): GenerationParams<TKind>;
 ```
 
-Defined in: [packages/ai/src/client.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L136)
+Defined in: [packages/ai/src/client.ts:144](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L144)
 
 ## Type Parameters
 

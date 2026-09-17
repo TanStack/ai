@@ -3,8 +3,6 @@ id: UsageTotals
 title: UsageTotals
 ---
 
-# ~~Type Alias: UsageTotals~~
-
 ```ts
 type UsageTotals = TokenUsage;
 ```

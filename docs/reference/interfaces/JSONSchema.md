@@ -3,8 +3,6 @@ id: JSONSchema
 title: JSONSchema
 ---
 
-# Interface: JSONSchema
-
 Defined in: [packages/ai/src/types.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L87)
 
 JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.

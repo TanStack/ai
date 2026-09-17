@@ -3,8 +3,6 @@ id: CapabilityProvider
 title: CapabilityProvider
 ---
 
-# Type Alias: CapabilityProvider\<TValue\>
-
 ```ts
 type CapabilityProvider<TValue> = (ctx, value) => void;
 ```

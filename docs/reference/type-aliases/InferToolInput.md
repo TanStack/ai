@@ -3,8 +3,6 @@ id: InferToolInput
 title: InferToolInput
 ---
 
-# Type Alias: InferToolInput\<T\>
-
 ```ts
 type InferToolInput<T> = T extends object ? TInput extends JSONSchema ? unknown : InferSchemaType<TInput> : unknown;
 ```

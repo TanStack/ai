@@ -3,8 +3,6 @@ id: PendingInterruptResumeRecord
 title: PendingInterruptResumeRecord
 ---
 
-# Interface: PendingInterruptResumeRecord
-
 Defined in: [packages/ai/src/interrupt-resume.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L49)
 
 The persistence-neutral shape required to validate an interrupt resume.

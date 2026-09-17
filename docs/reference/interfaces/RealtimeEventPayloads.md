@@ -3,8 +3,6 @@ id: RealtimeEventPayloads
 title: RealtimeEventPayloads
 ---
 
-# Interface: RealtimeEventPayloads
-
 Defined in: [packages/ai/src/realtime/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L258)
 
 Event payloads for realtime events

@@ -3,13 +3,11 @@ id: GenerationResultTransform
 title: GenerationResultTransform
 ---
 
-# Type Alias: GenerationResultTransform\<TResult, TContext\>
-
 ```ts
 type GenerationResultTransform<TResult, TContext> = (result, ctx) => TResult | undefined | Promise<TResult | undefined>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L118)
+Defined in: [packages/ai/src/activities/middleware/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L120)
 
 A transform middleware registers on `ctx.resultTransforms` to rewrite the raw
 adapter result before it is returned or streamed. Return a new result to

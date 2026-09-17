@@ -3,8 +3,6 @@ id: RUN_ACCEPTED_EVENT
 title: RUN_ACCEPTED_EVENT
 ---
 
-# Variable: RUN\_ACCEPTED\_EVENT
-
 ```ts
 const RUN_ACCEPTED_EVENT: "run.accepted" = 'run.accepted';
 ```

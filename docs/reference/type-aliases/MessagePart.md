@@ -3,8 +3,6 @@ id: MessagePart
 title: MessagePart
 ---
 
-# Type Alias: MessagePart\<TData\>
-
 ```ts
 type MessagePart<TData> = 
   | TextPart
