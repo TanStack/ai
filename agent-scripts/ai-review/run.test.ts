@@ -3,7 +3,8 @@ import type { GitHubClient } from '../../scripts/maintainer/github.ts'
 import { config } from '../../scripts/maintainer/fixtures.ts'
 import { COMMENT_MARKER } from './comments.ts'
 import type { GitRunner } from './git.ts'
-import { runReviewJob } from './run.ts'
+import type { ReviewedPull } from './results.ts'
+import { publishPull, reviewPull } from './run.ts'
 
 const REPO = 'TanStack/ai'
 const NUMBER = 42
@@ -227,10 +228,16 @@ function createFakeGitHub(
 
 function createFakeRunner(
   impl?: (args: Array<string>, cwd: string) => GitResult,
+  checkedOutSha: string = SHA,
 ) {
   const calls: Array<{ args: Array<string>; cwd: string }> = []
   const runner: GitRunner = async (args, cwd) => {
     calls.push({ args: [...args], cwd })
+    // `reviewPull` pins the scan to the checked-out commit before it does
+    // anything else, so every path answers rev-parse.
+    if (args[0] === 'rev-parse') {
+      return { stdout: `${checkedOutSha}\n`, stderr: '', code: 0 }
+    }
     if (impl) {
       return impl(args, cwd)
     }
@@ -238,6 +245,8 @@ function createFakeRunner(
   }
   return { runner, calls }
 }
+
+const REV_PARSE = { args: ['rev-parse', 'HEAD'], cwd: WORKTREE }
 
 const BUG = {
   severity: 'bug' as const,
@@ -275,7 +284,10 @@ function pullRequestEvent() {
   return { pull_request: { number: NUMBER } }
 }
 
-async function runJob(options: {
+const PATCH =
+  'diff --git a/src/chat.ts b/src/chat.ts\n@@ -1 +1 @@\n-old\n+new\n'
+
+async function runReview(options: {
   eventName?: string
   event?: unknown
   pull?: ReturnType<typeof samplePull>
@@ -288,20 +300,23 @@ async function runJob(options: {
   headCommitAuthorLogin?: string | null
   gitImpl?: (args: Array<string>, cwd: string) => GitResult
   files?: ReturnType<typeof sampleFiles>
-  waitingRunIds?: Array<number>
-  approveError?: string
+  checkedOutSha?: string
 }) {
   const github = createFakeGitHub({
     pull: options.pull,
     files: options.files,
-    waitingRunIds: options.waitingRunIds,
-    approveError: options.approveError,
   })
-  const git = createFakeRunner(options.gitImpl)
-  const result = await runReviewJob({
+  const git = createFakeRunner(
+    options.gitImpl ??
+      ((args) =>
+        args[0] === 'diff'
+          ? { stdout: PATCH, stderr: '', code: 0 }
+          : { stdout: '', stderr: '', code: 0 }),
+    options.checkedOutSha,
+  )
+  const outcome = await reviewPull({
     client: github.client,
     repo: REPO,
-    token: TOKEN,
     config,
     eventName: options.eventName ?? 'pull_request',
     event: options.event ?? pullRequestEvent(),
@@ -313,269 +328,169 @@ async function runJob(options: {
     headCommitAuthorLogin: options.headCommitAuthorLogin ?? 'alice',
   })
   return {
-    result,
+    outcome,
     comments: github.comments,
     issueLabels: github.issueLabels,
-    gitCalls: git.calls,
     approvedRuns: github.approvedRuns,
+    gitCalls: git.calls,
   }
 }
 
-describe('runReviewJob', () => {
-  it('skips a draft auto run and does not post a comment', async () => {
-    const { result, comments, gitCalls } = await runJob({
-      pull: samplePull({ draft: true }),
-    })
-
-    expect(result).toEqual({ skipped: true, reason: 'draft' })
-    expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
+async function runPublish(options: {
+  pull?: ReturnType<typeof samplePull>
+  files?: ReturnType<typeof sampleFiles>
+  waitingRunIds?: Array<number>
+  approveError?: string
+  reviewed?: ReviewedPull | null
+  gitImpl?: (args: Array<string>, cwd: string) => GitResult
+  worktreeRoot?: string | null
+}) {
+  const github = createFakeGitHub({
+    pull: options.pull,
+    files: options.files,
+    waitingRunIds: options.waitingRunIds,
+    approveError: options.approveError,
   })
-
-  it('skips an auto run from a roster maintainer and does not post a comment', async () => {
-    const { result, comments, gitCalls } = await runJob({
-      pull: samplePull({ login: 'alem' }),
-    })
-
-    expect(result).toEqual({ skipped: true, reason: 'maintainer-author' })
-    expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
+  const git = createFakeRunner(options.gitImpl)
+  const reviewed = options.reviewed === undefined ? null : options.reviewed
+  const needsWorktree =
+    reviewed !== null &&
+    reviewed.verdict.verdict === 'polish' &&
+    reviewed.patch.length > 0
+  const outcome = await publishPull({
+    client: github.client,
+    repo: REPO,
+    token: TOKEN,
+    prNumber: NUMBER,
+    machineUserLogin: MACHINE,
+    gitRunner: git.runner,
+    worktreeRoot:
+      options.worktreeRoot === undefined
+        ? needsWorktree
+          ? WORKTREE
+          : null
+        : options.worktreeRoot,
+    reviewed,
   })
+  return {
+    outcome,
+    comments: github.comments,
+    issueLabels: github.issueLabels,
+    approvedRuns: github.approvedRuns,
+    gitCalls: git.calls,
+  }
+}
 
-  it('runs when the ai-review label is added to a maintainer PR', async () => {
-    const { result, comments } = await runJob({
-      pull: samplePull({ login: 'alem' }),
-      event: {
-        action: 'labeled',
-        label: { name: 'ai-review' },
-        sender: { login: 'alem' },
-        pull_request: { number: NUMBER },
-      },
+function reviewedPolish(patch = PATCH): ReviewedPull {
+  return {
+    number: NUMBER,
+    verdict: { verdict: 'polish', issues: [BUG, NIT] },
+    patch,
+  }
+}
+
+function reviewedReady(): ReviewedPull {
+  return {
+    number: NUMBER,
+    verdict: { verdict: 'ready', issues: [] },
+    patch: '',
+  }
+}
+
+describe('reviewPull', () => {
+  it('holds no token and writes nothing to GitHub on a clean review', async () => {
+    const { outcome, comments, issueLabels, approvedRuns } = await runReview({
       review: readyReview,
     })
 
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'ready', issues: [] },
-      label: 'ai-ready',
-      pushLanded: false,
-    })
-    expect(comments).toHaveLength(1)
-  })
-
-  it('skips a labeled pull_request that is not the ai-review label', async () => {
-    const { result, comments, gitCalls } = await runJob({
-      event: {
-        action: 'labeled',
-        label: { name: 'bug' },
-        pull_request: { number: NUMBER },
+    expect(outcome).toEqual({
+      reviewed: true,
+      result: {
+        number: NUMBER,
+        verdict: { verdict: 'ready', issues: [] },
+        patch: '',
       },
     })
-
-    expect(result).toEqual({ skipped: true, reason: 'not-label' })
+    // The whole point of the split: this half never writes.
     expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
+    expect([...issueLabels]).toEqual([])
+    expect(approvedRuns).toEqual([])
+  })
+
+  it('carries the agent edits as a patch on a polish verdict', async () => {
+    const { outcome } = await runReview({ review: polishReview })
+
+    expect(outcome).toEqual({
+      reviewed: true,
+      result: {
+        number: NUMBER,
+        verdict: { verdict: 'polish', issues: [BUG, NIT] },
+        patch: PATCH,
+      },
+    })
+  })
+
+  it('skips a draft auto run', async () => {
+    const { outcome } = await runReview({ pull: samplePull({ draft: true }) })
+
+    expect(outcome).toEqual({ reviewed: false, reason: 'draft' })
+  })
+
+  it('skips an auto run from a roster maintainer', async () => {
+    const { outcome } = await runReview({ pull: samplePull({ login: 'alem' }) })
+
+    expect(outcome).toEqual({ reviewed: false, reason: 'maintainer-author' })
   })
 
   it('skips an issue_comment that is not the /ai-review command', async () => {
-    const { result, comments, gitCalls } = await runJob({
+    const { outcome } = await runReview({
       eventName: 'issue_comment',
       event: {
-        issue: {
-          number: NUMBER,
-          pull_request: {
-            url: 'https://api.github.com/repos/TanStack/ai/pulls/42',
-          },
-        },
-        comment: {
-          body: 'please review this',
-          user: { login: 'alem' },
-        },
+        issue: { number: NUMBER, pull_request: {} },
+        comment: { body: 'looks good', user: { login: 'alem' } },
       },
     })
 
-    expect(result).toEqual({ skipped: true, reason: 'not-command' })
-    expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
-  })
-
-  it('runs a maintainer /ai-review comment in manual mode', async () => {
-    const { result, comments } = await runJob({
-      eventName: 'issue_comment',
-      event: {
-        issue: {
-          number: NUMBER,
-          pull_request: {
-            url: 'https://api.github.com/repos/TanStack/ai/pulls/42',
-          },
-        },
-        comment: {
-          body: '/ai-review',
-          user: { login: 'alem' },
-        },
-      },
-      review: readyReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'ready', issues: [] },
-      label: 'ai-ready',
-      pushLanded: false,
-    })
-    expect(comments).toHaveLength(1)
+    expect(outcome).toEqual({ reviewed: false, reason: 'not-command' })
   })
 
   it('skips an issue_comment from a non-maintainer', async () => {
-    const { result, comments, gitCalls } = await runJob({
+    const { outcome } = await runReview({
       eventName: 'issue_comment',
       event: {
-        issue: {
-          number: NUMBER,
-          pull_request: {
-            url: 'https://api.github.com/repos/TanStack/ai/pulls/42',
-          },
-        },
-        comment: {
-          body: '/ai-review',
-          user: { login: 'stranger' },
-        },
+        issue: { number: NUMBER, pull_request: {} },
+        comment: { body: '/ai-review', user: { login: 'mallory' } },
       },
     })
 
-    expect(result).toEqual({ skipped: true, reason: 'not-maintainer' })
-    expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
+    expect(outcome).toEqual({ reviewed: false, reason: 'not-maintainer' })
   })
 
-  it('upserts a ready comment, sets ai-ready, and does not push', async () => {
-    const { result, comments, issueLabels, gitCalls } = await runJob({
-      review: readyReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'ready', issues: [] },
-      label: 'ai-ready',
-      pushLanded: false,
-    })
-    expect(comments).toHaveLength(1)
-    expect(comments[0]?.body.startsWith(AUTOMATED)).toBe(true)
-    expect(comments[0]?.body).toContain(COMMENT_MARKER)
-    expect(comments[0]?.body).toContain('**Verdict:** ready')
-    expect(comments[0]?.body).toContain(`**Head SHA:** ${SHA}`)
-    expect(comments[0]?.body).toContain('**Label:** `ai-ready`')
-    expect(comments[0]?.body).toContain('Did not push.')
-    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
-    expect(gitCalls).toEqual([])
-  })
-
-  it('pushes polish with --force-with-lease when maintainer edits are on', async () => {
-    const { result, comments, issueLabels, gitCalls } = await runJob({
-      pull: samplePull({ maintainer_can_modify: true }),
-      review: polishReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'polish', issues: [BUG, NIT] },
-      label: 'ai-ready',
-      pushLanded: true,
-    })
-    expect(comments[0]?.body).toContain('**Verdict:** polish')
-    expect(comments[0]?.body).toContain(
-      '- [bug] src/chat.ts:40 null crash on empty messages',
-    )
-    expect(comments[0]?.body).toContain(
-      '- [nit] src/chat.ts:12 extra blank line',
-    )
-    expect(comments[0]?.body).toContain(
-      'Pushed polish commit to the PR branch.',
-    )
-    expect(comments[0]?.body).toContain('**Label:** `ai-ready`')
-    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
-    expect(gitCalls).toEqual([
-      { args: ['add', '-A'], cwd: WORKTREE },
-      {
-        args: [
-          '-c',
-          `user.name=${MACHINE}`,
-          '-c',
-          `user.email=${MACHINE}@users.noreply.github.com`,
-          'commit',
-          '-m',
-          'ai-review: apply review polish for #42',
-        ],
-        cwd: WORKTREE,
+  it('runs a maintainer /ai-review comment in manual mode', async () => {
+    const { outcome } = await runReview({
+      eventName: 'issue_comment',
+      event: {
+        issue: { number: NUMBER, pull_request: {} },
+        comment: { body: '/ai-review', user: { login: 'alem' } },
       },
-      {
-        args: [
-          'push',
-          '--force-with-lease',
-          `https://x-access-token:${TOKEN}@github.com/${HEAD_REPO}.git`,
-          `HEAD:${HEAD_REF}`,
-        ],
-        cwd: WORKTREE,
-      },
-    ])
-    expect(gitCalls[2]?.args).toContain('--force-with-lease')
-    expect(gitCalls[2]?.args).not.toContain('--force')
-  })
-
-  it('does not push polish when maintainer edits are off and sets ai-needs-work', async () => {
-    const { result, comments, issueLabels, gitCalls } = await runJob({
-      pull: samplePull({ maintainer_can_modify: false }),
-      review: polishReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'polish', issues: [BUG, NIT] },
-      label: 'ai-needs-work',
-      pushLanded: false,
-    })
-    expect(comments[0]?.body).toContain('**Label:** `ai-needs-work`')
-    expect(comments[0]?.body).toContain(
-      'Did not push: fork has maintainer edits off.',
-    )
-    expect([...issueLabels]).toEqual(['ai-needs-work'])
-    expect(gitCalls).toEqual([])
-  })
-
-  it('sets ai-rejected on reject and does not push', async () => {
-    const { result, comments, issueLabels, gitCalls } = await runJob({
-      review: rejectReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'reject', issues: [] },
-      label: 'ai-rejected',
-      pushLanded: false,
-    })
-    expect(comments[0]?.body).toContain('**Verdict:** reject')
-    expect(comments[0]?.body).toContain('**Label:** `ai-rejected`')
-    expect([...issueLabels]).toEqual(['ai-rejected'])
-    expect(comments[0]?.body).toContain('Did not mark secure.')
-    expect(gitCalls).toEqual([])
-  })
-
-  it('adds secure and approves waiting workflows when ready and clean', async () => {
-    const { comments, issueLabels, approvedRuns } = await runJob({
+      pull: samplePull({ draft: true }),
       review: readyReview,
-      waitingRunIds: [101, 202],
     })
 
-    expect([...issueLabels]).toEqual(['ai-ready', 'secure'])
-    expect(approvedRuns).toEqual([101, 202])
-    expect(comments[0]?.body).toContain('Added label `secure`')
-    expect(comments[0]?.body).toContain('Approved 2 waiting workflow runs.')
+    expect(outcome.reviewed).toBe(true)
   })
 
-  it('does not mark secure or approve workflows when the diff looks like malware', async () => {
-    const { comments, issueLabels, approvedRuns } = await runJob({
-      review: readyReview,
-      waitingRunIds: [101],
+  it('never runs the agent when the worktree is not the scanned commit', async () => {
+    // A force-push between the worktree fetch and the REST read. Scanning one
+    // commit and reviewing another is the hole this closes, so the run stops.
+    // `unusedReview` throws if called.
+    const { outcome } = await runReview({ checkedOutSha: 'deadbeefdeadbeef' })
+
+    expect(outcome).toEqual({ reviewed: false, reason: 'head-moved' })
+  })
+
+  it('never runs the agent when the diff looks like malware', async () => {
+    const { outcome } = await runReview({
       files: [
         {
           filename: '.github/workflows/ci.yml',
@@ -585,33 +500,133 @@ describe('runReviewJob', () => {
       ],
     })
 
-    expect([...issueLabels]).toEqual(['ai-ready'])
+    expect(outcome).toEqual({ reviewed: false, reason: 'security-scan' })
+  })
+})
+
+describe('publishPull', () => {
+  it('rejects a malware PR and approves nothing, whatever the review said', async () => {
+    // The review job's payload claims a clean ready verdict. The re-scan here
+    // is what decides, so a compromised review job cannot fake a pass.
+    const { outcome, comments, issueLabels, approvedRuns } = await runPublish({
+      waitingRunIds: [101],
+      reviewed: reviewedReady(),
+      files: [
+        {
+          filename: '.github/workflows/ci.yml',
+          patch:
+            '@@ -1,2 +1,4 @@\n on:\n+  pull_request_target:\n+    types: [opened]\n',
+        },
+      ],
+    })
+
+    expect(outcome).toEqual({ published: true, label: 'ai-rejected' })
+    expect([...issueLabels]).toEqual(['ai-rejected'])
     expect(approvedRuns).toEqual([])
     expect(comments[0]?.body).toContain('blocked. Did not approve workflows.')
     expect(comments[0]?.body).toContain('adds pull_request_target')
   })
 
-  it('skips a labeled ai-review event from a non-maintainer', async () => {
-    const { result, comments, approvedRuns } = await runJob({
-      event: {
-        action: 'labeled',
-        label: { name: 'ai-review' },
-        sender: { login: 'stranger' },
-        pull_request: { number: NUMBER },
-      },
-      waitingRunIds: [101],
+  it('approves workflows on a clean scan even when the review job produced nothing', async () => {
+    const { outcome, comments, issueLabels, approvedRuns } = await runPublish({
+      waitingRunIds: [101, 202],
+      reviewed: null,
     })
 
-    expect(result).toEqual({ skipped: true, reason: 'not-maintainer' })
+    expect(outcome).toEqual({ published: false, reason: 'no-review' })
+    expect(approvedRuns).toEqual([101, 202])
+    expect([...issueLabels]).toEqual(['secure'])
     expect(comments).toEqual([])
-    expect(approvedRuns).toEqual([])
+  })
+
+  it('adds secure and approves waiting workflows when clean', async () => {
+    const { comments, issueLabels, approvedRuns } = await runPublish({
+      waitingRunIds: [101, 202],
+      reviewed: reviewedReady(),
+    })
+
+    expect([...issueLabels]).toEqual(['secure', 'ai-ready'])
+    expect(approvedRuns).toEqual([101, 202])
+    expect(comments[0]?.body).toContain('Added label `secure`')
+    expect(comments[0]?.body).toContain('Approved 2 waiting workflow runs.')
+    expect(comments[0]?.body).toContain(AUTOMATED)
+    expect(comments[0]?.body).toContain(COMMENT_MARKER)
+  })
+
+  it('releases workflows even when the AI verdict is reject', async () => {
+    // The scan is the security gate; the verdict is only advice.
+    const { issueLabels, comments } = await runPublish({
+      waitingRunIds: [101],
+      reviewed: {
+        number: NUMBER,
+        verdict: { verdict: 'reject', issues: [] },
+        patch: '',
+      },
+    })
+
+    expect([...issueLabels]).toEqual(['secure', 'ai-rejected'])
+    expect(comments[0]?.body).toContain('**Verdict:** reject')
+  })
+
+  it('applies the patch and pushes with a lease pinned to the scanned head', async () => {
+    const { outcome, issueLabels, gitCalls } = await runPublish({
+      pull: samplePull({ maintainer_can_modify: true }),
+      reviewed: reviewedPolish(),
+    })
+
+    expect(outcome).toEqual({
+      published: true,
+      label: 'ai-ready',
+      pushLanded: true,
+    })
+    expect([...issueLabels]).toEqual(['secure', 'ai-ready'])
+    expect(gitCalls[0]).toEqual({
+      args: ['apply', '--whitespace=nowarn', '-'],
+      cwd: WORKTREE,
+    })
+    const push = gitCalls.at(-1)
+    expect(push?.args).toContain(`--force-with-lease=${HEAD_REF}:${SHA}`)
+    expect(push?.args).not.toContain('--force')
+  })
+
+  it('does not push when the patch does not apply', async () => {
+    const { outcome, issueLabels, gitCalls } = await runPublish({
+      pull: samplePull({ maintainer_can_modify: true }),
+      reviewed: reviewedPolish(),
+      gitImpl: (args) =>
+        args[0] === 'apply'
+          ? { stdout: '', stderr: 'does not apply', code: 1 }
+          : { stdout: '', stderr: '', code: 0 },
+    })
+
+    expect(outcome).toEqual({
+      published: true,
+      label: 'ai-needs-work',
+      pushLanded: false,
+    })
+    expect(gitCalls.map((call) => call.args[0])).toEqual(['apply'])
+  })
+
+  it('does not push polish when maintainer edits are off', async () => {
+    const { outcome, comments, gitCalls } = await runPublish({
+      pull: samplePull({ maintainer_can_modify: false }),
+      reviewed: reviewedPolish(),
+    })
+
+    expect(outcome).toEqual({
+      published: true,
+      label: 'ai-needs-work',
+      pushLanded: false,
+    })
+    expect(comments[0]?.body).toContain('fork has maintainer edits off')
+    expect(gitCalls).toEqual([])
   })
 
   it('does not leave secure when workflow approval fails', async () => {
-    const { comments, issueLabels, approvedRuns } = await runJob({
-      review: readyReview,
+    const { comments, issueLabels, approvedRuns } = await runPublish({
       waitingRunIds: [101],
       approveError: 'Resource not accessible by personal access token',
+      reviewed: reviewedReady(),
     })
 
     expect([...issueLabels]).toEqual(['ai-ready'])

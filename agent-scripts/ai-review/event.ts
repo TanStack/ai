@@ -1,5 +1,3 @@
-export const AI_REVIEW_TRIGGER_LABEL = 'ai-review'
-
 export type ReviewEvent = {
   prNumber: number
   mode: 'auto' | 'manual'
@@ -34,42 +32,12 @@ function readCommentAuthor(event: unknown) {
   return user.login
 }
 
-function readSenderLogin(event: unknown) {
-  const sender = isRecord(event) ? event.sender : undefined
-  if (!isRecord(sender) || typeof sender.login !== 'string') {
-    return null
-  }
-  return sender.login
-}
-
-function readAction(event: unknown) {
-  return isRecord(event) && typeof event.action === 'string'
-    ? event.action
-    : null
-}
-
-function readEventLabelName(event: unknown) {
-  const label = isRecord(event) ? event.label : undefined
-  return isRecord(label) && typeof label.name === 'string' ? label.name : null
-}
-
-/** True when this `pull_request` event is someone adding the `ai-review` label. */
-export function isAiReviewLabelEvent(event: unknown) {
-  return (
-    readAction(event) === 'labeled' &&
-    readEventLabelName(event) === AI_REVIEW_TRIGGER_LABEL
-  )
-}
-
-/** True when this `pull_request` event is any label add. */
-export function isPullRequestLabeledEvent(event: unknown) {
-  return readAction(event) === 'labeled'
-}
-
 /**
  * Parse a GitHub Actions event into the PR number and auto vs manual mode.
  *
- * A `pull_request` `labeled` event with the `ai-review` label is manual.
+ * The scheduled sweep synthesises a `pull_request` event so its reviews run
+ * in auto mode and keep the skip rules.
+ *
  * Throws if `eventName` is unknown, `workflow_dispatch` has no valid
  * `inputs.pr_number`, or `issue_comment` is not on a pull request.
  */
@@ -87,10 +55,8 @@ export function parseReviewEvent(input: { eventName: string; event: unknown }) {
       }
       return {
         prNumber,
-        mode: isAiReviewLabelEvent(input.event) ? 'manual' : 'auto',
-        commentAuthor: isAiReviewLabelEvent(input.event)
-          ? readSenderLogin(input.event)
-          : null,
+        mode: 'auto',
+        commentAuthor: null,
         eventName: 'pull_request',
       } satisfies ReviewEvent
     }

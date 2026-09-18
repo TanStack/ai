@@ -34,13 +34,16 @@ import {
   isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
-import {
-  isAiReviewLabelEvent,
-  isPullRequestLabeledEvent,
-  parseReviewEvent,
-} from './event.ts'
+import { parseReviewEvent } from './event.ts'
 import { createReviewStreamLogger } from './log.ts'
-import { commitAll, headRemoteUrl, pushHead } from './git.ts'
+import {
+  applyPatch,
+  commitAll,
+  headRemoteUrl,
+  headSha,
+  pushHead,
+  stagedPatch,
+} from './git.ts'
 import type { GitRunner } from './git.ts'
 import { setReviewState } from './labels.ts'
 import { fetchPullRequest, fetchPullRequestDiff } from './pr.ts'
@@ -49,6 +52,8 @@ import { scanPullSecurity } from './security.ts'
 import { shouldSkip } from './skip.ts'
 import { createReviewTools } from './tools.ts'
 import { parseVerdict, reviewLabelFor, reviewVerdictSchema } from './verdict.ts'
+import type { ReviewedPull } from './results.ts'
+import { resultsPath, writeResults } from './results.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -104,7 +109,15 @@ function parseListedComment(value: unknown) {
   return { body: value.body, userLogin }
 }
 
-async function fetchAlreadyReviewedSha(
+/**
+ * Read the head SHA from this PR's existing bot review comment, if any.
+ *
+ * @param client GitHub REST client
+ * @param repo owner/name, for example `TanStack/ai`
+ * @param issueNumber pull request number
+ * @param machineUserLogin login the bot comments as
+ */
+export async function fetchAlreadyReviewedSha(
   client: GitHubClient,
   repo: string,
   issueNumber: number,
@@ -221,10 +234,20 @@ export function createGrokReview() {
  *
  * @param opts GitHub client, event, worktree, injected review step, and git runner
  */
-export async function runReviewJob(opts: {
+/**
+ * Review one pull request. Runs the agent; performs NO GitHub writes and
+ * needs no PAT, so this half can run in a job that holds no repo credentials.
+ *
+ * Returns `reviewed: false` with a reason whenever the PR should not be
+ * reviewed. A failed malware scan is one of those reasons: the publish job
+ * re-runs the scan itself and posts the rejection, because a scan verdict
+ * from this job would be attacker-controlled.
+ *
+ * @param opts GitHub client, event, worktree, injected review step, git runner
+ */
+export async function reviewPull(opts: {
   client: GitHubClient
   repo: string
-  token: string
   config: ToolsetConfig
   eventName: string
   event: unknown
@@ -242,24 +265,10 @@ export async function runReviewJob(opts: {
 
   if (opts.eventName === 'issue_comment') {
     if (firstToken(readIssueCommentBody(opts.event)) !== '/ai-review') {
-      return { skipped: true as const, reason: 'not-command' }
+      return { reviewed: false as const, reason: 'not-command' }
     }
     if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
-      return { skipped: true as const, reason: 'not-maintainer' }
-    }
-  }
-
-  if (
-    opts.eventName === 'pull_request' &&
-    isPullRequestLabeledEvent(opts.event) &&
-    !isAiReviewLabelEvent(opts.event)
-  ) {
-    return { skipped: true as const, reason: 'not-label' }
-  }
-
-  if (isAiReviewLabelEvent(opts.event)) {
-    if (!isRosterMaintainer(parsed.commentAuthor, opts.config)) {
-      return { skipped: true as const, reason: 'not-maintainer' }
+      return { reviewed: false as const, reason: 'not-maintainer' }
     }
   }
 
@@ -275,7 +284,22 @@ export async function runReviewJob(opts: {
     config: opts.config,
   })
   if (skip.skip) {
-    return { skipped: true as const, reason: skip.reason }
+    return { reviewed: false as const, reason: skip.reason ?? 'unknown' }
+  }
+
+  // Bind the scan to the tree the agent will read. The worktree was fetched
+  // before this REST call, so a force-push in between would leave us scanning
+  // one commit and reviewing another. Refuse rather than straddle two commits;
+  // the next sweep picks the new head up and scans it from scratch.
+  const checkedOut = await headSha(opts.worktreeRoot, opts.gitRunner)
+  if (checkedOut !== pr.headSha) {
+    return { reviewed: false as const, reason: 'head-moved' }
+  }
+
+  // The scan gates the agent. A PR that trips it is never read or edited.
+  // It reads the REST file list, so this needs nothing from the PR head.
+  if (!scanPullSecurity(pr.files).ok) {
+    return { reviewed: false as const, reason: 'security-scan' }
   }
 
   const diff = await fetchPullRequestDiff(
@@ -291,84 +315,159 @@ export async function runReviewJob(opts: {
     repo: opts.repo,
   })
 
-  let pushLanded = false
-  const canPushPolish = verdict.verdict === 'polish' && pr.maintainerCanModify
-  if (canPushPolish) {
-    const commit = await commitAll(
-      opts.worktreeRoot,
-      `ai-review: apply review polish for #${pr.number}`,
-      opts.gitRunner,
-      {
-        name: opts.machineUserLogin,
-        email: `${opts.machineUserLogin}@users.noreply.github.com`,
-      },
-    )
-    if (commit.committed) {
-      await pushHead(opts.worktreeRoot, opts.gitRunner, {
-        remoteUrl: headRemoteUrl({
-          isFork: pr.headRepo !== opts.repo,
-          originRepo: opts.repo,
-          headRepo: pr.headRepo,
-          token: opts.token,
+  // Carry the agent's edits as a patch. The publish job applies it to the head
+  // it resolved itself, so the edits never decide where the push lands.
+  const patch =
+    verdict.verdict === 'polish'
+      ? await stagedPatch(opts.worktreeRoot, opts.gitRunner)
+      : ''
+
+  return {
+    reviewed: true as const,
+    result: { number: pr.number, verdict, patch },
+  }
+}
+
+/**
+ * Publish one pull request's outcome. Holds the PAT and performs every GitHub
+ * write, but never runs the agent and never executes PR code.
+ *
+ * Re-runs the malware scan rather than trusting `reviewed`, which the review
+ * job produced next to untrusted code. A blocked PR is rejected here.
+ *
+ * @param opts GitHub client, token, PR number, untrusted review payload
+ */
+export async function publishPull(opts: {
+  client: GitHubClient
+  repo: string
+  token: string
+  prNumber: number
+  machineUserLogin: string
+  gitRunner: GitRunner
+  /** Worktree at the PR head for applying a polish patch, else null. */
+  worktreeRoot: string | null
+  /** Untrusted payload from the review job. */
+  reviewed: ReviewedPull | null
+}) {
+  const pr = await fetchPullRequest(opts.client, opts.repo, opts.prNumber)
+
+  // Authoritative scan. The review job's opinion of this never reaches here.
+  const security = scanPullSecurity(pr.files)
+  if (!security.ok) {
+    await setReviewState(opts.client, opts.repo, pr.number, 'ai-rejected')
+    await setSecureLabel(opts.client, opts.repo, pr.number, false)
+    await upsertReviewComment(
+      opts.client,
+      opts.repo,
+      pr.number,
+      buildReviewComment({
+        verdict: 'reject',
+        headSha: pr.headSha,
+        findings: security.reasons,
+        pushNote: 'Did not push.',
+        label: 'ai-rejected',
+        securityNote: securityNoteFor({
+          reasons: security.reasons,
+          approvedRuns: 0,
+          approveError: null,
         }),
-        ref: pr.headRef,
-      })
+      }),
+      opts.machineUserLogin,
+    )
+    return { published: true as const, label: 'ai-rejected' as const }
+  }
+
+  // A clean scan is what releases the other workflows, not the AI verdict.
+  let approvedRuns = 0
+  let approveError: string | null = null
+  try {
+    approvedRuns = await approveWaitingWorkflows(
+      opts.client,
+      opts.repo,
+      pr.headSha,
+    )
+  } catch (error) {
+    approveError = error instanceof Error ? error.message : String(error)
+  }
+  await setSecureLabel(opts.client, opts.repo, pr.number, approveError === null)
+
+  if (opts.reviewed === null) {
+    return { published: false as const, reason: 'no-review' }
+  }
+  const verdict = opts.reviewed.verdict
+
+  let pushLanded = false
+  const canPushPolish =
+    verdict.verdict === 'polish' &&
+    pr.maintainerCanModify &&
+    opts.reviewed.patch.length > 0 &&
+    opts.worktreeRoot !== null
+  if (canPushPolish && opts.worktreeRoot !== null) {
+    const applied = await applyPatch(
+      opts.worktreeRoot,
+      opts.reviewed.patch,
+      opts.gitRunner,
+    )
+    if (applied) {
+      const commit = await commitAll(
+        opts.worktreeRoot,
+        `ai-review: apply review polish for #${pr.number}`,
+        opts.gitRunner,
+        {
+          name: opts.machineUserLogin,
+          email: `${opts.machineUserLogin}@users.noreply.github.com`,
+        },
+      )
+      if (commit.committed) {
+        // Lease pinned to the head we resolved, so a branch that moved since
+        // the review is refused instead of overwritten.
+        await pushHead(opts.worktreeRoot, opts.gitRunner, {
+          remoteUrl: headRemoteUrl({
+            isFork: pr.headRepo !== opts.repo,
+            originRepo: opts.repo,
+            headRepo: pr.headRepo,
+            token: opts.token,
+          }),
+          ref: pr.headRef,
+          expectSha: pr.headSha,
+        })
+      }
+      pushLanded = commit.committed
     }
-    pushLanded = commit.committed
   }
 
   const label = reviewLabelFor(verdict.verdict, pushLanded)
-  const security = scanPullSecurity(pr.files)
-  let approvedRuns = 0
-  let approveError: string | null = null
-  if (label === 'ai-ready' && security.ok) {
-    try {
-      approvedRuns = await approveWaitingWorkflows(
-        opts.client,
-        opts.repo,
-        pr.headSha,
-      )
-    } catch (error) {
-      approveError = error instanceof Error ? error.message : String(error)
-    }
-  }
-  const markSecure =
-    label === 'ai-ready' && security.ok && approveError === null
   await setReviewState(opts.client, opts.repo, pr.number, label)
-  await setSecureLabel(opts.client, opts.repo, pr.number, markSecure)
   const findings = []
   for (const issue of verdict.issues) {
     findings.push(formatFinding(issue))
   }
-  const body = buildReviewComment({
-    verdict: verdict.verdict,
-    headSha: pr.headSha,
-    findings,
-    pushNote: pushNoteFor({
-      pushLanded,
-      verdict: verdict.verdict,
-      maintainerCanModify: pr.maintainerCanModify,
-    }),
-    label,
-    securityNote: securityNoteFor({
-      markSecure,
-      reasons: security.reasons,
-      approvedRuns,
-      approveError,
-    }),
-  })
   await upsertReviewComment(
     opts.client,
     opts.repo,
     pr.number,
-    body,
+    buildReviewComment({
+      verdict: verdict.verdict,
+      headSha: pr.headSha,
+      findings,
+      pushNote: pushNoteFor({
+        pushLanded,
+        verdict: verdict.verdict,
+        maintainerCanModify: pr.maintainerCanModify,
+      }),
+      label,
+      securityNote: securityNoteFor({
+        reasons: security.reasons,
+        approvedRuns,
+        approveError,
+      }),
+    }),
     opts.machineUserLogin,
   )
-  return { skipped: false as const, verdict, label, pushLanded }
+  return { published: true as const, label, pushLanded }
 }
 
 function securityNoteFor(input: {
-  markSecure: boolean
   reasons: Array<string>
   approvedRuns: number
   approveError: string | null
@@ -379,19 +478,20 @@ function securityNoteFor(input: {
   if (input.approveError !== null) {
     return `clean. Did not add label \`secure\`. Could not approve workflows: ${input.approveError}`
   }
-  if (!input.markSecure) {
-    return 'Did not mark secure. Verdict is not ai-ready.'
-  }
   if (input.approvedRuns === 0) {
     return 'clean. Added label `secure`. No waiting workflow runs.'
   }
   return `clean. Added label \`secure\`. Approved ${String(input.approvedRuns)} waiting workflow runs.`
 }
 
-function createProcessGitRunner(): GitRunner {
-  return (args, cwd) =>
+/** Spawn-backed git runner for production entry points. */
+export function createProcessGitRunner(): GitRunner {
+  return (args, cwd, stdin) =>
     new Promise((resolveResult, reject) => {
       const child = spawn('git', args, { cwd })
+      if (stdin !== undefined) {
+        child.stdin.end(stdin)
+      }
       let stdout = ''
       let stderr = ''
       child.stdout.on('data', (chunk: Buffer | string) => {
@@ -407,17 +507,25 @@ function createProcessGitRunner(): GitRunner {
     })
 }
 
-async function resolveReviewToken() {
+/**
+ * `AI_REVIEW_TOKEN`, else any resolvable GitHub token.
+ *
+ * The review job has no PAT by design and falls through to the read-only
+ * `GITHUB_TOKEN`, which is all it needs. Only the publish job supplies the
+ * PAT, and it checks for that itself before it starts.
+ */
+export async function resolveReviewToken() {
   const fromEnv = process.env.AI_REVIEW_TOKEN
   if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv
   try {
     return await resolveToken()
   } catch {
-    throw new Error('missing AI_REVIEW_TOKEN or XAI_API_KEY')
+    throw new Error('missing AI_REVIEW_TOKEN or GITHUB_TOKEN')
   }
 }
 
-function requireEnv(name: string) {
+/** Read a required env var, or throw naming it. */
+export function requireEnv(name: string) {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
     throw new Error(`missing ${name}`)
@@ -432,9 +540,13 @@ function isExecutedDirectly() {
 }
 
 /**
- * Production entry. Fills `runReviewJob` opts from env.
+ * Review entry for the manual single-PR path (`workflow_dispatch`, or a
+ * maintainer's `/ai-review` comment).
  *
- * Needs `AI_REVIEW_TOKEN` (or a resolvable GitHub token) and `XAI_API_KEY`.
+ * Runs the agent and writes `AI_REVIEW_RESULTS` for the publish job. Holds no
+ * PAT: every GitHub write happens later, in `publish.ts`.
+ *
+ * Needs `XAI_API_KEY` and a readable GitHub token.
  */
 export async function main() {
   const token = await resolveReviewToken()
@@ -472,10 +584,9 @@ export async function main() {
     parsed.prNumber,
     machineUserLogin,
   )
-  const result = await runReviewJob({
+  const outcome = await reviewPull({
     client,
     repo,
-    token,
     config,
     eventName,
     event,
@@ -489,12 +600,15 @@ export async function main() {
         ? null
         : headCommitAuthor,
   })
-  if (result.skipped) {
-    console.log(`ai-review skipped: ${result.reason}`)
-    return
-  }
+  // The publish job runs either way: a PR the scan blocked still needs its
+  // rejection comment, and that comment is written there, not here.
+  await writeResults(resultsPath(), {
+    results: outcome.reviewed ? [outcome.result] : [],
+  })
   console.log(
-    `ai-review done label=${result.label} push=${String(result.pushLanded)}`,
+    outcome.reviewed
+      ? `ai-review reviewed #${String(outcome.result.number)} verdict=${outcome.result.verdict.verdict}`
+      : `ai-review skipped: ${outcome.reason}`,
   )
 }
 
