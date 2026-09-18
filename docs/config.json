@@ -1099,7 +1099,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "LLM Gateway",
