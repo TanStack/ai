@@ -1,12 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import type {
+  AdapterYieldChunk,
+  AnyTextAdapter,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   MetadataStore,
   ModelMessage,
+  StreamChunk,
   ToolCall,
 } from '@tanstack/ai'
-import { provideMetadata } from '@tanstack/ai'
+import {
+  chat,
+  EventType,
+  memoryStream,
+  provideMetadata,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import {
   COMPACTION_ENDED_EVENT,
   COMPACTION_STARTED_EVENT,
@@ -539,5 +548,116 @@ describe('composeStrategies', () => {
 describe('estimateMessageTokens', () => {
   it('counts content and tool calls', () => {
     expect(estimateMessageTokens(text('user', 'x'.repeat(40)))).toBe(10)
+  })
+})
+
+/** Minimal text adapter that streams a fixed reply, to drive `chat()`. */
+function mockTextAdapter(reply: Array<AdapterYieldChunk>): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'mock',
+    model: 'test-model',
+    // `~types` is a compile-time-only phantom the runtime never reads, so an
+    // empty object cast to the field type is enough — keeps the adapter typed as
+    // `AnyTextAdapter` without an `as unknown as` on the whole object.
+    '~types': {} as AnyTextAdapter['~types'],
+    chatStream: () =>
+      (async function* () {
+        for (const chunk of reply) yield chunk
+      })(),
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+async function drain(response: Response): Promise<void> {
+  const body = response.body
+  if (!body) throw new Error('expected a response body')
+  const reader = body.getReader()
+  for (;;) {
+    const result = await reader.read()
+    if (result.done) return
+  }
+}
+
+const hasModelText = (chunks: Array<StreamChunk>): boolean =>
+  chunks.some((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+
+describe('compaction progress reaches the client live', () => {
+  it('surfaces compaction:started through the durability buffering, before the model output', async () => {
+    // The point of the whole feature: `compaction:started` is emitted in
+    // onConfig, before the model produces output. Drive the REAL middleware
+    // through chat() and the real batching durability, and assert the event
+    // comes out on its own rather than buffered into the batch that carries the
+    // model's text (which is what happens without the flush — see the control).
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=compaction-flush', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+    const model = mockTextAdapter([
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: 'm1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm1',
+        delta: 'reply',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: 'm1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: Date.now(),
+      },
+    ])
+
+    const stream = chat({
+      adapter: model,
+      messages: [big('user'), big('assistant'), big('user'), big('assistant')],
+      middleware: [withCompaction({ maxTokens: 100 })],
+    }) as AsyncIterable<StreamChunk>
+
+    await drain(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const appends = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const startedBatch = appends.find((chunks) =>
+      chunks.some(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === COMPACTION_STARTED_EVENT,
+      ),
+    )
+    if (startedBatch === undefined) {
+      throw new Error('compaction:started never reached durability')
+    }
+    const firstModelTextIndex = appends.findIndex(hasModelText)
+    if (firstModelTextIndex === -1) {
+      throw new Error('the model produced no text output')
+    }
+    // Flushed into an EARLIER batch than any model text, so it reaches the client
+    // while the summarize is still running rather than bunched with the reply...
+    expect(appends.indexOf(startedBatch)).toBeLessThan(firstModelTextIndex)
+    // ...and on its own, not batched together with the model's text output.
+    expect(hasModelText(startedBatch)).toBe(false)
   })
 })

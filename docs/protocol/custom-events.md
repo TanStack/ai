@@ -162,6 +162,27 @@ const progress: ChatMiddleware = {
 };
 ```
 
+### Deliver a pre-model event live with `{ flush: true }`
+
+The engine yields the chunk promptly, but the durability layer batches it before
+it reaches the client. An event emitted _before_ the model produces output — the
+`step: "prepare"` above, a sandbox boot, a retrieval step — therefore stays
+buffered until the batch fills or a `RUN_FINISHED` / `TOOL_CALL_END` boundary
+fires, so it arrives bunched with later output instead of at emit time.
+(`RUN_STARTED` doesn't rescue it: the engine emits `RUN_STARTED` _before_ the
+first pre-model custom event, so no boundary follows it.)
+
+Pass `{ flush: true }` to deliver a single low-volume event immediately, without
+disabling batching for the rest of the stream:
+
+```ts
+ctx.emitCustomEvent("my-app:progress", { step: "prepare" }, { flush: true });
+```
+
+Use it only for low-volume progress events. High-volume events (e.g. streamed
+process output) should keep batching, so opt in per event rather than flushing
+every `CUSTOM` chunk.
+
 These flow over the wire exactly like the built-in events: same `CUSTOM`
 chunk shape, same runtime behavior. But `'my-app:progress'` isn't one of the
 literal names in `KnownCustomEvent`, so it's intentionally absent from
