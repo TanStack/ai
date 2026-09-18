@@ -5582,6 +5582,110 @@ describe('StreamProcessor', () => {
         'activity',
       )
     })
+
+    it('MESSAGES_SNAPSHOT keeps both tool calls when two assistants share an id', () => {
+      const processor = new StreamProcessor()
+      // Agent-loop retry reuses currentMessageId, so the live transcript
+      // already has two assistant rows with the same id.
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'notify me' },
+          {
+            id: 'run-1-message',
+            role: 'assistant',
+            content: 'Showing a notification.',
+            toolCalls: [
+              {
+                id: 'call-1',
+                type: 'function',
+                function: {
+                  name: 'show_notification',
+                  arguments: '{"message":42,"type":"info"}',
+                },
+              },
+            ],
+          },
+          {
+            id: 'run-1-message',
+            role: 'assistant',
+            content: 'Showing a notification.',
+            toolCalls: [
+              {
+                id: 'call-2',
+                type: 'function',
+                function: {
+                  name: 'show_notification',
+                  arguments: '{"message":"done","type":"info"}',
+                },
+              },
+            ],
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'notify me' },
+          {
+            id: 'run-1-message',
+            role: 'assistant',
+            content: 'Showing a notification.',
+            toolCalls: [
+              {
+                id: 'call-1',
+                type: 'function',
+                function: {
+                  name: 'show_notification',
+                  arguments: '{"message":42,"type":"info"}',
+                },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            toolCallId: 'call-1',
+            content: '{"error":"Input validation failed"}',
+            error: 'Input validation failed',
+          },
+          {
+            id: 'run-1-message',
+            role: 'assistant',
+            content: 'Showing a notification.',
+            toolCalls: [
+              {
+                id: 'call-2',
+                type: 'function',
+                function: {
+                  name: 'show_notification',
+                  arguments: '{"message":"done","type":"info"}',
+                },
+              },
+            ],
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const toolCalls = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-call')
+      expect(toolCalls.filter((part) => part.id === 'call-1')).toHaveLength(1)
+      expect(toolCalls.filter((part) => part.id === 'call-2')).toHaveLength(1)
+      expect(toolCalls).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'call-1', state: 'error' }),
+          expect.objectContaining({
+            id: 'call-2',
+            name: 'show_notification',
+          }),
+        ]),
+      )
+    })
   })
 
   // ==========================================================================

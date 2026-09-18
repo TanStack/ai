@@ -1105,25 +1105,26 @@ export class StreamProcessor {
    * from the snapshot (TanStack chat() still builds snapshots from
    * ModelMessage[]) stays in the transcript so persist/reconnect cannot
    * wipe it. Snapshot activity rows win when the id is present.
+   *
+   * Keep every snapshot row, including two assistants that share an id
+   * (agent-loop retry reuses `currentMessageId`). A Map keyed by id would
+   * drop the earlier error tool-call (#1192).
    */
   private mergeOmittedActivity(
     prevMessages: Array<UIMessage>,
     snapshot: Array<UIMessage>,
   ): Array<UIMessage> {
-    const snapshotById = new Map(snapshot.map((msg) => [msg.id, msg]))
-    const used = new Set<string>()
-    const out: Array<UIMessage> = []
-    for (const prev of prevMessages) {
-      const fromSnap = snapshotById.get(prev.id)
-      if (fromSnap) {
-        out.push(fromSnap)
-        used.add(prev.id)
-      } else if (prev.role === 'activity') {
-        out.push(prev)
-      }
+    const snapshotIds = new Set(snapshot.map((msg) => msg.id))
+    const omitted = prevMessages.filter(
+      (msg) => msg.role === 'activity' && !snapshotIds.has(msg.id),
+    )
+    if (omitted.length === 0) {
+      return snapshot
     }
-    for (const msg of snapshot) {
-      if (!used.has(msg.id)) out.push(msg)
+    const out = [...snapshot]
+    for (const activity of omitted) {
+      const prevIndex = prevMessages.findIndex((msg) => msg.id === activity.id)
+      out.splice(Math.min(Math.max(prevIndex, 0), out.length), 0, activity)
     }
     return out
   }
