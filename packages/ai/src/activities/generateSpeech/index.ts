@@ -27,7 +27,13 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
 import type { TTSAdapter, TTSCapabilities } from './adapter'
-import type { StreamChunk, TTSResult, TTSTurn } from '../../types'
+import type {
+  ListVoicesOptions,
+  ListVoicesResult,
+  StreamChunk,
+  TTSResult,
+  TTSTurn,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -410,6 +416,53 @@ async function runGenerateSpeech<
     })
     throw error
   }
+}
+
+// ===========================
+// Voice Catalog
+// ===========================
+
+/**
+ * Options for {@link listVoices}.
+ */
+export interface ListVoicesActivityOptions<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+> extends ListVoicesOptions {
+  /** The speech adapter whose catalog to read */
+  adapter: TAdapter & { kind: typeof kind }
+}
+
+/**
+ * List the voices an account can pass to `generateSpeech()`.
+ *
+ * Only providers with a per-account catalog implement this. A provider whose
+ * voices are a fixed list publishes that list as a const in its package, so
+ * import it from there rather than calling this.
+ *
+ * @example Find the voices you created
+ * ```ts
+ * import { listVoices } from '@tanstack/ai'
+ * import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
+ *
+ * const { voices } = await listVoices({
+ *   adapter: elevenlabsSpeech('eleven_v3'),
+ *   origins: ['generated', 'cloned'],
+ * })
+ * ```
+ */
+export async function listVoices<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+>(options: ListVoicesActivityOptions<TAdapter>): Promise<ListVoicesResult> {
+  const { adapter, ...rest } = options
+
+  const list = adapter.listVoices
+  if (!list) {
+    throw new Error(
+      `The ${adapter.name} speech adapter has no per-account voice catalog to list. Its voices are a fixed set — import the voice list or union its package exports instead (for example \`GeminiTTSVoices\` from @tanstack/ai-gemini, or the \`OpenAITTSVoice\` union from @tanstack/ai-openai).`,
+    )
+  }
+
+  return await list.call(adapter, rest)
 }
 
 // ===========================

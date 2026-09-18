@@ -1,4 +1,9 @@
-import type { TTSOptions, TTSResult } from '../../types'
+import type {
+  ListVoicesOptions,
+  ListVoicesResult,
+  TTSOptions,
+  TTSResult,
+} from '../../types'
 
 /**
  * What a TTS adapter can do beyond a single voice reading a single string.
@@ -65,6 +70,18 @@ export interface TTSAdapter<
    * Generate speech from text
    */
   generateSpeech: (options: TTSOptions<TProviderOptions>) => Promise<TTSResult>
+
+  /**
+   * List the voices this account can use.
+   *
+   * Optional, because only some providers have a catalog worth querying at
+   * runtime. A provider whose voices are a fixed list known at build time
+   * publishes that list from its own package instead (`GeminiTTSVoices`, or
+   * the `OpenAITTSVoice` union), which is strictly better than a network
+   * call. Implement this only when the catalog is per-account and can change,
+   * which is the case wherever `generateVoice()` can add to it.
+   */
+  listVoices?: (options?: ListVoicesOptions) => Promise<ListVoicesResult>
 }
 
 /**
@@ -103,6 +120,12 @@ export abstract class BaseTTSAdapter<
   abstract generateSpeech(
     options: TTSOptions<TProviderOptions>,
   ): Promise<TTSResult>
+
+  /**
+   * Not abstract: a provider with a fixed voice list has nothing to query and
+   * should not be forced to write a stub.
+   */
+  listVoices?(options?: ListVoicesOptions): Promise<ListVoicesResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

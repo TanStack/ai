@@ -22,6 +22,7 @@ import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 import { AudioGenUI } from '@/components/AudioGenUI'
 import { EmbeddingUI } from '@/components/EmbeddingUI'
+import { VoiceDesignUI } from '@/components/VoiceDesignUI'
 
 const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
 
@@ -59,6 +60,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'image-gen',
   'image-to-image',
   'tts',
+  'voice-design',
   'transcription',
   'transcription-diarization',
   'video-gen',
@@ -226,6 +228,17 @@ function MediaFeature({
         <TTSUI
           provider={provider}
           mode={mode}
+          testId={testId}
+          aimockPort={aimockPort}
+        />
+      )
+    case 'voice-design':
+      // generateVoice() is Promise-based (no streaming), so this page has a
+      // single fetch flow and ignores the `mode` search param — same as
+      // embedding.
+      return (
+        <VoiceDesignUI
+          provider={provider}
           testId={testId}
           aimockPort={aimockPort}
         />

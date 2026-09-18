@@ -322,8 +322,11 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
   {
     id: 'elevenlabs-music',
     label: 'ElevenLabs Music',
-    model: 'music_v1',
-    models: [{ id: 'music_v1', label: 'Music v1' }],
+    model: 'music_v2_5',
+    models: [
+      { id: 'music_v2_5', label: 'Music v2.5' },
+      { id: 'music_v2', label: 'Music v2' },
+    ],
     description:
       'ElevenLabs Music — free-form prompts or structured composition plans.',
     placeholder: 'An upbeat synthwave track with driving drums and arpeggios',
@@ -355,10 +358,7 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     id: 'elevenlabs-sfx',
     label: 'ElevenLabs SFX',
     model: 'eleven_text_to_sound_v2',
-    models: [
-      { id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' },
-      { id: 'eleven_text_to_sound_v1', label: 'Text-to-Sound v1' },
-    ],
+    models: [{ id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' }],
     description:
       'ElevenLabs text-to-sound for short effects, 0.5–30 seconds per clip.',
     placeholder: 'A whoosh followed by a deep bass impact',

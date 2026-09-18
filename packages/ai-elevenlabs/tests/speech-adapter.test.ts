@@ -5,6 +5,7 @@ const convertMock = vi.fn()
 const convertWithTimestampsMock = vi.fn()
 const dialogueConvertMock = vi.fn()
 const dialogueConvertWithTimestampsMock = vi.fn()
+const getAllVoicesMock = vi.fn()
 
 vi.mock('@elevenlabs/elevenlabs-js', () => ({
   ElevenLabsClient: class {
@@ -16,6 +17,7 @@ vi.mock('@elevenlabs/elevenlabs-js', () => ({
       convert: dialogueConvertMock,
       convertWithTimestamps: dialogueConvertWithTimestampsMock,
     }
+    voices = { getAll: getAllVoicesMock }
   },
 }))
 
@@ -425,5 +427,70 @@ describe('elevenlabsSpeech adapter', () => {
         elevenlabsSpeech('eleven_v3', { apiKey: 'k' }).capabilities,
       ).toEqual({ maxSpeakers: 10, timestamps: true })
     })
+  })
+})
+
+describe('elevenlabsSpeech listVoices', () => {
+  beforeEach(() => {
+    getAllVoicesMock.mockReset()
+  })
+
+  function makeCatalog() {
+    return {
+      voices: [
+        {
+          voiceId: 'premade-1',
+          name: 'Rachel',
+          category: 'premade',
+          previewUrl: 'https://example.com/rachel.mp3',
+          labels: { accent: 'american' },
+        },
+        {
+          voiceId: 'designed-1',
+          name: 'Irish Narrator',
+          category: 'generated',
+        },
+        { voiceId: 'cloned-1', name: 'Me', category: 'cloned' },
+        { voiceId: 'famous-1', name: 'Someone', category: 'famous' },
+        { voiceId: 'mystery-1', name: 'Unknown', category: 'not-a-category' },
+      ],
+    }
+  }
+
+  it('normalizes the provider catalog', async () => {
+    getAllVoicesMock.mockResolvedValue(makeCatalog())
+    const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+
+    const { voices } = await adapter.listVoices()
+
+    expect(voices[0]).toEqual({
+      voiceId: 'premade-1',
+      name: 'Rachel',
+      origin: 'premade',
+      previewUrl: 'https://example.com/rachel.mp3',
+      labels: { accent: 'american' },
+    })
+    // 'famous' is a curated tier, so it reads as professional.
+    expect(voices[3]).toMatchObject({
+      voiceId: 'famous-1',
+      origin: 'professional',
+    })
+    // An unrecognized category is dropped rather than guessed, so an origins
+    // filter can never match it by accident.
+    expect(voices[4]).toEqual({ voiceId: 'mystery-1', name: 'Unknown' })
+  })
+
+  it('filters to the voices this account made', async () => {
+    getAllVoicesMock.mockResolvedValue(makeCatalog())
+    const adapter = elevenlabsSpeech('eleven_v3', { apiKey: 'k' })
+
+    const { voices } = await adapter.listVoices({
+      origins: ['generated', 'cloned'],
+    })
+
+    expect(voices.map((voice) => voice.voiceId)).toEqual([
+      'designed-1',
+      'cloned-1',
+    ])
   })
 })
