@@ -281,7 +281,7 @@ Pass a `data:` URI (or a `gs://` reference for Veo), or opt into fetching with
 `allowUrlFetch`:
 
 ```typescript ignore
-import { createOpenaiImage } from "@tanstack/ai-openai/adapters";
+import { createOpenaiImage } from "@tanstack/ai-openai";
 
 // Opt into downloading + buffering HTTP(S) URL image inputs (server runtimes
 // with headroom). data: URIs always work without this flag.
