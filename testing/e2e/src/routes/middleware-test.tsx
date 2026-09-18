@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   useChat,
@@ -12,6 +12,7 @@ import {
   renderReviewTool,
   reviewPlan,
 } from '@/lib/generic-middleware-interrupts'
+import { clientContextToolDefinition } from '@/lib/middleware-test-tools'
 
 const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },
@@ -111,6 +112,19 @@ function MiddlewareTestPage() {
     saveCount: number
   }>({ configs: [], saveCount: 0 })
   const [clientToolExecutions, setClientToolExecutions] = useState(0)
+  const [clientToolWaiting, setClientToolWaiting] = useState(false)
+  const clientToolResolver = useRef<
+    ((value: { context: string }) => void) | null
+  >(null)
+  const [clientContextTool] = useState(() =>
+    clientContextToolDefinition.client(
+      () =>
+        new Promise<{ context: string }>((resolve) => {
+          clientToolResolver.current = resolve
+          setClientToolWaiting(true)
+        }),
+    ),
+  )
 
   const clientToolList = useMemo(
     () =>
@@ -120,11 +134,12 @@ function MiddlewareTestPage() {
           setClientToolExecutions((count) => count + 1)
           return { rendered: true, reviewId }
         }),
+        clientContextTool,
       ),
-    [],
+    [clientContextTool],
   )
 
-  const { messages, sendMessage, isLoading, interrupts } = useChat<
+  const { messages, sendMessage, isLoading, error, interrupts } = useChat<
     typeof clientToolList,
     undefined,
     unknown,
@@ -181,7 +196,17 @@ function MiddlewareTestPage() {
     setTestComplete(false)
     setPhaseCapture(EMPTY_PHASE_CAPTURE)
     setClientToolExecutions(0)
+    setClientToolWaiting(false)
+    clientToolResolver.current = null
     sendMessage(`[${scenario}] run test`)
+  }
+
+  const handleResolveClientTool = () => {
+    const resolve = clientToolResolver.current
+    if (!resolve) return
+    clientToolResolver.current = null
+    setClientToolWaiting(false)
+    resolve({ context: 'client-result' })
   }
 
   type ActiveInterrupt = (typeof interrupts)[number]
@@ -231,6 +256,9 @@ function MiddlewareTestPage() {
           <option value="structured-output">Structured Output</option>
           <option value="structured-output-stream">
             Structured Output (Stream)
+          </option>
+          <option value="structured-client-tool-wait">
+            Structured Output + Client Tool Wait
           </option>
           <option value="generic-before-model">Generic Before Model</option>
           <option value="generic-after-model">Generic After Model</option>
@@ -285,6 +313,25 @@ function MiddlewareTestPage() {
         }}
       >
         Run Test
+      </button>
+
+      <button
+        id="mw-client-tool-resolve"
+        onClick={handleResolveClientTool}
+        disabled={!clientToolWaiting}
+        style={{
+          marginLeft: '10px',
+          padding: '10px 20px',
+          fontSize: '14px',
+          backgroundColor: '#16a34a',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: clientToolWaiting ? 'pointer' : 'not-allowed',
+          opacity: clientToolWaiting ? 1 : 0.7,
+        }}
+      >
+        Resolve Client Tool
       </button>
 
       {reviewInterrupts.map((interrupt) => (
@@ -353,6 +400,9 @@ function MiddlewareTestPage() {
         spec can do a flat `.textContent()` read without conditional waits;
         they're empty/zeroed for runs that don't use `phase-recorder` mode.
       */}
+      <pre id="mw-error" style={{ display: 'none' }}>
+        {error?.message ?? ''}
+      </pre>
       <pre id="mw-phases-json" style={{ display: 'none' }}>
         {JSON.stringify(phaseCapture.phases)}
       </pre>
@@ -371,6 +421,7 @@ function MiddlewareTestPage() {
         style={{ display: 'none' }}
         data-is-loading={isLoading.toString()}
         data-test-complete={testComplete.toString()}
+        data-client-tool-waiting={clientToolWaiting.toString()}
         data-message-count={messages.length}
         data-interrupt-count={interrupts.length}
         data-client-tool-executions={clientToolExecutions}
