@@ -27,7 +27,7 @@ export const REVIEW_LABELS = [
 type ReviewState = (typeof REVIEW_LABELS)[number]['name']
 
 function errorMentionsStatus(error: unknown, status: string) {
-  return error instanceof Error && error.message.includes(status)
+  return error instanceof Error && error.message.includes(`HTTP ${status}:`)
 }
 
 /**

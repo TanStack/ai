@@ -6,7 +6,7 @@ import solid from 'vite-plugin-solid'
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid({ hot: false })],
   test: {
     globals: true,
     environment: 'jsdom',

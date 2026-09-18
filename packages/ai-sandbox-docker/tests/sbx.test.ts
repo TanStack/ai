@@ -8,7 +8,6 @@ import type { SandboxHandle } from '@tanstack/ai-sandbox'
 const gate = await sbxGate('sbx provider')
 
 const KILL_PROBE_SLEEP = '987654321'
-const KILL_PROBE_GREP = '98765[4]321'
 
 describe('sbx provider (gated on sbx ls --json)', () => {
   if ('unsupported' in gate) {
@@ -81,12 +80,15 @@ describe('sbx provider (gated on sbx ls --json)', () => {
         id: sbxTestId(),
         workspace: defineWorkspace({ source: localSource(repo) }),
       })
-      const probeRows = async (): Promise<string> =>
-        (
-          await handle!.process.exec(
-            `ps | grep ${KILL_PROBE_GREP} | grep -v grep || true`,
-          )
-        ).stdout.trim()
+      const probeRows = async (): Promise<string> => {
+        const result = await handle!.process.exec('ps -ef')
+        expect(result.exitCode).toBe(0)
+        return result.stdout
+          .split('\n')
+          .filter((line) => line.includes(KILL_PROBE_SLEEP))
+          .join('\n')
+          .trim()
+      }
 
       const proc = await handle.process.spawn(
         `echo up; sleep ${KILL_PROBE_SLEEP}`,
