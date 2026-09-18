@@ -314,6 +314,10 @@ const denied = message.parts.some(
 )
 ```
 
+The `@tanstack/ai-client` package exposes the same value on the
+`tool-result` part. Use `part.outcome` to distinguish a denial or cancellation
+from an ordinary tool execution failure.
+
 ## Next Steps
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution

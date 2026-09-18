@@ -542,7 +542,7 @@ export interface TanStackMessageMetadata {
     createdAt?: string
     content?: Array<ContentPart>
   }
-  /** Outcome of a cancelled or denied tool result. */
+  /** Outcome of a cancelled or denied tool result; when present, the UI state is `error`. */
   toolResultOutcome?: ToolResultOutcome
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'

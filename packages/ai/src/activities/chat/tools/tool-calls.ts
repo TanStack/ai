@@ -440,7 +440,7 @@ export interface ToolResult {
   toolName: string
   result: any
   state?: 'output-available' | 'output-error'
-  /** Set when the user cancelled or denied the tool call. */
+  /** Set when the user or middleware cancelled or denied the tool call; state is output-error. */
   outcome?: ToolResultOutcome
   /** Duration of tool execution in milliseconds (only for server-executed tools) */
   duration?: number

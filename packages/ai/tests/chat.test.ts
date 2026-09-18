@@ -1740,14 +1740,24 @@ describe('chat()', () => {
       )
 
       const followUpMessages = calls.at(-1)?.messages as
-        | Array<{ role: string; toolCallId?: string }>
+        | Array<{
+            role: string
+            toolCallId?: string
+            content?: unknown
+            metadata?: unknown
+          }>
         | undefined
+      const deniedMessage = followUpMessages?.find(
+        (message) =>
+          message.role === 'tool' && message.toolCallId === 'call_denied',
+      )
       expect(
-        followUpMessages?.filter(
-          (message) =>
-            message.role === 'tool' && message.toolCallId === 'call_denied',
-        ),
+        followUpMessages?.filter((message) => message === deniedMessage),
       ).toHaveLength(1)
+      expect(deniedMessage).toMatchObject({
+        content: JSON.stringify({ error: 'User declined tool execution' }),
+        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+      })
     })
 
     it('translates a validated ephemeral client-tool output', async () => {
