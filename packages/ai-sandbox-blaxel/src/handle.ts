@@ -4,9 +4,9 @@
  * sandbox paths (default workspace root `/workspace`).
  *
  * Filesystem data ops (read/readBytes/write/list/mkdir/remove) use Blaxel's
- * native filesystem endpoints; `rename` shells out through `exec` and `exists`
- * through a bare `test -e` probe because the filesystem API has no move or
- * stat call. Commands run through Blaxel's
+ * native filesystem endpoints; `rename` shells out through `exec`, `exists`
+ * through a bare `test -e` probe, and `lstat` through GNU `stat -c '%f:%s'`
+ * because the filesystem API has no move or stat call. Commands run through Blaxel's
  * process API, which reports stdout, stderr, and the exit code as separate
  * fields, so no output demultiplexing is needed.
  */
@@ -21,6 +21,7 @@ import type {
   ProcessOptions,
   SandboxCapabilities,
   SandboxChannel,
+  SandboxFsStat,
   SandboxHandle,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
@@ -35,11 +36,9 @@ export const BLAXEL_CAPS: SandboxCapabilities = {
   // stdin channel, so adapters that feed a prompt over stdin must write it to a
   // file and redirect instead.
   writableStdin: false,
-  // The SDK exposes a server-side kill endpoint, but child-process-group
-  // termination has not yet been measured against a live sandbox. Keep journal
-  // follow mode disabled until that conformance test can prove it leaves no
-  // remote process behind.
-  killableProcesses: false,
+  // The remote reaper terminates the supervisor and child process groups.
+  // Credential-gated journal conformance verifies follow cleanup.
+  killableProcesses: true,
   // Blaxel's source-scoped snapshot/fork API is a private preview, offers no
   // entitlement probe, and does not document snapshots surviving deletion.
   // TanStack's snapshot contract must reconstruct a sandbox after resume says
@@ -71,6 +70,7 @@ const PREVIEW_TTL_UNIT_MS: Record<string, number> = {
 /** Maximum unread stdout or stderr retained per spawned process. */
 const STREAM_BUFFER_LIMIT_BYTES = 8 * 1024 * 1024
 const PROCESS_REGISTRATION_RECONCILIATION_MS = 10_000
+const PROCESS_REAPER_TIMEOUT_SECONDS = 30
 /** Exit code `wait()` reports for a process ended by `kill()` (128 + SIGTERM). */
 const KILLED_EXIT_CODE = 143
 
@@ -299,6 +299,7 @@ export class BlaxelHandle implements SandboxHandle {
       // The framework's watcher calls this once per file event, so it bypasses
       // the capture supervisor: one process call instead of ~6 round trips.
       exists: (p) => this.probe(`test -e ${q(this.abs(p))}`),
+      lstat: (p) => this.lstat(this.abs(p)),
       watch: (p, onEvent) => {
         // Without `onError` the SDK discards watch failures (404, auth, stream
         // reset) and silently stops delivering events. The contract has no
@@ -570,8 +571,9 @@ export class BlaxelHandle implements SandboxHandle {
 
   private async reapProcessGroups(outputDir: string): Promise<void> {
     const pidsFile = q(`${outputDir}/pids`)
-    const result = await this.sandbox.process.exec({
-      name: this.processName('reap'),
+    const name = this.processName('reap')
+    await this.sandbox.process.exec({
+      name,
       command: [
         `if [ -r ${pidsFile} ]; then`,
         `  __tanstack_pids=$(cat ${pidsFile})`,
@@ -587,12 +589,23 @@ export class BlaxelHandle implements SandboxHandle {
         'fi',
       ].join('\n'),
       workingDir: this.workdir,
-      waitForCompletion: true,
-      timeout: 30,
+      waitForCompletion: false,
+      keepAlive: true,
+      timeout: PROCESS_REAPER_TIMEOUT_SECONDS,
     })
-    if (result.exitCode !== 0) {
+    // Client-side wait is the completion bound: SDK wait throws at maxWait.
+    // keepAlive avoids the SDK's default keep-alive timeout, matching spawn.
+    const result = await this.sandbox.process.wait(name, {
+      maxWait: PROCESS_REAPER_TIMEOUT_SECONDS * 1000,
+      interval: 250,
+    })
+    const exitCode = result.exitCode
+    const finished =
+      (result.status === 'completed' || result.status === 'failed') &&
+      Number.isInteger(exitCode)
+    if (!finished || exitCode !== 0) {
       throw new Error(
-        `blaxel: remote process-group reaper exited ${result.exitCode ?? 'without a status'}.`,
+        `blaxel: remote process-group reaper exited ${exitCode ?? 'without a status'} (status=${String(result.status)}).`,
       )
     }
   }
@@ -735,6 +748,31 @@ export class BlaxelHandle implements SandboxHandle {
       )
     }
     return result.exitCode === 0
+  }
+
+  private async lstat(path: string): Promise<SandboxFsStat | undefined> {
+    const result = await this.sandbox.process.exec({
+      name: this.processName('lstat'),
+      command: `LC_ALL=C stat -c '%f:%s' -- ${q(path)}`,
+      workingDir: this.workdir,
+      waitForCompletion: true,
+      timeout: 30,
+    })
+    if (result.exitCode === undefined) {
+      throw new Error(
+        `blaxel: lstat ended without an exit code (status=${String(result.status)}).`,
+      )
+    }
+    if (result.exitCode !== 0) {
+      const stderr = result.stderr ?? ''
+      if (stderr.includes('No such file or directory')) {
+        return undefined
+      }
+      throw new Error(
+        `blaxel: lstat ${path} failed: ${stderr.trim() || `exit ${result.exitCode}`}`,
+      )
+    }
+    return parseLstatOutput(result.stdout ?? '')
   }
 
   private async exec(
@@ -1304,6 +1342,22 @@ function mayHaveStartedProcess(error: unknown): boolean {
     status === 429 ||
     status >= 500
   )
+}
+
+function parseLstatOutput(output: string): SandboxFsStat {
+  const fields = /^([0-9a-fA-F]{3,4}):(\d+)\s*$/.exec(output)
+  const parsedMode = Number.parseInt(fields?.[1] ?? '', 16)
+  const parsedSize = Number(fields?.[2])
+  if (!Number.isSafeInteger(parsedMode) || !Number.isSafeInteger(parsedSize)) {
+    throw new Error(`blaxel: invalid lstat output: ${JSON.stringify(output)}`)
+  }
+  const type = parsedMode & 0o170000
+  if (type === 0o100000) {
+    return { type: 'file', mode: parsedMode, size: parsedSize }
+  }
+  if (type === 0o040000) return { type: 'dir', mode: parsedMode }
+  if (type === 0o120000) return { type: 'symlink', mode: parsedMode }
+  return { type: 'other', mode: parsedMode }
 }
 
 /** POSIX single-quote escape for embedding paths in a shell command. */
