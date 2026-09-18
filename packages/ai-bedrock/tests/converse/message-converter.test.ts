@@ -20,6 +20,40 @@ describe('toConverseMessages', () => {
     expect(system).toEqual([{ text: 'a' }, { text: 'b' }])
   })
 
+  it('follows a system prompt with a cachePoint when its metadata asks for one', () => {
+    const { system } = toConverseMessages(
+      [{ role: 'user', content: 'hi' }],
+      [
+        { content: 'stable', metadata: { cachePoint: { type: 'default' } } },
+        'volatile',
+      ],
+    )
+    expect(system).toEqual([
+      { text: 'stable' },
+      { cachePoint: { type: 'default' } },
+      { text: 'volatile' },
+    ])
+  })
+
+  it('follows a text part with a cachePoint when its metadata asks for one', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            content: 'a',
+            metadata: { cachePoint: { type: 'default', ttl: '1h' } },
+          },
+        ],
+      },
+    ])
+    expect(messages[0]!.content).toEqual([
+      { text: 'a' },
+      { cachePoint: { type: 'default', ttl: '1h' } },
+    ])
+  })
+
   it('merges consecutive same-role messages (Converse requires alternation)', () => {
     const { messages } = toConverseMessages([
       { role: 'user', content: 'a' },
