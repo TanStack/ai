@@ -12,7 +12,6 @@ import {
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { googleSearchTool } from '../src/tools'
 import { createGeminiSummarize } from '../src/adapters/summarize'
-import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
