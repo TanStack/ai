@@ -109,6 +109,20 @@ Ponytail does not skip this repo's quality gates, E2E tests, or the `docs`,
 `pr-description`, and `bugfix-pr` skills. Load those when their own rules
 say so.
 
+## Example tutorial skill (mandatory for Claude, Grok, and Codex)
+
+Before adding a public teaching example or a docs tutorial, you MUST load
+the `add-example-tutorial` skill and follow it. This is not optional.
+
+Use the Skill tool if this harness has one. If it does not, Read
+`.claude/skills/add-example-tutorial/SKILL.md` (copies also live at
+`.agents/skills/add-example-tutorial/SKILL.md` for Codex and
+`.grok/skills/add-example-tutorial/SKILL.md` for Grok). Keep those three
+files identical.
+
+Do not invent a layout or tutorial order from memory. Internal Nx labs
+under `examples/<name>/` still use `new-react-playground`.
+
 ## Dependency Install
 
 Run `pnpm install` before starting any task and again after every merge with

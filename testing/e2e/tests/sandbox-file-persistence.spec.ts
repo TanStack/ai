@@ -40,6 +40,7 @@ test.describe('sandbox portable file snapshots', () => {
       artifactText: 'artifact data',
       conversation: [{ content: 'saved conversation', role: 'user' }],
       automaticConversation: [
+        { content: 'saved conversation', role: 'user' },
         { content: 'recover', role: 'user' },
         {
           content: 'automatic conversation',

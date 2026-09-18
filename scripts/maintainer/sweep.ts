@@ -1,7 +1,7 @@
 /**
  * Maintainer sweep — runs on a schedule (every few hours). For every open PR
  * and issue it:
- *   - routes and assigns an owner (area globs → least-loaded rotation)
+ *   - routes an owner and reviewer (core approval → load → areas)
  *   - posts a one-time ack comment with a deterministic pre-review checklist
  *   - reconciles `waiting-on:*` / `ready-to-merge` / `needs-repro` / `has-pr`
  *     labels so triage state is visible in the GitHub UI
@@ -29,7 +29,7 @@ import { collectSnapshot } from './collect'
 import { buildAckComment, buildReproComment } from './comments'
 import { loadConfig } from './config'
 import { createGitHubClient } from './github'
-import { computeLoad, routeIssue, routePR } from './route'
+import { computeLoad, requiresCoreReview, routeIssue, routePR } from './route'
 import { isDryRun, resolveToken, writeStepSummary } from './env'
 import type { Mutation } from './actions'
 import type { RepoSnapshot, ToolsetConfig } from './types'
@@ -45,10 +45,14 @@ export function planSweep(
   config: ToolsetConfig,
 ): SweepPlan {
   const triage = classifyAll(snapshot, config)
-  const load = computeLoad(config, [
-    ...snapshot.prs.map((pr) => pr.assignees),
-    ...snapshot.issues.map((issue) => issue.assignees),
-  ])
+  const prLoad = computeLoad(
+    config,
+    snapshot.prs.map((pr) => pr.assignees),
+  )
+  const issueLoad = computeLoad(
+    config,
+    snapshot.issues.map((issue) => issue.assignees),
+  )
 
   const mutations: Array<Mutation> = []
   const skippedAsSpam: Array<number> = []
@@ -63,7 +67,12 @@ export function planSweep(
     }
   }
 
-  for (const t of triage.prs) {
+  for (const t of [...triage.prs].sort(
+    (a, b) =>
+      Number(requiresCoreReview(b.item.files, snapshot.codeowners)) -
+        Number(requiresCoreReview(a.item.files, snapshot.codeowners)) ||
+      a.item.number - b.item.number,
+  )) {
     const pr = t.item
     if (t.bot) continue
     if (t.suspectedSpam) {
@@ -74,13 +83,40 @@ export function planSweep(
 
     let assignee = pr.assignees[0] ?? null
     if (assignee === null) {
-      const routed = routePR(pr.files, pr.author, config, load, pr.number)
+      const routed = routePR(
+        pr.files,
+        pr.author,
+        config,
+        prLoad,
+        pr.number,
+        snapshot.codeowners,
+        snapshot.recentlyClosed,
+      )
       if (routed !== null) {
         mutations.push({ kind: 'assign', number: pr.number, assignee: routed })
-        load.set(routed, (load.get(routed) ?? 0) + 1)
+        prLoad.set(routed, (prLoad.get(routed) ?? 0) + 1)
         t.suggestedAssignee = routed
         assignee = routed
       }
+    }
+
+    // Repair partial runs: assignment may succeed before review request fails.
+    for (const reviewer of new Set([
+      ...pr.assignees,
+      ...(assignee ? [assignee] : []),
+    ])) {
+      if (reviewer.toLowerCase() === pr.author?.toLowerCase()) continue
+      const requested = pr.requestedReviewers.some(
+        (login) => login.toLowerCase() === reviewer.toLowerCase(),
+      )
+      const reviewed = pr.timeline.some(
+        (e) =>
+          e.kind === 'review' &&
+          e.actor?.toLowerCase() === reviewer.toLowerCase() &&
+          e.reviewState !== 'PENDING',
+      )
+      if (!requested && !reviewed)
+        mutations.push({ kind: 'request-review', number: pr.number, reviewer })
     }
 
     if (!t.hasAckComment && !t.rosterAuthor && assignee !== null) {
@@ -109,7 +145,7 @@ export function planSweep(
         `${issue.title}\n${issue.body}`,
         issue.author,
         config,
-        load,
+        issueLoad,
         issue.number,
       )
       if (routed !== null) {
@@ -118,7 +154,7 @@ export function planSweep(
           number: issue.number,
           assignee: routed,
         })
-        load.set(routed, (load.get(routed) ?? 0) + 1)
+        issueLoad.set(routed, (issueLoad.get(routed) ?? 0) + 1)
         t.suggestedAssignee = routed
       }
     }

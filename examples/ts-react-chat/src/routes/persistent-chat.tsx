@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
 import { sendEmailTool } from '../lib/persistent-chat-tools'
@@ -156,19 +156,33 @@ function ChatPane({
     connectionStatus,
     interrupts,
     resuming,
-  } = useChat<typeof chatTools>({
+    hasOlderMessages,
+    loadOlderMessages,
+  } = useChat({
     threadId,
     connection,
     persistence,
+    history: { pageSize: 2 },
     // Share the tool definition so the client can bind the approval interrupt
     // (verify its schema hashes) and resolve it.
     tools: chatTools,
   })
   const [input, setInput] = useState('')
+  const [olderLoadError, setOlderLoadError] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const scrollRestore = useRef<{ height: number; top: number } | null>(null)
+  const lastMessageId = messages.at(-1)?.id
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
+  }, [lastMessageId])
+
+  useLayoutEffect(() => {
+    const restore = scrollRestore.current
+    const el = threadRef.current
+    if (restore === null || !el) return
+    el.scrollTop = el.scrollHeight - restore.height + restore.top
+    scrollRestore.current = null
   }, [messages])
 
   useEffect(() => {
@@ -206,6 +220,29 @@ function ChatPane({
       </p>
 
       <div className="pc-thread" ref={threadRef}>
+        {hasOlderMessages ? (
+          <button
+            type="button"
+            className="pc-chip"
+            onClick={() => {
+              const el = threadRef.current
+              if (el) {
+                scrollRestore.current = {
+                  height: el.scrollHeight,
+                  top: el.scrollTop,
+                }
+              }
+              setOlderLoadError(null)
+              void loadOlderMessages().catch(() => {
+                scrollRestore.current = null
+                setOlderLoadError('Could not load older messages.')
+              })
+            }}
+          >
+            Load older
+          </button>
+        ) : null}
+        {olderLoadError ? <p className="pc-empty">{olderLoadError}</p> : null}
         {messages.length === 0 ? (
           <p className="pc-empty">
             No messages yet — try a suggestion below, then reload or switch

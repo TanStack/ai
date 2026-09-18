@@ -824,6 +824,46 @@ export interface SpeechUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Voice Events
+// ===========================
+
+/** Emitted when a voice creation request starts. */
+export interface VoiceRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt?: string
+  name?: string
+  description?: string
+  /** Whether reference audio was supplied — the audio itself is never emitted. */
+  hasReferenceAudio: boolean
+}
+
+/** Emitted when a voice creation request completes. */
+export interface VoiceRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  voiceIds: Array<string>
+  voiceCount: number
+  previewText?: string
+  duration: number
+}
+
+/** Emitted when voice creation usage metrics are available. */
+export interface VoiceUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Transcription Events
 // ===========================
 
@@ -918,6 +958,17 @@ export interface AudioRequestErrorEvent extends BaseEventContext {
 
 /** Emitted when a speech generation request fails. */
 export interface SpeechRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when a voice creation request fails. */
+export interface VoiceRequestErrorEvent extends BaseEventContext {
   requestId: string
   threadId?: string
   runId?: string
@@ -1468,6 +1519,10 @@ export interface AIDevtoolsEventMap {
   'speech:request:completed': SpeechRequestCompletedEvent
   'speech:request:error': SpeechRequestErrorEvent
   'speech:usage': SpeechUsageEvent
+  'voice:request:started': VoiceRequestStartedEvent
+  'voice:request:completed': VoiceRequestCompletedEvent
+  'voice:request:error': VoiceRequestErrorEvent
+  'voice:usage': VoiceUsageEvent
 
   // Transcription events
   'transcription:request:started': TranscriptionRequestStartedEvent

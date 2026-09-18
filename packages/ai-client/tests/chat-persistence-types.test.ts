@@ -80,3 +80,30 @@ describe('ChatClient persistence requires a threadId', () => {
     void threadId
   })
 })
+
+describe('ChatClient history paging types', () => {
+  it('accepts history.pageSize with persistence: true and a threadId', () => {
+    const _typeCheck = () => {
+      createChatClientOptions({
+        connection,
+        persistence: true,
+        threadId: 'support-42',
+        history: { pageSize: 50 },
+      })
+    }
+    void _typeCheck
+  })
+
+  it('rejects history on a storage adapter', () => {
+    const _typeCheck = () => {
+      // @ts-expect-error history is only valid with persistence: true
+      createChatClientOptions({
+        connection,
+        persistence,
+        threadId: 'support-42',
+        history: { pageSize: 50 },
+      })
+    }
+    void _typeCheck
+  })
+})

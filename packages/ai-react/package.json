@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-react",
-  "version": "0.24.1",
+  "version": "0.27.1",
   "description": "React hooks for TanStack AI streaming chat, realtime voice, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -32,6 +32,10 @@
     "./ui": {
       "types": "./dist/esm/ui.d.ts",
       "import": "./dist/esm/ui.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [
@@ -64,11 +68,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:^",
-    "react-markdown": "^10.1.0",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
+    "@tanstack/markdown": "^0.0.13"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",

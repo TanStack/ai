@@ -3,8 +3,6 @@ id: InterruptBindingDescriptor
 title: InterruptBindingDescriptor
 ---
 
-# Interface: InterruptBindingDescriptor
-
 Defined in: [packages/ai/src/interrupt-definition.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L54)
 
 ## Properties

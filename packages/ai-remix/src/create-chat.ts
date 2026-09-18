@@ -83,6 +83,7 @@ export function createChat<
 ) {
   let messages = options.initialMessages || []
   let isLoading = false
+  let hasOlderMessages = false
   let error: Error | undefined
   let status: ChatClientState = 'ready'
   let isSubscribed = false
@@ -117,12 +118,20 @@ export function createChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence
+    ...(options.persistence === true
       ? {
-          persistence: options.persistence,
+          persistence: true,
           threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
         }
-      : { threadId }),
+      : options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId,
+          }
+        : { threadId }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
@@ -160,6 +169,7 @@ export function createChat<
     }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
+      hasOlderMessages = client.getHasOlderMessages()
       commit()
     },
     onLoadingChange: (newIsLoading: boolean) => {
@@ -264,6 +274,12 @@ export function createChat<
     }
   }
 
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+    hasOlderMessages = client.getHasOlderMessages()
+    commit()
+  }
+
   const stop = () => {
     client.stop()
   }
@@ -359,6 +375,9 @@ export function createChat<
     get isLoading() {
       return isLoading
     },
+    get hasOlderMessages() {
+      return hasOlderMessages
+    },
     get error() {
       return error
     },
@@ -407,6 +426,7 @@ export function createChat<
     cancelQueued,
     append,
     reload,
+    loadOlderMessages,
     stop,
     setMessages,
     clear,

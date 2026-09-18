@@ -6,6 +6,9 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 
 Choose an example based on your use case:
 
+- **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want an image from a prompt?** → [Generate Image](#generate-image)
+- **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -13,6 +16,60 @@ Choose an example based on your use case:
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
+
+### Basic Chat
+
+A slim TanStack Start chat. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/basic-chat`
+
+**Getting Started:**
+
+```bash
+pnpm --filter basic-chat dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send a message.
+
+📖 [Full Documentation](react/basic-chat/README.md)
+
+---
+
+### Generate Image
+
+A slim TanStack Start image app. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/generate-image`
+
+**Getting Started:**
+
+```bash
+pnpm --filter generate-image dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Type a prompt. Click Generate.
+
+📖 [Full Documentation](react/generate-image/README.md)
+
+---
+
+### Streaming Structured Table
+
+A slim TanStack Start app. One schema. `chat({ outputSchema, stream: true })` fills a table as JSON streams in.
+
+**Path:** `examples/react/streaming-structured-table`
+
+**Getting Started:**
+
+```bash
+pnpm --filter streaming-structured-table dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
+
+📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
 
 ### TanStack Chat (ts-react-chat)
 

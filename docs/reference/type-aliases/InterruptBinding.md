@@ -3,8 +3,6 @@ id: InterruptBinding
 title: InterruptBinding
 ---
 
-# Type Alias: InterruptBinding
-
 ```ts
 type InterruptBinding = 
   | ResponseSchemaInterruptBindingBase & object

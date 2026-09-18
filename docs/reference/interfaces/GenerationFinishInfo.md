@@ -3,9 +3,7 @@ id: GenerationFinishInfo
 title: GenerationFinishInfo
 ---
 
-# Interface: GenerationFinishInfo
-
-Defined in: [packages/ai/src/activities/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L135)
+Defined in: [packages/ai/src/activities/middleware/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L137)
 
 Information passed to [GenerationMiddleware.onFinish](GenerationMiddleware.md#onfinish).
 
@@ -17,7 +15,7 @@ Information passed to [GenerationMiddleware.onFinish](GenerationMiddleware.md#on
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L137)
+Defined in: [packages/ai/src/activities/middleware/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L139)
 
 Wall-clock duration of the activity call, in milliseconds.
 
@@ -29,6 +27,6 @@ Wall-clock duration of the activity call, in milliseconds.
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L139)
+Defined in: [packages/ai/src/activities/middleware/types.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L141)
 
 Unified usage, when the provider reported it.

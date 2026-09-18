@@ -1,5 +1,42 @@
 # @tanstack/ai
 
+## 0.56.0
+
+### Minor Changes
+
+- [#1396](https://github.com/TanStack/ai/pull/1396) [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6) - Add dialogue turns and timing alignment to the text-to-speech contract.
+
+  `generateSpeech()` takes `turns` (an array of `{ text, voice }`) in place of `text` for a multi-voice script, and `timestamps: true` to ask for timings. `TTSResult` gains `alignment` (per character or per word, with `alignment.unit` saying which, all times in seconds) and `segments` (one per turn for dialogue, one per sentence for a single voice). Use `alignment` rather than `duration` to find where speech stops.
+
+  Both are adapter capabilities, declared on `adapter.capabilities` as `maxSpeakers` and `timestamps`. The activity rejects a request the adapter cannot serve before it reaches the provider, so too many speakers is a typed error rather than a provider 422.
+
+  Wired through three adapters:
+  - `byteplusSpeech` (Seed Audio 1.0): up to 3 voices, mapped to `references` plus a role-structured `text_prompt`. `timestamps` sets `audio_config.enable_subtitle`, and the subtitle block becomes word alignment and sentence segments, converted from milliseconds to seconds.
+  - `elevenlabsSpeech`: up to 10 voices. Picks between `textToSpeech.convert`, `textToSpeech.convertWithTimestamps`, `textToDialogue.convert` and `textToDialogue.convertWithTimestamps` from `turns` and `timestamps`. Dialogue also returns per-turn `segments` with the voice that spoke each one.
+  - `geminiSpeech`: up to 2 voices, building `multiSpeakerVoiceConfig` and the labelled prompt from the turns.
+
+  Every addition is optional, so existing adapters and callers are unaffected.
+
+### Patch Changes
+
+- [#1197](https://github.com/TanStack/ai/pull/1197) [`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9) - Fix `ToolCallManager.addToolCallStartEvent` running a tool call twice (or wiping its accumulated arguments) when a producer sends a repeat `TOOL_CALL_START` for a `toolCallId` that is already tracked. AG-UI's `TOOL_CALL_START` carries no `index`, so a custom/malformed stream that re-sends START for the same id could either overwrite the tracked entry's arguments back to `''` (same index) or insert a duplicate row that `getToolCalls()` returned twice (missing/different index). Repeats for an already-tracked id are now ignored; first-party adapters, which only emit START once per call, are unaffected.
+
+## 0.55.0
+
+### Minor Changes
+
+- [#1400](https://github.com/TanStack/ai/pull/1400) [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410) - Page long chat threads on hydrate. Pass `history: { pageSize }` with `persistence: true`. Then call `loadOlderMessages()` to prepend older turns. `withPersistence` merges incoming messages by id so a short client list keeps stored extras. `loadThread` accepts optional `limit` / `before` and can return a `MessagePage`.
+
+### Patch Changes
+
+- [#1398](https://github.com/TanStack/ai/pull/1398) [`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74) - fix(chat): keep ui-resource parts emitted during the current run on the interrupt MESSAGES_SNAPSHOT. Server tools emitting `ui://` widgets via `ctx.emitCustomEvent('ui-resource', ...)` now have the resource recorded on the tool-call anchor ModelMessage, so the MESSAGES_SNAPSHOT emitted when the run pauses on a client tool no longer drops the widget from client state ([#1397](https://github.com/TanStack/ai/issues/1397)).
+
+## 0.54.1
+
+### Patch Changes
+
+- [#1395](https://github.com/TanStack/ai/pull/1395) [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6) - Return real WAV audio for ElevenLabs speech requests with `format: 'wav'` and reject unsupported AAC and FLAC formats instead of silently returning MP3. Preserve explicit `modelOptions.outputFormat` overrides and document the supported formats in the media-generation skill.
+
 ## 0.54.0
 
 ### Minor Changes

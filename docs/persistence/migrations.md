@@ -3,8 +3,6 @@ title: Persistence Migrations
 id: migrations
 ---
 
-# Persistence Migrations
-
 Your adapter owns its schema. TanStack AI never inspects your tables, so you
 decide the table layout and how schema changes are applied. Apply those changes
 before deploying code that reads or writes the corresponding stores.

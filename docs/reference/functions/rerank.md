@@ -3,8 +3,6 @@ id: rerank
 title: rerank
 ---
 
-# Function: rerank()
-
 ```ts
 function rerank<TAdapter, TDocument>(options): Promise<RerankResult<TDocument>>;
 ```

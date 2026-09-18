@@ -1,7 +1,11 @@
-import ReactMarkdown from 'react-markdown'
-import { resolveMarkdownPlugins } from './markdown-plugins'
-import type { Components } from 'react-markdown'
-import type { PluggableList } from './markdown-plugins'
+import { Markdown } from '@tanstack/markdown/react'
+import { streamingMarkdownExtension } from '@tanstack/markdown/extensions/streaming'
+import type { CodeHighlighter, MarkdownExtension } from '@tanstack/markdown'
+import type { MarkdownComponents } from '@tanstack/markdown/react'
+
+const DEFAULT_EXTENSIONS: Array<MarkdownExtension> = [
+  streamingMarkdownExtension(),
+]
 
 export interface TextPartProps {
   /** The text content to render */
@@ -15,30 +19,25 @@ export interface TextPartProps {
   /** Additional className for assistant messages (also used for system messages) */
   assistantClassName?: string
   /**
-   * Additional remark plugins, appended after the defaults
-   * (or replacing them when `disableDefaultPlugins` is true).
+   * Additional TanStack Markdown extensions, appended after the built-in
+   * streaming extension.
    */
-  remarkPlugins?: PluggableList
+  extensions?: Array<MarkdownExtension>
   /**
-   * Additional rehype plugins. Inserted between the built-in
-   * `rehypeRaw`/`rehypeHighlight` and the trailing `rehypeSanitize`
-   * so sanitization always runs last. When `disableDefaultPlugins`
-   * is true, replaces the entire chain.
+   * Synchronous code highlighter. Its output is inserted as trusted HTML,
+   * so use only a highlighter that escapes source text (for example
+   * `createTanStackMarkdownHighlighter` from `@tanstack/highlight/markdown`).
    */
-  rehypePlugins?: PluggableList
-  /** react-markdown `components` overrides (e.g. custom `a`, `code`). */
-  components?: Components
-  /**
-   * Drop the built-in plugin defaults entirely. The consumer becomes
-   * responsible for syntax highlighting, GFM, raw HTML handling, and
-   * sanitization. Use with care — disabling defaults removes the
-   * built-in XSS sanitizer.
-   */
-  disableDefaultPlugins?: boolean
+  highlighter?: CodeHighlighter
+  /** Replace intrinsic elements (e.g. custom `a`, `img`) by tag name. */
+  components?: MarkdownComponents
 }
 
 /**
- * TextPart component - renders markdown text with syntax highlighting.
+ * TextPart component - renders markdown text with TanStack Markdown.
+ *
+ * Raw HTML is escaped and executable URLs are removed, so AI output can be
+ * rendered without a separate sanitizer.
  *
  * @example Standalone usage
  * ```tsx
@@ -51,11 +50,11 @@ export interface TextPartProps {
  * />
  * ```
  *
- * @example Add a markdown plugin (e.g. CJK bold/emphasis support)
+ * @example Syntax highlighting
  * ```tsx
- * import remarkCjkFriendly from 'remark-cjk-friendly'
+ * import { highlightMarkdownCode } from './markdown-highlighter'
  *
- * <TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
+ * <TextPart content={content} highlighter={highlightMarkdownCode} />
  * ```
  */
 export function TextPart({
@@ -64,10 +63,9 @@ export function TextPart({
   className = '',
   userClassName = '',
   assistantClassName = '',
-  remarkPlugins,
-  rehypePlugins,
+  extensions,
+  highlighter,
   components,
-  disableDefaultPlugins,
 }: TextPartProps) {
   const roleClassName =
     role === 'user'
@@ -77,21 +75,21 @@ export function TextPart({
         : ''
   const combinedClassName = [className, roleClassName].filter(Boolean).join(' ')
 
-  const resolved = resolveMarkdownPlugins({
-    remarkPlugins,
-    rehypePlugins,
-    disableDefaultPlugins,
-  })
-
   return (
     <div className={combinedClassName || undefined}>
-      <ReactMarkdown
-        remarkPlugins={resolved.remarkPlugins}
-        rehypePlugins={resolved.rehypePlugins}
+      <Markdown
+        extensions={
+          extensions
+            ? [...DEFAULT_EXTENSIONS, ...extensions]
+            : DEFAULT_EXTENSIONS
+        }
+        frontmatter={false}
+        headingIds={false}
+        highlighter={highlighter}
         components={components}
       >
         {content}
-      </ReactMarkdown>
+      </Markdown>
     </div>
   )
 }

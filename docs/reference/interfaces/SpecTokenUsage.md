@@ -3,8 +3,6 @@ id: SpecTokenUsage
 title: SpecTokenUsage
 ---
 
-# Interface: SpecTokenUsage
-
 Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:4](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L4)
 
 AG-UI spec `usage[]` item (provider/model labels + token counts only).

@@ -3,8 +3,6 @@ id: createSpeechOptions
 title: createSpeechOptions
 ---
 
-# Function: createSpeechOptions()
-
 ```ts
 function createSpeechOptions<TAdapter, TStream>(options): TTSActivityOptions<TAdapter, TStream>;
 ```

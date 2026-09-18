@@ -1530,4 +1530,113 @@ describe('connection-adapters', () => {
       )
     })
   })
+
+  describe('chat hydrate paging', () => {
+    function jsonHydrationResponse(body: {
+      messages?: Array<{
+        id: string
+        role: 'user' | 'assistant' | 'system'
+        parts: Array<{ type: 'text'; content: string }>
+      }>
+      activeRun?: { runId: string } | null
+      page?: { truncated: boolean; cursor?: string }
+    }) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+      }
+    }
+
+    it('includes limit and before as search params when hydrate options are passed', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true, cursor: 'c1' },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1', {
+        limit: 50,
+        before: 'cursor-a',
+      })
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        '/api/chat?threadId=thread-1&limit=50&before=cursor-a',
+      )
+      expect(result.page).toEqual({ truncated: true, cursor: 'c1' })
+    })
+
+    it('treats truncated true without a cursor as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.page).toEqual({ truncated: false })
+    })
+
+    it('treats a missing page as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [
+            {
+              id: 'm1',
+              role: 'user',
+              parts: [{ type: 'text', content: 'hi' }],
+            },
+          ],
+          activeRun: null,
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat?threadId=thread-1')
+      expect(result.page).toEqual({ truncated: false })
+      expect(result.messages.map((message) => message.id)).toEqual(['m1'])
+    })
+
+    it('forwards hydrate paging options through normalizeConnectionAdapter', async () => {
+      const hydration = {
+        messages: [],
+        activeRun: null,
+        interrupts: null,
+      }
+      const hydrate = vi.fn(async () => hydration)
+      const normalized = normalizeConnectionAdapter({
+        connect: async function* () {},
+        hydrate,
+      })
+
+      const result = await normalized.hydrate?.('t1', {
+        limit: 50,
+        before: 'c1',
+      })
+
+      expect(result).toEqual(hydration)
+      expect(hydrate).toHaveBeenCalledWith('t1', {
+        limit: 50,
+        before: 'c1',
+      })
+    })
+  })
 })

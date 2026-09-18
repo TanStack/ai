@@ -3,8 +3,6 @@ id: generateSpeech
 title: generateSpeech
 ---
 
-# Function: generateSpeech()
-
 ```ts
 function generateSpeech<TAdapter, TStream>(options): TTSActivityResult<TStream>;
 ```

@@ -123,6 +123,26 @@ describe('GenerationClient byok', () => {
     })
   })
 
+  it('stamps the only saved key when no provider slug is passed', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    const fetcher = vi.fn(async () => ({ ok: true }))
+    const client = new GenerationClient({
+      fetcher,
+      byok,
+    })
+
+    await client.generate({ prompt: 'hello' })
+
+    expect(fetcher).toHaveBeenCalledWith(
+      { prompt: 'hello' },
+      {
+        signal: expect.any(AbortSignal),
+        headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
+      },
+    )
+  })
+
   it('does not send every stored key when no provider resolves', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', 'sk-live-secret')

@@ -203,6 +203,14 @@ interface BaseInjectChatResult<
   stop: () => void
   /** Whether a response is currently being generated. */
   isLoading: Signal<boolean>
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: Signal<boolean>
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
   /** Current error, if any. */
   error: Signal<Error | undefined>
   /** Set messages manually. */

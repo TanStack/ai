@@ -3,8 +3,6 @@ id: DuplicateToolNameError
 title: DuplicateToolNameError
 ---
 
-# Class: DuplicateToolNameError
-
 Defined in: [packages/ai/src/activities/chat/tools/unique-tool-names.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/unique-tool-names.ts#L11)
 
 Thrown when `chat({ tools })` (or a provider converter) receives two tools

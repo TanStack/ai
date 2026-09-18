@@ -1,5 +1,27 @@
 # @tanstack/ai-grok
 
+## 0.18.8
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/openai-base@0.10.13
+
+## 0.18.7
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.18.6
+
+### Patch Changes
+
+- [#1359](https://github.com/TanStack/ai/pull/1359) [`acc69bb`](https://github.com/TanStack/ai/commit/acc69bb5f73ab5ee2fccc8f9b61d7805214d87b2) - Video: allow a starting-frame image alongside reference inputs on `grok-imagine-video-1.5`. xAI documents `image` combined with `reference_images` / `reference_audios` as the way to pin the first frame on 1.5; the adapter rejected the combination unconditionally, so the only workaround was to demote the intended first frame into `reference_images[0]`, which does not lock the first frame. Classic `grok-imagine-video` still rejects reference inputs outright.
+
 ## 0.18.5
 
 ### Patch Changes

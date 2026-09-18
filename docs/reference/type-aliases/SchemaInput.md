@@ -3,8 +3,6 @@ id: SchemaInput
 title: SchemaInput
 ---
 
-# Type Alias: SchemaInput
-
 ```ts
 type SchemaInput = 
   | StandardJSONSchemaV1<any, any>

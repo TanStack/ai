@@ -3,8 +3,6 @@ id: StructuredOutputStream
 title: StructuredOutputStream
 ---
 
-# Type Alias: StructuredOutputStream\<T\>
-
 ```ts
 type StructuredOutputStream<T> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>

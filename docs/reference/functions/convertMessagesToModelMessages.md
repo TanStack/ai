@@ -3,8 +3,6 @@ id: convertMessagesToModelMessages
 title: convertMessagesToModelMessages
 ---
 
-# Function: convertMessagesToModelMessages()
-
 ```ts
 function convertMessagesToModelMessages(messages): ModelMessage<
   | string

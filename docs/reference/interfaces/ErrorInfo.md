@@ -3,8 +3,6 @@ id: ErrorInfo
 title: ErrorInfo
 ---
 
-# Interface: ErrorInfo
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:534](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L534)
 
 Information passed to onError.

@@ -51,6 +51,7 @@ export type Feature =
   | 'audio-gen'
   | 'sound-effects'
   | 'tts'
+  | 'voice-design'
   | 'transcription'
   | 'transcription-diarization'
   | 'video-gen'
@@ -111,6 +112,7 @@ export const ALL_FEATURES: Feature[] = [
   'audio-gen',
   'sound-effects',
   'tts',
+  'voice-design',
   'transcription',
   'transcription-diarization',
   'video-gen',

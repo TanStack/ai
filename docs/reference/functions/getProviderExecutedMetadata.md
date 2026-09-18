@@ -3,8 +3,6 @@ id: getProviderExecutedMetadata
 title: getProviderExecutedMetadata
 ---
 
-# Function: getProviderExecutedMetadata()
-
 ```ts
 function getProviderExecutedMetadata(toolCall): 
   | ProviderExecutedToolMetadata

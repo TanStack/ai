@@ -3,8 +3,6 @@ id: countEmbeddingInputModalities
 title: countEmbeddingInputModalities
 ---
 
-# Function: countEmbeddingInputModalities()
-
 ```ts
 function countEmbeddingInputModalities(input): object;
 ```
