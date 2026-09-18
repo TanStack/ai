@@ -39,6 +39,30 @@ describe('Message Converters', () => {
         },
       ])
     })
+
+    it('persists a tool result outcome in TanStack metadata', () => {
+      const result = uiMessageToModelMessages({
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined tool execution"}',
+            state: 'error',
+            outcome: 'denied',
+          },
+        ],
+      })
+
+      expect(result).toContainEqual({
+        role: 'tool',
+        content: '{"error":"User declined tool execution"}',
+        toolCallId: 'call-1',
+        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+      })
+    })
+
     it('should convert simple text message', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
@@ -990,6 +1014,109 @@ describe('Message Converters', () => {
       })
     })
 
+    it('should preserve a cancelled tool result outcome', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        content: '{"error":"Tool execution cancelled"}',
+        toolCallId: 'tool-1',
+        metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+      }
+
+      expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: '{"error":"Tool execution cancelled"}',
+        state: 'error',
+        outcome: 'cancelled',
+        metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+      })
+    })
+
+    it('does not infer a tool result outcome from arbitrary content', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        content: '{"outcome":"cancelled"}',
+        toolCallId: 'tool-1',
+      }
+
+      expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: '{"outcome":"cancelled"}',
+        state: 'complete',
+      })
+
+      const restored = modelMessagesToUIMessages([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tool-1',
+              type: 'function',
+              function: { name: 'example', arguments: '{}' },
+            },
+          ],
+        },
+        modelMessage,
+      ])
+
+      expect(restored[0]?.parts).toContainEqual(
+        expect.objectContaining({ type: 'tool-call', state: 'complete' }),
+      )
+      const restoredToolResult = restored[0]?.parts.find(
+        (part) => part.type === 'tool-result',
+      )
+      expect(restoredToolResult).toMatchObject({
+        type: 'tool-result',
+        state: 'complete',
+      })
+      expect(restoredToolResult?.outcome).toBeUndefined()
+    })
+
+    it.each([null, 'unknown', 42])(
+      'ignores invalid persisted tool result outcomes: %s',
+      (invalidOutcome) => {
+        const modelMessage = {
+          role: 'tool',
+          content: '{"result":"success"}',
+          toolCallId: 'tool-1',
+          metadata: { tanstack: { toolResultOutcome: invalidOutcome } },
+        } as unknown as ModelMessage
+
+        expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
+          type: 'tool-result',
+          toolCallId: 'tool-1',
+          content: '{"result":"success"}',
+          state: 'complete',
+          metadata: modelMessage.metadata,
+        })
+
+        const restored = modelMessagesToUIMessages([
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'tool-1',
+                type: 'function',
+                function: { name: 'example', arguments: '{}' },
+              },
+            ],
+          },
+          modelMessage,
+        ])
+        const restoredToolResult = restored[0]?.parts.find(
+          (part) => part.type === 'tool-result',
+        )
+        expect(restoredToolResult).toMatchObject({
+          type: 'tool-result',
+          state: 'complete',
+        })
+        expect(restoredToolResult?.outcome).toBeUndefined()
+      },
+    )
+
     it('should convert assistant message with toolCalls and text', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
@@ -1471,6 +1598,40 @@ describe('Message Converters', () => {
           state: 'complete',
         },
       ])
+    })
+
+    it('should restore a cancelled tool result and its call as errors', () => {
+      const result = modelMessagesToUIMessages([
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'deleteData', arguments: '{}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: '{"error":"Tool execution cancelled"}',
+          toolCallId: 'tc-1',
+          metadata: { tanstack: { toolResultOutcome: 'cancelled' } },
+        },
+      ])
+
+      const parts = result[0]?.parts ?? []
+      expect(parts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'tool-call', state: 'error' }),
+          expect.objectContaining({
+            type: 'tool-result',
+            state: 'error',
+            outcome: 'cancelled',
+          }),
+        ]),
+      )
     })
 
     it('should handle multi-round tool flow with proper merging', () => {
@@ -2468,6 +2629,9 @@ describe('Message Converters', () => {
       expect(content.approved).toBe(false)
       expect(content.pendingExecution).toBeUndefined()
       expect(content.message).toBe('User denied this action')
+      expect(toolMsg?.metadata).toEqual({
+        tanstack: { toolResultOutcome: 'denied' },
+      })
     })
   })
 

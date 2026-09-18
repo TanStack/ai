@@ -11,6 +11,7 @@ import type {
   StructuredOutputPart,
   ThinkingPart,
   ToolCallPart,
+  ToolResultOutcome,
   ToolResultPart,
   UIMessage,
 } from '../../../types'
@@ -117,6 +118,7 @@ export function updateToolResultPart(
   content: string | Array<ContentPart>,
   state: ToolResultState,
   error?: string,
+  outcome?: ToolResultOutcome,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -134,6 +136,7 @@ export function updateToolResultPart(
       toolCallId,
       content,
       state,
+      ...(outcome !== undefined && { outcome }),
       ...(error && { error }),
     }
 

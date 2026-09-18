@@ -78,6 +78,9 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
+/** Why a tool result ended without executing successfully. */
+export type ToolResultOutcome = 'cancelled' | 'denied'
+
 export type ToolOutputState = 'output-available' | 'output-error'
 
 /**
@@ -444,6 +447,8 @@ export interface ToolResultPart {
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
+  /** Set when the user or middleware cancelled or denied the tool call; state remains `error`. */
+  outcome?: ToolResultOutcome
   error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>
   createdAt?: Date
@@ -537,6 +542,8 @@ export interface TanStackMessageMetadata {
     createdAt?: string
     content?: Array<ContentPart>
   }
+  /** Outcome of a cancelled or denied tool result; when present, the UI state is `error`. */
+  toolResultOutcome?: ToolResultOutcome
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     partial?: unknown

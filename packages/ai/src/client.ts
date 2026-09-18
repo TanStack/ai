@@ -377,6 +377,7 @@ export type {
   ThinkingPart,
   ToolCall,
   ToolCallPart,
+  ToolResultOutcome,
   ToolResultPart,
   UIMessage,
   UIResourcePart,

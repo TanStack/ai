@@ -3150,9 +3150,15 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
+      const resultMetadata = {
+        ...(result.state === 'output-error' ? { state: result.state } : {}),
+        ...(result.outcome !== undefined
+          ? { toolResultOutcome: result.outcome }
+          : {}),
+      }
       chunks.push(
-        (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, { state: result.state })
+        (Object.keys(resultMetadata).length > 0
+          ? withTanstackMetadata(resultChunk, resultMetadata)
           : resultChunk) as StreamChunk,
       )
 
@@ -3173,18 +3179,32 @@ class TextEngine<
           return false
         }
       })
+      const existingToolResultIdx = this.resumeDeniedToolResults.has(
+        result.toolCallId,
+      )
+        ? this.messages.findIndex(
+            (message) =>
+              message.role === 'tool' &&
+              message.toolCallId === result.toolCallId,
+          )
+        : -1
+      const resultMessageIdx =
+        existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
       const newToolMessage: ModelMessage = {
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.outcome !== undefined && {
+          metadata: { tanstack: { toolResultOutcome: result.outcome } },
+        }),
       }
 
-      if (placeholderIdx >= 0) {
+      if (resultMessageIdx >= 0) {
         this.messages = [
-          ...this.messages.slice(0, placeholderIdx),
+          ...this.messages.slice(0, resultMessageIdx),
           newToolMessage,
-          ...this.messages.slice(placeholderIdx + 1),
+          ...this.messages.slice(resultMessageIdx + 1),
         ]
       } else {
         this.messages = [...this.messages, newToolMessage]
@@ -3216,7 +3236,10 @@ class TextEngine<
         }
 
         // Only mark as complete if NOT pending execution
-        if (!hasPendingExecution) {
+        if (
+          !hasPendingExecution &&
+          !this.resumeDeniedToolResults.has(message.toolCallId)
+        ) {
           completedToolIds.add(message.toolCallId)
         }
       }
@@ -4205,6 +4228,7 @@ class TextEngine<
         this.earlyTermination = true
       } else if (policy.toolResume === 'cancel') {
         for (const request of pendingToolCalls) {
+          if (this.resumeDeniedToolResults.has(request.id)) continue
           this.resumeCancelledToolCallIds.add(request.id)
         }
       }
@@ -4405,6 +4429,7 @@ class TextEngine<
       this.earlyTermination = true
     } else if (policy.toolResume === 'cancel') {
       for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (this.resumeDeniedToolResults.has(toolCall.id)) continue
         this.resumeCancelledToolCallIds.add(toolCall.id)
       }
     }

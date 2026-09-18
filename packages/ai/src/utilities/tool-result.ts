@@ -1,4 +1,4 @@
-import type { ContentPart } from '../types'
+import type { ContentPart, ToolResultOutcome } from '../types'
 
 const CONTENT_PART_TYPES = new Set([
   'text',
@@ -7,6 +7,12 @@ const CONTENT_PART_TYPES = new Set([
   'video',
   'document',
 ])
+
+export function isToolResultOutcome(
+  value: unknown,
+): value is ToolResultOutcome {
+  return value === 'cancelled' || value === 'denied'
+}
 
 /**
  * Structural check for a single `ContentPart`. A text part must carry a string

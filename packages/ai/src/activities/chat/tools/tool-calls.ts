@@ -15,6 +15,7 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
   ToolExecutionContext,
+  ToolResultOutcome,
   ToolOutputState,
 } from '../../../types'
 import type {
@@ -439,6 +440,8 @@ export interface ToolResult {
   toolName: string
   result: any
   state?: 'output-available' | 'output-error'
+  /** Set when the user or middleware cancelled or denied the tool call; state is output-error. */
+  outcome?: ToolResultOutcome
   /** Duration of tool execution in milliseconds (only for server-executed tools) */
   duration?: number
   /**
@@ -819,6 +822,7 @@ export async function* executeToolCalls<TContext = unknown>(
         toolName,
         result: { error: 'Tool execution cancelled' },
         state: 'output-error',
+        outcome: 'cancelled',
       })
       continue
     }
@@ -928,6 +932,7 @@ export async function* executeToolCalls<TContext = unknown>(
                 deniedApprovalResult(resolution),
               input,
               state: 'output-error',
+              outcome: 'denied',
             })
           }
         } else {
@@ -1008,6 +1013,7 @@ export async function* executeToolCalls<TContext = unknown>(
               deniedApprovalResult(resolution),
             input,
             state: 'output-error',
+            outcome: 'denied',
           })
         }
       } else {
