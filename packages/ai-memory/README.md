@@ -102,12 +102,21 @@ Using `redis` (node-redis) instead of `ioredis`? Wrap the client with `fromNodeR
 The built-in adapters score lexically by default. Pass an `embedder` for semantic recall when scopes grow large or queries don't share keywords with stored text:
 
 ```typescript
+import OpenAI from 'openai'
 import { inMemory } from '@tanstack/ai-memory/in-memory'
+
+const openai = new OpenAI()
 
 const memory = inMemory({
   embedder: {
     async embed(text) {
-      // return a number[] vector from your embedding provider
+      const result = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+      })
+      const embedding = result.data[0]?.embedding
+      if (!embedding) throw new Error('embedding request returned no vector')
+      return embedding
     },
   },
 })
@@ -119,7 +128,7 @@ const memory = inMemory({
 
 ## Custom adapters
 
-Implement `recall` and `save` from the `MemoryAdapter` contract, then prove it with the same contract suite the built-in adapters run:
+Implement the `MemoryAdapter` contract — a stable `id` plus `recall` and `save` — then prove it with the same contract suite the built-in adapters run:
 
 ```typescript
 import { runMemoryAdapterContract } from '@tanstack/ai-memory/testkit'
@@ -128,7 +137,7 @@ import { myAdapter } from './my-adapter'
 runMemoryAdapterContract('myAdapter', () => myAdapter())
 ```
 
-The testkit is a Vitest suite; `vitest` is an optional peer dependency.
+The testkit is a Vitest suite. `vitest` is an optional peer dependency, so install it in your project before importing `@tanstack/ai-memory/testkit`.
 
 ## Documentation
 
