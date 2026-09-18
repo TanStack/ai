@@ -447,7 +447,7 @@ export interface ToolResultPart {
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
-  /** Set when the user cancelled or denied the tool call. */
+  /** Set when the user or middleware cancelled or denied the tool call; state remains `error`. */
   outcome?: ToolResultOutcome
   error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>

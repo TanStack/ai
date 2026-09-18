@@ -1,6 +1,7 @@
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import {
   isContentPartArray,
+  isToolResultOutcome,
   normalizeToolResult,
 } from '../../utilities/tool-result'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
@@ -816,7 +817,11 @@ export function modelMessageToUIMessage(
     }
     parts.push(structuredOutput)
   } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
-    const toolResultOutcome = tanstackMetadata(modelMessage)?.toolResultOutcome
+    const rawToolResultOutcome =
+      tanstackMetadata(modelMessage)?.toolResultOutcome
+    const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
+      ? rawToolResultOutcome
+      : undefined
     const resultState =
       modelMessage.error === undefined && toolResultOutcome === undefined
         ? 'complete'
@@ -1136,7 +1141,10 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.role === 'assistant'
       ) {
         const content = toolResultContent(msg.content)
-        const toolResultOutcome = tanstackMetadata(msg)?.toolResultOutcome
+        const rawToolResultOutcome = tanstackMetadata(msg)?.toolResultOutcome
+        const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
+          ? rawToolResultOutcome
+          : undefined
         const resultState =
           msg.error === undefined && toolResultOutcome === undefined
             ? 'complete'

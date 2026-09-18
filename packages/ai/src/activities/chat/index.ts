@@ -4228,6 +4228,7 @@ class TextEngine<
         this.earlyTermination = true
       } else if (policy.toolResume === 'cancel') {
         for (const request of pendingToolCalls) {
+          if (this.resumeDeniedToolResults.has(request.id)) continue
           this.resumeCancelledToolCallIds.add(request.id)
         }
       }
@@ -4428,6 +4429,7 @@ class TextEngine<
       this.earlyTermination = true
     } else if (policy.toolResume === 'cancel') {
       for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (this.resumeDeniedToolResults.has(toolCall.id)) continue
         this.resumeCancelledToolCallIds.add(toolCall.id)
       }
     }

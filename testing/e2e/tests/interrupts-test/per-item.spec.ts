@@ -140,7 +140,19 @@ test.describe('Per-item interrupt resolution', () => {
       await runTest(page)
       await waitForApproval(page)
       await page.click('.cancel-button')
-      await page.waitForTimeout(500)
+      await expect
+        .poll(async () => {
+          const messages = await getMessages(page)
+          return messages
+            .flatMap((message) => message.parts)
+            .some(
+              (part) =>
+                part.type === 'tool-result' &&
+                part.state === 'error' &&
+                part.outcome === 'cancelled',
+            )
+        })
+        .toBe(true)
 
       const meta = await getMetadata(page)
       expect(meta.hasError).toBe('false')
