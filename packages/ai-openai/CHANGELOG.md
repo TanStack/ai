@@ -1,5 +1,15 @@
 # @tanstack/ai-openai
 
+## 0.22.9
+
+### Patch Changes
+
+- [#1367](https://github.com/TanStack/ai/pull/1367) [`a54ed1f`](https://github.com/TanStack/ai/commit/a54ed1f4b519f5e56df59a75902914362828906b) - `openaiCompatible`: stream reasoning from OpenAI-compatible providers. Reasoning models behind an OpenAI-compatible endpoint (DeepSeek, Qwen, GLM, Kimi, most vLLM/SGLang deployments) send their thinking on `delta.reasoning_content`, or `delta.reasoning` on some gateways — fields that are outside the OpenAI wire format. The generic adapter had no reasoning hook, so the thinking was dropped silently and the only workaround was to monkey-patch `extractReasoning` onto the prototype. It now reads both fields, matching what `@tanstack/ai-cloudflare`, `@tanstack/ai-byteplus` and `@tanstack/ai-groq` already do. Providers that send neither are unaffected.
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/openai-base@0.10.13
+
 ## 0.22.8
 
 ### Patch Changes

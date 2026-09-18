@@ -1,5 +1,13 @@
 # ag-ui
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [[`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai-client@0.33.0
+  - @tanstack/ai-react@0.27.1
+
 ## 0.0.22
 
 ### Patch Changes
