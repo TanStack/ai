@@ -11,11 +11,13 @@ keywords:
   - fallback
   - embeddings
   - image generation
+  - evaluate
+  - jev
 ---
 
 You want one API key and one URL, and you still want to pick the provider per request. Vercel AI Gateway sits in front of many model providers. This package talks to that public OpenAI-compatible API.
 
-Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGatewayEmbedding`, or `vercelGatewayImage`.
+Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGatewayEmbedding`, `vercelGatewayImage`, or `vercelGatewayEvaluator`.
 
 ## Installation
 
@@ -199,6 +201,59 @@ const result = await summarize({
   stream: false,
 })
 ```
+
+## Evaluate
+
+Use `vercelGatewayEvaluator` with `evaluator()`. The request goes to
+`POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`.
+
+```typescript
+import { evaluator, choice, score, boolean } from "@tanstack/ai"
+import { vercelGatewayEvaluator } from "@tanstack/ai-vercel-gateway"
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+}
+
+const ticketEval = evaluator({
+  adapter: vercelGatewayEvaluator("typesafe-ai/jev"),
+})
+
+const result = await ticketEval.decide({
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+})
+
+console.log(result.queue.value)
+console.log(result.queue.probability)
+console.log(result.queue.confidence)
+console.log(result.meta.usage)
+```
+
+`vercelGatewayEvaluator` reads `AI_GATEWAY_API_KEY`, then `VERCEL_OIDC_TOKEN`.
+Pass a key yourself with `createVercelGatewayEvaluator("typesafe-ai/jev", "vck_...")`.
+
+Put Gateway routing on `modelOptions.gateway`, the same as chat.
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
+shape, abort, and middleware.
 
 ## What this package does not do
 

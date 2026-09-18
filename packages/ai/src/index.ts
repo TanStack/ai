@@ -3,6 +3,10 @@ export {
   chat,
   summarize,
   rerank,
+  evaluator,
+  choice,
+  score,
+  boolean,
   generateImage,
   generateAudio,
   generateVideo,
@@ -54,6 +58,14 @@ export type {
   EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
+  AnyEvaluateAdapter,
+  EvaluateAdapter,
+  ChoiceAnswer,
+  ScoreAnswer,
+  BooleanAnswer,
+  EvaluateResult,
+  WireQuestion,
+  WireAnswer,
   AnyWorldAdapter,
   WorldAdapter,
   AnyLiveVideoAdapter,
@@ -62,6 +74,9 @@ export type {
 
 // Rerank adapter base + types
 export { BaseRerankAdapter } from './activities/rerank/adapter'
+
+// Evaluate adapter base + types
+export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
 
 // Tool definition
 export {

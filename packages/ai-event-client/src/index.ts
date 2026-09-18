@@ -690,6 +690,36 @@ export interface RerankUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Evaluate Events
+// ===========================
+
+/** Emitted when an evaluate request starts. */
+export interface EvaluateRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+}
+
+/** Emitted when evaluate completes. */
+export interface EvaluateRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+  duration: number
+}
+
+/** Emitted when evaluate usage metrics are available. */
+export interface EvaluateUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Image Events
 // ===========================
 
@@ -1502,6 +1532,11 @@ export interface AIDevtoolsEventMap {
   'rerank:request:started': RerankRequestStartedEvent
   'rerank:request:completed': RerankRequestCompletedEvent
   'rerank:usage': RerankUsageEvent
+
+  // Evaluate events
+  'evaluate:request:started': EvaluateRequestStartedEvent
+  'evaluate:request:completed': EvaluateRequestCompletedEvent
+  'evaluate:usage': EvaluateUsageEvent
 
   // Image events
   'image:request:started': ImageRequestStartedEvent

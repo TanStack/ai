@@ -9,6 +9,7 @@ Choose an example based on your use case:
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
+- **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -68,6 +69,24 @@ pnpm --filter streaming-structured-table dev
 Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
 
 📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
+
+### Evaluate
+
+A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.
+
+**Path:** `examples/react/evaluate`
+
+**Getting Started:**
+
+```bash
+pnpm --filter evaluate dev
+```
+
+Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
+
+📖 [Full Documentation](react/evaluate/README.md)
 
 ---
 

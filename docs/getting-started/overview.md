@@ -29,6 +29,7 @@ Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Tabl
 - ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
 - ✅ **Framework Agnostic** - Core library works anywhere
 - ✅ **Multiple Providers** - OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
+- ✅ **Typed Decisions** - Ask `choice`, `score`, and `boolean` questions with `evaluator()`
 - ✅ **Approval Flow** - Built-in support for tool approval workflows
 - ✅ **Automatic Execution** - Both server and client tools execute automatically
 
@@ -133,12 +134,14 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-fal** - fal (image & video generation)
 - **@tanstack/ai-reactor** - Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3)
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
-- **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription) and AI Gateway routing
+- **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription, evaluate) and AI Gateway routing
+- **@tanstack/ai-typesafe** - TypeSafe Jev (typed evaluate decisions)
 - **@tanstack/ai-lovable** - Lovable AI Gateway (Google and OpenAI chat, image, video, embeddings, and speech via one project key)
 
 ## Next Steps
 
 - [Quick Start](./quick-start) - Add streaming chat. Pick your framework at the top of the page.
 - [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
+- [Evaluate](../evaluate/evaluate) - Ask typed questions and branch on the answers
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

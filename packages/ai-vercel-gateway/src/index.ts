@@ -47,6 +47,13 @@ export {
   type VercelGatewayImageConfig,
 } from './adapters/image'
 
+export {
+  VercelGatewayEvaluateAdapter,
+  createVercelGatewayEvaluator,
+  vercelGatewayEvaluator,
+  type VercelGatewayEvaluateConfig,
+} from './adapters/evaluate'
+
 export type { VercelGatewayEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 export type { VercelGatewayImageProviderOptions } from './image/image-provider-options'
 export type {

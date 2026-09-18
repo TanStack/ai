@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-17"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Quick Start",
@@ -64,6 +64,11 @@
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate a ticket",
+          "to": "tutorials/evaluate",
+          "addedAt": "2026-09-18"
         }
       ]
     },
@@ -85,6 +90,11 @@
           "label": "Streaming Structured Table",
           "to": "framework/react/examples/streaming-structured-table",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate",
+          "to": "framework/react/examples/evaluate",
+          "addedAt": "2026-09-18"
         }
       ]
     },
@@ -265,7 +275,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Compaction",
@@ -711,6 +721,17 @@
       "tab": "guides"
     },
     {
+      "label": "Evaluate",
+      "children": [
+        {
+          "label": "Evaluate",
+          "to": "evaluate/evaluate",
+          "addedAt": "2026-09-18"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
       "label": "Code Mode",
       "children": [
         {
@@ -1061,6 +1082,11 @@
           "updatedAt": "2026-09-03"
         },
         {
+          "label": "TypeSafe",
+          "to": "adapters/typesafe",
+          "addedAt": "2026-09-18"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
@@ -1082,7 +1108,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Perplexity Search",
@@ -1093,7 +1119,7 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Lovable AI Gateway",
@@ -1115,7 +1141,8 @@
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
-          "addedAt": "2026-09-03"
+          "addedAt": "2026-09-03",
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Claude Code",
@@ -1247,7 +1274,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "@tanstack/ai-client",

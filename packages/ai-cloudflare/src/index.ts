@@ -27,6 +27,12 @@ export {
 } from './adapters/embedding'
 
 export {
+  CloudflareEvaluateAdapter,
+  createCloudflareEvaluator,
+  cloudflareEvaluator,
+} from './adapters/evaluate'
+
+export {
   CloudflareImageAdapter,
   createCloudflareImage,
   cloudflareImage,
@@ -61,6 +67,7 @@ export type {
 
 export type {
   CloudflareEmbeddingModel,
+  CloudflareEvaluateModel,
   CloudflareImageModel,
   CloudflareTextModel,
   CloudflareTranscriptionModel,
