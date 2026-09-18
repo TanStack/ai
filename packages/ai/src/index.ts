@@ -10,6 +10,10 @@ export {
   generateSpeech,
   generateTranscription,
   embed,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
   generateWorld,
   generateLiveVideo,
 } from './activities/index'
@@ -49,6 +53,10 @@ export type {
   EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
   AnyWorldAdapter,
   WorldAdapter,
   AnyLiveVideoAdapter,
@@ -486,6 +494,14 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
+  fileReferenceFor,
+  isFileSource,
+  unsupportedFileSourceError,
+  type FileSourceCapable,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,

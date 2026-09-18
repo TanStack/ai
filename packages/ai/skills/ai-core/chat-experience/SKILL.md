@@ -299,6 +299,8 @@ import type { UIMessage } from '@tanstack/ai-react'
 
 function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
   if (part.type !== 'image') return null
+  // A provider file handle is an opaque id, so the browser cannot load it.
+  if (part.source.type === 'file') return null
   const src =
     part.source.type === 'url'
       ? part.source.value
@@ -306,6 +308,19 @@ function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
   return <img src={src} alt="Attached image" />
 }
 ```
+
+For media reused across turns, upload once via a provider Files adapter
+(`openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`,
+`falFiles()`) and send a `{ type: 'file' }` source built with
+`fileSourceFromHandle(handle)` instead of re-sending base64 each request. The
+source is `{ type: 'file', value, provider }`: an opaque handle and the adapter
+that issued it. A different provider (or one without Files API support at all)
+rejects it with a clear error before any request is sent.
+Build the source on the server. The chat wire format carries `data` and `url`
+sources only, so a `{ type: 'file' }` source cannot cross it (it throws rather
+than being dropped). Send the handle in your own request body and call
+`fileSourceFromHandle` server-side. See
+`ai-core/adapter-configuration/SKILL.md` §7 and `docs/advanced/files-api.md`.
 
 ### 4. Sending Audio Messages (Browser Recording)
 

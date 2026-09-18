@@ -1,4 +1,5 @@
 import { base64ToArrayBuffer } from '@tanstack/ai-utils'
+import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
 import type { ImagePart, MediaInputMetadata } from '@tanstack/ai'
 
 const DEFAULT_MIME = 'image/png'
@@ -43,6 +44,15 @@ export async function imagePartToFile(
   allowUrlFetch: boolean,
 ): Promise<File> {
   ensureFileSupport()
+
+  if (isFileSource(part.source)) {
+    // The edits / Sora input_reference endpoints are multipart and require the
+    // actual bytes; there's no "reference an uploaded file_id" option here.
+    throw unsupportedFileSourceError(
+      'openai',
+      'on the images/edits + Sora input_reference endpoints, which require uploaded bytes — pass a data: URI or inline image data',
+    )
+  }
 
   if (part.source.type === 'data') {
     const mimeType = part.source.mimeType || DEFAULT_MIME
