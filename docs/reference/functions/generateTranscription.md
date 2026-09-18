@@ -3,8 +3,6 @@ id: generateTranscription
 title: generateTranscription
 ---
 
-# Function: generateTranscription()
-
 ```ts
 function generateTranscription<TAdapter, TStream>(options): TranscriptionActivityResult<TStream>;
 ```

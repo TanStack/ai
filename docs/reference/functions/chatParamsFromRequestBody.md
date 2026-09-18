@@ -3,8 +3,6 @@ id: chatParamsFromRequestBody
 title: chatParamsFromRequestBody
 ---
 
-# Function: chatParamsFromRequestBody()
-
 ```ts
 function chatParamsFromRequestBody(body): Promise<{
   aguiContext: Context[];

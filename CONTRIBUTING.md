@@ -92,6 +92,18 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
+## Generate a React playground
+
+You need a TanStack Start chat app to try a feature. Do not copy `examples/ts-react-chat`. Run the generator.
+
+1. From the repo root, run `pnpm nx g @tanstack/workspace-plugin:react-app <name>`.
+2. Run `pnpm install`.
+3. Copy `examples/<name>/.env.example` to `examples/<name>/.env.local` and add a key.
+4. Run `pnpm --filter <name> dev` (port 3100).
+5. Change the index route for the feature. If the server must change, change `/api/chat`.
+
+Do not commit the new example unless you mean to keep it as a lasting example.
+
 ## TypeScript configuration
 
 There is a single `tsconfig.base.json` at the repo root with the shared `compilerOptions`. Every package extends it and overrides only what's unique to that package (e.g. `outDir`, JSX runtime, framework lib).

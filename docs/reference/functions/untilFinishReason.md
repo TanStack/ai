@@ -3,8 +3,6 @@ id: untilFinishReason
 title: untilFinishReason
 ---
 
-# Function: untilFinishReason()
-
 ```ts
 function untilFinishReason(stopReasons): AgentLoopStrategy;
 ```

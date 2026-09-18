@@ -3,8 +3,6 @@ id: ChatMiddlewareContext
 title: ChatMiddlewareContext
 ---
 
-# Interface: ChatMiddlewareContext\<TContext\>
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:184](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L184)
 
 Stable context object passed to all middleware hooks.

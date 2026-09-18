@@ -4,7 +4,8 @@ description: >
   Implement the MessageStore, RunStore, InterruptStore, MetadataStore contracts
   for @tanstack/ai-persistence against any database. defineAIPersistence,
   composePersistence overrides, critical invariants (full-replace saveThread,
-  insert-if-absent createOrResume and interrupt create), authorize thread
+  optional loadThread limit/before hint, insert-if-absent createOrResume and
+  interrupt create), authorize thread
   access, runPersistenceConformance testkit. Use whenever you need server
   persistence — the package ships contracts, not a backend for your database.
 type: sub-skill
@@ -76,14 +77,27 @@ mistake when writing an adapter.
 ```ts
 import type { ModelMessage } from '@tanstack/ai'
 
+interface MessagePage {
+  messages: Array<ModelMessage>
+  truncated: boolean
+  cursor?: string
+}
+
 interface MessageStore {
-  loadThread: (threadId: string) => Promise<Array<ModelMessage>>
+  loadThread: (
+    threadId: string,
+    options?: { limit?: number; before?: string },
+  ) => Promise<Array<ModelMessage> | MessagePage>
   saveThread: (threadId: string, messages: Array<ModelMessage>) => Promise<void>
 }
 ```
 
-- `loadThread` → `[]` for unknown threads (never `null`).
-- `saveThread` is a **full overwrite**, not append. A one-message payload wipes history.
+- Call `loadThread` with only `threadId` and return the full array (`[]` for
+  unknown threads, never `null`). Never a `MessagePage`.
+- `limit` and `before` are an optional hydrate hint. Ignore them and return the
+  full array, or return a `MessagePage`. `before` is opaque. You mint the cursor.
+- `saveThread` is a **full replace** of the merged list, not append. Merge by
+  id is `withPersistence`, not this store.
 
 ### `RunStore`
 
@@ -377,6 +391,9 @@ export const messages = defineMessageStore({
   },
 })
 ```
+
+This example ignores `limit` / `before` and returns the full array. That is
+valid. `reconstructChat` slices a full array after UI conversion.
 
 For durable DBs, preserve the same semantics with upserts / full-row replace.
 

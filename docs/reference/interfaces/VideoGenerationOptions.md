@@ -3,8 +3,6 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-# Interface: VideoGenerationOptions\<TProviderOptions, TSize, TDuration\>
-
 Defined in: [packages/ai/src/types.ts:2126](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2126)
 
 **`Experimental`**

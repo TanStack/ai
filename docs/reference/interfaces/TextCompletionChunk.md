@@ -3,8 +3,6 @@ id: TextCompletionChunk
 title: TextCompletionChunk
 ---
 
-# Interface: TextCompletionChunk
-
 Defined in: [packages/ai/src/types.ts:1720](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1720)
 
 ## Properties

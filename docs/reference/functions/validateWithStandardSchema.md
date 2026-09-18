@@ -3,8 +3,6 @@ id: validateWithStandardSchema
 title: validateWithStandardSchema
 ---
 
-# Function: validateWithStandardSchema()
-
 ```ts
 function validateWithStandardSchema<T>(schema, data): Promise<
   | {

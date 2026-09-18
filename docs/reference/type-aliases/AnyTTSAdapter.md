@@ -3,8 +3,6 @@ id: AnyTTSAdapter
 title: AnyTTSAdapter
 ---
 
-# Type Alias: AnyTTSAdapter
-
 ```ts
 type AnyTTSAdapter = TTSAdapter<any, any>;
 ```

@@ -1,4 +1,26 @@
-import type { TTSOptions, TTSResult } from '../../types'
+import type {
+  ListVoicesOptions,
+  ListVoicesResult,
+  TTSOptions,
+  TTSResult,
+} from '../../types'
+
+/**
+ * What a TTS adapter can do beyond a single voice reading a single string.
+ *
+ * Declared statically so `generateSpeech()` can reject an unsupported request
+ * before it reaches the provider, instead of surfacing a provider 422.
+ */
+export interface TTSCapabilities {
+  /**
+   * Maximum number of distinct voices accepted across `turns`
+   * (ElevenLabs 10, Gemini 2). Omit it when the adapter has no dialogue
+   * endpoint — then `turns` is rejected outright.
+   */
+  maxSpeakers?: number
+  /** Set when the adapter can honour `timestamps: true`. */
+  timestamps?: boolean
+}
 
 /**
  * Configuration for TTS adapter instances
@@ -31,6 +53,11 @@ export interface TTSAdapter<
   readonly name: string
   /** The model this adapter is configured for */
   readonly model: TModel
+  /**
+   * Optional static capability declaration. Absent means "single voice, no
+   * timestamps" — the contract every adapter had before dialogue existed.
+   */
+  readonly capabilities?: TTSCapabilities
 
   /**
    * @internal Type-only properties for inference. Not assigned at runtime.
@@ -43,6 +70,18 @@ export interface TTSAdapter<
    * Generate speech from text
    */
   generateSpeech: (options: TTSOptions<TProviderOptions>) => Promise<TTSResult>
+
+  /**
+   * List the voices this account can use.
+   *
+   * Optional, because only some providers have a catalog worth querying at
+   * runtime. A provider whose voices are a fixed list known at build time
+   * publishes that list from its own package instead (`GeminiTTSVoices`, or
+   * the `OpenAITTSVoice` union), which is strictly better than a network
+   * call. Implement this only when the catalog is per-account and can change,
+   * which is the case wherever `generateVoice()` can add to it.
+   */
+  listVoices?: (options?: ListVoicesOptions) => Promise<ListVoicesResult>
 }
 
 /**
@@ -64,6 +103,7 @@ export abstract class BaseTTSAdapter<
   readonly kind = 'tts' as const
   abstract readonly name: string
   readonly model: TModel
+  declare readonly capabilities?: TTSCapabilities
 
   // Type-only property - never assigned at runtime
   declare '~types': {
@@ -80,6 +120,12 @@ export abstract class BaseTTSAdapter<
   abstract generateSpeech(
     options: TTSOptions<TProviderOptions>,
   ): Promise<TTSResult>
+
+  /**
+   * Not abstract: a provider with a fixed voice list has nothing to query and
+   * should not be forced to write a stub.
+   */
+  listVoices?(options?: ListVoicesOptions): Promise<ListVoicesResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

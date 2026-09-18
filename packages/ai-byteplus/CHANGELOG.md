@@ -1,5 +1,32 @@
 # @tanstack/ai-byteplus
 
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.3.6
+
+### Patch Changes
+
+- [#1394](https://github.com/TanStack/ai/pull/1394) [`88f8b21`](https://github.com/TanStack/ai/commit/88f8b21ba802ca295b3cc50df7b023787db0abb2) - fix(ai-byteplus): send Seed Speech `watermark` as the object the API expects
+
+  `byteplusSpeech` sent `watermark` as a boolean, but Seed Audio 1.0 reads an
+  object with `aigc_watermark` (an audible marker) and `aigc_metadata` (header
+  provenance). A boolean was ignored by the server, so callers who asked for a
+  watermark silently got unwatermarked audio.
+
+  `modelOptions.watermark` now accepts `boolean | BytePlusTTSWatermark`, and
+  `true` normalizes to `{ aigc_watermark: true }`, so existing callers get the
+  behavior they intended.
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+  - @tanstack/openai-base@0.10.11
+
 ## 0.3.5
 
 ### Patch Changes

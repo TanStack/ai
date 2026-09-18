@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.16.1",
+  "version": "0.18.0",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -32,6 +32,10 @@
     "./ui": {
       "types": "./dist/esm/ui.d.ts",
       "import": "./dist/esm/ui.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

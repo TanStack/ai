@@ -13,8 +13,6 @@ keywords:
   - video generation
 ---
 
-# Generations
-
 You want an image, some speech, a transcript, a video, or a live stream, not a conversation. Every one
 of those is a **generation**: one request, one result. They all share the same shape, so
 learning one teaches you the rest.
@@ -67,6 +65,8 @@ function ImageGenerator() {
 That is the whole loop. Swap `generateImage` and `useGenerateImage` for any other pair
 in the table below and nothing else changes.
 
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+
 ## Which transport?
 
 | Transport | Use it when | How |
@@ -87,6 +87,7 @@ streaming is handled for you. All three are written out in
 | Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
+| Voice creation | `generateVoice()` | - | [Voice Creation](./voice-creation) |
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |

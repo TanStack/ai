@@ -106,6 +106,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3.6-flash',
   'google/gemini-3.7-flash',
   'google/gemini-3.8-flash',
+  'google/gemini-3.8-live',
+  'google/gemini-3.8-live-extended-thinking',
   'google/gemini-omni-flash-preview',
   'google/gemma-4-26b-a4b-it',
   'google/gemma-4-31b-it',
@@ -119,11 +121,9 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inclusionai/ling-3.0-flash-sante-free',
   'inclusionai/ling-3.0-flash-vl',
   'inclusionai/ling-3.0-flash-vl-free',
+  'inference-net/schematron-v2-small',
+  'inference-net/schematron-v2-turbo',
   'interfaze/interfaze-beta',
-  'kwaipilot/kat-coder-air-v2.5',
-  'kwaipilot/kat-coder-pro-v1',
-  'kwaipilot/kat-coder-pro-v2',
-  'kwaipilot/kat-coder-pro-v2.5',
   'meta/llama-3.1-70b',
   'meta/llama-3.1-8b',
   'meta/llama-3.3-70b',
@@ -144,17 +144,13 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'minimax/minimax-m2.7-highspeed',
   'minimax/minimax-m3',
   'mistral/codestral',
-  'mistral/devstral-2',
-  'mistral/devstral-small-2',
   'mistral/ministral-14b',
   'mistral/ministral-3b',
   'mistral/ministral-8b',
   'mistral/mistral-large-3',
-  'mistral/mistral-medium',
   'mistral/mistral-medium-3.5',
   'mistral/mistral-nemo',
   'mistral/mistral-small',
-  'mistral/pixtral-12b',
   'moonshotai/kimi-k2',
   'moonshotai/kimi-k2-thinking',
   'moonshotai/kimi-k2.5',
@@ -220,6 +216,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/gpt-5.6-terra-fast',
   'openai/gpt-6-astra',
   'openai/gpt-6-astra-fast',
+  'openai/gpt-live-1',
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
   'openai/gpt-oss-safeguard-120b',
@@ -273,6 +270,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'tencent/hy4-preview',
   'thinkingmachines/inkling',
   'thinkingmachines/inkling-small',
+  'typesafe-ai/jev',
   'xiaomi/mimo-v2.5',
   'xiaomi/mimo-v2.5-pro',
   'zai/glm-4.5',
@@ -308,9 +306,9 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'google',
   'inception',
   'inclusionai',
+  'inference-net',
   'interfaze',
   'klingai',
-  'kwaipilot',
   'meta',
   'minimax',
   'mistral',
@@ -328,6 +326,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'stepfun',
   'tencent',
   'thinkingmachines',
+  'typesafe-ai',
   'voyage',
   'xiaomi',
   'zai',
@@ -336,6 +335,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
 export type VercelGatewayProvider = (typeof VERCEL_GATEWAY_PROVIDERS)[number]
 
 export const VERCEL_GATEWAY_MODEL_TAGS = [
+  'audio-input',
   'explicit-caching',
   'fast',
   'file-input',
@@ -1165,6 +1165,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'google/gemini-3.8-live': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
+    >
+  'google/gemini-3.8-live-extended-thinking': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
+    >
   'google/gemini-omni-flash-preview': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1290,42 +1300,27 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'inference-net/schematron-v2-small': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'inference-net/schematron-v2-turbo': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
   'interfaze/interfaze-beta': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-air-v2.5': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-pro-v1': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'kwaipilot/kat-coder-pro-v2': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'kwaipilot/kat-coder-pro-v2.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1505,16 +1500,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
-  'mistral/devstral-2': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'mistral/devstral-small-2': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'mistral/ministral-14b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1535,11 +1520,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
-  'mistral/mistral-medium': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'mistral/mistral-medium-3.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1556,11 +1536,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'mistral/mistral-small': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'mistral/pixtral-12b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
@@ -1628,6 +1603,8 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'reasoning'
       | 'include_reasoning'
+      | 'response_format'
+      | 'structured_outputs'
     >
   'moonshotai/kimi-k3-fast': VercelGatewayCommonOptions &
     Pick<
@@ -2102,6 +2079,11 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'openai/gpt-live-1': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
+    >
   'openai/gpt-oss-120b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2513,6 +2495,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'typesafe-ai/jev': VercelGatewayCommonOptions
   'xiaomi/mimo-v2.5': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2793,6 +2776,8 @@ export type VercelGatewayModelInputModalitiesByName = {
   'google/gemini-3.6-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-3.7-flash': readonly ['text', 'image', 'document', 'video']
   'google/gemini-3.8-flash': readonly ['text', 'image', 'document', 'video']
+  'google/gemini-3.8-live': readonly ['text', 'audio']
+  'google/gemini-3.8-live-extended-thinking': readonly ['text', 'audio']
   'google/gemini-omni-flash-preview': readonly [
     'text',
     'image',
@@ -2811,11 +2796,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inclusionai/ling-3.0-flash-sante-free': readonly ['text']
   'inclusionai/ling-3.0-flash-vl': readonly ['text', 'image', 'video']
   'inclusionai/ling-3.0-flash-vl-free': readonly ['text', 'image', 'video']
+  'inference-net/schematron-v2-small': readonly ['text']
+  'inference-net/schematron-v2-turbo': readonly ['text']
   'interfaze/interfaze-beta': readonly ['text', 'image', 'document']
-  'kwaipilot/kat-coder-air-v2.5': readonly ['text', 'image']
-  'kwaipilot/kat-coder-pro-v1': readonly ['text']
-  'kwaipilot/kat-coder-pro-v2': readonly ['text']
-  'kwaipilot/kat-coder-pro-v2.5': readonly ['text', 'image']
   'meta/llama-3.1-70b': readonly ['text']
   'meta/llama-3.1-8b': readonly ['text']
   'meta/llama-3.3-70b': readonly ['text']
@@ -2836,20 +2819,16 @@ export type VercelGatewayModelInputModalitiesByName = {
   'minimax/minimax-m2.7-highspeed': readonly ['text']
   'minimax/minimax-m3': readonly ['text', 'image', 'document']
   'mistral/codestral': readonly ['text']
-  'mistral/devstral-2': readonly ['text']
-  'mistral/devstral-small-2': readonly ['text', 'image']
   'mistral/ministral-14b': readonly ['text', 'image', 'document']
   'mistral/ministral-3b': readonly ['text', 'image']
   'mistral/ministral-8b': readonly ['text', 'image']
   'mistral/mistral-large-3': readonly ['text', 'image']
-  'mistral/mistral-medium': readonly ['text', 'image']
   'mistral/mistral-medium-3.5': readonly ['text', 'image']
-  'mistral/mistral-nemo': readonly ['text', 'image']
+  'mistral/mistral-nemo': readonly ['text']
   'mistral/mistral-small': readonly ['text', 'image']
-  'mistral/pixtral-12b': readonly ['text', 'image']
   'moonshotai/kimi-k2': readonly ['text']
   'moonshotai/kimi-k2-thinking': readonly ['text']
-  'moonshotai/kimi-k2.5': readonly ['text', 'image', 'video']
+  'moonshotai/kimi-k2.5': readonly ['text', 'image']
   'moonshotai/kimi-k2.6': readonly ['text', 'image', 'video']
   'moonshotai/kimi-k2.7-code': readonly ['text', 'image', 'document', 'video']
   'moonshotai/kimi-k2.7-code-highspeed': readonly [
@@ -2917,6 +2896,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/gpt-5.6-terra-fast': readonly ['text', 'image', 'document']
   'openai/gpt-6-astra': readonly ['text', 'image', 'document']
   'openai/gpt-6-astra-fast': readonly ['text', 'image', 'document']
+  'openai/gpt-live-1': readonly ['text', 'audio']
   'openai/gpt-oss-120b': readonly ['text']
   'openai/gpt-oss-20b': readonly ['text']
   'openai/gpt-oss-safeguard-120b': readonly ['text']
@@ -2974,6 +2954,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'tencent/hy4-preview': readonly ['text']
   'thinkingmachines/inkling': readonly ['text', 'image', 'document']
   'thinkingmachines/inkling-small': readonly ['text', 'image', 'document']
+  'typesafe-ai/jev': readonly ['text']
   'xiaomi/mimo-v2.5': readonly ['text', 'image']
   'xiaomi/mimo-v2.5-pro': readonly ['text']
   'zai/glm-4.5': readonly ['text']

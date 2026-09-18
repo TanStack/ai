@@ -3,8 +3,6 @@ id: InterruptBoundaryResult
 title: InterruptBoundaryResult
 ---
 
-# Type Alias: InterruptBoundaryResult\<TDefinitions\>
-
 ```ts
 type InterruptBoundaryResult<TDefinitions> = 
   | undefined

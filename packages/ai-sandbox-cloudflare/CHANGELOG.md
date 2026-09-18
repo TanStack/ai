@@ -1,5 +1,31 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1167](https://github.com/TanStack/ai/pull/1167) [`f791c71`](https://github.com/TanStack/ai/commit/f791c717eff898593dc86105c66b8d9b6bba7ac5) - Add the app-wide `stallTimeoutMs` option for both coordinator modes, with authenticated `/_bridge` and `/tool-exec` callbacks refreshing run activity on arrival and completion.
+
+## 0.3.14
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-sandbox@0.5.9
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.3.13
+
+### Patch Changes
+
+- [#1200](https://github.com/TanStack/ai/pull/1200) [`39b4bf2`](https://github.com/TanStack/ai/commit/39b4bf296df7dca9195b2e4cda05529459625dae) - `exposePreview` now verifies the preview URL is actually reachable before returning it: it fails with an actionable error when nothing is listening on the port, and detects and replaces stale quick tunnels instead of re-sharing dead URLs ([#992](https://github.com/TanStack/ai/issues/992)).
+
+- Updated dependencies [[`75d94cf`](https://github.com/TanStack/ai/commit/75d94cf8babc22d19a6120b68f073d4e48cd69d4), [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai-sandbox@0.5.8
+  - @tanstack/ai@0.54.1
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
 ## 0.3.12
 
 ### Patch Changes

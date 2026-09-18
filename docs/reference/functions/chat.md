@@ -3,13 +3,11 @@ id: chat
 title: chat
 ---
 
-# Function: chat()
-
 ```ts
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:4643](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4643)
+Defined in: [packages/ai/src/activities/chat/index.ts:4665](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4665)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 

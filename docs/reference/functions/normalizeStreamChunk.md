@@ -3,8 +3,6 @@ id: normalizeStreamChunk
 title: normalizeStreamChunk
 ---
 
-# Function: normalizeStreamChunk()
-
 ```ts
 function normalizeStreamChunk(chunk): AGUIEvent[];
 ```

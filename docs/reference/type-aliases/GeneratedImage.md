@@ -3,8 +3,6 @@ id: GeneratedImage
 title: GeneratedImage
 ---
 
-# Type Alias: GeneratedImage
-
 ```ts
 type GeneratedImage = GeneratedMediaSource & object;
 ```

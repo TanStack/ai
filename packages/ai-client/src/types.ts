@@ -751,14 +751,23 @@ export type ChatPersistenceOptions<
   | {
       persistence: true
       threadId: string
+      /**
+       * Newest-window size for server hydrate. Only with `persistence: true`.
+       * Without this, hydrate still loads the full thread.
+       */
+      history?: {
+        pageSize: number
+      }
     }
   | {
       persistence: ChatClientPersistence<TTools>
       threadId: string
+      history?: never
     }
   | {
       persistence?: false | undefined
       threadId?: string
+      history?: never
     }
 
 type IsUnknown<T> = unknown extends T

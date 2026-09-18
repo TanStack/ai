@@ -3,8 +3,6 @@ id: defineChatMiddleware
 title: defineChatMiddleware
 ---
 
-# Function: defineChatMiddleware()
-
 ```ts
 function defineChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>(middleware): DefinedChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>;
 ```

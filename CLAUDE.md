@@ -18,6 +18,8 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 **Ponytail skill (mandatory).** Before planning, writing, or editing application code, tests, or examples, load `.claude/skills/ponytail/SKILL.md` and follow it. Do not design or implement without it. Ponytail does not skip this repo's quality gates, E2E tests, or the docs, PR-description, and bugfix-pr skills.
 
+**Example tutorial skill (mandatory).** Before adding a public teaching example or a docs tutorial, load `.claude/skills/add-example-tutorial/SKILL.md` and follow it. Copies live under `.agents/skills/` and `.grok/skills/`. Keep those three files identical. Internal Nx labs under `examples/<name>/` still use `new-react-playground`.
+
 ## Package Manager & Tooling
 
 - **Package Manager**: pnpm@10.17.0 (required)

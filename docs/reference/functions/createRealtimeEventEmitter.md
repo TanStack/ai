@@ -3,8 +3,6 @@ id: createRealtimeEventEmitter
 title: createRealtimeEventEmitter
 ---
 
-# Function: createRealtimeEventEmitter()
-
 ```ts
 function createRealtimeEventEmitter(): object;
 ```

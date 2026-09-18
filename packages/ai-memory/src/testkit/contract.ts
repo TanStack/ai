@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { MemoryAdapter, MemoryScope } from '../src'
+import type { MemoryAdapter, MemoryScope } from '../types'
 
 /**
  * Shared contract suite for any `recall`/`save` {@link MemoryAdapter}. Point it

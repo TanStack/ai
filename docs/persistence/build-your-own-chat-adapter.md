@@ -3,8 +3,6 @@ title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
-# Build a Chat Adapter
-
 You want the transcript, the run lifecycle, and durable approvals in your own
 database, and you would rather write four small stores than add a service. This
 page builds all of them against SQLite (Node's built-in `node:sqlite`), start to
@@ -61,11 +59,15 @@ CREATE TABLE IF NOT EXISTS metadata (
 
 ## 2. Messages: full-transcript overwrite
 
-Two contracts to hold:
+Three contracts to hold:
 
-- `saveThread` always receives the complete, authoritative history. It is a
-  replace, not an append.
-- `loadThread` returns `[]` for a thread that was never saved, never `null`.
+- `saveThread` always receives the complete, merged history. It is a replace,
+  not an append. Merge by id is `withPersistence`, not this store.
+- `loadThread` with no second argument returns the full array. Return `[]` for
+  a thread that was never saved, never `null`.
+- `limit` and `before` are an optional hint. Ignore them and return the full
+  array, or return a `MessagePage`. See the
+  [store reference](./store-reference#messagestore).
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -97,6 +99,9 @@ function createMessageStore(db: DatabaseSync) {
   })
 }
 ```
+
+This example ignores the paging hint and returns the full array. That is valid.
+`reconstructChat` slices a full array after it converts to UI messages.
 
 The methods are `async`, so `node:sqlite` (a synchronous driver) needs no
 `Promise.resolve` wrapper: `async` promotes the returned value to a promise, and

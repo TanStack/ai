@@ -252,6 +252,16 @@ interface BaseUseChatReturn<
   isLoading: DeepReadonly<ShallowRef<boolean>>
 
   /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
+
+  /**
    * Current error, if any
    */
   error: DeepReadonly<ShallowRef<Error | undefined>>

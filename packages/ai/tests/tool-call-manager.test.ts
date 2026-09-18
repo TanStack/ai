@@ -491,6 +491,52 @@ describe('ToolCallManager', () => {
       expect(toolCalls).toHaveLength(1)
       expect(toolCalls[0]?.function.arguments).toBe('{"location":"New York"}')
     })
+
+    it('should ignore a repeat TOOL_CALL_START for an already-tracked toolCallId (same explicit index)', () => {
+      const manager = new ToolCallManager([mockWeatherTool])
+
+      // AG-UI's TOOL_CALL_START carries no `index`, but first-party adapter
+      // yields still attach one (see AdapterYieldChunk). Build the event
+      // directly so the explicit index survives, matching this issue's repro.
+      const startWithIndex = (index: number) =>
+        ({
+          ...toolCallStart({
+            toolCallId: 'call_123',
+            toolCallName: 'get_weather',
+          }),
+          index,
+        }) as ToolCallStartEvent
+
+      manager.addToolCallStartEvent(startWithIndex(0))
+      manager.addToolCallArgsEvent(
+        toolCallArgs({ toolCallId: 'call_123', delta: '{"location":"Paris"}' }),
+      )
+      // A malformed/custom-server stream re-sends START for the same id/index.
+      manager.addToolCallStartEvent(startWithIndex(0))
+
+      const toolCalls = manager.getToolCalls()
+      expect(toolCalls).toHaveLength(1)
+      // Accumulated arguments must survive the repeat START, not reset to ''.
+      expect(toolCalls[0]?.function.arguments).toBe('{"location":"Paris"}')
+    })
+
+    it('should ignore a repeat TOOL_CALL_START for an already-tracked toolCallId (no index)', () => {
+      const manager = new ToolCallManager([mockWeatherTool])
+
+      manager.addToolCallStartEvent(
+        toolCallStart({ toolCallId: 'call_123', toolCallName: 'get_weather' }),
+      )
+      // Repeat START with no index — must not insert a second row, which
+      // would otherwise make getToolCalls() return the id twice and run
+      // the tool twice.
+      manager.addToolCallStartEvent(
+        toolCallStart({ toolCallId: 'call_123', toolCallName: 'get_weather' }),
+      )
+
+      const toolCalls = manager.getToolCalls()
+      expect(toolCalls).toHaveLength(1)
+      expect(toolCalls.filter((tc) => tc.id === 'call_123')).toHaveLength(1)
+    })
   })
 })
 

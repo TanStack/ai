@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-angular",
-  "version": "0.9.1",
+  "version": "0.11.0",
   "description": "Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
@@ -37,6 +37,10 @@
     "./ui": {
       "types": "./dist/types/tanstack-ai-angular-ui.d.ts",
       "default": "./dist/fesm2022/tanstack-ai-angular-ui.mjs"
+    },
+    "./byok": {
+      "types": "./dist/types/tanstack-ai-angular-byok.d.ts",
+      "default": "./dist/fesm2022/tanstack-ai-angular-byok.mjs"
     }
   },
   "sideEffects": false,

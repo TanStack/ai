@@ -3,8 +3,6 @@ id: BatchInterruptError
 title: BatchInterruptError
 ---
 
-# Interface: BatchInterruptError
-
 Defined in: [packages/ai/src/interrupts.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L53)
 
 ## Extends

@@ -3,8 +3,6 @@ id: ClientTool
 title: ClientTool
 ---
 
-# Interface: ClientTool\<TInput, TOutput, TName, TContext, TNeedsApproval, TApprovalSchema\>
-
 Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L107)
 
 Marker type for client-side tools

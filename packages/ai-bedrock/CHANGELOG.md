@@ -1,5 +1,15 @@
 # @tanstack/ai-bedrock
 
+## 0.3.9
+
+### Patch Changes
+
+- [#1270](https://github.com/TanStack/ai/pull/1270) [`81c2851`](https://github.com/TanStack/ai/commit/81c285174b6f39fa7917d857efd12657c6a839bd) - Use the Bedrock API compatibility config's `mantlePath` on the Mantle endpoint so Gemma 4 hits `/openai/v1` instead of a misleading 401. Other models stay on `/v1`.
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
 ## 0.3.8
 
 ### Patch Changes

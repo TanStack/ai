@@ -9,8 +9,6 @@ keywords:
   - drizzle prisma d1 adapter
 ---
 
-# Build Your Own Persistence Adapter
-
 Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
 Mongo) and you do not want another service just for chat history. You do not need
 one. An adapter is a plain object of store functions. The core never looks at your

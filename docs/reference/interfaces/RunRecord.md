@@ -3,8 +3,6 @@ id: RunRecord
 title: RunRecord
 ---
 
-# Interface: RunRecord
-
 Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L106)
 
 Durable bookkeeping for a single run.

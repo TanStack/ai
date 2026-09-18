@@ -413,6 +413,8 @@ pipelines, options, and the result shape.
 
 ## Image Generation
 
+For a React + Start walkthrough with `useGenerateImage`, open [Generate Image](../tutorials/generate-image).
+
 `openRouterImage` routes image generation through OpenRouter's
 chat-completions surface (`modalities: ['image']`). Multimodal prompts are
 supported — text and image parts are forwarded in order for

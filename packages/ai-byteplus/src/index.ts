@@ -47,6 +47,7 @@ export type {
 export {
   BYTEPLUS_DEFAULT_TTS_SPEAKER,
   BYTEPLUS_TTS_MAX_OUTPUT_SECONDS,
+  BYTEPLUS_TTS_MAX_REFERENCES,
   BytePlusTTSAdapter,
   byteplusSpeech,
   createBytePlusSpeech,
@@ -84,6 +85,7 @@ export type {
   BytePlusTTSSampleRate,
   BytePlusTTSSubtitle,
   BytePlusTTSSubtitleEntry,
+  BytePlusTTSWatermark,
   BytePlusVoiceErrorBody,
 } from './audio/wire-types'
 export {

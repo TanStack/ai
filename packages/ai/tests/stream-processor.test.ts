@@ -255,6 +255,73 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()).toHaveLength(1)
     })
 
+    describe('prependMessages', () => {
+      it('inserts older messages in front', () => {
+        const events = spyEvents()
+        const processor = new StreamProcessor({ events })
+        processor.setMessages([
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'two' }],
+          },
+        ])
+        events.onMessagesChange.mockClear()
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'one' }],
+          },
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1', 'm2'])
+        expect(messages[1]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'two',
+        })
+        expect(events.onMessagesChange).toHaveBeenCalledTimes(1)
+      })
+
+      it('skips duplicate ids in the prepend list and keeps existing messages', () => {
+        const processor = new StreamProcessor()
+        processor.setMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'kept' }],
+          },
+        ])
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'first-dup' }],
+          },
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'second-dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1'])
+        expect(messages[0]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'kept',
+        })
+      })
+    })
+
     it('addUserMessage with string content', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

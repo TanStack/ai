@@ -1,7 +1,14 @@
 import { modelMessagesToUIMessages } from '@tanstack/ai'
-import type { UIMessage } from '@tanstack/ai'
+import type { ModelMessage, UIMessage } from '@tanstack/ai'
 import { validateReconstructChatStores } from './types'
-import type { AIPersistence, ChatTranscriptStores } from './types'
+import type {
+  AIPersistence,
+  ChatTranscriptStores,
+  MessagePage,
+  MessageStore,
+} from './types'
+
+const MAX_PAGE_SIZE = 500
 
 /**
  * The JSON body `reconstructChat` returns and a server-authoritative client
@@ -15,6 +22,9 @@ import type { AIPersistence, ChatTranscriptStores } from './types'
  * approvals, client-tool/generic waits) and the run they paused, or `null` —
  * so a reload (or another device) re-prompts the approval from the SERVER, not
  * from client storage. Resolved via `stores.interrupts.listPending`.
+ * `page` is set only when the GET included a valid `limit`. `truncated` is true
+ * when older UI messages exist. `cursor` is the opaque `before` token for the
+ * next older window.
  */
 export interface ReconstructedChat {
   messages: Array<UIMessage>
@@ -23,6 +33,7 @@ export interface ReconstructedChat {
     runId: string
     pending: Array<Record<string, unknown>>
   } | null
+  page?: { truncated: false } | { truncated: true; cursor: string }
 }
 
 export interface ReconstructChatOptions {
@@ -63,6 +74,11 @@ export interface ReconstructChatOptions {
  *   a reload re-prompts the decision from the server. Resolved via the optional
  *   `stores.interrupts.listPending`; `null` when that store is absent.
  *
+ * Paging is opt-in. A valid `?limit=` (positive integer, capped at 500) returns
+ * the newest window of UI messages plus `page`. `?before=` walks to an older
+ * window. Invalid `limit` (`0`, negative, NaN) is ignored and the full
+ * transcript is returned. `activeRun` and `interrupts` are never paged.
+ *
  * Requires `stores.messages`. Returns an empty transcript with no active run
  * and no interrupts when the thread id is missing or the thread is unknown, so
  * the caller never has to special-case a first load.
@@ -94,8 +110,11 @@ export async function reconstructChat(
     throw new Error('reconstructChat requires stores.messages.')
   }
 
+  const requestUrl = new URL(request.url)
   const param = options?.param ?? 'threadId'
-  const threadId = new URL(request.url).searchParams.get(param) ?? ''
+  const threadId = requestUrl.searchParams.get(param) ?? ''
+  const pageSize = parsePageSize(requestUrl.searchParams.get('limit'))
+  const before = parseBefore(requestUrl.searchParams.get('before'))
 
   if (threadId && options?.authorize) {
     const decision = await options.authorize(threadId, request)
@@ -122,7 +141,15 @@ export async function reconstructChat(
   const active = threadId
     ? await persistence.stores.runs?.findActiveRun(threadId)
     : null
-  const stored = threadId ? await messageStore.loadThread(threadId) : []
+  const stored =
+    threadId === ''
+      ? []
+      : pageSize === undefined
+        ? await messageStore.loadThread(threadId)
+        : await messageStore.loadThread(threadId, {
+            limit: pageSize + 1,
+            ...(before === undefined ? {} : { before }),
+          })
   // Pending interrupts for the thread, so a reload re-prompts the approval from
   // the server. Each stored `payload` is the full interrupt descriptor the
   // client hydrates; they share the run they paused.
@@ -130,8 +157,22 @@ export async function reconstructChat(
     ? ((await persistence.stores.interrupts?.listPending(threadId)) ?? [])
     : []
   const firstPending = pending[0]
+  const isPaging = pageSize !== undefined && threadId !== ''
+  const transcript = !isPaging
+    ? {
+        messages: modelMessagesToUIMessages(threadMessages(stored)),
+      }
+    : Array.isArray(stored)
+      ? await windowFromArray({
+          stored,
+          messageStore,
+          threadId,
+          pageSize,
+          before,
+        })
+      : windowFromMessagePage(stored, pageSize)
   const body: ReconstructedChat = {
-    messages: modelMessagesToUIMessages(stored),
+    messages: transcript.messages,
     activeRun: active ? { runId: active.runId } : null,
     interrupts: firstPending
       ? {
@@ -139,6 +180,7 @@ export async function reconstructChat(
           pending: pending.map((record) => record.payload),
         }
       : null,
+    ...('page' in transcript ? { page: transcript.page } : {}),
   }
   return new Response(JSON.stringify(body), {
     headers: {
@@ -146,4 +188,93 @@ export async function reconstructChat(
       'cache-control': 'no-store',
     },
   })
+}
+
+function parsePageSize(raw: string | null) {
+  if (raw == null) return
+  const pageSize = Number(raw)
+  const isValidPageSize = Number.isInteger(pageSize) && pageSize > 0
+  if (!isValidPageSize) return
+  return Math.min(pageSize, MAX_PAGE_SIZE)
+}
+
+function parseBefore(raw: string | null) {
+  if (raw == null || raw === '') return
+  return raw
+}
+
+function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
+
+function completePage() {
+  return { truncated: false as const }
+}
+
+function truncatedPage(cursor: string) {
+  return { truncated: true as const, cursor }
+}
+
+function pageFromCursor(cursor: string | undefined) {
+  if (cursor === undefined || cursor === '') {
+    return completePage()
+  }
+  return truncatedPage(cursor)
+}
+
+function newestUiWindow(messages: Array<UIMessage>, pageSize: number) {
+  const truncated = messages.length > pageSize
+  if (!truncated) {
+    return { messages, page: completePage() }
+  }
+  const uiWindow = messages.slice(messages.length - pageSize)
+  return {
+    messages: uiWindow,
+    page: pageFromCursor(uiWindow[0]?.id),
+  }
+}
+
+function uiBeforeCursor(messages: Array<UIMessage>, cursor: string) {
+  const cut = messages.findIndex((message) => message.id === cursor)
+  if (cut === -1) return
+  return messages.slice(0, cut)
+}
+
+function windowFromMessagePage(page: MessagePage, pageSize: number) {
+  const ui = modelMessagesToUIMessages(page.messages)
+  if (ui.length > pageSize) {
+    // Extra slice uses a library-minted cursor. Keeping the adapter cursor
+    // after dropping the oldest row would skip that row on the next GET.
+    return newestUiWindow(ui, pageSize)
+  }
+  if (page.truncated) {
+    return {
+      messages: ui,
+      page: pageFromCursor(page.cursor),
+    }
+  }
+  return { messages: ui, page: completePage() }
+}
+
+async function windowFromArray(input: {
+  stored: Array<ModelMessage>
+  messageStore: MessageStore
+  threadId: string
+  pageSize: number
+  before: string | undefined
+}) {
+  const { stored, messageStore, threadId, pageSize, before } = input
+  if (before === undefined) {
+    return newestUiWindow(modelMessagesToUIMessages(stored), pageSize)
+  }
+  // Array adapters own no cursor. Apply `before` to the full transcript so an
+  // adapter that ignored the hint cannot return the same newest page forever.
+  const full = threadMessages(await messageStore.loadThread(threadId))
+  const older = uiBeforeCursor(modelMessagesToUIMessages(full), before)
+  if (older === undefined) {
+    return { messages: [], page: truncatedPage(before) }
+  }
+  return newestUiWindow(older, pageSize)
 }

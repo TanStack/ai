@@ -3,8 +3,6 @@ id: BeforeToolCallDecision
 title: BeforeToolCallDecision
 ---
 
-# Type Alias: BeforeToolCallDecision
-
 ```ts
 type BeforeToolCallDecision = 
   | void

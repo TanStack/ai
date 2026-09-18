@@ -3,8 +3,6 @@ id: CUSTOM_EVENT
 title: CUSTOM_EVENT
 ---
 
-# Variable: CUSTOM\_EVENT
-
 ```ts
 const CUSTOM_EVENT: object;
 ```

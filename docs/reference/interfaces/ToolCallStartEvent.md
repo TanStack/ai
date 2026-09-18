@@ -3,8 +3,6 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-# Interface: ToolCallStartEvent
-
 Defined in: [packages/ai/src/types.ts:1272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1272)
 
 Emitted when a tool call starts.

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   BEDROCK_CHAT_MODELS,
+  BEDROCK_CONVERSE_MODELS,
   BEDROCK_RESPONSES_MODELS,
 } from '../src/model-meta'
+import { GENERATED_BEDROCK_MODELS } from '../src/model-catalog.generated'
 
 describe('bedrock model-meta', () => {
   it('chat catalog is non-empty and unique', () => {
@@ -25,5 +27,14 @@ describe('bedrock model-meta', () => {
   it('includes the confirmed gpt-oss ids', () => {
     expect(BEDROCK_CHAT_MODELS).toContain('openai.gpt-oss-120b-1:0')
     expect(BEDROCK_RESPONSES_MODELS).toContain('openai.gpt-oss-120b-1:0')
+  })
+
+  it('includes Gemma 4 on chat/responses', () => {
+    expect(BEDROCK_CHAT_MODELS).toContain('google.gemma-4-31b')
+    expect(BEDROCK_RESPONSES_MODELS).toContain('google.gemma-4-31b')
+    expect(BEDROCK_CONVERSE_MODELS).not.toContain('google.gemma-4-31b')
+    expect(
+      GENERATED_BEDROCK_MODELS.some((m) => m.id === 'google.gemma-4-31b'),
+    ).toBe(true)
   })
 })
