@@ -3419,6 +3419,39 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
+    // Voice creation shares the speech bucket — same family. Like the other
+    // activity buckets beside it, this is recorded state: nothing renders
+    // `speechEvents` yet.
+    for (const voiceEvent of [
+      'voice:request:started',
+      'voice:request:completed',
+      'voice:request:error',
+      'voice:usage',
+    ] as const) {
+      cleanupFns.push(
+        aiEventClient.on(voiceEvent, (e) => {
+          const { requestId, clientId, timestamp } = e.payload
+
+          let conversationId = clientId
+          if (!conversationId || !state.conversations[conversationId]) {
+            conversationId = `voice-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Voice (${requestId.substring(0, 8)})`,
+            )
+          }
+
+          addActivityEvent(conversationId, 'speechEvents', {
+            id: requestId,
+            name: voiceEvent,
+            timestamp,
+            payload: e.payload,
+          })
+        }),
+      )
+    }
+
     cleanupFns.push(
       aiEventClient.on('transcription:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload

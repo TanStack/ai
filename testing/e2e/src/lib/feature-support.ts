@@ -429,6 +429,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'lovable',
   ]),
+  // ElevenLabs is the only adapted provider with a voice-creation API.
+  // xAI's POST /v1/custom-voices and fal's clone endpoints are the obvious
+  // next two — add them here when their adapters implement generateVoice.
+  // aimock has no /v1/text-to-voice routes, so this runs against
+  // `elevenlabsVoiceMount` in global-setup.ts.
+  'voice-design': new Set(['elevenlabs']),
   transcription: new Set([
     'openai',
     'grok',

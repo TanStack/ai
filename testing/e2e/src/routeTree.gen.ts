@@ -37,6 +37,7 @@ import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
@@ -249,6 +250,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ApiWorldRoute = ApiWorldRouteImport.update({
   id: '/api/world',
   path: '/api/world',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceRoute = ApiVoiceRouteImport.update({
+  id: '/api/voice',
+  path: '/api/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVideoLiveRoute = ApiVideoLiveRouteImport.update({
@@ -717,6 +723,7 @@ export interface FileRoutesByFullPath {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -818,6 +825,7 @@ export interface FileRoutesByTo {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -920,6 +928,7 @@ export interface FileRoutesById {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -1023,6 +1032,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1124,6 +1134,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider'
     | '/api/audio/stream'
@@ -1225,6 +1236,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1327,6 +1339,7 @@ export interface RootRouteChildren {
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
+  ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWorldRoute: typeof ApiWorldRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
@@ -1527,6 +1540,13 @@ declare module '@tanstack/react-router' {
       path: '/api/world'
       fullPath: '/api/world'
       preLoaderRoute: typeof ApiWorldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice': {
+      id: '/api/voice'
+      path: '/api/voice'
+      fullPath: '/api/voice'
+      preLoaderRoute: typeof ApiVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video-live': {
@@ -2180,6 +2200,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
+  ApiVoiceRoute: ApiVoiceRoute,
   ApiWorldRoute: ApiWorldRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }
