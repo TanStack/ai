@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyChatModelCatalogInserts } from './native-insert'
+import {
+  addToStringLiteralArray,
+  applyChatModelCatalogInserts,
+  extractStringLiteralArrayValues,
+} from './native-insert'
 
 const STUB = `const FOO = {
   id: 'claude-foo',
@@ -102,5 +106,22 @@ export type OpenAIModelInputModalitiesByName = {
 
     expect(result).toContain('[GPT6.name]: typeof GPT6.supports.tools')
     expect(result).toContain('GPT6.name,')
+  })
+})
+
+describe('string-literal arrays', () => {
+  const stub = `export const ELEVENLABS_TTS_MODELS = [
+  'eleven_v3',
+] as const
+`
+
+  it('inserts quoted ids after the opening bracket', () => {
+    const result = addToStringLiteralArray(stub, 'ELEVENLABS_TTS_MODELS', [
+      'eleven_v3_conversational',
+    ])
+    expect(result).toContain("  'eleven_v3_conversational',")
+    expect(
+      extractStringLiteralArrayValues(result, 'ELEVENLABS_TTS_MODELS'),
+    ).toEqual(new Set(['eleven_v3_conversational', 'eleven_v3']))
   })
 })
