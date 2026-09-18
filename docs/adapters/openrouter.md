@@ -294,21 +294,22 @@ const stream = chat({
   messages,
   modelOptions: {
     provider: {
-      order: ["Groq", "Together"], // try these first, in this order
+      order: ["groq", "together"], // provider slugs, in priority order
       allowFallbacks: false, // fail instead of routing elsewhere
     },
   },
 });
 ```
 
-Other fields on `provider`:
+Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthropic"`, `"openai"`, `"groq"`, …). Other fields on `provider`:
 
 - `only` / `ignore` — allow-list or deny-list of provider slugs, merged with your account-wide provider settings for this request.
 - `requireParameters` — only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error.
-- `sort` — `"price"`, `"throughput"`, or `"latency"`, applied when `order` is not set. Setting it disables load balancing.
-- `maxPrice` — USD per million tokens (`prompt`, `completion`, and per-modality limits) above which a provider is skipped.
+- `sort` — `"price"`, `"throughput"`, or `"latency"`, or an object with `by` and `partition`, applied when `order` is not set. Setting it disables load balancing.
+- `maxPrice` — the highest pricing you accept: `prompt` and `completion` in USD per million tokens, plus `request` (per-request pricing) and `image` (per image) where a provider offers them. Providers above the limit are skipped.
 - `quantizations` — restrict to providers serving the model at given quantization levels (e.g. `"fp8"`, `"int4"`).
-- `dataCollection` — `"deny"` to use only providers that do not collect user data; `zdr` restricts routing to zero-data-retention endpoints.
+- `dataCollection` — `"deny"` to use only providers that do not collect user data.
+- `zdr` — `true` to restrict routing to zero-data-retention endpoints.
 
 ### Model variants
 
@@ -340,7 +341,7 @@ const stream = chat({
 });
 ```
 
-Plugin ids include `web`, `web-fetch`, `file-parser`, `response-healing`, `moderation`, and `auto-router`; see the OpenRouter documentation for each plugin's options. For web search and fetch as _tools_ the model can call, see [Provider Tools](#provider-tools) below.
+Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `auto-router`; see the OpenRouter documentation for each plugin's options. Web fetching is not a plugin but a server tool (`openrouter:web_fetch`); for web search and fetch as _tools_ the model can call, see [Provider Tools](#provider-tools) below.
 
 ### Reasoning
 
