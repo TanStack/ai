@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[parallel-search] find a source about search results",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "parallel_search",
+            "arguments": "{\"query\":\"Parallel Search source citations\",\"objective\":\"Find a source that describes Search results.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[parallel-search] find a source about search results",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Search returns source URLs and excerpts. Source: https://example.com/parallel-search"
+      }
+    }
+  ]
+}

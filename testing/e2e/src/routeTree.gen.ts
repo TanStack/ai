@@ -52,6 +52,7 @@ import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-d
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
+import { Route as ApiParallelSearchRouteImport } from './routes/api.parallel-search'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
@@ -330,6 +331,11 @@ const ApiPersistenceDurabilityRoute =
     path: '/api/persistence-durability',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiParallelSearchRoute = ApiParallelSearchRouteImport.update({
+  id: '/api/parallel-search',
+  path: '/api/parallel-search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
   id: '/api/otel-usage',
   path: '/api/otel-usage',
@@ -702,6 +708,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/parallel-search': typeof ApiParallelSearchRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
@@ -803,6 +810,7 @@ export interface FileRoutesByTo {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/parallel-search': typeof ApiParallelSearchRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
@@ -905,6 +913,7 @@ export interface FileRoutesById {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
+  '/api/parallel-search': typeof ApiParallelSearchRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
@@ -1008,6 +1017,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
+    | '/api/parallel-search'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
@@ -1109,6 +1119,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
+    | '/api/parallel-search'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
@@ -1210,6 +1221,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
+    | '/api/parallel-search'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
@@ -1312,6 +1324,7 @@ export interface RootRouteChildren {
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
+  ApiParallelSearchRoute: typeof ApiParallelSearchRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
@@ -1632,6 +1645,13 @@ declare module '@tanstack/react-router' {
       path: '/api/persistence-durability'
       fullPath: '/api/persistence-durability'
       preLoaderRoute: typeof ApiPersistenceDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/parallel-search': {
+      id: '/api/parallel-search'
+      path: '/api/parallel-search'
+      fullPath: '/api/parallel-search'
+      preLoaderRoute: typeof ApiParallelSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/otel-usage': {
@@ -2165,6 +2185,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
+  ApiParallelSearchRoute: ApiParallelSearchRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
