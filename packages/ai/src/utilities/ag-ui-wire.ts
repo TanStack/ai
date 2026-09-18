@@ -13,6 +13,7 @@ import type {
   ModelMessage,
   StructuredOutputPart,
   TanStackMessageMetadata,
+  ToolResultOutcome,
   UIMessage,
   UIResourcePart,
 } from '../types'
@@ -45,6 +46,7 @@ function rebuiltToolMetadata(
   id: string | undefined,
   content: string | null | Array<ContentPart>,
   anchorOwnsUiResources = false,
+  outcome?: ToolResultOutcome,
 ): MetadataRecord | undefined {
   const source: MetadataRecord = isRecord(metadata) ? metadata : {}
   const tanstack = isRecord(source.tanstack) ? { ...source.tanstack } : {}
@@ -57,7 +59,11 @@ function rebuiltToolMetadata(
   }
   const result = {
     ...source,
-    tanstack: { ...tanstack, toolResult },
+    tanstack: {
+      ...tanstack,
+      ...(outcome !== undefined && { toolResultOutcome: outcome }),
+      toolResult,
+    },
   }
   return Object.keys(result).length ? result : undefined
 }
@@ -215,6 +221,7 @@ export function uiMessagesToWire(
           part.id,
           part.content,
           true,
+          part.outcome,
         )
         wire.push({
           role: 'tool',
@@ -259,6 +266,8 @@ export function uiMessagesToWire(
             undefined,
             undefined,
             result,
+            false,
+            part.approval?.approved === false ? 'denied' : undefined,
           ),
         })
       }

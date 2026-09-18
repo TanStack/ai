@@ -2629,6 +2629,9 @@ describe('Message Converters', () => {
       expect(content.approved).toBe(false)
       expect(content.pendingExecution).toBeUndefined()
       expect(content.message).toBe('User denied this action')
+      expect(toolMsg?.metadata).toEqual({
+        tanstack: { toolResultOutcome: 'denied' },
+      })
     })
   })
 

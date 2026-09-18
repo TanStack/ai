@@ -23,6 +23,7 @@ import type {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
 // ===========================
 // Message Converters
 // ===========================
@@ -750,6 +751,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
+        ...(approved === false && {
+          metadata: { tanstack: { toolResultOutcome: 'denied' } },
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -1159,7 +1163,7 @@ export function modelMessagesToUIMessages(
             typeof content === 'string'
               ? parseToolResultContent(content)
               : content
-          toolCallPart.state = resultState === 'error' ? 'error' : 'complete'
+          toolCallPart.state = resultState
         }
         currentAssistantMessage.parts.push({
           type: 'tool-result',

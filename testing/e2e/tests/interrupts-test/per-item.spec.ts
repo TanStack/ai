@@ -6,8 +6,8 @@ import {
   waitForTestComplete,
   getMetadata,
   getEventLog,
-  getMessages,
 } from './helpers'
+import { getMessages } from '../tools-test/helpers'
 
 /**
  * Per-item interrupt resolution — approve / deny / cancel for every single
@@ -108,17 +108,19 @@ test.describe('Per-item interrupt resolution', () => {
       expect(parseInt(meta.approvalDeniedCount)).toBe(1)
       expect(parseInt(meta.approvalGrantedCount)).toBe(0)
 
-      const messages = await getMessages(page)
-      expect(
-        messages
-          .flatMap((message) => message.parts)
-          .some(
-            (part) =>
-              part.type === 'tool-result' &&
-              part.state === 'error' &&
-              part.outcome === 'denied',
-          ),
-      ).toBe(true)
+      await expect
+        .poll(async () => {
+          const messages = await getMessages(page)
+          return messages
+            .flatMap((message) => message.parts)
+            .some(
+              (part) =>
+                part.type === 'tool-result' &&
+                part.state === 'error' &&
+                part.outcome === 'denied',
+            )
+        })
+        .toBe(true)
 
       // A denied tool must not run.
       if (s.group === 'client') {

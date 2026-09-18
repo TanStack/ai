@@ -293,7 +293,7 @@ The user will see an approval prompt showing the item, quantity, and price befor
 - **Use approval for sensitive operations** - Sending emails, making payments, deleting data
 - **Show clear information** - Display what the tool will do before approval
 - **Provide context** - Show tool arguments in a readable format
-- **Handle denial gracefully** - Don't break the conversation if a tool is denied
+- **Handle denial gracefully** - Check `part.outcome` when a tool is denied.
 - **Timeout handling** - Consider timeouts for approval requests
 
 ## Tool Result Outcomes
@@ -317,6 +317,10 @@ const denied = message.parts.some(
 The `@tanstack/ai-client` package exposes the same value on the
 `tool-result` part. Use `part.outcome` to distinguish a denial or cancellation
 from an ordinary tool execution failure.
+
+The structured outcome is emitted by both the AG-UI interrupt resume path and
+the deprecated `addToolApprovalResponse` path. Both paths keep the existing
+error content.
 
 ## Next Steps
 
