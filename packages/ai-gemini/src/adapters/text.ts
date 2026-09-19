@@ -622,11 +622,18 @@ export class GeminiTextAdapter<
 
     const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
       if (!groundingMetadata || groundingCallEmitted) return
+      const sources = getGroundingSources(groundingMetadata)
+      const hasGoogleSearchEvidence =
+        sources.length > 0 ||
+        (groundingMetadata.webSearchQueries?.length ?? 0) > 0 ||
+        groundingMetadata.searchEntryPoint !== undefined
+      if (!hasGoogleSearchEvidence) return
+
       groundingCallEmitted = true
       const toolCallId = generateId(adapterName)
       const metadata: GeminiToolCallMetadata = {
         providerExecuted: true,
-        sources: getGroundingSources(groundingMetadata),
+        sources,
         gemini: { groundingMetadata },
       }
       yield {

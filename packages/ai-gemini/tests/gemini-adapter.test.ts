@@ -675,6 +675,43 @@ describe('GeminiAdapter through AI', () => {
     )
   })
 
+  it('does not label non-search grounding as Google Search', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Retrieved' }] },
+              groundingMetadata: {
+                groundingChunks: [
+                  { retrievedContext: { uri: 'vertex://context/1' } },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter: createTextAdapter(),
+      messages: [{ role: 'user', content: 'Use the retrieved context.' }],
+      tools: [googleSearchTool()],
+    })) {
+      received.push(chunk)
+    }
+
+    expect(
+      received.filter(
+        (chunk) =>
+          chunk.type === 'TOOL_CALL_START' &&
+          chunk.toolCallName === 'google_search',
+      ),
+    ).toHaveLength(0)
+  })
+
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
     // A functionCall part arrives before any text. parentMessageId must bind the
     // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
