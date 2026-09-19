@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
   ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
   ANTHROPIC_MAX_NONSTREAMING_TOKENS,
   ANTHROPIC_MODELS,
@@ -392,5 +393,30 @@ describe('getAnthropicDefaultMaxTokens (#849)', () => {
     ).toBe(128_000)
     // Omitting the option defaults to streaming.
     expect(getAnthropicDefaultMaxTokens('claude-opus-4-8')).toBe(128_000)
+  })
+})
+
+describe('ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS', () => {
+  const MODELS_WITHOUT_OUTPUT_CONFIG = [
+    'claude-opus-4-1',
+    'claude-opus-5-fast',
+  ] as const
+
+  it('covers every registered model that accepts output_config.format', () => {
+    const missing = ANTHROPIC_MODELS.filter(
+      (model) =>
+        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model) &&
+        !MODELS_WITHOUT_OUTPUT_CONFIG.includes(
+          model as (typeof MODELS_WITHOUT_OUTPUT_CONFIG)[number],
+        ),
+    )
+
+    expect(missing).toEqual([])
+  })
+
+  it('leaves out the models that fall back to forced tool use', () => {
+    for (const model of MODELS_WITHOUT_OUTPUT_CONFIG) {
+      expect(ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(model)).toBe(false)
+    }
   })
 })

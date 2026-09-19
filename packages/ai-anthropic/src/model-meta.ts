@@ -509,7 +509,15 @@ const CLAUDE_OPUS_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
-    tools: [],
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
   pricing: {
     input: {
@@ -567,7 +575,15 @@ const CLAUDE_FABLE_5_1 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
-    tools: [],
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
   pricing: {
     input: {
@@ -721,7 +737,9 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_7.id,
   CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_5.id,
   CLAUDE_FABLE_5.id,
+  CLAUDE_FABLE_5_1.id,
   CLAUDE_SONNET_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_SONNET_4_6.id,
