@@ -10,6 +10,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
+import { googleSearchTool } from '../src/tools'
 import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
@@ -567,6 +568,148 @@ describe('GeminiAdapter through AI', () => {
     expect(new Set(startIds).size).toBe(2)
     expect(startIds).toContain('call_1')
     expect(endIds.sort()).toEqual(startIds.sort())
+  })
+
+  it('emits grounded web search sources and omits the provider call on the next turn', async () => {
+    const groundingMetadata = {
+      webSearchQueries: ['latest release'],
+      groundingChunks: [
+        {
+          web: {
+            uri: 'https://example.com/release',
+            title: 'Example release notes',
+          },
+        },
+      ],
+    }
+
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Grounded' }] },
+              groundingMetadata,
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 2 },
+        },
+      ]),
+    )
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      tools: [googleSearchTool()],
+      messages: [{ role: 'user', content: 'Find the latest release.' }],
+    })) {
+      received.push(chunk)
+    }
+
+    const providerStart = received.find(
+      (chunk) => chunk.type === 'TOOL_CALL_START',
+    )
+    expect(providerStart).toMatchObject({
+      toolCallName: 'google_search',
+      metadata: {
+        providerExecuted: true,
+        sources: [
+          {
+            url: 'https://example.com/release',
+            title: 'Example release notes',
+          },
+        ],
+        gemini: { groundingMetadata },
+      },
+    })
+    if (providerStart?.type !== 'TOOL_CALL_START') {
+      throw new Error('expected provider web search TOOL_CALL_START')
+    }
+
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Follow-up' }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 2 },
+        },
+      ]),
+    )
+
+    for await (const _ of adapter.chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [
+        { role: 'user', content: 'Find the latest release.' },
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          toolCalls: [
+            {
+              id: providerStart.toolCallId,
+              type: 'function',
+              function: { name: 'google_search', arguments: '{}' },
+              metadata: providerStart.metadata,
+            },
+          ],
+        },
+        { role: 'user', content: 'What did you find?' },
+      ],
+      logger: resolveDebugOption(false),
+    } as any)) {
+      // consume
+    }
+
+    const [followUpPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+    const modelTurn = followUpPayload.contents.find(
+      (content: any) => content.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+    expect(modelTurn.parts).not.toContainEqual(
+      expect.objectContaining({ functionCall: expect.anything() }),
+    )
+  })
+
+  it('does not label non-search grounding as Google Search', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Retrieved' }] },
+              groundingMetadata: {
+                groundingChunks: [
+                  { retrievedContext: { uri: 'vertex://context/1' } },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter: createTextAdapter(),
+      messages: [{ role: 'user', content: 'Use the retrieved context.' }],
+      tools: [googleSearchTool()],
+    })) {
+      received.push(chunk)
+    }
+
+    expect(
+      received.filter(
+        (chunk) =>
+          chunk.type === 'TOOL_CALL_START' &&
+          chunk.toolCallName === 'google_search',
+      ),
+    ).toHaveLength(0)
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {

@@ -51,6 +51,7 @@ import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
+import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
@@ -323,6 +324,12 @@ const ApiProviderToolDispatchWireRoute =
   ApiProviderToolDispatchWireRouteImport.update({
     id: '/api/provider-tool-dispatch-wire',
     path: '/api/provider-tool-dispatch-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProviderSearchMetadataWireRoute =
+  ApiProviderSearchMetadataWireRouteImport.update({
+    id: '/api/provider-search-metadata-wire',
+    path: '/api/provider-search-metadata-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
@@ -710,6 +717,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -812,6 +820,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -915,6 +924,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -1019,6 +1029,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1121,6 +1132,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1223,6 +1235,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1326,6 +1339,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
+  ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
@@ -1638,6 +1652,13 @@ declare module '@tanstack/react-router' {
       path: '/api/provider-tool-dispatch-wire'
       fullPath: '/api/provider-tool-dispatch-wire'
       preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/provider-search-metadata-wire': {
+      id: '/api/provider-search-metadata-wire'
+      path: '/api/provider-search-metadata-wire'
+      fullPath: '/api/provider-search-metadata-wire'
+      preLoaderRoute: typeof ApiProviderSearchMetadataWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/portable-skills-wire': {
@@ -2187,6 +2208,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
+  ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,

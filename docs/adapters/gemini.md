@@ -825,6 +825,12 @@ const stream = chat({
 
 **Supported models:** Gemini 1.5 Pro, Gemini 2.x, Gemini 2.5. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
+When Google Search returns grounding data, the assistant tool-call part
+includes `metadata.providerExecuted: true` and the normalized
+`metadata.sources` array. Gemini's raw `groundingMetadata` stays under
+`metadata.gemini`. The agent loop does not execute this call in your
+application.
+
 ### `googleSearchRetrievalTool`
 
 A retrieval-augmented variant of Google Search that returns ranked passages

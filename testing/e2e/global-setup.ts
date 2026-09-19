@@ -135,6 +135,12 @@ export default async function globalSetup() {
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
 
+  // Provider-executed web search responses need native Responses/Gemini wire
+  // items that aimock does not synthesize. These mounts feed the adapter E2E
+  // route deterministic search calls and grounding metadata.
+  mock.mount('/provider-search-openai', openaiProviderSearchMount())
+  mock.mount('/provider-search-gemini', geminiProviderSearchMount())
+
   // Anthropic structured-output fallback usage (#758). The Anthropic text
   // adapter has no native `structuredOutputStream`, so streaming structured
   // output runs through the activity layer's `fallbackStructuredOutputStream`,
@@ -1800,6 +1806,181 @@ function openaiUsageDetailsMount(): Mountable {
       }
       res.write('data: [DONE]\n\n')
       res.end()
+      return true
+    },
+  }
+}
+
+function openaiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+
+      const body = asRecord(await readJsonRequestBody(req))
+      const include = body?.include
+      if (
+        !Array.isArray(include) ||
+        !include.includes('web_search_call.action.sources')
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              message: 'OpenAI web search sources were not requested.',
+            },
+          }),
+        )
+        return true
+      }
+
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_e2e_openai',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+      const events = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'in_progress',
+            model: 'gpt-4o',
+            output: [],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Grounded',
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg_e2e_openai',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function geminiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        req.method !== 'POST' ||
+        !pathname.endsWith(':streamGenerateContent')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Grounded' }],
+              },
+              groundingMetadata: {
+                webSearchQueries: ['latest release'],
+                groundingChunks: [
+                  {
+                    web: {
+                      uri: 'https://example.com/release',
+                      title: 'Example release notes',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
       return true
     },
   }

@@ -90,6 +90,28 @@ const followUp = chat({
 The search/fetch call surfaces as a provider-executed `tool-call` part on the
 assistant message; the agent loop never tries to run it client-side.
 
+### Read web search sources
+
+OpenAI and Gemini web search calls expose a common `metadata.sources` array on
+the assistant tool-call part. Each source has a `url` and can also include a
+`title` or `pageAge`. Use this list to render source links in your UI. The
+provider still owns search execution, so do not execute the tool call in your
+application.
+
+```typescript
+import { getProviderExecutedMetadata } from '@tanstack/ai'
+
+const metadata = getProviderExecutedMetadata(toolCall)
+const sources = metadata?.sources ?? []
+
+for (const source of sources) {
+  console.log(source.title ?? source.url, source.url)
+}
+```
+
+The raw provider response stays available for provider-specific handling under
+`metadata.openai` or `metadata.gemini`.
+
 ## Type-level guard
 
 Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)
