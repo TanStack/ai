@@ -548,6 +548,53 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.betas).toEqual(['context-management-2025-06-27'])
   })
 
+  it('forwards mcp_servers and attaches the mcp-client beta (issue #1424)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const mcpServers = [
+      {
+        type: 'url' as const,
+        name: 'world-weather',
+        url: 'https://mcp.example.com',
+        tool_configuration: { enabled: true },
+      },
+    ]
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        mcp_servers: mcpServers,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.mcp_servers).toEqual(mcpServers)
+    expect(payload.betas).toEqual(['mcp-client-2025-11-20'])
+  })
+
+  it('does not attach the mcp-client beta for an empty mcp_servers array', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        mcp_servers: [],
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.betas).toBeUndefined()
+  })
+
   it('forwards top-level cache_control from modelOptions instead of dropping it', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 

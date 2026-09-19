@@ -164,6 +164,7 @@ export function computeAnthropicBetas(
           budget_tokens?: number
         }
         context_management?: unknown | null
+        mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
 ): Array<AnthropicBeta> | undefined {
@@ -179,6 +180,12 @@ export function computeAnthropicBetas(
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
   if (modelOptions?.context_management != null) {
     betas.add('context-management-2025-06-27')
+  }
+
+  // The MCP connector needs its beta header as well (same shape as #1074);
+  // an empty array is a typed "unset" — do not enable the beta.
+  if (modelOptions?.mcp_servers && modelOptions.mcp_servers.length > 0) {
+    betas.add('mcp-client-2025-11-20')
   }
 
   // Code-execution beta is version-aware: select from the FIRST code_execution
