@@ -96,12 +96,11 @@ export {
 
 export {
   kind as evaluateKind,
-  evaluator,
+  decide,
   choice,
   score,
   boolean,
-  type EvaluatorConfig,
-  type EvaluateDecideOptions,
+  type EvaluateActivityOptions,
   type EvaluateResult,
   type EvaluateResultMeta,
   type EvaluateProviderOptions,

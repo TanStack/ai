@@ -74,12 +74,12 @@ export class CloudflareEvaluateAdapter<
  * @example
  * ```typescript
  * // Inside a Worker
- * const adapter = createCloudflareEvaluator('typesafe/jev', { binding: env.AI })
+ * const adapter = createCloudflareDecider('typesafe/jev', { binding: env.AI })
  * // Anywhere, over REST
- * const adapter = createCloudflareEvaluator('typesafe/jev', { accountId, apiKey })
+ * const adapter = createCloudflareDecider('typesafe/jev', { accountId, apiKey })
  * ```
  */
-export function createCloudflareEvaluator<
+export function createCloudflareDecider<
   TModel extends CloudflareEvaluateModel,
 >(model: TModel, config: CloudflareConfig) {
   return new CloudflareEvaluateAdapter(config, model)
@@ -89,7 +89,7 @@ export function createCloudflareEvaluator<
  * Creates a Cloudflare evaluate adapter, reading `CLOUDFLARE_ACCOUNT_ID` and
  * `CLOUDFLARE_API_TOKEN` from the environment unless a binding is passed.
  */
-export function cloudflareEvaluator<TModel extends CloudflareEvaluateModel>(
+export function cloudflareDecider<TModel extends CloudflareEvaluateModel>(
   model: TModel,
   config?: CloudflareConfigInput,
 ) {

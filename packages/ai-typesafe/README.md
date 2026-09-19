@@ -30,7 +30,7 @@
 # @tanstack/ai-typesafe
 
 TypeSafe Jev adapter for [TanStack AI](https://tanstack.com/ai). Call Jev with
-`evaluator()` and typed questions. This package talks HTTP with `fetch`. It
+`decide()` and typed questions. This package talks HTTP with `fetch`. It
 does not add a TypeSafe SDK.
 
 ## Install
@@ -50,14 +50,11 @@ export TYPESAFE_API_KEY="..."
 ## Usage
 
 ```typescript
-import { boolean, choice, evaluator, score } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { boolean, choice, decide, score } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
   state: ticket,
   questions: {
     queue: choice({
@@ -83,8 +80,8 @@ result.meta.model
 result.meta.usage
 ```
 
-`typesafeEvaluator(model)` reads `TYPESAFE_API_KEY` from the environment. To
-pass a key yourself, use `createTypesafeEvaluator(model, apiKey)`.
+`typesafeDecider(model)` reads `TYPESAFE_API_KEY` from the environment. To
+pass a key yourself, use `createTypesafeDecider(model, apiKey)`.
 
 ## Supported models
 

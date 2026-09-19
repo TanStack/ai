@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { EvaluateOptions } from '@tanstack/ai/adapters'
 import type { WireAnswer, WireQuestion } from '@tanstack/ai'
-import { createTypesafeEvaluator } from '../src/adapters/evaluate'
+import { createTypesafeDecider } from '../src/adapters/evaluate'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -108,7 +108,7 @@ function evaluateOptions(): EvaluateOptions {
 }
 
 function adapter() {
-  return createTypesafeEvaluator('jev-latest', 'test-key')
+  return createTypesafeDecider('jev-latest', 'test-key')
 }
 
 describe('TypesafeEvaluateAdapter', () => {

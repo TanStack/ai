@@ -137,41 +137,18 @@ export type EvaluateResult<TQuestions extends Record<string, WireQuestion>> = {
 // ===========================
 
 /**
- * Options for `evaluator()`. The factory does no network work.
- *
- * @template TAdapter - The evaluate adapter type
- */
-export interface EvaluatorConfig<
-  TAdapter extends EvaluateAdapter<string, EvaluateProviderOptions<TAdapter>>,
-> {
-  /** The evaluate adapter to use (must be created with a model) */
-  adapter: TAdapter & { kind: typeof kind }
-  /**
-   * Observe-only middleware notified on start, usage, success, abort, and
-   * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
-   * the `GenerationMiddleware` contract for a custom backend.
-   */
-  middleware?: Array<GenerationMiddleware>
-  /**
-   * Enable debug logging. Pass `true` to enable all categories, `false` to
-   * silence everything including errors, or a `DebugConfig` object for granular
-   * control and/or a custom `Logger`.
-   */
-  debug?: DebugOption
-}
-
-/**
- * Options for `decide()`. This is the network call.
- *
- * Per-call `debug` and `middleware` replace the values from `evaluator()`.
+ * Options for the evaluate activity. The model is extracted from the
+ * adapter's model property.
  *
  * @template TAdapter - The evaluate adapter type
  * @template TQuestions - The questions object passed to `decide`
  */
-export interface EvaluateDecideOptions<
+export interface EvaluateActivityOptions<
   TAdapter extends EvaluateAdapter<string, EvaluateProviderOptions<TAdapter>>,
   TQuestions extends Record<string, WireQuestion>,
 > {
+  /** The evaluate adapter to use (must be created with a model) */
+  adapter: TAdapter & { kind: typeof kind }
   /** Shared state every question judges. A JSON array is one state, not a batch. */
   state: EvaluateState
   /**
@@ -185,11 +162,14 @@ export interface EvaluateDecideOptions<
   abortSignal?: AbortSignal
   /**
    * Observe-only middleware notified on start, usage, success, abort, and
-   * error. When passed, this replaces middleware from `evaluator()`.
+   * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
+   * the `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
   /**
-   * Enable debug logging. When passed, this replaces debug from `evaluator()`.
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
    */
   debug?: DebugOption
 }
@@ -461,28 +441,30 @@ export function boolean(options: {
 // ===========================
 
 /**
- * Build an evaluator from an adapter. This does not call the network.
+ * Ask typed questions about `state` and get answers your code can branch on.
  *
  * You have state (a ticket, a record, a log) and you need typed answers, not
- * prose. Call `decide` with `choice`, `score`, and `boolean` questions. Then
+ * prose. Pass questions built with `choice`, `score`, and `boolean`. Then
  * branch on `result.queue.value` in ordinary TypeScript.
  *
- * Per-call `debug` and `middleware` on `decide` replace the values you pass
- * here.
+ * The question key `meta` is reserved. Throws if `questions` is empty or uses
+ * that key.
  *
- * @param config.adapter Evaluate adapter created with a model.
- * @param config.middleware Observe-only generation middleware.
- * @param config.debug Debug logging option.
+ * @param options.adapter Evaluate adapter created with a model.
+ * @param options.state Shared state every question judges.
+ * @param options.questions Questions built with `choice`, `score`, `boolean`.
+ * @param options.modelOptions Provider-specific options.
+ * @param options.abortSignal Cancels the in-flight request.
+ * @param options.middleware Observe-only generation middleware.
+ * @param options.debug Debug logging option.
  *
  * @example Route a support ticket
  * ```ts
- * import { evaluator, choice, score, boolean } from '@tanstack/ai'
+ * import { decide, choice, score, boolean } from '@tanstack/ai'
+ * import { typesafeDecider } from '@tanstack/ai-typesafe'
  *
- * const ticketEval = evaluator({
- *   adapter: typesafeEvaluator('jev-latest'),
- * })
- *
- * const result = await ticketEval.decide({
+ * const result = await decide({
+ *   adapter: typesafeDecider('jev-latest'),
  *   state: ticket,
  *   questions: {
  *     queue: choice({
@@ -508,114 +490,106 @@ export function boolean(options: {
  * result.meta.usage
  * ```
  */
-export function evaluator<
+export async function decide<
   TAdapter extends EvaluateAdapter<string, EvaluateProviderOptions<TAdapter>>,
->(config: EvaluatorConfig<TAdapter>) {
-  /**
-   * Ask typed questions about `state`. This is the network call.
-   *
-   * Pass questions built with `choice`, `score`, and `boolean`. The question
-   * key `meta` is reserved. Throws if `questions` is empty or uses that key.
-   *
-   * Per-call `debug` and `middleware` replace the values from `evaluator()`.
-   */
-  async function decide<TQuestions extends Record<string, WireQuestion>>(
-    input: EvaluateDecideOptions<TAdapter, TQuestions>,
-  ) {
-    const adapter = config.adapter
-    const model = adapter.model
-    const debug = input.debug ?? config.debug
-    const middleware = input.middleware ?? config.middleware
-    const { state, questions, modelOptions, abortSignal } = input
-    const keys = assertQuestions(questions)
-    const requestId = createId('evaluate')
-    const startTime = Date.now()
-    const logger: InternalLogger = resolveDebugOption(debug)
+  TQuestions extends Record<string, WireQuestion>,
+>(options: EvaluateActivityOptions<TAdapter, TQuestions>) {
+  const {
+    adapter,
+    state,
+    questions,
+    modelOptions,
+    abortSignal,
+    middleware,
+    debug,
+  } = options
+  const model = adapter.model
+  const keys = assertQuestions(questions)
+  const requestId = createId('evaluate')
+  const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(debug)
 
-    const mwCtx = createGenerationContext({
-      requestId,
-      activity: 'evaluate',
-      provider: adapter.name,
+  const mwCtx = createGenerationContext({
+    requestId,
+    activity: 'evaluate',
+    provider: adapter.name,
+    model,
+    modelOptions,
+    createId,
+  })
+
+  await runGenerationStart(middleware, mwCtx)
+
+  aiEventClient.emit('evaluate:request:started', {
+    requestId,
+    provider: adapter.name,
+    model,
+    questionCount: keys.length,
+    timestamp: startTime,
+  })
+
+  logger.request(`activity=evaluate provider=${adapter.name}`, {
+    provider: adapter.name,
+    model,
+    questionCount: keys.length,
+  })
+
+  try {
+    const result = await adapter.evaluate({
       model,
+      state,
+      questions,
       modelOptions,
-      createId,
+      abortSignal,
+      logger,
     })
 
-    await runGenerationStart(middleware, mwCtx)
+    const answers = mapAnswers(questions, result.answers)
+    const duration = Date.now() - startTime
 
-    aiEventClient.emit('evaluate:request:started', {
+    aiEventClient.emit('evaluate:request:completed', {
       requestId,
       provider: adapter.name,
-      model,
+      model: result.model,
       questionCount: keys.length,
-      timestamp: startTime,
+      duration,
+      timestamp: Date.now(),
     })
 
-    logger.request(`activity=evaluate provider=${adapter.name}`, {
-      provider: adapter.name,
-      model,
-      questionCount: keys.length,
+    aiEventClient.emit('evaluate:usage', {
+      requestId,
+      model: result.model,
+      usage: result.usage,
+      timestamp: Date.now(),
     })
 
-    try {
-      const result = await adapter.evaluate({
-        model,
-        state,
-        questions,
-        modelOptions,
-        abortSignal,
-        logger,
-      })
+    logger.output(`activity=evaluate answers=${keys.length}`, {
+      answerCount: keys.length,
+    })
 
-      const answers = mapAnswers(questions, result.answers)
-      const duration = Date.now() - startTime
+    await runGenerationUsage(middleware, mwCtx, result.usage)
+    await runGenerationFinish(middleware, mwCtx, {
+      duration,
+      usage: result.usage,
+    })
 
-      aiEventClient.emit('evaluate:request:completed', {
-        requestId,
-        provider: adapter.name,
-        model: result.model,
-        questionCount: keys.length,
+    return withMeta(answers, {
+      model: result.model,
+      usage: result.usage,
+    })
+  } catch (error) {
+    const duration = Date.now() - startTime
+    if (isAbortError(error, abortSignal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: error instanceof Error ? error.message : undefined,
         duration,
-        timestamp: Date.now(),
       })
-
-      aiEventClient.emit('evaluate:usage', {
-        requestId,
-        model: result.model,
-        usage: result.usage,
-        timestamp: Date.now(),
-      })
-
-      logger.output(`activity=evaluate answers=${keys.length}`, {
-        answerCount: keys.length,
-      })
-
-      await runGenerationUsage(middleware, mwCtx, result.usage)
-      await runGenerationFinish(middleware, mwCtx, {
-        duration,
-        usage: result.usage,
-      })
-
-      return withMeta(answers, {
-        model: result.model,
-        usage: result.usage,
-      })
-    } catch (error) {
-      const duration = Date.now() - startTime
-      if (isAbortError(error, abortSignal)) {
-        await runGenerationAbort(middleware, mwCtx, {
-          reason: error instanceof Error ? error.message : undefined,
-          duration,
-        })
-      } else {
-        await runGenerationError(middleware, mwCtx, { error, duration })
-      }
-      logger.errors('evaluate activity failed', { error, source: 'evaluate' })
-      throw error
+    } else {
+      await runGenerationError(middleware, mwCtx, { error, duration })
     }
+    logger.errors('evaluate activity failed', { error, source: 'evaluate' })
+    throw error
   }
-
-  return { decide }
 }
 
 // Re-export adapter types

@@ -28,8 +28,8 @@ export {
 
 export {
   CloudflareEvaluateAdapter,
-  createCloudflareEvaluator,
-  cloudflareEvaluator,
+  createCloudflareDecider,
+  cloudflareDecider,
 } from './adapters/evaluate'
 
 export {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { createCloudflareEvaluator } from '../src/adapters/evaluate'
+import { createCloudflareDecider } from '../src/adapters/evaluate'
 import type { WireQuestion } from '@tanstack/ai'
 import type { CloudflareGatewayOptions } from '../src/utils/config'
 
@@ -50,11 +50,11 @@ const answers = {
   },
 }
 
-function createRestEvaluator(
+function createRestDecider(
   fetchMock: typeof fetch,
   gateway?: CloudflareGatewayOptions,
 ) {
-  return createCloudflareEvaluator(MODEL, {
+  return createCloudflareDecider(MODEL, {
     accountId: 'acc',
     apiKey: 'tok',
     fetch: fetchMock,
@@ -62,7 +62,7 @@ function createRestEvaluator(
   })
 }
 
-function evaluate(adapter: ReturnType<typeof createRestEvaluator>) {
+function evaluate(adapter: ReturnType<typeof createRestDecider>) {
   return adapter.evaluate({
     model: MODEL,
     state,
@@ -83,7 +83,7 @@ describe('evaluate adapter', () => {
         },
       }),
     )
-    const adapter = createRestEvaluator(fetchMock, {
+    const adapter = createRestDecider(fetchMock, {
       id: 'g1',
       skipCache: true,
     })
@@ -164,7 +164,7 @@ describe('evaluate adapter', () => {
     const fetchMock = vi.fn<typeof fetch>(
       async () => new Response('nope', { status: 502 }),
     )
-    const adapter = createRestEvaluator(fetchMock)
+    const adapter = createRestDecider(fetchMock)
 
     await expect(evaluate(adapter)).rejects.toThrow(
       'Workers AI request for typesafe/jev failed (502): nope',

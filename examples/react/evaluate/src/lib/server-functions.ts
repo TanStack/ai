@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { boolean, choice, evaluator, score } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
-import { openRouterEvaluator } from '@tanstack/ai-openrouter'
-import { vercelGatewayEvaluator } from '@tanstack/ai-vercel-gateway'
-import { cloudflareEvaluator } from '@tanstack/ai-cloudflare'
+import { boolean, choice, decide, score } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+import { openRouterDecider } from '@tanstack/ai-openrouter'
+import { vercelGatewayDecider } from '@tanstack/ai-vercel-gateway'
+import { cloudflareDecider } from '@tanstack/ai-cloudflare'
 import { isProvider } from './models'
 import type { EvaluateResult } from '@tanstack/ai'
 import type { Provider } from './models'
@@ -57,30 +57,26 @@ export const evaluateTicketFn = createServerFn({ method: 'POST' })
 
     switch (data.provider) {
       case 'typesafe':
-        return await evaluator({
-          adapter: typesafeEvaluator('jev-latest'),
-        }).decide({
+        return await decide({
+          adapter: typesafeDecider('jev-latest'),
           state: ticket,
           questions,
         })
       case 'openrouter':
-        return await evaluator({
-          adapter: openRouterEvaluator('~typesafe/jev-latest'),
-        }).decide({
+        return await decide({
+          adapter: openRouterDecider('~typesafe/jev-latest'),
           state: ticket,
           questions,
         })
       case 'vercel':
-        return await evaluator({
-          adapter: vercelGatewayEvaluator('typesafe-ai/jev'),
-        }).decide({
+        return await decide({
+          adapter: vercelGatewayDecider('typesafe-ai/jev'),
           state: ticket,
           questions,
         })
       case 'cloudflare':
-        const res = await evaluator({
-          adapter: cloudflareEvaluator('typesafe/jev'),
-        }).decide({
+        const res = await decide({
+          adapter: cloudflareDecider('typesafe/jev'),
           state: ticket,
           questions,
         })

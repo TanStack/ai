@@ -270,14 +270,14 @@ const stream = chat({
 
 ## Evaluate
 
-Use `cloudflareEvaluator('typesafe/jev')` with `evaluator()`.
+Use `cloudflareDecider('typesafe/jev')` with `decide()`.
 Pass `gateway: { id: 'default' }` on the adapter config to send the run through AI Gateway.
 
 From a Worker, pass the binding:
 
 ```typescript
-import { evaluator, choice, score, boolean } from "@tanstack/ai";
-import { createCloudflareEvaluator } from "@tanstack/ai-cloudflare";
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { createCloudflareDecider } from "@tanstack/ai-cloudflare";
 import type { Ai } from "@cloudflare/workers-types";
 
 interface Env {
@@ -290,14 +290,11 @@ const ticket = {
 };
 
 export async function evaluateTicket(env: Env) {
-  const ticketEval = evaluator({
-    adapter: createCloudflareEvaluator("typesafe/jev", {
+  const result = await decide({
+    adapter: createCloudflareDecider("typesafe/jev", {
       binding: env.AI,
       gateway: { id: "default" },
     }),
-  });
-
-  const result = await ticketEval.decide({
     state: ticket,
     questions: {
       queue: choice({
@@ -322,18 +319,15 @@ export async function evaluateTicket(env: Env) {
 }
 ```
 
-From any other server, `cloudflareEvaluator` reads `CLOUDFLARE_ACCOUNT_ID` and
+From any other server, `cloudflareDecider` reads `CLOUDFLARE_ACCOUNT_ID` and
 `CLOUDFLARE_API_TOKEN`:
 
 ```typescript
-import { evaluator, boolean } from "@tanstack/ai";
-import { cloudflareEvaluator } from "@tanstack/ai-cloudflare";
+import { decide, boolean } from "@tanstack/ai";
+import { cloudflareDecider } from "@tanstack/ai-cloudflare";
 
-const ticketEval = evaluator({
-  adapter: cloudflareEvaluator("typesafe/jev"),
-});
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: cloudflareDecider("typesafe/jev"),
   state: "Please refund the extra payment.",
   questions: {
     refund: boolean({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boolean, choice, evaluator, score } from '../src/index'
+import { boolean, choice, decide, score } from '../src/index'
 import type { EvaluateAdapter } from '../src/activities/evaluate/adapter'
 import type {
   EvaluateAdapterResult,
@@ -135,7 +135,8 @@ async function decideScore(raw: number, probabilities: Record<string, number>) {
       },
     }),
   )
-  const result = await evaluator({ adapter }).decide({
+  const result = await decide({
+    adapter,
     state: 'ticket',
     questions: {
       urgency: score({
@@ -153,7 +154,8 @@ async function decideBoolean(noul: number) {
       refund: { type: 'noul', noul },
     }),
   )
-  const result = await evaluator({ adapter }).decide({
+  const result = await decide({
+    adapter,
     state: 'ticket',
     questions: {
       refund: boolean({
@@ -238,7 +240,7 @@ describe('evaluate helpers', () => {
   })
 })
 
-describe('evaluator().decide()', () => {
+describe('decide()', () => {
   it('returns typed answers for mixed choice, score, and boolean questions', async () => {
     const usage: TokenUsage = {
       promptTokens: 12,
@@ -249,10 +251,10 @@ describe('evaluator().decide()', () => {
       adapterResult(mixedWireAnswers, usage),
     )
 
-    const client = evaluator({ adapter })
     expect(adapter.calls).toHaveLength(0)
 
-    const result = await client.decide({
+    const result = await decide({
+      adapter,
       state: 'Help! My payouts have been failing for 3 days.',
       questions: mixedQuestions,
     })
@@ -300,7 +302,8 @@ describe('evaluator().decide()', () => {
       }),
     )
 
-    await evaluator({ adapter }).decide({
+    await decide({
+      adapter,
       state,
       questions: {
         refund: boolean({
@@ -317,7 +320,8 @@ describe('evaluator().decide()', () => {
     const adapter = mockEvaluateAdapter(async () => adapterResult({}))
 
     await expect(
-      evaluator({ adapter }).decide({
+      decide({
+        adapter,
         state: 'ticket',
         questions: {
           meta: boolean({
@@ -333,7 +337,8 @@ describe('evaluator().decide()', () => {
     const adapter = mockEvaluateAdapter(async () => adapterResult({}))
 
     await expect(
-      evaluator({ adapter }).decide({
+      decide({
+        adapter,
         state: 'ticket',
         questions: {},
       }),
@@ -385,7 +390,8 @@ describe('evaluator().decide()', () => {
       }),
     )
 
-    await evaluator({ adapter }).decide({
+    await decide({
+      adapter,
       state: 'ticket',
       questions: mixedQuestions,
       middleware: [middleware],
@@ -407,7 +413,8 @@ describe('evaluator().decide()', () => {
     })
 
     await expect(
-      evaluator({ adapter }).decide({
+      decide({
+        adapter,
         state: 'ticket',
         questions: mixedQuestions,
         middleware: [middleware],
@@ -431,7 +438,8 @@ describe('evaluator().decide()', () => {
     })
 
     await expect(
-      evaluator({ adapter }).decide({
+      decide({
+        adapter,
         state: 'ticket',
         questions: mixedQuestions,
         abortSignal: controller.signal,
@@ -454,7 +462,8 @@ describe('evaluator().decide()', () => {
     })
 
     await expect(
-      evaluator({ adapter }).decide({
+      decide({
+        adapter,
         state: 'ticket',
         questions: mixedQuestions,
         abortSignal: controller.signal,

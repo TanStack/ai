@@ -2,11 +2,11 @@
 title: Evaluate
 id: evaluate
 order: 1
-description: "Ask typed choice, score, and boolean questions about shared state with evaluator() and decide()."
+description: "Ask typed choice, score, and boolean questions about shared state with decide()."
 keywords:
   - tanstack ai
   - evaluate
-  - evaluator
+  - decide
   - typed decisions
   - choice
   - score
@@ -19,16 +19,16 @@ You have a ticket, a record, or a log, and you need answers your code can branch
 A queue name. An urgency level. A yes or no.
 By the end of this guide you call `decide()` once and read typed fields like `result.queue.value`.
 
-`evaluator()` builds a client. `decide()` asks the questions. There is no stream.
+`decide()` takes an adapter, a state, and a map of questions. There is no stream.
 
 ## Providers
 
 Evaluate talks to TypeSafe Jev through four adapters:
 
-- **TypeSafe** (`@tanstack/ai-typesafe`): `typesafeEvaluator('jev-latest')`. Reads `TYPESAFE_API_KEY`.
-- **OpenRouter** (`@tanstack/ai-openrouter`): `openRouterEvaluator('~typesafe/jev-latest')`. Reads `OPENROUTER_API_KEY`.
-- **Vercel AI Gateway** (`@tanstack/ai-vercel-gateway`): `vercelGatewayEvaluator('typesafe-ai/jev')`. Reads `AI_GATEWAY_API_KEY`.
-- **Cloudflare** (`@tanstack/ai-cloudflare`): `cloudflareEvaluator('typesafe/jev')`. Uses a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
+- **TypeSafe** (`@tanstack/ai-typesafe`): `typesafeDecider('jev-latest')`. Reads `TYPESAFE_API_KEY`.
+- **OpenRouter** (`@tanstack/ai-openrouter`): `openRouterDecider('~typesafe/jev-latest')`. Reads `OPENROUTER_API_KEY`.
+- **Vercel AI Gateway** (`@tanstack/ai-vercel-gateway`): `vercelGatewayDecider('typesafe-ai/jev')`. Reads `AI_GATEWAY_API_KEY`.
+- **Cloudflare** (`@tanstack/ai-cloudflare`): `cloudflareDecider('typesafe/jev')`. Uses a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
 All four implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
 
@@ -72,22 +72,19 @@ Other adapters:
 
 ## Basic Usage
 
-Build the client once. Then call `decide()` with `state` and `questions`.
+Call `decide()` with an `adapter`, a `state`, and a map of `questions`.
 
 ```typescript
-import { evaluator, choice, score, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
 const ticket = {
   subject: 'Charged twice for the same invoice',
   body: 'Please refund the extra payment.',
 }
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
   state: ticket,
   questions: {
     queue: choice({
@@ -114,25 +111,22 @@ console.log(result.queue.confidence)
 console.log(result.meta.usage)
 ```
 
-`evaluator()` is sync. `decide()` is async. `typesafeEvaluator` reads `TYPESAFE_API_KEY` from the environment.
-To pass a key yourself, use `createTypesafeEvaluator('jev-latest', 'ts-...')`.
+`decide()` is async. `typesafeDecider` reads `TYPESAFE_API_KEY` from the environment.
+To pass a key yourself, use `createTypesafeDecider('jev-latest', 'ts-...')`.
 
 To evaluate through OpenRouter, swap the adapter. Everything else stays the same:
 
 ```typescript
-import { evaluator, choice, score, boolean } from '@tanstack/ai'
-import { openRouterEvaluator } from '@tanstack/ai-openrouter'
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { openRouterDecider } from '@tanstack/ai-openrouter'
 
 const ticket = {
   subject: 'Charged twice for the same invoice',
   body: 'Please refund the extra payment.',
 }
 
-const ticketEval = evaluator({
-  adapter: openRouterEvaluator('~typesafe/jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: openRouterDecider('~typesafe/jev-latest'),
   state: ticket,
   questions: {
     queue: choice({
@@ -156,7 +150,7 @@ const result = await ticketEval.decide({
 console.log(result.queue.value)
 ```
 
-`openRouterEvaluator` reads `OPENROUTER_API_KEY` from the environment.
+`openRouterDecider` reads `OPENROUTER_API_KEY` from the environment.
 
 ## Questions
 
@@ -218,14 +212,11 @@ You can pass `criteria: { true: '...', false: '...' }` to describe each side.
 Each question key is a top-level answer. Usage and the resolved model sit on `meta`.
 
 ```typescript
-import { evaluator, choice, score, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
   state: 'Please refund the extra payment.',
   questions: {
     queue: choice({
@@ -254,6 +245,8 @@ console.log(result.urgency.value)
 console.log(result.urgency.score)
 console.log(result.urgency.probability)
 console.log(result.urgency.confidence)
+console.log(result.urgency.legend)
+console.log(result.urgency.probabilities)
 
 console.log(result.refund.value)
 console.log(result.refund.probability)
@@ -263,31 +256,22 @@ console.log(result.meta.usage)
 ```
 
 - **choice**: `.value` is the selected option key. `.probability` is P(selected). `.probabilities` is the full map.
-- **score**: `.value` is the nearest level. `.score` is the raw fraction. `.probability` is P(that level).
+- **score**: `.value` is the nearest level. `.score` is the raw fraction. `.probability` is P(that level). `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
 - **boolean**: When P(true) is 0.5 or more, `.value` is `true`. `.probability` is P(true). No `.confidence`.
 
 ## Options
 
-### `evaluator()`
-
-| Option       | Type                          | Description                                              |
-| ------------ | ----------------------------- | -------------------------------------------------------- |
-| `adapter`    | `EvaluateAdapter`             | An evaluate adapter created with a model (required)      |
-| `middleware` | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort) |
-| `debug`      | `DebugOption`                 | Debug logging                                            |
-
-This factory does no network work.
-
 ### `decide()`
 
-| Option         | Type                          | Description                                                         |
-| -------------- | ----------------------------- | ------------------------------------------------------------------- |
-| `state`        | `string \| object \| array`   | Shared content every question judges (required)                     |
-| `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions (required)        |
-| `abortSignal`  | `AbortSignal`                 | Cancel the in-flight request                                        |
-| `modelOptions` | provider options              | Provider-specific options                                           |
-| `middleware`   | `Array<GenerationMiddleware>` | Replaces middleware from `evaluator()` when passed                  |
-| `debug`        | `DebugOption`                 | Replaces debug from `evaluator()` when passed                       |
+| Option         | Type                          | Description                                                  |
+| -------------- | ----------------------------- | ------------------------------------------------------------ |
+| `adapter`      | `EvaluateAdapter`             | An evaluate adapter created with a model (required)          |
+| `state`        | `string \| object \| array`   | Shared content every question judges (required)              |
+| `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions (required) |
+| `abortSignal`  | `AbortSignal`                 | Cancel the in-flight request                                 |
+| `modelOptions` | provider options              | Provider-specific options                                    |
+| `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)   |
+| `debug`        | `DebugOption`                 | Debug logging                                                |
 
 ## Server Endpoint
 
@@ -296,13 +280,11 @@ route. Call it from the client over `fetch`:
 
 ```typescript ignore
 // routes/api/evaluate.ts
-import { evaluator, choice, score, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 import { createFileRoute } from '@tanstack/react-router'
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
+const ADAPTER = typesafeDecider('jev-latest')
 
 export const Route = createFileRoute('/api/evaluate')({
   server: {
@@ -318,7 +300,8 @@ export const Route = createFileRoute('/api/evaluate')({
         }
         const { ticket } = body
 
-        const result = await ticketEval.decide({
+        const result = await decide({
+          adapter: ADAPTER,
           state: ticket,
           questions: {
             queue: choice({
@@ -363,17 +346,14 @@ async function evaluateTicket(ticket: { subject: string; body: string }) {
 Pass an `abortSignal` to cancel an in-flight request:
 
 ```typescript
-import { evaluator, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
 const controller = new AbortController()
 setTimeout(() => controller.abort(), 5000)
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
   state: 'Please refund the extra payment.',
   questions: {
     refund: boolean({
@@ -393,14 +373,11 @@ cancellation. This is the same `GenerationMiddleware` contract the media
 activities use:
 
 ```typescript
-import { evaluator, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
   state: 'Please refund the extra payment.',
   questions: {
     refund: boolean({
@@ -437,15 +414,12 @@ You only need the key for the adapter you pick.
 ## Error Handling
 
 ```typescript
-import { evaluator, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
-
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
+import { decide, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
 try {
-  const result = await ticketEval.decide({
+  const result = await decide({
+    adapter: typesafeDecider('jev-latest'),
     state: 'Please refund the extra payment.',
     questions: {
       refund: boolean({

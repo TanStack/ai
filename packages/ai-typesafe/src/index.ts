@@ -8,8 +8,8 @@
 
 export {
   TypesafeEvaluateAdapter,
-  createTypesafeEvaluator,
-  typesafeEvaluator,
+  createTypesafeDecider,
+  typesafeDecider,
 } from './adapters/evaluate'
 
 export {

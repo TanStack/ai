@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { createVercelGatewayEvaluator } from '../src/adapters/evaluate'
+import { createVercelGatewayDecider } from '../src/adapters/evaluate'
 import type { EvaluateOptions } from '@tanstack/ai/adapters'
 
 const testLogger = resolveDebugOption(false)
@@ -82,7 +82,7 @@ it('POSTs to /v4/ai/evaluation-model and maps boolean/choice/score answers', asy
     }),
   )
 
-  const adapter = createVercelGatewayEvaluator('typesafe-ai/jev', 'gw_test_key')
+  const adapter = createVercelGatewayDecider('typesafe-ai/jev', 'gw_test_key')
   const result = await adapter.evaluate(
     evaluateOptions({
       modelOptions: { gateway: { zeroDataRetention: true } },
@@ -155,7 +155,7 @@ it('throws when the evaluate request is not OK', async () => {
     }),
   )
 
-  const adapter = createVercelGatewayEvaluator('typesafe-ai/jev', 'gw_test_key')
+  const adapter = createVercelGatewayDecider('typesafe-ai/jev', 'gw_test_key')
 
   await expect(adapter.evaluate(evaluateOptions())).rejects.toThrow(
     'Vercel Gateway evaluate request failed: 503 Service Unavailable — gateway down',

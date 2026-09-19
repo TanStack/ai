@@ -2,7 +2,7 @@
 title: "@tanstack/ai"
 id: tanstack-ai-api
 order: 1
-description: "API reference for @tanstack/ai, the core TanStack AI library providing chat(), evaluator(), generateImage(), toolDefinition(), and streaming utilities."
+description: "API reference for @tanstack/ai, the core TanStack AI library providing chat(), decide(), generateImage(), toolDefinition(), and streaming utilities."
 keywords:
   - tanstack ai
   - "@tanstack/ai"
@@ -10,7 +10,7 @@ keywords:
   - chat
   - toolDefinition
   - generateImage
-  - evaluator
+  - decide
   - core library
 ---
 
@@ -96,25 +96,22 @@ const result = await summarize({
 
 A `SummarizationResult` with the summary text.
 
-## `evaluator(config)`
+## `decide(options)`
 
-Builds an evaluate client. This call is sync and does not hit the network.
-`decide()` is the async call. There is no stream.
+Asks typed questions about a shared state and returns answers your code can
+branch on. This call is async. There is no stream.
 
 ```typescript
-import { evaluator, choice, score, boolean } from "@tanstack/ai";
-import { typesafeEvaluator } from "@tanstack/ai-typesafe";
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
 
 const ticket = {
   subject: "Charged twice for the same invoice",
   body: "Please refund the extra payment.",
 };
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator("jev-latest"),
-});
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider("jev-latest"),
   state: ticket,
   questions: {
     queue: choice({
@@ -141,16 +138,11 @@ console.log(result.queue.confidence);
 console.log(result.meta.usage);
 ```
 
-### Parameters (`evaluator`)
-
-- `adapter` - An evaluate adapter created with a model (for example `typesafeEvaluator('jev-latest')`)
-- `middleware?` - Observe-only generation middleware
-- `debug?` - Debug logging
-
-### `decide(input)`
+### Parameters (`decide`)
 
 Required:
 
+- `adapter` - An evaluate adapter created with a model (for example `typesafeDecider('jev-latest')`)
 - `state` - Shared content every question judges. A string, an object, or an array. An array is one state, not a batch.
 - `questions` - Map of `choice`, `score`, and `boolean` questions. The key `meta` is reserved.
 
@@ -158,15 +150,15 @@ Optional:
 
 - `abortSignal?` - Cancel the in-flight request
 - `modelOptions?` - Provider-specific options
-- `middleware?` - Replaces middleware from `evaluator()` when passed
-- `debug?` - Replaces debug from `evaluator()` when passed
+- `middleware?` - Observe-only generation middleware
+- `debug?` - Debug logging
 
 ### Returns
 
 Each question key is a top-level answer. `meta.model` and `meta.usage` hold the resolved model id and token usage.
 
 - `choice`: `.value` is the selected option key. `.probability` is P(selected). `.confidence` is a number from 0 to 1. `.probabilities` is the full map.
-- `score`: `.value` is the nearest level label. `.score` is the raw fraction. `.probability` is P(that level).
+- `score`: `.value` is the nearest level label. `.score` is the raw fraction. `.probability` is P(that level). `.confidence` is a number from 0 to 1. `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
 - `boolean`: When `.probability` is 0.5 or more, `.value` is `true`. No `.confidence`.
 
 ### Helpers

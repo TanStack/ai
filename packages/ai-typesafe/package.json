@@ -53,7 +53,7 @@
     "jev",
     "adapter",
     "evaluate",
-    "evaluator"
+    "decide"
   ],
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"

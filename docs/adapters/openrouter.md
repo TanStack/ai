@@ -416,23 +416,20 @@ pipelines, options, and the result shape.
 ## Evaluate
 
 OpenRouter exposes TypeSafe Jev through `POST /api/alpha/decisions`.
-Use `openRouterEvaluator` with `evaluator()` to ask typed questions about a
+Use `openRouterDecider` with `decide()` to ask typed questions about a
 shared `state`:
 
 ```typescript
-import { evaluator, choice, score, boolean } from "@tanstack/ai";
-import { openRouterEvaluator } from "@tanstack/ai-openrouter";
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openRouterDecider } from "@tanstack/ai-openrouter";
 
 const ticket = {
   subject: "Charged twice for the same invoice",
   body: "Please refund the extra payment.",
 };
 
-const ticketEval = evaluator({
-  adapter: openRouterEvaluator("~typesafe/jev-latest"),
-});
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: openRouterDecider("~typesafe/jev-latest"),
   state: ticket,
   questions: {
     queue: choice({
@@ -459,8 +456,8 @@ console.log(result.queue.confidence);
 console.log(result.meta.usage);
 ```
 
-`openRouterEvaluator` reads `OPENROUTER_API_KEY` from the environment. Pass a
-key explicitly with `createOpenRouterEvaluator("~typesafe/jev-latest", "sk-or-...")`.
+`openRouterDecider` reads `OPENROUTER_API_KEY` from the environment. Pass a
+key explicitly with `createOpenRouterDecider("~typesafe/jev-latest", "sk-or-...")`.
 
 Known slugs:
 

@@ -112,7 +112,7 @@ function mapUsage(usage: unknown) {
  *
  * Asks typed questions about a shared `state` through OpenRouter's
  * `/api/alpha/decisions` endpoint. Jev is not a chat model. Returns TypeSafe
- * wire answers; `evaluator().decide()` maps those to the public shape.
+ * wire answers; `decide()` maps those to the public shape.
  */
 export class OpenRouterEvaluateAdapter<
   TModel extends OpenRouterEvaluateModel,
@@ -183,10 +183,10 @@ export class OpenRouterEvaluateAdapter<
  *
  * @example
  * ```typescript
- * const adapter = createOpenRouterEvaluator('~typesafe/jev-latest', 'sk-or-...')
+ * const adapter = createOpenRouterDecider('~typesafe/jev-latest', 'sk-or-...')
  * ```
  */
-export function createOpenRouterEvaluator<
+export function createOpenRouterDecider<
   TModel extends OpenRouterEvaluateModel,
 >(
   model: TModel,
@@ -205,12 +205,11 @@ export function createOpenRouterEvaluator<
  *
  * @example
  * ```typescript
- * import { evaluator, choice } from '@tanstack/ai'
- * import { openRouterEvaluator } from '@tanstack/ai-openrouter'
+ * import { decide, choice } from '@tanstack/ai'
+ * import { openRouterDecider } from '@tanstack/ai-openrouter'
  *
- * const result = await evaluator({
- *   adapter: openRouterEvaluator('~typesafe/jev-latest'),
- * }).decide({
+ * const result = await decide({
+ *   adapter: openRouterDecider('~typesafe/jev-latest'),
  *   state: ticket,
  *   questions: {
  *     queue: choice({
@@ -224,9 +223,9 @@ export function createOpenRouterEvaluator<
  * })
  * ```
  */
-export function openRouterEvaluator<TModel extends OpenRouterEvaluateModel>(
+export function openRouterDecider<TModel extends OpenRouterEvaluateModel>(
   model: TModel,
   config?: Omit<OpenRouterEvaluateConfig, 'apiKey'>,
 ) {
-  return createOpenRouterEvaluator(model, getOpenRouterApiKeyFromEnv(), config)
+  return createOpenRouterDecider(model, getOpenRouterApiKeyFromEnv(), config)
 }

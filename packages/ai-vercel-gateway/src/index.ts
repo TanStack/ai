@@ -49,8 +49,8 @@ export {
 
 export {
   VercelGatewayEvaluateAdapter,
-  createVercelGatewayEvaluator,
-  vercelGatewayEvaluator,
+  createVercelGatewayDecider,
+  vercelGatewayDecider,
   type VercelGatewayEvaluateConfig,
 } from './adapters/evaluate'
 

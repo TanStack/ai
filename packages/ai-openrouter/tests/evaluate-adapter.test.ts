@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { boolean, choice, evaluator, score } from '@tanstack/ai'
-import { createOpenRouterEvaluator } from '../src/adapters/evaluate'
+import { boolean, choice, decide, score } from '@tanstack/ai'
+import { createOpenRouterDecider } from '../src/adapters/evaluate'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -70,7 +70,7 @@ function wireBody() {
 }
 
 const adapter = () =>
-  createOpenRouterEvaluator('~typesafe/jev-latest', 'sk-or-test')
+  createOpenRouterDecider('~typesafe/jev-latest', 'sk-or-test')
 
 async function capturedRequest() {
   const [input, init] = fetchMock.mock.calls[0]!
@@ -87,7 +87,8 @@ describe('OpenRouterEvaluateAdapter', () => {
   it('hits /api/alpha/decisions and maps answers plus usage', async () => {
     fetchMock.mockResolvedValue(jsonResponse(wireBody()))
 
-    const result = await evaluator({ adapter: adapter() }).decide({
+    const result = await decide({
+      adapter: adapter(),
       state,
       questions,
     })
@@ -163,7 +164,8 @@ describe('OpenRouterEvaluateAdapter', () => {
       }),
     )
 
-    const result = await evaluator({ adapter: adapter() }).decide({
+    const result = await decide({
+      adapter: adapter(),
       state,
       questions: {
         isUrgent: boolean({
@@ -185,8 +187,10 @@ describe('OpenRouterEvaluateAdapter', () => {
     )
 
     await expect(
-      evaluator({ adapter: adapter(), debug: false }).decide({
+      decide({
+        adapter: adapter(),
         state,
+        debug: false,
         questions: {
           isUrgent: boolean({
             instructions: 'Does this message convey urgency?',

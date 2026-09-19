@@ -1,19 +1,19 @@
 ---
 title: TypeSafe
 id: typesafe-adapter
-description: "Use TypeSafe Jev with TanStack AI via @tanstack/ai-typesafe: typed evaluate decisions with evaluator(), choice(), score(), and boolean()."
+description: "Use TypeSafe Jev with TanStack AI via @tanstack/ai-typesafe: typed evaluate decisions with decide(), choice(), score(), and boolean()."
 keywords:
   - tanstack ai
   - typesafe
   - jev
   - evaluate
-  - evaluator
+  - decide
   - typed decisions
   - adapter
 ---
 
 You have a TypeSafe API key and you want typed answers from Jev.
-Install `@tanstack/ai-typesafe`. Then call `typesafeEvaluator` with `evaluator()`.
+Install `@tanstack/ai-typesafe`. Then pass `typesafeDecider` to `decide()`.
 
 The adapter covers evaluate only. It talks to TypeSafe over `fetch`. There is no TypeSafe SDK.
 
@@ -35,19 +35,16 @@ octane: @tanstack/ai @tanstack/ai-typesafe
 ## Evaluate
 
 ```typescript
-import { evaluator, choice, score, boolean } from "@tanstack/ai";
-import { typesafeEvaluator } from "@tanstack/ai-typesafe";
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
 
 const ticket = {
   subject: "Charged twice for the same invoice",
   body: "Please refund the extra payment.",
 };
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator("jev-latest"),
-});
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: typesafeDecider("jev-latest"),
   state: ticket,
   questions: {
     queue: choice({
@@ -101,12 +98,12 @@ Get a key from [TypeSafe](https://typesafe.ai).
 
 ## Explicit API Keys
 
-To pass a key directly, use `createTypesafeEvaluator`:
+To pass a key directly, use `createTypesafeDecider`:
 
 ```typescript
-import { createTypesafeEvaluator } from "@tanstack/ai-typesafe";
+import { createTypesafeDecider } from "@tanstack/ai-typesafe";
 
-const adapter = createTypesafeEvaluator(
+const adapter = createTypesafeDecider(
   "jev-latest",
   process.env.MY_TYPESAFE_KEY!,
 );
@@ -118,9 +115,9 @@ Route every request through a gateway with `baseURL` and `defaultHeaders`.
 These two option names are the same on every TanStack AI adapter.
 
 ```typescript
-import { createTypesafeEvaluator } from "@tanstack/ai-typesafe";
+import { createTypesafeDecider } from "@tanstack/ai-typesafe";
 
-const adapter = createTypesafeEvaluator(
+const adapter = createTypesafeDecider(
   "jev-latest",
   process.env.TYPESAFE_API_KEY!,
   {
@@ -136,7 +133,7 @@ const adapter = createTypesafeEvaluator(
 
 ## API Reference
 
-### `typesafeEvaluator(model, config?)`
+### `typesafeDecider(model, config?)`
 
 Creates an evaluate adapter. It reads `TYPESAFE_API_KEY` from the environment.
 
@@ -146,14 +143,14 @@ Creates an evaluate adapter. It reads `TYPESAFE_API_KEY` from the environment.
 - `config.fetch`: override `fetch`
 - `config.timeout`: request timeout in milliseconds
 
-### `createTypesafeEvaluator(model, apiKey, config?)`
+### `createTypesafeDecider(model, apiKey, config?)`
 
-Same as `typesafeEvaluator` with an explicit API key.
+Same as `typesafeDecider` with an explicit API key.
 
 The adapter sends `POST /v1/systemone` to that base URL.
 
 ## Next Steps
 
-- [Evaluate guide](../evaluate/evaluate): full `evaluator()` walkthrough
+- [Evaluate guide](../evaluate/evaluate): full `decide()` walkthrough
 - [Evaluate a ticket](../tutorials/evaluate): build a Start route
 - [Generation Hooks](../media/generation-hooks.md): usage and lifecycle middleware

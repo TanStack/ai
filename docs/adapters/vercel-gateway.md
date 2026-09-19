@@ -17,7 +17,7 @@ keywords:
 
 You want one API key and one URL, and you still want to pick the provider per request. Vercel AI Gateway sits in front of many model providers. This package talks to that public OpenAI-compatible API.
 
-Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGatewayEmbedding`, `vercelGatewayImage`, or `vercelGatewayEvaluator`.
+Install `@tanstack/ai-vercel-gateway`. Then call `vercelGatewayText`, `vercelGatewayEmbedding`, `vercelGatewayImage`, or `vercelGatewayDecider`.
 
 ## Installation
 
@@ -204,23 +204,20 @@ const result = await summarize({
 
 ## Evaluate
 
-Use `vercelGatewayEvaluator` with `evaluator()`. The request goes to
+Use `vercelGatewayDecider` with `decide()`. The request goes to
 `POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`.
 
 ```typescript
-import { evaluator, choice, score, boolean } from "@tanstack/ai"
-import { vercelGatewayEvaluator } from "@tanstack/ai-vercel-gateway"
+import { decide, choice, score, boolean } from "@tanstack/ai"
+import { vercelGatewayDecider } from "@tanstack/ai-vercel-gateway"
 
 const ticket = {
   subject: "Charged twice for the same invoice",
   body: "Please refund the extra payment.",
 }
 
-const ticketEval = evaluator({
-  adapter: vercelGatewayEvaluator("typesafe-ai/jev"),
-})
-
-const result = await ticketEval.decide({
+const result = await decide({
+  adapter: vercelGatewayDecider("typesafe-ai/jev"),
   state: ticket,
   questions: {
     queue: choice({
@@ -247,8 +244,8 @@ console.log(result.queue.confidence)
 console.log(result.meta.usage)
 ```
 
-`vercelGatewayEvaluator` reads `AI_GATEWAY_API_KEY`, then `VERCEL_OIDC_TOKEN`.
-Pass a key yourself with `createVercelGatewayEvaluator("typesafe-ai/jev", "vck_...")`.
+`vercelGatewayDecider` reads `AI_GATEWAY_API_KEY`, then `VERCEL_OIDC_TOKEN`.
+Pass a key yourself with `createVercelGatewayDecider("typesafe-ai/jev", "vck_...")`.
 
 Put Gateway routing on `modelOptions.gateway`, the same as chat.
 

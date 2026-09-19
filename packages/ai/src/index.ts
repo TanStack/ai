@@ -3,7 +3,7 @@ export {
   chat,
   summarize,
   rerank,
-  evaluator,
+  decide,
   choice,
   score,
   boolean,

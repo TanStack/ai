@@ -12,12 +12,12 @@ export interface EvaluateAdapterConfig {
 }
 
 /**
- * Shared JSON value for evaluator `state` and question `instructions`.
+ * Shared JSON value for `state` and question `instructions`.
  * A JSON array is one value, not a batch.
  */
 export type EvaluateJsonValue = string | object | Array<unknown>
 
-/** Content the evaluator judges. A JSON array is one state, not a batch. */
+/** Content the model judges. A JSON array is one state, not a batch. */
 export type EvaluateState = EvaluateJsonValue
 
 /** Question text. Matches TypeSafe: string, object, or array. */

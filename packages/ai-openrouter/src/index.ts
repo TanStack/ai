@@ -58,8 +58,8 @@ export {
 // Evaluate adapter - typed decisions via OpenRouter's /api/alpha/decisions endpoint
 export {
   OpenRouterEvaluateAdapter,
-  createOpenRouterEvaluator,
-  openRouterEvaluator,
+  createOpenRouterDecider,
+  openRouterDecider,
   type OpenRouterEvaluateConfig,
 } from './adapters/evaluate'
 export {

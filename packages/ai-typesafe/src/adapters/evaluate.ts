@@ -38,7 +38,7 @@ function isTypesafeEvaluateResponse(
  * TypeSafe evaluate adapter.
  *
  * Talks to TypeSafe's `POST /v1/systemone` endpoint over raw `fetch` — no SDK.
- * Returns the provider wire answers. The `evaluator().decide()` activity maps
+ * Returns the provider wire answers. The `decide()` activity maps
  * those to the unified public result.
  */
 export class TypesafeEvaluateAdapter<
@@ -134,10 +134,10 @@ export class TypesafeEvaluateAdapter<
  *
  * @example
  * ```typescript
- * const adapter = createTypesafeEvaluator('jev-latest', 'ts-...')
+ * const adapter = createTypesafeDecider('jev-latest', 'ts-...')
  * ```
  */
-export function createTypesafeEvaluator<TModel extends TypesafeEvaluateModel>(
+export function createTypesafeDecider<TModel extends TypesafeEvaluateModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<TypesafeClientConfig, 'apiKey'>,
@@ -153,17 +153,23 @@ export function createTypesafeEvaluator<TModel extends TypesafeEvaluateModel>(
  *
  * @example
  * ```typescript
- * import { evaluator } from '@tanstack/ai'
- * import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+ * import { decide, boolean } from '@tanstack/ai'
+ * import { typesafeDecider } from '@tanstack/ai-typesafe'
  *
- * const ticketEval = evaluator({
- *   adapter: typesafeEvaluator('jev-latest'),
+ * const result = await decide({
+ *   adapter: typesafeDecider('jev-latest'),
+ *   state: ticket,
+ *   questions: {
+ *     refund: boolean({
+ *       instructions: 'Is the customer asking for a refund?',
+ *     }),
+ *   },
  * })
  * ```
  */
-export function typesafeEvaluator<TModel extends TypesafeEvaluateModel>(
+export function typesafeDecider<TModel extends TypesafeEvaluateModel>(
   model: TModel,
   config?: Omit<TypesafeClientConfig, 'apiKey'>,
 ) {
-  return createTypesafeEvaluator(model, getTypesafeApiKeyFromEnv(), config)
+  return createTypesafeDecider(model, getTypesafeApiKeyFromEnv(), config)
 }

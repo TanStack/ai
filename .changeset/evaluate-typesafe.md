@@ -6,14 +6,14 @@
 '@tanstack/ai-cloudflare': patch
 ---
 
-Add evaluator() and TypeSafe Jev evaluate adapters.
+Add decide() and TypeSafe Jev evaluate adapters.
 
-Callers build a client with evaluator({ adapter }) and then await decide({ state, questions }).
+Callers await one decide({ adapter, state, questions }) call.
 Questions use choice(), score(), and boolean(). Answers sit on the result (value, probability, confidence). Usage sits on result.meta.
 
 Jev transports:
 
-- @tanstack/ai-typesafe (typesafeEvaluator)
-- @tanstack/ai-openrouter (openRouterEvaluator)
-- @tanstack/ai-vercel-gateway (vercelGatewayEvaluator)
-- @tanstack/ai-cloudflare (cloudflareEvaluator)
+- @tanstack/ai-typesafe (typesafeDecider)
+- @tanstack/ai-openrouter (openRouterDecider)
+- @tanstack/ai-vercel-gateway (vercelGatewayDecider)
+- @tanstack/ai-cloudflare (cloudflareDecider)

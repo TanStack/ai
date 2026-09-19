@@ -29,7 +29,7 @@ Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Tabl
 - ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
 - ✅ **Framework Agnostic** - Core library works anywhere
 - ✅ **Multiple Providers** - OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
-- ✅ **Typed Decisions** - Ask `choice`, `score`, and `boolean` questions with `evaluator()`
+- ✅ **Typed Decisions** - Ask `choice`, `score`, and `boolean` questions with `decide()`
 - ✅ **Approval Flow** - Built-in support for tool approval workflows
 - ✅ **Automatic Execution** - Both server and client tools execute automatically
 

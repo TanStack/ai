@@ -344,10 +344,10 @@ export class VercelGatewayEvaluateAdapter<
  *
  * @example
  * ```ts
- * const adapter = createVercelGatewayEvaluator('typesafe-ai/jev', 'vck_...')
+ * const adapter = createVercelGatewayDecider('typesafe-ai/jev', 'vck_...')
  * ```
  */
-export function createVercelGatewayEvaluator<
+export function createVercelGatewayDecider<
   TModel extends VercelGatewayEvaluateModel,
 >(
   model: TModel,
@@ -367,18 +367,24 @@ export function createVercelGatewayEvaluator<
  *
  * @example
  * ```ts
- * import { evaluator, boolean } from '@tanstack/ai'
- * import { vercelGatewayEvaluator } from '@tanstack/ai-vercel-gateway'
+ * import { decide, boolean } from '@tanstack/ai'
+ * import { vercelGatewayDecider } from '@tanstack/ai-vercel-gateway'
  *
- * const ticketEval = evaluator({
- *   adapter: vercelGatewayEvaluator('typesafe-ai/jev'),
+ * const result = await decide({
+ *   adapter: vercelGatewayDecider('typesafe-ai/jev'),
+ *   state: ticket,
+ *   questions: {
+ *     refund: boolean({
+ *       instructions: 'Is the customer asking for a refund?',
+ *     }),
+ *   },
  * })
  * ```
  */
-export function vercelGatewayEvaluator<
+export function vercelGatewayDecider<
   TModel extends VercelGatewayEvaluateModel,
 >(model: TModel, config?: Omit<VercelGatewayEvaluateConfig, 'apiKey'>) {
-  return createVercelGatewayEvaluator(
+  return createVercelGatewayDecider(
     model,
     getVercelGatewayApiKeyFromEnv(),
     config,

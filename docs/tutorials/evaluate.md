@@ -42,26 +42,25 @@ Keep the key on the server. Do not send it to the browser.
 
 ## 3. Call `decide()` on the server
 
-Add a POST handler. Build the evaluator once. Then ask three questions about the ticket.
+Add a POST handler. Create the adapter once. Then ask three questions about the ticket.
 
 ```typescript
-import { evaluator, choice, score, boolean } from '@tanstack/ai'
-import { typesafeEvaluator } from '@tanstack/ai-typesafe'
+import { decide, choice, score, boolean } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
 
 type Ticket = {
   subject: string
   body: string
 }
 
-const ticketEval = evaluator({
-  adapter: typesafeEvaluator('jev-latest'),
-})
+const ADAPTER = typesafeDecider('jev-latest')
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { ticket: Ticket }
   const ticket = body.ticket
 
-  const result = await ticketEval.decide({
+  const result = await decide({
+    adapter: ADAPTER,
     state: ticket,
     questions: {
       queue: choice({
@@ -129,9 +128,9 @@ You now have a queue, an urgency, and a refund flag. Try a POST with that ticket
 
 The `decide()` call stays the same. Only the adapter changes.
 
-- OpenRouter: `openRouterEvaluator('~typesafe/jev-latest')` and `OPENROUTER_API_KEY`
-- Vercel AI Gateway: `vercelGatewayEvaluator('typesafe-ai/jev')` and `AI_GATEWAY_API_KEY`
-- Cloudflare: `cloudflareEvaluator('typesafe/jev')` and a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` plus `CLOUDFLARE_API_TOKEN`
+- OpenRouter: `openRouterDecider('~typesafe/jev-latest')` and `OPENROUTER_API_KEY`
+- Vercel AI Gateway: `vercelGatewayDecider('typesafe-ai/jev')` and `AI_GATEWAY_API_KEY`
+- Cloudflare: `cloudflareDecider('typesafe/jev')` and a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` plus `CLOUDFLARE_API_TOKEN`
 
 ## 6. Try it
 
