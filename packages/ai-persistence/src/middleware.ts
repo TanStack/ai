@@ -2036,6 +2036,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     // validateChatPersistenceStores already throws; this narrows for TypeScript.
     throw new Error('Chat persistence requires stores.messages.')
   }
+  const activityStore = persistence.stores.activities
+
+  async function persistActivities(ctx: ChatMiddlewareContext): Promise<void> {
+    if (!activityStore) return
+    await activityStore.saveActivities(ctx.threadId, [...ctx.activities])
+  }
 
   const provides = [
     PersistenceCapability,
@@ -2098,6 +2104,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // incoming list must not drop stored extras.
           const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
+          await persistActivities(ctx)
         },
       })
     },
@@ -2165,6 +2172,13 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           await messageStore.loadThread(ctx.threadId),
         )
         patch.messages = mergeStoredMessages(stored, config.messages)
+        if (activityStore) {
+          const storedActivities = await activityStore.loadActivities(
+            ctx.threadId,
+          )
+          patch.activities =
+            ctx.activities.length > 0 ? [...ctx.activities] : storedActivities
+        }
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -2177,6 +2191,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // snapshot must not abort the run — the authoritative save is `onFinish`.
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await persistActivities(ctx)
       } catch {
         // Eager pre-save is best-effort; the run continues and onFinish saves.
       }
@@ -2241,6 +2256,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                     : {}),
                 },
               ])
+              await persistActivities(ctx)
             } catch {
               // Streaming snapshots are best-effort; onFinish persists final.
             }
@@ -2284,6 +2300,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+      await persistActivities(ctx)
       state.interrupted = true
     },
 
@@ -2302,6 +2319,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // "finished" run whose transcript is missing the terminal turn.
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await persistActivities(ctx)
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
         state?.completion?.resolve()

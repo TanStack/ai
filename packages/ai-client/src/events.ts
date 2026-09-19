@@ -26,7 +26,7 @@ export interface ChatClientToolFixtureAppliedEvent {
   execute?: boolean
   message?: {
     id: string
-    role: 'system' | 'user' | 'assistant'
+    role: UIMessage['role']
     parts: Array<unknown>
     createdAt?: number | string
   }

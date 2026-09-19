@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  aguiSnapshotMessageToUIMessage,
+  convertMessagesToModelMessages,
+  uiMessageToModelMessages,
+} from '../src/activities/chat/messages'
 import type { ModelMessage, UIMessage } from '../src/types'
 
 describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
@@ -135,6 +139,36 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     const result = convertMessagesToModelMessages(messages)
     expect(result).toHaveLength(1)
     expect(result[0]?.role).toBe('user')
+  })
+
+  it('drops activity UIMessages from model input', () => {
+    const activity: UIMessage = {
+      id: 'act-1',
+      role: 'activity',
+      parts: [
+        { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
+      ],
+    }
+    expect(uiMessageToModelMessages(activity)).toEqual([])
+    expect(
+      convertMessagesToModelMessages([
+        activity,
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      ]),
+    ).toEqual([expect.objectContaining({ role: 'user', content: 'hi' })])
+  })
+
+  it('maps AG-UI activity snapshot messages to activity UIMessages', () => {
+    const ui = aguiSnapshotMessageToUIMessage({
+      id: 'act-1',
+      role: 'activity',
+      activityType: 'PLAN',
+      content: { steps: ['a'] },
+    })
+    expect(ui.role).toBe('activity')
+    expect(ui.parts).toEqual([
+      { type: 'activity', activityType: 'PLAN', content: { steps: ['a'] } },
+    ])
   })
 
   it('keeps TanStack user content parts and their metadata identity', () => {

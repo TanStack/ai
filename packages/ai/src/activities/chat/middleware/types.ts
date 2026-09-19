@@ -3,6 +3,7 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 import type {
+  ActivityRecord,
   AgentLoopState,
   JSONSchema,
   ModelMessage,
@@ -275,6 +276,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
 
   /** Current messages array (read-only view) */
   messages: ReadonlyArray<ModelMessage>
+  /**
+   * Frontend-only AG-UI activity sidecar. Never model input. Persistence
+   * writes this when an ActivityStore is configured.
+   */
+  activities: ReadonlyArray<ActivityRecord>
   /** Generate a unique ID with the given prefix */
   createId: (prefix: string) => string
   /**
@@ -313,6 +319,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
 export interface ChatMiddlewareConfig {
   /** Canonical conversation history. Middleware and persistence read this. */
   messages: Array<ModelMessage>
+  /**
+   * Frontend-only AG-UI activity sidecar. Persistence loads and saves this
+   * when an ActivityStore is configured. Never model input.
+   */
+  activities?: Array<ActivityRecord>
   /** Provider-only context. Defaults to `messages` when it is not set. */
   providerMessages?: Array<ModelMessage> | undefined
   systemPrompts: Array<SystemPrompt>
