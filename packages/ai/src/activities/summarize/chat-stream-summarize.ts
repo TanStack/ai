@@ -201,9 +201,9 @@ function applyMaxLength(
   const key = maxTokensKey ?? MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
   if (key === undefined) return merged
 
-  const callerSetLimit = KNOWN_MAX_TOKENS_KEYS.some(
-    (k) => typeof merged[k] === 'number',
-  )
+  const callerSetLimit =
+    typeof merged[key] === 'number' ||
+    KNOWN_MAX_TOKENS_KEYS.some((k) => typeof merged[k] === 'number')
   if (callerSetLimit) return merged
 
   merged[key] = maxLength
