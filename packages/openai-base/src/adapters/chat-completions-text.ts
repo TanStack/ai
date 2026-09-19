@@ -272,10 +272,20 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // rather than letting it cascade into a JSON-parse error on '' — the
       // root cause (the model returned no content for the structured request)
       // is then visible in logs.
-      const rawText = response.choices[0]?.message.content
+      const choice = response.choices[0]
+      const rawText = choice?.message.content
       if (typeof rawText !== 'string' || rawText.length === 0) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
+
+      // A response cut off at the output cap is a truncated JSON document.
+      // Report it as truncation rather than letting it surface as a parse
+      // error that reads like a schema failure (issue #1426).
+      if (choice?.finish_reason === 'length') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise max_completion_tokens`,
         )
       }
 
