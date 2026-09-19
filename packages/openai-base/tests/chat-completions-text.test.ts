@@ -1052,6 +1052,30 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       ).rejects.toThrow(/cut off because the maximum token limit was reached/)
     })
 
+    it('reports finish_reason=length as truncation even when content is empty (reasoning budget exhausted)', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: { content: null }, finish_reason: 'length' }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me a person object' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/cut off because the maximum token limit was reached/)
+    })
+
     it('throws a clear "no content" error when content is empty', async () => {
       const nonStreamResponse = {
         choices: [{ message: { content: '' } }],

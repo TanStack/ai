@@ -1303,6 +1303,32 @@ describe('OpenRouter structured output', () => {
     ).rejects.toThrow(/cut off because the maximum token limit was reached/)
   })
 
+  it('reports finishReason=length as truncation even when content is empty (reasoning budget exhausted)', async () => {
+    const nonStreamResponse = {
+      choices: [{ message: { content: null }, finishReason: 'length' }],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            { role: 'user', content: 'Return a short title as JSON.' },
+          ],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { title: { type: 'string' } },
+          required: ['title'],
+        },
+      }),
+    ).rejects.toThrow(/cut off because the maximum token limit was reached/)
+  })
+
   it('forwards response.usage tokens and cost on structuredOutput (#1076)', async () => {
     // Regression: structuredOutput used to return only { data, rawText },
     // dropping OpenRouter usage/cost so middleware onFinish/onUsage saw
