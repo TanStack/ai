@@ -24,6 +24,7 @@ export class OpenAICompatibleChatAdapter<
   TToolCapabilities
 > {
   override readonly kind = 'text' as const
+  readonly maxTokensKey = 'max_tokens'
 
   constructor(client: OpenAI, model: TModel, name: string) {
     super(model, name, client)
@@ -70,6 +71,7 @@ export class OpenAICompatibleResponsesAdapter<
   TToolCapabilities
 > {
   override readonly kind = 'text' as const
+  readonly maxTokensKey = 'max_output_tokens'
 
   constructor(client: OpenAI, model: TModel, name: string) {
     super(model, name, client)

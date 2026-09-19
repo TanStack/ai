@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiSummarize } from '@tanstack/ai-openai'
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { vertexSummarize } from '@tanstack/ai-vertex'
@@ -60,6 +62,16 @@ function createSummarizeAdapter(
 ) {
   const headers = testHeaders(testId)
   const factories: Record<string, () => any> = {
+    'openai-compatible': () => {
+      const compatible = openaiCompatible({
+        name: 'custom-compatible',
+        baseURL: openaiUrl(aimockPort),
+        apiKey: DUMMY_KEY,
+        models: ['gpt-4o'],
+        defaultHeaders: headers,
+      })
+      return new ChatStreamSummarizeAdapter(compatible('gpt-4o'), 'gpt-4o')
+    },
     openai: () =>
       createOpenaiSummarize('gpt-4o', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -153,12 +165,14 @@ export const Route = createFileRoute('/api/summarize')({
           stream: shouldStream,
           testId,
           aimockPort,
+          maxLength,
         } = data as {
           text: string
           provider: Provider
           stream?: boolean
           testId?: string
           aimockPort?: number
+          maxLength?: number
         }
 
         try {
@@ -177,12 +191,17 @@ export const Route = createFileRoute('/api/summarize')({
           // statically narrowable by a later `shouldStream === false`
           // check on the result variable.
           if (shouldStream === false) {
-            const summary = await summarize({ adapter, text, stream: false })
+            const summary = await summarize({
+              adapter,
+              text,
+              maxLength,
+              stream: false,
+            })
             return new Response(JSON.stringify({ summary }), {
               headers: { 'Content-Type': 'application/json' },
             })
           }
-          const stream = summarize({ adapter, text, stream: true })
+          const stream = summarize({ adapter, text, maxLength, stream: true })
           return toServerSentEventsResponse(stream)
         } catch (error) {
           console.error('[api.summarize] Error:', error)
