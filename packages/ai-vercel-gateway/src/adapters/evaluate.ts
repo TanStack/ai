@@ -381,9 +381,10 @@ export function createVercelGatewayDecider<
  * })
  * ```
  */
-export function vercelGatewayDecider<
-  TModel extends VercelGatewayEvaluateModel,
->(model: TModel, config?: Omit<VercelGatewayEvaluateConfig, 'apiKey'>) {
+export function vercelGatewayDecider<TModel extends VercelGatewayEvaluateModel>(
+  model: TModel,
+  config?: Omit<VercelGatewayEvaluateConfig, 'apiKey'>,
+) {
   return createVercelGatewayDecider(
     model,
     getVercelGatewayApiKeyFromEnv(),

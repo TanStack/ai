@@ -186,9 +186,7 @@ export class OpenRouterEvaluateAdapter<
  * const adapter = createOpenRouterDecider('~typesafe/jev-latest', 'sk-or-...')
  * ```
  */
-export function createOpenRouterDecider<
-  TModel extends OpenRouterEvaluateModel,
->(
+export function createOpenRouterDecider<TModel extends OpenRouterEvaluateModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenRouterEvaluateConfig, 'apiKey'>,

@@ -79,9 +79,10 @@ export class CloudflareEvaluateAdapter<
  * const adapter = createCloudflareDecider('typesafe/jev', { accountId, apiKey })
  * ```
  */
-export function createCloudflareDecider<
-  TModel extends CloudflareEvaluateModel,
->(model: TModel, config: CloudflareConfig) {
+export function createCloudflareDecider<TModel extends CloudflareEvaluateModel>(
+  model: TModel,
+  config: CloudflareConfig,
+) {
   return new CloudflareEvaluateAdapter(config, model)
 }
 
