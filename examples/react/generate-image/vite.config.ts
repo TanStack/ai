@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import { nitro } from 'nitro/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -16,6 +15,5 @@ for (const name of ['.env.local', '.env']) {
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   server: { port: 3100 },
-  plugins: [tailwindcss(), tanstackStart(), nitro(), viteReact()],
-  nitro: {},
+  plugins: [tailwindcss(), tanstackStart(), viteReact()],
 })

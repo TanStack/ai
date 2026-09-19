@@ -3,6 +3,7 @@ import type {
   ImageGenerationOptions,
   TTSOptions,
   TranscriptionOptions,
+  VoiceGenerationOptions,
   VideoGenerationOptions,
   WorldGenerationOptions,
   LiveVideoGenerationOptions,
@@ -12,6 +13,7 @@ export type GenerationKind =
   | 'image'
   | 'audio'
   | 'tts'
+  | 'voice'
   | 'video'
   | 'transcription'
   | 'world'
@@ -21,6 +23,7 @@ type GenerationInputByKind = {
   image: Omit<ImageGenerationOptions, 'logger' | 'model'>
   audio: Omit<AudioGenerationOptions, 'logger' | 'model'>
   tts: Omit<TTSOptions, 'logger' | 'model'>
+  voice: Omit<VoiceGenerationOptions, 'logger' | 'model'>
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
@@ -38,6 +41,7 @@ const generationKinds = [
   'image',
   'audio',
   'tts',
+  'voice',
   'video',
   'transcription',
   'world',
@@ -69,6 +73,31 @@ function assertGenerationKind(kind: unknown): asserts kind is GenerationKind {
   }
 }
 
+/**
+ * The input field(s) that identify a generation body for a kind. Most kinds
+ * have exactly one; `voice` accepts either of its two creation modes, so any
+ * one of its keys is enough.
+ */
+function requiredKeysForKind(kind: GenerationKind): Array<string> {
+  // Enumerated rather than defaulted so a new generation kind has to declare
+  // the field that identifies its body instead of silently inheriting
+  // `prompt`.
+  switch (kind) {
+    case 'tts':
+      return ['text']
+    case 'transcription':
+      return ['audio']
+    case 'voice':
+      return ['prompt', 'referenceAudio']
+    case 'image':
+    case 'audio':
+    case 'video':
+    case 'world':
+    case 'liveVideo':
+      return ['prompt']
+  }
+}
+
 function assertInputForKind(
   kind: GenerationKind,
   input: unknown,
@@ -77,21 +106,19 @@ function assertInputForKind(
     throw new Error(`Generation ${kind} input must be an object.`)
   }
 
-  const requiredKey =
-    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
+  const requiredKeys = requiredKeysForKind(kind)
 
-  if (!hasOwnKey(input, requiredKey)) {
-    throw new Error(`Generation ${kind} input must include ${requiredKey}.`)
+  if (!requiredKeys.some((key) => hasOwnKey(input, key))) {
+    throw new Error(
+      `Generation ${kind} input must include ${requiredKeys.join(' or ')}.`,
+    )
   }
 }
 
 function isInputForKind(kind: GenerationKind, input: unknown): boolean {
   if (!isRecord(input)) return false
 
-  const requiredKey =
-    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
-
-  return hasOwnKey(input, requiredKey)
+  return requiredKeysForKind(kind).some((key) => hasOwnKey(input, key))
 }
 
 function forwardedPropsFromEnvelope(

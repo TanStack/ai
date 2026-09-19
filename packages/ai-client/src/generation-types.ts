@@ -4,7 +4,11 @@ import type {
   PersistedArtifactRef,
   StreamChunk,
 } from '@tanstack/ai/client'
-import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
+import type {
+  TokenUsage,
+  TranscriptionResponseFormat,
+  TTSTurn,
+} from '@tanstack/ai'
 import type { ByokClient } from './byok'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
@@ -727,8 +731,18 @@ export interface AudioGenerateInput {
  * Input for text-to-speech generation.
  */
 export interface SpeechGenerateInput {
-  /** The text to convert to speech */
-  text: string
+  /** The text to convert to speech. Omit it when sending `turns`. */
+  text?: string
+  /**
+   * Multi-voice dialogue turns, mutually exclusive with `text`. The server
+   * rejects these unless the adapter declares `capabilities.maxSpeakers`.
+   */
+  turns?: Array<TTSTurn>
+  /**
+   * Ask for `alignment` / `segments` on the result. The server rejects it
+   * unless the adapter declares `capabilities.timestamps`.
+   */
+  timestamps?: boolean
   /** The voice to use for generation */
   voice?: string
   /** The output audio format */

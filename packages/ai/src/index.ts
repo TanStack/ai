@@ -8,6 +8,8 @@ export {
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
+  listVoices,
+  generateVoice,
   generateTranscription,
   embed,
   generateWorld,
@@ -22,6 +24,7 @@ export { createImageOptions } from './activities/generateImage/index'
 export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
+export { createVoiceOptions } from './activities/generateVoice/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
 export { createWorldOptions } from './activities/generateWorld/index'
@@ -40,6 +43,9 @@ export type {
   AudioAdapter,
   AnyTTSAdapter,
   TTSAdapter,
+  TTSCapabilities,
+  AnyVoiceAdapter,
+  VoiceAdapter,
   AnyTranscriptionAdapter,
   TranscriptionAdapter,
   AnyVideoAdapter,

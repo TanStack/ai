@@ -646,6 +646,26 @@ const result = await generateSpeech({
 console.log(result.audio); // Base64 encoded audio
 ```
 
+Gemini names speakers in the prompt and maps each name to a voice. Pass `turns`
+and the adapter does both for you, using the voice name as the speaker label:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { geminiSpeech } from "@tanstack/ai-gemini";
+
+const result = await generateSpeech({
+  adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
+  turns: [
+    { text: "Hey, how is it going?", voice: "Puck" },
+    { text: "Not bad, you?", voice: "Kore" },
+  ],
+});
+```
+
+Gemini accepts **two distinct voices** per request, and a third is rejected
+before the call is made. Each voice must be one of the prebuilt Gemini voices.
+Gemini reports no timings, so `timestamps: true` is rejected on this adapter.
+
 ## Environment Variables
 
 Set your API key in environment variables:
