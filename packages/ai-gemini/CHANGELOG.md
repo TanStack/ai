@@ -1,5 +1,14 @@
 # @tanstack/ai-gemini
 
+## 0.31.1
+
+### Patch Changes
+
+- [#1198](https://github.com/TanStack/ai/pull/1198) [`418142b`](https://github.com/TanStack/ai/commit/418142ba482003863265e0db4d596af29f233852) - Fix `mergeConsecutiveSameRoleMessages` deduplicating `functionResponse` parts by `name` instead of `id`. Two parallel calls to the same tool in one turn share a `name` but have distinct ids, so the second response was silently dropped, leaving Gemini with fewer response parts than call parts on the next request (`400 INVALID_ARGUMENT: ... number of function response parts is equal to the number of function call parts`). Deduping by `id` still collapses a genuine duplicate tool result while preserving both responses for same-tool parallel calls.
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.31.0
 
 ### Minor Changes
