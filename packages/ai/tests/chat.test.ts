@@ -1674,6 +1674,7 @@ describe('chat()', () => {
 
     it('emits a denied result when an ephemeral resume includes its approval placeholder', async () => {
       const execute = vi.fn()
+      const preservedCreatedAt = new Date('2026-09-17T00:00:00.000Z')
       const { adapter, calls } = createMockAdapter({
         iterations: [
           [ev.runStarted(), ev.runFinished('stop')],
@@ -1701,11 +1702,24 @@ describe('chat()', () => {
               ],
             },
             {
+              id: 'stale-denial',
+              name: 'deleteData',
+              createdAt: preservedCreatedAt,
+              error: 'legacy denial',
               role: 'tool',
               content: JSON.stringify({
                 approved: false,
                 message: 'User denied this action',
               }),
+              toolCallId: 'call_denied',
+              metadata: {
+                traceId: 'keep-me',
+                tanstack: { source: 'persisted-result' },
+              },
+            },
+            {
+              role: 'tool',
+              content: JSON.stringify({ duplicate: true }),
               toolCallId: 'call_denied',
             },
           ],
@@ -1744,6 +1758,10 @@ describe('chat()', () => {
             role: string
             toolCallId?: string
             content?: unknown
+            id?: string
+            name?: string
+            createdAt?: Date
+            error?: string
             metadata?: unknown
           }>
         | undefined
@@ -1755,8 +1773,18 @@ describe('chat()', () => {
         followUpMessages?.filter((message) => message === deniedMessage),
       ).toHaveLength(1)
       expect(deniedMessage).toMatchObject({
+        id: 'stale-denial',
+        name: 'deleteData',
+        createdAt: preservedCreatedAt,
+        error: 'legacy denial',
         content: JSON.stringify({ error: 'User declined tool execution' }),
-        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+        metadata: {
+          traceId: 'keep-me',
+          tanstack: {
+            source: 'persisted-result',
+            toolResultOutcome: 'denied',
+          },
+        },
       })
     })
 

@@ -3179,9 +3179,8 @@ class TextEngine<
           return false
         }
       })
-      const existingToolResultIdx = this.resumeDeniedToolResults.has(
-        result.toolCallId,
-      )
+      const isDeniedResult = result.outcome === 'denied'
+      const existingToolResultIdx = isDeniedResult
         ? this.messages.findIndex(
             (message) =>
               message.role === 'tool' &&
@@ -3191,21 +3190,43 @@ class TextEngine<
       const resultMessageIdx =
         existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
-      const newToolMessage: ModelMessage = {
-        role: 'tool',
-        content,
-        toolCallId: result.toolCallId,
-        ...(result.outcome !== undefined && {
-          metadata: { tanstack: { toolResultOutcome: result.outcome } },
-        }),
-      }
+      const existingToolMessage =
+        resultMessageIdx >= 0 ? this.messages[resultMessageIdx] : undefined
+      const replacementMessage: ModelMessage =
+        existingToolMessage?.role === 'tool'
+          ? {
+              ...existingToolMessage,
+              content,
+              toolCallId: result.toolCallId,
+            }
+          : {
+              role: 'tool',
+              content,
+              toolCallId: result.toolCallId,
+            }
+      const newToolMessage: ModelMessage =
+        result.outcome !== undefined
+          ? withTanstackMetadata(replacementMessage, {
+              toolResultOutcome: result.outcome,
+            })
+          : replacementMessage
 
       if (resultMessageIdx >= 0) {
-        this.messages = [
+        const replacedMessages = [
           ...this.messages.slice(0, resultMessageIdx),
           newToolMessage,
           ...this.messages.slice(resultMessageIdx + 1),
         ]
+        this.messages = isDeniedResult
+          ? replacedMessages.filter(
+              (message, index) =>
+                index === resultMessageIdx ||
+                !(
+                  message.role === 'tool' &&
+                  message.toolCallId === result.toolCallId
+                ),
+            )
+          : replacedMessages
       } else {
         this.messages = [...this.messages, newToolMessage]
       }
