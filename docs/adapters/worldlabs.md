@@ -50,6 +50,8 @@ const world = await generateWorld({
 To pass a key explicitly:
 
 ```ts
+import { worldlabsWorld } from '@tanstack/ai-worldlabs'
+
 const adapter = worldlabsWorld('marble-1.1', {
   apiKey: process.env.WORLDLABS_API_KEY!,
 })
