@@ -2,7 +2,7 @@
 '@tanstack/ai': minor
 '@tanstack/ai-elevenlabs': minor
 '@tanstack/ai-event-client': minor
-'@tanstack/ai-devtools': patch
+'@tanstack/ai-devtools-core': patch
 ---
 
 Add a `generateVoice()` activity for creating a voice, and refresh the ElevenLabs model lists.
