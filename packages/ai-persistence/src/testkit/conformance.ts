@@ -171,6 +171,8 @@ export function runPersistenceConformance(
     }
 
     describe('messages', () => {
+      // One-argument loadThread is the full-thread contract. Paging
+      // (`limit` / `before`) is an optional hint; this suite does not require it.
       it('round-trips a thread and returns [] for unknown threads', async (ctx) => {
         const store = resolveStore('messages')
         if (!store) return ctx.skip('store not provided')
@@ -181,7 +183,9 @@ export function runPersistenceConformance(
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'hello' },
         ])
-        expect(await store.loadThread('thread-msg')).toEqual([
+        const loaded = await store.loadThread('thread-msg')
+        expect(Array.isArray(loaded)).toBe(true)
+        expect(loaded).toEqual([
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'hello' },
         ])

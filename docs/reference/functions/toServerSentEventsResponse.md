@@ -3,8 +3,6 @@ id: toServerSentEventsResponse
 title: toServerSentEventsResponse
 ---
 
-# Function: toServerSentEventsResponse()
-
 ```ts
 function toServerSentEventsResponse<TOffset>(stream, init?): Response;
 ```

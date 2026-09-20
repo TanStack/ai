@@ -3,8 +3,6 @@ id: WordBoundaryStrategy
 title: WordBoundaryStrategy
 ---
 
-# Class: WordBoundaryStrategy
-
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L57)
 
 Word Boundary Strategy - emit at word boundaries

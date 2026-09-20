@@ -3,8 +3,6 @@ title: Store Reference (Advanced)
 id: store-reference
 ---
 
-# Store Reference
-
 These are the public contracts from `@tanstack/ai-persistence`. Implement only the
 stores you need. Middleware turns behavior on from whichever stores are present, so
 there is no separate enable list.
@@ -31,13 +29,38 @@ the same record instead of disagreeing about one run.
 ```ts
 import type { ModelMessage } from '@tanstack/ai'
 
+type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+
 interface MessageStore {
-  loadThread(threadId: string): Promise<Array<ModelMessage>>
+  loadThread(
+    threadId: string,
+    options?: { limit?: number; before?: string },
+  ): Promise<Array<ModelMessage> | MessagePage>
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void>
 }
 ```
 
-`saveThread` receives the full authoritative model-message history, not a delta.
+- `loadThread` with only `threadId` (middleware, `onStart`, `onFinish`) returns
+  the full array. Never a `MessagePage`.
+- `limit` and `before` are a paging hint for hydrate. You can ignore them and
+  return the full array. `reconstructChat` then slices after UI conversion.
+- To page in the database, return a `MessagePage`. `truncated: true` requires a
+  `cursor`. `truncated` and `cursor` use the same words as `BlobStore.list`.
+- If you ignore `before` and return the newest array again, `reconstructChat`
+  loads the full thread and slices.
+- `saveThread` receives the full merged list. It is a replace, not an append.
+  Merge by id is `withPersistence`, not this store.
+
 `loadThread` returns `[]` (never `null`) for a thread that was never saved.
 
 ## RunStore

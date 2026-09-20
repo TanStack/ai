@@ -14,8 +14,6 @@ keywords:
   - fal.ai
 ---
 
-# Image Generation
-
 TanStack AI provides support for image generation through dedicated image adapters. This guide covers how to use the image generation functionality with OpenAI and Gemini providers.
 
 ## Overview
@@ -283,7 +281,7 @@ Pass a `data:` URI (or a `gs://` reference for Veo), or opt into fetching with
 `allowUrlFetch`:
 
 ```typescript ignore
-import { createOpenaiImage } from "@tanstack/ai-openai/adapters";
+import { createOpenaiImage } from "@tanstack/ai-openai";
 
 // Opt into downloading + buffering HTTP(S) URL image inputs (server runtimes
 // with headroom). data: URIs always work without this flag.
@@ -377,6 +375,8 @@ Adapters that don't support image-conditioned generation throw a clear
 runtime error so calls fail fast rather than silently dropping the inputs.
 
 ## Full-Stack Usage
+
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
 
 TanStack AI provides React hooks and server-side streaming helpers to build full-stack image generation with minimal boilerplate.
 

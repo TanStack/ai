@@ -1,5 +1,55 @@
 # @tanstack/ai-byteplus
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1396](https://github.com/TanStack/ai/pull/1396) [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6) - Add dialogue turns and timing alignment to the text-to-speech contract.
+
+  `generateSpeech()` takes `turns` (an array of `{ text, voice }`) in place of `text` for a multi-voice script, and `timestamps: true` to ask for timings. `TTSResult` gains `alignment` (per character or per word, with `alignment.unit` saying which, all times in seconds) and `segments` (one per turn for dialogue, one per sentence for a single voice). Use `alignment` rather than `duration` to find where speech stops.
+
+  Both are adapter capabilities, declared on `adapter.capabilities` as `maxSpeakers` and `timestamps`. The activity rejects a request the adapter cannot serve before it reaches the provider, so too many speakers is a typed error rather than a provider 422.
+
+  Wired through three adapters:
+  - `byteplusSpeech` (Seed Audio 1.0): up to 3 voices, mapped to `references` plus a role-structured `text_prompt`. `timestamps` sets `audio_config.enable_subtitle`, and the subtitle block becomes word alignment and sentence segments, converted from milliseconds to seconds.
+  - `elevenlabsSpeech`: up to 10 voices. Picks between `textToSpeech.convert`, `textToSpeech.convertWithTimestamps`, `textToDialogue.convert` and `textToDialogue.convertWithTimestamps` from `turns` and `timestamps`. Dialogue also returns per-turn `segments` with the voice that spoke each one.
+  - `geminiSpeech`: up to 2 voices, building `multiSpeakerVoiceConfig` and the labelled prompt from the turns.
+
+  Every addition is optional, so existing adapters and callers are unaffected.
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/openai-base@0.10.13
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.3.6
+
+### Patch Changes
+
+- [#1394](https://github.com/TanStack/ai/pull/1394) [`88f8b21`](https://github.com/TanStack/ai/commit/88f8b21ba802ca295b3cc50df7b023787db0abb2) - fix(ai-byteplus): send Seed Speech `watermark` as the object the API expects
+
+  `byteplusSpeech` sent `watermark` as a boolean, but Seed Audio 1.0 reads an
+  object with `aigc_watermark` (an audible marker) and `aigc_metadata` (header
+  provenance). A boolean was ignored by the server, so callers who asked for a
+  watermark silently got unwatermarked audio.
+
+  `modelOptions.watermark` now accepts `boolean | BytePlusTTSWatermark`, and
+  `true` normalizes to `{ aigc_watermark: true }`, so existing callers get the
+  behavior they intended.
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+  - @tanstack/openai-base@0.10.11
+
 ## 0.3.5
 
 ### Patch Changes

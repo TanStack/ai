@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vue",
-  "version": "0.21.1",
+  "version": "0.24.1",
   "description": "Vue composables for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -28,6 +28,10 @@
     "./ui": {
       "types": "./src/ui.ts",
       "import": "./src/ui.ts"
+    },
+    "./byok": {
+      "types": "./dist/byok.d.ts",
+      "import": "./dist/byok.js"
     }
   },
   "files": [
@@ -57,11 +61,8 @@
     "media-generation"
   ],
   "dependencies": {
-    "@crazydos/vue-markdown": "^1.1.4",
     "@tanstack/ai-client": "workspace:^",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "remark-gfm": "^4.0.1"
+    "@tanstack/markdown": "^0.0.13"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

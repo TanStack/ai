@@ -56,15 +56,16 @@ export type BytePlusTTSSampleRate = (typeof BYTEPLUS_TTS_SAMPLE_RATES)[number]
  * audio references (30 s / 10 MB each) and 1 image reference (10 MB), and
  * image references are mutually exclusive with audio ones.
  *
- * **Member object shape is unresolved — must live-probe when the Seed Speech
- * key lands.** The docs list the member fields flat (`speaker | audio_data |
- * audio_url | image_data | image_url`) without a worked example, so whether
- * the server wants a flat `{ speaker }` or a discriminated `{ type, ... }`
- * could not be settled. The adapter sends the flat reading — see
- * `buildTTSRequestBody` in `../adapters/tts`.
+ * The member fields are flat (`speaker | audio_data | audio_url | image_data |
+ * image_url`), confirmed against
+ * docs.byteplus.com/en/docs/byteplusvoice/seedaudio-01.
  */
 export interface BytePlusTTSReference {
-  /** Stock voice id, e.g. `en_female_stokie_uranus_bigtts`. */
+  /**
+   * Voice id, e.g. `en_female_stokie_uranus_bigtts`. Either a stock TTS 2.0
+   * voice or the id of a voice you cloned through Voice Replication — this
+   * field is the join between replication and synthesis.
+   */
   speaker?: string
   /** URL of a reference clip to clone (≤30 s, ≤10 MB). */
   audio_url?: string
@@ -100,6 +101,37 @@ export interface BytePlusTTSAudioConfig {
   enable_subtitle?: boolean
 }
 
+/**
+ * `watermark` block of a TTS request.
+ *
+ * Two independent markers, both off by default:
+ *
+ * - `aigc_watermark` — **explicit**: appends an audible rhythm marker to the
+ *   end of the clip.
+ * - `aigc_metadata` — **implicit**: writes provenance metadata into the audio
+ *   header. Nothing is written unless `enable` is `true`.
+ *
+ * This is an object, not a boolean — unlike Seedream images and Seedance
+ * video, where `watermark` genuinely is a boolean.
+ */
+export interface BytePlusTTSWatermark {
+  /** Append an audible rhythm marker to the end of the audio. Default `false`. */
+  aigc_watermark?: boolean
+  /** Provenance metadata written into the audio header. */
+  aigc_metadata?: {
+    /** Write the metadata. Default `false` — the rest is ignored without it. */
+    enable?: boolean
+    /** Name or code of the synthesis provider. */
+    content_producer?: string
+    /** Content production id. */
+    produce_id?: string
+    /** Name or code of the distribution provider. */
+    content_propagator?: string
+    /** Content distribution id. */
+    propagate_id?: string
+  }
+}
+
 /** Request body for `POST /api/v3/tts/create` — exactly five fields. */
 export interface BytePlusTTSCreateRequest {
   /** Seed Speech synthesis model, e.g. `seed-audio-1.0`. */
@@ -121,11 +153,8 @@ export interface BytePlusTTSCreateRequest {
   /** Voice selection and cloning references. See {@link BytePlusTTSReference}. */
   references?: Array<BytePlusTTSReference>
   audio_config?: BytePlusTTSAudioConfig
-  /**
-   * Watermark the generated audio. The field name is confirmed; the boolean
-   * type is assumed by analogy with Seedream's `watermark` and unprobed.
-   */
-  watermark?: boolean
+  /** Watermark the generated audio. See {@link BytePlusTTSWatermark}. */
+  watermark?: BytePlusTTSWatermark
 }
 
 /**

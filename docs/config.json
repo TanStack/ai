@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Quick Start: React Native",
@@ -45,6 +45,58 @@
         }
       ],
       "tab": "get-started"
+    },
+    {
+      "label": "Tutorials",
+      "tab": "tutorial",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "tutorials/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "tutorials/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "tutorials/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate a ticket",
+          "to": "tutorials/evaluate",
+          "addedAt": "2026-09-18"
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "tab": "examples",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "framework/react/examples/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "framework/react/examples/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "framework/react/examples/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate",
+          "to": "framework/react/examples/evaluate",
+          "addedAt": "2026-09-18"
+        }
+      ]
     },
     {
       "label": "Comparison",
@@ -223,7 +275,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Compaction",
@@ -242,19 +294,19 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-15"
         },
         {
           "label": "Svelte",
@@ -290,6 +342,11 @@
           "to": "ui/custom-adapters",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-09-01"
+        },
+        {
+          "label": "Highlight markdown",
+          "to": "ui/markdown",
+          "addedAt": "2026-09-15"
         }
       ]
     },
@@ -400,7 +457,8 @@
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-17"
         },
         {
           "label": "MCP Type Generation",
@@ -567,25 +625,31 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-09-11"
         },
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Voice Creation",
+          "to": "media/voice-creation",
+          "addedAt": "2026-09-16",
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Audio Recording",
@@ -652,6 +716,17 @@
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
           "updatedAt": "2026-08-19"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Evaluate",
+      "children": [
+        {
+          "label": "Evaluate",
+          "to": "evaluate/evaluate",
+          "addedAt": "2026-09-18"
         }
       ],
       "tab": "guides"
@@ -831,7 +906,8 @@
         {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Provisioning",
@@ -849,7 +925,7 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-20"
         }
       ]
     },
@@ -875,7 +951,8 @@
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Operating",
@@ -966,7 +1043,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Google Vertex AI",
@@ -1005,10 +1082,15 @@
           "updatedAt": "2026-09-03"
         },
         {
+          "label": "TypeSafe",
+          "to": "adapters/typesafe",
+          "addedAt": "2026-09-18"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "fal.ai",
@@ -1026,7 +1108,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Perplexity Search",
@@ -1037,7 +1119,7 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Lovable AI Gateway",
@@ -1049,7 +1131,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "LLM Gateway",
@@ -1059,7 +1141,8 @@
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
-          "addedAt": "2026-09-03"
+          "addedAt": "2026-09-03",
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Claude Code",
@@ -1095,13 +1178,13 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-16"
         }
       ],
       "tab": "adapters"
@@ -1175,6 +1258,11 @@
           "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
+        },
+        {
+          "label": "TextPart markdown",
+          "to": "migration/text-part-markdown",
+          "addedAt": "2026-09-15"
         }
       ],
       "tab": "guides"
@@ -1186,7 +1274,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "@tanstack/ai-client",

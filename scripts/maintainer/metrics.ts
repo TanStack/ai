@@ -19,6 +19,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface MaintainerQueue {
   github: string
+  reviewsCompleted7d: number
+  medianTimeToFirstReviewHours: number | null
+  reviewLatencySampleSize: number
   discord: string | null
   assignedPRs: Array<PRTriage>
   assignedIssues: Array<IssueTriage>
@@ -96,6 +99,53 @@ function openAtCount(
   return stillOpen + closedAfter
 }
 
+/** First review per PR, timed from the earliest preceding assignment/request. */
+function reviewVelocity(snapshot: RepoSnapshot, login: string, now: Date) {
+  const weekAgo = now.getTime() - 7 * DAY_MS
+  const samples: Array<number> = []
+  let reviewsCompleted7d = 0
+  for (const pr of [
+    ...snapshot.prs,
+    ...snapshot.recentlyClosed.filter((c) => c.type === 'pr'),
+  ]) {
+    if (pr.author?.toLowerCase() === login.toLowerCase()) continue
+    const mine = (actor: string | null | undefined) =>
+      actor?.toLowerCase() === login.toLowerCase()
+    const reviews = pr.timeline
+      .filter(
+        (e) =>
+          e.kind === 'review' &&
+          !e.isBot &&
+          mine(e.actor) &&
+          ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'DISMISSED'].includes(
+            e.reviewState ?? '',
+          ) &&
+          Date.parse(e.at) <= now.getTime(),
+      )
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+    reviewsCompleted7d += reviews.filter(
+      (e) => Date.parse(e.at) >= weekAgo,
+    ).length
+    const first = reviews[0]
+    if (!first || Date.parse(first.at) < weekAgo) continue
+    const requests = pr.timeline
+      .filter(
+        (e) =>
+          (e.kind === 'assigned' || e.kind === 'review-requested') &&
+          mine(e.subject) &&
+          Date.parse(e.at) <= Date.parse(first.at),
+      )
+      .map((e) => Date.parse(e.at))
+    if (requests.length > 0)
+      samples.push((Date.parse(first.at) - Math.min(...requests)) / 3_600_000)
+  }
+  return {
+    reviewsCompleted7d,
+    medianTimeToFirstReviewHours: percentile(samples, 50),
+    reviewLatencySampleSize: samples.length,
+  }
+}
+
 export function computeScorecard(
   snapshot: RepoSnapshot,
   triage: TriageResult,
@@ -121,6 +171,7 @@ export function computeScorecard(
     const assignedIssues = humanIssues.filter((t) => mine(t.item.assignees))
     return {
       github: m.github,
+      ...reviewVelocity(snapshot, m.github, now),
       discord: m.discord ?? null,
       assignedPRs,
       assignedIssues,
@@ -157,12 +208,11 @@ export function computeScorecard(
     .map(([author, count]) => ({ author, count }))
     .sort((a, b) => b.count - a.count)
 
-  // Simulate the sweep's routing over unassigned PRs: only the ones that
-  // still route nowhere (everyone at cap) are genuinely unassignable.
-  const load = computeLoad(config, [
-    ...snapshot.prs.map((pr) => pr.assignees),
-    ...snapshot.issues.map((issue) => issue.assignees),
-  ])
+  // Only an empty eligible roster can leave a PR without an assignee.
+  const load = computeLoad(
+    config,
+    snapshot.prs.map((pr) => pr.assignees),
+  )
   const unassignable: Array<PRTriage> = []
   for (const t of humanPRs) {
     if (t.item.isDraft || t.suspectedSpam || t.item.assignees.length > 0) {
@@ -174,6 +224,8 @@ export function computeScorecard(
       config,
       load,
       t.item.number,
+      snapshot.codeowners,
+      snapshot.recentlyClosed,
     )
     if (routed === null) unassignable.push(t)
     else load.set(routed, (load.get(routed) ?? 0) + 1)

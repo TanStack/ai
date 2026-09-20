@@ -11,8 +11,6 @@ keywords:
   - resolveInterrupt
 ---
 
-# Interrupts
-
 Most agent runs are fire and forget. The model calls tools, they run, you get an
 answer back. But some steps must not happen on their own: moving money,
 deleting a project, sending an email. And sometimes the agent needs an answer
@@ -47,6 +45,11 @@ sequenceDiagram
 Note that the pause spans **two runs**: the interrupted one ends, and the
 continuation is a new run. One user-visible turn, two run lifecycles. See
 [Threads and runs](../chat/stream-events#threads-and-runs).
+
+When replaying saved events, the client follows `parentRunId` links to avoid
+showing a resolved pause again. A continuation that ends without an interrupt
+clears its ancestor's pending decisions, even if the parent link arrives later.
+Intermediate `tool_calls` events do not mark the run or its ancestors as answered.
 
 No database is required. The browser sends the full message history back on the
 continuation request, so a stateless server can rebuild the paused step and keep

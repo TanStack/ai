@@ -3,8 +3,6 @@ id: ChatResumeGenericResolution
 title: ChatResumeGenericResolution
 ---
 
-# Type Alias: ChatResumeGenericResolution
-
 ```ts
 type ChatResumeGenericResolution = 
   | {

@@ -2,7 +2,7 @@
 title: "@tanstack/ai"
 id: tanstack-ai-api
 order: 1
-description: "API reference for @tanstack/ai — the core TanStack AI library providing chat(), generateImage(), toolDefinition(), and streaming utilities."
+description: "API reference for @tanstack/ai, the core TanStack AI library providing chat(), decide(), generateImage(), toolDefinition(), and streaming utilities."
 keywords:
   - tanstack ai
   - "@tanstack/ai"
@@ -10,6 +10,7 @@ keywords:
   - chat
   - toolDefinition
   - generateImage
+  - decide
   - core library
 ---
 
@@ -94,6 +95,79 @@ const result = await summarize({
 ### Returns
 
 A `SummarizationResult` with the summary text.
+
+## `decide(options)`
+
+Asks typed questions about a shared state and returns answers your code can
+branch on. This call is async. There is no stream.
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: typesafeDecider("jev-latest"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value);
+console.log(result.queue.probability);
+console.log(result.queue.confidence);
+console.log(result.meta.usage);
+```
+
+### Parameters (`decide`)
+
+Required:
+
+- `adapter` - An evaluate adapter created with a model (for example `typesafeDecider('jev-latest')`)
+- `state` - Shared content every question judges. A string, an object, or an array. An array is one state, not a batch.
+- `questions` - Map of `choice`, `score`, and `boolean` questions. The key `meta` is reserved.
+
+Optional:
+
+- `abortSignal?` - Cancel the in-flight request
+- `modelOptions?` - Provider-specific options
+- `middleware?` - Observe-only generation middleware
+- `debug?` - Debug logging
+
+### Returns
+
+Each question key is a top-level answer. `meta.model` and `meta.usage` hold the resolved model id and token usage.
+
+- `choice`: `.value` is the selected option key. `.probability` is P(selected). `.confidence` is a number from 0 to 1. `.probabilities` is the full map.
+- `score`: `.value` is the nearest level label. `.score` is the raw fraction. `.probability` is P(that level). `.confidence` is a number from 0 to 1. `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
+- `boolean`: When `.probability` is 0.5 or more, `.value` is `true`. No `.confidence`.
+
+### Helpers
+
+- `choice({ instructions, options })` - Pick one key from `options`
+- `score({ instructions, levels })` - Rate `state` on ordered `levels` (at least two)
+- `boolean({ instructions, criteria? })` - Yes or no. When P(true) is 0.5 or more, `.value` is `true`
+
+See [Evaluate](../evaluate/evaluate) for adapters, abort, and middleware.
 
 ## `toolDefinition(config)`
 
@@ -704,5 +778,6 @@ async function examples() {
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Bring Your Own Key](../advanced/byok) - Read user keys on the relay
+- [Evaluate](../evaluate/evaluate) - Ask typed questions about shared state
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options

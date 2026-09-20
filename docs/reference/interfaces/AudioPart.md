@@ -3,8 +3,6 @@ id: AudioPart
 title: AudioPart
 ---
 
-# Interface: AudioPart\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
 
 Audio content part for multimodal messages.

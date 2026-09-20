@@ -3,8 +3,6 @@ id: DetachableRunCapability
 title: DetachableRunCapability
 ---
 
-# Variable: DetachableRunCapability
-
 ```ts
 const DetachableRunCapability: Capability<true, "detachable-run">;
 ```

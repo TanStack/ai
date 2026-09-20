@@ -215,8 +215,8 @@ export async function fillTextInput(page: Page, text: string) {
   await fillControlledGenerateInput(page, 'text-input', text)
 }
 
-export async function clickGenerate(page: Page) {
-  const btn = page.getByTestId('generate-button')
+export async function clickGenerate(page: Page, testId = 'generate-button') {
+  const btn = page.getByTestId(testId)
   await expect(btn).toBeEnabled()
   await btn.click()
   // Verify the click actually triggered React — status should leave 'idle'

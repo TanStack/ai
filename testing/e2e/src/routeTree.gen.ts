@@ -16,9 +16,11 @@ import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
+import { Route as InterruptLineageRouteImport } from './routes/interrupt-lineage'
 import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
@@ -36,6 +38,7 @@ import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
@@ -67,9 +70,12 @@ import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.mu
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
+import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
+import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
+import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
@@ -140,6 +146,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   path: '/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MessageHistoryPagingRoute = MessageHistoryPagingRouteImport.update({
+  id: '/message-history-paging',
+  path: '/message-history-paging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
@@ -153,6 +164,11 @@ const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
 const InterruptsTestRoute = InterruptsTestRouteImport.update({
   id: '/interrupts-test',
   path: '/interrupts-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterruptLineageRoute = InterruptLineageRouteImport.update({
+  id: '/interrupt-lineage',
+  path: '/interrupt-lineage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HeadlessUiRoute = HeadlessUiRouteImport.update({
@@ -241,6 +257,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ApiWorldRoute = ApiWorldRouteImport.update({
   id: '/api/world',
   path: '/api/world',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceRoute = ApiVoiceRouteImport.update({
+  id: '/api/voice',
+  path: '/api/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVideoLiveRoute = ApiVideoLiveRouteImport.update({
@@ -410,9 +431,19 @@ const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
   path: '/api/message-ids',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMessageHistoryPagingRoute = ApiMessageHistoryPagingRouteImport.update({
+  id: '/api/message-history-paging',
+  path: '/api/message-history-paging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/api/mcp-test',
   path: '/api/mcp-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpTaskErrorsRoute = ApiMcpTaskErrorsRouteImport.update({
+  id: '/api/mcp-task-errors',
+  path: '/api/mcp-task-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpStatusTestRoute = ApiMcpStatusTestRouteImport.update({
@@ -423,6 +454,11 @@ const ApiMcpStatusTestRoute = ApiMcpStatusTestRouteImport.update({
 const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   id: '/api/mcp-server',
   path: '/api/mcp-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpNoTasksServerRoute = ApiMcpNoTasksServerRouteImport.update({
+  id: '/api/mcp-no-tasks-server',
+  path: '/api/mcp-no-tasks-server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpManagedTestRoute = ApiMcpManagedTestRouteImport.update({
@@ -617,9 +653,11 @@ export interface FileRoutesByFullPath {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/headless-ui': typeof HeadlessUiRoute
+  '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -656,9 +694,12 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -690,6 +731,7 @@ export interface FileRoutesByFullPath {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -714,9 +756,11 @@ export interface FileRoutesByTo {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/headless-ui': typeof HeadlessUiRoute
+  '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -753,9 +797,12 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -787,6 +834,7 @@ export interface FileRoutesByTo {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -812,9 +860,11 @@ export interface FileRoutesById {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/headless-ui': typeof HeadlessUiRoute
+  '/interrupt-lineage': typeof InterruptLineageRoute
   '/interrupts-test': typeof InterruptsTestRoute
   '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
+  '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/text-first-tool': typeof TextFirstToolRoute
@@ -851,9 +901,12 @@ export interface FileRoutesById {
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
+  '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
@@ -885,6 +938,7 @@ export interface FileRoutesById {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -911,9 +965,11 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/headless-ui'
+    | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -950,9 +1006,12 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-no-tasks-server'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
+    | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -984,6 +1043,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1008,9 +1068,11 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/headless-ui'
+    | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -1047,9 +1109,12 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-no-tasks-server'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
+    | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -1081,6 +1146,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider'
     | '/api/audio/stream'
@@ -1105,9 +1171,11 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/headless-ui'
+    | '/interrupt-lineage'
     | '/interrupts-test'
     | '/join-run-client-tool'
     | '/markdown-cjk'
+    | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
     | '/text-first-tool'
@@ -1144,9 +1212,12 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-no-tasks-server'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
+    | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
@@ -1178,6 +1249,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/api/video-live'
+    | '/api/voice'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1203,9 +1275,11 @@ export interface RootRouteChildren {
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
   HeadlessUiRoute: typeof HeadlessUiRoute
+  InterruptLineageRoute: typeof InterruptLineageRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
   JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
+  MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
@@ -1242,9 +1316,12 @@ export interface RootRouteChildren {
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
+  ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
+  ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
+  ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
@@ -1276,6 +1353,7 @@ export interface RootRouteChildren {
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
+  ApiVoiceRoute: typeof ApiVoiceRoute
   ApiWorldRoute: typeof ApiWorldRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
@@ -1331,6 +1409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MiddlewareTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/message-history-paging': {
+      id: '/message-history-paging'
+      path: '/message-history-paging'
+      fullPath: '/message-history-paging'
+      preLoaderRoute: typeof MessageHistoryPagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/markdown-cjk': {
       id: '/markdown-cjk'
       path: '/markdown-cjk'
@@ -1350,6 +1435,13 @@ declare module '@tanstack/react-router' {
       path: '/interrupts-test'
       fullPath: '/interrupts-test'
       preLoaderRoute: typeof InterruptsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interrupt-lineage': {
+      id: '/interrupt-lineage'
+      path: '/interrupt-lineage'
+      fullPath: '/interrupt-lineage'
+      preLoaderRoute: typeof InterruptLineageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/headless-ui': {
@@ -1469,6 +1561,13 @@ declare module '@tanstack/react-router' {
       path: '/api/world'
       fullPath: '/api/world'
       preLoaderRoute: typeof ApiWorldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice': {
+      id: '/api/voice'
+      path: '/api/voice'
+      fullPath: '/api/voice'
+      preLoaderRoute: typeof ApiVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video-live': {
@@ -1688,11 +1787,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMessageIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/message-history-paging': {
+      id: '/api/message-history-paging'
+      path: '/api/message-history-paging'
+      fullPath: '/api/message-history-paging'
+      preLoaderRoute: typeof ApiMessageHistoryPagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-test': {
       id: '/api/mcp-test'
       path: '/api/mcp-test'
       fullPath: '/api/mcp-test'
       preLoaderRoute: typeof ApiMcpTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-task-errors': {
+      id: '/api/mcp-task-errors'
+      path: '/api/mcp-task-errors'
+      fullPath: '/api/mcp-task-errors'
+      preLoaderRoute: typeof ApiMcpTaskErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-status-test': {
@@ -1707,6 +1820,13 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-server'
       fullPath: '/api/mcp-server'
       preLoaderRoute: typeof ApiMcpServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-no-tasks-server': {
+      id: '/api/mcp-no-tasks-server'
+      path: '/api/mcp-no-tasks-server'
+      fullPath: '/api/mcp-no-tasks-server'
+      preLoaderRoute: typeof ApiMcpNoTasksServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-managed-test': {
@@ -2024,9 +2144,11 @@ const rootRouteChildren: RootRouteChildren = {
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
   HeadlessUiRoute: HeadlessUiRoute,
+  InterruptLineageRoute: InterruptLineageRoute,
   InterruptsTestRoute: InterruptsTestRoute,
   JoinRunClientToolRoute: JoinRunClientToolRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
+  MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   TextFirstToolRoute: TextFirstToolRoute,
@@ -2063,9 +2185,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
+  ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
+  ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
+  ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
@@ -2097,6 +2222,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsRoute: ApiTtsRouteWithChildren,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
+  ApiVoiceRoute: ApiVoiceRoute,
   ApiWorldRoute: ApiWorldRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }

@@ -3,8 +3,6 @@ id: ToolCall
 title: ToolCall
 ---
 
-# Interface: ToolCall\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L166)
 
 ## Type Parameters

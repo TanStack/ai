@@ -1,0 +1,10 @@
+{
+  "name": "@tanstack/workspace-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "generators": "./generators.json",
+  "dependencies": {
+    "@nx/devkit": "23.1.1"
+  }
+}

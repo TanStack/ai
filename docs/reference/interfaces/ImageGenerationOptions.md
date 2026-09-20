@@ -3,8 +3,6 @@ id: ImageGenerationOptions
 title: ImageGenerationOptions
 ---
 
-# Interface: ImageGenerationOptions\<TProviderOptions, TSize\>
-
 Defined in: [packages/ai/src/types.ts:1936](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1936)
 
 Options for image generation.

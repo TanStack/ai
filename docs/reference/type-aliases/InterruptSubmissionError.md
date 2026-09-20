@@ -3,8 +3,6 @@ id: InterruptSubmissionError
 title: InterruptSubmissionError
 ---
 
-# Type Alias: InterruptSubmissionError
-
 ```ts
 type InterruptSubmissionError = 
   | ItemInterruptError

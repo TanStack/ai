@@ -3,8 +3,6 @@ id: SandboxFileEvent
 title: SandboxFileEvent
 ---
 
-# Interface: SandboxFileEvent
-
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L28)
 
 A file change observed inside a sandbox during a chat run.

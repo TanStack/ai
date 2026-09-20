@@ -3,8 +3,6 @@ id: TextOptions
 title: TextOptions
 ---
 
-# Interface: TextOptions\<TProviderOptionsSuperset, TProviderOptionsForModel, TContext\>
-
 Defined in: [packages/ai/src/types.ts:969](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L969)
 
 Options passed into the SDK and further piped to the AI provider.

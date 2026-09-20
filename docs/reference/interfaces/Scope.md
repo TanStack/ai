@@ -3,8 +3,6 @@ id: Scope
 title: Scope
 ---
 
-# Interface: Scope
-
 Defined in: [packages/ai/src/scope.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L23)
 
 Shared identity/isolation scope for the TanStack AI subsystems that persist

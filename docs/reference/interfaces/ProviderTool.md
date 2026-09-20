@@ -3,8 +3,6 @@ id: ProviderTool
 title: ProviderTool
 ---
 
-# Interface: ProviderTool\<TProvider, TKind\>
-
 Defined in: [packages/ai/src/tools/provider-tool.ts:19](https://github.com/TanStack/ai/blob/main/packages/ai/src/tools/provider-tool.ts#L19)
 
 A provider-specific tool produced by an adapter-package factory

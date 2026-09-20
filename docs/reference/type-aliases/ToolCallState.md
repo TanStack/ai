@@ -3,8 +3,6 @@ id: ToolCallState
 title: ToolCallState
 ---
 
-# Type Alias: ToolCallState
-
 ```ts
 type ToolCallState = 
   | "awaiting-input"

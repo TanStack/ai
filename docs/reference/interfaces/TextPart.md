@@ -3,8 +3,6 @@ id: TextPart
 title: TextPart
 ---
 
-# Interface: TextPart\<TMetadata\>
-
 Defined in: [packages/ai/src/types.ts:404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L404)
 
 Message parts - building blocks of UIMessage

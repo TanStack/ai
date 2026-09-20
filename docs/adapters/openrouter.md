@@ -10,6 +10,8 @@ keywords:
   - llm gateway
   - 300 models
   - adapter
+  - evaluate
+  - jev
 ---
 
 OpenRouter is TanStack AI's first official AI partner and the recommended starting point for most projects. It provides access to 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and many more — all through a single API key and unified interface.
@@ -411,7 +413,64 @@ attribution headers, just like the chat adapter.
 See the [Reranking guide](../rerank/rerank) for object documents, RAG
 pipelines, options, and the result shape.
 
+## Evaluate
+
+OpenRouter exposes TypeSafe Jev through `POST /api/alpha/decisions`.
+Use `openRouterDecider` with `decide()` to ask typed questions about a
+shared `state`:
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openRouterDecider } from "@tanstack/ai-openrouter";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: openRouterDecider("~typesafe/jev-latest"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value);
+console.log(result.queue.probability);
+console.log(result.queue.confidence);
+console.log(result.meta.usage);
+```
+
+`openRouterDecider` reads `OPENROUTER_API_KEY` from the environment. Pass a
+key explicitly with `createOpenRouterDecider("~typesafe/jev-latest", "sk-or-...")`.
+
+Known slugs:
+
+- `~typesafe/jev-latest`
+- `typesafe/jev-1.13`
+- `typesafe/jev-1.13.0`
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
+shape, abort, and middleware.
+
 ## Image Generation
+
+For a React + Start walkthrough with `useGenerateImage`, open [Generate Image](../tutorials/generate-image).
 
 `openRouterImage` routes image generation through OpenRouter's
 chat-completions surface (`modalities: ['image']`). Multimodal prompts are
@@ -503,6 +562,7 @@ streaming mode, and the image-to-video role-mapping table.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Reranking](../rerank/rerank) - Reorder documents by relevance
+- [Evaluate](../evaluate/evaluate) - Ask typed questions about shared state
 
 ## Provider Tools
 

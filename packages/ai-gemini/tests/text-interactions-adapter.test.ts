@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { chat } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import {
@@ -60,6 +61,48 @@ const collectChunks = async (stream: AsyncIterable<AdapterYieldChunk>) => {
   }
   return chunks
 }
+
+const testLogger = resolveDebugOption(false)
+
+const fooJsonSchema = {
+  type: 'object',
+  properties: { foo: { type: 'string' } },
+}
+
+const structuredJsonStreamEvents = [
+  {
+    event_type: 'interaction.created',
+    interaction: { id: 'int_structured_stream', status: 'in_progress' },
+  },
+  {
+    event_type: 'step.delta',
+    index: 0,
+    delta: { type: 'text', text: '{"foo":' },
+  },
+  {
+    event_type: 'step.delta',
+    index: 0,
+    delta: { type: 'text', text: '"bar"}' },
+  },
+  { event_type: 'step.stop', index: 0 },
+  {
+    event_type: 'interaction.completed',
+    interaction: {
+      id: 'int_structured_stream',
+      status: 'completed',
+    },
+  },
+]
+
+const structuredCompleteEvent = (events: Array<AdapterYieldChunk>) =>
+  events.find(
+    (event) =>
+      event.type === EventType.CUSTOM &&
+      event.name === 'structured-output.complete',
+  )
+
+const runErrorEvent = (events: Array<AdapterYieldChunk>) =>
+  events.find((event) => event.type === EventType.RUN_ERROR)
 
 describe('GeminiTextInteractionsAdapter', () => {
   beforeEach(() => {
@@ -1127,9 +1170,8 @@ describe('GeminiTextInteractionsAdapter', () => {
   })
 
   it('structuredOutput parses JSON text from interaction.outputs', async () => {
-    // `chat({outputSchema, …no tools})` goes straight to structuredOutput;
-    // no agent-loop chatStream first. So a single mocked Interaction
-    // response is enough.
+    // Exercise the non-streaming adapter method directly; `chat()` prefers
+    // structuredOutputStream when the adapter provides native streaming.
     mocks.interactionsCreateSpy.mockResolvedValueOnce({
       id: 'int_structured',
       status: 'completed',
@@ -1142,13 +1184,16 @@ describe('GeminiTextInteractionsAdapter', () => {
     })
 
     const adapter = createAdapter()
-    const result = await chat({
-      adapter,
-      messages: [{ role: 'user', content: 'Give JSON' }],
-      outputSchema: z.object({ foo: z.string() }),
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'gemini-2.5-flash',
+        messages: [{ role: 'user', content: 'Give JSON' }],
+        logger: testLogger,
+      },
+      outputSchema: fooJsonSchema,
     })
 
-    expect(result).toEqual({ foo: 'bar' })
+    expect(result.data).toEqual({ foo: 'bar' })
 
     expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(1)
     const structuredPayload = mocks.interactionsCreateSpy.mock.calls[0]![0]
@@ -1159,6 +1204,231 @@ describe('GeminiTextInteractionsAdapter', () => {
       mime_type: 'application/json',
     })
     expect(structuredPayload.stream).toBeUndefined()
+  })
+
+  it('streams structured output natively and preserves terminal event ordering', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream(structuredJsonStreamEvents),
+    )
+
+    const adapter = createAdapter()
+    const events = await collectChunks(
+      adapter.structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    const payload = mocks.interactionsCreateSpy.mock.calls[0]![0]
+    expect(payload.stream).toBe(true)
+    expect(payload.response_format).toMatchObject({
+      type: 'text',
+      mime_type: 'application/json',
+      schema: expect.objectContaining({ type: 'object' }),
+    })
+    expect(
+      events.filter((event) => event.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toHaveLength(2)
+    const interactionIdIndex = events.findIndex(
+      (event) =>
+        event.type === EventType.CUSTOM &&
+        event.name === 'gemini.interactionId',
+    )
+    const completeIndex = events.findIndex(
+      (event) =>
+        event.type === EventType.CUSTOM &&
+        event.name === 'structured-output.complete',
+    )
+    const finishedIndex = events.findIndex(
+      (event) => event.type === EventType.RUN_FINISHED,
+    )
+    expect(interactionIdIndex).toBeLessThan(completeIndex)
+    expect(completeIndex).toBeLessThan(finishedIndex)
+    const complete = structuredCompleteEvent(events)
+    expect(complete?.type).toBe(EventType.CUSTOM)
+    if (complete?.type === EventType.CUSTOM) {
+      expect(complete.value).toEqual({
+        object: { foo: 'bar' },
+        raw: '{"foo":"bar"}',
+      })
+    }
+  })
+
+  it('forwards chatOptions.request.signal to interactions.create', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream(structuredJsonStreamEvents),
+    )
+    const abortController = new AbortController()
+
+    await collectChunks(
+      createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+          request: { signal: abortController.signal },
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    expect(mocks.interactionsCreateSpy.mock.calls[0]![1]).toEqual({
+      signal: abortController.signal,
+    })
+  })
+
+  it('falls back to abortController.signal when request.signal is absent', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream(structuredJsonStreamEvents),
+    )
+    const abortController = new AbortController()
+
+    await collectChunks(
+      createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+          abortController,
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    expect(mocks.interactionsCreateSpy.mock.calls[0]![1]).toEqual({
+      signal: abortController.signal,
+    })
+  })
+
+  it('chat({ outputSchema, stream: true }) streams native JSON deltas', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream(structuredJsonStreamEvents),
+    )
+
+    const events = await collectChunks(
+      chat({
+        adapter: createAdapter(),
+        messages: [{ role: 'user', content: 'Give JSON' }],
+        outputSchema: z.object({ foo: z.string() }),
+        stream: true,
+      }),
+    )
+
+    expect(
+      events.filter((event) => event.type === 'TEXT_MESSAGE_CONTENT').length,
+    ).toBeGreaterThanOrEqual(2)
+    expect(structuredCompleteEvent(events)).toBeDefined()
+  })
+
+  it('emits empty-response when the structured stream has no text', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_empty', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_empty', status: 'completed' },
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('empty-response')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
+  })
+
+  it('emits parse-error with a JSON snippet when the stream is not JSON', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_parse', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: { type: 'text', text: '{not valid json' },
+        },
+        { event_type: 'step.stop', index: 0 },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'int_parse', status: 'completed' },
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('parse-error')
+      expect(runError.message).toContain('{not valid json')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
+  })
+
+  it('emits truncated-stream when the Interactions stream has no terminal event', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'int_trunc', status: 'in_progress' },
+        },
+        {
+          event_type: 'step.delta',
+          index: 0,
+          delta: { type: 'text', text: '{"foo":' },
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'gemini-2.5-flash',
+          messages: [{ role: 'user', content: 'Give JSON' }],
+          logger: testLogger,
+        },
+        outputSchema: fooJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('truncated-stream')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
   })
 
   // ===========================
@@ -1549,16 +1819,24 @@ describe('GeminiTextInteractionsAdapter', () => {
           },
         ]),
       )
-      .mockResolvedValueOnce({
-        id: 'int_struct',
-        status: 'completed',
-        steps: [
+      .mockResolvedValueOnce(
+        mkStream([
           {
-            type: 'model_output',
-            content: [{ type: 'text', text: '{"answer":"42"}' }],
+            event_type: 'interaction.created',
+            interaction: { id: 'int_struct', status: 'in_progress' },
           },
-        ],
-      })
+          {
+            event_type: 'step.delta',
+            index: 0,
+            delta: { type: 'text', text: '{"answer":"42"}' },
+          },
+          { event_type: 'step.stop', index: 0 },
+          {
+            event_type: 'interaction.completed',
+            interaction: { id: 'int_struct', status: 'completed' },
+          },
+        ]),
+      )
 
     const adapter = createAdapter()
 
