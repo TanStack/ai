@@ -2,21 +2,21 @@
 title: Subagents
 id: subagents-tutorial
 order: 5
-description: "Create a TanStack Start blog-writing chat. Two named agents handle research and drafts. Jev picks who runs. The UI shows a nested card."
+description: "Create a TanStack Start blog-writing chat. Two named agents handle research and drafts. Jev on OpenRouter picks who runs. createChatHook draws a nested card."
 keywords:
   - tanstack ai
   - tutorial
   - subagents
   - defineAgent
   - jev
-  - typesafe
-  - useChat
+  - openrouter
+  - createChatHook
   - tanstack start
 ---
 
 You want a blog-writing chat. Some turns need facts. Some turns need a draft. One main model is a poor fit for every turn.
 
-This tutorial adds two named agents. Jev picks who runs. The UI shows a nested card for the child.
+This tutorial adds two named agents. Jev on OpenRouter picks who runs. `createChatHook` draws a nested card for the child.
 
 This tutorial is React + Start. For the API, open [Subagents](../chat/subagents).
 
@@ -32,11 +32,11 @@ Pick React. For more options, see [Start getting started](https://tanstack.com/s
 
 ## 2. Install packages
 
-You need the core SDK, the React hook, OpenRouter for chat, and TypeSafe for Jev.
+You need the core SDK, the React UI factory, and OpenRouter for chat and for Jev.
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter @tanstack/ai-typesafe
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter
 
 <!-- ::end:tabs -->
 
@@ -48,7 +48,7 @@ The **client** runs in the browser. It holds the OpenRouter key, draws messages,
 
 The **server** route reads that key, asks Jev who must run, and streams tokens back.
 
-The next steps build the client. Then they add the agents and the route.
+The next steps build the client pieces. Then they add the agents and the route.
 
 ## 4. Set up BYOK on the client
 
@@ -64,7 +64,7 @@ export const byok = defineByok({
 })
 ```
 
-Get an OpenRouter key from [openrouter.ai](https://openrouter.ai).
+Get an OpenRouter key from [openrouter.ai](https://openrouter.ai). Chat and Jev both use this key.
 
 ## 5. Add the key form
 
@@ -157,23 +157,13 @@ export function OpenRouterKeyForm() {
 
 If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
-## 6. Set the TypeSafe key
+## 6. Define two agents
 
-Jev runs on the server. Get a key from [TypeSafe](https://typesafe.ai). Then set it in the environment:
+Create `src/lib/agents.ts`.
 
-```bash
-TYPESAFE_API_KEY=your-typesafe-api-key
-```
+`defineAgent` makes a named child. `name` is the id the router returns. `description` is the text Jev reads. `run` is a full `chat()` call. Pass `ctx.threadId` and `ctx.runId` so the child stays on the parent stream.
 
-Keep this key on the server. Do not send it to the browser.
-
-In the example app, put it in `.env.local` next to `package.json`.
-
-## 7. Define two agents
-
-Create `src/lib/agents.ts`. Each `run` is a `chat()` call. Pass `ctx.threadId` and `ctx.runId` so the child stays on the stream.
-
-The researcher returns notes. The writer returns a draft.
+The parent `chat({ subagents: { agents } })` owns the list. It does not call `run` until a turn picks that name. Exclusive strategy means the chosen child owns the turn. Main does not answer after it.
 
 ```typescript ignore
 import { chat, defineAgent } from '@tanstack/ai'
@@ -214,25 +204,138 @@ export function createBlogAgents(apiKey: string) {
 }
 ```
 
-`name` is the id the router returns. `description` is the text Jev reads.
-
-## 8. Add the server route
+## 7. Add the server route
 
 Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path.
-
-### Read the OpenRouter key
 
 `getByokKey` reads the `x-byok-openrouter` header, then `OPENROUTER_API_KEY` in the environment. If both are empty, `byokMissing` returns HTTP 401.
 
 Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the adapter main entry.
 
-### Ask Jev who must run
+Pass the agents into `chat({ subagents })`. `strategy: 'exclusive'` means the chosen child owns the turn.
 
-`decide()` asks one `choice` question. Options must include `main` plus every agent name.
+```typescript ignore
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { createBlogAgents } from '@/lib/agents'
 
-### Start `chat({ subagents })`
+export async function POST({ request }: { request: Request }) {
+  const params = await chatParamsFromRequest(request)
+  const apiKey = getByokKey(request, openrouterByok)
+  if (!apiKey) return byokMissing(openrouterByok)
 
-Pass the agents, `strategy: 'exclusive'`, and the router. Exclusive means the chosen child owns the turn.
+  const agents = createBlogAgents(apiKey)
+  const stream = chat({
+    adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    subagents: {
+      agents,
+      strategy: 'exclusive',
+    },
+  })
+  return toServerSentEventsResponse(stream)
+}
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST,
+    },
+  },
+})
+```
+
+With no router, the main model gets one synthetic server tool per agent. The next steps replace that with Jev.
+
+## 8. How routing works
+
+A router is a function. The library calls it before the main model. It can return:
+
+- `'main'`: the parent `chat()` runs as usual
+- `'researcher'` or `'writer'`: that child's `run` starts
+- an array of names: those children start together
+
+Jev is `decide()` plus `choice()`. Options must include `main` plus every agent name. Jev reads the last message and returns one of those keys.
+
+`createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
+
+## 9. Add Jev as the router
+
+Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. Return `result.target.value`.
+
+```typescript ignore
+subagents: {
+  agents,
+  strategy: 'exclusive',
+  router: async ({ messages }) => {
+    const result = await decide({
+      adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
+      state: messages.at(-1),
+      questions: {
+        target: choice({
+          instructions:
+            'Who must handle this turn for a blog-writing desk?',
+          options: {
+            main: 'General chat, greetings, or a mixed question',
+            researcher: agents[0].description,
+            writer: agents[1].description,
+          } satisfies SubagentChoiceOptions<typeof agents>,
+        }),
+      },
+    })
+    return result.target.value
+  },
+},
+```
+
+If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user says hello, Jev returns `main`.
+
+Add these imports:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  choice,
+  decide,
+  toServerSentEventsResponse,
+  type SubagentChoiceOptions,
+} from '@tanstack/ai'
+import {
+  createOpenRouterDecider,
+  createOpenRouterText,
+} from '@tanstack/ai-openrouter'
+```
+
+## 10. Abort the run from the client
+
+The browser abort signal fires when the user clicks Stop. The server must pass that into `chat()`. Then a hanging child stops, and `SUBAGENT_ERROR` can emit.
+
+Add an `AbortController`. Link it to `request.signal`. Pass it to `chat()` and to `toServerSentEventsResponse`.
+
+```typescript ignore
+const abortController = new AbortController()
+request.signal.addEventListener(
+  'abort',
+  () => {
+    abortController.abort()
+  },
+  { once: true },
+)
+```
+
+Then pass `abortController` into `chat({ abortController })` and `toServerSentEventsResponse(stream, { abortController })`.
+
+The finished route is `src/routes/api.chat.ts`:
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -242,34 +345,15 @@ import {
   choice,
   decide,
   toServerSentEventsResponse,
-  type ModelMessage,
   type SubagentChoiceOptions,
-  type UIMessage,
 } from '@tanstack/ai'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import {
+  createOpenRouterDecider,
+  createOpenRouterText,
+} from '@tanstack/ai-openrouter'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-import { typesafeDecider } from '@tanstack/ai-typesafe'
 import { createBlogAgents } from '@/lib/agents'
-
-const jev = typesafeDecider('jev-latest')
-
-function lastUserText(messages: Array<UIMessage | ModelMessage>) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (!message || message.role !== 'user') continue
-    if ('content' in message && typeof message.content === 'string') {
-      return message.content
-    }
-    if ('parts' in message && Array.isArray(message.parts)) {
-      return message.parts
-        .filter((part) => part.type === 'text')
-        .map((part) => ('content' in part ? part.content : ''))
-        .join('')
-    }
-  }
-  return ''
-}
 
 export async function POST({ request }: { request: Request }) {
   const params = await chatParamsFromRequest(request)
@@ -295,11 +379,10 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      sandbox: 'own',
       router: async ({ messages }) => {
         const result = await decide({
-          adapter: jev,
-          state: { text: lastUserText(messages) },
+          adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
+          state: messages.at(-1),
           questions: {
             target: choice({
               instructions:
@@ -312,11 +395,7 @@ export async function POST({ request }: { request: Request }) {
             }),
           },
         })
-        const pick = result.target.value
-        if (pick === 'main' || pick === 'researcher' || pick === 'writer') {
-          return pick
-        }
-        return 'main'
+        return result.target.value
       },
     },
   })
@@ -332,56 +411,105 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user says hello, Jev returns `main`.
+## 11. Create the chat UI factory
 
-## 9. Draw nested cards
+The public factory is `createChatHook` from `@tanstack/ai-react/ui`. It calls `createChatUI` and binds `useChat`.
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` to `useChat`.
-
-Walk `message.parts`. A `type: 'subagent'` part is a child card. `part.subagent` and `useChat().subagents[i]` are the same object. Call `stop()` on either one.
-
-This is `src/routes/index.tsx`:
+Create `src/chat-ui.tsx`. Register `layout`, `message`, and `input` first. `layout` receives `Messages` and `Input` as components. `useChatContext()` reads the live chat.
 
 ```tsx ignore
-import { useEffect, useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import {
-  fetchServerSentEvents,
-  useChat,
-  type UIMessage,
-} from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
-type SubagentHandle = Extract<
-  UIMessage['parts'][number],
-  { type: 'subagent' }
->['subagent']
-
-function MessageBody({ message }: { message: UIMessage }) {
-  return (
-    <>
-      {message.parts.map((part, index) => {
-        if (part.type === 'text' && part.content) {
-          return (
-            <div
-              key={`text-${index}`}
-              className="whitespace-pre-wrap text-white"
-            >
-              {part.content}
-            </div>
-          )
-        }
-        if (part.type === 'subagent') {
-          return <SubagentCard key={part.subagent.id} subagent={part.subagent} />
-        }
-        return null
-      })}
-    </>
-  )
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  byok,
 }
 
-function SubagentCard({ subagent }: { subagent: SubagentHandle }) {
+export const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: function Layout({ Messages, Input }) {
+      const chat = useChatContext()
+      return (
+        <div className="flex h-screen flex-col bg-gray-900">
+          <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+            <OpenRouterKeyForm />
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <Messages />
+          </div>
+          {chat.error ? <p>{chat.error.message}</p> : null}
+          <Input />
+        </div>
+      )
+    },
+    message: function Message({ message, Parts }) {
+      return (
+        <article data-role={message.role}>
+          <Parts />
+        </article>
+      )
+    },
+    input: function Input() {
+      const chat = useChatContext()
+      return (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLTextAreaElement)) return
+            const text = field.value.trim()
+            if (!text) return
+            field.value = ''
+            void chat.sendMessage(text)
+          }}
+        >
+          <textarea name="message" disabled={chat.isLoading} />
+          <button type="submit" disabled={chat.isLoading}>
+            Send
+          </button>
+        </form>
+      )
+    },
+  },
+  partsComponents: {
+    fallback: () => null,
+  },
+})
+```
+
+`Parts` walks one message and picks a component per part. The next steps add those components.
+
+## 12. Pass in the text part
+
+Add `partsComponents.text`. The factory now draws assistant text.
+
+```tsx ignore
+partsComponents: {
+  text: ({ part }) => (
+    <div className="whitespace-pre-wrap text-white">{part.content}</div>
+  ),
+  fallback: () => null,
+},
+```
+
+A `type: 'subagent'` part still hits `fallback` until you slot a component.
+
+## 13. Create the subagent card
+
+Create `src/components/subagent-card.tsx`. The card reads `part.subagent`. That object is the same handle as `useChat().subagents[i]`. `stop()` aborts the current parent run.
+
+```tsx ignore
+import type { UIMessage } from '@tanstack/ai-react'
+
+type SubagentPart = Extract<UIMessage['parts'][number], { type: 'subagent' }>
+
+export function SubagentCard({ part }: { part: SubagentPart }) {
+  const subagent = part.subagent
+
   return (
     <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3">
       <header className="mb-2 flex flex-wrap items-center gap-2">
@@ -400,182 +528,184 @@ function SubagentCard({ subagent }: { subagent: SubagentHandle }) {
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
-      {subagent.messages.map((childMessage) => (
-        <div key={childMessage.id} className="mt-2">
-          <MessageBody message={childMessage} />
+      {subagent.messages.map((message) => (
+        <div key={message.id} className="mt-2">
+          {message.parts.map((childPart, index) =>
+            childPart.type === 'text' && childPart.content ? (
+              <div
+                key={`text-${index}`}
+                className="whitespace-pre-wrap text-white"
+              >
+                {childPart.content}
+              </div>
+            ) : null,
+          )}
         </div>
       ))}
     </section>
   )
 }
+```
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const visibleMessages = messages.filter((message) =>
-    message.parts.some((part) => {
-      if (part.type === 'text' && part.content.trim()) return true
-      return part.type === 'subagent'
-    }),
-  )
+## 14. Slot the card into subagent parts
 
-  useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight
-    }
-  }, [visibleMessages])
+Set `partsComponents.subagent` to `SubagentCard`. `Parts` now renders that card for every `type: 'subagent'` part.
 
-  if (!visibleMessages.length) {
-    return (
-      <div className="flex-1 overflow-y-auto px-4 py-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="mb-2 text-xl font-semibold text-white">
-            Blog desk
-          </h2>
-          <p className="text-sm text-gray-400">
-            Paste an OpenRouter key. Ask for research or a draft. Jev picks the
-            agent.
-          </p>
+The finished factory is `src/chat-ui.tsx`:
+
+```tsx ignore
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
+import { OpenRouterKeyForm } from '@/components/open-router-key-form'
+import { SubagentCard } from '@/components/subagent-card'
+import { byok } from '@/lib/byok'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  byok,
+}
+
+export const { useAppChat, useChatContext } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: function Layout({ Messages, Input }) {
+      const chat = useChatContext()
+      return (
+        <div className="flex h-screen flex-col bg-gray-900">
+          <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+            <OpenRouterKeyForm />
+          </div>
+          {chat.messages.length === 0 ? (
+            <div className="flex-1 overflow-y-auto px-4 py-8">
+              <div className="mx-auto max-w-2xl text-center">
+                <h2 className="mb-2 text-xl font-semibold text-white">
+                  Blog desk
+                </h2>
+                <p className="text-sm text-gray-400">
+                  Paste an OpenRouter key. Ask for research or a draft. Jev
+                  picks the agent.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <Messages />
+            </div>
+          )}
+          {chat.subagents.length > 0 ? (
+            <aside className="border-t border-orange-500/10 px-4 py-3">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Subagents
+              </h2>
+              {chat.subagents.map((subagent) => (
+                <p
+                  key={subagent.id}
+                  className="mb-1 flex items-center gap-2 text-sm text-gray-200"
+                >
+                  <span>
+                    {subagent.name}: {subagent.status}
+                  </span>
+                  {subagent.status === 'running' ? (
+                    <button
+                      type="button"
+                      onClick={() => subagent.stop?.()}
+                      className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+                    >
+                      Stop
+                    </button>
+                  ) : null}
+                </p>
+              ))}
+            </aside>
+          ) : null}
+          {chat.error ? (
+            <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+              {chat.error.message}
+            </div>
+          ) : null}
+          {chat.isLoading ? (
+            <div className="mb-3 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={chat.stop}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Stop
+              </button>
+            </div>
+          ) : null}
+          <Input />
         </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={messagesContainerRef}
-      className="flex-1 overflow-y-auto px-4 py-4"
-    >
-      {visibleMessages.map((message) => (
-        <div
-          key={message.id}
+      )
+    },
+    message: function Message({ message, Parts }) {
+      return (
+        <article
+          data-role={message.role}
           className={`mb-2 rounded-lg p-4 ${
             message.role === 'assistant'
               ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
               : 'bg-transparent'
           }`}
         >
-          <div className="flex items-start gap-4">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium text-white ${
-                message.role === 'assistant'
-                  ? 'bg-linear-to-r from-orange-500 to-red-600'
-                  : 'bg-gray-700'
-              }`}
+          <Parts />
+        </article>
+      )
+    },
+    input: function Input() {
+      const chat = useChatContext()
+      return (
+        <form
+          className="border-t border-orange-500/10 bg-gray-900/80 px-4 py-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLTextAreaElement)) return
+            const text = field.value.trim()
+            if (!text) return
+            field.value = ''
+            void chat.sendMessage(text)
+          }}
+        >
+          <div className="flex items-end gap-2">
+            <textarea
+              name="message"
+              rows={1}
+              disabled={chat.isLoading}
+              placeholder="Ask for research, or ask for a draft..."
+              className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+            />
+            <button
+              type="submit"
+              disabled={chat.isLoading}
+              className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
             >
-              {message.role === 'assistant' ? 'AI' : 'U'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <MessageBody message={message} />
-            </div>
+              Send
+            </button>
           </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+        </form>
+      )
+    },
+  },
+  partsComponents: {
+    text: ({ part }) => (
+      <div className="whitespace-pre-wrap text-white">{part.content}</div>
+    ),
+    subagent: SubagentCard,
+    fallback: () => null,
+  },
+})
+```
+
+Create `src/routes/index.tsx`. Call `useAppChat()` and render `<chat.AppChat />`.
+
+```tsx ignore
+import { createFileRoute } from '@tanstack/react-router'
+import { useAppChat } from '@/chat-ui'
 
 function ChatPage() {
-  const [input, setInput] = useState('')
-  const { messages, subagents, sendMessage, isLoading, error, stop } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-    byok,
-  })
-
-  const handleSendMessage = () => {
-    if (!input.trim()) return
-    sendMessage(input.trim())
-    setInput('')
-  }
-
-  return (
-    <div className="flex h-screen bg-gray-900">
-      <div className="flex w-full flex-col">
-        <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
-          <OpenRouterKeyForm />
-        </div>
-
-        <Messages messages={messages} />
-
-        {subagents.length > 0 ? (
-          <aside className="border-t border-orange-500/10 px-4 py-3">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Subagents
-            </h2>
-            {subagents.map((subagent) => (
-              <p
-                key={subagent.id}
-                className="mb-1 flex items-center gap-2 text-sm text-gray-200"
-              >
-                <span>
-                  {subagent.name}: {subagent.status}
-                </span>
-                {subagent.status === 'running' ? (
-                  <button
-                    type="button"
-                    onClick={() => subagent.stop?.()}
-                    className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-                  >
-                    Stop
-                  </button>
-                ) : null}
-              </p>
-            ))}
-          </aside>
-        ) : null}
-
-        {error ? (
-          <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-            {error.message}
-          </div>
-        ) : null}
-
-        <div className="border-t border-orange-500/10 bg-gray-900/80">
-          <div className="w-full px-4 py-3">
-            {isLoading ? (
-              <div className="mb-3 flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={stop}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                >
-                  Stop
-                </button>
-              </div>
-            ) : null}
-            <div className="flex items-end gap-2">
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask for research, or ask for a draft..."
-                className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-                rows={1}
-                disabled={isLoading}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === 'Enter' &&
-                    !event.shiftKey &&
-                    input.trim()
-                  ) {
-                    event.preventDefault()
-                    handleSendMessage()
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleSendMessage}
-                disabled={!input.trim() || isLoading}
-                className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  const chat = useAppChat()
+  return <chat.AppChat />
 }
 
 export const Route = createFileRoute('/')({
@@ -583,13 +713,12 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-## 10. Try it
+## 15. Try it
 
 1. Run the app.
 2. Paste an OpenRouter key.
-3. Make sure that `TYPESAFE_API_KEY` is set on the server.
-4. Send `What are three facts about durable streams?` The researcher card opens.
-5. Send `Write a short blog post about durable streams.` The writer card opens.
+3. Send `What are three facts about durable streams?` The researcher card opens.
+4. Send `Write a short blog post about durable streams.` The writer card opens.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/subagents`.
 

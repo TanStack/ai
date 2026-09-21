@@ -5,34 +5,15 @@ import {
   choice,
   decide,
   toServerSentEventsResponse,
-  type ModelMessage,
   type SubagentChoiceOptions,
-  type UIMessage,
 } from '@tanstack/ai'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import {
+  createOpenRouterDecider,
+  createOpenRouterText,
+} from '@tanstack/ai-openrouter'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-import { typesafeDecider } from '@tanstack/ai-typesafe'
 import { createBlogAgents } from '@/lib/agents'
-
-const jev = typesafeDecider('jev-latest')
-
-function lastUserText(messages: Array<UIMessage | ModelMessage>) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (!message || message.role !== 'user') continue
-    if ('content' in message && typeof message.content === 'string') {
-      return message.content
-    }
-    if ('parts' in message && Array.isArray(message.parts)) {
-      return message.parts
-        .filter((part) => part.type === 'text')
-        .map((part) => ('content' in part ? part.content : ''))
-        .join('')
-    }
-  }
-  return ''
-}
 
 export async function POST({ request }: { request: Request }) {
   const params = await chatParamsFromRequest(request)
@@ -58,11 +39,10 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      sandbox: 'own',
       router: async ({ messages }) => {
         const result = await decide({
-          adapter: jev,
-          state: { text: lastUserText(messages) },
+          adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
+          state: messages.at(-1),
           questions: {
             target: choice({
               instructions:
@@ -75,11 +55,7 @@ export async function POST({ request }: { request: Request }) {
             }),
           },
         })
-        const pick = result.target.value
-        if (pick === 'main' || pick === 'researcher' || pick === 'writer') {
-          return pick
-        }
-        return 'main'
+        return result.target.value
       },
     },
   })

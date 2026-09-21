@@ -85,7 +85,7 @@ A slim TanStack Start chat. Two named agents. Jev picks research or a draft. The
 pnpm --filter subagents dev
 ```
 
-Open http://localhost:3100. Set `TYPESAFE_API_KEY`. Paste an OpenRouter key. Ask for research or a draft.
+Open http://localhost:3100. Paste an OpenRouter key. Ask for research or a draft.
 
 📖 [Full Documentation](react/subagents/README.md)
 

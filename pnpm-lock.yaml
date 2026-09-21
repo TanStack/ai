@@ -408,9 +408,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../../packages/ai-react
-      '@tanstack/ai-typesafe':
-        specifier: workspace:*
-        version: link:../../../packages/ai-typesafe
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
