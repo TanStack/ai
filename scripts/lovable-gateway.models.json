@@ -1458,6 +1458,61 @@
     }
   },
   {
+    "premium_output_modalities": [
+      "text"
+    ],
+    "id": "google/gemini-3.5-transcribe",
+    "object": "model",
+    "created": 1787875200,
+    "released": 1787702400,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "google",
+    "name": "Gemini 3.5 Transcribe",
+    "description": "Google's speech-to-text model with automatic language detection across 85+ languages and smart handling of filler words and self-corrections.",
+    "context_window": 16000,
+    "max_tokens": 16000,
+    "modalities": {
+      "input": [
+        "text",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
     "premium_output_modalities": [],
     "id": "google/gemini-3.6-flash",
     "object": "model",
@@ -1467,7 +1522,7 @@
     "deprecated": false,
     "owned_by": "google",
     "name": "Gemini 3.6 Flash",
-    "description": "Latest-generation Gemini Flash model for fast coding, reasoning, and agentic workflows.",
+    "description": "Gemini 3.6 Flash model for fast coding, reasoning, and agentic workflows.",
     "context_window": 1000000,
     "max_tokens": 64000,
     "knowledge": "2026-03",
@@ -1593,10 +1648,135 @@
     "deprecated": false,
     "owned_by": "google",
     "name": "Gemini 3.7 Flash",
-    "description": "Latest-generation Gemini Flash model for fast coding, reasoning, and agentic workflows.",
+    "description": "Gemini 3.7 Flash model for fast coding, reasoning, and agentic workflows.",
     "context_window": 1000000,
     "max_tokens": 64000,
     "knowledge": "2026-03",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.000000075",
+                "min": 0
+              }
+            ]
+          }
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.00000075",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00000375",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "audio": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            },
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.000000135",
+                    "min": 0
+                  }
+                ]
+              }
+            },
+            "video": {
+              "tiers": [
+                {
+                  "cost": "0.00000135",
+                  "min": 0
+                }
+              ]
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00000675",
+                  "min": 0
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "premium_output_modalities": [],
+    "id": "google/gemini-3.8-flash",
+    "object": "model",
+    "created": 1788739200,
+    "released": 1788307200,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Flash",
+    "description": "Latest-generation Gemini Flash model for fast coding, reasoning, and agentic workflows.",
+    "context_window": 1048576,
+    "max_tokens": 65536,
     "modalities": {
       "input": [
         "text",
@@ -1745,7 +1925,9 @@
     }
   },
   {
-    "premium_output_modalities": [],
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "google/gemini-embedding-2",
     "object": "model",
     "created": 1781136000,
@@ -1807,7 +1989,77 @@
     }
   },
   {
-    "premium_output_modalities": [],
+    "premium_output_modalities": [
+      "video"
+    ],
+    "id": "google/gemini-omni-1.1-flash",
+    "object": "model",
+    "created": 1787788800,
+    "released": 1787788800,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "google",
+    "name": "Gemini Omni 1.1 Flash",
+    "description": "Latest video generation model: fast and low-cost, 360p drafts up to 4K, 3-10 second clips, video editing and extension from inline inputs.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "video"
+      ]
+    },
+    "pricing": {
+      "input": {
+        "audio": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        },
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        },
+        "video": {
+          "tiers": [
+            {
+              "cost": "0.0000015",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "video_duration": {
+        "720p": {
+          "cost_per_second": "0.0000175"
+        }
+      }
+    }
+  },
+  {
+    "premium_output_modalities": [
+      "video"
+    ],
     "id": "google/veo-3.1",
     "object": "model",
     "created": 1785715200,
@@ -2065,7 +2317,9 @@
     }
   },
   {
-    "premium_output_modalities": [],
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "openai/gpt-4o-transcribe",
     "object": "model",
     "created": 1781654400,
@@ -3541,7 +3795,9 @@
     }
   },
   {
-    "premium_output_modalities": [],
+    "premium_output_modalities": [
+      "text"
+    ],
     "id": "openai/text-embedding-3-large",
     "object": "model",
     "created": 1779667200,
