@@ -22,7 +22,7 @@
 
 Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks
 
-A conversation that only lives in memory is gone on reload and absent on a second device. This package stores it in your own database: one middleware on the server writes the transcript, run status, and pending approvals through an adapter you define, and the client asks the server for the thread on mount. The client half ships in the framework package you already use (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-angular`, or `@tanstack/ai-client`).
+A conversation that only lives in memory is gone on reload and absent on a second device. This package stores it in your own database: one middleware on the server writes the transcript — and, with the matching stores configured, run status and pending approvals — through an adapter you define, and the client asks the server for the thread on mount. The client half ships in the framework package you already use (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-angular`, or `@tanstack/ai-client`).
 
 ## Installation
 
@@ -38,7 +38,7 @@ yarn add @tanstack/ai-persistence
 
 ### Server: store the conversation
 
-`withPersistence` writes the transcript, run status, and any pending approvals into your store. Start with `memoryPersistence()` for local development and swap in your own adapter later:
+`withPersistence` writes the transcript into your `messages` store, plus run status and pending approvals when the adapter also provides `runs` and `interrupts`. Start with `memoryPersistence()` for local development and swap in your own adapter later:
 
 ```typescript
 import {
