@@ -33,6 +33,9 @@ export type {
   ToolResultPart,
   ThinkingPart,
   StructuredOutputPart,
+  SubagentPart,
+  SubagentHandle,
+  SubagentStatus,
   // Client configuration types
   ChatClientPersistence,
   ChatPersistedState,

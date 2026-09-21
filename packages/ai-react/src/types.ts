@@ -27,6 +27,7 @@ import type {
   SendMessageOptions,
   UIMessage,
   WhenBusy,
+  SubagentHandle,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
@@ -162,6 +163,12 @@ interface BaseUseChatReturn<
    * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
    */
   messages: Array<UIMessage<TTools, TData>>
+
+  /**
+   * Live child-agent invocations. Each entry is the same object as
+   * `messages.parts[n].subagent`, including `stop()`.
+   */
+  subagents: Array<SubagentHandle>
 
   /**
    * Send a message and get a response.

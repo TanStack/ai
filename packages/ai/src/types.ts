@@ -492,6 +492,24 @@ export interface StructuredOutputPart<TData = unknown> {
   errorMessage?: string
 }
 
+export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
+
+export interface SubagentHandleData {
+  id: string
+  name: string
+  description?: string
+  status: SubagentStatus
+  parentRunId?: string
+  parentSubagentRunId?: string
+  messages: Array<UIMessage>
+  error?: { message: string; code?: string }
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandleData
+}
+
 export interface UIResourcePart {
   type: 'ui-resource'
   /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
@@ -520,6 +538,7 @@ export type MessagePart<TData = unknown> =
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | SubagentPart
 
 /**
  * Shape of `metadata.tanstack` on a message.
@@ -1679,12 +1698,38 @@ export type AGUIEvent =
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
   | ReasoningEncryptedValueEvent
+  | SubagentStartedEvent
+  | SubagentFinishedEvent
+  | SubagentErrorEvent
+
+export interface SubagentStartedEvent {
+  type: 'SUBAGENT_STARTED'
+  subagentRunId: string
+  name: string
+  description?: string
+  parentSubagentRunId?: string
+  timestamp?: number
+}
+
+export interface SubagentFinishedEvent {
+  type: 'SUBAGENT_FINISHED'
+  subagentRunId: string
+  timestamp?: number
+}
+
+export interface SubagentErrorEvent {
+  type: 'SUBAGENT_ERROR'
+  subagentRunId: string
+  message: string
+  code?: string
+  timestamp?: number
+}
 
 /**
  * Chunk returned by the SDK during streaming chat completions.
  * Uses the AG-UI protocol event format.
  */
-export type StreamChunk = AGUIEvent
+export type StreamChunk = AGUIEvent & { subagentRunId?: string }
 
 /**
  * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant

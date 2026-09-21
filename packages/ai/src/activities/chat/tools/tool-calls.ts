@@ -9,6 +9,7 @@ import type {
   CustomEvent,
   ModelMessage,
   RunFinishedEvent,
+  StreamChunk,
   Tool,
   ToolCall,
   ToolCallArgsEvent,
@@ -35,6 +36,19 @@ function safeJsonParse(value: string): unknown {
   } catch {
     return value
   }
+}
+
+function isSubagentExecuteResult(value: unknown): value is {
+  subagentRunId: string
+  chunks: Array<StreamChunk>
+  result?: string
+  error?: string
+} {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('subagentRunId' in value) || !('chunks' in value)) return false
+  return (
+    typeof value.subagentRunId === 'string' && Array.isArray(value.chunks)
+  )
 }
 
 /**
@@ -614,7 +628,7 @@ export async function* executeServerTool<TContext = unknown>(
   pendingEvents: Array<CustomEvent>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
-): AsyncGenerator<CustomEvent, void, void> {
+): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
   try {
     if (!tool.execute) {
@@ -623,6 +637,24 @@ export async function* executeServerTool<TContext = unknown>(
     const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
+
+    if (isSubagentExecuteResult(result)) {
+      for (const chunk of result.chunks) {
+        yield chunk
+      }
+      const modelResult = result.error
+        ? { error: result.error, subagentRunId: result.subagentRunId }
+        : { subagentRunId: result.subagentRunId, result: result.result }
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: modelResult,
+        input,
+        output: modelResult,
+        duration,
+      })
+      return
+    }
 
     // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
     // a `ui-resource` CUSTOM event. The MCP source stays live until the run
@@ -765,7 +797,7 @@ export async function* executeToolCalls<TContext = unknown>(
   userContext?: TContext,
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
-): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
+): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []

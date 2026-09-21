@@ -72,6 +72,7 @@ import type {
   QueueStrategy,
   QueuedMessage,
   SendMessageOptions,
+  SubagentHandle,
   ToolCallPart,
   UIMessage,
   WhenBusy,
@@ -342,6 +343,7 @@ export class ChatClient<
     any,
 > {
   private readonly processor: StreamProcessor
+  private readonly subagentHandles = new Map<string, SubagentHandle>()
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private threadId: string
@@ -1971,6 +1973,7 @@ export class ChatClient<
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
     this.processor.processChunk(chunk)
+    this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
     // Live path: yield a macrotask so the UI can paint. Skip when the page is
@@ -2972,6 +2975,48 @@ export class ChatClient<
    */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  getSubagents() {
+    return [...this.subagentHandles.values()]
+  }
+
+  private syncSubagentHandles(): void {
+    const messages = this.processor.getMessages()
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type !== 'subagent') continue
+        const id = part.subagent.id
+        const existing = this.subagentHandles.get(id)
+        if (existing) {
+          existing.name = part.subagent.name
+          existing.description = part.subagent.description
+          existing.status = part.subagent.status
+          existing.parentRunId = part.subagent.parentRunId
+          existing.parentSubagentRunId = part.subagent.parentSubagentRunId
+          existing.messages = part.subagent.messages
+          existing.error = part.subagent.error
+          part.subagent = existing
+          continue
+        }
+        const handle: SubagentHandle = {
+          ...part.subagent,
+          stop: () => {
+            this.stopSubagent(id)
+          },
+        }
+        this.subagentHandles.set(id, handle)
+        part.subagent = handle
+      }
+    }
+  }
+
+  private stopSubagent(id: string): void {
+    const handle = this.subagentHandles.get(id)
+    if (handle && handle.status === 'running') {
+      handle.status = 'error'
+      handle.error = { message: 'Stopped' }
+    }
   }
 
   /**

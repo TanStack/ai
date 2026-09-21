@@ -131,6 +131,11 @@
           "addedAt": "2026-08-26"
         },
         {
+          "label": "Subagents",
+          "to": "chat/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",

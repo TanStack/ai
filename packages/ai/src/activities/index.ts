@@ -40,6 +40,13 @@ export {
 } from './chat/index'
 
 export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './chat/agents/define-agent'
+
+export {
   BaseTextAdapter,
   type AnyTextAdapter,
   type TextAdapter,

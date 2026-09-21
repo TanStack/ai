@@ -615,6 +615,7 @@ export function useChat<
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,
+    subagents: client.getSubagents(),
     sendMessage,
     append,
     reload,

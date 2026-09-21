@@ -45,6 +45,13 @@ import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import type { DefinedAgent } from './agents/define-agent'
+import {
+  collectSpawnedText,
+  createSyntheticSubagentTools,
+  normalizeRouterPick,
+  spawnNamedAgents,
+} from './agents/spawn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -504,6 +511,25 @@ export interface TextActivityOptions<
    * before accepting new input on a thread with pending interrupts.
    */
   resume?: TextOptions['resume']
+  /**
+   * Named child agents. When `router` is set, the library spawns that agent
+   * directly. When `router` is omitted, the main model gets one synthetic
+   * server tool per agent and picks the child.
+   */
+  subagents?: {
+    agents: ReadonlyArray<DefinedAgent>
+    router?: (ctx: {
+      messages: Array<UIMessage | ModelMessage>
+      agents: ReadonlyArray<DefinedAgent>
+      abortSignal?: AbortSignal
+    }) =>
+      | 'main'
+      | string
+      | ReadonlyArray<string>
+      | Promise<'main' | string | ReadonlyArray<string>>
+    strategy?: 'exclusive' | 'handoff'
+    sandbox?: 'own' | 'inherit'
+  }
   /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:
@@ -4554,7 +4580,7 @@ class TextEngine<
    */
   private async *drainToolCallGenerator(
     generator: AsyncGenerator<
-      CustomEvent,
+      CustomEvent | StreamChunk,
       {
         results: Array<ToolResult>
         needsApproval: Array<ApprovalRequest>
@@ -4862,11 +4888,19 @@ function runStreamingText(
   return stream
 }
 
-async function* streamTextChunks(
+async function* runChatEngine(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, debug, mcp, ...textOptions } = options
+  const {
+    adapter,
+    middleware,
+    context,
+    debug,
+    mcp,
+    subagents: _subagents,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -4897,6 +4931,122 @@ async function* streamTextChunks(
     }
   } finally {
     await mcpManager.dispose()
+  }
+}
+
+async function* streamTextChunks(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
+  engineRef: DeliveryEngineRef,
+): AsyncIterable<StreamChunk> {
+  const bag = options.subagents
+  const agents = bag?.agents ?? []
+  if (bag && agents.length > 0 && bag.router) {
+    yield* runRoutedSubagents(options, engineRef)
+    return
+  }
+  if (bag && agents.length > 0) {
+    const threadId = options.threadId ?? `thread-${Date.now()}`
+    const parentRunId = options.runId ?? `run-${Date.now()}`
+    const synthetic = createSyntheticSubagentTools(bag, {
+      messages: options.messages ?? [],
+      threadId,
+      parentRunId,
+      abortSignal: options.abortController?.signal,
+    })
+    yield* runChatEngine(
+      {
+        ...options,
+        threadId,
+        runId: parentRunId,
+        tools: [...(options.tools ?? []), ...synthetic],
+      },
+      engineRef,
+    )
+    return
+  }
+  yield* runChatEngine(options, engineRef)
+}
+
+async function* runRoutedSubagents(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
+  engineRef: DeliveryEngineRef,
+): AsyncIterable<StreamChunk> {
+  const bag = options.subagents
+  if (!bag?.router) {
+    yield* runChatEngine(options, engineRef)
+    return
+  }
+  const threadId = options.threadId ?? `thread-${Date.now()}`
+  const runId = options.runId ?? `run-${Date.now()}`
+  const messages = options.messages ?? []
+  const pick = await bag.router({
+    messages,
+    agents: bag.agents,
+    abortSignal: options.abortController?.signal,
+  })
+  const names = normalizeRouterPick(pick, bag.agents)
+  if (names.length === 1 && names[0] === 'main') {
+    yield* runChatEngine(
+      { ...options, threadId, runId, subagents: undefined },
+      engineRef,
+    )
+    return
+  }
+
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId,
+    runId,
+    timestamp: Date.now(),
+  }
+
+  const spawned: Array<StreamChunk> = []
+  for await (const chunk of spawnNamedAgents(names, bag, {
+    messages,
+    abortSignal: options.abortController?.signal,
+    threadId: bag.sandbox === 'inherit' ? threadId : `${threadId}:${names[0]}`,
+    parentRunId: runId,
+  })) {
+    spawned.push(chunk)
+    yield chunk
+  }
+
+  const strategy = bag.strategy ?? 'exclusive'
+  const failed = spawned.some((chunk) => chunk.type === 'SUBAGENT_ERROR')
+  if (strategy === 'handoff') {
+    const childText = collectSpawnedText(spawned)
+    yield* runChatEngine(
+      {
+        ...options,
+        threadId,
+        runId,
+        subagents: undefined,
+        messages: [
+          ...messages,
+          { role: 'assistant', content: childText || 'Subagent finished.' },
+        ],
+      },
+      engineRef,
+    )
+    return
+  }
+
+  if (failed) {
+    yield {
+      type: EventType.RUN_ERROR,
+      threadId,
+      runId,
+      message: 'A subagent failed',
+      timestamp: Date.now(),
+    }
+    return
+  }
+
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId,
+    runId,
+    timestamp: Date.now(),
   }
 }
 

@@ -610,6 +610,25 @@ export interface ThinkingPart {
   content: string
 }
 
+export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
+
+export interface SubagentHandle {
+  id: string
+  name: string
+  description?: string
+  status: SubagentStatus
+  parentRunId?: string
+  parentSubagentRunId?: string
+  messages: Array<UIMessage>
+  error?: { message: string; code?: string }
+  stop: () => void
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandle
+}
+
 export type MessagePart<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
@@ -624,6 +643,7 @@ export type MessagePart<
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | SubagentPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs

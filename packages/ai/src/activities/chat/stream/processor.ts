@@ -67,6 +67,7 @@ import type {
   ToolCall,
   ToolCallPart,
   ToolResultPart,
+  SubagentPart,
   UIMessage,
   UIResourceEvent,
   UIResourcePart,
@@ -207,6 +208,7 @@ export class StreamProcessor {
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
+  private readonly subagentTextBuffers = new Map<string, string>()
 
   // Shared stream state
   private finishReason: string | null = null
@@ -584,19 +586,34 @@ export class StreamProcessor {
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
       // AG-UI Events
+      case 'SUBAGENT_STARTED':
+        this.handleSubagentStartedEvent(chunk)
+        break
+
+      case 'SUBAGENT_FINISHED':
+        this.handleSubagentFinishedEvent(chunk)
+        break
+
+      case 'SUBAGENT_ERROR':
+        this.handleSubagentErrorEvent(chunk)
+        break
+
       case 'TEXT_MESSAGE_START':
+        if (this.routeAttributedChunk(chunk)) break
         this.handleTextMessageStartEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
         )
         break
 
       case 'TEXT_MESSAGE_CONTENT':
+        if (this.routeAttributedChunk(chunk)) break
         this.handleTextMessageContentEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
         )
         break
 
       case 'TEXT_MESSAGE_END':
+        if (this.routeAttributedChunk(chunk)) break
         this.handleTextMessageEndEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>,
         )
@@ -905,6 +922,118 @@ export class StreamProcessor {
         : msg,
     )
     this.emitMessagesChange()
+  }
+
+  private findSubagentPart(subagentRunId: string) {
+    for (const message of this.messages) {
+      for (const part of message.parts) {
+        if (part.type === 'subagent' && part.subagent.id === subagentRunId) {
+          return { message, part }
+        }
+      }
+    }
+    return undefined
+  }
+
+  private handleSubagentStartedEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_STARTED') return
+    const existing = this.findSubagentPart(chunk.subagentRunId)
+    if (existing) return
+    const { messageId } = this.ensureAssistantMessage()
+    const part: SubagentPart = {
+      type: 'subagent',
+      subagent: {
+        id: chunk.subagentRunId,
+        name: chunk.name,
+        description: chunk.description,
+        status: 'running',
+        messages: [],
+      },
+    }
+    this.messages = this.messages.map((message) =>
+      message.id === messageId
+        ? { ...message, parts: [...message.parts, part] }
+        : message,
+    )
+    this.emitMessagesChange()
+  }
+
+  private handleSubagentFinishedEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_FINISHED') return
+    this.patchSubagent(chunk.subagentRunId, (subagent) => {
+      subagent.status = 'finished'
+    })
+  }
+
+  private handleSubagentErrorEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_ERROR') return
+    this.patchSubagent(chunk.subagentRunId, (subagent) => {
+      subagent.status = 'error'
+      subagent.error = { message: chunk.message }
+    })
+  }
+
+  private patchSubagent(
+    subagentRunId: string,
+    patch: (subagent: SubagentPart['subagent']) => void,
+  ): void {
+    this.messages = this.messages.map((message) => {
+      const index = message.parts.findIndex(
+        (part) => part.type === 'subagent' && part.subagent.id === subagentRunId,
+      )
+      if (index === -1) return message
+      const part = message.parts[index]
+      if (!part || part.type !== 'subagent') return message
+      const next: SubagentPart = {
+        type: 'subagent',
+        subagent: { ...part.subagent, messages: [...part.subagent.messages] },
+      }
+      patch(next.subagent)
+      const parts = [...message.parts]
+      parts[index] = next
+      return { ...message, parts }
+    })
+    this.emitMessagesChange()
+  }
+
+  private routeAttributedChunk(chunk: StreamChunk) {
+    const subagentRunId = chunk.subagentRunId
+    if (!subagentRunId) return false
+    const found = this.findSubagentPart(subagentRunId)
+    if (!found) return false
+    if (chunk.type === 'TEXT_MESSAGE_START') {
+      const messageId = chunk.messageId
+      this.patchSubagent(subagentRunId, (subagent) => {
+        if (subagent.messages.some((message) => message.id === messageId)) return
+        subagent.messages.push({
+          id: messageId,
+          role: chunk.role === 'user' ? 'user' : 'assistant',
+          parts: [],
+        })
+      })
+      return true
+    }
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      const messageId = chunk.messageId
+      const key = `${subagentRunId}:${messageId}`
+      const next = (this.subagentTextBuffers.get(key) ?? '') + chunk.delta
+      this.subagentTextBuffers.set(key, next)
+      this.patchSubagent(subagentRunId, (subagent) => {
+        if (!subagent.messages.some((message) => message.id === messageId)) {
+          subagent.messages.push({
+            id: messageId,
+            role: 'assistant',
+            parts: [],
+          })
+        }
+        subagent.messages = updateTextPart(subagent.messages, messageId, next)
+      })
+      return true
+    }
+    if (chunk.type === 'TEXT_MESSAGE_END') {
+      return true
+    }
+    return false
   }
 
   /**

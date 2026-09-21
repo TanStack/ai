@@ -78,6 +78,13 @@ export { BaseRerankAdapter } from './activities/rerank/adapter'
 // Evaluate adapter base + types
 export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
 
+export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './activities/chat/agents/define-agent'
+
 // Tool definition
 export {
   toolDefinition,
