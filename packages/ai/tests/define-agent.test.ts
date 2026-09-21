@@ -46,7 +46,7 @@ function namedAgent(name: string, run?: DefinedAgent['run']) {
   return defineAgent({
     name,
     description: `${name} agent`,
-    run: run ?? (async function* () {}),
+    run: run ?? async function* () {},
   })
 }
 
@@ -169,9 +169,9 @@ describe('chat({ subagents }) router spawn', () => {
     expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_FINISHED')).toBe(
       false,
     )
-    expect(chunks.find((chunk) => chunk.type === 'SUBAGENT_ERROR')).toMatchObject(
-      { type: 'SUBAGENT_ERROR', message: 'Stopped' },
-    )
+    expect(
+      chunks.find((chunk) => chunk.type === 'SUBAGENT_ERROR'),
+    ).toMatchObject({ type: 'SUBAGENT_ERROR', message: 'Stopped' })
   })
 
   it('gives each parallel routed child its own threadId', async () => {
@@ -202,7 +202,7 @@ describe('chat({ subagents }) router spawn', () => {
     )
   })
 
-  it("throws when sandbox inherit starts two children", async () => {
+  it('throws when sandbox inherit starts two children', async () => {
     await expect(
       collectChunks(
         chat({

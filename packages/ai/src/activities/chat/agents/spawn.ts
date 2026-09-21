@@ -196,7 +196,10 @@ export async function* spawnAgentStream(
       yield stoppedEvent(ctx.runId)
       return
     }
-    const stream = await orAbort(Promise.resolve(agent.run(ctx)), ctx.abortSignal)
+    const stream = await orAbort(
+      Promise.resolve(agent.run(ctx)),
+      ctx.abortSignal,
+    )
     iterator = stream[Symbol.asyncIterator]()
     while (true) {
       if (ctx.abortSignal?.aborted) {
