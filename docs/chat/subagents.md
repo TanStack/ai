@@ -168,99 +168,59 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-Render nested child messages, show status, and wire Stop on both the part and the `subagents` list:
+Use `createChatHook` from `@tanstack/ai-react/ui`. Slot a card into `partsComponents.subagent`. Render nested child parts with `<SubagentMessages />`. Render the live list with `<Subagents />`. Do not map `subagent.messages` or `chat.subagents` yourself.
 
 ```tsx
-import { useState } from 'react'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook } from '@tanstack/ai-react/ui'
 
-function MessageBody({ message }: { message: UIMessage }) {
-  return (
-    <>
-      {message.parts.map((part, index) => {
-        if (part.type === 'text') {
-          return <p key={index}>{part.content}</p>
-        }
-        if (part.type === 'subagent') {
-          const { subagent } = part
-          return (
-            <section key={subagent.id}>
-              <header>
-                <strong>{subagent.name}</strong>
-                <span>{subagent.status}</span>
-                {subagent.status === 'running' ? (
-                  <button type="button" onClick={() => subagent.stop?.()}>
-                    Stop {subagent.name}
-                  </button>
-                ) : null}
-              </header>
-              {subagent.error ? <p>{subagent.error.message}</p> : null}
-              {subagent.messages.map((childMessage) => (
-                <MessageBody key={childMessage.id} message={childMessage} />
-              ))}
-            </section>
-          )
-        }
-        return null
-      })}
-    </>
-  )
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
 }
 
+const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages, Subagents, Input }) => (
+      <main>
+        <Messages />
+        <Subagents />
+        <Input />
+      </main>
+    ),
+    message: ({ Parts }) => <article><Parts /></article>,
+    input: () => null,
+    subagent: ({ subagent, SubagentMessages }) => (
+      <section>
+        <strong>{subagent.name}</strong>
+        <span>{subagent.status}</span>
+        {subagent.status === 'running' ? (
+          <button type="button" onClick={() => subagent.stop?.()}>
+            Stop
+          </button>
+        ) : null}
+        <SubagentMessages />
+      </section>
+    ),
+  },
+  partsComponents: {
+    text: ({ part }) => <p>{part.content}</p>,
+    subagent: ({ part, SubagentMessages }) => (
+      <section>
+        <strong>{part.subagent.name}</strong>
+        <SubagentMessages />
+      </section>
+    ),
+    fallback: () => null,
+  },
+})
+
 export function ChatScreen() {
-  const [draft, setDraft] = useState('')
-  const { messages, subagents, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-
-  return (
-    <main>
-      {messages.map((message) => (
-        <article key={message.id} data-role={message.role}>
-          <MessageBody message={message} />
-        </article>
-      ))}
-
-      {subagents.length > 0 ? (
-        <aside>
-          <h2>Subagents</h2>
-          {subagents.map((subagent) => (
-            <p key={subagent.id}>
-              {subagent.name}: {subagent.status}
-              {subagent.status === 'running' ? (
-                <button type="button" onClick={() => subagent.stop?.()}>
-                  Stop
-                </button>
-              ) : null}
-            </p>
-          ))}
-        </aside>
-      ) : null}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          const text = draft.trim()
-          if (!text) return
-          setDraft('')
-          void sendMessage(text)
-        }}
-      >
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={isLoading}
-        />
-        <button type="submit" disabled={isLoading}>
-          Send
-        </button>
-      </form>
-    </main>
-  )
+  const chat = useAppChat()
+  return <chat.AppChat />
 }
 ```
 
-`subagents[0]` is the same object as `messages.parts[n].subagent` for that id. `stop()` on either one aborts the current parent run.
+`part.subagent` is the same object as `useChat().subagents[i]` for that id. `stop()` on either one aborts the current parent run.
 
 See [Stream Events](./stream-events) for `SUBAGENT_*` and `subagentRunId`.

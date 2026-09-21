@@ -15,6 +15,7 @@ export {
   type MessageProps,
   type PartProps,
   type QueueProps,
+  type SubagentViewProps,
   type ToolProps,
 } from './chat-ui/create-ui'
 export { createChatHook } from './chat-ui/create-chat-hook'

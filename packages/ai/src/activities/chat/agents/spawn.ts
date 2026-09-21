@@ -31,11 +31,6 @@ export interface SubagentErrorEvent {
   timestamp: number
 }
 
-export type SubagentLifecycleEvent =
-  | SubagentStartedEvent
-  | SubagentFinishedEvent
-  | SubagentErrorEvent
-
 export type SubagentRouterPick = 'main' | string | ReadonlyArray<string>
 
 export interface SubagentsBag {
@@ -51,20 +46,6 @@ export interface SubagentsBag {
 
 export function createSubagentId() {
   return `subagent-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
-export function isSubagentLifecycleType(type: string) {
-  return (
-    type === SUBAGENT_STARTED ||
-    type === SUBAGENT_FINISHED ||
-    type === SUBAGENT_ERROR
-  )
-}
-
-export function isSubagentTool(
-  tool: { name: string } & Record<string, unknown>,
-) {
-  return tool[SUBAGENT_TOOL_FLAG] === true
 }
 
 function createAbortError() {
@@ -298,8 +279,9 @@ export async function* spawnNamedAgents(
       abortSignal: childAbort.signal,
     })
   })
-  if (streams.length === 1) {
-    yield* streams[0]!
+  const onlyStream = streams.length === 1 ? streams[0] : undefined
+  if (onlyStream) {
+    yield* onlyStream
     return
   }
   yield* mergeAgentStreams(streams)

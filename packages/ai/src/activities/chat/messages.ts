@@ -690,6 +690,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         // model input, so it is intentionally dropped from the model message.
         break
 
+      case 'subagent':
+        // Nested child UI. Child text is not parent model content.
+        break
+
       default:
         break
     }

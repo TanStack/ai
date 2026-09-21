@@ -29,6 +29,7 @@ import type {
 import type {
   MessagePart,
   QueuedMessage,
+  SubagentHandle,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -56,6 +57,7 @@ export type LayoutProps<
   Messages: ComponentType
   Interrupts: ComponentType
   Queue: ComponentType
+  Subagents: ComponentType
   readonly __ui?: TOptions
 } & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
@@ -75,6 +77,12 @@ export type QueueProps<TOptions> = {
 
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
+} & (TKey extends 'subagent' ? { SubagentMessages: ComponentType } : {})
+
+export type SubagentViewProps<TOptions = unknown> = {
+  subagent: SubagentHandle
+  SubagentMessages: ComponentType
+  readonly __ui?: TOptions
 }
 
 export type ToolProps<
@@ -123,6 +131,7 @@ export type ChatUIChromeComponents<
   message: ComponentType<MessageProps<TOptions>>
   input?: TInput
   queue?: ComponentType<QueueProps<TOptions>>
+  subagent?: ComponentType<SubagentViewProps<TOptions>>
 }
 
 export type ChatUIPartsComponents<TOptions> = {
@@ -227,6 +236,30 @@ function queueItemEqual(
   )
 }
 
+function subagentListItemEqual(
+  prev: { handle: SubagentHandle },
+  next: { handle: SubagentHandle },
+) {
+  return (
+    prev.handle.id === next.handle.id &&
+    prev.handle.status === next.handle.status &&
+    prev.handle.name === next.handle.name &&
+    prev.handle.description === next.handle.description &&
+    prev.handle.error === next.handle.error &&
+    prev.handle.stop === next.handle.stop
+  )
+}
+
+function subagentMessagesEqual(
+  prev: { handle: SubagentHandle },
+  next: { handle: SubagentHandle },
+) {
+  return (
+    prev.handle.id === next.handle.id &&
+    prev.handle.messages === next.handle.messages
+  )
+}
+
 function selectedPartPropsEqual(
   prev: { selected: ChatUISelectedPart },
   next: { selected: ChatUISelectedPart },
@@ -300,6 +333,7 @@ export function createChatUI<
     message: MessageComponent,
     input: InputComponent,
     queue: QueueItemComponent,
+    subagent: SubagentItemComponent,
   } = components
   const {
     chatContext: chatContextOption,
@@ -353,7 +387,12 @@ export function createChatUI<
   function bindPart(Component: ComponentType<PartProps<TOptions>>) {
     return function BoundPart() {
       const selected = usePartContext()
-      return <Component part={selected.part as PartProps<TOptions>['part']} />
+      return (
+        <Component
+          SubagentMessages={SubagentMessages}
+          part={selected.part as PartProps<TOptions>['part']}
+        />
+      )
     }
   }
 
@@ -445,6 +484,7 @@ export function createChatUI<
     Messages: Messages as ComponentType,
     Interrupts: Interrupts as ComponentType,
     Queue: Queue as ComponentType,
+    Subagents: Subagents as ComponentType,
     Input: (InputComponent ?? MissingInput) as ComponentType,
   }
 
@@ -525,6 +565,9 @@ export function createChatUI<
     inlineToolNames: ReadonlyArray<string>
   }
   const MessageRenderContext = createContext<MessageRenderValue | null>(null)
+  const SubagentRenderContext = createContext<{ handle: SubagentHandle } | null>(
+    null,
+  )
 
   function Parts() {
     const scope = useContext(MessageRenderContext)
@@ -638,7 +681,12 @@ export function createChatUI<
       )
       return null
     }
-    return <PartComponent part={selected.part as PartProps<TOptions>['part']} />
+    return (
+      <PartComponent
+        SubagentMessages={SubagentMessages}
+        part={selected.part as PartProps<TOptions>['part']}
+      />
+    )
   }, selectedPartPropsEqual)
 
   const SelectedPartView = memo(function SelectedPartView({
@@ -746,6 +794,77 @@ export function createChatUI<
     )
   })
 
+  function readSubagentHandle() {
+    const scoped = useContext(SubagentRenderContext)
+    if (scoped) return scoped.handle
+    const selected = useContext(PartContext)
+    if (selected?.key === 'subagent' && selected.part.type === 'subagent') {
+      return selected.part.subagent
+    }
+    throw new Error(
+      '`SubagentMessages` must be rendered by a `subagent` part or `Subagents` item.',
+    )
+  }
+
+  const SubagentMessagesBody = memo(function SubagentMessagesBody({
+    handle,
+  }: {
+    handle: SubagentHandle
+  }) {
+    const chat = useChatContext()
+    const interrupts = readInterrupts(chat)
+    return (
+      <>
+        {handle.messages.map((message) => (
+          <AutomaticParts
+            key={message.id}
+            inlineToolNames={inlineToolNames}
+            interrupts={interrupts}
+            message={message}
+          />
+        ))}
+      </>
+    )
+  }, subagentMessagesEqual)
+
+  function SubagentMessages() {
+    return <SubagentMessagesBody handle={readSubagentHandle()} />
+  }
+
+  const SubagentListItem = memo(function SubagentListItem({
+    handle,
+  }: {
+    handle: SubagentHandle
+  }) {
+    if (!SubagentItemComponent) return null
+    return (
+      <SubagentRenderContext.Provider value={{ handle }}>
+        <SubagentItemComponent
+          SubagentMessages={SubagentMessages}
+          subagent={handle}
+        />
+      </SubagentRenderContext.Provider>
+    )
+  }, subagentListItemEqual)
+
+  function Subagents({
+    children,
+  }: {
+    children?: (subagents: Array<SubagentHandle>) => ReactNode
+  } = {}) {
+    const chat = useChatContext()
+    const subagents = chat.subagents
+    if (children) return <>{children(subagents)}</>
+    if (!SubagentItemComponent || subagents.length === 0) return null
+    return (
+      <>
+        {subagents.map((handle) => (
+          <SubagentListItem key={handle.id} handle={handle} />
+        ))}
+      </>
+    )
+  }
+
   return {
     Chat,
     Provider,
@@ -755,6 +874,8 @@ export function createChatUI<
     Interrupts,
     Interrupt,
     Queue,
+    Subagents,
+    SubagentMessages,
     useChatContext,
     Input: InputComponent,
   }

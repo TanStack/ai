@@ -1,7 +1,7 @@
 import { defineInterrupt, toolDefinition } from '@tanstack/ai/client'
 import { z } from 'zod'
 import type { ChatUIInterrupt } from '../src/ui'
-import type { QueuedMessage, UIMessage } from '../src/types'
+import type { QueuedMessage, SubagentHandle, UIMessage } from '../src/types'
 
 const getWeather = toolDefinition({
   name: 'getWeather',
@@ -206,10 +206,12 @@ export function createChatResult(init: {
   status?: 'ready' | 'submitted' | 'streaming' | 'error'
   queue?: Array<QueuedMessage>
   cancelQueued?: (id: string) => void
+  subagents?: Array<SubagentHandle>
 }) {
   const interrupts = init.interrupts ?? []
   return {
     messages: init.messages ?? [],
+    subagents: init.subagents ?? [],
     interrupts,
     pendingInterrupts: interrupts,
     error: init.error,

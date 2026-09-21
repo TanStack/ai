@@ -66,6 +66,7 @@ function makeUI(patch?: {
   message?: Config['components']['message']
   input?: Config['components']['input']
   queue?: Config['components']['queue']
+  subagent?: Config['components']['subagent']
   partsComponents?: Config['partsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
@@ -81,6 +82,7 @@ function makeUI(patch?: {
       ...(patch?.message ? { message: patch.message } : {}),
       ...(patch?.input ? { input: patch.input } : {}),
       ...(patch?.queue ? { queue: patch.queue } : {}),
+      ...(patch?.subagent ? { subagent: patch.subagent } : {}),
     },
     partsComponents: {
       ...baseConfig.partsComponents,
@@ -151,6 +153,68 @@ describe('createChatUI', () => {
     renderToStaticMarkup(<UI.Chat chat={chat} />)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
+  })
+
+  it('renders nested subagent text through SubagentMessages', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [
+        {
+          id: 'child-1',
+          role: 'assistant' as const,
+          parts: [{ type: 'text' as const, content: 'Notes from the child' }],
+        },
+      ],
+    }
+    const UI = makeUI({
+      partsComponents: {
+        text: ({ part }) => <p>{part.content}</p>,
+        subagent: ({ part, SubagentMessages }) => (
+          <section>
+            <strong>{part.subagent.name}</strong>
+            <SubagentMessages />
+          </section>
+        ),
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            {
+              id: 'parent-1',
+              role: 'assistant',
+              parts: [{ type: 'subagent', subagent: handle }],
+            },
+          ],
+        })}
+      />,
+    )
+    expect(markup).toContain('researcher')
+    expect(markup).toContain('Notes from the child')
+  })
+
+  it('renders the live subagent list through Subagents', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'writer',
+      status: 'running' as const,
+      messages: [],
+    }
+    const UI = makeUI({
+      layout: ({ Subagents }) => <Subagents />,
+      subagent: ({ subagent }) => (
+        <p>
+          {subagent.name}:{subagent.status}
+        </p>
+      ),
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat chat={host({ subagents: [handle] })} />,
+    )
+    expect(markup).toContain('writer:running')
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {

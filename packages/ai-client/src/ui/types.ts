@@ -28,6 +28,7 @@ export type ChatUIPartKey =
   | 'toolResult'
   | 'structuredOutput'
   | 'uiResource'
+  | 'subagent'
 
 export type ChatUIPartTypeByKey = {
   text: 'text'
@@ -40,6 +41,7 @@ export type ChatUIPartTypeByKey = {
   toolResult: 'tool-result'
   structuredOutput: 'structured-output'
   uiResource: 'ui-resource'
+  subagent: 'subagent'
 }
 
 export type ChatUIPartOf<
