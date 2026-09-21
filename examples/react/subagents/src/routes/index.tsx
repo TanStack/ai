@@ -28,7 +28,9 @@ function MessageBody({ message }: { message: UIMessage }) {
           )
         }
         if (part.type === 'subagent') {
-          return <SubagentCard key={part.subagent.id} subagent={part.subagent} />
+          return (
+            <SubagentCard key={part.subagent.id} subagent={part.subagent} />
+          )
         }
         return null
       })}
@@ -84,9 +86,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
     return (
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="mb-2 text-xl font-semibold text-white">
-            Blog desk
-          </h2>
+          <h2 className="mb-2 text-xl font-semibold text-white">Blog desk</h2>
           <p className="text-sm text-gray-400">
             Paste an OpenRouter key. Ask for research or a draft. Jev picks the
             agent.
