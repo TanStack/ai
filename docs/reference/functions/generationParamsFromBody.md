@@ -7,7 +7,7 @@ title: generationParamsFromBody
 function generationParamsFromBody<TKind>(kind, body): GenerationParams<TKind>;
 ```
 
-Defined in: [packages/ai/src/client.ts:144](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L144)
+Defined in: [packages/ai/src/client.ts:171](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L171)
 
 ## Type Parameters
 
