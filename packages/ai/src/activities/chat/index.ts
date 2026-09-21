@@ -5004,7 +5004,7 @@ async function* runRoutedSubagents(
   for await (const chunk of spawnNamedAgents(names, bag, {
     messages,
     abortSignal: options.abortController?.signal,
-    threadId: bag.sandbox === 'inherit' ? threadId : `${threadId}:${names[0]}`,
+    threadId,
     parentRunId: runId,
   })) {
     spawned.push(chunk)

@@ -333,6 +333,13 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'MESSAGES_SNAPSHOT',
 ])
 
+function readSubagentRunId(chunk: StreamChunk) {
+  if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
+    return chunk.subagentRunId
+  }
+  return undefined
+}
+
 // Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
 const MAX_RUN_LINEAGE_DEPTH = 64
 
@@ -344,6 +351,7 @@ export class ChatClient<
 > {
   private readonly processor: StreamProcessor
   private readonly subagentHandles = new Map<string, SubagentHandle>()
+  private readonly stoppedSubagentIds = new Set<string>()
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private threadId: string
@@ -671,7 +679,7 @@ export class ChatClient<
         : {}),
       ...(initialMessages ? { initialMessages } : {}),
       events: {
-        onMessagesChange: (messages: Array<UIMessage>) => {
+        onMessagesChange: (messages) => {
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
@@ -1972,6 +1980,12 @@ export class ChatClient<
     }
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
+    const attributedId = readSubagentRunId(chunk)
+    if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
+      this.updateRunLifecycle(chunk)
+      this.resolveJoinedRun(chunk)
+      return
+    }
     this.processor.processChunk(chunk)
     this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
@@ -3012,11 +3026,18 @@ export class ChatClient<
   }
 
   private stopSubagent(id: string): void {
+    this.stoppedSubagentIds.add(id)
     const handle = this.subagentHandles.get(id)
-    if (handle && handle.status === 'running') {
-      handle.status = 'error'
-      handle.error = { message: 'Stopped' }
-    }
+    if (!handle || handle.status !== 'running') return
+    this.processor.processChunk({
+      type: 'SUBAGENT_ERROR',
+      subagentRunId: id,
+      message: 'Stopped',
+      timestamp: Date.now(),
+    })
+    this.syncSubagentHandles()
+    handle.status = 'error'
+    handle.error = { message: 'Stopped' }
   }
 
   /**

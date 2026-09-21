@@ -621,7 +621,8 @@ export interface SubagentHandle {
   parentSubagentRunId?: string
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
-  stop: () => void
+  /** Bound by ChatClient after the first SUBAGENT_STARTED for this id. */
+  stop?: () => void
 }
 
 export interface SubagentPart {

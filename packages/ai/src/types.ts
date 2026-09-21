@@ -503,6 +503,8 @@ export interface SubagentHandleData {
   parentSubagentRunId?: string
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
+  /** Present on the live client handle after ChatClient rebinds the part. */
+  stop?: () => void
 }
 
 export interface SubagentPart {

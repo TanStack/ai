@@ -84,7 +84,7 @@ The router can return `'main'`, one agent name, or an array of names. An array s
 
 ## Client
 
-`useChat().subagents[i]` and `messages.parts[n].subagent` are the same live object. Call `stop()` on either one.
+`useChat().subagents[i]` and `messages.parts[n].subagent` are the same live object. Call `stop()` on either one. The client marks that child as error and ignores later events for that id. Abort of the parent `chat({ abortController })` stops running children and emits `SUBAGENT_ERROR`.
 
 ```ts
 const part = message.parts.find((p) => p.type === 'subagent')

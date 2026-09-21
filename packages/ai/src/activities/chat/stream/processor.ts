@@ -961,6 +961,7 @@ export class StreamProcessor {
   private handleSubagentFinishedEvent(chunk: StreamChunk): void {
     if (chunk.type !== 'SUBAGENT_FINISHED') return
     this.patchSubagent(chunk.subagentRunId, (subagent) => {
+      if (subagent.status === 'error') return
       subagent.status = 'finished'
     })
   }
@@ -1002,6 +1003,7 @@ export class StreamProcessor {
     if (!subagentRunId) return false
     const found = this.findSubagentPart(subagentRunId)
     if (!found) return false
+    if (found.part.subagent.status === 'error') return true
     if (chunk.type === 'TEXT_MESSAGE_START') {
       const messageId = chunk.messageId
       this.patchSubagent(subagentRunId, (subagent) => {

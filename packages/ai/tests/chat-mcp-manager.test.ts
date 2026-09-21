@@ -228,6 +228,7 @@ async function runToolResult(
   )
   // Drain the generator: collect emitted CUSTOM events.
   for await (const ev of gen) {
+    if (ev.type !== EventType.CUSTOM) continue
     onEvent({ name: ev.name, value: ev.value })
   }
   // Return the tool results so callers can assert the normal tool-result still

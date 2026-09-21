@@ -67,6 +67,73 @@ export function isSubagentTool(
   return tool[SUBAGENT_TOOL_FLAG] === true
 }
 
+function createAbortError() {
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+function isAbortError(error: unknown, signal?: AbortSignal) {
+  if (signal?.aborted) return true
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.message === 'Aborted')
+  )
+}
+
+function stoppedEvent(runId: string) {
+  return {
+    type: SUBAGENT_ERROR,
+    subagentRunId: runId,
+    message: 'Stopped',
+    timestamp: Date.now(),
+  } satisfies SubagentErrorEvent
+}
+
+function childThreadId(
+  sandbox: SubagentsBag['sandbox'],
+  parentThreadId: string,
+  name: string,
+) {
+  return sandbox === 'inherit' ? parentThreadId : `${parentThreadId}:${name}`
+}
+
+function linkChildAbort(parent?: AbortSignal) {
+  const childAbort = new AbortController()
+  if (!parent) return childAbort
+  if (parent.aborted) {
+    childAbort.abort()
+    return childAbort
+  }
+  parent.addEventListener(
+    'abort',
+    () => {
+      childAbort.abort()
+    },
+    { once: true },
+  )
+  return childAbort
+}
+
+function orAbort<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject(createAbortError())
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(createAbortError())
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
 function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   const agent = agents.find((entry) => entry.name === name)
   if (!agent) {
@@ -123,9 +190,22 @@ export async function* spawnAgentStream(
     timestamp: startedAt,
   } satisfies SubagentStartedEvent
 
+  let iterator: AsyncIterator<StreamChunk> | undefined
   try {
-    const stream = await agent.run(ctx)
-    for await (const chunk of stream) {
+    if (ctx.abortSignal?.aborted) {
+      yield stoppedEvent(ctx.runId)
+      return
+    }
+    const stream = await orAbort(Promise.resolve(agent.run(ctx)), ctx.abortSignal)
+    iterator = stream[Symbol.asyncIterator]()
+    while (true) {
+      if (ctx.abortSignal?.aborted) {
+        yield stoppedEvent(ctx.runId)
+        return
+      }
+      const result = await orAbort(iterator.next(), ctx.abortSignal)
+      if (result.done) break
+      const chunk = result.value
       if (isLifecycleChunk(chunk)) continue
       if (chunk.type === EventType.RUN_ERROR) {
         const message =
@@ -142,19 +222,32 @@ export async function* spawnAgentStream(
       }
       yield stampSubagentRunId(chunk, ctx.runId)
     }
+    if (ctx.abortSignal?.aborted) {
+      yield stoppedEvent(ctx.runId)
+      return
+    }
     yield {
       type: SUBAGENT_FINISHED,
       subagentRunId: ctx.runId,
       timestamp: Date.now(),
     } satisfies SubagentFinishedEvent
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
     yield {
       type: SUBAGENT_ERROR,
       subagentRunId: ctx.runId,
-      message,
+      message: isAbortError(error, ctx.abortSignal)
+        ? 'Stopped'
+        : error instanceof Error
+          ? error.message
+          : String(error),
       timestamp: Date.now(),
     } satisfies SubagentErrorEvent
+  } finally {
+    try {
+      await iterator?.return?.()
+    } catch {
+      // Child stream may already be closed or aborted.
+    }
   }
 }
 
@@ -194,7 +287,13 @@ export async function* spawnNamedAgents(
   const streams = names.map((name) => {
     const agent = agentByName(bag.agents, name)
     const runId = createSubagentId()
-    return spawnAgentStream(agent, { ...ctx, runId })
+    const childAbort = linkChildAbort(ctx.abortSignal)
+    return spawnAgentStream(agent, {
+      ...ctx,
+      runId,
+      threadId: childThreadId(bag.sandbox, ctx.threadId, name),
+      abortSignal: childAbort.signal,
+    })
   })
   if (streams.length === 1) {
     yield* streams[0]!
@@ -228,11 +327,12 @@ export function createSyntheticSubagentTools(
       description: agent.description,
       execute: async () => {
         const runId = createSubagentId()
+        const childAbort = linkChildAbort(parent.abortSignal)
         const chunks: Array<StreamChunk> = []
         for await (const chunk of spawnAgentStream(agent, {
           messages: parent.messages,
-          abortSignal: parent.abortSignal,
-          threadId: parent.threadId,
+          abortSignal: childAbort.signal,
+          threadId: childThreadId(bag.sandbox, parent.threadId, agent.name),
           runId,
           parentRunId: parent.parentRunId,
         })) {
