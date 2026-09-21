@@ -82,7 +82,11 @@ it('keeps SubagentMessages identity across re-renders', () => {
   const UI = createChatUI(chatOptions, {
     components: {
       layout: ({ Messages }) => <Messages />,
-      message: ({ Parts }) => <article><Parts /></article>,
+      message: ({ Parts }) => (
+        <article>
+          <Parts />
+        </article>
+      ),
     },
     partsComponents: {
       fallback: ({ part }) => <span>{part.type}</span>,
@@ -100,9 +104,7 @@ it('keeps SubagentMessages identity across re-renders', () => {
     },
   })
 
-  const { rerender } = render(
-    <UI.Chat chat={host({ messages: [message] })} />,
-  )
+  const { rerender } = render(<UI.Chat chat={host({ messages: [message] })} />)
   rerender(
     <UI.Chat
       chat={host({
@@ -138,7 +140,11 @@ it('does not re-render Subagents rows when only nested messages change', () => {
   const UI = createChatUI(chatOptions, {
     components: {
       layout: ({ Subagents }) => <Subagents />,
-      message: ({ Parts }) => <article><Parts /></article>,
+      message: ({ Parts }) => (
+        <article>
+          <Parts />
+        </article>
+      ),
       subagent: () => {
         listRenders += 1
         return <span>row</span>
@@ -154,9 +160,7 @@ it('does not re-render Subagents rows when only nested messages change', () => {
     },
   })
 
-  const { rerender } = render(
-    <UI.Chat chat={host({ subagents: [handle] })} />,
-  )
+  const { rerender } = render(<UI.Chat chat={host({ subagents: [handle] })} />)
   const first = listRenders
   rerender(
     <UI.Chat

@@ -565,9 +565,9 @@ export function createChatUI<
     inlineToolNames: ReadonlyArray<string>
   }
   const MessageRenderContext = createContext<MessageRenderValue | null>(null)
-  const SubagentRenderContext = createContext<{ handle: SubagentHandle } | null>(
-    null,
-  )
+  const SubagentRenderContext = createContext<{
+    handle: SubagentHandle
+  } | null>(null)
 
   function Parts() {
     const scope = useContext(MessageRenderContext)
