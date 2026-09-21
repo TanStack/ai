@@ -116,6 +116,31 @@ export type ChatUIHasNamedInterrupts<TOptions> = [
     ? false
     : true
 
+export type ChatUISubagentsOf<TOptions> = TOptions extends {
+  subagents: infer TAgents
+}
+  ? TAgents extends ReadonlyArray<{ name: string }>
+    ? TAgents
+    : readonly []
+  : readonly []
+
+export type ChatUISubagentName<TOptions> =
+  ChatUISubagentsOf<TOptions>[number] extends infer TAgent
+    ? TAgent extends { name: infer TName }
+      ? TName extends string
+        ? TName
+        : string
+      : string
+    : string
+
+export type ChatUIHasNamedSubagents<TOptions> = [
+  ChatUISubagentName<TOptions>,
+] extends [never]
+  ? false
+  : [string] extends [ChatUISubagentName<TOptions>]
+    ? false
+    : true
+
 export type ChatUINamedInterruptId<TOptions> = Exclude<
   ChatUIRegisteredInterruptId<TOptions>,
   'fallback'

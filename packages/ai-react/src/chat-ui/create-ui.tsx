@@ -10,6 +10,7 @@ import {
 import type {
   ChatUIData,
   ChatUIHasNamedInterrupts,
+  ChatUIHasNamedSubagents,
   ChatUIHasNamedTools,
   ChatUIInterrupt,
   ChatUIInterruptName,
@@ -22,6 +23,7 @@ import type {
   ChatUISchemaOf,
   ChatUISelectedPart,
   ChatUISelectedPartOf,
+  ChatUISubagentName,
   ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
@@ -77,11 +79,14 @@ export type QueueProps<TOptions> = {
 
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
-} & (TKey extends 'subagent' ? { SubagentMessages: ComponentType } : {})
+}
 
-export type SubagentViewProps<TOptions = unknown> = {
-  subagent: SubagentHandle
-  SubagentMessages: ComponentType
+export type SubagentProps<
+  TOptions,
+  TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
+> = {
+  subagent: SubagentHandle & { name: TName }
+  Parts: ComponentType
   readonly __ui?: TOptions
 }
 
@@ -131,7 +136,6 @@ export type ChatUIChromeComponents<
   message: ComponentType<MessageProps<TOptions>>
   input?: TInput
   queue?: ComponentType<QueueProps<TOptions>>
-  subagent?: ComponentType<SubagentViewProps<TOptions>>
 }
 
 export type ChatUIPartsComponents<TOptions> = {
@@ -169,6 +173,21 @@ export type ChatUIComponents<
         interruptsComponents?: {
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
+        }
+      }) &
+  (ChatUIHasNamedSubagents<TOptions> extends true
+    ? {
+        subagentsComponents: {
+          [K in ChatUISubagentName<TOptions>]: ComponentType<
+            SubagentProps<TOptions, K>
+          >
+        }
+      }
+    : {
+        subagentsComponents?: {
+          [K in ChatUISubagentName<TOptions>]?: ComponentType<
+            SubagentProps<TOptions, K>
+          >
         }
       })
 
@@ -321,19 +340,20 @@ export function createChatUI<
     partsComponents: parts,
     toolsComponents: tools,
     interruptsComponents: interrupts,
+    subagentsComponents: subagentComponents,
   } = config as ChatUIFactoryConfig<TOptions, TInput> & {
     toolsComponents?: Record<string, ComponentType<any> | undefined>
     interruptsComponents?: {
       tools?: Record<string, ComponentType<any> | undefined>
       generic?: Record<string, ComponentType<any> | undefined>
     }
+    subagentsComponents?: Record<string, ComponentType<any> | undefined>
   }
   const {
     layout: Layout,
     message: MessageComponent,
     input: InputComponent,
     queue: QueueItemComponent,
-    subagent: SubagentItemComponent,
   } = components
   const {
     chatContext: chatContextOption,
@@ -387,12 +407,7 @@ export function createChatUI<
   function bindPart(Component: ComponentType<PartProps<TOptions>>) {
     return function BoundPart() {
       const selected = usePartContext()
-      return (
-        <Component
-          SubagentMessages={SubagentMessages}
-          part={selected.part as PartProps<TOptions>['part']}
-        />
-      )
+      return <Component part={selected.part as PartProps<TOptions>['part']} />
     }
   }
 
@@ -631,7 +646,7 @@ export function createChatUI<
     interrupts,
     inlineToolNames: names,
   }: {
-    message: ChatUIMessages<TOptions>[number]
+    message: UIMessage
     interrupts: ReadonlyArray<ChatUIInterrupt>
     inlineToolNames: ReadonlyArray<string>
   }) {
@@ -671,6 +686,28 @@ export function createChatUI<
       )
     }
 
+    if (selected.key === 'subagent' && selected.part.type === 'subagent') {
+      const name = selected.part.subagent.name
+      const Subagent = subagentComponents?.[name] as
+        | ComponentType<SubagentProps<TOptions>>
+        | undefined
+      if (!Subagent) {
+        throw new Error(`[tanstack-ai-ui] Missing subagentsComponents.${name}`)
+      }
+      return (
+        <SubagentRenderContext.Provider
+          value={{ handle: selected.part.subagent }}
+        >
+          <Subagent
+            Parts={SubagentMessages}
+            subagent={
+              selected.part.subagent as SubagentProps<TOptions>['subagent']
+            }
+          />
+        </SubagentRenderContext.Provider>
+      )
+    }
+
     const PartComponent = (parts[selected.key] ?? parts.fallback) as
       | ComponentType<PartProps<TOptions>>
       | undefined
@@ -681,12 +718,7 @@ export function createChatUI<
       )
       return null
     }
-    return (
-      <PartComponent
-        SubagentMessages={SubagentMessages}
-        part={selected.part as PartProps<TOptions>['part']}
-      />
-    )
+    return <PartComponent part={selected.part as PartProps<TOptions>['part']} />
   }, selectedPartPropsEqual)
 
   const SelectedPartView = memo(function SelectedPartView({
@@ -802,7 +834,7 @@ export function createChatUI<
       return selected.part.subagent
     }
     throw new Error(
-      '`SubagentMessages` must be rendered by a `subagent` part or `Subagents` item.',
+      '`Parts` must be rendered by a subagent component or `Subagents` item.',
     )
   }
 
@@ -836,12 +868,19 @@ export function createChatUI<
   }: {
     handle: SubagentHandle
   }) {
-    if (!SubagentItemComponent) return null
+    const Subagent = subagentComponents?.[handle.name] as
+      | ComponentType<SubagentProps<TOptions>>
+      | undefined
+    if (!Subagent) {
+      throw new Error(
+        `[tanstack-ai-ui] Missing subagentsComponents.${handle.name}`,
+      )
+    }
     return (
       <SubagentRenderContext.Provider value={{ handle }}>
-        <SubagentItemComponent
-          SubagentMessages={SubagentMessages}
-          subagent={handle}
+        <Subagent
+          Parts={SubagentMessages}
+          subagent={handle as SubagentProps<TOptions>['subagent']}
         />
       </SubagentRenderContext.Provider>
     )
@@ -853,12 +892,12 @@ export function createChatUI<
     children?: (subagents: Array<SubagentHandle>) => ReactNode
   } = {}) {
     const chat = useChatContext()
-    const subagents = chat.subagents
-    if (children) return <>{children(subagents)}</>
-    if (!SubagentItemComponent || subagents.length === 0) return null
+    const live = chat.subagents
+    if (children) return <>{children(live)}</>
+    if (live.length === 0) return null
     return (
       <>
-        {subagents.map((handle) => (
+        {live.map((handle) => (
           <SubagentListItem key={handle.id} handle={handle} />
         ))}
       </>

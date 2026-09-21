@@ -6,6 +6,7 @@ import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts'
 import type {
   ChatUIFactoryConfig,
   ChatUIHost,
+  SubagentProps,
 } from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
@@ -66,8 +67,8 @@ function makeUI(patch?: {
   message?: Config['components']['message']
   input?: Config['components']['input']
   queue?: Config['components']['queue']
-  subagent?: Config['components']['subagent']
   partsComponents?: Config['partsComponents']
+  subagentsComponents?: Config['subagentsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
     tools?: Config['interruptsComponents']['tools']
@@ -82,7 +83,6 @@ function makeUI(patch?: {
       ...(patch?.message ? { message: patch.message } : {}),
       ...(patch?.input ? { input: patch.input } : {}),
       ...(patch?.queue ? { queue: patch.queue } : {}),
-      ...(patch?.subagent ? { subagent: patch.subagent } : {}),
     },
     partsComponents: {
       ...baseConfig.partsComponents,
@@ -102,6 +102,9 @@ function makeUI(patch?: {
         ...patch?.interruptsComponents?.generic,
       },
     },
+    ...(patch?.subagentsComponents
+      ? { subagentsComponents: patch.subagentsComponents }
+      : {}),
   })
 }
 
@@ -155,7 +158,7 @@ describe('createChatUI', () => {
     warn.mockRestore()
   })
 
-  it('renders nested subagent text through SubagentMessages', () => {
+  it('renders nested subagent text through Parts', () => {
     const handle = {
       id: 'sub-1',
       name: 'researcher',
@@ -171,10 +174,15 @@ describe('createChatUI', () => {
     const UI = makeUI({
       partsComponents: {
         text: ({ part }) => <p>{part.content}</p>,
-        subagent: ({ part, SubagentMessages }) => (
+      },
+      subagentsComponents: {
+        researcher: ({
+          subagent,
+          Parts,
+        }: SubagentProps<typeof chatOptions>) => (
           <section>
-            <strong>{part.subagent.name}</strong>
-            <SubagentMessages />
+            <strong>{subagent.name}</strong>
+            <Parts />
           </section>
         ),
       },
@@ -205,16 +213,43 @@ describe('createChatUI', () => {
     }
     const UI = makeUI({
       layout: ({ Subagents }) => <Subagents />,
-      subagent: ({ subagent }) => (
-        <p>
-          {subagent.name}:{subagent.status}
-        </p>
-      ),
+      subagentsComponents: {
+        writer: ({ subagent }: SubagentProps<typeof chatOptions>) => (
+          <p>
+            {subagent.name}:{subagent.status}
+          </p>
+        ),
+      },
     })
     const markup = renderToStaticMarkup(
       <UI.Chat chat={host({ subagents: [handle] })} />,
     )
     expect(markup).toContain('writer:running')
+  })
+
+  it('throws when a subagent name has no component', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [],
+    }
+    const UI = makeUI()
+    expect(() =>
+      renderToStaticMarkup(
+        <UI.Chat
+          chat={host({
+            messages: [
+              {
+                id: 'parent-1',
+                role: 'assistant',
+                parts: [{ type: 'subagent', subagent: handle }],
+              },
+            ],
+          })}
+        />,
+      ),
+    ).toThrow('Missing subagentsComponents.researcher')
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {

@@ -8,6 +8,7 @@ export {
 export type {
   ChatUIData,
   ChatUIHasNamedInterrupts,
+  ChatUIHasNamedSubagents,
   ChatUIHasNamedTools,
   ChatUIInterrupt,
   ChatUIInterruptName,
@@ -28,6 +29,8 @@ export type {
   ChatUISelectedResultPart,
   ChatUISelectedToolPart,
   ChatUISelection,
+  ChatUISubagentName,
+  ChatUISubagentsOf,
   ChatUIStructuredPart,
   ChatUIToolApproval,
   ChatUIToolName,

@@ -168,14 +168,37 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-Use `createChatHook` from `@tanstack/ai-react/ui`. Slot a card into `partsComponents.subagent`. Render nested child parts with `<SubagentMessages />`. Render the live list with `<Subagents />`. Do not map `subagent.messages` or `chat.subagents` yourself.
+Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` with every agent name. Register `subagentsComponents` for each name. Those components receive `SubagentProps` and `Parts`. Render `<Messages />` and `<Subagents />`. The factory throws if a name is missing.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
+import type { SubagentProps } from '@tanstack/ai-react/ui'
+
+const researcher = { name: 'researcher' as const, description: 'Looks up facts' }
+const writer = { name: 'writer' as const, description: 'Drafts posts' }
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
+  subagents: [researcher, writer],
+}
+
+function SubagentCard({
+  subagent,
+  Parts,
+}: SubagentProps<typeof chatOptions, 'researcher' | 'writer'>) {
+  return (
+    <section>
+      <strong>{subagent.name}</strong>
+      <span>{subagent.status}</span>
+      {subagent.status === 'running' ? (
+        <button type="button" onClick={() => subagent.stop?.()}>
+          Stop
+        </button>
+      ) : null}
+      <Parts />
+    </section>
+  )
 }
 
 const { useAppChat } = createChatHook({
@@ -190,28 +213,14 @@ const { useAppChat } = createChatHook({
     ),
     message: ({ Parts }) => <article><Parts /></article>,
     input: () => null,
-    subagent: ({ subagent, SubagentMessages }) => (
-      <section>
-        <strong>{subagent.name}</strong>
-        <span>{subagent.status}</span>
-        {subagent.status === 'running' ? (
-          <button type="button" onClick={() => subagent.stop?.()}>
-            Stop
-          </button>
-        ) : null}
-        <SubagentMessages />
-      </section>
-    ),
   },
   partsComponents: {
     text: ({ part }) => <p>{part.content}</p>,
-    subagent: ({ part, SubagentMessages }) => (
-      <section>
-        <strong>{part.subagent.name}</strong>
-        <SubagentMessages />
-      </section>
-    ),
     fallback: () => null,
+  },
+  subagentsComponents: {
+    researcher: SubagentCard,
+    writer: SubagentCard,
   },
 })
 

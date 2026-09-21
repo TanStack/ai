@@ -3,7 +3,11 @@ import { render } from '@testing-library/react'
 import { expect, it } from 'vitest'
 import type { ComponentType } from 'react'
 import { createChatUI } from '../../src/chat-ui/create-ui'
-import type { ChatUIHost, MessageProps } from '../../src/chat-ui/create-ui'
+import type {
+  ChatUIHost,
+  MessageProps,
+  SubagentProps,
+} from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
   createChatResult,
@@ -90,9 +94,11 @@ it('keeps SubagentMessages identity across re-renders', () => {
     },
     partsComponents: {
       fallback: ({ part }) => <span>{part.type}</span>,
-      subagent: ({ SubagentMessages }) => {
-        seen.push(SubagentMessages)
-        return <SubagentMessages />
+    },
+    subagentsComponents: {
+      researcher: ({ Parts }: SubagentProps<typeof chatOptions>) => {
+        seen.push(Parts)
+        return <Parts />
       },
     },
     toolsComponents: {
@@ -145,7 +151,9 @@ it('does not re-render Subagents rows when only nested messages change', () => {
           <Parts />
         </article>
       ),
-      subagent: () => {
+    },
+    subagentsComponents: {
+      writer: () => {
         listRenders += 1
         return <span>row</span>
       },

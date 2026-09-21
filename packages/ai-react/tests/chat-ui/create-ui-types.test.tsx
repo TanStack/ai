@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ComponentType } from 'react'
 import { expectTypeOf, it } from 'vitest'
 import { createChatHook } from '../../src/chat-ui/create-chat-hook'
 import { createChatUI } from '../../src/chat-ui/create-ui'
@@ -9,6 +9,7 @@ import type {
   InterruptProps,
   PartProps,
   QueueProps,
+  SubagentProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
 import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
@@ -317,6 +318,66 @@ it('applies the same conditional `Input` rule to createChatHook', () => {
       message,
       // @ts-expect-error `Input` is absent when no input component is registered
       layout: ({ Input }) => <Input />,
+    },
+  })
+})
+
+it('requires a component for every named subagent', () => {
+  const subagentChatOptions = {
+    ...chatOptions,
+    subagents: [
+      { name: 'researcher' as const, description: 'Looks up facts' },
+      { name: 'writer' as const, description: 'Drafts posts' },
+    ],
+  }
+
+  type ResearcherProps = SubagentProps<typeof subagentChatOptions, 'researcher'>
+  expectTypeOf<
+    ResearcherProps['subagent']['name']
+  >().toEqualTypeOf<'researcher'>()
+  expectTypeOf<ResearcherProps['Parts']>().toEqualTypeOf<ComponentType>()
+
+  createChatHook({
+    options: subagentChatOptions,
+    components: {
+      layout: ({ Messages, Subagents }) => (
+        <>
+          <Messages />
+          <Subagents />
+        </>
+      ),
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+    interruptsComponents: {
+      generic: { choosePlan: () => null, fallback: () => null },
+    },
+    // @ts-expect-error Every configured subagent needs a component.
+    subagentsComponents: {
+      researcher: () => null,
+    },
+  })
+
+  createChatHook({
+    options: subagentChatOptions,
+    components: {
+      layout: () => null,
+      message: () => null,
+    },
+    partsComponents: { fallback: () => null },
+    toolsComponents: { getWeather: () => null, purchaseItem: () => null },
+    interruptsComponents: {
+      generic: { choosePlan: () => null, fallback: () => null },
+    },
+    subagentsComponents: {
+      researcher: ({ subagent, Parts }: ResearcherProps) => {
+        expectTypeOf(subagent.name).toEqualTypeOf<'researcher'>()
+        return <Parts />
+      },
+      writer: () => null,
+      // @ts-expect-error This subagent is not in chatOptions.
+      spy: () => null,
     },
   })
 })
