@@ -1,8 +1,15 @@
+import type { ComponentType } from 'react'
 import type { UIMessage } from '@tanstack/ai-react'
 
 type SubagentPart = Extract<UIMessage['parts'][number], { type: 'subagent' }>
 
-export function SubagentCard({ part }: { part: SubagentPart }) {
+export function SubagentCard({
+  part,
+  SubagentMessages,
+}: {
+  part: SubagentPart
+  SubagentMessages: ComponentType
+}) {
   const subagent = part.subagent
 
   return (
@@ -23,20 +30,9 @@ export function SubagentCard({ part }: { part: SubagentPart }) {
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
-      {subagent.messages.map((message) => (
-        <div key={message.id} className="mt-2">
-          {message.parts.map((childPart, index) =>
-            childPart.type === 'text' && childPart.content ? (
-              <div
-                key={`text-${index}`}
-                className="whitespace-pre-wrap text-white"
-              >
-                {childPart.content}
-              </div>
-            ) : null,
-          )}
-        </div>
-      ))}
+      <div className="mt-2">
+        <SubagentMessages />
+      </div>
     </section>
   )
 }

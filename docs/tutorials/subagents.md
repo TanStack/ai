@@ -502,12 +502,21 @@ A `type: 'subagent'` part still hits `fallback` until you slot a component.
 
 Create `src/components/subagent-card.tsx`. The card reads `part.subagent`. That object is the same handle as `useChat().subagents[i]`. `stop()` aborts the current parent run.
 
+Render nested child parts with `<SubagentMessages />`. The UI library walks those messages. Do not map `subagent.messages` yourself.
+
 ```tsx ignore
+import type { ComponentType } from 'react'
 import type { UIMessage } from '@tanstack/ai-react'
 
 type SubagentPart = Extract<UIMessage['parts'][number], { type: 'subagent' }>
 
-export function SubagentCard({ part }: { part: SubagentPart }) {
+export function SubagentCard({
+  part,
+  SubagentMessages,
+}: {
+  part: SubagentPart
+  SubagentMessages: ComponentType
+}) {
   const subagent = part.subagent
 
   return (
@@ -528,28 +537,42 @@ export function SubagentCard({ part }: { part: SubagentPart }) {
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
-      {subagent.messages.map((message) => (
-        <div key={message.id} className="mt-2">
-          {message.parts.map((childPart, index) =>
-            childPart.type === 'text' && childPart.content ? (
-              <div
-                key={`text-${index}`}
-                className="whitespace-pre-wrap text-white"
-              >
-                {childPart.content}
-              </div>
-            ) : null,
-          )}
-        </div>
-      ))}
+      <div className="mt-2">
+        <SubagentMessages />
+      </div>
     </section>
+  )
+}
+```
+
+Create `src/components/subagent-row.tsx` for the live list. `<Subagents />` renders one row per running child. Do not map `chat.subagents` yourself.
+
+```tsx ignore
+import type { SubagentHandle } from '@tanstack/ai-client'
+
+export function SubagentRow({ subagent }: { subagent: SubagentHandle }) {
+  return (
+    <p className="mb-1 flex items-center gap-2 text-sm text-gray-200">
+      <span>
+        {subagent.name}: {subagent.status}
+      </span>
+      {subagent.status === 'running' ? (
+        <button
+          type="button"
+          onClick={() => subagent.stop?.()}
+          className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+        >
+          Stop
+        </button>
+      ) : null}
+    </p>
   )
 }
 ```
 
 ## 14. Slot the card into subagent parts
 
-Set `partsComponents.subagent` to `SubagentCard`. `Parts` now renders that card for every `type: 'subagent'` part.
+Set `partsComponents.subagent` to `SubagentCard`. Set `components.subagent` to `SubagentRow`. Put `<Subagents />` in the layout.
 
 The finished factory is `src/chat-ui.tsx`:
 
@@ -558,6 +581,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { SubagentCard } from '@/components/subagent-card'
+import { SubagentRow } from '@/components/subagent-row'
 import { byok } from '@/lib/byok'
 
 const chatOptions = {
@@ -568,7 +592,7 @@ const chatOptions = {
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
-    layout: function Layout({ Messages, Input }) {
+    layout: function Layout({ Messages, Subagents, Input }) {
       const chat = useChatContext()
       return (
         <div className="flex h-screen flex-col bg-gray-900">
@@ -597,25 +621,7 @@ export const { useAppChat, useChatContext } = createChatHook({
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Subagents
               </h2>
-              {chat.subagents.map((subagent) => (
-                <p
-                  key={subagent.id}
-                  className="mb-1 flex items-center gap-2 text-sm text-gray-200"
-                >
-                  <span>
-                    {subagent.name}: {subagent.status}
-                  </span>
-                  {subagent.status === 'running' ? (
-                    <button
-                      type="button"
-                      onClick={() => subagent.stop?.()}
-                      className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      Stop
-                    </button>
-                  ) : null}
-                </p>
-              ))}
+              <Subagents />
             </aside>
           ) : null}
           {chat.error ? (
@@ -686,6 +692,7 @@ export const { useAppChat, useChatContext } = createChatHook({
         </form>
       )
     },
+    subagent: SubagentRow,
   },
   partsComponents: {
     text: ({ part }) => (
