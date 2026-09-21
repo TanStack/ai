@@ -2,6 +2,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { SubagentCard } from '@/components/subagent-card'
+import { SubagentRow } from '@/components/subagent-row'
 import { byok } from '@/lib/byok'
 
 const chatOptions = {
@@ -12,7 +13,7 @@ const chatOptions = {
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
-    layout: function Layout({ Messages, Input }) {
+    layout: function Layout({ Messages, Subagents, Input }) {
       const chat = useChatContext()
       return (
         <div className="flex h-screen flex-col bg-gray-900">
@@ -41,25 +42,7 @@ export const { useAppChat, useChatContext } = createChatHook({
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Subagents
               </h2>
-              {chat.subagents.map((subagent) => (
-                <p
-                  key={subagent.id}
-                  className="mb-1 flex items-center gap-2 text-sm text-gray-200"
-                >
-                  <span>
-                    {subagent.name}: {subagent.status}
-                  </span>
-                  {subagent.status === 'running' ? (
-                    <button
-                      type="button"
-                      onClick={() => subagent.stop?.()}
-                      className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      Stop
-                    </button>
-                  ) : null}
-                </p>
-              ))}
+              <Subagents />
             </aside>
           ) : null}
           {chat.error ? (
@@ -130,6 +113,7 @@ export const { useAppChat, useChatContext } = createChatHook({
         </form>
       )
     },
+    subagent: SubagentRow,
   },
   partsComponents: {
     text: ({ part }) => (
