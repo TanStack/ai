@@ -27,11 +27,13 @@ e.g. MCP `callTool` — should forward this to cancel in-flight work.
 ### emitCustomEvent
 
 ```ts
-emitCustomEvent: (eventName, value) => void;
+emitCustomEvent: (eventName, value, options?) => void;
 ```
 
 Emit a custom event during tool execution.
 Events are streamed to the client in real-time as AG-UI CUSTOM events.
+Durability flushes each event immediately. Pass `{ batch: true }` to keep
+the event in the durability batch.
 
 #### Parameters
 
@@ -46,6 +48,12 @@ Name of the custom event
 `Record`\<`string`, `any`\>
 
 Event payload value
+
+##### options?
+
+`EmitCustomEventOptions`
+
+Pass `{ batch: true }` to keep this event in the durability batch
 
 #### Returns
 

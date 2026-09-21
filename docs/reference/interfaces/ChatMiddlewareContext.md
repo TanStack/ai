@@ -181,14 +181,15 @@ after the terminal hook (onFinish/onAbort/onError).
 ### emitCustomEvent
 
 ```ts
-emitCustomEvent: (name, value) => void;
+emitCustomEvent: (name, value, options?) => void;
 ```
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L221)
 
 Push a `CUSTOM` chunk onto the chat stream immediately.
 The engine yields it as soon as it can (including while `onConfig`
-is still awaiting work such as a summarize call).
+is still awaiting work such as a summarize call). Durability then
+flushes the event on its own, unless you pass `{ batch: true }`.
 
 #### Parameters
 
@@ -199,6 +200,10 @@ is still awaiting work such as a summarize call).
 ##### value
 
 `Record`\<`string`, `any`\>
+
+##### options?
+
+`EmitCustomEventOptions`
 
 #### Returns
 

@@ -632,7 +632,11 @@ interface Tool<TContext = unknown> {
 ```typescript ignore
 type ToolExecutionContext<TContext = unknown> = {
   toolCallId?: string;
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void;
+  emitCustomEvent: (
+    eventName: string,
+    value: Record<string, any>,
+    options?: { batch?: boolean },
+  ) => void;
 } & (unknown extends TContext ? { context?: TContext } : { context: TContext });
 ```
 

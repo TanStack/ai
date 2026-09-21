@@ -630,6 +630,22 @@ type RuntimeContextField<TContext> =
       }
 
 /**
+ * Options for a single `emitCustomEvent` call, on both the tool-execution and
+ * middleware contexts.
+ */
+export interface EmitCustomEventOptions {
+  /**
+   * Keep this event in the durability batch with later chunks.
+   * CUSTOM events flush as soon as they are emitted, so a progress
+   * indicator can render at emit time. Pass `{ batch: true }` for a
+   * high-volume stream that should share appends with later output.
+   * `process.stdout`, `process.stderr`, `sandbox.file`, and
+   * `sandbox.file.diff` already batch.
+   */
+  batch?: boolean
+}
+
+/**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
@@ -649,6 +665,8 @@ export type ToolExecutionContext<TContext = unknown> =
      *
      * @param eventName - Name of the custom event
      * @param value - Event payload value
+     * @param options - Pass `{ batch: true }` to keep this event in the
+     *   durability batch instead of flushing it immediately
      *
      * @example
      * ```ts
@@ -661,7 +679,11 @@ export type ToolExecutionContext<TContext = unknown> =
      * })
      * ```
      */
-    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+    emitCustomEvent: (
+      eventName: string,
+      value: Record<string, any>,
+      options?: EmitCustomEventOptions,
+    ) => void
   }
 
 export type ToolExecuteFunction<
