@@ -14,6 +14,8 @@ keywords:
 
 You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` starts that child, tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
 
+Want a Start app with two agents and Jev? Open the [Subagents tutorial](../tutorials/subagents).
+
 ## Define a child
 
 `run` is a `chat()` call. The child can use tools, MCP, interrupts, and its own nested `subagents`.

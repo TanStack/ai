@@ -69,6 +69,11 @@
           "label": "Evaluate a ticket",
           "to": "tutorials/evaluate",
           "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "tutorials/subagents",
+          "addedAt": "2026-09-21"
         }
       ]
     },
@@ -95,6 +100,11 @@
           "label": "Evaluate",
           "to": "framework/react/examples/evaluate",
           "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "framework/react/examples/subagents",
+          "addedAt": "2026-09-21"
         }
       ]
     },
