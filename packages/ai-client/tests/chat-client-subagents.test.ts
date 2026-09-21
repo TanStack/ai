@@ -138,4 +138,55 @@ describe('ChatClient subagents', () => {
     expect(part.subagent.status).toBe('error')
     expect(handle?.messages).toEqual([])
   })
+
+  it('aborts a hanging child on stop so no later child text arrives', async () => {
+    let connectAbort: AbortSignal | undefined
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, abortSignal) {
+        connectAbort = abortSignal
+        yield runStarted()
+        yield subagentStarted()
+        yield childTextStart()
+        yield childTextContent('partial')
+        await new Promise<void>((resolve) => {
+          if (abortSignal?.aborted) {
+            resolve()
+            return
+          }
+          abortSignal?.addEventListener('abort', () => resolve(), { once: true })
+        })
+        if (!abortSignal?.aborted) {
+          yield childTextContent('late')
+          yield subagentFinished()
+          yield runFinished()
+        }
+      },
+    }
+
+    const client = new ChatClient({ connection })
+    const sendPromise = client.sendMessage('hi')
+    await vi.waitFor(() => {
+      const nested = client.getSubagents()[0]?.messages[0]?.parts
+      expect(nested).toEqual([{ type: 'text', content: 'partial' }])
+    })
+
+    const handle = client.getSubagents()[0]
+    const assistant = client
+      .getMessages()
+      .find((message) => message.role === 'assistant')
+    const part = assistant?.parts.find((entry) => entry.type === 'subagent')
+    expect(part?.type).toBe('subagent')
+    if (part?.type !== 'subagent') throw new Error('expected subagent part')
+    expect(handle).toBe(part.subagent)
+    handle?.stop?.()
+
+    expect(connectAbort?.aborted).toBe(true)
+    await sendPromise
+
+    expect(handle?.status).toBe('error')
+    expect(handle?.error).toEqual({ message: 'Stopped' })
+    expect(handle?.messages[0]?.parts).toEqual([
+      { type: 'text', content: 'partial' },
+    ])
+  })
 })

@@ -3038,6 +3038,7 @@ export class ChatClient<
     this.syncSubagentHandles()
     handle.status = 'error'
     handle.error = { message: 'Stopped' }
+    this.abortController?.abort()
   }
 
   /**
