@@ -8,6 +8,7 @@ keywords:
   - subagents
   - defineAgent
   - router
+  - sandbox
   - AG-UI
 ---
 
@@ -17,9 +18,12 @@ You want a specialist to handle some turns (research, writing, a sandbox harness
 
 `run` is a `chat()` call. The child can use tools, MCP, interrupts, and its own nested `subagents`.
 
-```ts
-import { chat, defineAgent } from '@tanstack/ai'
+```ts group=subagents
+import { chat, choice, decide, defineAgent } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+
+const messages = [{ role: 'user' as const, content: 'Capital of France?' }]
 
 const researcher = defineAgent({
   name: 'researcher',
@@ -40,7 +44,7 @@ All spawn options live on `subagents`. Do not put `agents` or `router` on the ro
 
 **With a router.** The library calls your function, then starts that agent. It does not send subagent tools to the model.
 
-```ts
+```ts group=subagents
 const stream = chat({
   adapter: openaiText('gpt-5.6'),
   messages,
@@ -80,15 +84,183 @@ The router can return `'main'`, one agent name, or an array of names. An array s
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.
 - `handoff`: the child streams first. Then main runs with the new child text in the messages.
 
-`sandbox: 'own'` (default) keeps the parent sandbox on the parent run. `sandbox: 'inherit'` copies the parent thread into the child. Inherit plus two children in one turn throws.
+## Sandbox
+
+`withSandbox` keys the workspace by `threadId`. Set `subagents.sandbox` so the child gets the right thread id. Pass `ctx.threadId` into the child `chat()`.
+
+Options:
+
+- `'own'` (default): the child thread id is `${parentThreadId}:${name}`. The child gets its own workspace.
+- `'inherit'`: the child thread id is the parent thread id. The child reuses the parent workspace when `lifecycle.reuse` is `'thread'`.
+
+If `sandbox` is `'inherit'` and the router returns two or more names, `chat()` throws before start. Two children write the same files at the same time.
+
+**Own workspace (default).** Each child works in isolation. Parallel children each get a workspace.
+
+```ts
+import { chat, defineAgent } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  defineSandbox,
+  defineWorkspace,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const messages = [{ role: 'user' as const, content: 'Fix the tests' }]
+const threadId = 'parent-thread'
+
+const repoSandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: { type: 'none' },
+    packageManager: 'pnpm',
+  }),
+  lifecycle: { reuse: 'thread' },
+})
+
+const coder = defineAgent({
+  name: 'coder',
+  description: 'Edits the repo in a sandbox',
+  run: (ctx) =>
+    chat({
+      adapter: grokBuildText('grok-build'),
+      messages: ctx.messages,
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      middleware: [withSandbox(repoSandbox)],
+    }),
+})
+
+const ownStream = chat({
+  adapter: grokBuildText('grok-build'),
+  messages,
+  threadId,
+  middleware: [withSandbox(repoSandbox)],
+  subagents: {
+    agents: [coder],
+    sandbox: 'own',
+    strategy: 'exclusive',
+    router: () => 'coder',
+  },
+})
+
+const inheritStream = chat({
+  adapter: grokBuildText('grok-build'),
+  messages,
+  threadId,
+  middleware: [withSandbox(repoSandbox)],
+  subagents: {
+    agents: [coder],
+    sandbox: 'inherit',
+    strategy: 'exclusive',
+    router: () => 'coder',
+  },
+})
+```
+
+`ownStream` runs the child with `threadId` `parent-thread:coder`. `inheritStream` runs the child with `threadId` `parent-thread`, so `reuse: 'thread'` shares the parent workspace.
+
+See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 ## Client
 
-`useChat().subagents[i]` and `messages.parts[n].subagent` are the same live object. Call `stop()` on either one. The client marks that child as error, aborts the in-flight parent run, and ignores later events for that id. Abort of the parent `chat({ abortController })` stops running children and emits `SUBAGENT_ERROR`.
+The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-```ts
-const part = message.parts.find((p) => p.type === 'subagent')
-part?.subagent.stop()
+Render nested child messages, show status, and wire Stop on both the part and the `subagents` list:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { UIMessage } from '@tanstack/ai-react'
+
+function MessageBody({ message }: { message: UIMessage }) {
+  return (
+    <>
+      {message.parts.map((part, index) => {
+        if (part.type === 'text') {
+          return <p key={index}>{part.content}</p>
+        }
+        if (part.type === 'subagent') {
+          const { subagent } = part
+          return (
+            <section key={subagent.id}>
+              <header>
+                <strong>{subagent.name}</strong>
+                <span>{subagent.status}</span>
+                {subagent.status === 'running' ? (
+                  <button type="button" onClick={() => subagent.stop?.()}>
+                    Stop {subagent.name}
+                  </button>
+                ) : null}
+              </header>
+              {subagent.error ? <p>{subagent.error.message}</p> : null}
+              {subagent.messages.map((childMessage) => (
+                <MessageBody key={childMessage.id} message={childMessage} />
+              ))}
+            </section>
+          )
+        }
+        return null
+      })}
+    </>
+  )
+}
+
+export function ChatScreen() {
+  const [draft, setDraft] = useState('')
+  const { messages, subagents, sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <main>
+      {messages.map((message) => (
+        <article key={message.id} data-role={message.role}>
+          <MessageBody message={message} />
+        </article>
+      ))}
+
+      {subagents.length > 0 ? (
+        <aside>
+          <h2>Subagents</h2>
+          {subagents.map((subagent) => (
+            <p key={subagent.id}>
+              {subagent.name}: {subagent.status}
+              {subagent.status === 'running' ? (
+                <button type="button" onClick={() => subagent.stop?.()}>
+                  Stop
+                </button>
+              ) : null}
+            </p>
+          ))}
+        </aside>
+      ) : null}
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          const text = draft.trim()
+          if (!text) return
+          setDraft('')
+          void sendMessage(text)
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          disabled={isLoading}
+        />
+        <button type="submit" disabled={isLoading}>
+          Send
+        </button>
+      </form>
+    </main>
+  )
+}
 ```
+
+`subagents[0]` is the same object as `messages.parts[n].subagent` for that id. `stop()` on either one aborts the current parent run.
 
 See [Stream Events](./stream-events) for `SUBAGENT_*` and `subagentRunId`.
