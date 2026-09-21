@@ -153,7 +153,9 @@ describe('ChatClient subagents', () => {
             resolve()
             return
           }
-          abortSignal?.addEventListener('abort', () => resolve(), { once: true })
+          abortSignal?.addEventListener('abort', () => resolve(), {
+            once: true,
+          })
         })
         if (!abortSignal?.aborted) {
           yield childTextContent('late')
