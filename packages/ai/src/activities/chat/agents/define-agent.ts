@@ -37,11 +37,10 @@ export interface DefinedAgent<TName extends string = string> {
 /**
  * Choice options for a `decide()` router. `main` is required plus every agent name.
  */
-export type SubagentChoiceOptions<
-  TAgents extends ReadonlyArray<DefinedAgent>,
-> = { main: string } & {
-  [K in TAgents[number]['name']]: string
-}
+export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
+  { main: string } & {
+    [K in TAgents[number]['name']]: string
+  }
 
 /**
  * Define a named child agent. Pass the same object to `chat({ subagents })`

@@ -979,7 +979,8 @@ export class StreamProcessor {
   ): void {
     this.messages = this.messages.map((message) => {
       const index = message.parts.findIndex(
-        (part) => part.type === 'subagent' && part.subagent.id === subagentRunId,
+        (part) =>
+          part.type === 'subagent' && part.subagent.id === subagentRunId,
       )
       if (index === -1) return message
       const part = message.parts[index]
@@ -1004,7 +1005,8 @@ export class StreamProcessor {
     if (chunk.type === 'TEXT_MESSAGE_START') {
       const messageId = chunk.messageId
       this.patchSubagent(subagentRunId, (subagent) => {
-        if (subagent.messages.some((message) => message.id === messageId)) return
+        if (subagent.messages.some((message) => message.id === messageId))
+          return
         subagent.messages.push({
           id: messageId,
           role: chunk.role === 'user' ? 'user' : 'assistant',

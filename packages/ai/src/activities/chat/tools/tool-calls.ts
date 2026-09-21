@@ -46,9 +46,7 @@ function isSubagentExecuteResult(value: unknown): value is {
 } {
   if (typeof value !== 'object' || value === null) return false
   if (!('subagentRunId' in value) || !('chunks' in value)) return false
-  return (
-    typeof value.subagentRunId === 'string' && Array.isArray(value.chunks)
-  )
+  return typeof value.subagentRunId === 'string' && Array.isArray(value.chunks)
 }
 
 /**

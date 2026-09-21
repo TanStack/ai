@@ -81,8 +81,7 @@ describe('chat({ subagents }) router spawn', () => {
     const started = chunks.find((chunk) => chunk.type === 'SUBAGENT_STARTED')
     const finished = chunks.find((chunk) => chunk.type === 'SUBAGENT_FINISHED')
     const text = chunks.find(
-      (chunk) =>
-        chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.subagentRunId,
+      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.subagentRunId,
     )
 
     expect(started).toMatchObject({
@@ -197,9 +196,7 @@ describe('chat({ subagents }) synthetic tools', () => {
 
     const toolNames = (calls[0]?.tools ?? []).map((tool) => tool.name)
     expect(toolNames).toContain('researcher')
-    expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_STARTED')).toBe(
-      true,
-    )
+    expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_STARTED')).toBe(true)
     expect(chunks.some((chunk) => chunk.type === 'SUBAGENT_FINISHED')).toBe(
       true,
     )

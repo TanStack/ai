@@ -61,7 +61,9 @@ export function isSubagentLifecycleType(type: string) {
   )
 }
 
-export function isSubagentTool(tool: { name: string } & Record<string, unknown>) {
+export function isSubagentTool(
+  tool: { name: string } & Record<string, unknown>,
+) {
   return tool[SUBAGENT_TOOL_FLAG] === true
 }
 
@@ -79,7 +81,9 @@ export function normalizeRouterPick(
 ) {
   const names = Array.isArray(pick) ? [...pick] : [pick]
   if (names.length === 0) {
-    throw new Error('subagents.router must return main, a name, or a list of names')
+    throw new Error(
+      'subagents.router must return main, a name, or a list of names',
+    )
   }
   const hasMain = names.includes('main')
   if (hasMain && names.length > 1) {
