@@ -57,23 +57,26 @@ For example, `memoryMiddleware` emits `memory:retrieve:started` / `memory:retrie
 
 Names are `group:subject` or `group:subject:phase`. The groups on `AIDevtoolsEventMap`:
 
-| Group                                                                                | What it covers                                                                           |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `run:*`                                                                              | `chat()` run lifecycle: created, started, completed, errored, cancelled                  |
-| `text:*`, `tools:*`, `structured-output:*`                                           | Streaming text, tool calls and results, structured output                                |
-| `image:*`, `video:*`, `speech:*`, `audio:*`, `transcription:*`, `voice:*`, `world:*` | Generation activities: request started / completed / error, plus `usage`                 |
-| `embedding:*`, `rerank:*`, `summarize:*`, `evaluate:*`                               | The other activities, same request / usage shape                                         |
-| `middleware:*`                                                                       | Which hook ran and what it transformed                                                   |
-| `memory:*`, `compaction:*`, `skills:*`                                               | Memory recall / persist, context compaction, agent skills                                |
-| `hook:*`, `client:*`                                                                 | Client-side hooks (`useChat` and friends) registering, updating, loading, erroring       |
-| `devtools:*`                                                                         | Panel opened / closed and requests the panel sends back, such as applying a tool fixture |
+| Group                                                                                        | Events                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run:*`                                                                                      | `created`, `started`, `updated`, `completed`, `errored`, `cancelled`                                                                                                                                              |
+| `text:*`                                                                                     | `request:started` / `request:completed`, `message:created` / `message:user`, `chunk:*` (`content`, `tool-call`, `tool-result`, `thinking`, `done`, `error`), `iteration:started` / `iteration:completed`, `usage` |
+| `tools:*`                                                                                    | `registered`, `input:available`, `call:updated`, `call:completed`, `result:added`, `approval:requested` / `approval:responded`                                                                                    |
+| `structured-output:*`                                                                        | `started`, `updated`, `completed`, `errored`                                                                                                                                                                      |
+| `image:*`, `video:*`, `summarize:*`, `rerank:*`, `evaluate:*`                                | `request:started`, `request:completed`, `usage`                                                                                                                                                                   |
+| `speech:*`, `audio:*`, `transcription:*`, `voice:*`, `world:*`, `liveVideo:*`, `embedding:*` | `request:started`, `request:completed`, `request:error`, `usage`                                                                                                                                                  |
+| `middleware:*`                                                                               | `hook:executed`, `config:transformed`, `chunk:transformed`                                                                                                                                                        |
+| `memory:*`                                                                                   | `retrieve:started` / `retrieve:completed`, `persist:started` / `persist:completed`, `error`, `snapshot`                                                                                                           |
+| `compaction:*`, `skills:*`                                                                   | `compaction:started` / `state` / `ended` / `applied`; `skills:snapshot`                                                                                                                                           |
+| `hook:*`, `client:*`                                                                         | `hook:registered` / `updated` / `unregistered` / `state-snapshot`; `client:created` / `loading:changed` / `error:changed` / `messages:cleared` / `reloaded` / `stopped`                                           |
+| `devtools:*`                                                                                 | `opened`, `closed`, `request-state`, `tool-fixture:apply` / `tool-fixture:applied`                                                                                                                                |
 
 ## Envelope helpers
 
 Events carry a common envelope — `eventId`, `eventType`, `timestamp`, `source` (`client` | `server` | `devtools`), `visibility`, and optional correlation ids such as `runId`, `threadId`, `messageId`, `toolCallId`. The package exports the helpers the emitters use to build and dedupe it:
 
 - `createAIDevtoolsEventEnvelope(input)` — fills in `eventId` and `runtimeId` when absent
-- `getAIDevtoolsDedupeKey(event)` — stable key for an event: its `eventId` when present, otherwise derived from `source`, `eventType`, `visibility`, the correlation ids, and the timestamp
+- `getAIDevtoolsDedupeKey(event)` — stable key for an event: its `eventId` when present. Without one it falls back to `source`, `eventType`, `visibility`, the correlation ids, and the timestamp bucketed to one second — so two otherwise identical events in the same second share a key. Supply an `eventId` when distinct events must stay distinct.
 - `getAIDevtoolsRuntimeId()` — the id of the current runtime instance
 
 ## License
