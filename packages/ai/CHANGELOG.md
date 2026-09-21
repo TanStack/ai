@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.58.0
+
+### Minor Changes
+
+- [#1355](https://github.com/TanStack/ai/pull/1355) [`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db) - Flush CUSTOM events through the durability layer as soon as they are emitted, so progress events such as `compaction:started` reach the client at emit time. High-volume events (`process.stdout`, `process.stderr`, `sandbox.file`, `sandbox.file.diff`) still batch. Pass `{ batch: true }` on `emitCustomEvent` to opt an event into the batch.
+
 ## 0.57.0
 
 ### Minor Changes
