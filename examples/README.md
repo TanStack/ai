@@ -10,6 +10,7 @@ Choose an example based on your use case:
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
+- **Want a blog desk with two agents?** → [Subagents](#subagents)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -69,6 +70,24 @@ pnpm --filter streaming-structured-table dev
 Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
 
 📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
+
+### Subagents
+
+A slim TanStack Start chat. Two named agents. Jev picks research or a draft. The UI shows a nested card.
+
+**Path:** `examples/react/subagents`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents dev
+```
+
+Open http://localhost:3100. Set `TYPESAFE_API_KEY`. Paste an OpenRouter key. Ask for research or a draft.
+
+📖 [Full Documentation](react/subagents/README.md)
 
 ---
 
