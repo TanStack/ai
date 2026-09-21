@@ -169,7 +169,14 @@ running. High-volume names stay in the durability batch:
 Pass `{ batch: true }` to keep one of your own events in that batch:
 
 ```ts
-ctx.emitCustomEvent("my-app:progress", { step: "prepare" }, { batch: true });
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const noisy: ChatMiddleware = {
+  name: "noisy",
+  async onConfig(ctx) {
+    ctx.emitCustomEvent("my-app:ticks", { n: 1 }, { batch: true });
+  },
+};
 ```
 
 These flow over the wire exactly like the built-in events: same `CUSTOM`
