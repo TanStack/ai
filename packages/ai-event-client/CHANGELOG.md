@@ -1,5 +1,11 @@
 # @tanstack/ai-event-client
 
+## 0.12.1
+
+### Patch Changes
+
+- [#1437](https://github.com/TanStack/ai/pull/1437) [`3d81cab`](https://github.com/TanStack/ai/commit/3d81cabca196068629ddce91f7960d29ce899746) - Add a package README: what `aiEventClient` is, how to subscribe with `on()`, the event groups on `AIDevtoolsEventMap`, and the envelope helpers.
+
 ## 0.12.0
 
 ### Minor Changes

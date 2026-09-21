@@ -1,5 +1,12 @@
 # @tanstack/ai-mistral
 
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3)]:
+  - @tanstack/ai-utils@0.4.1
+
 ## 0.6.5
 
 ### Patch Changes
