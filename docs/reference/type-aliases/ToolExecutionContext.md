@@ -7,7 +7,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:636](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L636)
+Defined in: [packages/ai/src/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L652)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -32,8 +32,6 @@ emitCustomEvent: (eventName, value, options?) => void;
 
 Emit a custom event during tool execution.
 Events are streamed to the client in real-time as AG-UI CUSTOM events.
-Durability flushes each event immediately. Pass `{ batch: true }` to keep
-the event in the durability batch.
 
 #### Parameters
 
@@ -51,9 +49,10 @@ Event payload value
 
 ##### options?
 
-`EmitCustomEventOptions`
+[`EmitCustomEventOptions`](../interfaces/EmitCustomEventOptions.md)
 
-Pass `{ batch: true }` to keep this event in the durability batch
+Pass `{ batch: true }` to keep this event in the
+  durability batch instead of flushing it immediately
 
 #### Returns
 

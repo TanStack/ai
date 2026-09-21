@@ -10,7 +10,7 @@ function toHttpStream(
 getId?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1053](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1053)
+Defined in: [packages/ai/src/stream-to-response.ts:1063](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1063)
 
 Convert a StreamChunk async iterable to a ReadableStream in HTTP stream format (newline-delimited JSON)
 

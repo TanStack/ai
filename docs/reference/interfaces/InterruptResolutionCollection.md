@@ -3,7 +3,7 @@ id: InterruptResolutionCollection
 title: InterruptResolutionCollection
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L135)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L136)
 
 ## Type Parameters
 
@@ -22,7 +22,7 @@ all: {
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:145](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L145)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L146)
 
 #### Call Signature
 
@@ -64,7 +64,7 @@ readonly [`GenericInterruptResolution`](../type-aliases/GenericInterruptResoluti
 for: <TDefinition>(definition) => readonly GenericInterruptResolution<TDefinition>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:138](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L138)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L139)
 
 #### Type Parameters
 

@@ -7,4 +7,4 @@ title: PersistedArtifactActivity
 type PersistedArtifactActivity = "image" | "audio" | "tts" | "video" | "transcription";
 ```
 
-Defined in: [packages/ai/src/types.ts:1991](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1991)
+Defined in: [packages/ai/src/types.ts:2013](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2013)

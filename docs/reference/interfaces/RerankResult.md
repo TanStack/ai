@@ -3,7 +3,7 @@ id: RerankResult
 title: RerankResult
 ---
 
-Defined in: [packages/ai/src/types.ts:1818](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1818)
+Defined in: [packages/ai/src/types.ts:1840](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1840)
 
 Public result of the `rerank()` activity, generic over the caller's document
 element type so `document` / `rerankedDocuments` carry the original values
@@ -23,7 +23,7 @@ element type so `document` / `rerankedDocuments` carry the original values
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1819](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1819)
+Defined in: [packages/ai/src/types.ts:1841](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1841)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/types.ts:1819](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1820](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1820)
+Defined in: [packages/ai/src/types.ts:1842](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1842)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: [packages/ai/src/types.ts:1820](https://github.com/TanStack/ai/blob/
 ranking: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1822](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1822)
+Defined in: [packages/ai/src/types.ts:1844](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1844)
 
 Scored results, highest relevance first.
 
@@ -73,7 +73,7 @@ score: number;
 rerankedDocuments: TDocument[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1824](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1824)
+Defined in: [packages/ai/src/types.ts:1846](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1846)
 
 The documents reordered by relevance — `ranking.map(r => r.document)`.
 
@@ -85,7 +85,7 @@ The documents reordered by relevance — `ranking.map(r => r.document)`.
 usage: TokenUsage;
 ```
 
-Defined in: [packages/ai/src/types.ts:1832](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1832)
+Defined in: [packages/ai/src/types.ts:1854](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1854)
 
 Usage for the request. Rerank typically bills in provider-defined "search
 units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
