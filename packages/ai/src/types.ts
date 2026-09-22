@@ -1731,12 +1731,14 @@ export interface SubagentStartedEvent {
   description?: string
   parentSubagentRunId?: string
   timestamp?: number
+  metadata?: Record<string, any>
 }
 
 export interface SubagentFinishedEvent {
   type: 'SUBAGENT_FINISHED'
   subagentRunId: string
   timestamp?: number
+  metadata?: Record<string, any>
 }
 
 export interface SubagentErrorEvent {
@@ -1745,6 +1747,7 @@ export interface SubagentErrorEvent {
   message: string
   code?: string
   timestamp?: number
+  metadata?: Record<string, any>
 }
 
 /**
