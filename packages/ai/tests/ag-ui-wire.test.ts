@@ -80,6 +80,59 @@ describe('uiMessagesToWire', () => {
     expect(wire[0]!).toMatchObject({ id: 'u1', role: 'user', content: 'hi' })
   })
 
+  it('keeps finished subagent text on the assistant message', () => {
+    const message: UIMessage = {
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'run-researcher',
+            name: 'researcher',
+            status: 'finished',
+            messages: [
+              {
+                id: 'note',
+                role: 'assistant',
+                parts: [{ type: 'text', content: 'Squids have three hearts.' }],
+              },
+            ],
+          },
+        },
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'run-seo',
+            name: 'seo',
+            status: 'finished',
+            messages: [
+              {
+                id: 'seo-note',
+                role: 'assistant',
+                parts: [{ type: 'text', content: 'Title: Three hearts' }],
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const expected = [
+      'researcher:',
+      'Squids have three hearts.',
+      '',
+      'seo:',
+      'Title: Three hearts',
+    ].join('\n')
+
+    expect(anchorContent(uiMessagesToWire([message]), 'assistant')).toBe(
+      expected,
+    )
+    const model = convertMessagesToModelMessages([message])
+    expect(model).toHaveLength(1)
+    expect(model[0]).toMatchObject({ role: 'assistant', content: expected })
+  })
+
   it('mirrors a user UIMessage with mixed multimodal parts to an InputContent[] content', () => {
     const messages: Array<UIMessage> = [
       {

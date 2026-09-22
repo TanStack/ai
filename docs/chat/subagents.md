@@ -91,6 +91,8 @@ The router can return:
 
 `{ steps }` runs one group, then the next group. Each group has `names` and an optional `order`. The next group reads the text from the earlier group. Use this when two agents start together and a later agent must read both.
 
+A later user message can also read that child text. The assistant message keeps each child's name and text, so the next turn still has the notes.
+
 ```ts
 const plan = {
   steps: [

@@ -22,6 +22,7 @@ import { normalizeToolResult } from './tool-result'
 import {
   coerceCreatedAt,
   modelMessageToUIMessage,
+  subagentHistoryText,
 } from '../activities/chat/messages'
 
 type WithMetadata<T> = T & { metadata?: MetadataRecord }
@@ -419,6 +420,11 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
       p.raw !== ''
     ) {
       out.push(p.raw)
+    } else if (p.type === 'subagent') {
+      const block = subagentHistoryText(p)
+      if (block === '') continue
+      const prefix = out.some((item) => item !== '') ? '\n\n' : ''
+      out.push(`${prefix}${block}`)
     }
   }
   return out.join('')

@@ -14,6 +14,7 @@ import type {
   TextPart,
   ToolCall,
   ToolCallPart,
+  SubagentPart,
   UIMessage,
   UIResourcePart,
 } from '../../types'
@@ -122,6 +123,37 @@ function getTextContent(
     .filter((part): part is TextPart => part.type === 'text')
     .map((part) => part.content)
     .join('')
+}
+
+function historyTextFromParts(parts: ReadonlyArray<MessagePart>): string {
+  const blocks: Array<string> = []
+  for (const part of parts) {
+    if (part.type === 'text' && part.content !== '') {
+      blocks.push(part.content)
+    } else if (
+      part.type === 'structured-output' &&
+      part.status === 'complete' &&
+      part.raw !== ''
+    ) {
+      blocks.push(part.raw)
+    } else if (part.type === 'subagent') {
+      const nested = subagentHistoryText(part)
+      if (nested !== '') blocks.push(nested)
+    }
+  }
+  return blocks.join('\n\n')
+}
+
+/** Child text for a later turn. The name stays so the next agent can tell the notes apart. */
+export function subagentHistoryText(part: SubagentPart): string {
+  const blocks: Array<string> = []
+  for (const message of part.subagent.messages) {
+    if (!('parts' in message)) continue
+    const text = historyTextFromParts(message.parts).trim()
+    if (text !== '') blocks.push(text)
+  }
+  if (blocks.length === 0) return ''
+  return `${part.subagent.name}:\n${blocks.join('\n\n')}`
 }
 
 function toolResultContent(
@@ -690,9 +722,17 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         // model input, so it is intentionally dropped from the model message.
         break
 
-      case 'subagent':
-        // Nested child UI. Child text is not parent model content.
+      case 'subagent': {
+        const block = subagentHistoryText(part)
+        if (block !== '') {
+          const prefix = current.contentParts.length > 0 ? '\n\n' : ''
+          current.contentParts.push({
+            type: 'text',
+            content: `${prefix}${block}`,
+          })
+        }
         break
+      }
 
       default:
         break
