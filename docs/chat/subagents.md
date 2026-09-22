@@ -168,19 +168,19 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` with every agent name. Register `subagentsComponents` for each name. Those components receive `SubagentProps` and `Parts`. Render `<Messages />` and `<Subagents />`. The factory throws if a name is missing.
+Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. The layout receives `LayoutProps`, including `Subagents`. Render `<Messages />` and `<Subagents />`. The factory throws if a name is missing.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
-import type { SubagentProps } from '@tanstack/ai-react/ui'
-
-const researcher = { name: 'researcher' as const, description: 'Looks up facts' }
-const writer = { name: 'writer' as const, description: 'Drafts posts' }
+import type { LayoutProps, SubagentProps } from '@tanstack/ai-react/ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  subagents: [researcher, writer],
+  subagents: {
+    researcher: { description: 'Looks up facts' },
+    writer: { description: 'Drafts posts' },
+  },
 }
 
 function SubagentCard({
@@ -204,7 +204,11 @@ function SubagentCard({
 const { useAppChat } = createChatHook({
   options: chatOptions,
   components: {
-    layout: ({ Messages, Subagents, Input }) => (
+    layout: ({
+      Messages,
+      Subagents,
+      Input,
+    }: LayoutProps<typeof chatOptions>) => (
       <main>
         <Messages />
         <Subagents />

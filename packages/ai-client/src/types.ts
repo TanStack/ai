@@ -917,10 +917,14 @@ export interface ChatClientBaseOptions<
   byok?: ByokClient
 
   /**
-   * Named child agents for this chat. `createChatHook` requires a
-   * `subagentsComponents` entry for every `name`.
+   * Named child agents for this chat. Each key is an agent name.
+   * `createChatHook` requires a `subagentsComponents` entry for every key.
    */
-  subagents?: ReadonlyArray<{ name: string; description?: string }>
+  subagents?: {
+    [name: string]: {
+      description?: string
+    }
+  }
 
   /**
    * Optional provider id for this chat. If it returns a provider slug,

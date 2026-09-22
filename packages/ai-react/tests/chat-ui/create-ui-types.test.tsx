@@ -325,10 +325,10 @@ it('applies the same conditional `Input` rule to createChatHook', () => {
 it('requires a component for every named subagent', () => {
   const subagentChatOptions = {
     ...chatOptions,
-    subagents: [
-      { name: 'researcher' as const, description: 'Looks up facts' },
-      { name: 'writer' as const, description: 'Drafts posts' },
-    ],
+    subagents: {
+      researcher: { description: 'Looks up facts' },
+      writer: { description: 'Drafts posts' },
+    },
   }
 
   type ResearcherProps = SubagentProps<typeof subagentChatOptions, 'researcher'>

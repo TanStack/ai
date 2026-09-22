@@ -119,19 +119,11 @@ export type ChatUIHasNamedInterrupts<TOptions> = [
 export type ChatUISubagentsOf<TOptions> = TOptions extends {
   subagents: infer TAgents
 }
-  ? TAgents extends ReadonlyArray<{ name: string }>
-    ? TAgents
-    : readonly []
-  : readonly []
+  ? TAgents
+  : object
 
-export type ChatUISubagentName<TOptions> =
-  ChatUISubagentsOf<TOptions>[number] extends infer TAgent
-    ? TAgent extends { name: infer TName }
-      ? TName extends string
-        ? TName
-        : string
-      : string
-    : string
+export type ChatUISubagentName<TOptions> = string &
+  keyof ChatUISubagentsOf<TOptions>
 
 export type ChatUIHasNamedSubagents<TOptions> = [
   ChatUISubagentName<TOptions>,
