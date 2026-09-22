@@ -157,7 +157,7 @@ export function OpenRouterKeyForm() {
 
 If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
-## 6. Define two agents
+## 6. Define three agents
 
 Create `src/lib/agents.ts`.
 
@@ -181,7 +181,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You research for a blog desk. Reply with short notes and sources. Do not write the full post.',
+          'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
         ],
       }),
   })
@@ -197,12 +197,28 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You write blog posts. Use a clear title, short sections, and a closing line. When earlier messages contain research notes, write the post from those notes.',
+          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes, write only from those notes. Do not add facts that are not in the notes.',
         ],
       }),
   })
 
-  return [researcher, writer] as const
+  const seo = defineAgent({
+    name: 'seo',
+    description:
+      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for search titles, descriptions, or tags, even if they also ask for research. Answer no when they only want facts or only want the article.',
+    run: (ctx) =>
+      chat({
+        adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
+        messages: ctx.messages,
+        threadId: ctx.threadId,
+        runId: ctx.runId,
+        systemPrompts: [
+          'You prepare SEO for a blog post. Reply in Markdown. Give 5 title options, one meta description under 160 characters, and a short tag list. Do not write the full article.',
+        ],
+      }),
+  })
+
+  return [researcher, writer, seo] as const
 }
 ```
 
@@ -263,13 +279,13 @@ With no router, the main model gets one synthetic server tool per agent. The nex
 A router is a function. The library calls it before the main model. It can return:
 
 - `'main'`: the parent `chat()` runs as usual
-- `'researcher'` or `'writer'`: that child's `run` starts
+- one agent name, such as `'researcher'`, `'writer'`, or `'seo'`: that child's `run` starts
 - an array of names: those children use `subagents.order`
 - `{ names, order }`: this turn overrides `subagents.order`
 
-`order: 'parallel'` starts the names together. They do not read each other. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
+`order: 'parallel'` starts the names together. No agent reads another agent's text. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
 
-Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. You can pass `when` to replace those questions. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. Researcher is before writer in that array, so a sequence runs research first.
+Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. You can pass `when` to replace those questions. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. The list is researcher, then writer, then seo. A sequence runs research first. The writer reads those notes. SEO runs last and can read both.
 
 `createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
 
@@ -295,7 +311,7 @@ subagents: {
 
 If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user asks for research and an article, Jev returns both names and chooses `sequence` or `parallel`. A sequence runs the researcher first. The writer then reads those notes. If the user says hello, Jev returns `main`.
 
-Two research tasks that do not depend on each other use `parallel`. Add one `defineAgent` per task, for example `squidResearch` and `octopusResearch`. Jev can return `{ names: ['squidResearch', 'octopusResearch'], order: 'parallel' }`.
+Research and SEO do not need each other's text. Jev can return `{ names: ['researcher', 'seo'], order: 'parallel' }` for that turn. The writer still uses `sequence` when the draft must read the notes.
 
 Add these imports:
 
@@ -545,6 +561,27 @@ export function Researcher({
   )
 }
 
+export function Seo({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'seo'>) {
+  return (
+    <section className="mt-3 rounded-lg border border-sky-500/40 bg-gray-900/80 p-3 text-gray-100">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
+      {subagent.error ? (
+        <p className="text-xs text-red-400">{subagent.error.message}</p>
+      ) : null}
+      <div className="mt-2">
+        <Parts />
+      </div>
+    </section>
+  )
+}
+
 export function Writer({
   subagent,
   Parts,
@@ -611,7 +648,7 @@ export function ChatInput() {
             name="message"
             rows={1}
             disabled={chat.isLoading}
-            placeholder="Ask for research, or ask for a draft..."
+            placeholder="Ask for research, a draft, or SEO titles..."
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey) return
               event.preventDefault()
@@ -637,10 +674,14 @@ The finished factory is `src/chat-ui.tsx`:
 
 ```tsx ignore
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatHook, TextPart, type LayoutProps } from '@tanstack/ai-react/ui'
+import {
+  createChatHook,
+  TextPart,
+  type LayoutProps,
+} from '@tanstack/ai-react/ui'
 import { ChatInput } from '@/components/chat-input'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
-import { Researcher, Writer } from '@/components/subagent-card'
+import { Researcher, Seo, Writer } from '@/components/subagent-card'
 import { byok } from '@/lib/byok'
 
 export const chatOptions = {
@@ -648,12 +689,13 @@ export const chatOptions = {
   byok,
   subagents: {
     researcher: {
-      description:
-      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+      description: 'Looks up facts, sources, and background for a blog post',
     },
     writer: {
-      description:
-      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+      description: 'Drafts or rewrites a blog post',
+    },
+    seo: {
+      description: 'Suggests SEO titles, a meta description, and tags',
     },
   },
 }
@@ -705,6 +747,7 @@ export const { useAppChat, useChatContext } = createChatHook({
   subagentsComponents: {
     researcher: Researcher,
     writer: Writer,
+    seo: Seo,
   },
 })
 ```
@@ -731,6 +774,7 @@ export const Route = createFileRoute('/')({
 2. Paste an OpenRouter key.
 3. Send `What are three facts about durable streams?` The researcher card opens.
 4. Send `Write a short blog post about durable streams.` The writer card opens.
+5. Send `Research squids and suggest SEO titles, a meta description, and tags.` The researcher card and the SEO card open together.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/subagents`.
 

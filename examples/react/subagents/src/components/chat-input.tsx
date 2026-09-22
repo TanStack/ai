@@ -37,7 +37,7 @@ export function ChatInput() {
             name="message"
             rows={1}
             disabled={chat.isLoading}
-            placeholder="Ask for research, or ask for a draft..."
+            placeholder="Ask for research, a draft, or SEO titles..."
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey) return
               event.preventDefault()
