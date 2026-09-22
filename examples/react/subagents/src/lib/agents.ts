@@ -4,7 +4,8 @@ import { createOpenRouterText } from '@tanstack/ai-openrouter'
 export function createBlogAgents(apiKey: string) {
   const researcher = defineAgent({
     name: 'researcher',
-    description: 'Looks up facts, sources, and background for a blog post',
+    description:
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -19,7 +20,8 @@ export function createBlogAgents(apiKey: string) {
 
   const writer = defineAgent({
     name: 'writer',
-    description: 'Drafts or rewrites a blog post',
+    description:
+      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
