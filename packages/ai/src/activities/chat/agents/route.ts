@@ -54,9 +54,10 @@ export function subagentRoute<
     order: choice({
       instructions: 'When more than one agent runs, how must they run?',
       options: {
-        parallel: 'Start them together. They do not read each other.',
+        parallel:
+          'Start them together. Use this when no agent needs text from another agent, such as two research tasks.',
         sequence:
-          'Run them in agent-list order. Each later agent reads the earlier text.',
+          'Run them in agent-list order. Use this when a later agent must read text from an earlier agent, such as research then a draft.',
       },
     }),
   }
