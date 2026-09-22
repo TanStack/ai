@@ -82,7 +82,9 @@ The router can return:
 - an array of names
 - `{ names, order }`
 
-`subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child's text. Omit `order` to get `parallel`.
+`subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
+
+`subagentRoute` asks Jev for the order. Jev picks `parallel` when no agent must read text from another agent. The same topic is not a reason to wait. Jev picks `sequence` only when a later agent must read the earlier text, such as research notes and then a draft.
 
 `{ names, order }` overrides that default for one turn. Use it when some turns are parallel and some are serial.
 

@@ -55,9 +55,9 @@ export function subagentRoute<
       instructions: 'When more than one agent runs, how must they run?',
       options: {
         parallel:
-          'Start them together. Use this when no agent needs text from another agent, such as two research tasks.',
+          'Start them together. Use this when no agent must read text from another agent. Working on the same topic is not a reason to wait.',
         sequence:
-          'Run them in agent-list order. Use this when a later agent must read text from an earlier agent, such as research then a draft.',
+          'Run them in agent-list order. Use this only when a later agent must read the earlier agent text, such as research notes and then a draft article.',
       },
     }),
   }
