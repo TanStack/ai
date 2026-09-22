@@ -38,7 +38,7 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      router: async ({ messages }) => {
+      router: async ({ messages, agents }) => {
         const route = subagentRoute(agents, {
           when: {
             researcher:

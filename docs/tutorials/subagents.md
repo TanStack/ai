@@ -267,7 +267,7 @@ A router is a function. The library calls it before the main model. It can retur
 
 `order: 'parallel'` starts the names together. They do not read each other. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
 
-`subagentRoute(agents)` builds the `decide()` questions. One yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow the `agents` array. Researcher is before writer in that array, so a sequence runs research first.
+Pass the router's `agents` argument to `subagentRoute`. It builds one yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. Researcher is before writer in that array, so a sequence runs research first.
 
 `createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
 
@@ -276,19 +276,18 @@ A router is a function. The library calls it before the main model. It can retur
 Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. `subagentRoute` asks Jev which agents run, and whether that turn is parallel or serial. A `{ names, order }` return overrides the bag default for that turn.
 
 ```typescript ignore
-const route = subagentRoute(agents, {
-  when: {
-    researcher:
-      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
-    writer:
-      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
-  },
-})
-
 subagents: {
   agents,
   strategy: 'exclusive',
-  router: async ({ messages }) => {
+  router: async ({ messages, agents }) => {
+    const route = subagentRoute(agents, {
+      when: {
+        researcher:
+          'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+        writer:
+          'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+      },
+    })
     const result = await decide({
       adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
       state: messages.at(-1),
@@ -381,7 +380,7 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      router: async ({ messages }) => {
+      router: async ({ messages, agents }) => {
         const route = subagentRoute(agents, {
           when: {
             researcher:
