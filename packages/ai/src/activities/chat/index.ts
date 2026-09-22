@@ -45,12 +45,12 @@ import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
-import type { DefinedAgent } from './agents/define-agent'
 import {
   collectSpawnedText,
   createSyntheticSubagentTools,
   normalizeRouterPick,
   spawnNamedAgents,
+  type SubagentsBag,
 } from './agents/spawn'
 import {
   MiddlewareAbortError,
@@ -516,20 +516,7 @@ export interface TextActivityOptions<
    * directly. When `router` is omitted, the main model gets one synthetic
    * server tool per agent and picks the child.
    */
-  subagents?: {
-    agents: ReadonlyArray<DefinedAgent>
-    router?: (ctx: {
-      messages: Array<UIMessage | ModelMessage>
-      agents: ReadonlyArray<DefinedAgent>
-      abortSignal?: AbortSignal
-    }) =>
-      | 'main'
-      | string
-      | ReadonlyArray<string>
-      | Promise<'main' | string | ReadonlyArray<string>>
-    strategy?: 'exclusive' | 'handoff'
-    sandbox?: 'own' | 'inherit'
-  }
+  subagents?: SubagentsBag
   /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:

@@ -50,7 +50,7 @@ export function subagentRoute<
     }
   }
 
-  const questions = {
+  const questions: Record<string, unknown> = {
     order: choice({
       instructions: 'When more than one agent runs, how must they run?',
       options: {
@@ -59,11 +59,11 @@ export function subagentRoute<
           'Run them in agent-list order. Each later agent reads the earlier text.',
       },
     }),
-  } as RouteQuestions<TAgents>
+  }
 
   for (const agent of agents) {
     const when = options?.when?.[agent.name as TAgents[number]['name']]
-    questions[agent.name as TAgents[number]['name']] = boolean({
+    questions[agent.name] = boolean({
       instructions:
         when ?? `Must ${agent.name} run this turn? ${agent.description}`,
     })
@@ -79,5 +79,5 @@ export function subagentRoute<
     return { names, order: result.order.value }
   }
 
-  return { questions, pick }
+  return { questions: questions as RouteQuestions<TAgents>, pick }
 }
