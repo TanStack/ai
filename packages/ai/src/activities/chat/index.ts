@@ -48,12 +48,12 @@ import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
 import {
-  collectSpawnedText,
+  collectNamedText,
   createSyntheticSubagentTools,
   normalizeRouterPick,
   spawnNamedAgents,
-  type SubagentsBag,
 } from './agents/spawn'
+import type { SubagentsBag } from './agents/spawn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -4989,8 +4989,11 @@ async function* runRoutedSubagents(
     abortSignal: options.abortController?.signal,
   })
   const plan = normalizeRouterPick(pick, bag.agents)
-  const names = plan.names
-  if (names.length === 1 && names[0] === 'main') {
+  const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
+  if (
+    onlyStep?.names.length === 1 &&
+    onlyStep.names[0] === 'main'
+  ) {
     yield* runChatEngine(
       { ...options, threadId, runId, subagents: undefined },
       engineRef,
@@ -5005,28 +5008,41 @@ async function* runRoutedSubagents(
     timestamp: Date.now(),
   }
 
-  const spawned: Array<StreamChunk> = []
-  for await (const chunk of spawnNamedAgents(
-    names,
-    {
-      ...bag,
-      order: plan.order ?? bag.order,
-    },
-    {
-      messages,
-      abortSignal: options.abortController?.signal,
-      threadId,
-      parentRunId: runId,
-    },
-  )) {
-    spawned.push(chunk)
-    yield chunk
+  const stepTexts: Array<string> = []
+  let stepMessages = messages
+  let failed = false
+  for (const step of plan.steps) {
+    const stepChunks: Array<StreamChunk> = []
+    for await (const chunk of spawnNamedAgents(
+      step.names,
+      {
+        ...bag,
+        order: step.order ?? bag.order,
+      },
+      {
+        messages: stepMessages,
+        abortSignal: options.abortController?.signal,
+        threadId,
+        parentRunId: runId,
+      },
+    )) {
+      stepChunks.push(chunk)
+      yield chunk
+    }
+    if (stepChunks.some((chunk) => chunk.type === 'SUBAGENT_ERROR')) {
+      failed = true
+      break
+    }
+    const text = collectNamedText(stepChunks, step.names)
+    if (text) {
+      stepTexts.push(text)
+      stepMessages = [...stepMessages, { role: 'assistant', content: text }]
+    }
   }
 
   const strategy = bag.strategy ?? 'exclusive'
-  const failed = spawned.some((chunk) => chunk.type === 'SUBAGENT_ERROR')
   if (strategy === 'handoff') {
-    const childText = collectSpawnedText(spawned)
+    const childText = stepTexts.join('\n\n')
     yield* runChatEngine(
       {
         ...options,

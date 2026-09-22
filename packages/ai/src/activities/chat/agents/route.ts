@@ -12,6 +12,11 @@ export interface SubagentRouteOptions<
    * Omit this and each question uses that agent's description.
    */
   when?: { [K in TAgents[number]['name']]: string }
+  /**
+   * Agents that run after the other selected agents.
+   * The first group starts together. This group reads that text.
+   */
+  then?: ReadonlyArray<TAgents[number]['name']>
 }
 
 type RouteQuestions<TAgents extends ReadonlyArray<DefinedAgent>> = {
@@ -35,17 +40,26 @@ type RouteAnswers<TAgents extends ReadonlyArray<DefinedAgent>> = {
  * Build `decide()` questions for a subagent router.
  *
  * One yes/no question per agent, plus an `order` choice.
- * `pick` returns `main`, one name, or `{ names, order }`.
+ * `pick` returns `main`, one name, `{ names, order }`, or `{ steps }`.
  * Names follow the `agents` array order.
  * `{ names, order }` overrides `subagents.order` for that turn.
+ * `then` builds `{ steps }`: the other names start together, then those agents read that text.
  */
 export function subagentRoute<
   const TAgents extends ReadonlyArray<DefinedAgent>,
 >(agents: TAgents, options?: SubagentRouteOptions<TAgents>) {
+  const namesInList = new Set(agents.map((agent) => agent.name))
   for (const agent of agents) {
     if (agent.name === ORDER_KEY) {
       throw new Error(
         'subagentRoute cannot use an agent named "order". Rename that agent.',
+      )
+    }
+  }
+  for (const name of options?.then ?? []) {
+    if (!namesInList.has(name)) {
+      throw new Error(
+        `subagentRoute then includes unknown agent "${name}".`,
       )
     }
   }
@@ -76,7 +90,20 @@ export function subagentRoute<
     if (names.length === 0) return 'main'
     const only = names.length === 1 ? names[0] : undefined
     if (only !== undefined) return only
-    return { names, order: result.order.value }
+    const later = new Set(options?.then ?? [])
+    const lead = names.filter((name) => !later.has(name))
+    const tail = names.filter((name) => later.has(name))
+    if (lead.length === 0 || tail.length === 0) {
+      return { names, order: result.order.value }
+    }
+    return {
+      steps: [
+        lead.length > 1 ? { names: lead, order: 'parallel' as const } : { names: lead },
+        tail.length > 1
+          ? { names: tail, order: 'sequence' as const }
+          : { names: tail },
+      ],
+    }
   }
 
   return { questions: questions as RouteQuestions<TAgents>, pick }

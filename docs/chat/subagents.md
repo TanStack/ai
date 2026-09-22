@@ -81,6 +81,7 @@ The router can return:
 - one agent name
 - an array of names
 - `{ names, order }`
+- `{ steps }`
 
 `subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
 
@@ -88,7 +89,20 @@ The router can return:
 
 `{ names, order }` overrides that default for one turn. Use it when some turns are parallel and some are serial.
 
-Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. Pass `when` only when you need different question text. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array.
+`{ steps }` runs one group, then the next group. Each group has `names` and an optional `order`. The next group reads the text from the earlier group. Use this when two agents start together and a later agent must read both.
+
+```ts
+const plan = {
+  steps: [
+    { names: ['researcher', 'seo'], order: 'parallel' },
+    { names: ['writer'] },
+  ],
+}
+```
+
+`subagentRoute(agents, { then: ['writer'] })` builds that plan when the writer is selected with other agents. The other names start together. The writer runs after them and reads their text. `then` does not have to list every agent.
+
+Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. Pass `when` only when you need different question text. `when` must include every agent name. `pick` returns `main`, one name, `{ names, order }`, or `{ steps }`. Names follow that `agents` array.
 
 ```ts
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'

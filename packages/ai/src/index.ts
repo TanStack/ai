@@ -92,6 +92,8 @@ export type {
   SubagentOrder,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
 } from './activities/chat/agents/spawn'
 
 // Tool definition

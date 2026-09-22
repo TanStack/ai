@@ -39,11 +39,22 @@ export interface SubagentRouterPlan {
   order?: SubagentOrder
 }
 
+export interface SubagentStep {
+  names: ReadonlyArray<string>
+  /** Overrides `subagents.order` for this step. */
+  order?: SubagentOrder
+}
+
+export interface SubagentStepsPlan {
+  steps: ReadonlyArray<SubagentStep>
+}
+
 export type SubagentRouterPick =
   | 'main'
   | string
   | ReadonlyArray<string>
   | SubagentRouterPlan
+  | SubagentStepsPlan
 
 export interface SubagentsBag<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
@@ -161,37 +172,67 @@ function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   return agent
 }
 
-function isRouterPlan(pick: SubagentRouterPick): pick is SubagentRouterPlan {
-  return typeof pick === 'object' && pick !== null && !Array.isArray(pick)
+const ROUTER_PICK_ERROR =
+  'subagents.router must return main, a name, a list of names, { names, order }, or { steps }.'
+
+function assertOrder(order: SubagentOrder | undefined) {
+  if (order !== undefined && order !== 'parallel' && order !== 'sequence') {
+    throw new Error('subagents.router order must be parallel or sequence.')
+  }
+}
+
+function normalizeNames(
+  names: ReadonlyArray<string>,
+  agents: ReadonlyArray<DefinedAgent>,
+): ReadonlyArray<string> {
+  if (names.length === 0) throw new Error(ROUTER_PICK_ERROR)
+  const hasMain = names.includes('main')
+  if (hasMain && names.length > 1) {
+    throw new Error('Do not mix main into a subagent list.')
+  }
+  if (hasMain) return ['main']
+  for (const name of names) agentByName(agents, name)
+  return [...names]
+}
+
+function isStringList(
+  pick: SubagentRouterPick,
+): pick is ReadonlyArray<string> {
+  return Array.isArray(pick)
 }
 
 export function normalizeRouterPick(
   pick: SubagentRouterPick,
   agents: ReadonlyArray<DefinedAgent>,
-): { names: ReadonlyArray<string>; order?: SubagentOrder } {
-  const order = isRouterPlan(pick) ? pick.order : undefined
-  if (order !== undefined && order !== 'parallel' && order !== 'sequence') {
-    throw new Error('subagents.router order must be parallel or sequence.')
+): { steps: ReadonlyArray<SubagentStep> } {
+  if (pick === 'main' || typeof pick === 'string') {
+    return { steps: [{ names: normalizeNames([pick], agents) }] }
   }
-  const names = isRouterPlan(pick)
-    ? [...pick.names]
-    : Array.isArray(pick)
-      ? [...pick]
-      : [pick]
-  if (names.length === 0) {
-    throw new Error(
-      'subagents.router must return main, a name, a list of names, or { names, order }.',
-    )
+  if (isStringList(pick)) {
+    return { steps: [{ names: normalizeNames(pick, agents) }] }
   }
-  const hasMain = names.includes('main')
-  if (hasMain && names.length > 1) {
-    throw new Error('Do not mix main into a subagent list.')
+  if ('steps' in pick) {
+    if (pick.steps.length === 0) throw new Error(ROUTER_PICK_ERROR)
+    const steps = pick.steps.map((step) => {
+      assertOrder(step.order)
+      const names = normalizeNames(step.names, agents)
+      return step.order === undefined
+        ? { names }
+        : { names, order: step.order }
+    })
+    const flat = steps.flatMap((step) => step.names)
+    if (flat.includes('main') && flat.length > 1) {
+      throw new Error('Do not mix main into a subagent list.')
+    }
+    return { steps }
   }
-  if (hasMain) return { names: ['main'] }
-  for (const name of names) {
-    agentByName(agents, name)
+  assertOrder(pick.order)
+  const names = normalizeNames(pick.names, agents)
+  return {
+    steps: [
+      pick.order === undefined ? { names } : { names, order: pick.order },
+    ],
   }
-  return order === undefined ? { names } : { names, order }
 }
 
 function isLifecycleChunk(chunk: StreamChunk) {
@@ -352,6 +393,32 @@ export function collectSpawnedText(chunks: Array<StreamChunk>) {
     }
   }
   return text
+}
+
+export function collectNamedText(
+  chunks: Array<StreamChunk>,
+  names: ReadonlyArray<string>,
+) {
+  const nameByRunId = new Map<string, string>()
+  const textByName = new Map<string, string>()
+  for (const chunk of chunks) {
+    if (chunk.type === SUBAGENT_STARTED) {
+      nameByRunId.set(chunk.subagentRunId, chunk.name)
+      continue
+    }
+    if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
+    if (!('delta' in chunk) || typeof chunk.delta !== 'string') continue
+    if (!('subagentRunId' in chunk) || typeof chunk.subagentRunId !== 'string') {
+      continue
+    }
+    const name = nameByRunId.get(chunk.subagentRunId)
+    if (!name) continue
+    textByName.set(name, `${textByName.get(name) ?? ''}${chunk.delta}`)
+  }
+  return names
+    .map((name) => textByName.get(name)?.trim() ?? '')
+    .filter((text) => text.length > 0)
+    .join('\n\n')
 }
 
 export function createSyntheticSubagentTools(

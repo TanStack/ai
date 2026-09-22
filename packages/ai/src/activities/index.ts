@@ -50,6 +50,8 @@ export type {
   SubagentOrder,
   SubagentRouterPick,
   SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
 } from './chat/agents/spawn'
 
 export {

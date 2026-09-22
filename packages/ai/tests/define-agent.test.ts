@@ -114,6 +114,42 @@ describe('subagentRoute', () => {
     ).toBe('main')
   })
 
+  it('builds a later step for agents named in then', () => {
+    const desk = [
+      ...agents,
+      defineAgent({
+        name: 'seo',
+        description: 'Suggests titles',
+        run: async function* () {},
+      }),
+    ] as const
+    const route = subagentRoute(desk, { then: ['writer'] })
+    expect(
+      route.pick({
+        researcher: { value: true },
+        writer: { value: true },
+        seo: { value: true },
+        order: { value: 'sequence' },
+      }),
+    ).toEqual({
+      steps: [
+        { names: ['researcher', 'seo'], order: 'parallel' },
+        { names: ['writer'] },
+      ],
+    })
+    expect(
+      route.pick({
+        researcher: { value: true },
+        writer: { value: false },
+        seo: { value: true },
+        order: { value: 'parallel' },
+      }),
+    ).toEqual({
+      names: ['researcher', 'seo'],
+      order: 'parallel',
+    })
+  })
+
   it('rejects an agent named order', () => {
     expect(() =>
       subagentRoute([
@@ -367,6 +403,113 @@ describe('chat({ subagents }) router spawn', () => {
     expect(researcherFinished).toBeGreaterThan(-1)
     expect(writerStarted).toBeGreaterThan(researcherFinished)
     expect(writerSaw).toContain('Squids have three hearts.')
+  })
+
+  it('runs a parallel step and then feeds both texts to the writer', async () => {
+    let writerSaw = ''
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [
+          {
+            role: 'user',
+            content: 'Research squids, suggest SEO, and write the article',
+          },
+        ],
+        subagents: {
+          agents: [
+            researcherAgent('Squids have three hearts.'),
+            defineAgent({
+              name: 'seo',
+              description: 'Suggests titles',
+              run: () =>
+                chat({
+                  adapter: childTextAdapter('Title: Three hearts'),
+                  messages: [],
+                }),
+            }),
+            defineAgent({
+              name: 'writer',
+              description: 'Writes the post',
+              run: async function* (ctx) {
+                writerSaw = ctx.messages
+                  .map((message) =>
+                    'content' in message ? String(message.content) : '',
+                  )
+                  .join('\n')
+              },
+            }),
+          ],
+          strategy: 'exclusive',
+          router: () => ({
+            steps: [
+              { names: ['researcher', 'seo'], order: 'parallel' },
+              { names: ['writer'] },
+            ],
+          }),
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const writerStarted = chunks.findIndex(
+      (chunk) => chunk.type === 'SUBAGENT_STARTED' && chunk.name === 'writer',
+    )
+    const researcherFinished = chunks.findIndex(
+      (chunk) =>
+        chunk.type === 'SUBAGENT_FINISHED' &&
+        chunks.some(
+          (started) =>
+            started.type === 'SUBAGENT_STARTED' &&
+            started.name === 'researcher' &&
+            started.subagentRunId === chunk.subagentRunId,
+        ),
+    )
+    const seoFinished = chunks.findIndex(
+      (chunk) =>
+        chunk.type === 'SUBAGENT_FINISHED' &&
+        chunks.some(
+          (started) =>
+            started.type === 'SUBAGENT_STARTED' &&
+            started.name === 'seo' &&
+            started.subagentRunId === chunk.subagentRunId,
+        ),
+    )
+    expect(writerStarted).toBeGreaterThan(researcherFinished)
+    expect(writerStarted).toBeGreaterThan(seoFinished)
+    expect(writerSaw).toContain('Squids have three hearts.')
+    expect(writerSaw).toContain('Title: Three hearts')
+  })
+
+  it('does not start the next step after a subagent error', async () => {
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: {
+          agents: [
+            defineAgent({
+              name: 'researcher',
+              description: 'Looks up facts',
+              run: async function* () {
+                throw new Error('lookup failed')
+              },
+            }),
+            namedAgent('writer'),
+          ],
+          strategy: 'exclusive',
+          router: () => ({
+            steps: [{ names: ['researcher'] }, { names: ['writer'] }],
+          }),
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(
+      chunks.some(
+        (chunk) => chunk.type === 'SUBAGENT_STARTED' && chunk.name === 'writer',
+      ),
+    ).toBe(false)
+    expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(true)
   })
 
   it('gives each parallel routed child its own threadId', async () => {
