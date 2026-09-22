@@ -2,10 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
   chatParamsFromRequest,
-  choice,
   decide,
+  subagentRoute,
   toServerSentEventsResponse,
-  type SubagentChoiceOptions,
 } from '@tanstack/ai'
 import {
   createOpenRouterDecider,
@@ -40,22 +39,20 @@ export async function POST({ request }: { request: Request }) {
       agents,
       strategy: 'exclusive',
       router: async ({ messages }) => {
+        const route = subagentRoute(agents, {
+          when: {
+            researcher:
+              'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+            writer:
+              'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+          },
+        })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
           state: messages.at(-1),
-          questions: {
-            target: choice({
-              instructions:
-                'Who must handle this turn for a blog-writing desk?',
-              options: {
-                main: 'General chat, greetings, or a mixed question',
-                researcher: agents[0].description,
-                writer: agents[1].description,
-              } satisfies SubagentChoiceOptions<typeof agents>,
-            }),
-          },
+          questions: route.questions,
         })
-        return result.target.value
+        return route.pick(result)
       },
     },
   })

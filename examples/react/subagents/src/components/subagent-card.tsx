@@ -1,22 +1,67 @@
+import { TextPart } from '@tanstack/ai-react/ui'
 import type { SubagentProps } from '@tanstack/ai-react/ui'
+import { useChatContext } from '@/chat-ui'
 import type { BlogChatOptions } from '@/chat-ui'
 
-function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
+type NoteMessage = {
+  parts?: ReadonlyArray<{
+    type: string
+    content?: string
+    subagent?: { name: string; messages: ReadonlyArray<NoteMessage> }
+  }>
+}
+
+function textFrom(messages: ReadonlyArray<NoteMessage>): string {
+  return messages
+    .flatMap((message) => message.parts ?? [])
+    .flatMap((part) => {
+      if (part.type === 'text' && part.content) return [part.content]
+      if (part.type === 'subagent' && part.subagent?.name === 'researcher') {
+        return [textFrom(part.subagent.messages)]
+      }
+      return []
+    })
+    .filter((text) => text.length > 0)
+    .join('\n\n')
+}
+
+function AgentHeader({
+  name,
+  status,
+  onStop,
+}: {
+  name: string
+  status: string
+  onStop?: () => void
+}) {
   return (
-    <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3">
-      <header className="mb-2 flex flex-wrap items-center gap-2">
-        <strong className="text-sm text-orange-300">{subagent.name}</strong>
-        <span className="text-xs text-gray-400">{subagent.status}</span>
-        {subagent.status === 'running' ? (
-          <button
-            type="button"
-            onClick={() => subagent.stop?.()}
-            className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-          >
-            Stop
-          </button>
-        ) : null}
-      </header>
+    <header className="mb-3 flex flex-wrap items-center gap-2">
+      <strong className="text-sm uppercase tracking-wide">{name}</strong>
+      <span className="text-xs opacity-70">{status}</span>
+      {status === 'running' && onStop ? (
+        <button
+          type="button"
+          onClick={onStop}
+          className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+        >
+          Stop
+        </button>
+      ) : null}
+    </header>
+  )
+}
+
+export function Researcher({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'researcher'>) {
+  return (
+    <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3 text-gray-100">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
@@ -27,12 +72,30 @@ function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
   )
 }
 
-export function Researcher(
-  props: SubagentProps<BlogChatOptions, 'researcher'>,
-) {
-  return <SubagentShell {...props} />
-}
+export function Writer({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'writer'>) {
+  const chat = useChatContext()
+  const notes = textFrom(chat.messages as ReadonlyArray<NoteMessage>)
 
-export function Writer(props: SubagentProps<BlogChatOptions, 'writer'>) {
-  return <SubagentShell {...props} />
+  return (
+    <article className="writer-article">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
+      {subagent.error ? (
+        <p className="text-sm text-red-700">{subagent.error.message}</p>
+      ) : null}
+      {notes ? (
+        <details className="writer-notes">
+          <summary>Notes the writer received</summary>
+          <TextPart className="chat-markdown" content={notes} />
+        </details>
+      ) : null}
+      <Parts />
+    </article>
+  )
 }

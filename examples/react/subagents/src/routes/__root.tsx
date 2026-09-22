@@ -1,4 +1,6 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -34,6 +36,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="min-h-screen bg-gray-900">
         {children}
+        <TanStackDevtools
+          config={{ position: 'bottom-right' }}
+          plugins={[aiDevtoolsPlugin()]}
+        />
         <Scripts />
       </body>
     </html>

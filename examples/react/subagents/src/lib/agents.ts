@@ -12,7 +12,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You research for a blog desk. Reply with short notes and sources. Do not write the full post.',
+          'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
         ],
       }),
   })
@@ -27,7 +27,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You write blog posts. Use a clear title, short sections, and a closing line.',
+          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes, write only from those notes. Do not add facts that are not in the notes.',
         ],
       }),
   })

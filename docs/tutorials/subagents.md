@@ -36,7 +36,7 @@ You need the core SDK, the React UI factory, and OpenRouter for chat and for Jev
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter @tanstack/react-devtools @tanstack/react-ai-devtools
 
 <!-- ::end:tabs -->
 
@@ -195,7 +195,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You write blog posts. Use a clear title, short sections, and a closing line.',
+          'You write blog posts. Use a clear title, short sections, and a closing line. When earlier messages contain research notes, write the post from those notes.',
         ],
       }),
   })
@@ -262,17 +262,29 @@ A router is a function. The library calls it before the main model. It can retur
 
 - `'main'`: the parent `chat()` runs as usual
 - `'researcher'` or `'writer'`: that child's `run` starts
-- an array of names: those children start together
+- an array of names: those children use `subagents.order`
+- `{ names, order }`: this turn overrides `subagents.order`
 
-Jev is `decide()` plus `choice()`. Options must include `main` plus every agent name. Jev reads the last message and returns one of those keys.
+`order: 'parallel'` starts the names together. They do not read each other. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
+
+`subagentRoute(agents)` builds the `decide()` questions. One yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow the `agents` array. Researcher is before writer in that array, so a sequence runs research first.
 
 `createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
 
 ## 9. Add Jev as the router
 
-Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. Return `result.target.value`.
+Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. `subagentRoute` asks Jev which agents run, and whether that turn is parallel or serial. A `{ names, order }` return overrides the bag default for that turn.
 
 ```typescript ignore
+const route = subagentRoute(agents, {
+  when: {
+    researcher:
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+    writer:
+      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+  },
+})
+
 subagents: {
   agents,
   strategy: 'exclusive',
@@ -280,24 +292,16 @@ subagents: {
     const result = await decide({
       adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
       state: messages.at(-1),
-      questions: {
-        target: choice({
-          instructions:
-            'Who must handle this turn for a blog-writing desk?',
-          options: {
-            main: 'General chat, greetings, or a mixed question',
-            researcher: agents[0].description,
-            writer: agents[1].description,
-          } satisfies SubagentChoiceOptions<typeof agents>,
-        }),
-      },
+      questions: route.questions,
     })
-    return result.target.value
+    return route.pick(result)
   },
 },
 ```
 
-If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user says hello, Jev returns `main`.
+If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user asks for research and an article, Jev returns both names and chooses `sequence` or `parallel`. A sequence runs the researcher first. The writer then reads those notes. If the user says hello, Jev returns `main`.
+
+Two research tasks that do not depend on each other use `parallel`. Add one `defineAgent` per task, for example `squidResearch` and `octopusResearch`. Jev can return `{ names: ['squidResearch', 'octopusResearch'], order: 'parallel' }`.
 
 Add these imports:
 
@@ -305,10 +309,9 @@ Add these imports:
 import {
   chat,
   chatParamsFromRequest,
-  choice,
   decide,
+  subagentRoute,
   toServerSentEventsResponse,
-  type SubagentChoiceOptions,
 } from '@tanstack/ai'
 import {
   createOpenRouterDecider,
@@ -342,10 +345,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
   chatParamsFromRequest,
-  choice,
   decide,
+  subagentRoute,
   toServerSentEventsResponse,
-  type SubagentChoiceOptions,
 } from '@tanstack/ai'
 import {
   createOpenRouterDecider,
@@ -380,22 +382,20 @@ export async function POST({ request }: { request: Request }) {
       agents,
       strategy: 'exclusive',
       router: async ({ messages }) => {
+        const route = subagentRoute(agents, {
+          when: {
+            researcher:
+              'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+            writer:
+              'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+          },
+        })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
           state: messages.at(-1),
-          questions: {
-            target: choice({
-              instructions:
-                'Who must handle this turn for a blog-writing desk?',
-              options: {
-                main: 'General chat, greetings, or a mixed question',
-                researcher: agents[0].description,
-                writer: agents[1].description,
-              } satisfies SubagentChoiceOptions<typeof agents>,
-            }),
-          },
+          questions: route.questions,
         })
-        return result.target.value
+        return route.pick(result)
       },
     },
   })
@@ -415,10 +415,9 @@ export const Route = createFileRoute('/api/chat')({
 
 The public factory is `createChatHook` from `@tanstack/ai-react/ui`. It calls `createChatUI` and binds `useChat`.
 
-Create `src/chat-ui.tsx`. Register `layout`, `message`, and `input`. The layout props type is `LayoutProps`. It includes `Messages`, `Subagents`, and `Input`. Render those components. `input` calls `useChatContext()` to send.
+Create `src/chat-ui.tsx`. Register `layout`, `message`, and `input`. The layout props type is `LayoutProps`. Render `Messages` and `Input`. The subagent card is a part of the assistant message. `input` calls `useChatContext()` to send.
 
 ```tsx ignore
-import type { ReactNode } from 'react'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook, type LayoutProps } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
@@ -434,7 +433,6 @@ export const { useAppChat, useChatContext } = createChatHook({
   components: {
     layout: function Layout({
       Messages,
-      Subagents,
       Input,
     }: LayoutProps<typeof chatOptions>) {
       return (
@@ -445,7 +443,6 @@ export const { useAppChat, useChatContext } = createChatHook({
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <Messages />
           </div>
-          <Subagents />
           <Input />
         </div>
       )
@@ -457,7 +454,7 @@ export const { useAppChat, useChatContext } = createChatHook({
         </article>
       )
     },
-    input: function Input(): ReactNode {
+    input: function Input() {
       const chat = useChatContext()
       return (
         <form
@@ -492,42 +489,89 @@ export const { useAppChat, useChatContext } = createChatHook({
 Add `partsComponents.text`. The factory now draws assistant text.
 
 ```tsx ignore
+import { TextPart } from '@tanstack/ai-react/ui'
+
 partsComponents: {
   text: ({ part }) => (
-    <div className="whitespace-pre-wrap text-white">{part.content}</div>
+    <TextPart className="chat-markdown" content={part.content} />
   ),
   fallback: () => null,
 },
 ```
 
-A `type: 'subagent'` part still needs a named component. The next step adds those.
+`TextPart` renders Markdown. Research notes and the article both use it. A `type: 'subagent'` part still needs a named component. The next step adds those.
 
 ## 13. Create the subagent components
 
 Create `src/components/subagent-card.tsx`. Each agent name gets a component. The props type is `SubagentProps`. It gives you `subagent` and `Parts`.
 
-Render `<Parts />` for the child text. `stop()` aborts the current parent run.
+The researcher card shows the notes. The writer card is an article. Open **Notes the writer received**. That block is the exact text passed into the writer. `stop()` aborts the current parent run.
 
 ```tsx ignore
+import { TextPart } from '@tanstack/ai-react/ui'
 import type { SubagentProps } from '@tanstack/ai-react/ui'
+import { useChatContext } from '@/chat-ui'
 import type { BlogChatOptions } from '@/chat-ui'
 
-function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
+type NoteMessage = {
+  parts?: ReadonlyArray<{
+    type: string
+    content?: string
+    subagent?: { name: string; messages: ReadonlyArray<NoteMessage> }
+  }>
+}
+
+function textFrom(messages: ReadonlyArray<NoteMessage>): string {
+  return messages
+    .flatMap((message) => message.parts ?? [])
+    .flatMap((part) => {
+      if (part.type === 'text' && part.content) return [part.content]
+      if (part.type === 'subagent' && part.subagent?.name === 'researcher') {
+        return [textFrom(part.subagent.messages)]
+      }
+      return []
+    })
+    .filter((text) => text.length > 0)
+    .join('\n\n')
+}
+
+function AgentHeader({
+  name,
+  status,
+  onStop,
+}: {
+  name: string
+  status: string
+  onStop?: () => void
+}) {
   return (
-    <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3">
-      <header className="mb-2 flex flex-wrap items-center gap-2">
-        <strong className="text-sm text-orange-300">{subagent.name}</strong>
-        <span className="text-xs text-gray-400">{subagent.status}</span>
-        {subagent.status === 'running' ? (
-          <button
-            type="button"
-            onClick={() => subagent.stop?.()}
-            className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-          >
-            Stop
-          </button>
-        ) : null}
-      </header>
+    <header className="mb-3 flex flex-wrap items-center gap-2">
+      <strong className="text-sm uppercase tracking-wide">{name}</strong>
+      <span className="text-xs opacity-70">{status}</span>
+      {status === 'running' && onStop ? (
+        <button
+          type="button"
+          onClick={onStop}
+          className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
+        >
+          Stop
+        </button>
+      ) : null}
+    </header>
+  )
+}
+
+export function Researcher({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'researcher'>) {
+  return (
+    <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3 text-gray-100">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
@@ -538,14 +582,32 @@ function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
   )
 }
 
-export function Researcher(
-  props: SubagentProps<BlogChatOptions, 'researcher'>,
-) {
-  return <SubagentShell {...props} />
-}
+export function Writer({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'writer'>) {
+  const chat = useChatContext()
+  const notes = textFrom(chat.messages as ReadonlyArray<NoteMessage>)
 
-export function Writer(props: SubagentProps<BlogChatOptions, 'writer'>) {
-  return <SubagentShell {...props} />
+  return (
+    <article className="writer-article">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
+      {subagent.error ? (
+        <p className="text-sm text-red-700">{subagent.error.message}</p>
+      ) : null}
+      {notes ? (
+        <details className="writer-notes">
+          <summary>Notes the writer received</summary>
+          <TextPart className="chat-markdown" content={notes} />
+        </details>
+      ) : null}
+      <Parts />
+    </article>
+  )
 }
 ```
 
@@ -553,12 +615,76 @@ export function Writer(props: SubagentProps<BlogChatOptions, 'writer'>) {
 
 Put the agent names on `options.subagents`. Each key is a name. Then pass `subagentsComponents` with the same keys. TypeScript requires every key. The factory throws if a spawned name is missing.
 
+Create `src/components/chat-input.tsx`. The form calls `useChatContext()` to send. It has no return type.
+
+```tsx ignore
+import { useChatContext } from '@/chat-ui'
+
+export function ChatInput() {
+  const chat = useChatContext()
+  return (
+    <>
+      {chat.error ? (
+        <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {chat.error.message}
+        </div>
+      ) : null}
+      {chat.isLoading ? (
+        <div className="mb-3 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={chat.stop}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Stop
+          </button>
+        </div>
+      ) : null}
+      <form
+        className="border-t border-orange-500/10 bg-gray-900/80 px-4 py-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const field = event.currentTarget.elements.namedItem('message')
+          if (!(field instanceof HTMLTextAreaElement)) return
+          const text = field.value.trim()
+          if (!text) return
+          field.value = ''
+          void chat.sendMessage(text)
+        }}
+      >
+        <div className="flex items-end gap-2">
+          <textarea
+            name="message"
+            rows={1}
+            disabled={chat.isLoading}
+            placeholder="Ask for research, or ask for a draft..."
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey) return
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }}
+            className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+          />
+          <button
+            type="submit"
+            disabled={chat.isLoading}
+            className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </form>
+    </>
+  )
+}
+```
+
 The finished factory is `src/chat-ui.tsx`:
 
 ```tsx ignore
-import type { ReactNode } from 'react'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatHook, type LayoutProps } from '@tanstack/ai-react/ui'
+import { createChatHook, TextPart, type LayoutProps } from '@tanstack/ai-react/ui'
+import { ChatInput } from '@/components/chat-input'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { Researcher, Writer } from '@/components/subagent-card'
 import { byok } from '@/lib/byok'
@@ -583,7 +709,6 @@ export const { useAppChat, useChatContext } = createChatHook({
   components: {
     layout: function Layout({
       Messages,
-      Subagents,
       Input,
     }: LayoutProps<typeof chatOptions>) {
       return (
@@ -595,9 +720,6 @@ export const { useAppChat, useChatContext } = createChatHook({
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <Messages />
           </div>
-          <aside className="border-t border-orange-500/10 px-4 py-3">
-            <Subagents />
-          </aside>
           <Input />
         </div>
       )
@@ -606,7 +728,7 @@ export const { useAppChat, useChatContext } = createChatHook({
       return (
         <article
           data-role={message.role}
-          className={`mb-2 rounded-lg p-4 ${
+          className={`mb-2 rounded-lg p-4 text-gray-100 ${
             message.role === 'assistant'
               ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
               : 'bg-transparent'
@@ -616,62 +738,11 @@ export const { useAppChat, useChatContext } = createChatHook({
         </article>
       )
     },
-    input: function Input(): ReactNode {
-      const chat = useChatContext()
-      return (
-        <>
-          {chat.error ? (
-            <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-              {chat.error.message}
-            </div>
-          ) : null}
-          {chat.isLoading ? (
-            <div className="mb-3 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={chat.stop}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Stop
-              </button>
-            </div>
-          ) : null}
-          <form
-            className="border-t border-orange-500/10 bg-gray-900/80 px-4 py-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const field = event.currentTarget.elements.namedItem('message')
-              if (!(field instanceof HTMLTextAreaElement)) return
-              const text = field.value.trim()
-              if (!text) return
-              field.value = ''
-              void chat.sendMessage(text)
-            }}
-          >
-            <div className="flex items-end gap-2">
-              <textarea
-                name="message"
-                rows={1}
-                disabled={chat.isLoading}
-                placeholder="Ask for research, or ask for a draft..."
-                className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-              />
-              <button
-                type="submit"
-                disabled={chat.isLoading}
-                className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
-          </form>
-        </>
-      )
-    },
+    input: ChatInput,
   },
   partsComponents: {
     text: ({ part }) => (
-      <div className="whitespace-pre-wrap text-white">{part.content}</div>
+      <TextPart className="chat-markdown" content={part.content} />
     ),
     fallback: () => null,
   },
@@ -698,7 +769,21 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-## 15. Try it
+## 15. Add AI devtools
+
+In `src/routes/__root.tsx`, mount the devtools panel. Open the TanStack button at the bottom right, then open AI. The writer run lists the messages it received. The research notes are the assistant message before the article.
+
+```tsx ignore
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
+
+<TanStackDevtools
+  config={{ position: 'bottom-right' }}
+  plugins={[aiDevtoolsPlugin()]}
+/>
+```
+
+## 16. Try it
 
 1. Run the app.
 2. Paste an OpenRouter key.
