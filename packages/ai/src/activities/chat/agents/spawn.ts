@@ -195,9 +195,7 @@ function normalizeNames(
   return [...names]
 }
 
-function isStringList(
-  pick: SubagentRouterPick,
-): pick is ReadonlyArray<string> {
+function isStringList(pick: SubagentRouterPick): pick is ReadonlyArray<string> {
   return Array.isArray(pick)
 }
 
@@ -216,9 +214,7 @@ export function normalizeRouterPick(
     const steps = pick.steps.map((step) => {
       assertOrder(step.order)
       const names = normalizeNames(step.names, agents)
-      return step.order === undefined
-        ? { names }
-        : { names, order: step.order }
+      return step.order === undefined ? { names } : { names, order: step.order }
     })
     const flat = steps.flatMap((step) => step.names)
     if (flat.includes('main') && flat.length > 1) {
@@ -408,7 +404,10 @@ export function collectNamedText(
     }
     if (chunk.type !== EventType.TEXT_MESSAGE_CONTENT) continue
     if (!('delta' in chunk) || typeof chunk.delta !== 'string') continue
-    if (!('subagentRunId' in chunk) || typeof chunk.subagentRunId !== 'string') {
+    if (
+      !('subagentRunId' in chunk) ||
+      typeof chunk.subagentRunId !== 'string'
+    ) {
       continue
     }
     const name = nameByRunId.get(chunk.subagentRunId)

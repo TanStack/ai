@@ -58,9 +58,7 @@ export function subagentRoute<
   }
   for (const name of options?.then ?? []) {
     if (!namesInList.has(name)) {
-      throw new Error(
-        `subagentRoute then includes unknown agent "${name}".`,
-      )
+      throw new Error(`subagentRoute then includes unknown agent "${name}".`)
     }
   }
 
@@ -98,7 +96,9 @@ export function subagentRoute<
     }
     return {
       steps: [
-        lead.length > 1 ? { names: lead, order: 'parallel' as const } : { names: lead },
+        lead.length > 1
+          ? { names: lead, order: 'parallel' as const }
+          : { names: lead },
         tail.length > 1
           ? { names: tail, order: 'sequence' as const }
           : { names: tail },

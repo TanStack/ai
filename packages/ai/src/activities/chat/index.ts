@@ -4990,10 +4990,7 @@ async function* runRoutedSubagents(
   })
   const plan = normalizeRouterPick(pick, bag.agents)
   const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
-  if (
-    onlyStep?.names.length === 1 &&
-    onlyStep.names[0] === 'main'
-  ) {
+  if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
     yield* runChatEngine(
       { ...options, threadId, runId, subagents: undefined },
       engineRef,
