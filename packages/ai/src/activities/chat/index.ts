@@ -4693,7 +4693,8 @@ export function chat<
   > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
-  const TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+  const TAgents extends ReadonlyArray<DefinedAgent> =
+    ReadonlyArray<DefinedAgent>,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
