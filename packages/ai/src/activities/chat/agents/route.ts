@@ -8,10 +8,10 @@ export interface SubagentRouteOptions<
   TAgents extends ReadonlyArray<DefinedAgent>,
 > {
   /**
-   * Question text for each agent. The key is the agent name.
-   * When a name is missing, the helper uses that agent's description.
+   * Question text for every agent. The key is the agent name.
+   * Omit this and each question uses that agent's description.
    */
-  when?: { [K in TAgents[number]['name']]?: string }
+  when?: { [K in TAgents[number]['name']]: string }
 }
 
 type RouteQuestions<TAgents extends ReadonlyArray<DefinedAgent>> = {
@@ -64,8 +64,7 @@ export function subagentRoute<
   for (const agent of agents) {
     const when = options?.when?.[agent.name as TAgents[number]['name']]
     questions[agent.name] = boolean({
-      instructions:
-        when ?? `Must ${agent.name} run this turn? ${agent.description}`,
+      instructions: when ?? agent.description,
     })
   }
 

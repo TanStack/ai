@@ -76,6 +76,18 @@ describe('subagentRoute', () => {
     expect(route.questions.researcher.instructions).toBe(
       'Does this turn need facts?',
     )
+    expect(subagentRoute(agents).questions.researcher.instructions).toBe(
+      'Looks up facts',
+    )
+    expect(subagentRoute(agents).questions.writer.instructions).toBe(
+      'Writes the post',
+    )
+    subagentRoute(agents, {
+      // @ts-expect-error writer is required when `when` is set
+      when: {
+        researcher: 'Does this turn need facts?',
+      },
+    })
     expect(
       route.pick({
         researcher: { value: true },

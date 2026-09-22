@@ -86,7 +86,7 @@ The router can return:
 
 `{ names, order }` overrides that default for one turn. Use it when some turns are parallel and some are serial.
 
-Pass the router's `agents` argument to `subagentRoute`. It builds one yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array.
+Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. Pass `when` only when you need different question text. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array.
 
 ```ts
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'

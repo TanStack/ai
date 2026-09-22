@@ -45,6 +45,7 @@ import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import type { DefinedAgent } from './agents/define-agent'
 import {
   collectSpawnedText,
   createSyntheticSubagentTools,
@@ -400,8 +401,9 @@ type TextActivityOptionsWithContext<
     [],
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > = Omit<
-  TextActivityOptions<TAdapter, TSchema, TStream, any>,
+  TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
   'tools' | 'middleware' | 'context' | 'interrupts'
 > & {
   tools?: TTools
@@ -427,6 +429,7 @@ export interface TextActivityOptions<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
   TContext = unknown,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
@@ -516,7 +519,7 @@ export interface TextActivityOptions<
    * directly. When `router` is omitted, the main model gets one synthetic
    * server tool per agent and picks the child.
    */
-  subagents?: SubagentsBag
+  subagents?: SubagentsBag<TAgents>
   /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:
@@ -4690,6 +4693,7 @@ export function chat<
   > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
+  const TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
@@ -4698,7 +4702,8 @@ export function chat<
     TTools,
     TInterrupts,
     TContext,
-    TMiddleware
+    TMiddleware,
+    TAgents
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
   validateInterruptDefinitions(options.interrupts)
@@ -4751,7 +4756,10 @@ type RuntimeTextActivityOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
-> = Omit<TextActivityOptions<TAdapter, TSchema, TStream, any>, 'middleware'> & {
+> = Omit<
+  TextActivityOptions<TAdapter, TSchema, TStream, any, any>,
+  'middleware'
+> & {
   middleware?: Array<AnyChatMiddleware>
 }
 
@@ -4780,6 +4788,7 @@ function toRuntimeTextActivityOptions<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
   TContext,
   TMiddleware extends Array<unknown> | undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
@@ -4788,7 +4797,8 @@ function toRuntimeTextActivityOptions<
     TTools,
     TInterrupts,
     TContext,
-    TMiddleware
+    TMiddleware,
+    TAgents
   >,
   overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
 ): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {

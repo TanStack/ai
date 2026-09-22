@@ -45,11 +45,13 @@ export type SubagentRouterPick =
   | ReadonlyArray<string>
   | SubagentRouterPlan
 
-export interface SubagentsBag {
-  agents: ReadonlyArray<DefinedAgent>
+export interface SubagentsBag<
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+> {
+  agents: TAgents
   router?: (ctx: {
     messages: SubagentRunContext['messages']
-    agents: ReadonlyArray<DefinedAgent>
+    agents: NoInfer<TAgents>
     abortSignal?: AbortSignal
   }) => SubagentRouterPick | Promise<SubagentRouterPick>
   strategy?: 'exclusive' | 'handoff'
