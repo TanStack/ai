@@ -84,6 +84,15 @@ export {
   type SubagentChoiceOptions,
   type SubagentRunContext,
 } from './activities/chat/agents/define-agent'
+export {
+  subagentRoute,
+  type SubagentRouteOptions,
+} from './activities/chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+} from './activities/chat/agents/spawn'
 
 // Tool definition
 export {

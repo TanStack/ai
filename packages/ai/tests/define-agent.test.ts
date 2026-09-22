@@ -3,6 +3,7 @@ import {
   defineAgent,
   type DefinedAgent,
 } from '../src/activities/chat/agents/define-agent'
+import { subagentRoute } from '../src/activities/chat/agents/route'
 import { chat } from '../src/activities/chat'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
@@ -49,6 +50,70 @@ function namedAgent(name: string, run?: DefinedAgent['run']) {
     run: run ?? async function* () {},
   })
 }
+
+describe('subagentRoute', () => {
+  const agents = [
+    defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      run: async function* () {},
+    }),
+    defineAgent({
+      name: 'writer',
+      description: 'Writes the post',
+      run: async function* () {},
+    }),
+  ] as const
+
+  it('maps yes/no answers onto names and order', () => {
+    const route = subagentRoute(agents, {
+      when: {
+        researcher: 'Does this turn need facts?',
+        writer: 'Does this turn need a draft?',
+      },
+    })
+
+    expect(route.questions.researcher.instructions).toBe(
+      'Does this turn need facts?',
+    )
+    expect(
+      route.pick({
+        researcher: { value: true },
+        writer: { value: true },
+        order: { value: 'sequence' },
+      }),
+    ).toEqual({
+      names: ['researcher', 'writer'],
+      order: 'sequence',
+    })
+    expect(
+      route.pick({
+        researcher: { value: true },
+        writer: { value: false },
+        order: { value: 'parallel' },
+      }),
+    ).toBe('researcher')
+    expect(
+      route.pick({
+        researcher: { value: false },
+        writer: { value: false },
+        order: { value: 'parallel' },
+      }),
+    ).toBe('main')
+  })
+
+  it('rejects an agent named order', () => {
+    expect(() =>
+      subagentRoute([
+        defineAgent({
+          name: 'order',
+          description: 'Bad name',
+          run: async function* () {},
+        }),
+      ]),
+    ).toThrow('subagentRoute cannot use an agent named "order"')
+  })
+})
 
 describe('defineAgent', () => {
   it('stores name, description, and run', () => {
@@ -172,6 +237,124 @@ describe('chat({ subagents }) router spawn', () => {
     expect(
       chunks.find((chunk) => chunk.type === 'SUBAGENT_ERROR'),
     ).toMatchObject({ type: 'SUBAGENT_ERROR', message: 'Stopped' })
+  })
+
+  it('lets the router override bag order with a sequence plan', async () => {
+    let writerSaw = ''
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [
+          { role: 'user', content: 'Research squids and write an article' },
+        ],
+        subagents: {
+          agents: [
+            researcherAgent('Squids have three hearts.'),
+            defineAgent({
+              name: 'writer',
+              description: 'Writes the post',
+              run: async function* (ctx) {
+                writerSaw = ctx.messages
+                  .map((message) =>
+                    'content' in message ? String(message.content) : '',
+                  )
+                  .join('\n')
+              },
+            }),
+          ],
+          strategy: 'exclusive',
+          order: 'parallel',
+          router: () => ({
+            names: ['researcher', 'writer'],
+            order: 'sequence',
+          }),
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const researcherFinished = chunks.findIndex(
+      (chunk) => chunk.type === 'SUBAGENT_FINISHED',
+    )
+    const writerStarted = chunks.findIndex(
+      (chunk) => chunk.type === 'SUBAGENT_STARTED' && chunk.name === 'writer',
+    )
+    expect(writerStarted).toBeGreaterThan(researcherFinished)
+    expect(writerSaw).toContain('Squids have three hearts.')
+  })
+
+  it('lets the router override bag order with a parallel plan', async () => {
+    let writerSaw = ''
+    await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Research two animals' }],
+        subagents: {
+          agents: [
+            researcherAgent('Squids have three hearts.'),
+            defineAgent({
+              name: 'writer',
+              description: 'Writes the post',
+              run: async function* (ctx) {
+                writerSaw = ctx.messages
+                  .map((message) =>
+                    'content' in message ? String(message.content) : '',
+                  )
+                  .join('\n')
+              },
+            }),
+          ],
+          strategy: 'exclusive',
+          order: 'sequence',
+          router: () => ({
+            names: ['researcher', 'writer'],
+            order: 'parallel',
+          }),
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(writerSaw).not.toContain('Squids have three hearts.')
+  })
+
+  it('runs order sequence one child after another and forwards text', async () => {
+    let writerSaw = ''
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [
+          { role: 'user', content: 'Research squids and write an article' },
+        ],
+        subagents: {
+          agents: [
+            researcherAgent('Squids have three hearts.'),
+            defineAgent({
+              name: 'writer',
+              description: 'Writes the post',
+              run: async function* (ctx) {
+                writerSaw = ctx.messages
+                  .map((message) =>
+                    'content' in message ? String(message.content) : '',
+                  )
+                  .join('\n')
+              },
+            }),
+          ],
+          strategy: 'exclusive',
+          order: 'sequence',
+          router: () => ['researcher', 'writer'],
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const researcherFinished = chunks.findIndex(
+      (chunk) => chunk.type === 'SUBAGENT_FINISHED',
+    )
+    const writerStarted = chunks.findIndex(
+      (chunk) => chunk.type === 'SUBAGENT_STARTED' && chunk.name === 'writer',
+    )
+    expect(researcherFinished).toBeGreaterThan(-1)
+    expect(writerStarted).toBeGreaterThan(researcherFinished)
+    expect(writerSaw).toContain('Squids have three hearts.')
   })
 
   it('gives each parallel routed child its own threadId', async () => {

@@ -31,7 +31,19 @@ export interface SubagentErrorEvent {
   timestamp: number
 }
 
-export type SubagentRouterPick = 'main' | string | ReadonlyArray<string>
+export type SubagentOrder = 'parallel' | 'sequence'
+
+export interface SubagentRouterPlan {
+  names: ReadonlyArray<string>
+  /** Overrides `subagents.order` for this turn. */
+  order?: SubagentOrder
+}
+
+export type SubagentRouterPick =
+  | 'main'
+  | string
+  | ReadonlyArray<string>
+  | SubagentRouterPlan
 
 export interface SubagentsBag {
   agents: ReadonlyArray<DefinedAgent>
@@ -41,6 +53,12 @@ export interface SubagentsBag {
     abortSignal?: AbortSignal
   }) => SubagentRouterPick | Promise<SubagentRouterPick>
   strategy?: 'exclusive' | 'handoff'
+  /**
+   * How a router list runs. `parallel` starts every name together.
+   * `sequence` runs each name after the previous one finishes, and passes
+   * that child's text to the next child.
+   */
+  order?: 'parallel' | 'sequence'
   sandbox?: 'own' | 'inherit'
 }
 
@@ -115,6 +133,24 @@ function orAbort<T>(promise: Promise<T>, signal?: AbortSignal) {
   })
 }
 
+function openAgentStream(
+  name: string,
+  bag: SubagentsBag,
+  ctx: Omit<SubagentRunContext, 'runId'>,
+  messages: SubagentRunContext['messages'],
+) {
+  const agent = agentByName(bag.agents, name)
+  const runId = createSubagentId()
+  const childAbort = linkChildAbort(ctx.abortSignal)
+  return spawnAgentStream(agent, {
+    ...ctx,
+    messages,
+    runId,
+    threadId: childThreadId(bag.sandbox, ctx.threadId, name),
+    abortSignal: childAbort.signal,
+  })
+}
+
 function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   const agent = agents.find((entry) => entry.name === name)
   if (!agent) {
@@ -123,25 +159,37 @@ function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   return agent
 }
 
+function isRouterPlan(pick: SubagentRouterPick): pick is SubagentRouterPlan {
+  return typeof pick === 'object' && pick !== null && !Array.isArray(pick)
+}
+
 export function normalizeRouterPick(
   pick: SubagentRouterPick,
   agents: ReadonlyArray<DefinedAgent>,
-) {
-  const names = Array.isArray(pick) ? [...pick] : [pick]
+): { names: ReadonlyArray<string>; order?: SubagentOrder } {
+  const order = isRouterPlan(pick) ? pick.order : undefined
+  if (order !== undefined && order !== 'parallel' && order !== 'sequence') {
+    throw new Error('subagents.router order must be parallel or sequence.')
+  }
+  const names = isRouterPlan(pick)
+    ? [...pick.names]
+    : Array.isArray(pick)
+      ? [...pick]
+      : [pick]
   if (names.length === 0) {
     throw new Error(
-      'subagents.router must return main, a name, or a list of names',
+      'subagents.router must return main, a name, a list of names, or { names, order }.',
     )
   }
   const hasMain = names.includes('main')
   if (hasMain && names.length > 1) {
-    throw new Error('Do not mix main into a parallel subagent list')
+    throw new Error('Do not mix main into a subagent list.')
   }
-  if (hasMain) return ['main'] as const
+  if (hasMain) return { names: ['main'] }
   for (const name of names) {
     agentByName(agents, name)
   }
-  return names
+  return order === undefined ? { names } : { names, order }
 }
 
 function isLifecycleChunk(chunk: StreamChunk) {
@@ -268,17 +316,24 @@ export async function* spawnNamedAgents(
       "subagents.sandbox 'inherit' cannot start two children in one turn",
     )
   }
-  const streams = names.map((name) => {
-    const agent = agentByName(bag.agents, name)
-    const runId = createSubagentId()
-    const childAbort = linkChildAbort(ctx.abortSignal)
-    return spawnAgentStream(agent, {
-      ...ctx,
-      runId,
-      threadId: childThreadId(bag.sandbox, ctx.threadId, name),
-      abortSignal: childAbort.signal,
-    })
-  })
+  if (bag.order === 'sequence') {
+    let messages = ctx.messages
+    for (const name of names) {
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of openAgentStream(name, bag, ctx, messages)) {
+        chunks.push(chunk)
+        yield chunk
+      }
+      const text = collectSpawnedText(chunks)
+      if (text) {
+        messages = [...messages, { role: 'assistant', content: text }]
+      }
+    }
+    return
+  }
+  const streams = names.map((name) =>
+    openAgentStream(name, bag, ctx, ctx.messages),
+  )
   const onlyStream = streams.length === 1 ? streams[0] : undefined
   if (onlyStream) {
     yield* onlyStream

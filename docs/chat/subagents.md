@@ -75,7 +75,50 @@ const stream = chat({
 
 `choice` options must include `main` plus every agent name.
 
-The router can return `'main'`, one agent name, or an array of names. An array starts those children together.
+The router can return:
+
+- `'main'`
+- one agent name
+- an array of names
+- `{ names, order }`
+
+`subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child's text. Omit `order` to get `parallel`.
+
+`{ names, order }` overrides that default for one turn. Use it when some turns are parallel and some are serial.
+
+`subagentRoute(agents)` builds the `decide()` questions for this choice. One yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow the `agents` array order.
+
+```ts
+import { decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+
+const agents = [
+  defineAgent({
+    name: 'researcher',
+    description: 'Looks up facts',
+    run: async function* () {},
+  }),
+  defineAgent({
+    name: 'writer',
+    description: 'Writes the post',
+    run: async function* () {},
+  }),
+]
+const messages = [
+  { role: 'user' as const, content: 'Research squids and write an article' },
+]
+const state = messages.at(-1)
+if (state === undefined) {
+  throw new Error('No message')
+}
+const route = subagentRoute(agents)
+const result = await decide({
+  adapter: typesafeDecider('jev-latest'),
+  state,
+  questions: route.questions,
+})
+const pick = route.pick(result)
+```
 
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card.
 
@@ -168,7 +211,7 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. The layout receives `LayoutProps`, including `Subagents`. Render `<Messages />` and `<Subagents />`. The factory throws if a name is missing.
+Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -204,14 +247,9 @@ function SubagentCard({
 const { useAppChat } = createChatHook({
   options: chatOptions,
   components: {
-    layout: ({
-      Messages,
-      Subagents,
-      Input,
-    }: LayoutProps<typeof chatOptions>) => (
+    layout: ({ Messages, Input }: LayoutProps<typeof chatOptions>) => (
       <main>
         <Messages />
-        <Subagents />
         <Input />
       </main>
     ),

@@ -4984,7 +4984,8 @@ async function* runRoutedSubagents(
     agents: bag.agents,
     abortSignal: options.abortController?.signal,
   })
-  const names = normalizeRouterPick(pick, bag.agents)
+  const plan = normalizeRouterPick(pick, bag.agents)
+  const names = plan.names
   if (names.length === 1 && names[0] === 'main') {
     yield* runChatEngine(
       { ...options, threadId, runId, subagents: undefined },
@@ -5001,12 +5002,19 @@ async function* runRoutedSubagents(
   }
 
   const spawned: Array<StreamChunk> = []
-  for await (const chunk of spawnNamedAgents(names, bag, {
-    messages,
-    abortSignal: options.abortController?.signal,
-    threadId,
-    parentRunId: runId,
-  })) {
+  for await (const chunk of spawnNamedAgents(
+    names,
+    {
+      ...bag,
+      order: plan.order ?? bag.order,
+    },
+    {
+      messages,
+      abortSignal: options.abortController?.signal,
+      threadId,
+      parentRunId: runId,
+    },
+  )) {
     spawned.push(chunk)
     yield chunk
   }
