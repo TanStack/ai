@@ -169,6 +169,23 @@ The parent `chat({ subagents: { agents } })` owns the list. It does not call `ru
 import { chat, defineAgent } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 
+function linkAbort(signal: AbortSignal | undefined) {
+  const abortController = new AbortController()
+  if (signal === undefined) return abortController
+  if (signal.aborted) {
+    abortController.abort()
+    return abortController
+  }
+  signal.addEventListener(
+    'abort',
+    () => {
+      abortController.abort()
+    },
+    { once: true },
+  )
+  return abortController
+}
+
 export function createBlogAgents(apiKey: string) {
   const researcher = defineAgent({
     name: 'researcher',
@@ -180,6 +197,7 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
         ],
@@ -196,6 +214,7 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes or SEO text, write only from those messages. Do not add facts that are not in those messages.',
         ],
@@ -212,6 +231,7 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You prepare SEO for a blog post. Reply in Markdown. Give 5 title options, one meta description under 160 characters, and a short tag list. Do not write the full article.',
         ],
@@ -226,11 +246,11 @@ export function createBlogAgents(apiKey: string) {
 
 Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path.
 
-`getByokKey` reads the `x-byok-openrouter` header, then `OPENROUTER_API_KEY` in the environment. If both are empty, `byokMissing` returns HTTP 401.
+The page sends the key in the `x-byok-openrouter` header. `getByokKey` reads that header. If the header is empty, `byokMissing` returns HTTP 401.
 
 Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the adapter main entry.
 
-Pass the agents into `chat({ subagents })`. `strategy: 'exclusive'` means the chosen child owns the turn.
+Pass the agents into `chat({ subagents })`. This first route has no router. The main model gets one synthetic tool per agent.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -257,7 +277,6 @@ export async function POST({ request }: { request: Request }) {
     runId: params.runId,
     subagents: {
       agents,
-      strategy: 'exclusive',
     },
   })
   return toServerSentEventsResponse(stream)
@@ -272,7 +291,7 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-With no router, the main model gets one synthetic server tool per agent. The next steps replace that with Jev.
+The next steps replace that tool list with Jev. `strategy: 'exclusive'` belongs with the router. It means the chosen child owns the turn.
 
 ## 8. How routing works
 
@@ -292,18 +311,23 @@ Pass the router's `agents` argument to `subagentRoute`. Each yes/no question use
 
 ## 9. Add Jev as the router
 
-Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. Pass `then: ['writer']`. `subagentRoute` asks Jev which agents run. When the writer is one of them, the other agents start together, and the writer runs after them.
+Replace the `subagents` bag. Pass `then: ['writer']`. `strategy: 'exclusive'` means the chosen child owns the turn. Main does not answer after it.
+
+If `messages` is empty, return `'main'`. Otherwise pass the last message as `state`. Pass `abortSignal` so Stop cancels Jev. `subagentRoute` asks Jev which agents run. When the writer is one of them, the other agents start together, and the writer runs after them.
 
 ```typescript ignore
 subagents: {
   agents,
   strategy: 'exclusive',
-  router: async ({ messages, agents }) => {
+  router: async ({ messages, agents, abortSignal }) => {
+    const state = messages.at(-1)
+    if (state === undefined) return 'main'
     const route = subagentRoute(agents, { then: ['writer'] })
     const result = await decide({
       adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
-      state: messages.at(-1),
+      state,
       questions: route.questions,
+      abortSignal,
     })
     return route.pick(result)
   },
@@ -336,7 +360,7 @@ import {
 
 ## 10. Abort the run from the client
 
-The browser abort signal fires when the user clicks Stop. The server must pass that into `chat()`. Then a hanging child stops, and `SUBAGENT_ERROR` can emit.
+The browser abort signal fires when the user clicks Stop. The server must pass that into `chat()`. Each agent links `ctx.abortSignal` to its own `chat({ abortController })`. Stop then cancels the OpenRouter request, and `SUBAGENT_ERROR` can emit.
 
 Add an `AbortController`. Link it to `request.signal`. Pass it to `chat()` and to `toServerSentEventsResponse`.
 
@@ -396,12 +420,15 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      router: async ({ messages, agents }) => {
+      router: async ({ messages, agents, abortSignal }) => {
+        const state = messages.at(-1)
+        if (state === undefined) return 'main'
         const route = subagentRoute(agents, { then: ['writer'] })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
-          state: messages.at(-1),
+          state,
           questions: route.questions,
+          abortSignal,
         })
         return route.pick(result)
       },

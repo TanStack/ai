@@ -38,12 +38,15 @@ export async function POST({ request }: { request: Request }) {
     subagents: {
       agents,
       strategy: 'exclusive',
-      router: async ({ messages, agents }) => {
+      router: async ({ messages, agents, abortSignal }) => {
+        const state = messages.at(-1)
+        if (state === undefined) return 'main'
         const route = subagentRoute(agents, { then: ['writer'] })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
-          state: messages.at(-1),
+          state,
           questions: route.questions,
+          abortSignal,
         })
         return route.pick(result)
       },
