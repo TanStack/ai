@@ -197,7 +197,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes, write only from those notes. Do not add facts that are not in the notes.',
+          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes or SEO text, write only from those messages. Do not add facts that are not in those messages.',
         ],
       }),
   })
@@ -205,7 +205,7 @@ export function createBlogAgents(apiKey: string) {
   const seo = defineAgent({
     name: 'seo',
     description:
-      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for titles, a meta description, or tags. Answer no when they do not ask for those.',
+      'Does this turn need SEO work? Answer yes when the user asks for SEO, search titles, a meta description, or tags. Answer no when they do not mention SEO, titles, a meta description, or tags.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -282,23 +282,24 @@ A router is a function. The library calls it before the main model. It can retur
 - one agent name, such as `'researcher'`, `'writer'`, or `'seo'`: that child's `run` starts
 - an array of names: those children use `subagents.order`
 - `{ names, order }`: this turn overrides `subagents.order`
+- `{ steps }`: one group runs, then the next group. The next group reads the earlier text
 
-`order: 'parallel'` starts the names together. No agent reads another agent's text. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
+`order: 'parallel'` starts the names together. No agent reads another agent text. `order: 'sequence'` runs them one after another. Each later child reads the earlier child text. Omit `order` to get `parallel`.
 
-Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. You can pass `when` to replace those questions. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. The list is researcher, then writer, then seo. A sequence runs research first. The writer reads those notes. SEO runs last and can read both.
+Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. You can pass `when` to replace those questions. `when` must include every agent name. `then: ['writer']` runs the writer after the other selected agents. Those other agents start together. The writer reads their text. `pick` returns `main`, one name, `{ names, order }`, or `{ steps }`. Names follow that `agents` array.
 
 `createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
 
 ## 9. Add Jev as the router
 
-Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. `subagentRoute` asks Jev which agents run, and whether that turn is parallel or serial. A `{ names, order }` return overrides the bag default for that turn.
+Replace the `subagents` bag. Pass `messages.at(-1)` as `state`. Pass `then: ['writer']`. `subagentRoute` asks Jev which agents run. When the writer is one of them, the other agents start together, and the writer runs after them.
 
 ```typescript ignore
 subagents: {
   agents,
   strategy: 'exclusive',
   router: async ({ messages, agents }) => {
-    const route = subagentRoute(agents)
+    const route = subagentRoute(agents, { then: ['writer'] })
     const result = await decide({
       adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
       state: messages.at(-1),
@@ -311,7 +312,11 @@ subagents: {
 
 If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user says hello, Jev returns `main`.
 
-If the user asks for research and SEO titles, Jev returns `{ names: ['researcher', 'seo'], order: 'parallel' }`. The two cards start together. If the user asks for research and an article, Jev returns researcher and writer with `sequence`. The writer then reads the notes.
+If the user asks for research and SEO, Jev returns `{ names: ['researcher', 'seo'], order: 'parallel' }`. The two cards start together.
+
+If the user asks for research, SEO, and an article, Jev returns `{ steps }`. Research and SEO start together. The writer starts after both finish and reads both texts.
+
+If the user asks for research and an article, with no SEO, the researcher runs first. The writer then reads those notes.
 
 Add these imports:
 
@@ -392,7 +397,7 @@ export async function POST({ request }: { request: Request }) {
       agents,
       strategy: 'exclusive',
       router: async ({ messages, agents }) => {
-        const route = subagentRoute(agents)
+        const route = subagentRoute(agents, { then: ['writer'] })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
           state: messages.at(-1),
@@ -774,7 +779,8 @@ export const Route = createFileRoute('/')({
 2. Paste an OpenRouter key.
 3. Send `What are three facts about durable streams?` The researcher card opens.
 4. Send `Write a short blog post about durable streams.` The writer card opens.
-5. Send `Research squids and suggest SEO titles, a meta description, and tags.` The researcher card and the SEO card open together.
+5. Send `do research and seo`. The researcher card and the SEO card open together.
+6. Send `research octopuses and squids, suggest SEO, and write the article`. Research and SEO open together. The writer card opens after both finish.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/subagents`.
 

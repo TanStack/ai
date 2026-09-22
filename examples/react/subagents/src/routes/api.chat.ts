@@ -39,7 +39,7 @@ export async function POST({ request }: { request: Request }) {
       agents,
       strategy: 'exclusive',
       router: async ({ messages, agents }) => {
-        const route = subagentRoute(agents)
+        const route = subagentRoute(agents, { then: ['writer'] })
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
           state: messages.at(-1),

@@ -29,7 +29,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         systemPrompts: [
-          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes, write only from those notes. Do not add facts that are not in the notes.',
+          'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes or SEO text, write only from those messages. Do not add facts that are not in those messages.',
         ],
       }),
   })
@@ -37,7 +37,7 @@ export function createBlogAgents(apiKey: string) {
   const seo = defineAgent({
     name: 'seo',
     description:
-      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for titles, a meta description, or tags. Answer no when they do not ask for those.',
+      'Does this turn need SEO work? Answer yes when the user asks for SEO, search titles, a meta description, or tags. Answer no when they do not mention SEO, titles, a meta description, or tags.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
