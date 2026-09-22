@@ -5,7 +5,7 @@ export function createBlogAgents(apiKey: string) {
   const researcher = defineAgent({
     name: 'researcher',
     description:
-      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft or for SEO. Answer no when they do not ask to look anything up.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -21,7 +21,7 @@ export function createBlogAgents(apiKey: string) {
   const writer = defineAgent({
     name: 'writer',
     description:
-      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+      'Does this turn need a written article, post, or rewrite? Answer yes only when the user asks for an article, post, draft, or rewrite. Answer no when they ask for research or SEO and do not ask for an article.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -37,7 +37,7 @@ export function createBlogAgents(apiKey: string) {
   const seo = defineAgent({
     name: 'seo',
     description:
-      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for search titles, descriptions, or tags, even if they also ask for research. Answer no when they only want facts or only want the article.',
+      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for titles, a meta description, or tags. Answer no when they do not ask for those.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),

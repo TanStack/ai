@@ -173,7 +173,7 @@ export function createBlogAgents(apiKey: string) {
   const researcher = defineAgent({
     name: 'researcher',
     description:
-      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft or for SEO. Answer no when they do not ask to look anything up.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -189,7 +189,7 @@ export function createBlogAgents(apiKey: string) {
   const writer = defineAgent({
     name: 'writer',
     description:
-      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
+      'Does this turn need a written article, post, or rewrite? Answer yes only when the user asks for an article, post, draft, or rewrite. Answer no when they ask for research or SEO and do not ask for an article.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -205,7 +205,7 @@ export function createBlogAgents(apiKey: string) {
   const seo = defineAgent({
     name: 'seo',
     description:
-      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for search titles, descriptions, or tags, even if they also ask for research. Answer no when they only want facts or only want the article.',
+      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for titles, a meta description, or tags. Answer no when they do not ask for those.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -309,9 +309,9 @@ subagents: {
 },
 ```
 
-If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user asks for research and an article, Jev returns both names and chooses `sequence` or `parallel`. A sequence runs the researcher first. The writer then reads those notes. If the user says hello, Jev returns `main`.
+If the user asks for sources, Jev returns `researcher`. If the user asks for a post, Jev returns `writer`. If the user says hello, Jev returns `main`.
 
-Research and SEO do not need each other's text. Jev can return `{ names: ['researcher', 'seo'], order: 'parallel' }` for that turn. The writer still uses `sequence` when the draft must read the notes.
+If the user asks for research and SEO titles, Jev returns `{ names: ['researcher', 'seo'], order: 'parallel' }`. The two cards start together. If the user asks for research and an article, Jev returns researcher and writer with `sequence`. The writer then reads the notes.
 
 Add these imports:
 
