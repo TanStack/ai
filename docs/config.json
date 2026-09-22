@@ -228,7 +228,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Provider Skills",
@@ -1031,7 +1031,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Anthropic",
