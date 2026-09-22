@@ -1,17 +1,7 @@
-import type { ComponentType } from 'react'
-import type { UIMessage } from '@tanstack/ai-react'
+import type { SubagentProps } from '@tanstack/ai-react/ui'
+import type { BlogChatOptions } from '@/chat-ui'
 
-type SubagentPart = Extract<UIMessage['parts'][number], { type: 'subagent' }>
-
-export function SubagentCard({
-  part,
-  SubagentMessages,
-}: {
-  part: SubagentPart
-  SubagentMessages: ComponentType
-}) {
-  const subagent = part.subagent
-
+function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
   return (
     <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3">
       <header className="mb-2 flex flex-wrap items-center gap-2">
@@ -31,8 +21,18 @@ export function SubagentCard({
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
       <div className="mt-2">
-        <SubagentMessages />
+        <Parts />
       </div>
     </section>
   )
+}
+
+export function Researcher(
+  props: SubagentProps<BlogChatOptions, 'researcher'>,
+) {
+  return <SubagentShell {...props} />
+}
+
+export function Writer(props: SubagentProps<BlogChatOptions, 'writer'>) {
+  return <SubagentShell {...props} />
 }
