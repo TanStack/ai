@@ -172,7 +172,8 @@ import { createOpenRouterText } from '@tanstack/ai-openrouter'
 export function createBlogAgents(apiKey: string) {
   const researcher = defineAgent({
     name: 'researcher',
-    description: 'Looks up facts, sources, and background for a blog post',
+    description:
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -187,7 +188,8 @@ export function createBlogAgents(apiKey: string) {
 
   const writer = defineAgent({
     name: 'writer',
-    description: 'Drafts or rewrites a blog post',
+    description:
+      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -267,7 +269,7 @@ A router is a function. The library calls it before the main model. It can retur
 
 `order: 'parallel'` starts the names together. They do not read each other. `order: 'sequence'` runs them one after another. Each later child reads the earlier child's text. Omit `order` to get `parallel`.
 
-Pass the router's `agents` argument to `subagentRoute`. It builds one yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. Researcher is before writer in that array, so a sequence runs research first.
+Pass the router's `agents` argument to `subagentRoute`. Each yes/no question uses that agent's `description`. You can pass `when` to replace those questions. `when` must include every agent name. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array. Researcher is before writer in that array, so a sequence runs research first.
 
 `createOpenRouterDecider('~typesafe/jev-latest', apiKey)` uses the same OpenRouter key as chat.
 
@@ -280,14 +282,7 @@ subagents: {
   agents,
   strategy: 'exclusive',
   router: async ({ messages, agents }) => {
-    const route = subagentRoute(agents, {
-      when: {
-        researcher:
-          'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
-        writer:
-          'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
-      },
-    })
+    const route = subagentRoute(agents)
     const result = await decide({
       adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
       state: messages.at(-1),
@@ -381,14 +376,7 @@ export async function POST({ request }: { request: Request }) {
       agents,
       strategy: 'exclusive',
       router: async ({ messages, agents }) => {
-        const route = subagentRoute(agents, {
-          when: {
-            researcher:
-              'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
-            writer:
-              'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
-          },
-        })
+        const route = subagentRoute(agents)
         const result = await decide({
           adapter: createOpenRouterDecider('~typesafe/jev-latest', apiKey),
           state: messages.at(-1),
@@ -693,10 +681,12 @@ export const chatOptions = {
   byok,
   subagents: {
     researcher: {
-      description: 'Looks up facts, sources, and background for a blog post',
+      description:
+      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft.',
     },
     writer: {
-      description: 'Drafts or rewrites a blog post',
+      description:
+      'Does this turn need a written article, post, or rewrite? Answer yes even if they also ask for research.',
     },
   },
 }
