@@ -2,7 +2,7 @@
 title: Subagents
 id: subagents-tutorial
 order: 5
-description: "Create a TanStack Start blog-writing chat. Two named agents handle research and drafts. Jev on OpenRouter picks who runs. createChatHook draws a nested card."
+description: "Create a TanStack Start blog-writing chat. Three named agents handle research, drafts, and SEO. Jev on OpenRouter picks who runs, and can start research and SEO together. createChatHook draws a nested card."
 keywords:
   - tanstack ai
   - tutorial
@@ -14,9 +14,9 @@ keywords:
   - tanstack start
 ---
 
-You want a blog-writing chat. Some turns need facts. Some turns need a draft. One main model is a poor fit for every turn.
+You want a blog-writing chat. Some turns need facts. Some turns need a draft. Some turns need SEO titles. One main model is a poor fit for every turn.
 
-This tutorial adds two named agents. Jev on OpenRouter picks who runs. `createChatHook` draws a nested card for the child.
+This tutorial adds three named agents. Jev on OpenRouter picks who runs. Research and SEO can start together. `createChatHook` draws a nested card for each child.
 
 This tutorial is React + Start. For the API, open [Subagents](../chat/subagents).
 
