@@ -415,11 +415,12 @@ export const Route = createFileRoute('/api/chat')({
 
 The public factory is `createChatHook` from `@tanstack/ai-react/ui`. It calls `createChatUI` and binds `useChat`.
 
-Create `src/chat-ui.tsx`. Register `layout`, `message`, and `input` first. `layout` receives `Messages` and `Input` as components. `useChatContext()` reads the live chat.
+Create `src/chat-ui.tsx`. Register `layout`, `message`, and `input`. The layout props type is `LayoutProps`. It includes `Messages`, `Subagents`, and `Input`. Render those components. `input` calls `useChatContext()` to send.
 
 ```tsx ignore
+import type { ReactNode } from 'react'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatHook } from '@tanstack/ai-react/ui'
+import { createChatHook, type LayoutProps } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { byok } from '@/lib/byok'
 
@@ -431,8 +432,11 @@ const chatOptions = {
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
-    layout: function Layout({ Messages, Input }) {
-      const chat = useChatContext()
+    layout: function Layout({
+      Messages,
+      Subagents,
+      Input,
+    }: LayoutProps<typeof chatOptions>) {
       return (
         <div className="flex h-screen flex-col bg-gray-900">
           <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
@@ -441,7 +445,7 @@ export const { useAppChat, useChatContext } = createChatHook({
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <Messages />
           </div>
-          {chat.error ? <p>{chat.error.message}</p> : null}
+          <Subagents />
           <Input />
         </div>
       )
@@ -453,7 +457,7 @@ export const { useAppChat, useChatContext } = createChatHook({
         </article>
       )
     },
-    input: function Input() {
+    input: function Input(): ReactNode {
       const chat = useChatContext()
       return (
         <form
@@ -496,29 +500,19 @@ partsComponents: {
 },
 ```
 
-A `type: 'subagent'` part still hits `fallback` until you slot a component.
+A `type: 'subagent'` part still needs a named component. The next step adds those.
 
-## 13. Create the subagent card
+## 13. Create the subagent components
 
-Create `src/components/subagent-card.tsx`. The card reads `part.subagent`. That object is the same handle as `useChat().subagents[i]`. `stop()` aborts the current parent run.
+Create `src/components/subagent-card.tsx`. Each agent name gets a component. The props type is `SubagentProps`. It gives you `subagent` and `Parts`.
 
-Render nested child parts with `<SubagentMessages />`. The UI library walks those messages. Do not map `subagent.messages` yourself.
+Render `<Parts />` for the child text. `stop()` aborts the current parent run.
 
 ```tsx ignore
-import type { ComponentType } from 'react'
-import type { UIMessage } from '@tanstack/ai-react'
+import type { SubagentProps } from '@tanstack/ai-react/ui'
+import type { BlogChatOptions } from '@/chat-ui'
 
-type SubagentPart = Extract<UIMessage['parts'][number], { type: 'subagent' }>
-
-export function SubagentCard({
-  part,
-  SubagentMessages,
-}: {
-  part: SubagentPart
-  SubagentMessages: ComponentType
-}) {
-  const subagent = part.subagent
-
+function SubagentShell({ subagent, Parts }: SubagentProps<BlogChatOptions>) {
   return (
     <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3">
       <header className="mb-2 flex flex-wrap items-center gap-2">
@@ -538,108 +532,72 @@ export function SubagentCard({
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
       <div className="mt-2">
-        <SubagentMessages />
+        <Parts />
       </div>
     </section>
   )
 }
-```
 
-Create `src/components/subagent-row.tsx` for the live list. `<Subagents />` renders one row per running child. Do not map `chat.subagents` yourself.
+export function Researcher(
+  props: SubagentProps<BlogChatOptions, 'researcher'>,
+) {
+  return <SubagentShell {...props} />
+}
 
-```tsx ignore
-import type { SubagentHandle } from '@tanstack/ai-client'
-
-export function SubagentRow({ subagent }: { subagent: SubagentHandle }) {
-  return (
-    <p className="mb-1 flex items-center gap-2 text-sm text-gray-200">
-      <span>
-        {subagent.name}: {subagent.status}
-      </span>
-      {subagent.status === 'running' ? (
-        <button
-          type="button"
-          onClick={() => subagent.stop?.()}
-          className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"
-        >
-          Stop
-        </button>
-      ) : null}
-    </p>
-  )
+export function Writer(props: SubagentProps<BlogChatOptions, 'writer'>) {
+  return <SubagentShell {...props} />
 }
 ```
 
-## 14. Slot the card into subagent parts
+## 14. Register every named subagent
 
-Set `partsComponents.subagent` to `SubagentCard`. Set `components.subagent` to `SubagentRow`. Put `<Subagents />` in the layout.
+Put the agent names on `options.subagents`. Each key is a name. Then pass `subagentsComponents` with the same keys. TypeScript requires every key. The factory throws if a spawned name is missing.
 
 The finished factory is `src/chat-ui.tsx`:
 
 ```tsx ignore
+import type { ReactNode } from 'react'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
-import { createChatHook } from '@tanstack/ai-react/ui'
+import { createChatHook, type LayoutProps } from '@tanstack/ai-react/ui'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
-import { SubagentCard } from '@/components/subagent-card'
-import { SubagentRow } from '@/components/subagent-row'
+import { Researcher, Writer } from '@/components/subagent-card'
 import { byok } from '@/lib/byok'
 
-const chatOptions = {
+export const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
   byok,
+  subagents: {
+    researcher: {
+      description: 'Looks up facts, sources, and background for a blog post',
+    },
+    writer: {
+      description: 'Drafts or rewrites a blog post',
+    },
+  },
 }
+
+export type BlogChatOptions = typeof chatOptions
 
 export const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
-    layout: function Layout({ Messages, Subagents, Input }) {
-      const chat = useChatContext()
+    layout: function Layout({
+      Messages,
+      Subagents,
+      Input,
+    }: LayoutProps<typeof chatOptions>) {
       return (
         <div className="flex h-screen flex-col bg-gray-900">
           <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+            <h1 className="mb-2 text-sm font-semibold text-white">Blog desk</h1>
             <OpenRouterKeyForm />
           </div>
-          {chat.messages.length === 0 ? (
-            <div className="flex-1 overflow-y-auto px-4 py-8">
-              <div className="mx-auto max-w-2xl text-center">
-                <h2 className="mb-2 text-xl font-semibold text-white">
-                  Blog desk
-                </h2>
-                <p className="text-sm text-gray-400">
-                  Paste an OpenRouter key. Ask for research or a draft. Jev
-                  picks the agent.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              <Messages />
-            </div>
-          )}
-          {chat.subagents.length > 0 ? (
-            <aside className="border-t border-orange-500/10 px-4 py-3">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Subagents
-              </h2>
-              <Subagents />
-            </aside>
-          ) : null}
-          {chat.error ? (
-            <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-              {chat.error.message}
-            </div>
-          ) : null}
-          {chat.isLoading ? (
-            <div className="mb-3 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={chat.stop}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Stop
-              </button>
-            </div>
-          ) : null}
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <Messages />
+          </div>
+          <aside className="border-t border-orange-500/10 px-4 py-3">
+            <Subagents />
+          </aside>
           <Input />
         </div>
       )
@@ -658,48 +616,68 @@ export const { useAppChat, useChatContext } = createChatHook({
         </article>
       )
     },
-    input: function Input() {
+    input: function Input(): ReactNode {
       const chat = useChatContext()
       return (
-        <form
-          className="border-t border-orange-500/10 bg-gray-900/80 px-4 py-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const field = event.currentTarget.elements.namedItem('message')
-            if (!(field instanceof HTMLTextAreaElement)) return
-            const text = field.value.trim()
-            if (!text) return
-            field.value = ''
-            void chat.sendMessage(text)
-          }}
-        >
-          <div className="flex items-end gap-2">
-            <textarea
-              name="message"
-              rows={1}
-              disabled={chat.isLoading}
-              placeholder="Ask for research, or ask for a draft..."
-              className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-            />
-            <button
-              type="submit"
-              disabled={chat.isLoading}
-              className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Send
-            </button>
-          </div>
-        </form>
+        <>
+          {chat.error ? (
+            <div className="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+              {chat.error.message}
+            </div>
+          ) : null}
+          {chat.isLoading ? (
+            <div className="mb-3 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={chat.stop}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Stop
+              </button>
+            </div>
+          ) : null}
+          <form
+            className="border-t border-orange-500/10 bg-gray-900/80 px-4 py-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const field = event.currentTarget.elements.namedItem('message')
+              if (!(field instanceof HTMLTextAreaElement)) return
+              const text = field.value.trim()
+              if (!text) return
+              field.value = ''
+              void chat.sendMessage(text)
+            }}
+          >
+            <div className="flex items-end gap-2">
+              <textarea
+                name="message"
+                rows={1}
+                disabled={chat.isLoading}
+                placeholder="Ask for research, or ask for a draft..."
+                className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+              />
+              <button
+                type="submit"
+                disabled={chat.isLoading}
+                className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Send
+              </button>
+            </div>
+          </form>
+        </>
       )
     },
-    subagent: SubagentRow,
   },
   partsComponents: {
     text: ({ part }) => (
       <div className="whitespace-pre-wrap text-white">{part.content}</div>
     ),
-    subagent: SubagentCard,
     fallback: () => null,
+  },
+  subagentsComponents: {
+    researcher: Researcher,
+    writer: Writer,
   },
 })
 ```
