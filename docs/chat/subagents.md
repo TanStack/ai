@@ -86,38 +86,47 @@ The router can return:
 
 `{ names, order }` overrides that default for one turn. Use it when some turns are parallel and some are serial.
 
-`subagentRoute(agents)` builds the `decide()` questions for this choice. One yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow the `agents` array order.
+Pass the router's `agents` argument to `subagentRoute`. It builds one yes/no question per agent, plus an `order` choice. `pick` returns `main`, one name, or `{ names, order }`. Names follow that `agents` array.
 
 ```ts
-import { decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 import { typesafeDecider } from '@tanstack/ai-typesafe'
 
-const agents = [
-  defineAgent({
-    name: 'researcher',
-    description: 'Looks up facts',
-    run: async function* () {},
-  }),
-  defineAgent({
-    name: 'writer',
-    description: 'Writes the post',
-    run: async function* () {},
-  }),
-]
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: async function* () {},
+})
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes the post',
+  run: async function* () {},
+})
 const messages = [
   { role: 'user' as const, content: 'Research squids and write an article' },
 ]
-const state = messages.at(-1)
-if (state === undefined) {
-  throw new Error('No message')
-}
-const route = subagentRoute(agents)
-const result = await decide({
-  adapter: typesafeDecider('jev-latest'),
-  state,
-  questions: route.questions,
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  subagents: {
+    agents: [researcher, writer],
+    router: async ({ messages: turnMessages, agents }) => {
+      const state = turnMessages.at(-1)
+      if (state === undefined) {
+        throw new Error('No message')
+      }
+      const route = subagentRoute(agents)
+      const result = await decide({
+        adapter: typesafeDecider('jev-latest'),
+        state,
+        questions: route.questions,
+      })
+      return route.pick(result)
+    },
+  },
 })
-const pick = route.pick(result)
 ```
 
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card.
