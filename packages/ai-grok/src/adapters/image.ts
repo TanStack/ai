@@ -136,7 +136,7 @@ export class GrokImageAdapter<
       return await this.editImages(options, resolved)
     }
 
-    validatePrompt({ prompt, model })
+    validatePrompt(prompt)
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
@@ -239,7 +239,7 @@ export class GrokImageAdapter<
       )
     }
 
-    validatePrompt({ prompt, model })
+    validatePrompt(prompt)
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 

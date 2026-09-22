@@ -187,14 +187,6 @@ export type GrokImageModelInputModalitiesByName = {
 }
 
 /**
- * Internal options interface for validation
- */
-interface ImageValidationOptions {
-  prompt: string
-  model: string
-}
-
-/**
  * Validates that the provided size is supported by the model.
  * Throws a descriptive error if the size is not supported.
  */
@@ -255,14 +247,8 @@ export function validateNumberOfImages(
   }
 }
 
-export const validatePrompt = (options: ImageValidationOptions) => {
-  if (options.prompt.length === 0) {
+export const validatePrompt = (prompt: string) => {
+  if (prompt.length === 0) {
     throw new Error('Prompt cannot be empty.')
-  }
-  // Grok image model supports up to 4000 characters
-  if (options.prompt.length > 4000) {
-    throw new Error(
-      'For grok-2-image-1212, prompt length must be less than or equal to 4000 characters.',
-    )
   }
 }

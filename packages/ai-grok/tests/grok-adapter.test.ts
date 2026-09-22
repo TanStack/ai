@@ -452,6 +452,25 @@ describe('Grok adapters', () => {
       )
     })
 
+    it('sends an Imagine prompt longer than 4000 characters', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+      const prompt = 'a'.repeat(4001)
+
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt,
+        logger: testLogger,
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'grok-imagine-image', prompt }),
+      )
+    })
+
     it('maps the size template to aspect_ratio/resolution for imagine models', async () => {
       const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
       const mockGenerate = vi.fn().mockResolvedValue({
