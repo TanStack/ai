@@ -1,5 +1,11 @@
 # @tanstack/ai-anthropic
 
+## 0.18.11
+
+### Patch Changes
+
+- [#1443](https://github.com/TanStack/ai/pull/1443) [`77c4607`](https://github.com/TanStack/ai/commit/77c4607f23a194319c72eb2b3c7034c91c129ad2) - Add a package README: setup, chat, tools, thinking, prompt caching, summarization, provider tools, Claude on Vertex AI, and links to the docs.
+
 ## 0.18.10
 
 ### Patch Changes

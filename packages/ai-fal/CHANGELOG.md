@@ -1,5 +1,11 @@
 # @tanstack/ai-fal
 
+## 0.14.5
+
+### Patch Changes
+
+- [#1442](https://github.com/TanStack/ai/pull/1442) [`e47e221`](https://github.com/TanStack/ai/commit/e47e22132a6d10e6841ab09fd1c461ddc7c5005f) - Add a package README: setup, one example per activity (image, video, speech, transcription, audio, live video), the adapter-to-activity table, and links to the docs.
+
 ## 0.14.4
 
 ### Patch Changes

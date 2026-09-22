@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.32.0
+
+### Minor Changes
+
+- [#1449](https://github.com/TanStack/ai/pull/1449) [`fe4e13b`](https://github.com/TanStack/ai/commit/fe4e13b72b54f82f19353a3f1254daa000dbb70b) - Add `gemini-3.8-live` and `gemini-3.8-live-extended-thinking` to `GeminiRealtimeModel`. The realtime adapter now defaults to `gemini-3.8-live`; pass `model: 'gemini-3.1-flash-live-preview'` to keep the legacy preview model.
+
 ## 0.31.2
 
 ### Patch Changes
