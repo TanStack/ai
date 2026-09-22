@@ -74,22 +74,6 @@
   background: #efeae2;
 }
 
-.writer-notes {
-  margin: 0 0 1.25rem;
-  border: 1px solid #e7e0d6;
-  border-radius: 0.5rem;
-  background: #fff;
-  padding: 0.75rem 1rem;
-}
-
-.writer-notes summary {
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
 body {
   @apply m-0;
   font-family:

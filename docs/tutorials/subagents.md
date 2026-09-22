@@ -492,35 +492,11 @@ partsComponents: {
 
 Create `src/components/subagent-card.tsx`. Each agent name gets a component. The props type is `SubagentProps`. It gives you `subagent` and `Parts`.
 
-The researcher card shows the notes. The writer card is an article. Open **Notes the writer received**. That block is the exact text passed into the writer. `stop()` aborts the current parent run.
+The researcher card shows the notes. The writer card is an article. `<Parts />` renders `subagent.messages`. `stop()` aborts the current parent run.
 
 ```tsx ignore
-import { TextPart } from '@tanstack/ai-react/ui'
 import type { SubagentProps } from '@tanstack/ai-react/ui'
-import { useChatContext } from '@/chat-ui'
 import type { BlogChatOptions } from '@/chat-ui'
-
-type NoteMessage = {
-  parts?: ReadonlyArray<{
-    type: string
-    content?: string
-    subagent?: { name: string; messages: ReadonlyArray<NoteMessage> }
-  }>
-}
-
-function textFrom(messages: ReadonlyArray<NoteMessage>): string {
-  return messages
-    .flatMap((message) => message.parts ?? [])
-    .flatMap((part) => {
-      if (part.type === 'text' && part.content) return [part.content]
-      if (part.type === 'subagent' && part.subagent?.name === 'researcher') {
-        return [textFrom(part.subagent.messages)]
-      }
-      return []
-    })
-    .filter((text) => text.length > 0)
-    .join('\n\n')
-}
 
 function AgentHeader({
   name,
@@ -573,9 +549,6 @@ export function Writer({
   subagent,
   Parts,
 }: SubagentProps<BlogChatOptions, 'writer'>) {
-  const chat = useChatContext()
-  const notes = textFrom(chat.messages as ReadonlyArray<NoteMessage>)
-
   return (
     <article className="writer-article">
       <AgentHeader
@@ -585,12 +558,6 @@ export function Writer({
       />
       {subagent.error ? (
         <p className="text-sm text-red-700">{subagent.error.message}</p>
-      ) : null}
-      {notes ? (
-        <details className="writer-notes">
-          <summary>Notes the writer received</summary>
-          <TextPart className="chat-markdown" content={notes} />
-        </details>
       ) : null}
       <Parts />
     </article>
@@ -758,21 +725,7 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-## 15. Add AI devtools
-
-In `src/routes/__root.tsx`, mount the devtools panel. Open the TanStack button at the bottom right, then open AI. The writer run lists the messages it received. The research notes are the assistant message before the article.
-
-```tsx ignore
-import { TanStackDevtools } from '@tanstack/react-devtools'
-import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
-
-<TanStackDevtools
-  config={{ position: 'bottom-right' }}
-  plugins={[aiDevtoolsPlugin()]}
-/>
-```
-
-## 16. Try it
+## 15. Try it
 
 1. Run the app.
 2. Paste an OpenRouter key.

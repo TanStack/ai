@@ -1,29 +1,5 @@
-import { TextPart } from '@tanstack/ai-react/ui'
 import type { SubagentProps } from '@tanstack/ai-react/ui'
-import { useChatContext } from '@/chat-ui'
 import type { BlogChatOptions } from '@/chat-ui'
-
-type NoteMessage = {
-  parts?: ReadonlyArray<{
-    type: string
-    content?: string
-    subagent?: { name: string; messages: ReadonlyArray<NoteMessage> }
-  }>
-}
-
-function textFrom(messages: ReadonlyArray<NoteMessage>): string {
-  return messages
-    .flatMap((message) => message.parts ?? [])
-    .flatMap((part) => {
-      if (part.type === 'text' && part.content) return [part.content]
-      if (part.type === 'subagent' && part.subagent?.name === 'researcher') {
-        return [textFrom(part.subagent.messages)]
-      }
-      return []
-    })
-    .filter((text) => text.length > 0)
-    .join('\n\n')
-}
 
 function AgentHeader({
   name,
@@ -76,9 +52,6 @@ export function Writer({
   subagent,
   Parts,
 }: SubagentProps<BlogChatOptions, 'writer'>) {
-  const chat = useChatContext()
-  const notes = textFrom(chat.messages as ReadonlyArray<NoteMessage>)
-
   return (
     <article className="writer-article">
       <AgentHeader
@@ -88,12 +61,6 @@ export function Writer({
       />
       {subagent.error ? (
         <p className="text-sm text-red-700">{subagent.error.message}</p>
-      ) : null}
-      {notes ? (
-        <details className="writer-notes">
-          <summary>Notes the writer received</summary>
-          <TextPart className="chat-markdown" content={notes} />
-        </details>
       ) : null}
       <Parts />
     </article>
