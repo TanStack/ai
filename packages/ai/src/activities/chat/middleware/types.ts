@@ -4,6 +4,7 @@ import type {
 } from '@standard-schema/spec'
 import type {
   AgentLoopState,
+  EmitCustomEventOptions,
   JSONSchema,
   ModelMessage,
   RunAgentResumeItem,
@@ -216,9 +217,14 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /**
    * Push a `CUSTOM` chunk onto the chat stream immediately.
    * The engine yields it as soon as it can (including while `onConfig`
-   * is still awaiting work such as a summarize call).
+   * is still awaiting work such as a summarize call). Durability then
+   * flushes the event on its own, unless you pass `{ batch: true }`.
    */
-  emitCustomEvent: (name: string, value: Record<string, any>) => void
+  emitCustomEvent: (
+    name: string,
+    value: Record<string, any>,
+    options?: EmitCustomEventOptions,
+  ) => void
   /** Runtime context provided by chat() options */
   context: TContext
   /**

@@ -7,7 +7,7 @@ title: VoiceOrigin
 type VoiceOrigin = "premade" | "generated" | "cloned" | "professional";
 ```
 
-Defined in: [packages/ai/src/types.ts:2493](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2493)
+Defined in: [packages/ai/src/types.ts:2515](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2515)
 
 Where a voice in a provider's catalog came from.
 

@@ -3,7 +3,7 @@ id: VoiceGenerationOptions
 title: VoiceGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2547](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2547)
+Defined in: [packages/ai/src/types.ts:2569](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2569)
 
 Options for creating a voice.
 
@@ -30,7 +30,7 @@ takes `referenceAudio` as an additional design reference.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2582](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2582)
+Defined in: [packages/ai/src/types.ts:2604](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2604)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -44,7 +44,7 @@ supported. Request-specific - never store on a global client config.
 optional description?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2568](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2568)
+Defined in: [packages/ai/src/types.ts:2590](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2590)
 
 Human-readable description stored alongside the voice
 
@@ -56,7 +56,7 @@ Human-readable description stored alongside the voice
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2576](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2576)
+Defined in: [packages/ai/src/types.ts:2598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2598)
 
 Internal logger threaded from the generateVoice() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -70,7 +70,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2551](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2551)
+Defined in: [packages/ai/src/types.ts:2573](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2573)
 
 The model to use for voice creation
 
@@ -82,7 +82,7 @@ The model to use for voice creation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2570](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2570)
+Defined in: [packages/ai/src/types.ts:2592](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2592)
 
 Model-specific options for voice creation
 
@@ -94,7 +94,7 @@ Model-specific options for voice creation
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2566)
+Defined in: [packages/ai/src/types.ts:2588](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2588)
 
 Name to store the voice under in the provider's voice library. Providers
 differ on what this implies — ElevenLabs only persists a designed voice
@@ -109,7 +109,7 @@ actually happened.
 optional prompt?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2553](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2553)
+Defined in: [packages/ai/src/types.ts:2575](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2575)
 
 Text description of the voice to create, for design-capable models
 
@@ -121,7 +121,7 @@ Text description of the voice to create, for design-capable models
 optional referenceAudio?: string | ArrayBuffer | File | Blob;
 ```
 
-Defined in: [packages/ai/src/types.ts:2559](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2559)
+Defined in: [packages/ai/src/types.ts:2581](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2581)
 
 Reference audio of the speaker to clone - base64 string, base64 data URL,
 File, Blob, or ArrayBuffer. For clone-capable models. Remote URLs are not

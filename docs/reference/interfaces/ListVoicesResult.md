@@ -3,7 +3,7 @@ id: ListVoicesResult
 title: ListVoicesResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2526](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2526)
+Defined in: [packages/ai/src/types.ts:2548](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2548)
 
 Result of listing a provider's voices.
 
@@ -15,6 +15,6 @@ Result of listing a provider's voices.
 voices: CatalogVoice[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2528)
+Defined in: [packages/ai/src/types.ts:2550](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2550)
 
 The voices available to this account

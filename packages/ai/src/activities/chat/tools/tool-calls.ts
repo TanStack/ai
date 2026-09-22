@@ -7,6 +7,7 @@ import type {
   AnyTool,
   ContentPart,
   CustomEvent,
+  EmitCustomEventOptions,
   ModelMessage,
   RunFinishedEvent,
   StreamChunk,
@@ -790,6 +791,7 @@ export async function* executeToolCalls<TContext = unknown>(
   createCustomEventChunk?: (
     eventName: string,
     value: Record<string, any>,
+    options?: EmitCustomEventOptions,
   ) => CustomEvent,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
   userContext?: TContext,
@@ -904,13 +906,21 @@ export async function* executeToolCalls<TContext = unknown>(
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
-      emitCustomEvent: (eventName: string, value: Record<string, any>) => {
+      emitCustomEvent: (
+        eventName: string,
+        value: Record<string, any>,
+        options?: EmitCustomEventOptions,
+      ) => {
         if (createCustomEventChunk) {
           pendingEvents.push(
-            createCustomEventChunk(eventName, {
-              ...value,
-              toolCallId: toolCall.id,
-            }),
+            createCustomEventChunk(
+              eventName,
+              {
+                ...value,
+                toolCallId: toolCall.id,
+              },
+              options,
+            ),
           )
         }
       },

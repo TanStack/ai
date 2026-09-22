@@ -1,5 +1,18 @@
 # @tanstack/ai-durable-stream
 
+## 0.1.16
+
+### Patch Changes
+
+- [#1444](https://github.com/TanStack/ai/pull/1444) [`09d7328`](https://github.com/TanStack/ai/commit/09d7328c38723b15ffe1efaa62288a48a2cdc5a6) - Add a package README: what `durableStream` is relative to `memoryStream`, the route wiring, the options, the Cloudflare service-binding form, and what the delivery log is not.
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
 ## 0.1.14
 
 ### Patch Changes

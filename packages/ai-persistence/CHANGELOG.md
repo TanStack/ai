@@ -1,5 +1,21 @@
 # @tanstack/ai-persistence
 
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.6.3
+
+### Patch Changes
+
+- [#1434](https://github.com/TanStack/ai/pull/1434) [`dd1f8e2`](https://github.com/TanStack/ai/commit/dd1f8e2431f2f4fd7804ff74cea90e21cb2bd2b7) - Add a package README: install, `withPersistence` on the server, `persistence: true` on the client, `reconstructChat` for reloads mid-answer, the smallest custom adapter, the `testkit` conformance suite, and links to the docs.
+
+- Updated dependencies [[`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3)]:
+  - @tanstack/ai-utils@0.4.1
+
 ## 0.6.2
 
 ### Patch Changes

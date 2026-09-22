@@ -74,6 +74,7 @@ title: "@tanstack/ai"
 - [EmbeddingAdapter](interfaces/EmbeddingAdapter.md)
 - [EmbeddingOptions](interfaces/EmbeddingOptions.md)
 - [EmbeddingResult](interfaces/EmbeddingResult.md)
+- [EmitCustomEventOptions](interfaces/EmitCustomEventOptions.md)
 - [ErrorInfo](interfaces/ErrorInfo.md)
 - [EvaluateAdapter](interfaces/EvaluateAdapter.md)
 - [ExtendedModelDef](interfaces/ExtendedModelDef.md)
