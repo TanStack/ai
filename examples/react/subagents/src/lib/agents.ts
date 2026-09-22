@@ -34,5 +34,21 @@ export function createBlogAgents(apiKey: string) {
       }),
   })
 
-  return [researcher, writer] as const
+  const seo = defineAgent({
+    name: 'seo',
+    description:
+      'Does this turn need SEO titles, a meta description, or tags? Answer yes when the user asks for search titles, descriptions, or tags, even if they also ask for research. Answer no when they only want facts or only want the article.',
+    run: (ctx) =>
+      chat({
+        adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
+        messages: ctx.messages,
+        threadId: ctx.threadId,
+        runId: ctx.runId,
+        systemPrompts: [
+          'You prepare SEO for a blog post. Reply in Markdown. Give 5 title options, one meta description under 160 characters, and a short tag list. Do not write the full article.',
+        ],
+      }),
+  })
+
+  return [researcher, writer, seo] as const
 }

@@ -6,7 +6,7 @@ import {
 } from '@tanstack/ai-react/ui'
 import { ChatInput } from '@/components/chat-input'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
-import { Researcher, Writer } from '@/components/subagent-card'
+import { Researcher, Seo, Writer } from '@/components/subagent-card'
 import { byok } from '@/lib/byok'
 
 export const chatOptions = {
@@ -18,6 +18,9 @@ export const chatOptions = {
     },
     writer: {
       description: 'Drafts or rewrites a blog post',
+    },
+    seo: {
+      description: 'Suggests SEO titles, a meta description, and tags',
     },
   },
 }
@@ -69,5 +72,6 @@ export const { useAppChat, useChatContext } = createChatHook({
   subagentsComponents: {
     researcher: Researcher,
     writer: Writer,
+    seo: Seo,
   },
 })
