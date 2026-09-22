@@ -781,6 +781,7 @@ export const Route = createFileRoute('/')({
 4. Send `Write a short blog post about durable streams.` The writer card opens.
 5. Send `do research and seo`. The researcher card and the SEO card open together.
 6. Send `research octopuses and squids, suggest SEO, and write the article`. Research and SEO open together. The writer card opens after both finish.
+7. After the research and SEO cards finish, send `write an article with that info`. The writer uses the notes from those cards.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/subagents`.
 
