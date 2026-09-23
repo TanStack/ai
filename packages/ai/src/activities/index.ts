@@ -280,7 +280,8 @@ export {
 
 // ===========================
 // World Activity (Experimental)
-// ====================
+// ===========================
+
 export {
   kind as worldKind,
   generateWorld,
@@ -314,7 +315,8 @@ export {
   type LiveVideoAdapterConfig,
   type AnyLiveVideoAdapter,
 } from './generateLiveVideo/adapter'
-=======
+
+// ===========================
 // Files Activity
 // ===========================
 
