@@ -2,6 +2,7 @@ import type { InterruptDefinition } from '../../../interrupt-definition'
 import type {
   AnyTool,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
   UIMessage,
@@ -15,8 +16,18 @@ export interface SubagentRunContext {
   messages: Array<UIMessage | ModelMessage>
   abortSignal?: AbortSignal
   threadId: string
+  /** Run id for the child `chat()`. */
   runId: string
+  /**
+   * The run this child run continues. It is the parent chat run on the first
+   * run, and the interrupted child run on a resume. Pass it to the child
+   * `chat()`.
+   */
   parentRunId: string
+  /** Answers to this child's interrupts. Pass it to the child `chat()`. */
+  resume?: Array<RunAgentResumeItem>
+  /** Stays the same when an interrupted child continues. */
+  subagentRunId: string
   parentSubagentRunId?: string
 }
 
@@ -71,6 +82,10 @@ export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
  *     chat({
  *       adapter: openaiText('gpt-5.6'),
  *       messages: ctx.messages,
+ *       threadId: ctx.threadId,
+ *       runId: ctx.runId,
+ *       parentRunId: ctx.parentRunId,
+ *       resume: ctx.resume,
  *     }),
  * })
  * ```

@@ -3008,13 +3008,14 @@ export class ChatClient<
         const id = part.subagent.id
         const existing = this.subagentHandles.get(id)
         if (existing) {
-          existing.name = part.subagent.name
-          existing.description = part.subagent.description
-          existing.status = part.subagent.status
-          existing.parentRunId = part.subagent.parentRunId
-          existing.parentSubagentRunId = part.subagent.parentSubagentRunId
-          existing.messages = part.subagent.messages
-          existing.error = part.subagent.error
+          if (part.subagent === existing) continue
+          // Keep the same live object, with exactly the card's fields. The
+          // wire reads this object, so a field the card dropped goes too.
+          const { stop } = existing
+          for (const key of Object.keys(existing)) {
+            Reflect.deleteProperty(existing, key)
+          }
+          Object.assign(existing, part.subagent, { stop })
           part.subagent = existing
           continue
         }

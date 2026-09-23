@@ -1983,6 +1983,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const subagentRuns = createSubagentRunRecorder({
     messages: messageStore,
     runs,
+    ...(wantsInterrupts && persistence.stores.interrupts
+      ? { interrupts: persistence.stores.interrupts }
+      : {}),
   })
 
   return defineChatMiddleware({

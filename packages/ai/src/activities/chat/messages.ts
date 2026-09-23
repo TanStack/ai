@@ -4,6 +4,10 @@ import {
   normalizeToolResult,
 } from '../../utilities/tool-result'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  splitSubagentWire,
+  subagentWireText,
+} from '../../utilities/subagent-wire'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
@@ -166,6 +170,57 @@ function toolResultContent(
  * Convert UIMessages or ModelMessages to ModelMessages
  */
 export function convertMessagesToModelMessages(
+  messages: Array<UIMessage | ModelMessage>,
+): Array<ModelMessage> {
+  const { top, groups } = splitSubagentWire(messages)
+  if (groups.length === 0) return convertOwnMessages(messages)
+
+  // Child wire messages leave the parent history. The parent model reads each
+  // child's text on the assistant message before it, the same as for a UI
+  // subagent part. A child that a tool call started reports through the tool
+  // result instead.
+  const blocks = new Map<string | undefined, Array<string>>()
+  for (const group of groups) {
+    if (group.info.parentToolCallId !== undefined) continue
+    const text = subagentWireText(group.messages)
+    if (text === '') continue
+    const host = top
+      .slice(0, group.hostIndex + 1)
+      .findLast((message) => message.role === 'assistant')
+    const hostId = host && 'id' in host ? host.id : undefined
+    blocks.set(hostId, [
+      ...(blocks.get(hostId) ?? []),
+      `${group.info.name}:\n${text}`,
+    ])
+  }
+  const converted = convertOwnMessages(top)
+  for (const [hostId, texts] of blocks) {
+    const block = texts.join('\n\n')
+    const index =
+      hostId === undefined
+        ? -1
+        : converted.findIndex(
+            (message) => message.role === 'assistant' && message.id === hostId,
+          )
+    const host = converted[index]
+    if (!host) {
+      converted.push({ role: 'assistant', content: block })
+      continue
+    }
+    converted[index] = {
+      ...host,
+      content:
+        typeof host.content === 'string' && host.content !== ''
+          ? `${host.content}\n\n${block}`
+          : Array.isArray(host.content)
+            ? [...host.content, { type: 'text', content: block }]
+            : block,
+    }
+  }
+  return converted
+}
+
+function convertOwnMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
   // Pre-pass: collect toolCallIds already represented in anchor UIMessage parts.
@@ -724,7 +779,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         break
 
       case 'subagent': {
-        const block = subagentHistoryText(part)
+        // A child that a tool call started reports through the tool result.
+        const block =
+          part.subagent.parentToolCallId === undefined
+            ? subagentHistoryText(part)
+            : ''
         if (block !== '') {
           const prefix = current.contentParts.length > 0 ? '\n\n' : ''
           current.contentParts.push({

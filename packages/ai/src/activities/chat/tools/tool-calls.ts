@@ -8,6 +8,7 @@ import type {
   ContentPart,
   CustomEvent,
   EmitCustomEventOptions,
+  Interrupt,
   ModelMessage,
   RunFinishedEvent,
   StreamChunk,
@@ -39,15 +40,23 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
-function isSubagentExecuteResult(value: unknown): value is {
+/** Marks the synthetic tool that runs a subagent. */
+export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
+
+/** Set on the tool context of a subagent tool. Streams a child chunk live. */
+export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
+
+/** What a subagent tool's `execute` returns. */
+export interface SubagentToolOutcome {
   subagentRunId: string
-  chunks: Array<StreamChunk>
-  result?: string
+  text: string
   error?: string
-} {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('subagentRunId' in value) || !('chunks' in value)) return false
-  return typeof value.subagentRunId === 'string' && Array.isArray(value.chunks)
+  /** Set when the child stopped for outside input. The tool call stays open. */
+  interrupts?: Array<Interrupt>
+}
+
+function isSubagentTool(tool: AnyTool): boolean {
+  return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
 }
 
 /**
@@ -517,6 +526,8 @@ interface ExecuteToolCallsResult {
   needsApproval: Array<ApprovalRequest>
   /** Tools that need client-side execution */
   needsClientExecution: Array<ClientToolRequest>
+  /** Interrupts raised by subagents that run as tools */
+  subagentInterrupts: Array<Interrupt>
 }
 
 /**
@@ -526,8 +537,8 @@ interface ExecuteToolCallsResult {
  */
 async function* executeWithEventPolling<T>(
   executionPromise: Promise<T>,
-  pendingEvents: Array<CustomEvent>,
-): AsyncGenerator<CustomEvent, T, void> {
+  pendingEvents: Array<CustomEvent | StreamChunk>,
+): AsyncGenerator<CustomEvent | StreamChunk, T, void> {
   // Use an object to track mutable state across the async boundary
   const state = { done: false, result: undefined as T }
   const executionWithFlag = executionPromise.then((r) => {
@@ -544,14 +555,14 @@ async function* executeWithEventPolling<T>(
     ])
 
     // Flush any pending events
-    let event: CustomEvent | undefined
+    let event: CustomEvent | StreamChunk | undefined
     while ((event = pendingEvents.shift()) !== undefined) {
       yield event
     }
   }
 
   // Final flush in case events were emitted right at completion
-  let event: CustomEvent | undefined
+  let event: CustomEvent | StreamChunk | undefined
   while ((event = pendingEvents.shift()) !== undefined) {
     yield event
   }
@@ -624,26 +635,37 @@ export async function* executeServerTool<TContext = unknown>(
   toolName: string,
   input: unknown,
   context: ToolExecutionContext<TContext>,
-  pendingEvents: Array<CustomEvent>,
+  pendingEvents: Array<CustomEvent | StreamChunk>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
+  subagentInterrupts?: Array<Interrupt>,
 ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
   try {
     if (!tool.execute) {
       throw new Error(`Tool ${toolName} has no execute() implementation`)
     }
+    const subagent = isSubagentTool(tool)
+    if (subagent) {
+      Object.assign(context, {
+        [EMIT_STREAM_CHUNK]: (chunk: StreamChunk) => pendingEvents.push(chunk),
+      })
+    }
     const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
-    if (isSubagentExecuteResult(result)) {
-      for (const chunk of result.chunks) {
-        yield chunk
+    if (subagent) {
+      const outcome = result as SubagentToolOutcome
+      if (outcome.interrupts?.length) {
+        // The child waits for outside input. Leave the call open so the
+        // resume run executes it again and continues the same child.
+        subagentInterrupts?.push(...outcome.interrupts)
+        return
       }
-      const modelResult = result.error
-        ? { error: result.error, subagentRunId: result.subagentRunId }
-        : { subagentRunId: result.subagentRunId, result: result.result }
+      const modelResult = outcome.error
+        ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
+        : { subagentRunId: outcome.subagentRunId, result: outcome.text }
       results.push({
         toolCallId: toolCall.id,
         toolName,
@@ -651,6 +673,17 @@ export async function* executeServerTool<TContext = unknown>(
         input,
         output: modelResult,
         duration,
+        ...(outcome.error ? { state: 'output-error' as const } : {}),
+      })
+      await middlewareHooks?.onAfterToolCall?.({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        duration,
+        ...(outcome.error
+          ? { ok: false as const, error: new Error(outcome.error) }
+          : { ok: true as const, result: modelResult }),
       })
       return
     }
@@ -663,7 +696,7 @@ export async function* executeServerTool<TContext = unknown>(
     await emitUiResourceIfLinked(tool, context)
 
     // Flush remaining events (including any queued ui-resource event)
-    let pendingEvent: CustomEvent | undefined
+    let pendingEvent: CustomEvent | StreamChunk | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent
     }
@@ -701,7 +734,7 @@ export async function* executeServerTool<TContext = unknown>(
     const duration = Date.now() - startTime
 
     // Flush remaining events
-    let pendingEvent: CustomEvent | undefined
+    let pendingEvent: CustomEvent | StreamChunk | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent
     }
@@ -801,6 +834,7 @@ export async function* executeToolCalls<TContext = unknown>(
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
+  const subagentInterrupts: Array<Interrupt> = []
 
   // Create tool lookup map
   const toolMap = new Map<string, AnyTool>()
@@ -901,7 +935,7 @@ export async function* executeToolCalls<TContext = unknown>(
     }
 
     // Create a ToolExecutionContext for this tool call with event emission
-    const pendingEvents: Array<CustomEvent> = []
+    const pendingEvents: Array<CustomEvent | StreamChunk> = []
     const context = {
       toolCallId: toolCall.id,
       context: userContext,
@@ -1037,6 +1071,7 @@ export async function* executeToolCalls<TContext = unknown>(
             pendingEvents,
             results,
             middlewareHooks,
+            subagentInterrupts,
           )
         } else {
           // User declined
@@ -1085,8 +1120,9 @@ export async function* executeToolCalls<TContext = unknown>(
       pendingEvents,
       results,
       middlewareHooks,
+      subagentInterrupts,
     )
   }
 
-  return { results, needsApproval, needsClientExecution }
+  return { results, needsApproval, needsClientExecution, subagentInterrupts }
 }

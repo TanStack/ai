@@ -60,6 +60,7 @@ import type {
   SpecTokenUsage,
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
+import type { SubagentWireInfo } from './utilities/subagent-wire'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -539,6 +540,10 @@ export interface SubagentHandleData {
   status: SubagentStatus
   parentRunId?: string
   parentSubagentRunId?: string
+  /** The tool call that started this child, when the model started it. */
+  parentToolCallId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: Array<string>
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
 }
@@ -587,6 +592,8 @@ export interface TanStackMessageMetadata {
   model?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
+  /** Card data on a child wire message. See `uiMessagesToWire`. */
+  subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
