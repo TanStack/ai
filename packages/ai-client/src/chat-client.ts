@@ -347,6 +347,19 @@ function readSubagentRunId(chunk: StreamChunk) {
 // Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
 const MAX_RUN_LINEAGE_DEPTH = 64
 
+/** A deep copy of plain data. Dates stay Dates. Functions are dropped. */
+function copyForDevtools<T>(value: T): T
+function copyForDevtools(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyForDevtools)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'function') out[key] = copyForDevtools(item)
+  }
+  return out
+}
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -689,6 +702,9 @@ export class ChatClient<
           this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
+          // A child's chunks fire no other devtools event, so the panel would
+          // see the child only when the parent run ends.
+          this.queueDevtoolsSnapshot()
         },
         onStreamStart: () => {
           this.setStatus('streaming')
@@ -1712,7 +1728,9 @@ export class ChatClient<
 
   private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
     return {
-      messages: this.processor.getMessages(),
+      // The devtools store keeps the objects it gets, and a subagent handle
+      // changes in place. A copy lets the panel see each new status and part.
+      messages: copyForDevtools(this.processor.getMessages()),
       status: this.status,
       isLoading: this.isLoading,
       isSubscribed: this.isSubscribed,
@@ -3003,6 +3021,18 @@ export class ChatClient<
 
   getSubagents() {
     return [...this.subagentHandles.values()]
+  }
+
+  private devtoolsSnapshotQueued = false
+
+  /** One devtools snapshot per microtask, however many chunks arrive. */
+  private queueDevtoolsSnapshot(): void {
+    if (this.devtoolsSnapshotQueued) return
+    this.devtoolsSnapshotQueued = true
+    queueMicrotask(() => {
+      this.devtoolsSnapshotQueued = false
+      this.devtoolsBridge.emitSnapshot()
+    })
   }
 
   private syncSubagentHandles(): void {
