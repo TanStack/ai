@@ -238,7 +238,39 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
 
-Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
+Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
+
+When you render the parts yourself, pass the same agents to `useChat`. The hook uses them for types only. It does not call `run`.
+
+```tsx
+import { defineAgent } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: async function* () {},
+})
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Drafts posts',
+  run: async function* () {},
+})
+
+function Desk() {
+  const chat = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    subagents: [researcher, writer],
+  })
+  const part = chat.messages[0]?.parts[0]
+  if (part?.type === 'subagent' && part.subagent.name === 'researcher') {
+    return part.subagent.status
+  }
+  return null
+}
+```
+
+`part.subagent.name` is `'researcher' | 'writer'`. After you check the name, that child's `messages` use the tools and output schema from that agent.
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-react'

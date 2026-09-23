@@ -27,7 +27,9 @@ import type {
   SendMessageOptions,
   UIMessage,
   WhenBusy,
+  SubagentClientAgent,
   SubagentHandle,
+  SubagentHandles,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
@@ -87,6 +89,8 @@ export type UseChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
+    undefined,
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -116,6 +120,12 @@ export type UseChatOptions<
    * against the schema passed to `chat({ outputSchema })` on the server route.
    */
   outputSchema?: TSchema
+  /**
+   * Agents from `defineAgent`. This types `messages` parts and `subagents`.
+   * The hook does not call `run` and does not send the agents to the server.
+   * Pass the same array you give to `chat({ subagents: { agents } })`.
+   */
+  subagents?: TSubagents
 } & ClientContextOptionFromTools<TTools, TContext>
 
 /**
@@ -128,10 +138,13 @@ export type UseChatReturn<
   TSchema extends SchemaInput | undefined = undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
+    undefined,
 > = BaseUseChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
-  TInterrupts
+  TInterrupts,
+  TSubagents
 > &
   (TSchema extends SchemaInput
     ? {
@@ -156,19 +169,24 @@ interface BaseUseChatReturn<
   TData = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
+    undefined,
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
+   * When `subagents` is supplied, a `type: 'subagent'` part narrows on
+   * `subagent.name`, and that child's `messages` use the agent's tools.
    */
-  messages: Array<UIMessage<TTools, TData>>
+  messages: Array<UIMessage<TTools, TData, TSubagents>>
 
   /**
    * Live child-agent invocations. Each entry is the same object as
    * `messages.parts[n].subagent`, including `stop()`.
+   * When `subagents` is supplied, `name` is one of those agent names.
    */
-  subagents: Array<SubagentHandle>
+  subagents: Array<SubagentHandles<TSubagents>>
 
   /**
    * Send a message and get a response.

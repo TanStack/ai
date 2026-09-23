@@ -519,6 +519,16 @@ export interface TextPart {
  * This is a conditional type to enable proper distribution over union types,
  * creating a discriminated union where `name` is the discriminant.
  */
+type ToolCallPartForNamedTool<T extends { name: string }> = {
+  type: 'tool-call'
+  id: string
+  name: T['name']
+  arguments: string
+  input?: InferToolInput<T>
+  state: ToolCallState
+  output?: InferToolOutput<T>
+}
+
 type ToolCallPartForTool<T> = T extends AnyClientTool
   ? {
       type: 'tool-call'
@@ -549,7 +559,9 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       : // Tools without `needsApproval: true` never carry an approval field.
         // `& unknown` is a no-op intersection (adds nothing).
         unknown)
-  : never
+  : T extends { name: string }
+    ? ToolCallPartForNamedTool<T>
+    : never
 
 /**
  * Fallback tool-call part type when tools are not typed
@@ -581,14 +593,16 @@ type UntypedToolCallPart = {
  * }
  * ```
  */
-export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
+export type ToolCallPart<
+  TTools extends ReadonlyArray<{ name: string }> = any,
+> =
   // Check if we have a concrete tools array (not 'any' or 'never')
   [TTools] extends [never]
     ? UntypedToolCallPart
     : unknown extends TTools
       ? UntypedToolCallPart
       : TTools extends ReadonlyArray<infer Tool>
-        ? Tool extends AnyClientTool
+        ? Tool extends { name: string }
           ? ToolCallPartForTool<Tool>
           : UntypedToolCallPart
         : UntypedToolCallPart
@@ -630,9 +644,81 @@ export interface SubagentPart {
   subagent: SubagentHandle
 }
 
+/**
+ * The slice of a server `defineAgent` result that `useChat({ subagents })`
+ * reads. The hook does not call `run`.
+ */
+export type SubagentClientAgent = {
+  name: string
+  tools?: ReadonlyArray<{ name: string }>
+  outputSchema?: SchemaInput
+}
+
+type AgentToolList<TAgent> = TAgent extends { tools?: infer TTools }
+  ? [undefined] extends [TTools]
+    ? [TTools] extends [undefined]
+      ? any
+      : Exclude<TTools, undefined> extends ReadonlyArray<infer TTool>
+        ? [TTool] extends [never]
+          ? any
+          : Exclude<TTools, undefined>
+        : any
+    : TTools extends ReadonlyArray<infer TTool>
+      ? [TTool] extends [never]
+        ? any
+        : TTools
+      : any
+  : any
+
+type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
+  ? Exclude<TSchema, undefined> extends SchemaInput
+    ? [Exclude<TSchema, undefined>] extends [never]
+      ? unknown
+      : InferSchemaType<Exclude<TSchema, undefined>>
+    : unknown
+  : unknown
+
+/** One child handle. `name` is the discriminant. */
+export type SubagentHandleOf<TAgent extends SubagentClientAgent> = {
+  id: string
+  name: TAgent['name']
+  description?: string
+  status: SubagentStatus
+  parentRunId?: string
+  parentSubagentRunId?: string
+  messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+  error?: { message: string; code?: string }
+  stop?: () => void
+}
+
+export type SubagentHandles<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentHandle
+  : unknown extends TAgents
+    ? SubagentHandle
+    : TAgents extends ReadonlyArray<infer TAgent>
+      ? TAgent extends SubagentClientAgent
+        ? SubagentHandleOf<TAgent>
+        : SubagentHandle
+      : SubagentHandle
+
+export type SubagentPartOf<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentPart
+  : unknown extends TAgents
+    ? SubagentPart
+    : {
+        type: 'subagent'
+        subagent: SubagentHandles<TAgents>
+      }
+
 export type MessagePart<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
+    undefined,
 > =
   | TextPart
   | ImagePart
@@ -644,7 +730,7 @@ export type MessagePart<
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
-  | SubagentPart
+  | SubagentPartOf<TSubagents>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -659,13 +745,15 @@ export type MessagePart<
  * is typed without manual casts.
  */
 export interface UIMessage<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
+    undefined,
 > {
   id: string
   role: 'system' | 'user' | 'assistant'
   name?: string
-  parts: Array<MessagePart<TTools, TData>>
+  parts: Array<MessagePart<TTools, TData, TSubagents>>
   createdAt?: Date
   /**
    * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.

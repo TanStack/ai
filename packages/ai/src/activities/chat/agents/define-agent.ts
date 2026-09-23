@@ -6,6 +6,7 @@ import type {
   StreamChunk,
   UIMessage,
 } from '../../../types'
+import type { AnyClientTool } from '../tools/tool-definition'
 
 /**
  * Context the library passes into {@link defineAgent} `run`.
@@ -20,17 +21,32 @@ export interface SubagentRunContext {
 }
 
 /**
- * A named child agent. `run` is a `chat()` call (or any stream of AG-UI chunks).
+ * A tool a child agent can carry into client part types.
+ * Server tools and client tools both qualify.
  */
-export interface DefinedAgent<TName extends string = string> {
+export type SubagentTool = AnyTool | AnyClientTool
+
+/**
+ * A named child agent. `run` is a `chat()` call (or any stream of AG-UI chunks).
+ * `TTools` and `TSchema` stay on the object so `useChat({ subagents })` can
+ * type that child's parts.
+ */
+export interface DefinedAgent<
+  TName extends string = string,
+  TTools extends ReadonlyArray<SubagentTool> = ReadonlyArray<SubagentTool>,
+  TSchema extends SchemaInput | undefined = SchemaInput | undefined,
+  TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> {
   name: TName
   description: string
   run: (
     ctx: SubagentRunContext,
   ) => AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>
-  tools?: ReadonlyArray<AnyTool>
-  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
-  outputSchema?: SchemaInput
+  tools?: TTools
+  interrupts?: TInterrupts
+  outputSchema?: TSchema
   subagents?: unknown
 }
 
@@ -43,8 +59,9 @@ export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
   }
 
 /**
- * Define a named child agent. Pass the same object to `chat({ subagents })`
- * and to client `createChatHook` options.
+ * Define a named child agent. Pass the same object to `chat({ subagents })`.
+ * Pass the agents array to `useChat({ subagents })` when you render parts
+ * yourself. The hook uses it for types only. It does not call `run`.
  *
  * @example
  * ```ts
@@ -59,9 +76,14 @@ export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
  * })
  * ```
  */
-export function defineAgent<const TName extends string>(
-  agent: DefinedAgent<TName>,
-) {
+export function defineAgent<
+  const TName extends string,
+  const TTools extends ReadonlyArray<SubagentTool> = readonly [],
+  TSchema extends SchemaInput | undefined = undefined,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
+>(agent: DefinedAgent<TName, TTools, TSchema, TInterrupts>) {
   if (agent.name.trim() === '') {
     throw new Error('defineAgent requires a non-empty name')
   }
