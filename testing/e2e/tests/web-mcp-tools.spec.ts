@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 interface WebMCPToolRegistration {
   name: string
@@ -78,21 +78,20 @@ test.beforeEach(async ({ page }) => {
         }))
       }
 
-      async executeTool(tool: RegisteredWebMCPTool, inputArguments: string) {
+      async executeTool(tool: RegisteredWebMCPTool, inputArguments: unknown) {
         const registration = registrations.get(tool.name)
         if (!registration) {
           throw new DOMException('Tool not found', 'NotFoundError')
         }
-        if (typeof inputArguments !== 'string') {
-          throw new DOMException(
-            'Failed to parse input arguments',
-            'UnknownError',
-          )
-        }
 
         let input: object
         try {
-          const parsed: unknown = JSON.parse(inputArguments)
+          // Chrome takes a JSON string. The spec takes an object and
+          // serializes it, so accept both.
+          const parsed: unknown =
+            typeof inputArguments === 'string'
+              ? JSON.parse(inputArguments)
+              : JSON.parse(JSON.stringify(inputArguments))
           if (parsed === null || typeof parsed !== 'object') {
             throw new Error('input is not an object')
           }
@@ -134,4 +133,21 @@ test('WebMCP discovers, executes, and removes a React tool', async ({
 
   await page.getByRole('button', { name: 'Unmount tool owner' }).press('Enter')
   await expect(page.getByTestId('registered-count')).toHaveText('0')
+})
+
+test('usePageWebMCPTools sends filtered page tools to useChat and runs them', async ({
+  page,
+  testId,
+}) => {
+  await page.goto(`/web-mcp-page-tools?testId=${encodeURIComponent(testId)}`)
+
+  await expect(page.getByTestId('page-tool-names')).toHaveText('find_guitar')
+
+  await page.getByRole('button', { name: 'Ask the chat' }).click()
+  await expect(page.getByTestId('tool-output')).toHaveText(
+    '{"message":"Found guitar"}',
+  )
+  await expect(page.getByTestId('assistant-text')).toContainText(
+    'WEBMCP_PAGE_OK',
+  )
 })
