@@ -8,6 +8,7 @@ import {
 import { ChatInput } from '@/components/chat-input'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { Researcher, Seo, Writer } from '@/components/subagent-card'
+import { blogAgents } from '@/lib/blog-agents'
 import { byok } from '@/lib/byok'
 import { THREAD_ID } from '@/lib/thread'
 
@@ -16,17 +17,7 @@ export const chatOptions = {
   byok,
   threadId: THREAD_ID,
   persistence: true,
-  subagents: {
-    researcher: {
-      description: 'Looks up facts, sources, and background for a blog post',
-    },
-    writer: {
-      description: 'Drafts or rewrites a blog post',
-    },
-    seo: {
-      description: 'Suggests SEO titles, a meta description, and tags',
-    },
-  },
+  subagents: blogAgents,
 }
 
 export type BlogChatOptions = typeof chatOptions

@@ -41,6 +41,7 @@ Leave the layout, the message component, the input, the text part, and the three
 
 ```tsx ignore
 import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { blogAgents } from '@/lib/blog-agents'
 import { byok } from '@/lib/byok'
 import { THREAD_ID } from '@/lib/thread'
 
@@ -49,17 +50,7 @@ export const chatOptions = {
   byok,
   threadId: THREAD_ID,
   persistence: true,
-  subagents: {
-    researcher: {
-      description: 'Looks up facts, sources, and background for a blog post',
-    },
-    writer: {
-      description: 'Drafts or rewrites a blog post',
-    },
-    seo: {
-      description: 'Suggests SEO titles, a meta description, and tags',
-    },
-  },
+  subagents: blogAgents,
 }
 ```
 
@@ -220,12 +211,12 @@ The hook sends the full thread on the next POST. Each card becomes text in the s
 
 ## 5. Give the researcher a tool and reasoning
 
-A refresh must bring back more than text. Give the researcher one server tool and turn on reasoning. Then its card has reasoning, a tool call, and a tool result to restore.
+A refresh must bring back more than text. Give the researcher one tool and turn on reasoning. Then its card has reasoning, a tool call, and a tool result to restore.
 
-In `src/lib/agents.ts`, add `toolDefinition` to the `@tanstack/ai` import. Then add the tool above `createBlogAgents`:
+In `src/lib/blog-agents.ts`, add `toolDefinition` from `@tanstack/ai`. Define the tool, then add it to the researcher's `tools`:
 
 ```ts ignore
-const lookupWikipedia = toolDefinition({
+export const lookupWikipedia = toolDefinition({
   name: 'lookupWikipedia',
   description:
     'Get the Wikipedia summary of one topic. Pass a short page title, for example "Octopus".',
@@ -234,7 +225,22 @@ const lookupWikipedia = toolDefinition({
     properties: { title: { type: 'string' } },
     required: ['title'],
   },
-}).server(async (input) => {
+})
+
+export const researcher = {
+  name: 'researcher',
+  description:
+    'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft or for SEO. Answer no when they do not ask to look anything up.',
+  tools: [lookupWikipedia],
+} as const
+```
+
+The definition holds no server code, so the browser reads it too. It types the researcher's tool calls in the UI.
+
+In `src/lib/agents.ts`, import `lookupWikipedia` and add the server side of the tool above `createBlogAgents`:
+
+```ts ignore
+const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
   const title =
     typeof input === 'object' &&
     input !== null &&
@@ -268,7 +274,7 @@ In the researcher `chat()` call, add the tool and the reasoning option. Tell the
 
 ```ts ignore
 modelOptions: { reasoning: { effort: 'medium' } },
-tools: [lookupWikipedia],
+tools: [lookupWikipediaTool],
 systemPrompts: [
   'You research for a blog desk. Call lookupWikipedia once for each topic before you reply. Then reply in Markdown with short notes, and give the Wikipedia URL as the source. Use a list. Do not write the full post.',
 ],
@@ -288,23 +294,25 @@ thinking: ({ part }) => (
 The researcher card draws the tool call. In `src/components/subagent-card.tsx`, import the `SubagentPartsProps` type from `@tanstack/ai-react/ui`. Add the tool widget above the cards:
 
 ```tsx ignore
-const researcherTools: SubagentPartsProps<BlogChatOptions>['toolsComponents'] =
-  {
-    lookupWikipedia: ({ part, result }) => (
-      <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
-        <summary className="cursor-pointer font-mono">
-          lookupWikipedia({part.arguments}) ({part.state})
-        </summary>
-        <pre className="mt-1 whitespace-pre-wrap text-gray-400">
-          {result === undefined
-            ? 'No result yet'
-            : typeof result.content === 'string'
-              ? result.content
-              : JSON.stringify(result.content)}
-        </pre>
-      </details>
-    ),
-  }
+const researcherTools: SubagentPartsProps<
+  BlogChatOptions,
+  'researcher'
+>['toolsComponents'] = {
+  lookupWikipedia: ({ part, result }) => (
+    <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
+      <summary className="cursor-pointer font-mono">
+        lookupWikipedia({part.arguments}) ({part.state})
+      </summary>
+      <pre className="mt-1 whitespace-pre-wrap text-gray-400">
+        {result === undefined
+          ? 'No result yet'
+          : typeof result.content === 'string'
+            ? result.content
+            : JSON.stringify(result.content)}
+      </pre>
+    </details>
+  ),
+}
 ```
 
 Pass it to the researcher card's `Parts`:
@@ -313,6 +321,7 @@ Pass it to the researcher card's `Parts`:
 <Parts toolsComponents={researcherTools} />
 ```
 
+- The keys come from the researcher's `tools`. A tool name that the researcher does not have is a type error.
 - The kit renders a tool call only through a `toolsComponents` entry with the same name. A tool with no entry renders nothing.
 - This entry is on the researcher card, so only that card uses it. Its text and reasoning still use the root widgets.
 - `result` is the matching tool result, so the result shows inside the same row.
