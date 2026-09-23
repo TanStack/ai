@@ -113,7 +113,7 @@ Save these three fields on the child run. `createOrResume` writes them on the fi
 
 If the store omits `listByParentRun`, declare `runs.listByParentRun` in `skipMethods`. A reload then shows the saved text. The cards stay absent.
 
-The columns and the method are in the [store reference](./store-reference). The full route is in [Persisted subagents](../tutorials/subagents-persisted).
+The columns and the method are in the [store reference](./store-reference).
 
 ## Keep every stored message
 
