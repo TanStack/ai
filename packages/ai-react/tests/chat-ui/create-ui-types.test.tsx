@@ -13,7 +13,10 @@ import type {
   SubagentProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
-import { chatOptions } from '../../../ai-client/tests/ui-fixtures'
+import {
+  chatOptions,
+  subagentChatOptions,
+} from '../../../ai-client/tests/ui-fixtures'
 
 it('types tool and interrupt component props from chatOptions', () => {
   type TextPartProps = PartProps<typeof chatOptions, 'text'>
@@ -323,22 +326,68 @@ it('applies the same conditional `Input` rule to createChatHook', () => {
   })
 })
 
-it('requires a component for every named subagent', () => {
-  const subagentChatOptions = {
-    ...chatOptions,
-    subagents: {
-      researcher: { description: 'Looks up facts' },
-      writer: { description: 'Drafts posts' },
-    },
-  }
-
+it('types a card from its agent tools and interrupts', () => {
   type ResearcherProps = SubagentProps<typeof subagentChatOptions, 'researcher'>
   expectTypeOf<
     ResearcherProps['subagent']['name']
   >().toEqualTypeOf<'researcher'>()
   expectTypeOf<ResearcherProps['Parts']>().toEqualTypeOf<
-    ComponentType<SubagentPartsProps<typeof subagentChatOptions>>
+    ComponentType<SubagentPartsProps<typeof subagentChatOptions, 'researcher'>>
   >()
+
+  // The child's messages use that agent's tools.
+  type ChildPart =
+    ResearcherProps['subagent']['messages'][number]['parts'][number]
+  expectTypeOf<
+    Extract<ChildPart, { type: 'tool-call' }>['name']
+  >().toEqualTypeOf<'lookupFacts'>()
+
+  type ResearcherWidgets = SubagentPartsProps<
+    typeof subagentChatOptions,
+    'researcher'
+  >
+  const researcherTools: ResearcherWidgets['toolsComponents'] = {
+    lookupFacts: ({ part }) => {
+      expectTypeOf(part.input).toEqualTypeOf<{ topic: string } | undefined>()
+      expectTypeOf(part.output).toEqualTypeOf<
+        { facts: Array<string> } | undefined
+      >()
+      return null
+    },
+    // @ts-expect-error The researcher has no such tool.
+    deleteDraft: () => null,
+  }
+  void researcherTools
+
+  type WriterWidgets = SubagentPartsProps<typeof subagentChatOptions, 'writer'>
+  const writerTools: WriterWidgets['toolsComponents'] = {
+    deleteDraft: ({ interrupt }) => {
+      expectTypeOf<
+        NonNullable<typeof interrupt>['originalArgs']
+      >().toEqualTypeOf<{
+        id: string
+      }>()
+      return null
+    },
+  }
+  void writerTools
+
+  // The root interrupt widgets know the child approval and interrupt.
+  type DeleteApproval = InterruptProps<
+    typeof subagentChatOptions,
+    'deleteDraft'
+  >
+  expectTypeOf<DeleteApproval['interrupt']['originalArgs']>().toEqualTypeOf<{
+    id: string
+  }>()
+  type ToneProps = InterruptProps<typeof subagentChatOptions, 'pickTone'>
+  expectTypeOf<ToneProps['interrupt']['payload']>().toEqualTypeOf<
+    { options: Array<string> } | undefined
+  >()
+})
+
+it('requires a component for every named subagent', () => {
+  type ResearcherProps = SubagentProps<typeof subagentChatOptions, 'researcher'>
 
   createChatHook({
     options: subagentChatOptions,
@@ -354,7 +403,11 @@ it('requires a component for every named subagent', () => {
     partsComponents: { fallback: () => null },
     toolsComponents: { getWeather: () => null, purchaseItem: () => null },
     interruptsComponents: {
-      generic: { choosePlan: () => null, fallback: () => null },
+      generic: {
+        choosePlan: () => null,
+        pickTone: () => null,
+        fallback: () => null,
+      },
     },
     // @ts-expect-error Every configured subagent needs a component.
     subagentsComponents: {
@@ -371,7 +424,11 @@ it('requires a component for every named subagent', () => {
     partsComponents: { fallback: () => null },
     toolsComponents: { getWeather: () => null, purchaseItem: () => null },
     interruptsComponents: {
-      generic: { choosePlan: () => null, fallback: () => null },
+      generic: {
+        choosePlan: () => null,
+        pickTone: () => null,
+        fallback: () => null,
+      },
     },
     subagentsComponents: {
       researcher: ({ subagent, Parts }: ResearcherProps) => {

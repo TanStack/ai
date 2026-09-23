@@ -364,7 +364,7 @@ The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same liv
 
 `part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. By default, the child messages use the same parts components as the parent. A card can replace them for its child. See [Style one child's parts](#style-one-childs-parts).
 
-Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. If a started child has a name with no `subagentsComponents` entry, rendering that card throws.
+Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass the agents you give to `chat()` as `options.subagents`. The client reads each agent's `name`, `tools`, `interrupts`, and `outputSchema` for types. It does not call `run`. Register `subagentsComponents` for each agent name. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. If a started child has a name with no `subagentsComponents` entry, rendering that card throws.
 
 When you render the parts yourself, pass the same agents to `useChat`. The hook uses them for types only. It does not call `run`.
 
@@ -399,16 +399,25 @@ function Desk() {
 `part.subagent.name` is `'researcher' | 'writer'`. After you check the name, that child's `messages` use the tools and output schema from that agent.
 
 ```tsx
+import { defineAgent } from '@tanstack/ai'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
 import type { LayoutProps, SubagentProps } from '@tanstack/ai-react/ui'
 
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: async function* () {},
+})
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Drafts posts',
+  run: async function* () {},
+})
+
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  subagents: {
-    researcher: { description: 'Looks up facts' },
-    writer: { description: 'Drafts posts' },
-  },
+  subagents: [researcher, writer],
 }
 
 function SubagentCard({
@@ -475,21 +484,39 @@ export function ChatScreen() {
 
 `part.subagent` is the same object as `useChat().subagents[i]` for that id. `stop()` on either one aborts the current parent run.
 
+When `run` imports server code, do not import the agent into the browser. Declare the agent once in a shared file, with its `name`, `description`, and tool definitions from `toolDefinition`. The server passes `defineAgent({ ...researcher, run })` to `chat()`. The client passes the declaration.
+
 ### Style one child's parts
 
 The researcher's reasoning and tool calls use the root widgets by default. To make them look different on the researcher card only, pass widgets to that card's `Parts`:
 
 ```tsx
+import { toolDefinition } from '@tanstack/ai'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook, ThinkingPart } from '@tanstack/ai-react/ui'
 import type { SubagentPartsProps, SubagentProps } from '@tanstack/ai-react/ui'
+import { z } from 'zod'
+
+const lookupWikipedia = toolDefinition({
+  name: 'lookupWikipedia',
+  description: 'Get the Wikipedia summary of one topic',
+  inputSchema: z.object({ title: z.string() }),
+  outputSchema: z.object({ extract: z.string() }),
+})
+
+// Shared with the server, which passes defineAgent({ ...researcher, run }).
+const researcher = {
+  name: 'researcher',
+  description: 'Looks up facts',
+  tools: [lookupWikipedia],
+} as const
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  subagents: { researcher: { description: 'Looks up facts' } },
+  subagents: [researcher],
 }
 
-type ResearcherWidgets = SubagentPartsProps<typeof chatOptions>
+type ResearcherWidgets = SubagentPartsProps<typeof chatOptions, 'researcher'>
 
 const researcherParts: ResearcherWidgets['partsComponents'] = {
   thinking: ({ part }) => (
@@ -498,12 +525,12 @@ const researcherParts: ResearcherWidgets['partsComponents'] = {
 }
 
 const researcherTools: ResearcherWidgets['toolsComponents'] = {
-  lookupWikipedia: ({ part, result }) => (
+  lookupWikipedia: ({ part }) => (
     <details>
       <summary>
-        {part.name} ({part.state})
+        {part.input?.title} ({part.state})
       </summary>
-      {typeof result?.content === 'string' ? result.content : null}
+      {part.output?.extract}
     </details>
   ),
 }
@@ -541,11 +568,10 @@ export const { useAppChat } = createChatHook({
 })
 ```
 
-- An entry on `Parts` replaces the root entry with the same key, for this card only.
+- An entry on `Parts` replaces the root entry with the same key, for this card and for the children nested in it.
 - A key that you do not set uses the root entry. Here, `text` still uses the root widget.
-- Children nested in this card get the same entries, unless their own card passes other ones.
-- `toolsComponents` is keyed by tool name. A tool call renders only through the entry with its name, so a tool with no entry at any level renders nothing.
-- The child's tools are not typed on the client, so `part.input` and `part.output` are not typed.
+- `toolsComponents` keys and props come from the agent's `tools`. `part.input` and `part.output` are typed, and a tool name that the agent does not have is a type error. A tool call with no entry at any level renders nothing.
+- An approval for a child tool arrives as `interrupt` on that tool widget, typed from the tool. The root `interruptsComponents` also accepts the child's approval tools and the ids in the agent's `interrupts`.
 
 Define these maps outside the component. A new object on each render makes every part in the card render again. An approval for a tool that only a card registers also shows in the root `<Interrupts />` list.
 

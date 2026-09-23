@@ -649,12 +649,15 @@ export interface SubagentPart {
 }
 
 /**
- * The slice of a server `defineAgent` result that `useChat({ subagents })`
- * reads. The hook does not call `run`.
+ * The slice of a server `defineAgent` result that the client reads for types.
+ * The client does not call `run`. Put tool definitions (from
+ * `toolDefinition`) in `tools` to type the child's tool calls and approvals.
  */
 export type SubagentClientAgent = {
   name: string
+  description?: string
   tools?: ReadonlyArray<{ name: string }>
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   outputSchema?: SchemaInput
 }
 
@@ -683,16 +686,12 @@ type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
   : unknown
 
 /** One child handle. `name` is the discriminant. */
-export type SubagentHandleOf<TAgent extends SubagentClientAgent> = {
-  id: string
+export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
+  SubagentHandle,
+  'name' | 'messages'
+> & {
   name: TAgent['name']
-  description?: string
-  status: SubagentStatus
-  parentRunId?: string
-  parentSubagentRunId?: string
   messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
-  error?: { message: string; code?: string }
-  stop?: () => void
 }
 
 export type SubagentHandles<
@@ -1007,14 +1006,11 @@ export interface ChatClientBaseOptions<
   byok?: ByokClient
 
   /**
-   * Named child agents for this chat. Each key is an agent name.
-   * `createChatHook` requires a `subagentsComponents` entry for every key.
+   * The agents you pass to `chat({ subagents: { agents } })`, for types only.
+   * The client does not call `run`. `createChatHook` requires a
+   * `subagentsComponents` entry for every agent name.
    */
-  subagents?: {
-    [name: string]: {
-      description?: string
-    }
-  }
+  subagents?: ReadonlyArray<SubagentClientAgent>
 
   /**
    * Optional provider id for this chat. If it returns a provider slug,
