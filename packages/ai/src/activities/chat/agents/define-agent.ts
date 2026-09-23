@@ -20,7 +20,7 @@ export interface SubagentRunContext {
   runId: string
   /**
    * The run this child run continues. It is the parent chat run on the first
-   * run, and the interrupted child run on a resume. Pass it to the child
+   * run, and the interrupted parent run on a resume. Pass it to the child
    * `chat()`.
    */
   parentRunId: string

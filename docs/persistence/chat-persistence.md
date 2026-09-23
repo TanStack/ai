@@ -115,6 +115,8 @@ A child that waits for an approval comes back with `status: 'suspended'`, and it
 
 A child that a tool call started sits on the message with that tool call. `reconstructChat` finds its parent run with `listByThread`, so implement that method too.
 
+Put `withPersistence` on the parent `chat()` only, not on a child `chat()`. The parent stores the child runs. A child with its own `withPersistence` stores the same child a second time, and its interrupt records conflict with the parent's.
+
 Subagent support is optional. If the store omits `listByParentRun`, a reload shows the saved text and the cards stay absent. The conformance suite skips the subagent checks with no `skipMethods` entry.
 
 The columns and the method are in the [store reference](./store-reference).

@@ -254,6 +254,19 @@ The resume uses the plan that the router picked in the first run. It does not ca
 
 The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
 
+## Persistence
+
+Put `withPersistence` on the parent `chat()` only. The parent stores each child:
+
+- the child run, linked to the parent run
+- the full child transcript
+- the child's pending interrupts
+- the card status
+
+A reload then shows every card, and a resume continues a waiting child. See [Subagent cards on reload](../persistence/chat-persistence#subagent-cards-on-reload).
+
+Do not add `withPersistence` to a child `chat()` too. The child does not know that it runs as a subagent, so it stores the same child again under its own run and thread ids. Its interrupt records then conflict with the parent's records, and a reload can lose the pending approval.
+
 ## Sandbox
 
 `withSandbox` keys the workspace by `threadId`. Set `subagents.sandbox` so the child gets the right thread id. Pass `ctx.threadId` into the child `chat()`.
