@@ -8,6 +8,7 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIApprovalToolName,
   ChatUIData,
   ChatUIHasNamedInterrupts,
   ChatUIHasNamedSubagents,
@@ -24,6 +25,8 @@ import type {
   ChatUISelectedPart,
   ChatUISelectedPartOf,
   ChatUISubagentName,
+  ChatUISubagentOf,
+  ChatUISubagentOptions,
   ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
@@ -32,6 +35,7 @@ import type {
   MessagePart,
   QueuedMessage,
   SubagentHandle,
+  SubagentHandles,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -84,13 +88,20 @@ export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
 /**
  * Widgets for one subagent card. Each entry replaces the root entry of the
  * same key for this card and for the children nested in it. A key that is
- * not set here uses the root entry.
+ * not set here uses the root entry. Tool names and tool props come from that
+ * agent's `tools`.
  */
-export type SubagentPartsProps<TOptions> = {
-  partsComponents?: ChatUIPartsComponents<TOptions>
-  /** Keyed by tool name. A child's tools are not typed on the client. */
+export type SubagentPartsProps<
+  TOptions,
+  TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
+> = {
+  partsComponents?: ChatUIPartsComponents<
+    ChatUISubagentOptions<TOptions, TName>
+  >
   toolsComponents?: {
-    [name: string]: ComponentType<ToolProps<unknown, string>> | undefined
+    [K in ChatUIToolName<
+      ChatUISubagentOptions<TOptions, TName>
+    >]?: ComponentType<ToolProps<ChatUISubagentOptions<TOptions, TName>, K>>
   }
 }
 
@@ -98,8 +109,10 @@ export type SubagentProps<
   TOptions,
   TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
 > = {
-  subagent: SubagentHandle & { name: TName }
-  Parts: ComponentType<SubagentPartsProps<TOptions>>
+  subagent: [ChatUISubagentOf<TOptions, TName>] extends [never]
+    ? SubagentHandle & { name: TName }
+    : SubagentHandles<ReadonlyArray<ChatUISubagentOf<TOptions, TName>>>
+  Parts: ComponentType<SubagentPartsProps<TOptions, TName>>
   readonly __ui?: TOptions
 }
 
@@ -134,7 +147,7 @@ type GenericInterruptComponents<TOptions> =
       }
 
 type ToolApprovalMap<TOptions> = {
-  [K in ChatUIToolName<TOptions>]?: ComponentType<
+  [K in ChatUIApprovalToolName<TOptions>]?: ComponentType<
     InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
   >
 }
@@ -232,7 +245,7 @@ type PartMixins<TOptions> = {
 type InterruptMixins<TOptions> = {
   [K in ChatUINamedInterruptId<TOptions>]: BoundWidget
 } & {
-  [K in ChatUIToolName<TOptions>]?: BoundWidget
+  [K in ChatUIApprovalToolName<TOptions>]?: BoundWidget
 } & {
   fallback?: BoundWidget
   Render: BoundWidget

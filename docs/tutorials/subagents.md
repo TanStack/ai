@@ -159,15 +159,41 @@ If you want passkeys, open [Bring Your Own Key](../advanced/byok).
 
 ## 6. Define three agents
 
-Create `src/lib/agents.ts`.
+Create `src/lib/blog-agents.ts`. It declares each agent once: `name` is the id the router returns, and `description` is the text Jev reads. The file holds no server code, so the browser can import it too.
 
-`defineAgent` makes a named child. `name` is the id the router returns. `description` is the text Jev reads. `run` is a full `chat()` call. Pass `ctx.threadId` and `ctx.runId` so the child stays on the parent stream.
+```typescript ignore
+// Shared by the server and the browser, so it holds no server code. The
+// server adds `run` in `agents.ts`. The browser passes the list to the chat
+// UI factory for types.
+export const researcher = {
+  name: 'researcher',
+  description:
+    'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft or for SEO. Answer no when they do not ask to look anything up.',
+} as const
+
+export const writer = {
+  name: 'writer',
+  description:
+    'Does this turn need a written article, post, or rewrite? Answer yes only when the user asks for an article, post, draft, or rewrite. Answer no when they ask for research or SEO and do not ask for an article.',
+} as const
+
+export const seo = {
+  name: 'seo',
+  description:
+    'Does this turn need SEO work? Answer yes when the user asks for SEO, search titles, a meta description, or tags. Answer no when they do not mention SEO, titles, a meta description, or tags.',
+} as const
+
+export const blogAgents = [researcher, writer, seo] as const
+```
+
+Create `src/lib/agents.ts`. `defineAgent` spreads each declaration and adds `run`, a full `chat()` call. Pass `ctx.threadId` and `ctx.runId` so the child stays on the parent stream.
 
 The parent `chat({ subagents: { agents } })` owns the list. It does not call `run` until a turn picks that name. Exclusive strategy means the chosen child owns the turn. Main does not answer after it.
 
 ```typescript ignore
 import { chat, defineAgent } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { researcher, seo, writer } from '@/lib/blog-agents'
 
 function linkAbort(signal: AbortSignal | undefined) {
   const abortController = new AbortController()
@@ -187,10 +213,8 @@ function linkAbort(signal: AbortSignal | undefined) {
 }
 
 export function createBlogAgents(apiKey: string) {
-  const researcher = defineAgent({
-    name: 'researcher',
-    description:
-      'Does this turn need facts or sources? Answer yes when the user asks to look something up, even if they also ask for a draft or for SEO. Answer no when they do not ask to look anything up.',
+  const researcherAgent = defineAgent({
+    ...researcher,
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -206,10 +230,8 @@ export function createBlogAgents(apiKey: string) {
       }),
   })
 
-  const writer = defineAgent({
-    name: 'writer',
-    description:
-      'Does this turn need a written article, post, or rewrite? Answer yes only when the user asks for an article, post, draft, or rewrite. Answer no when they ask for research or SEO and do not ask for an article.',
+  const writerAgent = defineAgent({
+    ...writer,
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -225,10 +247,8 @@ export function createBlogAgents(apiKey: string) {
       }),
   })
 
-  const seo = defineAgent({
-    name: 'seo',
-    description:
-      'Does this turn need SEO work? Answer yes when the user asks for SEO, search titles, a meta description, or tags. Answer no when they do not mention SEO, titles, a meta description, or tags.',
+  const seoAgent = defineAgent({
+    ...seo,
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
@@ -244,7 +264,7 @@ export function createBlogAgents(apiKey: string) {
       }),
   })
 
-  return [researcher, writer, seo] as const
+  return [researcherAgent, writerAgent, seoAgent] as const
 }
 ```
 
@@ -651,7 +671,7 @@ export function Writer({
 
 ## 14. Register every named subagent
 
-Put the agent names on `options.subagents`. Each key is a name. Then pass `subagentsComponents` with the same keys. TypeScript requires every key. The factory throws if a spawned name is missing.
+Put `blogAgents` on `options.subagents`. The factory reads each agent name from that list. Then pass `subagentsComponents` with one component per name. TypeScript requires every name. The factory throws if a spawned name is missing.
 
 Create `src/components/chat-input.tsx`. The form calls `useChatContext()` to send. It has no return type.
 
@@ -698,13 +718,13 @@ export function ChatInput() {
             placeholder="Ask for research, a draft, or SEO titles..."
             onKeyDown={(event) => {
               // Enter also confirms an IME composition. Do not send then.
-            if (
-              event.key !== 'Enter' ||
-              event.shiftKey ||
-              event.nativeEvent.isComposing
-            ) {
-              return
-            }
+              if (
+                event.key !== 'Enter' ||
+                event.shiftKey ||
+                event.nativeEvent.isComposing
+              ) {
+                return
+              }
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()
             }}
@@ -736,22 +756,13 @@ import {
 import { ChatInput } from '@/components/chat-input'
 import { OpenRouterKeyForm } from '@/components/open-router-key-form'
 import { Researcher, Seo, Writer } from '@/components/subagent-card'
+import { blogAgents } from '@/lib/blog-agents'
 import { byok } from '@/lib/byok'
 
 export const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
   byok,
-  subagents: {
-    researcher: {
-      description: 'Looks up facts, sources, and background for a blog post',
-    },
-    writer: {
-      description: 'Drafts or rewrites a blog post',
-    },
-    seo: {
-      description: 'Suggests SEO titles, a meta description, and tags',
-    },
-  },
+  subagents: blogAgents,
 }
 
 export type BlogChatOptions = typeof chatOptions
