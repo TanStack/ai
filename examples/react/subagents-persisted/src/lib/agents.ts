@@ -1,5 +1,44 @@
-import { chat, defineAgent } from '@tanstack/ai'
+import { chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
+
+// The researcher calls this tool, so its card shows a tool call and a result.
+const lookupWikipedia = toolDefinition({
+  name: 'lookupWikipedia',
+  description:
+    'Get the Wikipedia summary of one topic. Pass a short page title, for example "Octopus".',
+  inputSchema: {
+    type: 'object',
+    properties: { title: { type: 'string' } },
+    required: ['title'],
+  },
+}).server(async (input) => {
+  const title =
+    typeof input === 'object' &&
+    input !== null &&
+    'title' in input &&
+    typeof input.title === 'string'
+      ? input.title
+      : ''
+  const response = await fetch(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+    { headers: { 'user-agent': 'tanstack-ai-subagents-persisted-example' } },
+  )
+  if (!response.ok) return { title, found: false }
+  const page: unknown = await response.json()
+  const extract =
+    typeof page === 'object' &&
+    page !== null &&
+    'extract' in page &&
+    typeof page.extract === 'string'
+      ? page.extract
+      : ''
+  return {
+    title,
+    found: true,
+    extract,
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
+  }
+})
 
 function linkAbort(signal: AbortSignal | undefined) {
   const abortController = new AbortController()
@@ -26,6 +65,8 @@ export function createBlogAgents(apiKey: string) {
     run: (ctx) =>
       chat({
         adapter: createOpenRouterText('openai/gpt-5.5', apiKey),
+        modelOptions: { reasoning: { effort: 'medium' } },
+        tools: [lookupWikipedia],
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
@@ -33,7 +74,7 @@ export function createBlogAgents(apiKey: string) {
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
-          'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
+          'You research for a blog desk. Call lookupWikipedia once for each topic before you reply. Then reply in Markdown with short notes, and give the Wikipedia URL as the source. Use a list. Do not write the full post.',
         ],
       }),
   })

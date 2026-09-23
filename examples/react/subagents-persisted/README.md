@@ -4,6 +4,8 @@ This is the blog desk from the subagents example, plus a saved chat.
 
 Refresh the page. The messages and the subagent cards come back. Refresh while a run is still streaming. The same run continues. Paste the key again, then send another message. The next agent still sees the saved notes.
 
+The researcher calls a Wikipedia tool and shows its reasoning. A refresh keeps the reasoning, the tool call, and the tool result on its card.
+
 The saved copy lives in this dev server process. Restart the server and the chat is gone.
 
 ## Run it

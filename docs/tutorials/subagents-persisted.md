@@ -173,7 +173,7 @@ The run store holds one row per run.
 - The parent row uses the chat `runId` and the thread id `blog-desk`.
 - A child row uses the child run id as `runId`. `subagentRunId` is that same id. `parentRunId` is the chat run. `name` is `researcher`, `writer`, or `seo`.
 - The child thread id is `subagent:` plus the child run id. `findActiveRun('blog-desk')` then returns the parent run.
-- The middleware saves each text chunk on the child thread.
+- The middleware saves the child transcript on the child thread: text, reasoning, tool calls, and tool results.
 - The parent assistant message id is `assistant:` plus the parent run id. `metadata.tanstack.runId` is that same id. The saved text is `researcher:` and the notes, then `seo:` and the notes.
 
 `reconstructChat` reads `metadata.tanstack.runId`. It calls `listByParentRun`. It puts one card on the assistant message for each child. The card is the only place the notes show.
@@ -192,7 +192,7 @@ Your own database must save `parentRunId`, `subagentRunId`, and `name`. It must 
 
 1. It opens the parent run and saves the messages from the request.
 2. When a child starts, it opens the child run and saves the link fields.
-3. When a child streams text, it saves that text.
+3. When a child streams, it saves its text, reasoning, and tool calls.
 4. When the turn ends, it marks the parent run and the child runs complete.
 
 `toServerSentEventsResponse` does the delivery.
@@ -218,10 +218,100 @@ If there is no resume offset, the request is a normal load. `reconstructChat(per
 
 The hook sends the full thread on the next POST. Each card becomes text in the shape `name:` plus the notes. The writer system prompt tells the model to use earlier research text. The writer receives the saved notes in `messages`.
 
+## 5. Give the researcher a tool and reasoning
+
+A refresh must bring back more than text. Give the researcher one server tool and turn on reasoning. Then its card has reasoning, a tool call, and a tool result to restore.
+
+In `src/lib/agents.ts`, add `toolDefinition` to the `@tanstack/ai` import. Then add the tool above `createBlogAgents`:
+
+```ts ignore
+const lookupWikipedia = toolDefinition({
+  name: 'lookupWikipedia',
+  description:
+    'Get the Wikipedia summary of one topic. Pass a short page title, for example "Octopus".',
+  inputSchema: {
+    type: 'object',
+    properties: { title: { type: 'string' } },
+    required: ['title'],
+  },
+}).server(async (input) => {
+  const title =
+    typeof input === 'object' &&
+    input !== null &&
+    'title' in input &&
+    typeof input.title === 'string'
+      ? input.title
+      : ''
+  const response = await fetch(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+    { headers: { 'user-agent': 'tanstack-ai-subagents-persisted-example' } },
+  )
+  if (!response.ok) return { title, found: false }
+  const page: unknown = await response.json()
+  const extract =
+    typeof page === 'object' &&
+    page !== null &&
+    'extract' in page &&
+    typeof page.extract === 'string'
+      ? page.extract
+      : ''
+  return {
+    title,
+    found: true,
+    extract,
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
+  }
+})
+```
+
+In the researcher `chat()` call, add the tool and the reasoning option. Tell the model to use the tool:
+
+```ts ignore
+modelOptions: { reasoning: { effort: 'medium' } },
+tools: [lookupWikipedia],
+systemPrompts: [
+  'You research for a blog desk. Call lookupWikipedia once for each topic before you reply. Then reply in Markdown with short notes, and give the Wikipedia URL as the source. Use a list. Do not write the full post.',
+],
+```
+
+In `src/chat-ui.tsx`, import `ThinkingPart` from `@tanstack/ai-react/ui`. Add a `thinking` entry to `partsComponents`:
+
+```tsx ignore
+thinking: ({ part }) => (
+  <ThinkingPart
+    content={part.content}
+    className="mb-2 rounded border border-gray-700 bg-gray-800/60 p-2 text-xs text-gray-400"
+  />
+),
+```
+
+Then add `toolsComponents` next to `partsComponents`:
+
+```tsx ignore
+toolsComponents: {
+  lookupWikipedia: ({ part, result }) => (
+    <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
+      <summary className="cursor-pointer font-mono">
+        lookupWikipedia({part.arguments}) ({part.state})
+      </summary>
+      <pre className="mt-1 whitespace-pre-wrap text-gray-400">
+        {result === undefined
+          ? 'No result yet'
+          : typeof result.content === 'string'
+            ? result.content
+            : JSON.stringify(result.content)}
+      </pre>
+    </details>
+  ),
+},
+```
+
+The kit renders a tool call only through the `toolsComponents` entry with the same name. A tool with no entry renders nothing. `result` is the matching tool result, so the result shows inside the same row.
+
 ## Try it
 
-1. Paste an OpenRouter key. Send `do research on octopuses and seo titles`. Wait until both cards say finished.
-2. Refresh the page. The research card and the SEO card are still there.
+1. Paste an OpenRouter key. Send `do research on octopuses and seo titles`. Wait until both cards say finished. The research card shows reasoning, a `lookupWikipedia` row, and the notes.
+2. Refresh the page. The research card and the SEO card are still there. The research card still has its reasoning and its tool row.
 3. Send `Now write the article`. The writer uses the saved notes. Refresh. All three cards stay.
 4. Send a longer prompt. Refresh while a card says running. The same card continues.
 5. Click Stop while a card says running. Refresh. The same card continues.
