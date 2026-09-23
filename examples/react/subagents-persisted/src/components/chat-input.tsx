@@ -41,7 +41,14 @@ export function ChatInput() {
             disabled={chat.isLoading}
             placeholder="Ask for research, a draft, or SEO titles..."
             onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey) return
+              // Enter also confirms an IME composition. Do not send then.
+              if (
+                event.key !== 'Enter' ||
+                event.shiftKey ||
+                event.nativeEvent.isComposing
+              ) {
+                return
+              }
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()
             }}
@@ -53,15 +60,6 @@ export function ChatInput() {
             className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
           >
             Send
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              chat.clear()
-            }}
-            className="rounded-lg border border-gray-600 px-3 py-3 text-sm text-gray-200"
-          >
-            Clear
           </button>
         </div>
       </form>
