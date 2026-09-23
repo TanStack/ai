@@ -90,8 +90,8 @@ import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
-import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
+import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
@@ -533,14 +533,14 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
-  id: '/api/embedding',
-  path: '/api/embedding',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
   id: '/api/file-source-wire',
   path: '/api/file-source-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
+  id: '/api/embedding',
+  path: '/api/embedding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
@@ -1926,18 +1926,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/embedding': {
-      id: '/api/embedding'
-      path: '/api/embedding'
-      fullPath: '/api/embedding'
-      preLoaderRoute: typeof ApiEmbeddingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/file-source-wire': {
       id: '/api/file-source-wire'
       path: '/api/file-source-wire'
       fullPath: '/api/file-source-wire'
       preLoaderRoute: typeof ApiFileSourceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/embedding': {
+      id: '/api/embedding'
+      path: '/api/embedding'
+      fullPath: '/api/embedding'
+      preLoaderRoute: typeof ApiEmbeddingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/durable-takeover': {

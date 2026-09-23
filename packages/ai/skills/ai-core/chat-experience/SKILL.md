@@ -299,6 +299,8 @@ import type { UIMessage } from '@tanstack/ai-react'
 
 function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
   if (part.type !== 'image') return null
+  // A provider file handle is an opaque id, so the browser cannot load it.
+  if (part.source.type === 'file') return null
   const src =
     part.source.type === 'url'
       ? part.source.value
