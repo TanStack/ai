@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import type { Page } from '@playwright/test'
 
 interface WebMCPToolRegistration {
   name: string
@@ -30,8 +31,14 @@ interface WebMCPRegistration {
   execute: WebMCPToolRegistration['execute']
 }
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
+/**
+ * Installs a WebMCP mock that accepts one `executeTool` input form only:
+ * - `'string'`: the JSON string that Chrome takes today.
+ * - `'object'`: the object that the WebMCP specification takes.
+ * A strict mock makes each test prove the form that its caller sends.
+ */
+async function installModelContext(page: Page, inputForm: 'string' | 'object') {
+  await page.addInitScript((expectedForm) => {
     const registrations = new Map<string, WebMCPRegistration>()
     const modelContext = new (class extends EventTarget {
       async registerTool(
@@ -84,10 +91,19 @@ test.beforeEach(async ({ page }) => {
           throw new DOMException('Tool not found', 'NotFoundError')
         }
 
+        const receivedForm =
+          typeof inputArguments === 'string' ? 'string' : 'object'
+        if (receivedForm !== expectedForm) {
+          throw new DOMException(
+            `Expected ${expectedForm} input arguments, got ${receivedForm}`,
+            'UnknownError',
+          )
+        }
+
         let input: object
         try {
-          // Chrome takes a JSON string. The spec takes an object and
-          // serializes it, so accept both.
+          // The specification serializes an object input to JSON before the
+          // tool runs, so both forms reach the tool as a parsed object.
           const parsed: unknown =
             typeof inputArguments === 'string'
               ? JSON.parse(inputArguments)
@@ -118,12 +134,14 @@ test.beforeEach(async ({ page }) => {
       configurable: true,
       value: modelContext,
     })
-  })
-})
+  }, inputForm)
+}
 
 test('WebMCP discovers, executes, and removes a React tool', async ({
   page,
 }) => {
+  // The route calls executeTool with a JSON string, as Chrome does.
+  await installModelContext(page, 'string')
   await page.goto('/web-mcp-tools')
 
   await expect(page.getByTestId('registered-count')).toHaveText('1')
@@ -139,6 +157,8 @@ test('usePageWebMCPTools sends filtered page tools to useChat and runs them', as
   page,
   testId,
 }) => {
+  // usePageWebMCPTools calls executeTool with an object, as the spec does.
+  await installModelContext(page, 'object')
   await page.goto(`/web-mcp-page-tools?testId=${encodeURIComponent(testId)}`)
 
   await expect(page.getByTestId('page-tool-names')).toHaveText('find_guitar')
