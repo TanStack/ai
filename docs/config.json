@@ -216,7 +216,13 @@
         {
           "label": "WebMCP Tools",
           "to": "tools/webmcp",
-          "addedAt": "2026-09-02"
+          "addedAt": "2026-09-02",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Page WebMCP Tools in Chat",
+          "to": "tools/webmcp-page-tools",
+          "addedAt": "2026-09-23"
         },
         {
           "label": "Tool Approval Flow",
@@ -1286,49 +1292,49 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         }
       ]
     },
