@@ -183,13 +183,16 @@ that implements those four is a valid `RunStore`. Three contracts to hold:
   precisely that, which is why it is required now.
 
 `listByThread`, `listByParentRun`, and `listReclaimable` are optional.
-Consumers feature-detect each one. After you declare an omission in
-`skipMethods`, the conformance suite skips that method. Implement the ones
+Consumers feature-detect each one. After you declare an omission of
+`listByThread` or `listReclaimable` in `skipMethods`, the conformance suite
+skips that method. Implement the ones
 your app needs:
 
 - Skip `listByThread` and you cannot render a thread's past runs.
 - Skip `listByParentRun` and a reload shows the saved child text. The subagent
   cards stay absent. `reconstructChat` calls this method to build the cards.
+  The conformance suite skips the subagent checks when this method is absent,
+  so it needs no `skipMethods` entry.
 - Skip `listReclaimable` and the store cannot be reaped: `reapDetachedRuns`
   feature-detects it, logs one line, and sweeps nothing, so detached runs are
   never finalized and their sandboxes never reclaimed. `detachedSince` *is*

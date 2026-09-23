@@ -134,7 +134,9 @@ feature-detects it.
 The conformance testkit does not feature-detect. An optional method that is
 missing and not declared in `skipMethods` fails the suite, so an omission is
 always a choice you made on purpose rather than a check that quietly did not
-run. Declare yours and the suite reports them as skipped with a reason:
+run. The one exception is `listByParentRun`: subagent support is optional, so
+those checks skip on their own. Declare yours and the suite reports them as
+skipped with a reason:
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -318,7 +320,8 @@ faithfully (previous section) for the durable path to work at all.
 Capability tiers belong at the STORE level (omit `runs` entirely and declare
 `ChatTranscriptStores`), not the method level. Never ship a `RunStore` with a
 stubbed method. The list queries above are the only method-level options,
-and each must be declared via `skipMethods` when absent.
+and each must be declared via `skipMethods` when absent, except
+`listByParentRun`: without it the subagent checks skip on their own.
 
 A subagent child run also stores `parentRunId`, `subagentRunId`, and `name`.
 `createOrResume` writes them on the first insert. A later call for the same
@@ -468,7 +471,7 @@ runPersistenceConformance('my-backend', () => myPersistence())
 // Declare an intentionally-unimplemented OPTIONAL RunStore method with
 // skipMethods, so vitest reports it as a real SKIPPED case:
 // runPersistenceConformance('my-backend', () => myPersistence(), {
-//   skipMethods: ['runs.listByThread', 'runs.listByParentRun', 'runs.listReclaimable'],
+//   skipMethods: ['runs.listByThread', 'runs.listReclaimable'],
 // })
 ```
 
@@ -481,10 +484,11 @@ in `skip` fails loudly.
 pass `'locks'`** — it is not a state store and the suite does not cover it.
 
 **`skipMethods` (declare-or-fail for optional `RunStore` methods).** A backend
-that omits an optional `RunStore` method must declare it. The optional methods
-are `listByThread`, `listByParentRun`, and `listReclaimable`. `findActiveRun`
+that omits `listByThread` or `listReclaimable` must declare it. `findActiveRun`
 is required. Declare the omission as `'runs.<method>'`, for example
-`skipMethods: ['runs.listByThread', 'runs.listByParentRun', 'runs.listReclaimable']`.
+`skipMethods: ['runs.listByThread', 'runs.listReclaimable']`. Subagent support is
+optional: when `listByParentRun` is absent, the subagent checks (the link fields
+and the child listing) skip on their own and need no entry.
 An omitted method that is NOT declared throws with an actionable message
 instead of silently reporting a pass. A declared one is reported as a SKIPPED
 vitest case, never as a pass. A case that did not run must never be

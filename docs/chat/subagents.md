@@ -34,9 +34,13 @@ const researcher = defineAgent({
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
     }),
 })
 ```
+
+Pass all four `ctx` fields to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
 
 ## Route, or let the model pick
 
@@ -147,12 +151,108 @@ const stream = chat({
 })
 ```
 
-**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card.
+**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result.
 
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.
 - `handoff`: the child streams first. Then main runs with the new child text in the messages.
+
+The parent `RUN_FINISHED.usage` includes the token usage of every child.
+
+## Interrupts in a child
+
+Some child work needs a person first, for example deleting a file. Give that child tool `needsApproval: true`. The child stops, and the parent run ends with the child's interrupt. The client answers it like any other interrupt. The next run continues the same child.
+
+1. Share one tool definition between the server and the client:
+
+```typescript title="tools.ts"
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const deleteFile = toolDefinition({
+  name: 'deleteFile',
+  description: 'Delete a file',
+  needsApproval: true,
+  inputSchema: z.object({ path: z.string() }),
+})
+```
+
+2. Give the child the server tool. Pass the resume fields from the request to the parent `chat()`:
+
+```typescript title="route.ts"
+import {
+  chat,
+  chatParamsFromRequest,
+  defineAgent,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { deleteFile } from './tools'
+
+const cleaner = defineAgent({
+  name: 'cleaner',
+  description: 'Deletes old files',
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: ctx.messages,
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
+      tools: [deleteFile.server(({ path }: { path: string }) => ({ deleted: path }))],
+    }),
+})
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
+    subagents: { agents: [cleaner], router: () => 'cleaner' },
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+3. Register the same definition on the client, and answer the interrupt:
+
+```tsx title="cleanup-panel.tsx"
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { deleteFile } from './tools'
+
+export function CleanupPanel() {
+  const chat = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [deleteFile.client()],
+  })
+
+  return (
+    <section>
+      <button onClick={() => chat.sendMessage('Clean up old files')}>
+        Clean up
+      </button>
+      {chat.interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <button key={interrupt.id} onClick={() => interrupt.resolveInterrupt(true)}>
+            Approve delete
+          </button>
+        ) : null,
+      )}
+    </section>
+  )
+}
+```
+
+While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
+
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
 
 ## Sandbox
 
@@ -199,6 +299,8 @@ const coder = defineAgent({
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
       middleware: [withSandbox(repoSandbox)],
     }),
 })
@@ -236,7 +338,16 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 ## Client
 
-The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
+The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id, and for its nested children, are ignored.
+
+`part.subagent.messages` holds everything the child did:
+
+- text and reasoning
+- tool calls and tool results
+- approval state on the child's tool calls
+- nested children, as their own `subagent` parts
+
+`part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. Render the child messages with the same parts components as the parent.
 
 Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
 

@@ -111,7 +111,8 @@ cards back. `@tanstack/ai-sandbox`'s `reapDetachedRuns` calls `listReclaimable`.
 Nothing in the framework calls `listByThread`. Consumers of the optional methods
 feature-detect with `store.method?.(...)` and degrade when one is absent. The
 conformance testkit does not: each optional method you leave out must be listed
-in `skipMethods` or the suite fails.
+in `skipMethods` or the suite fails. `listByParentRun` is the exception. When it
+is absent, the subagent checks skip on their own.
 
 `createOrResume` copies `parentRunId`, `subagentRunId`, and `name` on the first
 insert. A later call for the same `runId` leaves them unchanged. If the caller
@@ -298,11 +299,12 @@ once you add the R2-backed set from
 **ai-persistence/build-cloudflare-artifact-store**). `skip` never accepts
 `'locks'`, which is not a store.
 
-If your recipe leaves an optional `runs` method
-(`listByThread`, `listByParentRun`, or `listReclaimable`) unimplemented, declare
-it with `skipMethods`, for example `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own and need no
+entry.
 
 The lock store needs its **own** tests, because nothing in the conformance suite
 touches it. Cover at minimum: two concurrent `withLock` calls on the same key
