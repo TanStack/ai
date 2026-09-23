@@ -28,7 +28,6 @@ import type {
   UIMessage,
   WhenBusy,
   SubagentClientAgent,
-  SubagentHandle,
   SubagentHandles,
 } from '@tanstack/ai-client'
 
