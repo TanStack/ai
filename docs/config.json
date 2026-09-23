@@ -74,6 +74,11 @@
           "label": "Subagents",
           "to": "tutorials/subagents",
           "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "tutorials/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -105,6 +110,11 @@
           "label": "Subagents",
           "to": "framework/react/examples/subagents",
           "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },

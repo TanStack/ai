@@ -816,6 +816,8 @@ The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples
 
 You have a blog desk. Jev picks the specialist. The nested card shows the child as it streams.
 
+A refresh drops these cards. Keep them in [Persisted subagents](./subagents-persisted).
+
 The full example is on GitHub: [TanStack/ai `examples/react/subagents`](https://github.com/TanStack/ai/tree/main/examples/react/subagents).
 
 For the API, open [Subagents](../chat/subagents).
