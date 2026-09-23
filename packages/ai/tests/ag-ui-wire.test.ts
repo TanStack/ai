@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { MessagesSnapshotEvent } from '@ag-ui/core'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  aguiSnapshotMessageToUIMessage,
+  convertMessagesToModelMessages,
+} from '../src/activities/chat/messages'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
 
@@ -617,6 +620,23 @@ describe('uiMessagesToWire', () => {
           },
         ],
       },
+    ])
+  })
+
+  it('round-trips a file source through the AG-UI wire', () => {
+    const source = {
+      type: 'file' as const,
+      value: 'file-abc',
+      provider: 'openai',
+      mimeType: 'application/pdf',
+    }
+    const wire = uiMessagesToWire([
+      { id: 'user-1', role: 'user', content: [{ type: 'document', source }] },
+    ])
+    const message: MessagesSnapshotEvent['messages'][number] = wire[0]!
+    expect(message).toHaveProperty('content', [{ type: 'document', source }])
+    expect(aguiSnapshotMessageToUIMessage(message).parts).toEqual([
+      { type: 'document', source },
     ])
   })
 

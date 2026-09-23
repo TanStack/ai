@@ -171,6 +171,25 @@ type RuntimeToolWithApproval = AnyRuntimeTool & {
 }
 const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
 
+// ponytail: no adapter maps `{ type: 'file' }` yet, so every one fails closed
+// instead of reading the handle as a URL or base64. The Files API work
+// replaces this with a per-adapter capability check.
+function assertNoFileSources(
+  adapterName: string,
+  messages: ReadonlyArray<ModelMessage>,
+): void {
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue
+    for (const part of message.content) {
+      if ('source' in part && part.source.type === 'file') {
+        throw new Error(
+          `${adapterName} does not support provider file-handle sources ({ type: 'file' }). Pass a data or url source.`,
+        )
+      }
+    }
+  }
+}
+
 interface StructuralInterruptFailure {
   error: Error
   errors: ReadonlyArray<InterruptSubmissionError>
@@ -1531,6 +1550,8 @@ class TextEngine<
         typeof resolution === 'boolean' ? resolution : resolution.approved,
       )
     }
+
+    assertNoFileSources(this.adapter.name, this.messages)
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
@@ -3532,6 +3553,8 @@ class TextEngine<
 
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
+
+    assertNoFileSources(this.adapter.name, this.messages)
 
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the

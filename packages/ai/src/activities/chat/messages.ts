@@ -1131,28 +1131,16 @@ function aguiUserContentToParts(
     : converted
 }
 
-/** Convert wire content parts. Provider file handles have no TanStack part. */
+/** Convert wire content parts. Data, url, and file sources pass through. */
 export function aguiContentToContentParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
-  warnOnFile = true,
 ): string | Array<ContentPart> {
   if (typeof content === 'string') return content
-  const parts: Array<ContentPart> = []
-  for (const part of content) {
-    if (part.type === 'text') {
-      const { text, ...rest } = part
-      parts.push({ ...rest, content: text })
-    } else if (part.source.type === 'file') {
-      if (warnOnFile) {
-        console.warn(
-          'AG-UI file content was dropped: TanStack message converters do not support provider file handles.',
-        )
-      }
-    } else {
-      parts.push({ ...part, source: part.source })
-    }
-  }
-  return parts
+  return content.map((part) => {
+    if (part.type !== 'text') return part
+    const { text, ...rest } = part
+    return { ...rest, content: text }
+  })
 }
 
 /**

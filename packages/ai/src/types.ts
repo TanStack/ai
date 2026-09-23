@@ -259,12 +259,41 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for a provider-issued file handle (Files API).
+ * Matches the AG-UI 1.0 `FileSource` arm.
+ */
+export interface ContentPartFileSource {
+  /**
+   * Indicates this references a provider-issued file handle.
+   */
+  type: 'file'
+  /**
+   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
+   * parse it, or read a scheme out of it.
+   */
+  value: string
+  /**
+   * The provider that issued the handle (`'openai'`, `'anthropic'`, ...).
+   */
+  provider?: string
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: an opaque provider handle
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.

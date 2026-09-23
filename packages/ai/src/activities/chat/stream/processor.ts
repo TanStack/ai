@@ -1814,7 +1814,7 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      aguiContentToContentParts(chunk.content, false),
+      aguiContentToContentParts(chunk.content),
       resultState,
       resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
