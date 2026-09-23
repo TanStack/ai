@@ -684,6 +684,9 @@ export class ChatClient<
       ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages) => {
+          // Restored or replaced messages bring their own cards. Give each one
+          // its live handle before anyone reads the messages.
+          this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
         },
@@ -901,6 +904,8 @@ export class ChatClient<
         },
       },
     })
+    // `initialMessages` do not fire a change event. Give their cards handles.
+    this.syncSubagentHandles()
 
     this.persistor?.hydrateAsync(persistedState)
 
@@ -3002,6 +3007,16 @@ export class ChatClient<
 
   private syncSubagentHandles(): void {
     const messages = this.processor.getMessages()
+    const present = new Set<string>()
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type === 'subagent') present.add(part.subagent.id)
+      }
+    }
+    // A card that left the messages (clear, reload) loses its handle.
+    for (const id of this.subagentHandles.keys()) {
+      if (!present.has(id)) this.subagentHandles.delete(id)
+    }
     for (const message of messages) {
       for (const part of message.parts) {
         if (part.type !== 'subagent') continue

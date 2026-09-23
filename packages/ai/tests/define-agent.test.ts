@@ -601,3 +601,24 @@ describe('chat({ subagents }) synthetic tools', () => {
     )
   })
 })
+
+describe('subagent guards', () => {
+  it('rejects the reserved name main', () => {
+    expect(() => namedAgent('main')).toThrow("cannot use the name 'main'")
+  })
+
+  it('rejects subagents together with outputSchema', () => {
+    const { adapter } = parentAdapter()
+    expect(() =>
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        outputSchema: {
+          type: 'object',
+          properties: { title: { type: 'string' } },
+        },
+        subagents: { agents: [namedAgent('researcher')] },
+      }),
+    ).toThrow('does not support subagents together with outputSchema')
+  })
+})

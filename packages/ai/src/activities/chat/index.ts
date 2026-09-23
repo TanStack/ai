@@ -4794,6 +4794,12 @@ export function chat<
 
   const { outputSchema, stream } = options
 
+  if (outputSchema && (options.subagents?.agents.length ?? 0) > 0) {
+    throw new Error(
+      'chat() does not support subagents together with outputSchema. Put outputSchema on a child chat() instead.',
+    )
+  }
+
   if (outputSchema && stream === true) {
     return runStreamingStructuredOutput(
       toRuntimeTextActivityOptions(options, {
@@ -5124,6 +5130,8 @@ async function* runRoutedSubagents(
         }),
         bag.agents,
       )
+    // The run was stopped while the router decided. Start nothing.
+    if (abortSignal?.aborted) return
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
       yield* runChatEngine(

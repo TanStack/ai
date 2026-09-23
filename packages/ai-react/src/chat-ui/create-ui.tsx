@@ -255,28 +255,30 @@ function queueItemEqual(
   )
 }
 
-function subagentListItemEqual(
-  prev: { handle: SubagentHandle },
-  next: { handle: SubagentHandle },
-) {
+// The handle is one live object that the client updates in place, so a row
+// gets its changing card fields as separate props. Messages are not one of
+// them: `SubagentMessages` reads them from the chat context, so new child
+// text shows without a row render.
+type SubagentRowProps = {
+  handle: SubagentHandle
+  status: SubagentHandle['status']
+  error: SubagentHandle['error']
+}
+
+function subagentListItemEqual(prev: SubagentRowProps, next: SubagentRowProps) {
   return (
     prev.handle.id === next.handle.id &&
-    prev.handle.status === next.handle.status &&
-    prev.handle.name === next.handle.name &&
-    prev.handle.description === next.handle.description &&
-    prev.handle.error === next.handle.error &&
-    prev.handle.stop === next.handle.stop
+    prev.handle.stop === next.handle.stop &&
+    prev.status === next.status &&
+    prev.error === next.error
   )
 }
 
 function subagentMessagesEqual(
-  prev: { handle: SubagentHandle },
-  next: { handle: SubagentHandle },
+  prev: { messages: SubagentHandle['messages'] },
+  next: { messages: SubagentHandle['messages'] },
 ) {
-  return (
-    prev.handle.id === next.handle.id &&
-    prev.handle.messages === next.handle.messages
-  )
+  return prev.messages === next.messages
 }
 
 function selectedPartPropsEqual(
@@ -582,6 +584,8 @@ export function createChatUI<
   const MessageRenderContext = createContext<MessageRenderValue | null>(null)
   const SubagentRenderContext = createContext<{
     handle: SubagentHandle
+    /** A `Subagents` row. Its messages come from the live chat state. */
+    listed?: true
   } | null>(null)
 
   function Parts() {
@@ -826,12 +830,17 @@ export function createChatUI<
     )
   })
 
-  function readSubagentHandle() {
+  function readSubagentMessages() {
     const scoped = useContext(SubagentRenderContext)
-    if (scoped) return scoped.handle
+    const chat = useChatContext()
+    if (scoped?.listed) {
+      const live = chat.subagents.find((item) => item.id === scoped.handle.id)
+      return (live ?? scoped.handle).messages
+    }
+    if (scoped) return scoped.handle.messages
     const selected = useContext(PartContext)
     if (selected?.key === 'subagent' && selected.part.type === 'subagent') {
-      return selected.part.subagent
+      return selected.part.subagent.messages
     }
     throw new Error(
       '`Parts` must be rendered by a subagent component or `Subagents` item.',
@@ -839,15 +848,15 @@ export function createChatUI<
   }
 
   const SubagentMessagesBody = memo(function SubagentMessagesBody({
-    handle,
+    messages,
   }: {
-    handle: SubagentHandle
+    messages: SubagentHandle['messages']
   }) {
     const chat = useChatContext()
     const interrupts = readInterrupts(chat)
     return (
       <>
-        {handle.messages.map((message) => (
+        {messages.map((message) => (
           <AutomaticParts
             key={message.id}
             inlineToolNames={inlineToolNames}
@@ -860,14 +869,12 @@ export function createChatUI<
   }, subagentMessagesEqual)
 
   function SubagentMessages() {
-    return <SubagentMessagesBody handle={readSubagentHandle()} />
+    return <SubagentMessagesBody messages={readSubagentMessages()} />
   }
 
   const SubagentListItem = memo(function SubagentListItem({
     handle,
-  }: {
-    handle: SubagentHandle
-  }) {
+  }: SubagentRowProps) {
     const Subagent = subagentComponents?.[handle.name] as
       | ComponentType<SubagentProps<TOptions>>
       | undefined
@@ -877,7 +884,7 @@ export function createChatUI<
       )
     }
     return (
-      <SubagentRenderContext.Provider value={{ handle }}>
+      <SubagentRenderContext.Provider value={{ handle, listed: true }}>
         <Subagent
           Parts={SubagentMessages}
           subagent={handle as SubagentProps<TOptions>['subagent']}
@@ -898,7 +905,12 @@ export function createChatUI<
     return (
       <>
         {live.map((handle) => (
-          <SubagentListItem key={handle.id} handle={handle} />
+          <SubagentListItem
+            key={handle.id}
+            handle={handle}
+            status={handle.status}
+            error={handle.error}
+          />
         ))}
       </>
     )

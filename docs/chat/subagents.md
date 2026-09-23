@@ -12,7 +12,7 @@ keywords:
   - AG-UI
 ---
 
-You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` starts that child, tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
+You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` lets the parent start a child. A router can still keep the turn on the parent, and without a router the model can skip the child tool. When a child starts, the stream tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
 
 ## Define a child
 
@@ -362,7 +362,7 @@ The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same liv
 
 `part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. Render the child messages with the same parts components as the parent.
 
-Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
+Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. If a started child has a name with no `subagentsComponents` entry, rendering that card throws.
 
 When you render the parts yourself, pass the same agents to `useChat`. The hook uses them for types only. It does not call `run`.
 
@@ -427,7 +427,7 @@ function SubagentCard({
   )
 }
 
-const { useAppChat } = createChatHook({
+const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
     layout: ({ Messages, Input }: LayoutProps<typeof chatOptions>) => (
@@ -437,7 +437,23 @@ const { useAppChat } = createChatHook({
       </main>
     ),
     message: ({ Parts }) => <article><Parts /></article>,
-    input: () => null,
+    input: function Input() {
+      const chat = useChatContext()
+      return (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLInputElement)) return
+            void chat.sendMessage(field.value)
+            field.value = ''
+          }}
+        >
+          <input name="message" />
+          <button type="submit">Send</button>
+        </form>
+      )
+    },
   },
   partsComponents: {
     text: ({ part }) => <p>{part.content}</p>,

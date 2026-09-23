@@ -101,6 +101,12 @@ export function defineAgent<
   if (agent.name.trim() === '') {
     throw new Error('defineAgent requires a non-empty name')
   }
+  // A router returns 'main' to keep the turn on the parent.
+  if (agent.name.trim() === 'main') {
+    throw new Error(
+      "defineAgent cannot use the name 'main'. A router uses it for the parent.",
+    )
+  }
   if (agent.description.trim() === '') {
     throw new Error('defineAgent requires a non-empty description')
   }
