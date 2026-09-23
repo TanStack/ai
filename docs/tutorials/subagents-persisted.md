@@ -31,6 +31,8 @@ export const THREAD_ID = 'blog-desk'
 
 Use this same id on the client and on the server. A new id on each load starts an empty chat.
 
+This example has no login, so every visitor shares the `blog-desk` thread. In a real app, make sure that the caller owns the thread before POST or GET reads or writes it.
+
 ## 3. Tell the hook that the server owns the chat
 
 In `src/chat-ui.tsx`, replace `chatOptions` with this object.
@@ -107,7 +109,7 @@ export const Route = createFileRoute('/api/chat')({
     handlers: {
       POST: async ({ request }) => {
         const params = await chatParamsFromRequest(request)
-        const apiKey = getByokKey(request, openrouterByok)
+        const apiKey = getByokKey(request, openrouterByok.id)
         if (!apiKey) return byokMissing(openrouterByok)
         const agents = createBlogAgents(apiKey)
         const stream = chat({
@@ -182,7 +184,9 @@ Your own database must save `parentRunId`, `subagentRunId`, and `name`. It must 
 
 `chatParamsFromRequest` reads the body. The body has `messages`, `threadId`, and `runId`. The client also sends the run id in the `X-Run-Id` header. `memoryStream(request)` reads that header and opens the log for this run.
 
-`getByokKey` reads the OpenRouter key. The header from the page wins. If the header is empty, the server reads `OPENROUTER_API_KEY`.
+`getByokKey` reads the OpenRouter key from the header that the page sends. The call passes `openrouterByok.id`, so the server does not read `OPENROUTER_API_KEY`. This example has no login, so a server key would pay for requests from any caller.
+
+`memoryStorage()` keeps the key in memory only. After a refresh, the cards come back without a key. Paste the key again before you send the next message.
 
 `chat()` receives `middleware: [withPersistence(persistence)]`. On this path the router runs before the main model. The persistence middleware records the child events.
 

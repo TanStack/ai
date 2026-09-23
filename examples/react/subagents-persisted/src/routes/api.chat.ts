@@ -30,7 +30,9 @@ export const Route = createFileRoute('/api/chat')({
     handlers: {
       POST: async ({ request }) => {
         const params = await chatParamsFromRequest(request)
-        const apiKey = getByokKey(request, openrouterByok)
+        // The id reads only the header. The provider object would also read
+        // OPENROUTER_API_KEY, and this example has no login.
+        const apiKey = getByokKey(request, openrouterByok.id)
         if (!apiKey) return byokMissing(openrouterByok)
         const agents = createBlogAgents(apiKey)
         const stream = chat({

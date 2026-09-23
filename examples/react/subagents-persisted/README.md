@@ -2,7 +2,7 @@
 
 This is the blog desk from the subagents example, plus a saved chat.
 
-Refresh the page. The messages and the subagent cards come back. Refresh while a run is still streaming. The same run continues. Send another message after that refresh. The next agent still sees the saved notes.
+Refresh the page. The messages and the subagent cards come back. Refresh while a run is still streaming. The same run continues. Paste the key again, then send another message. The next agent still sees the saved notes.
 
 The saved copy lives in this dev server process. Restart the server and the chat is gone.
 
@@ -14,4 +14,6 @@ The saved copy lives in this dev server process. Restart the server and the chat
 4. Paste an OpenRouter key from https://openrouter.ai/keys.
 5. Send a prompt. Refresh the page.
 
-The page still asks for the key. The key stays in this tab only.
+The key stays in memory only. After a refresh, the page asks for it again. The server reads the key only from the page. It does not read `OPENROUTER_API_KEY`.
+
+This example has no login. Every visitor shares one thread. A real app must make sure that the caller owns the thread.
