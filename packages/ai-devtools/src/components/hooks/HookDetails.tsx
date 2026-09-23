@@ -7,6 +7,12 @@ import {
   getHookUnseenEventCount,
 } from '../../store/hook-registry'
 import { IterationTimeline } from '../conversation'
+import { SubagentStepsCard } from '../conversation/IterationTimeline'
+import {
+  childRequestAgents,
+  collectSubagents,
+} from '../../store/subagent-steps'
+import type { SubagentInfo } from '../../store/subagent-steps'
 import { FixtureNamePopover } from './FixtureNamePopover'
 import { ToolFixtureForm } from './ToolFixtureForm'
 import {
@@ -67,6 +73,8 @@ interface PreviewMessage {
   content: string
   parts: Array<PreviewPart>
   sourceMessage?: ToolFixtureMessage
+  /** Agent path when a subagent's server run wrote this message. */
+  agent?: string
 }
 
 interface PreviewPart {
@@ -83,6 +91,10 @@ interface PreviewPart {
     | 'media'
     | 'subagent'
   fixture?: PreviewToolFixture
+  /** Set on a subagent header row. */
+  subagentId?: string
+  /** Set on a row that belongs to a subagent. */
+  subagentPath?: string
 }
 
 interface PreviewToolFixture {
@@ -173,14 +185,32 @@ export const HookDetails: Component = () => {
     }
   })
 
+  const subagents = createMemo((): Array<SubagentInfo> => {
+    const messages = hook()?.state.messages
+    return Array.isArray(messages) ? collectSubagents(messages) : []
+  })
+
   const previewMessages = createMemo(() => {
     const activeHook = hook()
     if (!activeHook) return []
     const snapshotMessages = messagesFromSnapshot(activeHook.state)
     const conversationMessages = conversation()?.messages ?? []
     if (conversationMessages.length > 0) {
+      // A child chat() re-sends the history. Its user messages are copies.
+      const childAgents = childRequestAgents(
+        conversation()?.iterations ?? [],
+        subagents(),
+      )
+      const agentOf = (message: Message) =>
+        message.requestId ? childAgents.get(message.requestId) : undefined
       return mergePreviewMessagesForUserView(
-        conversationMessages.map(messageFromConversation),
+        conversationMessages
+          .filter((message) => !(message.role === 'user' && agentOf(message)))
+          .map((message) => {
+            const preview = messageFromConversation(message)
+            const agent = agentOf(message)
+            return agent ? { ...preview, agent } : preview
+          }),
         snapshotMessages,
       )
     }
@@ -316,6 +346,7 @@ export const HookDetails: Component = () => {
                       hook={activeHook()}
                       conversation={conversation()}
                       messages={previewMessages()}
+                      subagents={subagents()}
                       hoverTarget={hoverTarget()}
                       onHoverTarget={setHoverTarget}
                     />
@@ -658,6 +689,7 @@ const ConversationPanel: Component<{
   hook: HookRecord
   conversation?: Conversation
   messages: Array<PreviewMessage>
+  subagents: Array<SubagentInfo>
   hoverTarget: HoverTarget | null
   onHoverTarget: (target: HoverTarget | null) => void
 }> = (props) => {
@@ -681,6 +713,7 @@ const ConversationPanel: Component<{
         >
           <HookMessageTimeline
             messages={props.messages}
+            subagents={props.subagents}
             hoverTarget={props.hoverTarget}
             onHoverTarget={props.onHoverTarget}
           />
@@ -693,6 +726,7 @@ const ConversationPanel: Component<{
           fallback={
             <HookMessageTimeline
               messages={props.messages}
+              subagents={props.subagents}
               hoverTarget={props.hoverTarget}
               onHoverTarget={props.onHoverTarget}
             />
@@ -701,6 +735,7 @@ const ConversationPanel: Component<{
           <IterationTimeline
             iterations={conversation().iterations}
             messages={conversation().messages}
+            subagents={props.subagents}
             hoverTarget={props.hoverTarget}
             onHoverTarget={props.onHoverTarget}
           />
@@ -767,7 +802,10 @@ const MessagesPreview: Component<{
         </Show>
         <For each={props.messages}>
           {(message) => {
-            const visibleParts = () => visiblePreviewPartsForMessage(message)
+            const visibleParts = () =>
+              visiblePreviewPartsForMessage(message).filter(
+                (part) => !hiddenInUserView(message, part),
+              )
             return (
               <div
                 {...getHoverDataAttributes({
@@ -797,7 +835,7 @@ const MessagesPreview: Component<{
                 onMouseLeave={() => props.onHoverTarget(null)}
               >
                 <div class={styles().hookDetails.messageRole}>
-                  {message.role}
+                  {roleLabel(message)}
                 </div>
                 <Show when={message.content}>
                   <div class={styles().hookDetails.messageContent}>
@@ -919,6 +957,7 @@ const MessagesPreview: Component<{
 
 const HookMessageTimeline: Component<{
   messages: Array<PreviewMessage>
+  subagents: Array<SubagentInfo>
   hoverTarget: HoverTarget | null
   onHoverTarget: (target: HoverTarget | null) => void
 }> = (props) => {
@@ -956,67 +995,94 @@ const HookMessageTimeline: Component<{
               }
               onMouseLeave={() => props.onHoverTarget(null)}
             >
-              <div class={styles().hookDetails.messageRole}>{message.role}</div>
+              <div class={styles().hookDetails.messageRole}>
+                {roleLabel(message)}
+              </div>
               <Show when={message.content}>
                 <div class={styles().hookDetails.messageContent}>
                   {message.content}
                 </div>
               </Show>
-              <For each={visiblePreviewPartsForMessage(message)}>
+              <For
+                each={visiblePreviewPartsForMessage(message).filter(
+                  (part) => part.subagentId || !part.subagentPath,
+                )}
+              >
                 {(part) => (
-                  <div
-                    {...getHoverDataAttributes({
-                      messageIds: [message.id],
-                      partIds: [part.id],
-                    })}
-                    class={styles().hookDetails.previewPart}
-                    data-testid="ai-devtools-timeline-part"
-                    data-part-id={part.id}
-                    data-part-kind={part.kind}
-                  >
-                    <span class={styles().hookDetails.previewPartLabel}>
-                      {part.label}
-                    </span>
-                    <Show
-                      when={part.jsonItems?.length}
-                      fallback={
-                        <span class={styles().hookDetails.previewPartContent}>
-                          {part.content}
-                        </span>
-                      }
-                    >
+                  <Show
+                    when={props.subagents.find(
+                      (agent) => agent.id === part.subagentId,
+                    )}
+                    fallback={
                       <div
-                        class={`${styles().hookDetails.previewJsonItems} ${
-                          part.kind === 'structured-output'
-                            ? styles().hookDetails.previewJsonItemsCompare
-                            : ''
-                        }`}
+                        {...getHoverDataAttributes({
+                          messageIds: [message.id],
+                          partIds: [part.id],
+                        })}
+                        class={styles().hookDetails.previewPart}
+                        data-testid="ai-devtools-timeline-part"
+                        data-part-id={part.id}
+                        data-part-kind={part.kind}
                       >
-                        <For each={part.jsonItems}>
-                          {(item) => (
-                            <div class={styles().hookDetails.previewJsonItem}>
-                              <span
-                                class={
-                                  styles().hookDetails.previewJsonItemLabel
-                                }
-                              >
-                                {item.label}
-                              </span>
-                              <div
-                                class={styles().hookDetails.previewJsonPanel}
-                              >
-                                <JsonTree
-                                  value={item.value}
-                                  defaultExpansionDepth={1}
-                                  copyable
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </For>
+                        <span class={styles().hookDetails.previewPartLabel}>
+                          {part.label}
+                        </span>
+                        <Show
+                          when={part.jsonItems?.length}
+                          fallback={
+                            <span
+                              class={styles().hookDetails.previewPartContent}
+                            >
+                              {part.content}
+                            </span>
+                          }
+                        >
+                          <div
+                            class={`${styles().hookDetails.previewJsonItems} ${
+                              part.kind === 'structured-output'
+                                ? styles().hookDetails.previewJsonItemsCompare
+                                : ''
+                            }`}
+                          >
+                            <For each={part.jsonItems}>
+                              {(item) => (
+                                <div
+                                  class={styles().hookDetails.previewJsonItem}
+                                >
+                                  <span
+                                    class={
+                                      styles().hookDetails.previewJsonItemLabel
+                                    }
+                                  >
+                                    {item.label}
+                                  </span>
+                                  <div
+                                    class={
+                                      styles().hookDetails.previewJsonPanel
+                                    }
+                                  >
+                                    <JsonTree
+                                      value={item.value}
+                                      defaultExpansionDepth={1}
+                                      copyable
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
                       </div>
-                    </Show>
-                  </div>
+                    }
+                  >
+                    {(agent) => (
+                      <SubagentStepsCard
+                        agent={agent()}
+                        hoverTarget={props.hoverTarget}
+                        onHoverTarget={props.onHoverTarget}
+                      />
+                    )}
+                  </Show>
                 )}
               </For>
             </div>
@@ -1025,6 +1091,17 @@ const HookMessageTimeline: Component<{
       </div>
     </Show>
   )
+}
+
+/** The role, plus the agent path for a subagent's server message. */
+function roleLabel(message: PreviewMessage): string {
+  return message.agent ? `${message.role} (${message.agent})` : message.role
+}
+
+/** The user view shows a subagent's text and tool outputs only. */
+function hiddenInUserView(message: PreviewMessage, part: PreviewPart): boolean {
+  if (!message.agent && !part.subagentPath) return false
+  return part.kind === 'thinking' || part.kind === 'tool-call'
 }
 
 const ToolsView: Component<{ hook: HookRecord }> = (props) => {
@@ -1465,6 +1542,7 @@ function previewPartsFromRecord(
       ...childPart,
       id: `${path}:${messageId ?? index}:${preview.id}`,
       label: `${path} > ${preview.label}`,
+      subagentPath: path,
     },
   ]
 }
@@ -1485,6 +1563,7 @@ function subagentPreviewParts(
     label: status ? `subagent ${path} - ${status}` : `subagent ${path}`,
     ...(typeof error === 'string' ? { content: error } : {}),
     kind: 'subagent',
+    subagentId: id,
   }
   const messages = Array.isArray(subagent.messages) ? subagent.messages : []
   return [
