@@ -10,7 +10,9 @@ import { IterationTimeline } from '../conversation'
 import { SubagentStepsCard } from '../conversation/IterationTimeline'
 import {
   childRequestAgents,
+  collectServerSteps,
   collectSubagents,
+  snapshotTurns,
 } from '../../store/subagent-steps'
 import type { SubagentInfo } from '../../store/subagent-steps'
 import { FixtureNamePopover } from './FixtureNamePopover'
@@ -54,7 +56,12 @@ import type {
   ToolFixtureMessage,
   ToolFixtureRecord,
 } from '../../store/hook-registry'
-import type { Conversation, Message, ToolCall } from '../../store/ai-store'
+import type {
+  Conversation,
+  Iteration,
+  Message,
+  ToolCall,
+} from '../../store/ai-store'
 import type { Component, Setter } from 'solid-js'
 
 type DetailTab =
@@ -190,10 +197,28 @@ export const HookDetails: Component = () => {
     return Array.isArray(messages) ? collectSubagents(messages) : []
   })
 
+  const serverSteps = createMemo(() =>
+    collectServerSteps(
+      conversation(),
+      Object.values(state.conversations),
+      subagents(),
+    ),
+  )
+
+  const turns = createMemo((): Array<Message> => {
+    const messages = hook()?.state.messages
+    return Array.isArray(messages) ? snapshotTurns(messages) : []
+  })
+
   const previewMessages = createMemo(() => {
     const activeHook = hook()
     if (!activeHook) return []
     const snapshotMessages = messagesFromSnapshot(activeHook.state)
+    // The snapshot is what the user sees. The server conversation can miss
+    // turns (a routed turn has no parent server run), so prefer the snapshot.
+    if (snapshotMessages.length > 0 && subagents().length > 0) {
+      return snapshotMessages
+    }
     const conversationMessages = conversation()?.messages ?? []
     if (conversationMessages.length > 0) {
       // A child chat() re-sends the history. Its user messages are copies.
@@ -347,6 +372,8 @@ export const HookDetails: Component = () => {
                       conversation={conversation()}
                       messages={previewMessages()}
                       subagents={subagents()}
+                      steps={serverSteps()}
+                      turns={turns()}
                       hoverTarget={hoverTarget()}
                       onHoverTarget={setHoverTarget}
                     />
@@ -690,13 +717,16 @@ const ConversationPanel: Component<{
   conversation?: Conversation
   messages: Array<PreviewMessage>
   subagents: Array<SubagentInfo>
+  /** Server steps of the parent and of every child agent. */
+  steps: { iterations: Array<Iteration>; messages: Array<Message> }
+  turns: Array<Message>
   hoverTarget: HoverTarget | null
   onHoverTarget: (target: HoverTarget | null) => void
 }> = (props) => {
   const styles = useStyles()
   return (
     <Show
-      when={props.conversation}
+      when={props.conversation || props.steps.iterations.length > 0}
       fallback={
         <Show
           when={props.messages.length > 0}
@@ -720,27 +750,26 @@ const ConversationPanel: Component<{
         </Show>
       }
     >
-      {(conversation) => (
-        <Show
-          when={conversation().iterations.length > 0}
-          fallback={
-            <HookMessageTimeline
-              messages={props.messages}
-              subagents={props.subagents}
-              hoverTarget={props.hoverTarget}
-              onHoverTarget={props.onHoverTarget}
-            />
-          }
-        >
-          <IterationTimeline
-            iterations={conversation().iterations}
-            messages={conversation().messages}
+      <Show
+        when={props.steps.iterations.length > 0}
+        fallback={
+          <HookMessageTimeline
+            messages={props.messages}
             subagents={props.subagents}
             hoverTarget={props.hoverTarget}
             onHoverTarget={props.onHoverTarget}
           />
-        </Show>
-      )}
+        }
+      >
+        <IterationTimeline
+          iterations={props.steps.iterations}
+          messages={props.steps.messages}
+          subagents={props.subagents}
+          turns={props.turns}
+          hoverTarget={props.hoverTarget}
+          onHoverTarget={props.onHoverTarget}
+        />
+      </Show>
     </Show>
   )
 }

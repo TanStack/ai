@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildSubagentSteps,
+  collectServerSteps,
   collectSubagents,
   groupTimeline,
+  snapshotTurns,
   subagentIdForRunId,
 } from '../src/store/subagent-steps'
 import type { Iteration, Message } from '../src/store/ai-context'
@@ -159,6 +161,79 @@ describe('groupTimeline', () => {
     expect(groups.map((g) => g.userMessage?.id)).toEqual(['u2'])
     expect(groups[0]?.iterations).toEqual([])
     expect(groups[0]?.agents.map((g) => g.agent.id)).toEqual(['sub-1', 'sub-2'])
+  })
+})
+
+describe('turns from the snapshot', () => {
+  const agents = collectSubagents(snapshot)
+
+  it('keeps a routed turn that has no parent server steps', () => {
+    // Turn 1 went to the researcher. Only turn 2 ran the parent model.
+    const turns = snapshotTurns([
+      {
+        id: 'u1',
+        role: 'user',
+        createdAt: new Date(10),
+        parts: [{ type: 'text', content: 'research' }],
+      },
+      { id: 'a1', role: 'assistant', parts: [] },
+      {
+        id: 'u2',
+        role: 'user',
+        createdAt: '1970-01-01T00:00:00.030Z',
+        parts: [{ type: 'text', content: 'what is 2 + 2' }],
+      },
+    ])
+    expect(turns.map((t) => [t.id, t.content, t.timestamp])).toEqual([
+      ['u1', 'research', 10],
+      ['u2', 'what is 2 + 2', 30],
+    ])
+    const researcher = agents.filter((agent) => agent.id === 'sub-1')
+    const groups = groupTimeline(
+      [iteration('root-2', 'run-2', 0, 31)],
+      // The server conversation only knows turn 2.
+      [user('u2-server', 31, 'root-2')],
+      researcher.map((agent) => ({ ...agent, turn: 0 })),
+      turns,
+    )
+    expect(groups.map((g) => g.userMessage?.id)).toEqual(['u1', 'u2'])
+    expect(groups[0]?.agents.map((g) => g.agent.id)).toEqual(['sub-1'])
+    expect(groups[1]?.iterations.map((i) => i.requestId)).toEqual(['root-2'])
+  })
+
+  it('returns no turns when a user message has no createdAt', () => {
+    expect(snapshotTurns([{ id: 'u1', role: 'user', parts: [] }])).toEqual([])
+  })
+})
+
+describe('collectServerSteps', () => {
+  it('pulls child steps from the child thread conversation', () => {
+    const agents = collectSubagents(snapshot)
+    const root = {
+      iterations: [iteration('root-2', 'run-2', 0, 30)],
+      messages: [user('u2', 29, 'root-2')],
+    }
+    const childThread = {
+      iterations: [iteration('child-a', 'run-1:sub-1', 0, 11)],
+      messages: [
+        {
+          id: 'child-msg',
+          role: 'assistant' as const,
+          content: 'notes',
+          timestamp: 11,
+        },
+      ],
+    }
+    const other = {
+      iterations: [iteration('x', 'run-9', 0, 5)],
+      messages: [user('other', 5, 'x')],
+    }
+    const steps = collectServerSteps(root, [root, childThread, other], agents)
+    expect(steps.iterations.map((i) => i.requestId)).toEqual([
+      'root-2',
+      'child-a',
+    ])
+    expect(steps.messages.map((m) => m.id)).toEqual(['u2', 'child-msg'])
   })
 })
 

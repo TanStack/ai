@@ -122,16 +122,91 @@ export function childRequestAgents(
   return out
 }
 
+interface StepSource {
+  iterations: Array<Iteration>
+  messages: Array<Message>
+}
+
+/**
+ * The root conversation's steps plus each child's server steps. A child run
+ * has its own thread id (`<threadId>:<agent>`), so the store files its steps
+ * under another conversation. They are found by run id.
+ */
+export function collectServerSteps(
+  root: StepSource | undefined,
+  conversations: Array<StepSource>,
+  subagents: Array<SubagentInfo>,
+): StepSource {
+  const ids = new Set(subagents.map((agent) => agent.id))
+  const iterations: Array<Iteration> = [...(root?.iterations ?? [])]
+  const messages: Array<Message> = [...(root?.messages ?? [])]
+  const seenSteps = new Set(
+    iterations.map((iteration) => `${iteration.requestId}:${iteration.index}`),
+  )
+  const seenMessages = new Set(messages.map((message) => message.id))
+  for (const conversation of conversations) {
+    if (conversation === root) continue
+    const child = conversation.iterations.filter((iteration) =>
+      subagentIdForRunId(iteration.runId, ids),
+    )
+    if (child.length === 0) continue
+    for (const iteration of child) {
+      const key = `${iteration.requestId}:${iteration.index}`
+      if (seenSteps.has(key)) continue
+      seenSteps.add(key)
+      iterations.push(iteration)
+    }
+    for (const message of conversation.messages) {
+      if (seenMessages.has(message.id)) continue
+      seenMessages.add(message.id)
+      messages.push(message)
+    }
+  }
+  return { iterations, messages }
+}
+
+function timestampOf(value: unknown): number | undefined {
+  if (value instanceof Date) return value.getTime()
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? undefined : time
+}
+
+/**
+ * The user messages of a chat snapshot, as the turns of the timeline. The
+ * snapshot is what the user sees, so it has every turn, also a routed turn
+ * with no parent server steps. Empty when a user message has no `createdAt`.
+ */
+export function snapshotTurns(messages: Array<unknown>): Array<Message> {
+  const turns: Array<Message> = []
+  for (const message of messages) {
+    if (!isRecord(message) || message.role !== 'user') continue
+    const timestamp = timestampOf(message.createdAt)
+    if (timestamp === undefined || typeof message.id !== 'string') return []
+    const content = Array.isArray(message.parts)
+      ? message.parts
+          .map((part) =>
+            isRecord(part) && part.type === 'text' ? text(part.content) : '',
+          )
+          .join('')
+      : text(message.content)
+    turns.push({ id: message.id, role: 'user', content, timestamp })
+  }
+  return turns
+}
+
 /**
  * Group steps under the user message that started them. Child server steps
  * leave the root list and join their agent. A child without server steps gets
  * steps built from the snapshot. A child `chat()` re-sends the history, so a
- * user message from a child request is not a new turn.
+ * user message from a child request is not a new turn. Pass `turns` (from
+ * {@link snapshotTurns}) to use the chat's own user messages as the turns.
  */
 export function groupTimeline(
   iterations: Array<Iteration>,
   messages: Array<Message>,
   subagents: Array<SubagentInfo>,
+  turns: Array<Message> = [],
 ): Array<TimelineGroup> {
   const ids = new Set(subagents.map((agent) => agent.id))
   const childRequests = childRequestAgents(iterations, subagents)
@@ -147,13 +222,17 @@ export function groupTimeline(
       : { agent, ...buildSubagentSteps(agent), source: 'snapshot' }
   })
 
-  const users = messages
-    .filter(
-      (message) =>
-        message.role === 'user' &&
-        !(message.requestId && childRequests.has(message.requestId)),
-    )
-    .sort((a, b) => a.timestamp - b.timestamp)
+  // ponytail: snapshot turns use the browser clock and server steps use the
+  // server clock. Fine for local dev; a large skew can move a step one turn.
+  const users = (
+    turns.length > 0
+      ? [...turns]
+      : messages.filter(
+          (message) =>
+            message.role === 'user' &&
+            !(message.requestId && childRequests.has(message.requestId)),
+        )
+  ).sort((a, b) => a.timestamp - b.timestamp)
 
   if (users.length === 0) {
     return rootIterations.length > 0 || agents.length > 0

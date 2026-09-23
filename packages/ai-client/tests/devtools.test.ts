@@ -1112,6 +1112,106 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('sends live snapshots of a child agent, not the live handle', async () => {
+    const at = () => Date.now()
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection: ConnectConnectionAdapter = {
+      async *connect() {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.SUBAGENT_STARTED,
+          subagentRunId: 'sub-1',
+          name: 'researcher',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'child-msg',
+          role: 'assistant',
+          timestamp: at(),
+          subagentRunId: 'sub-1',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'child-msg',
+          delta: 'notes',
+          timestamp: at(),
+          subagentRunId: 'sub-1',
+        }
+        await gate
+        yield {
+          type: EventType.SUBAGENT_FINISHED,
+          subagentRunId: 'sub-1',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: at(),
+        }
+      },
+    }
+    const client = createClient({ connection })
+    vi.clearAllMocks()
+
+    const subagentOf = (call: Array<unknown> | undefined) => {
+      const payload = call?.[1]
+      const state =
+        payload && typeof payload === 'object' && 'state' in payload
+          ? payload.state
+          : undefined
+      const messages =
+        state && typeof state === 'object' && 'messages' in state
+          ? state.messages
+          : undefined
+      if (!Array.isArray(messages)) return undefined
+      for (const message of messages as Array<UIMessage>) {
+        for (const part of message.parts) {
+          if (part.type === 'subagent') return part.subagent
+        }
+      }
+      return undefined
+    }
+
+    const sending = client.sendMessage('research')
+    // The child is still running. Its text already reached the devtools.
+    await vi.waitFor(() => {
+      const child = subagentOf(
+        eventClientMock.emitted('hook:state-snapshot').at(-1),
+      )
+      expect(child?.status).toBe('running')
+      expect(child?.messages[0]?.parts).toEqual([
+        { type: 'text', content: 'notes' },
+      ])
+    })
+    const running = subagentOf(
+      eventClientMock.emitted('hook:state-snapshot').at(-1),
+    )
+
+    release()
+    await sending
+    await vi.waitFor(() => {
+      const child = subagentOf(
+        eventClientMock.emitted('hook:state-snapshot').at(-1),
+      )
+      expect(child?.status).toBe('finished')
+    })
+    // A copy, not the live handle: the earlier snapshot keeps its status.
+    expect(running?.status).toBe('running')
+    expect(running).not.toBe(client.getSubagents()[0])
+
+    client.dispose()
+  })
+
   it('emits chat run lifecycle events for hook run tracking', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const client = createClient({

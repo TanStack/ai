@@ -26,6 +26,8 @@ interface IterationTimelineProps {
   messages: Array<Message>
   /** Child agents from the hook snapshot. Their steps get their own cards. */
   subagents?: Array<SubagentInfo>
+  /** The chat's user messages, from the snapshot. They mark the turns. */
+  turns?: Array<Message>
   hoverTarget?: HoverTarget | null
   onHoverTarget?: (target: HoverTarget | null) => void
 }
@@ -40,7 +42,12 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
    */
   const groups = createMemo(
     (): Array<UserMessageGroup> =>
-      groupTimeline(props.iterations, props.messages, props.subagents ?? []),
+      groupTimeline(
+        props.iterations,
+        props.messages,
+        props.subagents ?? [],
+        props.turns ?? [],
+      ),
   )
 
   return (
