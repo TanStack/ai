@@ -14,7 +14,7 @@ keywords:
 
 You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` lets the parent start a child. A router can still keep the turn on the parent, and without a router the model can skip the child tool. When a child starts, the stream tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
 
-Want a Start app with two agents and Jev? Open the [Subagents tutorial](../tutorials/subagents).
+Want a Start app with a researcher, an SEO agent, and a writer, routed by Jev? Open the [Subagents tutorial](../tutorials/subagents).
 
 ## Define a child
 
