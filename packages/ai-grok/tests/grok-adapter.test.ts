@@ -106,6 +106,7 @@ describe('Grok adapters', () => {
 
   it('exposes only the supported xAI Responses chat models', () => {
     expect(GROK_CHAT_MODELS).toEqual([
+      'grok-4.7',
       'grok-4.5',
       'grok-4.6',
       'grok-build-0.1',
