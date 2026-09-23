@@ -173,6 +173,15 @@ export function runPersistenceConformance(
       )
     }
 
+    // Subagent support is opt-in. A store without `listByParentRun` skips the
+    // subagent checks (vitest reports them as skipped) and needs no
+    // `skipMethods` entry.
+    function supportsSubagents(
+      runs: RunStore,
+    ): runs is RunStore & Required<Pick<RunStore, 'listByParentRun'>> {
+      return typeof runs.listByParentRun === 'function'
+    }
+
     describe('messages', () => {
       // One-argument loadThread is the full-thread contract. Paging
       // (`limit` / `before`) is an optional hint; this suite does not require it.
@@ -374,9 +383,13 @@ export function runPersistenceConformance(
       // `parentRunId`, `subagentRunId`, and `name` travel with createOrResume.
       // A parent row omits them. A child row keeps the values from the first
       // insert. A later createOrResume for that runId must not overwrite them.
+      // Only a store with subagent support (`listByParentRun`) must keep them.
       it('round-trips subagent link fields and ignores them on resume', async (ctx) => {
         const store = resolveStore('runs')
         if (!store) return ctx.skip('store not provided')
+        if (!supportsSubagents(store)) {
+          return ctx.skip('runs.listByParentRun not implemented')
+        }
 
         const parent = await store.createOrResume({
           runId: 'lp-parent',
@@ -502,13 +515,13 @@ export function runPersistenceConformance(
         expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
       })
 
-      // `listByParentRun` is optional. A declared omission is skipped. An
-      // undeclared one fails. A store that has it returns only that parent's
-      // children, oldest `startedAt` first, and [] for an unknown parent.
+      // `listByParentRun` is optional and is skipped when absent. A store that
+      // has it returns only that parent's children, oldest `startedAt` first,
+      // and [] for an unknown parent.
       it('lists child runs by parent when supported', async (ctx) => {
         const runs = resolveStore('runs')
         if (!runs) return ctx.skip('store not provided')
-        if (!hasRunsMethod(runs, 'listByParentRun')) {
+        if (!supportsSubagents(runs)) {
           return ctx.skip('runs.listByParentRun not implemented')
         }
 

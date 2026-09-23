@@ -356,8 +356,9 @@ A subagent child run stores `parentRunId`, `subagentRunId`, and `name`.
 The first `createOrResume` writes them. A second call for the same `runId`
 returns the stored row. `listByParentRun` returns the children of that parent,
 oldest first. `reconstructChat` uses that list to rebuild the cards. Index
-`runs(parent_run_id, started_at)` for that query. If the store omits
-`listByParentRun`, declare `runs.listByParentRun` in `skipMethods`.
+`runs(parent_run_id, started_at)` for that query. Subagent support is optional.
+A store without `listByParentRun` does not need these three fields, and the
+conformance suite skips the subagent checks with no `skipMethods` entry.
 
 ## 4. Interrupts: insert-if-absent, ordered listings
 

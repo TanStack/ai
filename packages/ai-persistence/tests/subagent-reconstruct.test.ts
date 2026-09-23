@@ -397,7 +397,8 @@ describe('reconstruct subagent cards', () => {
           parts: [{ type: 'text', content: 'research and seo' }],
         },
       ],
-      middleware: [withPersistence(persistence)],
+      // Write every delta, so the reload below sees both first notes.
+      middleware: [withPersistence(persistence, { snapshotIntervalMs: 0 })],
       subagents: {
         agents: [
           waiting('researcher', 'Octopus notes'),

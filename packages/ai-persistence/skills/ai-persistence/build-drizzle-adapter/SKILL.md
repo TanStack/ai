@@ -575,11 +575,12 @@ seven stores, so a chat adapter declares the generation half it omits; drop the
 `skip` once you add those tables. `skip` never accepts `'locks'`, which is not a
 store.
 
-If your recipe leaves an optional `runs` method
-(`listByThread`, `listByParentRun`, or `listReclaimable`) unimplemented, declare
-it with `skipMethods`, for example `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own and need no
+entry.
 
 ## Only if you are publishing this as a package
 

@@ -192,3 +192,37 @@ describe('ChatClient subagents', () => {
     ])
   })
 })
+
+describe('ChatClient subagent handles for restored messages', () => {
+  it('gives restored cards a handle, and drops it after clear()', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-restored',
+                name: 'researcher',
+                status: 'finished',
+                messages: [],
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const [handle] = client.getSubagents()
+    expect(handle).toMatchObject({ id: 'sub-restored', name: 'researcher' })
+    expect(typeof handle?.stop).toBe('function')
+    const part = client.getMessages()[0]?.parts[0]
+    expect(part?.type === 'subagent' ? part.subagent : undefined).toBe(handle)
+
+    client.clear()
+    expect(client.getSubagents()).toEqual([])
+  })
+})

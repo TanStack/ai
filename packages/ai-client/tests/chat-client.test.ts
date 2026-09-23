@@ -4220,6 +4220,7 @@ describe('ChatClient', () => {
           .find((message) => message.id === 'msg-a')
         expect(msgA?.parts[0]).toEqual({
           type: 'text',
+          content: 'Story: once upon a time',
         })
       })
 

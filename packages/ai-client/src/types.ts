@@ -631,6 +631,12 @@ export interface SubagentHandle {
   status: SubagentStatus
   parentRunId?: string
   parentSubagentRunId?: string
+  /** The tool call that started this child, when the model started it. */
+  parentToolCallId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: Array<string>
+  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
+  metadata?: Record<string, unknown>
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
   /** Bound by ChatClient after the first SUBAGENT_STARTED for this id. */

@@ -111,7 +111,8 @@ cards back. `@tanstack/ai-sandbox`'s `reapDetachedRuns` calls `listReclaimable`.
 Nothing in the framework calls `listByThread`. Consumers of the optional methods
 feature-detect with `store.method?.(...)` and degrade when one is absent. The
 conformance testkit does not: each optional method you leave out must be listed
-in `skipMethods` or the suite fails.
+in `skipMethods` or the suite fails. `listByParentRun` is the exception. When it
+is absent, the subagent checks skip on their own.
 
 `createOrResume` copies `parentRunId`, `subagentRunId`, and `name` on the first
 insert. A later call for the same `runId` leaves them unchanged. If the caller
@@ -196,6 +197,20 @@ Apply with `wrangler d1 migrations apply <database-name>` (`--local` first, then
 `--remote`). If the app also uses Drizzle, generate this file with
 `drizzle-kit generate` instead of hand-writing it — the SQL and the Drizzle
 table definitions must agree, so let one of them own the other.
+
+An existing `chat_runs` table does not get the three subagent columns from
+`CREATE TABLE IF NOT EXISTS`, and the `chat_runs_parent_started` index then
+fails. To add subagent support to an existing database, apply a separate
+migration first:
+
+```sql
+ALTER TABLE chat_runs ADD COLUMN parent_run_id text;
+ALTER TABLE chat_runs ADD COLUMN subagent_run_id text;
+ALTER TABLE chat_runs ADD COLUMN name text;
+CREATE INDEX IF NOT EXISTS chat_runs_parent_started ON chat_runs (parent_run_id, started_at);
+```
+
+A store without subagent support can skip the columns and the index.
 
 ## 6. Wire it into the chat route
 
@@ -298,11 +313,12 @@ once you add the R2-backed set from
 **ai-persistence/build-cloudflare-artifact-store**). `skip` never accepts
 `'locks'`, which is not a store.
 
-If your recipe leaves an optional `runs` method
-(`listByThread`, `listByParentRun`, or `listReclaimable`) unimplemented, declare
-it with `skipMethods`, for example `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own and need no
+entry.
 
 The lock store needs its **own** tests, because nothing in the conformance suite
 touches it. Cover at minimum: two concurrent `withLock` calls on the same key
