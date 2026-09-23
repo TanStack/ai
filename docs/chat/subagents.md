@@ -575,6 +575,8 @@ export const { useAppChat } = createChatHook({
 
 Define these maps outside the component. A new object on each render makes every part in the card render again. An approval for a tool that only a card registers also shows in the root `<Interrupts />` list.
 
-In the AI devtools, the Conversation tab shows each child under a `subagent <name>` row with its status. The child's reasoning, tool calls, tool results, and text follow, labeled `<name> > reasoning`, `<name> > tool call ...`, and so on.
+In the AI devtools, the Conversation tab shows each child as a card with its name and status. The card holds the child's steps, drawn the same way as the parent's steps. A new step starts after each tool result. The User view on the right shows the child's text and tool outputs.
+
+When the server events reach the devtools (the `devtools()` plugin from `@tanstack/devtools-vite`), the child's steps are its real server iterations, with the model, the system prompts, and the token usage. Without the plugin, the steps come from the messages in the browser.
 
 See [Stream Events](./stream-events) for `SUBAGENT_*` and `subagentRunId`.
