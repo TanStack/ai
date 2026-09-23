@@ -31,7 +31,7 @@ import { grokImage } from '@tanstack/ai-grok'
 | `grok-build-0.1` | 256K           | Code-specialized; `reasoning` option is not accepted     |
 
 `GROK_CHAT_MODELS` is exactly these four ids. Image models
-(`GROK_IMAGE_MODELS`): `grok-2-image-1212`, `grok-imagine-image`,
+(`GROK_IMAGE_MODELS`): `grok-imagine-image`,
 `grok-imagine-image-2.0`, `grok-imagine-image-quality`.
 
 ## Provider-Specific modelOptions
