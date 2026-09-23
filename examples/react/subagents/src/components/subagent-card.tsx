@@ -41,9 +41,14 @@ export function Researcher({
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
-      <div className="mt-2">
-        <Parts />
-      </div>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs opacity-70">
+          Research notes
+        </summary>
+        <div className="mt-2">
+          <Parts />
+        </div>
+      </details>
     </section>
   )
 }

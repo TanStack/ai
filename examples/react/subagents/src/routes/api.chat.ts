@@ -20,6 +20,8 @@ export async function POST({ request }: { request: Request }) {
   if (!apiKey) return byokMissing(openrouterByok)
 
   const abortController = new AbortController()
+  // The request can already be aborted. The listener would then never fire.
+  if (request.signal.aborted) abortController.abort()
   request.signal.addEventListener(
     'abort',
     () => {
@@ -34,6 +36,8 @@ export async function POST({ request }: { request: Request }) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
     abortController,
     subagents: {
       agents,
