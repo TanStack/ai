@@ -10,7 +10,7 @@ Choose an example based on your use case:
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
-- **Want a blog desk with two agents?** → [Subagents](#subagents)
+- **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -75,7 +75,7 @@ Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript 
 
 ### Subagents
 
-A slim TanStack Start chat. Two named agents. Jev picks research or a draft. The UI shows a nested card.
+A slim TanStack Start chat. Three named agents: researcher, SEO, and writer. Jev picks the agents for each turn. Research and SEO run together, and the writer runs after them. The UI shows a nested card for each.
 
 **Path:** `examples/react/subagents`
 
@@ -85,7 +85,7 @@ A slim TanStack Start chat. Two named agents. Jev picks research or a draft. The
 pnpm --filter subagents dev
 ```
 
-Open http://localhost:3100. Paste an OpenRouter key. Ask for research or a draft.
+Open http://localhost:3100. Paste an OpenRouter key. Ask for research, SEO titles, or a draft.
 
 📖 [Full Documentation](react/subagents/README.md)
 

@@ -29,6 +29,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
@@ -46,6 +48,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes or SEO text, write only from those messages. Do not add facts that are not in those messages.',
@@ -63,6 +67,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You prepare SEO for a blog post. Reply in Markdown. Give 5 title options, one meta description under 160 characters, and a short tag list. Do not write the full article.',

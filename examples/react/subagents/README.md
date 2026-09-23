@@ -1,6 +1,6 @@
 # Subagents
 
-You want a blog-writing chat. Some turns need research. Some turns need a draft. Jev picks the agent. The UI shows a nested card.
+You want a blog-writing chat. Some turns need research, some need SEO, and some need a draft. Jev picks the agents. Research and SEO run together. The writer runs after them and reads their notes. The UI shows a nested card for each agent.
 
 ## Run it
 
@@ -8,7 +8,7 @@ You want a blog-writing chat. Some turns need research. Some turns need a draft.
 2. Run `pnpm --filter subagents dev`.
 3. Open http://localhost:3100.
 4. Paste an OpenRouter key from https://openrouter.ai/keys.
-5. Send a research prompt or a draft prompt.
+5. Send a prompt, for example `research octopuses and suggest SEO titles`, or `research squids, suggest SEO, and write the article`.
 
 The OpenRouter key stays in this tab only. A reload clears it. Chat and Jev both use that key.
 

@@ -197,6 +197,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You research for a blog desk. Reply in Markdown with short notes and sources. Use a list. Do not write the full post.',
@@ -214,6 +216,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You write blog posts in Markdown. Start with one # title. Use short ## sections and a closing line. When earlier messages contain research notes or SEO text, write only from those messages. Do not add facts that are not in those messages.',
@@ -231,6 +235,8 @@ export function createBlogAgents(apiKey: string) {
         messages: ctx.messages,
         threadId: ctx.threadId,
         runId: ctx.runId,
+        parentRunId: ctx.parentRunId,
+        resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
           'You prepare SEO for a blog post. Reply in Markdown. Give 5 title options, one meta description under 160 characters, and a short tag list. Do not write the full article.',
@@ -362,10 +368,11 @@ import {
 
 The browser abort signal fires when the user clicks Stop. The server must pass that into `chat()`. Each agent links `ctx.abortSignal` to its own `chat({ abortController })`. Stop then cancels the OpenRouter request, and `SUBAGENT_ERROR` can emit.
 
-Add an `AbortController`. Link it to `request.signal`. Pass it to `chat()` and to `toServerSentEventsResponse`.
+Add an `AbortController`. Link it to `request.signal`. If the request is already aborted, abort the controller at once, because the listener then never fires. Pass it to `chat()` and to `toServerSentEventsResponse`.
 
 ```typescript ignore
 const abortController = new AbortController()
+if (request.signal.aborted) abortController.abort()
 request.signal.addEventListener(
   'abort',
   () => {
@@ -402,6 +409,7 @@ export async function POST({ request }: { request: Request }) {
   if (!apiKey) return byokMissing(openrouterByok)
 
   const abortController = new AbortController()
+  if (request.signal.aborted) abortController.abort()
   request.signal.addEventListener(
     'abort',
     () => {
@@ -416,6 +424,8 @@ export async function POST({ request }: { request: Request }) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
     abortController,
     subagents: {
       agents,
@@ -540,7 +550,7 @@ partsComponents: {
 
 Create `src/components/subagent-card.tsx`. Each agent name gets a component. The props type is `SubagentProps`. It gives you `subagent` and `Parts`.
 
-The researcher card shows the notes. The writer card is an article. `<Parts />` renders `subagent.messages`. `stop()` aborts the current parent run.
+The researcher card keeps the notes in a closed `<details>` section. The writer card is an article. `<Parts />` renders `subagent.messages`. `stop()` aborts the current parent run.
 
 ```tsx ignore
 import type { SubagentProps } from '@tanstack/ai-react/ui'
@@ -586,9 +596,14 @@ export function Researcher({
       {subagent.error ? (
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
-      <div className="mt-2">
-        <Parts />
-      </div>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs opacity-70">
+          Research notes
+        </summary>
+        <div className="mt-2">
+          <Parts />
+        </div>
+      </details>
     </section>
   )
 }
@@ -682,7 +697,14 @@ export function ChatInput() {
             disabled={chat.isLoading}
             placeholder="Ask for research, a draft, or SEO titles..."
             onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey) return
+              // Enter also confirms an IME composition. Do not send then.
+            if (
+              event.key !== 'Enter' ||
+              event.shiftKey ||
+              event.nativeEvent.isComposing
+            ) {
+              return
+            }
               event.preventDefault()
               event.currentTarget.form?.requestSubmit()
             }}

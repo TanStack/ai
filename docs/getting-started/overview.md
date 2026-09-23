@@ -22,7 +22,7 @@ Generate an image from a prompt in [Generate Image](../tutorials/generate-image)
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).
 
-Add two named agents to a blog-writing chat in [Subagents](../tutorials/subagents).
+Add three named agents (researcher, SEO, and writer) to a blog-writing chat in [Subagents](../tutorials/subagents).
 
 ## Key Features
 
