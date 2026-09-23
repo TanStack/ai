@@ -81,6 +81,7 @@ interface PreviewPart {
     | 'tool-result'
     | 'structured-output'
     | 'media'
+    | 'subagent'
   fixture?: PreviewToolFixture
 }
 
@@ -115,6 +116,7 @@ interface PreviewPartSource {
   errorMessage?: unknown
   source?: unknown
   metadata?: unknown
+  subagent?: unknown
 }
 
 export const HookDetails: Component = () => {
@@ -1426,8 +1428,8 @@ function partsFromMessageParts(
   parts: Array<MessagePart>,
   messageId: string,
 ): Array<PreviewPart> {
-  return parts.map((part, index) =>
-    previewPartFromRecord(part, index, messageId),
+  return parts.flatMap((part, index) =>
+    previewPartsFromRecord(part, index, messageId),
   )
 }
 
@@ -1435,13 +1437,69 @@ function partsFromUnknown(
   parts: Array<unknown>,
   messageId?: string,
 ): Array<PreviewPart> {
-  return parts
-    .map((part, index) =>
-      isRecord(part)
-        ? previewPartFromRecord(part, index, messageId)
-        : undefined,
-    )
-    .filter(isPreviewPart)
+  return parts.flatMap((part, index) =>
+    isRecord(part) ? previewPartsFromRecord(part, index, messageId) : [],
+  )
+}
+
+/**
+ * One message part as preview rows. A `subagent` part becomes a header row,
+ * then the child's own parts (reasoning, tool calls, results, text), each
+ * labeled with the agent path. Nested children expand the same way.
+ */
+function previewPartsFromRecord(
+  part: PreviewPartSource,
+  index: number,
+  messageId?: string,
+  path?: string,
+): Array<PreviewPart> {
+  if (part.type === 'subagent' && isRecord(part.subagent)) {
+    return subagentPreviewParts(part.subagent, index, path)
+  }
+  const preview = previewPartFromRecord(part, index, messageId)
+  if (!path) return [preview]
+  // A child's tool call ran on that child, so this hook cannot replay it.
+  const { fixture: _fixture, ...childPart } = preview
+  return [
+    {
+      ...childPart,
+      id: `${path}:${messageId ?? index}:${preview.id}`,
+      label: `${path} > ${preview.label}`,
+    },
+  ]
+}
+
+function subagentPreviewParts(
+  subagent: Record<string, unknown>,
+  index: number,
+  parentPath?: string,
+): Array<PreviewPart> {
+  const name = typeof subagent.name === 'string' ? subagent.name : 'subagent'
+  const status =
+    typeof subagent.status === 'string' ? subagent.status : undefined
+  const id = typeof subagent.id === 'string' ? subagent.id : `${index}`
+  const error = isRecord(subagent.error) ? subagent.error.message : undefined
+  const path = parentPath ? `${parentPath} > ${name}` : name
+  const header: PreviewPart = {
+    id: `subagent:${id}`,
+    label: status ? `subagent ${path} - ${status}` : `subagent ${path}`,
+    ...(typeof error === 'string' ? { content: error } : {}),
+    kind: 'subagent',
+  }
+  const messages = Array.isArray(subagent.messages) ? subagent.messages : []
+  return [
+    header,
+    ...messages.flatMap((message, messageIndex) => {
+      if (!isRecord(message) || !Array.isArray(message.parts)) return []
+      const childMessageId =
+        typeof message.id === 'string' ? message.id : `${id}:${messageIndex}`
+      return message.parts.flatMap((child, childIndex) =>
+        isRecord(child)
+          ? previewPartsFromRecord(child, childIndex, childMessageId, path)
+          : [],
+      )
+    }),
+  ]
 }
 
 function previewPartFromRecord(
@@ -1786,10 +1844,6 @@ function formatUnknown(value: unknown): string {
 function isPreviewMessage(
   value: PreviewMessage | undefined,
 ): value is PreviewMessage {
-  return Boolean(value)
-}
-
-function isPreviewPart(value: PreviewPart | undefined): value is PreviewPart {
   return Boolean(value)
 }
 
