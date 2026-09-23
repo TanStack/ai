@@ -89,8 +89,7 @@ export type UseChatOptions<
   TContext = InferredClientContext<TTools>,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
-  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
-    undefined,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -138,8 +137,7 @@ export type UseChatReturn<
   TSchema extends SchemaInput | undefined = undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
-  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
-    undefined,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > = BaseUseChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
@@ -169,8 +167,7 @@ interface BaseUseChatReturn<
   TData = unknown,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     readonly [],
-  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
-    undefined,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,

@@ -35,9 +35,8 @@ export interface DefinedAgent<
   TName extends string = string,
   TTools extends ReadonlyArray<SubagentTool> = ReadonlyArray<SubagentTool>,
   TSchema extends SchemaInput | undefined = SchemaInput | undefined,
-  TInterrupts extends ReadonlyArray<
-    InterruptDefinition<any, any, any, any>
-  > = ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    ReadonlyArray<InterruptDefinition<any, any, any, any>>,
 > {
   name: TName
   description: string

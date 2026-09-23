@@ -57,15 +57,7 @@ export function createChatHook<
   > = readonly [],
   const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
     undefined,
->(
-  options: UseChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts,
-    TSubagents
-  >,
-) {
+>(options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>) {
   function useChat(
     overrides?: ChatHookOverrides<
       TTools,

@@ -593,9 +593,7 @@ type UntypedToolCallPart = {
  * }
  * ```
  */
-export type ToolCallPart<
-  TTools extends ReadonlyArray<{ name: string }> = any,
-> =
+export type ToolCallPart<TTools extends ReadonlyArray<{ name: string }> = any> =
   // Check if we have a concrete tools array (not 'any' or 'never')
   [TTools] extends [never]
     ? UntypedToolCallPart
@@ -717,8 +715,7 @@ export type SubagentPartOf<
 export type MessagePart<
   TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
-  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
-    undefined,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > =
   | TextPart
   | ImagePart
@@ -747,8 +744,7 @@ export type MessagePart<
 export interface UIMessage<
   TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
-  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined =
-    undefined,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   id: string
   role: 'system' | 'user' | 'assistant'

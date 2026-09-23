@@ -43,13 +43,7 @@ export function useChat<
   const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
     undefined,
 >(
-  options: UseChatOptions<
-    TTools,
-    TSchema,
-    TContext,
-    TInterrupts,
-    TSubagents
-  >,
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
 ): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation. `hookId` is only a React recreation key
@@ -102,9 +96,9 @@ export function useChat<
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
-    useRef<
-      UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>
-    >(options)
+    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>>(
+      options,
+    )
   optionsRef.current = options
 
   const syncResumeState = useCallback((target: ChatClient | null) => {
