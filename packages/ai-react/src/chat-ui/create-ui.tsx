@@ -1,4 +1,4 @@
-import { createContext, memo, useContext } from 'react'
+import { createContext, memo, useContext, useMemo } from 'react'
 import type { ComponentProps, ComponentType, Context, ReactNode } from 'react'
 import {
   automaticPartsForMessage,
@@ -81,12 +81,25 @@ export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
 }
 
+/**
+ * Widgets for one subagent card. Each entry replaces the root entry of the
+ * same key for this card and for the children nested in it. A key that is
+ * not set here uses the root entry.
+ */
+export type SubagentPartsProps<TOptions> = {
+  partsComponents?: ChatUIPartsComponents<TOptions>
+  /** Keyed by tool name. A child's tools are not typed on the client. */
+  toolsComponents?: {
+    [name: string]: ComponentType<ToolProps<unknown, string>> | undefined
+  }
+}
+
 export type SubagentProps<
   TOptions,
   TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
 > = {
   subagent: SubagentHandle & { name: TName }
-  Parts: ComponentType
+  Parts: ComponentType<SubagentPartsProps<TOptions>>
   readonly __ui?: TOptions
 }
 
@@ -306,6 +319,18 @@ function isSelectedPart(
   value: MessagePart | ChatUISelectedPart,
 ): value is ChatUISelectedPart {
   return 'key' in value && 'part' in value
+}
+
+/** `base` with each set entry of `overrides`. An unset entry keeps `base`. */
+function withWidgets(
+  base: Record<string, ComponentType<any> | undefined>,
+  overrides: Record<string, ComponentType<any> | undefined> | undefined,
+) {
+  const out = { ...base }
+  for (const [key, component] of Object.entries(overrides ?? {})) {
+    if (component) out[key] = component
+  }
+  return out
 }
 
 function bindMap(
@@ -587,6 +612,14 @@ export function createChatUI<
     /** A `Subagents` row. Its messages come from the live chat state. */
     listed?: true
   } | null>(null)
+  // The widgets that dispatch uses. A subagent card's `Parts` can replace
+  // entries for its subtree. Outside a card these are the factory maps.
+  type WidgetMap = Record<string, ComponentType<any> | undefined>
+  const rootWidgets: { parts: WidgetMap; tools: WidgetMap } = {
+    parts: parts as WidgetMap,
+    tools: tools ?? {},
+  }
+  const WidgetsContext = createContext(rootWidgets)
 
   function Parts() {
     const scope = useContext(MessageRenderContext)
@@ -672,9 +705,10 @@ export function createChatUI<
   }: {
     selected: ChatUISelectedPart
   }) {
+    const widgets = useContext(WidgetsContext)
     if (selected.key === 'toolCall') {
       const name = selected.part.name
-      const Tool = tools?.[name as ChatUIToolName<TOptions>] as
+      const Tool = widgets.tools[name] as
         | ComponentType<ToolProps<TOptions>>
         | undefined
       if (!Tool) {
@@ -712,9 +746,8 @@ export function createChatUI<
       )
     }
 
-    const PartComponent = (parts[selected.key] ?? parts.fallback) as
-      | ComponentType<PartProps<TOptions>>
-      | undefined
+    const PartComponent = (widgets.parts[selected.key] ??
+      widgets.parts.fallback) as ComponentType<PartProps<TOptions>> | undefined
     if (!PartComponent) {
       warn(
         `part:${selected.key}`,
@@ -868,8 +901,30 @@ export function createChatUI<
     )
   }, subagentMessagesEqual)
 
-  function SubagentMessages() {
-    return <SubagentMessagesBody messages={readSubagentMessages()} />
+  function SubagentMessages({
+    partsComponents,
+    toolsComponents,
+  }: SubagentPartsProps<TOptions>) {
+    const messages = readSubagentMessages()
+    const outer = useContext(WidgetsContext)
+    const widgets = useMemo(
+      () =>
+        partsComponents || toolsComponents
+          ? {
+              parts: withWidgets(outer.parts, partsComponents),
+              tools: withWidgets(outer.tools, toolsComponents),
+            }
+          : outer,
+      [outer, partsComponents, toolsComponents],
+    )
+    // ponytail: root `<Interrupts />` still lists an approval for a tool that
+    // only a card registers, so it shows in both places. Pass the card tool
+    // names up to `inlineToolNames` if that matters.
+    return (
+      <WidgetsContext.Provider value={widgets}>
+        <SubagentMessagesBody messages={messages} />
+      </WidgetsContext.Provider>
+    )
   }
 
   const SubagentListItem = memo(function SubagentListItem({
