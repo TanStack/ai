@@ -9,6 +9,7 @@ import type {
   InterruptProps,
   PartProps,
   QueueProps,
+  SubagentPartsProps,
   SubagentProps,
   ToolProps,
 } from '../../src/chat-ui/create-ui'
@@ -335,7 +336,9 @@ it('requires a component for every named subagent', () => {
   expectTypeOf<
     ResearcherProps['subagent']['name']
   >().toEqualTypeOf<'researcher'>()
-  expectTypeOf<ResearcherProps['Parts']>().toEqualTypeOf<ComponentType>()
+  expectTypeOf<ResearcherProps['Parts']>().toEqualTypeOf<
+    ComponentType<SubagentPartsProps<typeof subagentChatOptions>>
+  >()
 
   createChatHook({
     options: subagentChatOptions,
