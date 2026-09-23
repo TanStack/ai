@@ -35,6 +35,17 @@ export interface SubagentTurn {
   children: Array<SubagentTurnChild>
   /** Resume entries that no child owns. They belong to the parent run. */
   rest: Array<RunAgentResumeItem>
+  /** The router plan of the earlier run, from the children's metadata. */
+  plan?: unknown
+}
+
+/** Key of the router plan in `SUBAGENT_STARTED` metadata (`metadata.tanstack`). */
+export const SUBAGENT_PLAN_KEY = 'subagentPlan'
+
+function planOf(metadata: Record<string, unknown> | undefined): unknown {
+  const tanstack = metadata?.tanstack
+  if (typeof tanstack !== 'object' || tanstack === null) return undefined
+  return (tanstack as Record<string, unknown>)[SUBAGENT_PLAN_KEY]
 }
 
 function uiText(messages: ReadonlyArray<UIMessage>) {
@@ -87,10 +98,12 @@ export function readSubagentTurn(
 
   const found: Array<Omit<SubagentTurnChild, 'resume'> & { ids: Set<string> }> =
     []
+  let plan: unknown
   for (const message of turn) {
     if (!('parts' in message)) continue
     for (const part of message.parts) {
       if (part.type !== 'subagent') continue
+      plan ??= planOf(part.subagent.metadata)
       found.push({
         subagentRunId: part.subagent.id,
         name: part.subagent.name,
@@ -105,6 +118,7 @@ export function readSubagentTurn(
     }
   }
   for (const group of splitSubagentWire(turn).groups) {
+    plan ??= planOf(group.info.metadata)
     found.push({
       subagentRunId: group.id,
       name: group.info.name,
@@ -129,5 +143,6 @@ export function readSubagentTurn(
     before,
     children,
     rest: resume.filter((entry) => !owned.has(entry.interruptId)),
+    ...(plan !== undefined && { plan }),
   }
 }

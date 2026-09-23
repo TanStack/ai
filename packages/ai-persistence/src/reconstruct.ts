@@ -276,6 +276,7 @@ async function childCard(
         parentToolCallId: info.parentToolCallId,
       }),
       ...(interruptIds.length > 0 && { interruptIds }),
+      ...(info?.metadata !== undefined && { metadata: info.metadata }),
       messages,
       ...(failed && child.error ? { error: child.error } : {}),
     },

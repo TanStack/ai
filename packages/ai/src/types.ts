@@ -544,6 +544,8 @@ export interface SubagentHandleData {
   parentToolCallId?: string
   /** Interrupts this child raised, while `status` is `'suspended'`. */
   interruptIds?: Array<string>
+  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
+  metadata?: Record<string, unknown>
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
 }

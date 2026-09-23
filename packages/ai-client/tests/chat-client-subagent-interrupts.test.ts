@@ -114,7 +114,7 @@ describe('ChatClient subagent interrupts', () => {
           timestamp: t,
         },
       ],
-    ] as Array<StreamChunk>)
+    ] as Array<Array<StreamChunk>>)
     const cleaner = defineAgent({
       name: 'cleaner',
       description: 'Deletes files',

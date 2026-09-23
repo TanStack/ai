@@ -12,6 +12,7 @@ export interface SubagentWireInfo {
   interruptIds?: Array<string>
   parentSubagentRunId?: string
   parentToolCallId?: string
+  metadata?: Record<string, unknown>
   /** The child has no messages yet. This wire message only holds the card. */
   placeholder?: true
 }
@@ -44,8 +45,13 @@ export function wireSubagentInfo(
   // Wire data comes from the client. Keep only well-formed fields.
   const { name, status, error, interruptIds } = tanstack.subagent
   if (typeof name !== 'string' || !isStatus(status)) return undefined
-  const { description, parentSubagentRunId, parentToolCallId, placeholder } =
-    tanstack.subagent
+  const {
+    description,
+    parentSubagentRunId,
+    parentToolCallId,
+    metadata,
+    placeholder,
+  } = tanstack.subagent
   return {
     name,
     status,
@@ -64,6 +70,7 @@ export function wireSubagentInfo(
     }),
     ...(typeof parentSubagentRunId === 'string' && { parentSubagentRunId }),
     ...(typeof parentToolCallId === 'string' && { parentToolCallId }),
+    ...(isRecord(metadata) && { metadata }),
     ...(placeholder === true && { placeholder: true as const }),
   }
 }

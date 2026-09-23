@@ -183,6 +183,7 @@ type ChildNote = {
   status: SubagentStatus
   interruptIds?: Array<string>
   error?: { message: string; code?: string }
+  metadata?: Record<string, unknown>
 }
 
 export function createSubagentRunRecorder(stores: {
@@ -227,6 +228,7 @@ export function createSubagentRunRecorder(stores: {
         interruptIds: note.interruptIds,
       }),
       ...(note.error !== undefined && { error: note.error }),
+      ...(note.metadata !== undefined && { metadata: note.metadata }),
     }
     const transcript = convertMessagesToModelMessages(
       withoutCards(note.processor.getMessages()),
@@ -301,6 +303,7 @@ export function createSubagentRunRecorder(stores: {
     if (existing) {
       existing.status = 'running'
       delete existing.interruptIds
+      if (chunk.metadata !== undefined) existing.metadata = chunk.metadata
     } else {
       // A resume continues the stored transcript.
       const stored = (await loadMessages(childStoreId(id))).filter(
@@ -316,6 +319,7 @@ export function createSubagentRunRecorder(stores: {
         ...(chunk.parentToolCallId !== undefined && {
           parentToolCallId: chunk.parentToolCallId,
         }),
+        ...(chunk.metadata !== undefined && { metadata: chunk.metadata }),
         processor: new StreamProcessor({
           initialMessages: modelMessagesToUIMessages(stored),
         }),

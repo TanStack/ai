@@ -32,12 +32,7 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
-import {
-  isTanstackUsage,
-  rebuildTokenUsage,
-  toSpecTokenUsage,
-} from '../../utilities/ag-ui-usage'
-import type { SpecTokenUsage } from '../../utilities/ag-ui-usage'
+import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
   tanstackMetadata,
@@ -59,9 +54,17 @@ import {
   normalizeRouterPick,
   rebindInterrupts,
   spawnNamedAgents,
+  subagentCallMessages,
+  withChildUsage,
 } from './agents/spawn'
-import type { SpawnEntry, SubagentSink, SubagentsBag } from './agents/spawn'
-import { readSubagentTurn } from './agents/turn'
+import type {
+  SpawnEntry,
+  SubagentSink,
+  SubagentStep,
+  SubagentStepsPlan,
+  SubagentsBag,
+} from './agents/spawn'
+import { SUBAGENT_PLAN_KEY, readSubagentTurn } from './agents/turn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -5023,8 +5026,12 @@ async function* streamTextChunks(
     // tool call. The parent run validates only its own entries.
     const turn = readSubagentTurn(messages, options.resume)
     const sink = createSubagentSink()
+    const calls = subagentCallMessages(
+      new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
+    )
     const synthetic = createSyntheticSubagentTools(bag, {
       messages: turn?.before ?? messages,
+      messagesFor: calls.messagesFor,
       threadId,
       runId,
       ...(options.parentRunId !== undefined && {
@@ -5036,7 +5043,7 @@ async function* streamTextChunks(
       ...(turn && { turn }),
       sink,
     })
-    yield* withChildUsage(
+    yield* streamWithChildUsage(
       runChatEngine(
         {
           ...options,
@@ -5050,6 +5057,7 @@ async function* streamTextChunks(
             ),
           }),
           tools: [...(options.tools ?? []), ...synthetic],
+          middleware: [...(options.middleware ?? []), calls.middleware],
         },
         engineRef,
       ),
@@ -5060,23 +5068,15 @@ async function* streamTextChunks(
   yield* runChatEngine(options, engineRef)
 }
 
-function specUsage(chunk: StreamChunk): Array<SpecTokenUsage> {
-  if (chunk.type !== EventType.RUN_FINISHED) return []
-  if (Array.isArray(chunk.usage)) return chunk.usage
-  return isTanstackUsage(chunk.usage) ? toSpecTokenUsage(chunk.usage).usage : []
-}
-
-/** Add child token usage to the next RUN_FINISHED of the parent. */
-async function* withChildUsage(
+/** Add child usage to the next RUN_FINISHED of the parent. */
+async function* streamWithChildUsage(
   stream: AsyncIterable<StreamChunk>,
   sink: SubagentSink,
 ): AsyncIterable<StreamChunk> {
   for await (const chunk of stream) {
-    if (chunk.type === EventType.RUN_FINISHED && sink.usage.length > 0) {
-      yield { ...chunk, usage: [...specUsage(chunk), ...sink.usage.splice(0)] }
-      continue
-    }
-    yield chunk
+    yield chunk.type === EventType.RUN_FINISHED
+      ? withChildUsage(chunk, sink)
+      : chunk
   }
 }
 
@@ -5111,14 +5111,19 @@ async function* runRoutedSubagents(
     ...(options.resume && { resume: options.resume }),
   })
   try {
-    // A resume asks the router again with the same messages. Children that
-    // finished keep their result. Suspended children continue.
-    const pick = await bag.router({
-      messages: turnMessages,
-      agents: bag.agents,
-      ...(abortSignal && { abortSignal }),
-    })
-    const plan = normalizeRouterPick(pick, bag.agents)
+    // A resume reuses the plan that the first run put on each child's
+    // SUBAGENT_STARTED metadata. Children that finished keep their result.
+    // Suspended children continue.
+    const plan =
+      savedPlan(turn?.plan, bag.agents) ??
+      normalizeRouterPick(
+        await bag.router({
+          messages: turnMessages,
+          agents: bag.agents,
+          ...(abortSignal && { abortSignal }),
+        }),
+        bag.agents,
+      )
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
       yield* runChatEngine(
@@ -5189,9 +5194,10 @@ async function* runRoutedSubagents(
           },
           sink,
         )) {
-          stepChunks.push(chunk)
-          await subagentPersistence?.chunk({ threadId, runId, chunk })
-          yield chunk
+          const tagged = withPlan(chunk, plan)
+          stepChunks.push(tagged)
+          await subagentPersistence?.chunk({ threadId, runId, chunk: tagged })
+          yield tagged
         }
       }
       if (stepChunks.some((chunk) => chunk.type === EventType.SUBAGENT_ERROR)) {
@@ -5216,19 +5222,20 @@ async function* runRoutedSubagents(
       }
     }
 
-    const usage = sink.usage.length > 0 ? { usage: sink.usage } : {}
     if (abortSignal?.aborted) {
       const error = new Error('Aborted')
       error.name = 'AbortError'
       await subagentPersistence?.abort({ threadId, runId, error })
-      yield {
-        type: EventType.RUN_FINISHED,
-        threadId,
-        runId,
-        outcome: { type: 'cancelled' },
-        ...usage,
-        timestamp: Date.now(),
-      }
+      yield withChildUsage(
+        {
+          type: EventType.RUN_FINISHED,
+          threadId,
+          runId,
+          outcome: { type: 'cancelled' },
+          timestamp: Date.now(),
+        },
+        sink,
+      )
       return
     }
 
@@ -5251,21 +5258,23 @@ async function* runRoutedSubagents(
     if (sink.interrupts.length > 0) {
       const interrupts = rebindInterrupts(sink.interrupts, runId)
       await subagentPersistence?.suspend?.({ threadId, runId, interrupts })
-      yield {
-        type: EventType.RUN_FINISHED,
-        threadId,
-        runId,
-        outcome: { type: 'interrupt', interrupts },
-        ...usage,
-        timestamp: Date.now(),
-      }
+      yield withChildUsage(
+        {
+          type: EventType.RUN_FINISHED,
+          threadId,
+          runId,
+          outcome: { type: 'interrupt', interrupts },
+          timestamp: Date.now(),
+        },
+        sink,
+      )
       return
     }
 
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
       const childText = stepTexts.join('\n\n')
-      yield* withChildUsage(
+      yield* streamWithChildUsage(
         runChatEngine(
           {
             ...options,
@@ -5286,17 +5295,49 @@ async function* runRoutedSubagents(
     }
 
     await subagentPersistence?.finish({ threadId, runId })
-    yield {
-      type: EventType.RUN_FINISHED,
-      threadId,
-      runId,
-      ...usage,
-      timestamp: Date.now(),
-    }
+    yield withChildUsage(
+      {
+        type: EventType.RUN_FINISHED,
+        threadId,
+        runId,
+        timestamp: Date.now(),
+      },
+      sink,
+    )
   } catch (error) {
     await subagentPersistence?.abort({ threadId, runId, error })
     throw error
   }
+}
+
+/** The plan from a resumed turn, or undefined when it is absent or invalid. */
+function savedPlan(
+  plan: unknown,
+  agents: ReadonlyArray<DefinedAgent>,
+): { steps: ReadonlyArray<SubagentStep> } | undefined {
+  if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
+    return undefined
+  }
+  try {
+    // The plan comes back from the client. Check it like a router pick.
+    return normalizeRouterPick(plan as SubagentStepsPlan, agents)
+  } catch {
+    return undefined
+  }
+}
+
+/** Put the router plan on a direct child's SUBAGENT_STARTED metadata. */
+function withPlan(
+  chunk: StreamChunk,
+  plan: { steps: ReadonlyArray<SubagentStep> },
+): StreamChunk {
+  if (
+    chunk.type !== EventType.SUBAGENT_STARTED ||
+    chunk.parentSubagentRunId !== undefined
+  ) {
+    return chunk
+  }
+  return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: plan })
 }
 
 function readRoutedSubagentPersistence(

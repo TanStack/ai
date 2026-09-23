@@ -94,7 +94,7 @@ function cleaner(execute: (input: unknown) => unknown) {
         timestamp: t,
       },
     ],
-  ] as Array<StreamChunk>)
+  ] as Array<Array<StreamChunk>>)
   return defineAgent({
     name: 'cleaner',
     description: 'Deletes files',
@@ -152,6 +152,7 @@ describe('persisted subagent cards', () => {
     const persistence = memoryPersistence()
     const execute = vi.fn().mockReturnValue({ deleted: true })
     const agent = cleaner(execute)
+    const router = vi.fn(() => 'cleaner')
     const run = (input: {
       runId: string
       parentRunId?: string
@@ -168,7 +169,7 @@ describe('persisted subagent cards', () => {
           threadId: 'desk',
           ...input,
           middleware: [withPersistence(persistence)],
-          subagents: { agents: [agent], router: () => 'cleaner' },
+          subagents: { agents: [agent], router },
         }),
       )
 
@@ -211,6 +212,8 @@ describe('persisted subagent cards', () => {
       false,
     )
     expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+    // The reloaded card kept the router plan, so the router ran only once.
+    expect(router).toHaveBeenCalledTimes(1)
 
     const finished = await loadDesk(persistence)
     expect(finished.interrupts).toBeNull()

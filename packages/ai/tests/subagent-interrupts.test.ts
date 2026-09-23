@@ -4,6 +4,7 @@ import { defineAgent } from '../src/activities/chat/agents/define-agent'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 import { fromSpecTokenUsage } from '../src/utilities/ag-ui-usage'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../src/interrupt-resume'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev, serverTool } from './test-utils'
@@ -34,6 +35,7 @@ function cleanerAgent() {
           promptTokens: 3,
           completionTokens: 2,
           totalTokens: 5,
+          cost: 0.25,
         }),
       ],
       [
@@ -91,7 +93,8 @@ describe('subagent interrupts', () => {
   it('suspends a routed child, then resumes the same child', async () => {
     const { agent, execute, contexts } = cleanerAgent()
     const parent = createMockAdapter({ iterations: [] }).adapter
-    const subagents = { agents: [agent], router: () => 'cleaner' }
+    const router = vi.fn(() => 'cleaner')
+    const subagents = { agents: [agent], router }
 
     const first = await collectChunks(
       chat({
@@ -129,15 +132,29 @@ describe('subagent interrupts', () => {
     expect(interrupt?.metadata?.[INTERRUPT_BINDING_METADATA_KEY]).toMatchObject(
       { interruptedRunId: 'run-1' },
     )
-    // Child usage reaches the parent run.
+    // Child usage reaches the parent run, cost included.
     expect(
       fromSpecTokenUsage(
         terminal?.type === EventType.RUN_FINISHED &&
           Array.isArray(terminal.usage)
           ? terminal.usage
           : undefined,
+        terminal ? tanstackMetadata(terminal)?.usage : undefined,
       ),
-    ).toMatchObject({ promptTokens: 3, completionTokens: 2, totalTokens: 5 })
+    ).toMatchObject({
+      promptTokens: 3,
+      completionTokens: 2,
+      totalTokens: 5,
+      cost: 0.25,
+    })
+    // The router plan rides on the child's start event.
+    expect(
+      first.find((chunk) => chunk.type === EventType.SUBAGENT_STARTED),
+    ).toMatchObject({
+      metadata: {
+        tanstack: { subagentPlan: { steps: [{ names: ['cleaner'] }] } },
+      },
+    })
     expect(execute).not.toHaveBeenCalled()
 
     const processor = new StreamProcessor({ initialMessages: [user] })
@@ -187,6 +204,7 @@ describe('subagent interrupts', () => {
       resume: [{ interruptId: 'approval_call_c' }],
     })
     expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+    expect(router).toHaveBeenCalledTimes(1)
     expect(second.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
     expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
 
@@ -208,6 +226,9 @@ describe('subagent interrupts', () => {
       iterations: [
         [
           ev.runStarted('p1'),
+          ev.textStart('parent-note'),
+          ev.textContent('Checking the disk first', 'parent-note'),
+          ev.textEnd('parent-note'),
           ev.toolStart('call_p', 'cleaner'),
           ev.toolArgs('call_p', '{}'),
           ev.runFinished('tool_calls', 'p1'),
@@ -240,6 +261,15 @@ describe('subagent interrupts', () => {
         interrupts: [expect.objectContaining({ id: 'approval_call_c' })],
       },
     })
+    // The child reads the conversation as it is at the call, without the
+    // open tool call that started it.
+    const childMessages = contexts[0]?.messages ?? []
+    expect(childMessages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Checking the disk first',
+    })
+    expect(childMessages.at(-1)).not.toHaveProperty('toolCalls')
+
     // The child's chunks stream before the parent run ends.
     const started = first.findIndex(
       (chunk) => chunk.type === EventType.SUBAGENT_STARTED,

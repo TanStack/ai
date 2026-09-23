@@ -1056,6 +1056,7 @@ export class StreamProcessor {
         subagent.status = 'running'
         delete subagent.interruptIds
         delete subagent.error
+        if (chunk.metadata !== undefined) subagent.metadata = chunk.metadata
       })
       return
     }
@@ -1075,6 +1076,7 @@ export class StreamProcessor {
         ...(chunk.parentToolCallId !== undefined && {
           parentToolCallId: chunk.parentToolCallId,
         }),
+        ...(chunk.metadata !== undefined && { metadata: chunk.metadata }),
         messages: [],
       },
     }

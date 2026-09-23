@@ -459,6 +459,7 @@ function subagentToWire(
     ...(subagent.parentToolCallId !== undefined && {
       parentToolCallId: subagent.parentToolCallId,
     }),
+    ...(subagent.metadata !== undefined && { metadata: subagent.metadata }),
   }
   const child = uiMessagesToWire(subagent.messages, options)
   const own = child.some((message) => wireSubagentRunId(message) === undefined)

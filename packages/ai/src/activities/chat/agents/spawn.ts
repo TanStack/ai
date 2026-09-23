@@ -1,8 +1,14 @@
 import { EventType } from '../../../types'
 import {
+  addTokenUsage,
   isTanstackUsage,
+  rebuildTokenUsage,
   toSpecTokenUsage,
 } from '../../../utilities/ag-ui-usage'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '../../../utilities/merge-metadata'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
 import type { SubagentToolOutcome } from '../tools/tool-calls'
@@ -15,10 +21,12 @@ import type {
   SubagentErrorEvent,
   SubagentFinishedEvent,
   SubagentStartedEvent,
+  TokenUsage,
   Tool,
   UIMessage,
 } from '../../../types'
 import type { DefinedAgent, SubagentRunContext } from './define-agent'
+import type { ChatMiddleware } from '../middleware/types'
 import type { SubagentTurn } from './turn'
 
 export const SUBAGENT_STARTED = EventType.SUBAGENT_STARTED
@@ -72,7 +80,10 @@ export interface SubagentsBag<
 /** What the children of one parent run left behind for the parent terminal. */
 export interface SubagentSink {
   interrupts: Array<Interrupt>
+  /** One AG-UI entry per child model call. */
   usage: Array<SpecTokenUsage>
+  /** Summed full usage of the children, including cost. */
+  total?: TokenUsage
 }
 
 export function createSubagentSink(): SubagentSink {
@@ -331,9 +342,41 @@ function attributeChunk(
 function runUsage(chunk: StreamChunk | undefined): Array<SpecTokenUsage> {
   if (chunk?.type !== EventType.RUN_FINISHED) return []
   if (Array.isArray(chunk.usage)) return chunk.usage
-  // ponytail: a single TokenUsage keeps its token counts; cost and other
-  // TanStack-only fields stay on the child run.
   return isTanstackUsage(chunk.usage) ? toSpecTokenUsage(chunk.usage).usage : []
+}
+
+/** The full usage of a run: token counts plus cost and the other fields. */
+function fullUsage(chunk: StreamChunk | undefined): TokenUsage | undefined {
+  if (chunk?.type !== EventType.RUN_FINISHED) return undefined
+  return rebuildTokenUsage(chunk.usage, tanstackMetadata(chunk)?.usage)
+}
+
+/** Add a finished child run's usage to the sink. */
+export function collectUsage(sink: SubagentSink, finished?: StreamChunk) {
+  sink.usage.push(...runUsage(finished))
+  const full = fullUsage(finished)
+  if (full) sink.total = sink.total ? addTokenUsage(sink.total, full) : full
+}
+
+/**
+ * Put the children's usage on a parent `RUN_FINISHED`. `usage[]` keeps one
+ * entry per model call. `metadata.tanstack.usage` holds the summed cost and
+ * the other TanStack fields, so `fromSpecTokenUsage` reads the full total.
+ * Empties the sink, so the next parent terminal does not count it again.
+ */
+export function withChildUsage(
+  chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
+  sink: SubagentSink,
+): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
+  if (sink.usage.length === 0 && !sink.total) return chunk
+  const own = fullUsage(chunk)
+  const total =
+    own && sink.total ? addTokenUsage(own, sink.total) : (own ?? sink.total)
+  const usage = [...runUsage(chunk), ...sink.usage.splice(0)]
+  sink.total = undefined
+  const leftover = total ? toSpecTokenUsage(total).leftover : undefined
+  const next = { ...chunk, usage }
+  return leftover ? withTanstackMetadata(next, { usage: leftover }) : next
 }
 
 export async function* spawnAgentStream(
@@ -409,7 +452,7 @@ export async function* spawnAgentStream(
       yield stoppedEvent(id)
       return
     }
-    sink?.usage.push(...runUsage(finished))
+    if (sink) collectUsage(sink, finished)
     if (outcome?.type === 'interrupt') {
       const interrupts = outcome.interrupts.map((interrupt) =>
         interrupt.subagentRunId
@@ -590,12 +633,61 @@ export function collectNamedText(
     .join('\n\n')
 }
 
+/**
+ * The parent conversation at the tool call that starts a child, without that
+ * open tool call. Kept text on the calling message stays.
+ */
+function messagesBeforeCall(
+  messages: ReadonlyArray<ModelMessage>,
+  toolCallId: string,
+): Array<ModelMessage> {
+  const index = messages.findIndex((message) =>
+    message.toolCalls?.some((call) => call.id === toolCallId),
+  )
+  if (index === -1) return [...messages]
+  const host = messages[index]
+  const kept = messages.slice(0, index)
+  if (host && typeof host.content === 'string' && host.content !== '') {
+    const { toolCalls: _calls, ...text } = host
+    void _calls
+    kept.push(text)
+  }
+  return kept
+}
+
+/**
+ * Record the parent messages when the model calls a subagent tool, so the
+ * child reads the conversation as it is at that call.
+ */
+export function subagentCallMessages(names: ReadonlySet<string>) {
+  const byCall = new Map<string, Array<ModelMessage>>()
+  const middleware: ChatMiddleware = {
+    name: 'subagent-call-messages',
+    onBeforeToolCall(ctx, hook) {
+      if (!names.has(hook.toolName)) return undefined
+      byCall.set(
+        hook.toolCallId,
+        messagesBeforeCall(ctx.messages, hook.toolCallId),
+      )
+      return undefined
+    },
+  }
+  return {
+    middleware,
+    messagesFor: (toolCallId: string | undefined) =>
+      toolCallId === undefined ? undefined : byCall.get(toolCallId),
+  }
+}
+
 export function createSyntheticSubagentTools(
   bag: SubagentsBag,
   parent: {
-    // ponytail: the child reads the messages the parent run started with,
-    // not the parent's later tool turns.
+    /** Messages the parent run started with. Used when no call was recorded. */
     messages: SubagentRunContext['messages']
+    /** The parent messages at a tool call. See subagentCallMessages. */
+    messagesFor?: (
+      toolCallId: string | undefined,
+    ) => SubagentRunContext['messages'] | undefined
     threadId: string
     runId: string
     interruptedRunId?: string
@@ -643,7 +735,7 @@ export function createSyntheticSubagentTools(
           entry,
           bag,
           {
-            messages: parent.messages,
+            messages: parent.messagesFor?.(toolCallId) ?? parent.messages,
             abortSignal: link.controller.signal,
             threadId: parent.threadId,
             parentRunId: parent.runId,
@@ -676,6 +768,11 @@ export function createSyntheticSubagentTools(
         link.dispose()
       }
       parent.sink.usage.push(...sink.usage)
+      if (sink.total) {
+        parent.sink.total = parent.sink.total
+          ? addTokenUsage(parent.sink.total, sink.total)
+          : sink.total
+      }
       return {
         subagentRunId,
         text,
